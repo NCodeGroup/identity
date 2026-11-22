@@ -41,9 +41,8 @@ internal sealed partial record SetupPage(string Html)
             return Html;
         }
 
-        var href = HtmlEncoder.Default.Encode(
-            $"{pathBase.ToUriComponent()}{SetupDefaults.PathPrefix}/"
-        );
+        var pathBaseComponent = pathBase.ToUriComponent();
+        var href = HtmlEncoder.Default.Encode($"{pathBaseComponent}{SetupDefaults.PathPrefix}/");
         return Html.Insert(head.Index + head.Length, $"<base href=\"{href}\" />");
     }
 

@@ -46,7 +46,8 @@ internal static class SettingsFingerprint
                 value = list.Order(StringComparer.Ordinal).ToArray();
             }
 
-            var json = JsonSerializer.SerializeToUtf8Bytes(value, value.GetType(), jsonOptions);
+            var valueType = value.GetType();
+            var json = JsonSerializer.SerializeToUtf8Bytes(value, valueType, jsonOptions);
             AppendLengthPrefixed(hash, json);
         }
 

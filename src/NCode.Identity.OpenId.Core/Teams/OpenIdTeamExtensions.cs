@@ -21,11 +21,13 @@ internal static class OpenIdTeamExtensions
         public ImmutableArray<TeamRevision> GetRevisionLineage()
         {
             var builder = ImmutableArray.CreateBuilder<TeamRevision>();
-            builder.Add(new TeamRevision(team.TeamId, team.ConcurrencyToken));
+            var teamRevision = new TeamRevision(team.TeamId, team.ConcurrencyToken);
+            builder.Add(teamRevision);
 
             for (var parent = team.Parent; parent is not null; parent = parent.Parent)
             {
-                builder.Add(new TeamRevision(parent.TeamId, parent.ConcurrencyToken));
+                var parentRevision = new TeamRevision(parent.TeamId, parent.ConcurrencyToken);
+                builder.Add(parentRevision);
             }
 
             return builder.ToImmutable();

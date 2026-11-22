@@ -97,25 +97,23 @@ internal sealed class TransportCertificateProbe
             using var client = new TcpClient();
             await client.ConnectAsync(host, port, token);
 
+            var clientStream = client.GetStream();
             await using var ssl = new SslStream(
-                client.GetStream(),
+                clientStream,
                 leaveInnerStreamOpen: false,
                 (_, certificate, _, _) =>
                 {
-                    if (certificate is not null)
+                    if (certificate is not null && served is null)
                     {
-                        served ??= X509CertificateLoader.LoadCertificate(
-                            certificate.GetRawCertData()
-                        );
+                        var rawCertificate = certificate.GetRawCertData();
+                        served = X509CertificateLoader.LoadCertificate(rawCertificate);
                     }
 
                     return true;
                 }
             );
-            await ssl.AuthenticateAsClientAsync(
-                new SslClientAuthenticationOptions { TargetHost = host },
-                token
-            );
+            var authenticationOptions = new SslClientAuthenticationOptions { TargetHost = host };
+            await ssl.AuthenticateAsClientAsync(authenticationOptions, token);
 
             return served is null
                 ? TransportCertificateProbeResult.Failure(
@@ -133,11 +131,19 @@ internal sealed class TransportCertificateProbe
             )
         {
             served?.Dispose();
-            return TransportCertificateProbeResult.Failure(
-                exception is OperationCanceledException
-                    ? $"{host}: no response within {HandshakeTimeout.TotalSeconds:0} seconds"
-                    : $"{host}: {exception.GetType().Name}: {exception.Message}"
-            );
+            string failureReason;
+            if (exception is OperationCanceledException)
+            {
+                failureReason =
+                    $"{host}: no response within {HandshakeTimeout.TotalSeconds:0} seconds";
+            }
+            else
+            {
+                var exceptionType = exception.GetType();
+                failureReason = $"{host}: {exceptionType.Name}: {exception.Message}";
+            }
+
+            return TransportCertificateProbeResult.Failure(failureReason);
         }
     }
 }

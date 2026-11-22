@@ -31,8 +31,11 @@ internal readonly struct KeyBindingOutcome
     /// <param name="failureCode">The code of the rule the Key Binding JWT failed.</param>
     /// <param name="failureReason">Why the Key Binding JWT is refused.</param>
     /// <returns>The outcome.</returns>
-    public static KeyBindingOutcome Fail(string failureCode, string failureReason) =>
-        new(keyBinding: null, SdJwtVerificationResult.Fail(failureCode, failureReason));
+    public static KeyBindingOutcome Fail(string failureCode, string failureReason)
+    {
+        var failure = SdJwtVerificationResult.Fail(failureCode, failureReason);
+        return new KeyBindingOutcome(keyBinding: null, failure);
+    }
 
     /// <summary>
     /// Gets a value indicating whether the Key Binding JWT verified.

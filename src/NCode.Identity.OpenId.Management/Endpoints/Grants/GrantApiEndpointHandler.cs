@@ -152,26 +152,25 @@ internal class GrantApiEndpointHandler(
         // A grant list is scoped to the addressed tenant (the query filter enforces it); authorize for that tenant.
         var effectiveLimit = NormalizeLimit(limit);
 
+        var tenantScope = TenantScopeResource.For(tenantId);
         return await ProcessListAsync(
             httpContext,
-            TenantScopeResource.For(tenantId),
+            tenantScope,
             async () =>
             {
                 await using var storeManager = await StoreManagerFactory.CreateAsync(
                     cancellationToken
                 );
                 var store = storeManager.GetStore<IGrantStore>();
-                return await store.GetPageAsync(
-                    new GrantFilter
-                    {
-                        SubjectId = subjectId,
-                        ClientId = clientId,
-                        SessionId = sessionId,
-                        GrantType = grantType,
-                    },
-                    new PageRequest { Cursor = cursor, Limit = effectiveLimit },
-                    cancellationToken
-                );
+                var grantFilter = new GrantFilter
+                {
+                    SubjectId = subjectId,
+                    ClientId = clientId,
+                    SessionId = sessionId,
+                    GrantType = grantType,
+                };
+                var pageRequest = new PageRequest { Cursor = cursor, Limit = effectiveLimit };
+                return await store.GetPageAsync(grantFilter, pageRequest, cancellationToken);
             },
             ToGrantResource,
             cancellationToken
@@ -214,9 +213,10 @@ internal class GrantApiEndpointHandler(
             );
         }
 
+        var tenantScope = TenantScopeResource.For(tenantId);
         var authorizationResult = await AuthorizationService.AuthorizeAsync(
             httpContext.User,
-            TenantScopeResource.For(tenantId),
+            tenantScope,
             Operations.Delete
         );
 
@@ -226,10 +226,12 @@ internal class GrantApiEndpointHandler(
         }
 
         // A revocation retries a lost race instead of answering 412. See ADR-1222.
+        var openIdContext = httpContext.GetOpenIdContext();
+        var utcNow = TimeProvider.GetUtcNow();
         var revoked = await PersistedGrantService.RevokeWhereAsync(
-            httpContext.GetOpenIdContext(),
+            openIdContext,
             filter,
-            TimeProvider.GetUtcNow(),
+            utcNow,
             cancellationToken
         );
 
@@ -242,7 +244,8 @@ internal class GrantApiEndpointHandler(
             revoked
         );
 
-        return TypedResults.Json(new GrantRevocationResult { Revoked = revoked });
+        var revocationResult = new GrantRevocationResult { Revoked = revoked };
+        return TypedResults.Json(revocationResult);
     }
 
     /// <summary>
@@ -278,9 +281,10 @@ internal class GrantApiEndpointHandler(
 
         var lifetime = TimeSpan.FromSeconds(lifetimeSeconds);
 
+        var tenantScope = TenantScopeResource.For(tenantId);
         var authorizationResult = await AuthorizationService.AuthorizeAsync(
             httpContext.User,
-            TenantScopeResource.For(tenantId),
+            tenantScope,
             Operations.Create
         );
 
@@ -321,30 +325,29 @@ internal class GrantApiEndpointHandler(
             },
         };
 
+        var persistedGrantId = PersistedGrantService.CreateGrantId(
+            tenantId,
+            OpenIdConstants.PersistedGrantTypes.InitialAccessToken,
+            token
+        );
         var grantId = await PersistedGrantService.AddAsync(
             openIdContext,
-            PersistedGrantService.CreateGrantId(
-                tenantId,
-                OpenIdConstants.PersistedGrantTypes.InitialAccessToken,
-                token
-            ),
+            persistedGrantId,
             grant,
             createdWhen,
             lifetime,
             cancellationToken
         );
 
-        await ManagementAuditRecorder.RecordResourceChangeAsync(
-            httpContext,
-            new InitialAccessTokenCreatedAuditEvent
-            {
-                EventSource = AuditEventSources.Management,
-                TenantId = tenantId,
-                ResourceId = grantId,
-                ChangeType = ResourceChangeTypes.Created,
-                Outcome = AuditOutcome.Success,
-            }
-        );
+        var auditEvent = new InitialAccessTokenCreatedAuditEvent
+        {
+            EventSource = AuditEventSources.Management,
+            TenantId = tenantId,
+            ResourceId = grantId,
+            ChangeType = ResourceChangeTypes.Created,
+            Outcome = AuditOutcome.Success,
+        };
+        await ManagementAuditRecorder.RecordResourceChangeAsync(httpContext, auditEvent);
 
         var response = new CreatedInitialAccessTokenResource
         {
@@ -372,9 +375,14 @@ internal class GrantApiEndpointHandler(
         CancellationToken cancellationToken
     )
     {
+        var resourceServerNode = ResourceNode.For(
+            tenantId,
+            ResourceNodeTypes.ResourceServer,
+            resourceServerId
+        );
         var authorizationResult = await AuthorizationService.AuthorizeAsync(
             httpContext.User,
-            ResourceNode.For(tenantId, ResourceNodeTypes.ResourceServer, resourceServerId),
+            resourceServerNode,
             Operations.Update
         );
         if (!authorizationResult.Succeeded)
@@ -427,9 +435,10 @@ internal class GrantApiEndpointHandler(
     {
         // Grants carry an optional tenant, so authorization is evaluated against the addressed tenant scope (the
         // query filter guarantees a returned grant belongs to that tenant) rather than the grant instance.
+        var tenantScope = TenantScopeResource.For(tenantId);
         var authorizationResult = await AuthorizationService.AuthorizeAsync(
             httpContext.User,
-            TenantScopeResource.For(tenantId),
+            tenantScope,
             Operations.Read
         );
 
@@ -447,7 +456,8 @@ internal class GrantApiEndpointHandler(
             return ManagementProblems.ResourceNotFound();
         }
 
-        return TypedResults.Json(ToGrantResource(grant));
+        var grantResource = ToGrantResource(grant);
+        return TypedResults.Json(grantResource);
     }
 
     /// <summary>
@@ -467,9 +477,10 @@ internal class GrantApiEndpointHandler(
         CancellationToken cancellationToken
     )
     {
+        var tenantScope = TenantScopeResource.For(tenantId);
         var authorizationResult = await AuthorizationService.AuthorizeAsync(
             httpContext.User,
-            TenantScopeResource.For(tenantId),
+            tenantScope,
             Operations.Delete
         );
 
@@ -491,10 +502,13 @@ internal class GrantApiEndpointHandler(
         // instead of answering 412. See ADR-1222.
         if (grant.RevokedWhen is null)
         {
+            var openIdContext = httpContext.GetOpenIdContext();
+            var revokeFilter = new GrantFilter { GrantId = grant.GrantId };
+            var utcNow = TimeProvider.GetUtcNow();
             var revoked = await PersistedGrantService.RevokeWhereAsync(
-                httpContext.GetOpenIdContext(),
-                new GrantFilter { GrantId = grant.GrantId },
-                TimeProvider.GetUtcNow(),
+                openIdContext,
+                revokeFilter,
+                utcNow,
                 cancellationToken
             );
 

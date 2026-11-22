@@ -12,7 +12,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
 {
     [DbContext(typeof(OpenIdDbContext))]
-    [Migration("20261119054648_InitialCreate")]
+    [Migration("20261122051000_InitialCreate")]
     partial class InitialCreate
     {
         /// <inheritdoc />
@@ -20,7 +20,7 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "10.0.14")
+                .HasAnnotation("ProductVersion", "10.0.15")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -926,6 +926,10 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                         .IsUnique()
                         .HasDatabaseName("IX_MasterKeys_OwnerType_NormalizedOwnerId_Active")
                         .HasFilter("\"RetiredWhen\" IS NULL");
+
+                    b.HasIndex("RootKeyProvider", "RootKeyReference")
+                        .HasDatabaseName("IX_MasterKeys_RootKeyProvider_RootKeyReference")
+                        .HasFilter("\"RootKeyReference\" IS NOT NULL");
 
                     b.HasIndex("OwnerType", "NormalizedOwnerId", "Version")
                         .IsUnique();

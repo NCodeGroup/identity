@@ -71,18 +71,17 @@ internal sealed class AzureKeyVaultRemoteKeyDescriptors(
                 foreach (var keySizeBits in RsaKeySizesBits)
                 {
                     var algorithm = $"{prefix}{hashSizeBits}";
-                    rows.Add(
-                        new RemoteSigningAlgorithm
-                        {
-                            Provider = RemoteKeyProviderNames.AzureKeyVault,
-                            Algorithm = algorithm,
-                            SecretType = SecretKeyTypes.Rsa,
-                            KeySizeBits = keySizeBits,
-                            KeySpec = "RSA",
-                            SigningAlgorithm = algorithm,
-                            DigestAlgorithm = digest,
-                        }
-                    );
+                    var rsaSigningRow = new RemoteSigningAlgorithm
+                    {
+                        Provider = RemoteKeyProviderNames.AzureKeyVault,
+                        Algorithm = algorithm,
+                        SecretType = SecretKeyTypes.Rsa,
+                        KeySizeBits = keySizeBits,
+                        KeySpec = "RSA",
+                        SigningAlgorithm = algorithm,
+                        DigestAlgorithm = digest,
+                    };
+                    rows.Add(rsaSigningRow);
                 }
             }
         }
@@ -90,36 +89,34 @@ internal sealed class AzureKeyVaultRemoteKeyDescriptors(
         foreach (var (hashSizeBits, digest, curve) in Hashes)
         {
             var algorithm = $"ES{hashSizeBits}";
-            rows.Add(
-                new RemoteSigningAlgorithm
-                {
-                    Provider = RemoteKeyProviderNames.AzureKeyVault,
-                    Algorithm = algorithm,
-                    SecretType = SecretKeyTypes.Ecc,
-                    KeySizeBits = curve.CurveSizeBits,
-                    Curve = curve.CurveName,
-                    KeySpec = "EC",
-                    SigningAlgorithm = algorithm,
-                    DigestAlgorithm = digest,
-                }
-            );
+            var eccSigningRow = new RemoteSigningAlgorithm
+            {
+                Provider = RemoteKeyProviderNames.AzureKeyVault,
+                Algorithm = algorithm,
+                SecretType = SecretKeyTypes.Ecc,
+                KeySizeBits = curve.CurveSizeBits,
+                Curve = curve.CurveName,
+                KeySpec = "EC",
+                SigningAlgorithm = algorithm,
+                DigestAlgorithm = digest,
+            };
+            rows.Add(eccSigningRow);
         }
 
         foreach (var algorithm in DecryptionAlgorithms)
         {
             foreach (var keySizeBits in RsaKeySizesBits)
             {
-                rows.Add(
-                    new RemoteDecryptionAlgorithm
-                    {
-                        Provider = RemoteKeyProviderNames.AzureKeyVault,
-                        Algorithm = algorithm,
-                        SecretType = SecretKeyTypes.Rsa,
-                        KeySizeBits = keySizeBits,
-                        KeySpec = "RSA",
-                        EncryptionAlgorithm = algorithm,
-                    }
-                );
+                var decryptionRow = new RemoteDecryptionAlgorithm
+                {
+                    Provider = RemoteKeyProviderNames.AzureKeyVault,
+                    Algorithm = algorithm,
+                    SecretType = SecretKeyTypes.Rsa,
+                    KeySizeBits = keySizeBits,
+                    KeySpec = "RSA",
+                    EncryptionAlgorithm = algorithm,
+                };
+                rows.Add(decryptionRow);
             }
         }
 

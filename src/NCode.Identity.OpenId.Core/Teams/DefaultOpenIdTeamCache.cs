@@ -67,18 +67,18 @@ internal class DefaultOpenIdTeamCache(
             )
         )
         {
-            CachedRevisions.TryRemove(
-                new KeyValuePair<string, (object Entry, ImmutableArray<TeamRevision> Lineage)>(
-                    teamId,
-                    cached
-                )
-            );
+            var cachedRevision = new KeyValuePair<
+                string,
+                (object Entry, ImmutableArray<TeamRevision> Lineage)
+            >(teamId, cached);
+            CachedRevisions.TryRemove(cachedRevision);
 
             foreach (var ancestor in cached.Item2.Skip(1))
             {
                 if (TeamIdsByAncestor.TryGetValue(ancestor.TeamId, out var teamIds))
                 {
-                    teamIds.TryRemove(new KeyValuePair<string, object>(teamId, cached.Item1));
+                    var indexEntry = new KeyValuePair<string, object>(teamId, cached.Item1);
+                    teamIds.TryRemove(indexEntry);
                 }
             }
         }
@@ -170,14 +170,16 @@ internal class DefaultOpenIdTeamCache(
     )
     {
         // The eviction callback releases the cache's reference; a lease already handed out keeps the team alive.
-        MemoryCache.Remove(GetCacheKey(teamId));
+        var teamKey = GetCacheKey(teamId);
+        MemoryCache.Remove(teamKey);
 
         // A team is materialized over its parent, so every cached team beneath this one is evicted too.
         if (TeamIdsByAncestor.TryGetValue(teamId, out var descendantIds))
         {
             foreach (var descendantId in descendantIds.Keys)
             {
-                MemoryCache.Remove(GetCacheKey(descendantId));
+                var descendantKey = GetCacheKey(descendantId);
+                MemoryCache.Remove(descendantKey);
             }
         }
 

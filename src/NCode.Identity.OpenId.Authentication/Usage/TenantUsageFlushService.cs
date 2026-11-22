@@ -177,20 +177,16 @@ internal sealed class TenantUsageFlushService(
 
         foreach (var chunk in chunks)
         {
-            var batch = new TenantUsageBatch(
-                ++LastBatchNumber,
-                [
-                    .. chunk.Select(pair => new PersistedTenantUsage
-                    {
-                        TenantId = pair.Key.TenantId,
-                        TeamPath = pair.Key.TeamPath,
-                        Day = pair.Key.Day,
-                        Meter = pair.Key.Meter,
-                        Cell = CellOptions.Name,
-                        Count = pair.Value,
-                    }),
-                ]
-            );
+            var usages = chunk.Select(pair => new PersistedTenantUsage
+            {
+                TenantId = pair.Key.TenantId,
+                TeamPath = pair.Key.TeamPath,
+                Day = pair.Key.Day,
+                Meter = pair.Key.Meter,
+                Cell = CellOptions.Name,
+                Count = pair.Value,
+            });
+            var batch = new TenantUsageBatch(++LastBatchNumber, [.. usages]);
 
             PendingBatches.Enqueue(batch);
             Interlocked.Add(ref _heldEntryCount, batch.Usage.Length);

@@ -75,9 +75,11 @@ public static class DefaultRegistration
                 DefaultAzureKeyVaultClientFactory
             >();
 
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<IKeyWrapper, AzureKeyVaultKeyWrapper>()
-            );
+            var keyWrapperDescriptor = ServiceDescriptor.Singleton<
+                IKeyWrapper,
+                AzureKeyVaultKeyWrapper
+            >();
+            serviceCollection.TryAddEnumerable(keyWrapperDescriptor);
 
             return builder;
         }

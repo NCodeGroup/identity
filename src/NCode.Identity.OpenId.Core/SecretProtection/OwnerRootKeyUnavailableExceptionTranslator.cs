@@ -41,10 +41,11 @@ internal sealed class OwnerRootKeyUnavailableExceptionTranslator(
         }
 
         // Retry-After counts whole seconds, so round up and never tell the caller to retry at once.
-        var seconds = Math.Max(
-            1L,
-            (long)Math.Ceiling(Options.Value.OwnerRootKeys.RetryInterval.TotalSeconds)
+        var retryIntervalSeconds = Math.Ceiling(
+            Options.Value.OwnerRootKeys.RetryInterval.TotalSeconds
         );
+        var seconds = Math.Max(1L, (long)retryIntervalSeconds);
+        var retryAfter = seconds.ToString(CultureInfo.InvariantCulture);
 
         error = openIdEnvironment
             .CreateError(OpenIdProtocol.ErrorCodes.TemporarilyUnavailable)
@@ -52,10 +53,7 @@ internal sealed class OwnerRootKeyUnavailableExceptionTranslator(
                 "The tenant's root key is unavailable, so its encryption keys cannot be used until it is restored."
             )
             .WithStatusCode(StatusCodes.Status503ServiceUnavailable)
-            .WithResponseHeader(
-                HeaderNames.RetryAfter,
-                seconds.ToString(CultureInfo.InvariantCulture)
-            )
+            .WithResponseHeader(HeaderNames.RetryAfter, retryAfter)
             .WithResponseHeader(HeaderNames.CacheControl, "no-store")
             .WithException(exception);
         return true;

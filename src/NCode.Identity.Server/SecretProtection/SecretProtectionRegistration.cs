@@ -97,12 +97,11 @@ internal static class SecretProtectionRegistration
             })
             .ValidateOnStart();
 
-        serviceCollection.TryAddEnumerable(
-            ServiceDescriptor.Singleton<
-                IValidateOptions<SecretProtectionOptions>,
-                SecretProtectionOptionsValidator
-            >()
-        );
+        var optionsValidator = ServiceDescriptor.Singleton<
+            IValidateOptions<SecretProtectionOptions>,
+            SecretProtectionOptionsValidator
+        >();
+        serviceCollection.TryAddEnumerable(optionsValidator);
 
         serviceCollection
             .AddOptions<LocalKeyWrapperOptions>()
@@ -117,20 +116,22 @@ internal static class SecretProtectionRegistration
         serviceCollection.TryAddSingleton<PlatformSecretProtectorHolder>();
         serviceCollection.TryAddSingleton<DataProtectionKeyRingReader>();
         serviceCollection.TryAddSingleton<PlatformSecretProtectorLoader>();
-        serviceCollection.TryAddEnumerable(
-            ServiceDescriptor.Singleton<IProtectedValueSource, DataProtectionKeyRingValueSource>()
-        );
-        serviceCollection.TryAddEnumerable(
-            ServiceDescriptor.Singleton<
-                IReplicaBroadcastHandler,
-                PlatformMasterKeyChangeBroadcastHandler
-            >()
-        );
+        var keyRingValueSource = ServiceDescriptor.Singleton<
+            IProtectedValueSource,
+            DataProtectionKeyRingValueSource
+        >();
+        serviceCollection.TryAddEnumerable(keyRingValueSource);
+        var broadcastHandler = ServiceDescriptor.Singleton<
+            IReplicaBroadcastHandler,
+            PlatformMasterKeyChangeBroadcastHandler
+        >();
+        serviceCollection.TryAddEnumerable(broadcastHandler);
         serviceCollection.TryAddSingleton(TimeProvider.System);
 
         // The warmup and the key ring gate read the mode; a host that composes this without AddIdentityServer()
         // still resolves one, and the host's AddLocalDevelopmentOptions call replaces it.
-        serviceCollection.TryAddSingleton(new LocalDevelopmentMode(false));
+        var localDevelopmentMode = new LocalDevelopmentMode(false);
+        serviceCollection.TryAddSingleton(localDevelopmentMode);
 
         // The gate resolves IKeyManager, which Data Protection registers.
         serviceCollection.AddDataProtection();
@@ -147,10 +148,11 @@ internal static class SecretProtectionRegistration
             )
         )
         {
-            serviceCollection.Insert(
-                0,
-                ServiceDescriptor.Singleton<IHostedService, PlatformSecretProtectorWarmup>()
-            );
+            var warmup = ServiceDescriptor.Singleton<
+                IHostedService,
+                PlatformSecretProtectorWarmup
+            >();
+            serviceCollection.Insert(0, warmup);
         }
 
         if (
@@ -160,10 +162,11 @@ internal static class SecretProtectionRegistration
             )
         )
         {
-            serviceCollection.Insert(
-                1,
-                ServiceDescriptor.Singleton<IHostedService, DataProtectionKeyRingGate>()
-            );
+            var keyRingGate = ServiceDescriptor.Singleton<
+                IHostedService,
+                DataProtectionKeyRingGate
+            >();
+            serviceCollection.Insert(1, keyRingGate);
         }
 
         // The refresh follows the gate, so it never runs before the platform's protector is loaded and checked.
@@ -195,10 +198,13 @@ internal static class SecretProtectionRegistration
         if (unknownPaths.Count == 0)
             return;
 
+        var unknownPathsText = string.Join(", ", unknownPaths);
+        var orderedChildren = SecretProtectionChildren.Order(StringComparer.Ordinal);
+        var childrenText = string.Join(", ", orderedChildren);
         throw new InvalidOperationException(
             $"The configuration section '{section.Path}' contains unrecognized key(s): "
-                + $"{string.Join(", ", unknownPaths)}. Its recognized keys are "
-                + $"{string.Join(", ", SecretProtectionChildren.Order(StringComparer.Ordinal))}."
+                + $"{unknownPathsText}. Its recognized keys are "
+                + $"{childrenText}."
         );
     }
 }

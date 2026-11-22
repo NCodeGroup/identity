@@ -36,19 +36,17 @@ internal static class TokenGrantSubjectValidation
         var mediator = openIdContext.Mediator;
         var operationDisposition = new OperationDisposition<IOpenIdError>();
 
-        await mediator.SendAsync(
-            new ValidateSubjectAuthenticationCommand(
-                openIdContext,
-                openIdClient,
-                openIdRequest,
-                subjectAuthentication,
-                operationDisposition,
-                // A token grant validates the subject against a later clock than its authentication, so the
-                // authentication age, which the authorization request enforced, is not checked again.
-                EnforceAuthenticationAge: false
-            ),
-            cancellationToken
+        var validateCommand = new ValidateSubjectAuthenticationCommand(
+            openIdContext,
+            openIdClient,
+            openIdRequest,
+            subjectAuthentication,
+            operationDisposition,
+            // A token grant validates the subject against a later clock than its authentication, so the
+            // authentication age, which the authorization request enforced, is not checked again.
+            EnforceAuthenticationAge: false
         );
+        await mediator.SendAsync(validateCommand, cancellationToken);
 
         if (operationDisposition.HasError)
         {

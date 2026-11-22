@@ -92,8 +92,9 @@ internal class ValkeyExpiringCounterSet(
             async cancellationToken =>
             {
                 var database = await Connection.GetDatabaseAsync(cancellationToken);
+                var redisKey = GetKey(key);
                 var result = await database
-                    .ScriptEvaluateAsync(IncrementScript, [GetKey(key)], [milliseconds])
+                    .ScriptEvaluateAsync(IncrementScript, [redisKey], [milliseconds])
                     .WaitAsync(cancellationToken);
 
                 return (long)result;
@@ -148,7 +149,10 @@ internal class ValkeyExpiringCounterSet(
 
         var counts = new List<ExpiringCounterCount>(results.Length / 2);
         for (var i = 0; i + 1 < results.Length; i += 2)
-            counts.Add(new ExpiringCounterCount(results[i], results[i + 1]));
+        {
+            var count = new ExpiringCounterCount(results[i], results[i + 1]);
+            counts.Add(count);
+        }
 
         return counts;
     }
@@ -163,7 +167,8 @@ internal class ValkeyExpiringCounterSet(
             async cancellationToken =>
             {
                 var database = await Connection.GetDatabaseAsync(cancellationToken);
-                var value = await database.StringGetAsync(GetKey(key)).WaitAsync(cancellationToken);
+                var redisKey = GetKey(key);
+                var value = await database.StringGetAsync(redisKey).WaitAsync(cancellationToken);
 
                 return value.IsNull ? 0L : (long)value;
             },
@@ -181,7 +186,8 @@ internal class ValkeyExpiringCounterSet(
             async cancellationToken =>
             {
                 var database = await Connection.GetDatabaseAsync(cancellationToken);
-                await database.KeyDeleteAsync(GetKey(key)).WaitAsync(cancellationToken);
+                var redisKey = GetKey(key);
+                await database.KeyDeleteAsync(redisKey).WaitAsync(cancellationToken);
             },
             cancellationToken
         );

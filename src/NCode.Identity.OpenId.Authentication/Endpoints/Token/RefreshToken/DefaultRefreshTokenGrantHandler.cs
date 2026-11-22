@@ -168,15 +168,13 @@ internal class DefaultRefreshTokenGrantHandler(
             effectiveBinding = proofOfPossessionBinding;
         }
 
-        await mediator.SendAsync(
-            new ValidateTokenGrantCommand<RefreshTokenGrant>(
-                openIdContext,
-                openIdClient,
-                tokenRequest,
-                refreshTokenGrant
-            ),
-            cancellationToken
+        var validateCommand = new ValidateTokenGrantCommand<RefreshTokenGrant>(
+            openIdContext,
+            openIdClient,
+            tokenRequest,
+            refreshTokenGrant
         );
+        await mediator.SendAsync(validateCommand, cancellationToken);
 
         var securityTokenRequest = new CreateSecurityTokenRequest
         {

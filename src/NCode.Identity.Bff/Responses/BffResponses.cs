@@ -35,14 +35,13 @@ internal static class BffResponses
         response.StatusCode = status;
 
         var problem = new BffProblem(type, title, status);
-        return new ValueTask(
-            response.WriteAsJsonAsync(
-                problem,
-                BffJsonContext.Default.BffProblem,
-                ProblemContentType,
-                cancellationToken
-            )
+        var writeTask = response.WriteAsJsonAsync(
+            problem,
+            BffJsonContext.Default.BffProblem,
+            ProblemContentType,
+            cancellationToken
         );
+        return new ValueTask(writeTask);
     }
 
     /// <summary>

@@ -28,11 +28,13 @@ public static class AlgorithmCollectionExtensions
             + ".";
     }
 
-    private static string FormatCurves(AlgorithmKeyType algorithmKeyType) =>
-        string.Join(
-            ", ",
-            algorithmKeyType.Curves.Select(legal => $"'{legal.Name}' ({legal.KeySizeBits} bits)")
+    private static string FormatCurves(AlgorithmKeyType algorithmKeyType)
+    {
+        var descriptions = algorithmKeyType.Curves.Select(legal =>
+            $"'{legal.Name}' ({legal.KeySizeBits} bits)"
         );
+        return string.Join(", ", descriptions);
+    }
 
     /// <param name="collection">The <see cref="IAlgorithmCollection"/> of registered algorithms.</param>
     extension(IAlgorithmCollection collection)
@@ -105,7 +107,8 @@ public static class AlgorithmCollectionExtensions
                 return error;
             }
 
-            if (!keyedAlgorithm.TryGetKeyType(key.GetType(), out var algorithmKeyType))
+            var keyClrType = key.GetType();
+            if (!keyedAlgorithm.TryGetKeyType(keyClrType, out var algorithmKeyType))
             {
                 return $"The algorithm '{algorithm}' is not compatible with the key's type.";
             }
@@ -269,10 +272,11 @@ public static class AlgorithmCollectionExtensions
 
                     if (curves.Count > 1)
                     {
+                        var curveNames = curves.Select(legal => $"'{legal.Name}'");
                         error =
                             $"The key size '{size}' bits does not select a curve for algorithm '{algorithm}', which "
                             + "accepts "
-                            + string.Join(", ", curves.Select(legal => $"'{legal.Name}'"))
+                            + string.Join(", ", curveNames)
                             + " at that size; name the curve.";
                         return false;
                     }

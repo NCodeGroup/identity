@@ -27,26 +27,33 @@ internal class DefaultBffAuditRecorder(
         HttpContext httpContext,
         string subject,
         CancellationToken cancellationToken
-    ) =>
-        PublishAsync(
+    )
+    {
+        var actor = AuditActor.EndUser(subject);
+
+        return PublishAsync(
             BffAuditEventNames.LoginSucceeded,
             AuditEventCategories.Authentication,
             AuditOutcome.Success,
-            AuditActor.EndUser(subject),
+            actor,
             httpContext,
             subject,
             null,
             null,
             cancellationToken
         );
+    }
 
     /// <inheritdoc />
     public ValueTask LoginFailedAsync(
         HttpContext httpContext,
         string reason,
         CancellationToken cancellationToken
-    ) =>
-        PublishAsync(
+    )
+    {
+        var error = new AuditError(reason);
+
+        return PublishAsync(
             BffAuditEventNames.LoginFailed,
             AuditEventCategories.Authentication,
             AuditOutcome.Failure,
@@ -54,9 +61,10 @@ internal class DefaultBffAuditRecorder(
             httpContext,
             null,
             null,
-            new AuditError(reason),
+            error,
             cancellationToken
         );
+    }
 
     /// <inheritdoc />
     public ValueTask SessionEndedAsync(
@@ -89,18 +97,23 @@ internal class DefaultBffAuditRecorder(
         string subject,
         string reason,
         CancellationToken cancellationToken
-    ) =>
-        PublishAsync(
+    )
+    {
+        var actor = AuditActor.EndUser(subject);
+        var error = new AuditError(reason);
+
+        return PublishAsync(
             BffAuditEventNames.TokenRefreshFailed,
             AuditEventCategories.Token,
             AuditOutcome.Failure,
-            AuditActor.EndUser(subject),
+            actor,
             httpContext,
             subject,
             null,
-            new AuditError(reason),
+            error,
             cancellationToken
         );
+    }
 
     /// <inheritdoc />
     public ValueTask BackchannelLogoutReceivedAsync(
@@ -124,8 +137,11 @@ internal class DefaultBffAuditRecorder(
         HttpContext httpContext,
         string reason,
         CancellationToken cancellationToken
-    ) =>
-        PublishAsync(
+    )
+    {
+        var error = new AuditError(reason);
+
+        return PublishAsync(
             BffAuditEventNames.BackchannelLogoutRejected,
             AuditEventCategories.Session,
             AuditOutcome.Failure,
@@ -133,17 +149,21 @@ internal class DefaultBffAuditRecorder(
             httpContext,
             null,
             null,
-            new AuditError(reason),
+            error,
             cancellationToken
         );
+    }
 
     /// <inheritdoc />
     public ValueTask AntiforgeryRejectedAsync(
         HttpContext httpContext,
         string reason,
         CancellationToken cancellationToken
-    ) =>
-        PublishAsync(
+    )
+    {
+        var error = new AuditError(reason);
+
+        return PublishAsync(
             BffAuditEventNames.AntiforgeryRejected,
             AuditEventCategories.Protocol,
             AuditOutcome.Denied,
@@ -151,9 +171,10 @@ internal class DefaultBffAuditRecorder(
             httpContext,
             null,
             null,
-            new AuditError(reason),
+            error,
             cancellationToken
         );
+    }
 
     private ValueTask PublishAsync(
         string name,

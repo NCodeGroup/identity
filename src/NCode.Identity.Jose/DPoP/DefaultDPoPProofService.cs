@@ -89,20 +89,19 @@ internal class DefaultDPoPProofService(
             payload[JoseClaimNames.Payload.Nonce] = options.Nonce;
 
         // The proof carries its public key in the 'jwk' header instead of a 'kid' (RFC 9449 §4.2).
+        var jwkElement = exportedPublicKey.Jwk.AsElement();
         var signature = new JoseSignatureOptions(signingCredentials)
         {
             TokenType = JoseTokenTypes.DPoPJwt,
             AddKeyIdHeader = false,
             ProtectedHeaders =
             [
-                new KeyValuePair<string, object>(
-                    JoseClaimNames.Header.Jwk,
-                    exportedPublicKey.Jwk.AsElement()
-                ),
+                new KeyValuePair<string, object>(JoseClaimNames.Header.Jwk, jwkElement),
             ],
         };
 
-        var encoder = JoseSerializer.CreateEncoder(new JoseSigningOptions(signature));
+        var signingOptions = new JoseSigningOptions(signature);
+        var encoder = JoseSerializer.CreateEncoder(signingOptions);
         return await encoder.EncodeAsync(payload, cancellationToken);
     }
 
@@ -184,7 +183,8 @@ internal class DefaultDPoPProofService(
         if (!TryImportPublicKey(header, out var jwk, out var secretKey, out error))
             return false;
 
-        if (!signatureAlgorithm.TryGetKeyType(secretKey.GetType(), out _))
+        var secretKeyType = secretKey.GetType();
+        if (!signatureAlgorithm.TryGetKeyType(secretKeyType, out _))
         {
             error = $"The DPoP proof 'alg' header '{alg}' does not match the 'jwk' key type.";
             return false;
@@ -293,20 +293,22 @@ internal class DefaultDPoPProofService(
         try
         {
             byte[] keyMaterial = [];
+            var importParameters = new SecretKeyImportParameters
+            {
+                Format = SecretKeyImportFormats.Jwk,
+                KeyMaterial = jwkElement.GetRawText(),
+            };
             var imported = descriptor.ImportPublicKeyMaterial(
-                new SecretKeyImportParameters
-                {
-                    Format = SecretKeyImportFormats.Jwk,
-                    KeyMaterial = jwkElement.GetRawText(),
-                },
+                importParameters,
                 bytes =>
                 {
                     keyMaterial = bytes.ToArray();
                     return string.Empty;
                 }
             );
+            var keyMetadata = new KeyMetadata();
             secretKey = descriptor.DeserializeKeyMaterial(
-                new KeyMetadata(),
+                keyMetadata,
                 imported.SecretEncoding,
                 keyMaterial
             );
@@ -399,21 +401,23 @@ internal class DefaultDPoPProofService(
 
         // ath, when the proof accompanies an access token at a protected resource, MUST equal the base64url SHA-256
         // hash of that access token (RFC 9449 §4.3, §7.1).
-        if (
-            !string.IsNullOrEmpty(parameters.AccessToken)
-            && (
-                !Ascii.IsValid(parameters.AccessToken)
-                || !payload.TryGetPropertyValue<string>(JoseClaimNames.Payload.Ath, out var ath)
-                || !string.Equals(
-                    ath,
-                    ComputeAccessTokenHash(parameters.AccessToken),
-                    StringComparison.Ordinal
-                )
-            )
-        )
+        if (!string.IsNullOrEmpty(parameters.AccessToken))
         {
-            error = "The DPoP proof 'ath' claim does not match the access token.";
-            return false;
+            var isAthValid = false;
+            if (
+                Ascii.IsValid(parameters.AccessToken)
+                && payload.TryGetPropertyValue<string>(JoseClaimNames.Payload.Ath, out var ath)
+            )
+            {
+                var accessTokenHash = ComputeAccessTokenHash(parameters.AccessToken);
+                isAthValid = string.Equals(ath, accessTokenHash, StringComparison.Ordinal);
+            }
+
+            if (!isAthValid)
+            {
+                error = "The DPoP proof 'ath' claim does not match the access token.";
+                return false;
+            }
         }
 
         // jti MUST be present so the caller can track the proof for replay (RFC 9449 §4.3, §11.1).
@@ -462,8 +466,12 @@ internal class DefaultDPoPProofService(
         return Base64Url.EncodeToString(bytes);
     }
 
-    private static string ComputeAccessTokenHash(string accessToken) =>
-        Base64Url.EncodeToString(SHA256.HashData(SecureEncoding.ASCII.GetBytes(accessToken)));
+    private static string ComputeAccessTokenHash(string accessToken)
+    {
+        var accessTokenBytes = SecureEncoding.ASCII.GetBytes(accessToken);
+        var hash = SHA256.HashData(accessTokenBytes);
+        return Base64Url.EncodeToString(hash);
+    }
 
     // Scheme, authority, and path, ignoring query and fragment (RFC 9449 §4.2, §4.3).
     private static bool TryGetRequestUri(string? value, [NotNullWhen(true)] out string? requestUri)

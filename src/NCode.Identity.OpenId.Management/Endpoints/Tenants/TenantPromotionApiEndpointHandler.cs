@@ -119,9 +119,11 @@ internal class TenantPromotionApiEndpointHandler(
             tenantId,
             request,
             (teamId, context, _) =>
-                ValueTask.FromResult<IResult>(
-                    TypedResults.Ok(ToReport(teamId, context, isApplied: false))
-                ),
+            {
+                var report = ToReport(teamId, context, isApplied: false);
+                var result = TypedResults.Ok(report);
+                return ValueTask.FromResult<IResult>(result);
+            },
             cancellationToken
         );
     }
@@ -168,10 +170,11 @@ internal class TenantPromotionApiEndpointHandler(
     {
         if (context.Errors.Count > 0)
         {
+            var extensions = new Dictionary<string, object?> { ["errors"] = context.Errors };
             return TypedResults.Problem(
                 detail: "The promotion cannot be applied; preview it to see why.",
                 statusCode: StatusCodes.Status409Conflict,
-                extensions: new Dictionary<string, object?> { ["errors"] = context.Errors }
+                extensions: extensions
             );
         }
 
@@ -179,12 +182,13 @@ internal class TenantPromotionApiEndpointHandler(
 
         var report = ToReport(teamId, context, isApplied: true);
 
+        var resourceValues = ToResourceValues(report);
         await ManagementAuditRecorder.RecordTenantChangedAsync(
             httpContext,
             teamId,
             context.TargetTenant.TenantId,
             ResourceChangeTypes.Promoted,
-            ToResourceValues(report)
+            resourceValues
         );
 
         await NotifyTenantChangedAsync(
@@ -220,9 +224,10 @@ internal class TenantPromotionApiEndpointHandler(
             );
         }
 
+        var targetNode = GetTenantNode(tenantId);
         var targetFailure = await GetAuthorizationFailureAsync(
             httpContext,
-            GetTenantNode(tenantId),
+            targetNode,
             Operations.Create,
             cancellationToken
         );
@@ -233,13 +238,8 @@ internal class TenantPromotionApiEndpointHandler(
 
         // The control-plane tenant holds the platform's machine clients and the cells' clients, which the directory and
         // the control plane trust by identifier, so no configuration is promoted into it. See ADR-1425 and ADR-1466.
-        if (
-            string.Equals(
-                tenantId,
-                httpContext.GetOpenIdContext().Tenant.TenantId,
-                StringComparison.OrdinalIgnoreCase
-            )
-        )
+        var controlPlaneTenantId = httpContext.GetOpenIdContext().Tenant.TenantId;
+        if (string.Equals(tenantId, controlPlaneTenantId, StringComparison.OrdinalIgnoreCase))
         {
             return TypedResults.Problem(
                 detail: "The control-plane tenant is not a promotion target.",
@@ -252,9 +252,10 @@ internal class TenantPromotionApiEndpointHandler(
             return null;
         }
 
+        var sourceNode = GetTenantNode(request.SourceTenantId ?? string.Empty);
         return await GetAuthorizationFailureAsync(
             httpContext,
-            GetTenantNode(request.SourceTenantId ?? string.Empty),
+            sourceNode,
             Operations.Read,
             cancellationToken
         );

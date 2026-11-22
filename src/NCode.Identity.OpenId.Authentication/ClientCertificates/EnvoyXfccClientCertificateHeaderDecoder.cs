@@ -178,7 +178,9 @@ internal sealed class EnvoyXfccClientCertificateHeaderDecoder : IClientCertifica
         if (!inValue)
             return false;
 
-        pairs.Add(new KeyValuePair<string, string>(trimmedKey, value.ToString().Trim()));
+        var trimmedValue = value.ToString().Trim();
+        var pair = new KeyValuePair<string, string>(trimmedKey, trimmedValue);
+        pairs.Add(pair);
         return true;
     }
 }

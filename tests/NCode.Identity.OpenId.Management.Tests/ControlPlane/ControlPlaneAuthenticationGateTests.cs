@@ -3,18 +3,17 @@
 
 using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.DependencyInjection;
+using Microsoft.AspNetCore.Http.HttpResults;
 using NCode.Identity.AspNetCore;
 using NCode.Identity.Jose;
 using NCode.Identity.OpenId.Authentication.Tokens.Commands;
 using NCode.Identity.OpenId.Contexts;
 using NCode.Identity.OpenId.GlobalDirectory;
-using NCode.Identity.OpenId.Persistence.Tenants;
 using NCode.Mediator;
 
 namespace NCode.Identity.OpenId.Management.ControlPlane;
 
-public sealed class ControlPlaneAuthenticationEndpointFilterTests : IDisposable
+public sealed class ControlPlaneAuthenticationGateTests : IDisposable
 {
     private MockRepository MockRepository { get; } = new(MockBehavior.Strict);
 
@@ -26,26 +25,19 @@ public sealed class ControlPlaneAuthenticationEndpointFilterTests : IDisposable
 
     private Mock<OpenIdContext> MockContext { get; }
 
-    private StubAmbientTenantAccessor Accessor { get; } = new();
-
     private DefaultHttpContext HttpContext { get; }
 
-    private ControlPlaneAuthenticationEndpointFilter Filter { get; }
+    private ControlPlaneAuthenticationGate Gate { get; }
 
-    public ControlPlaneAuthenticationEndpointFilterTests()
+    public ControlPlaneAuthenticationGateTests()
     {
         MockContextFactory = MockRepository.Create<IOpenIdContextFactory>();
         MockMediator = MockRepository.Create<IMediator>();
         MockContext = MockRepository.Create<OpenIdContext>();
 
-        HttpContext = new DefaultHttpContext
-        {
-            RequestServices = new ServiceCollection()
-                .AddSingleton(MockMediator.Object)
-                .BuildServiceProvider(),
-        };
+        HttpContext = new DefaultHttpContext();
 
-        Filter = new ControlPlaneAuthenticationEndpointFilter(MockContextFactory.Object, Accessor);
+        Gate = new ControlPlaneAuthenticationGate(MockContextFactory.Object, MockMediator.Object);
     }
 
     private void SetupMaterialization(bool publishContext = true) =>
@@ -108,25 +100,11 @@ public sealed class ControlPlaneAuthenticationEndpointFilterTests : IDisposable
         );
     }
 
-    private static EndpointFilterDelegate Unreachable =>
-        _ => throw new InvalidOperationException("The route must not run.");
-
-    private static int StatusCodeOf(object? result) =>
+    private static int StatusCodeOf(IResult? result) =>
         Assert.IsAssignableFrom<IStatusCodeHttpResult>(result).StatusCode
         ?? throw new InvalidOperationException("The result has no status code.");
 
     #region InvokeAsync Tests
-
-    [Fact]
-    public async Task InvokeAsync_WhenBindingFailed_ReturnsEmptyWithoutMaterializingTheContext()
-    {
-        HttpContext.Response.StatusCode = StatusCodes.Status400BadRequest;
-        var context = EndpointFilterInvocationContext.Create(HttpContext);
-
-        var result = await Filter.InvokeAsync(context, Unreachable);
-
-        Assert.Same(TypedResults.Empty, result);
-    }
 
     [Fact]
     public async Task InvokeAsync_WhenTheContextCannotBeMaterialized_ReturnsItsResult()
@@ -142,9 +120,8 @@ public sealed class ControlPlaneAuthenticationEndpointFilterTests : IDisposable
             )
             .ThrowsAsync(refusal.AsException("x"))
             .Verifiable();
-        var context = EndpointFilterInvocationContext.Create(HttpContext);
 
-        var result = await Filter.InvokeAsync(context, Unreachable);
+        var result = await Gate.InvokeAsync(HttpContext, CancellationToken.None);
 
         Assert.Same(refusal, result);
     }
@@ -154,31 +131,31 @@ public sealed class ControlPlaneAuthenticationEndpointFilterTests : IDisposable
     {
         SetupMaterialization(publishContext: false);
         HttpContext.Request.Headers.Authorization = "Bearer access-token";
-        var context = EndpointFilterInvocationContext.Create(HttpContext);
 
-        var result = await Filter.InvokeAsync(context, Unreachable);
+        var result = await Gate.InvokeAsync(HttpContext, CancellationToken.None);
 
         Assert.Equal(StatusCodes.Status401Unauthorized, StatusCodeOf(result));
-        Assert.Equal("Bearer", HttpContext.Response.Headers.WWWAuthenticate.ToString());
+        string[] expectedChallenges = ["Bearer error=\"invalid_token\"", "DPoP"];
+        Assert.Equal(expectedChallenges, HttpContext.Response.Headers.WWWAuthenticate.ToArray());
     }
 
     [Theory]
-    [InlineData(null)]
-    [InlineData("Basic access-token")]
-    [InlineData("Bearer  ")]
+    [InlineData(null, new[] { "Bearer", "DPoP" })]
+    [InlineData("Basic access-token", new[] { "Bearer", "DPoP" })]
+    [InlineData("Bearer  ", new[] { "Bearer error=\"invalid_token\"", "DPoP" })]
     public async Task InvokeAsync_WithoutABearerToken_Answers401WithAChallenge(
-        string? authorization
+        string? authorization,
+        string[] expectedChallenges
     )
     {
         SetupMaterialization();
         if (authorization is not null)
             HttpContext.Request.Headers.Authorization = authorization;
-        var context = EndpointFilterInvocationContext.Create(HttpContext);
 
-        var result = await Filter.InvokeAsync(context, Unreachable);
+        var result = await Gate.InvokeAsync(HttpContext, CancellationToken.None);
 
         Assert.Equal(StatusCodes.Status401Unauthorized, StatusCodeOf(result));
-        Assert.Equal("Bearer", HttpContext.Response.Headers.WWWAuthenticate.ToString());
+        Assert.Equal(expectedChallenges, HttpContext.Response.Headers.WWWAuthenticate.ToArray());
     }
 
     [Fact]
@@ -187,12 +164,14 @@ public sealed class ControlPlaneAuthenticationEndpointFilterTests : IDisposable
         SetupMaterialization();
         SetupAuthentication(default);
         HttpContext.Request.Headers.Authorization = "Bearer access-token";
-        var context = EndpointFilterInvocationContext.Create(HttpContext);
 
-        var result = await Filter.InvokeAsync(context, Unreachable);
+        var result = await Gate.InvokeAsync(HttpContext, CancellationToken.None);
 
-        Assert.Equal(StatusCodes.Status401Unauthorized, StatusCodeOf(result));
-        Assert.Equal("Bearer", HttpContext.Response.Headers.WWWAuthenticate.ToString());
+        var problem = Assert.IsType<ProblemHttpResult>(result);
+        Assert.Equal(StatusCodes.Status401Unauthorized, problem.StatusCode);
+        Assert.Equal("Authentication is required.", problem.ProblemDetails.Detail);
+        string[] expectedChallenges = ["Bearer error=\"invalid_token\"", "DPoP"];
+        Assert.Equal(expectedChallenges, HttpContext.Response.Headers.WWWAuthenticate.ToArray());
     }
 
     [Fact]
@@ -206,9 +185,8 @@ public sealed class ControlPlaneAuthenticationEndpointFilterTests : IDisposable
             )
         );
         HttpContext.Request.Headers.Authorization = "Bearer access-token";
-        var context = EndpointFilterInvocationContext.Create(HttpContext);
 
-        var result = await Filter.InvokeAsync(context, Unreachable);
+        var result = await Gate.InvokeAsync(HttpContext, CancellationToken.None);
 
         Assert.Equal(StatusCodes.Status403Forbidden, StatusCodeOf(result));
     }
@@ -224,9 +202,8 @@ public sealed class ControlPlaneAuthenticationEndpointFilterTests : IDisposable
             Authenticated(scope: GlobalDirectoryProtocol.ControlPlaneScope, clientId: clientId)
         );
         HttpContext.Request.Headers.Authorization = "Bearer access-token";
-        var context = EndpointFilterInvocationContext.Create(HttpContext);
 
-        var result = await Filter.InvokeAsync(context, Unreachable);
+        var result = await Gate.InvokeAsync(HttpContext, CancellationToken.None);
 
         Assert.Equal(StatusCodes.Status403Forbidden, StatusCodeOf(result));
     }
@@ -234,7 +211,7 @@ public sealed class ControlPlaneAuthenticationEndpointFilterTests : IDisposable
     [Theory]
     [InlineData("Bearer access-token", GlobalDirectoryProtocol.ControlPlaneScope)]
     [InlineData("DPoP access-token", "openid " + GlobalDirectoryProtocol.ControlPlaneScope)]
-    public async Task InvokeAsync_WhenTheCellAuthenticatesWithTheScope_RunsTheRouteInAnUnscopedScope(
+    public async Task InvokeAsync_WhenTheCellAuthenticatesWithTheScope_ReturnsNull(
         string authorization,
         string scope
     )
@@ -244,56 +221,11 @@ public sealed class ControlPlaneAuthenticationEndpointFilterTests : IDisposable
             Authenticated(scope, clientId: GlobalDirectoryProtocol.CellClientIdPrefix + "eu1")
         );
         HttpContext.Request.Headers.Authorization = authorization;
-        var context = EndpointFilterInvocationContext.Create(HttpContext);
-        var expected = TypedResults.NoContent();
-        bool? isUnscoped = null;
-        string? reason = null;
-        EndpointFilterDelegate next = _ =>
-        {
-            isUnscoped = Accessor.IsUnscoped;
-            reason = Accessor.UnscopedReason;
-            return ValueTask.FromResult<object?>(expected);
-        };
 
-        var result = await Filter.InvokeAsync(context, next);
+        var result = await Gate.InvokeAsync(HttpContext, CancellationToken.None);
 
-        Assert.Same(expected, result);
-        Assert.True(isUnscoped);
-        Assert.Equal("control-plane authority", reason);
-        Assert.False(Accessor.IsUnscoped);
+        Assert.Null(result);
     }
 
     #endregion
-
-    private sealed class StubAmbientTenantAccessor : IAmbientTenantAccessor
-    {
-        private Stack<(string? TenantId, string? Reason)> States { get; } = new();
-
-        public bool IsScoped => TenantId is not null;
-
-        public string? TenantId => States.TryPeek(out var state) ? state.TenantId : null;
-
-        public bool IsUnscoped => States.TryPeek(out var state) && state.Reason is not null;
-
-        public string? UnscopedReason => States.TryPeek(out var state) ? state.Reason : null;
-
-        public IDisposable BeginScope(string tenantId)
-        {
-            States.Push((tenantId, null));
-            return new Scope(States);
-        }
-
-        public IDisposable BeginUnscoped(string reason)
-        {
-            ArgumentException.ThrowIfNullOrWhiteSpace(reason);
-
-            States.Push((null, reason));
-            return new Scope(States);
-        }
-
-        private sealed class Scope(Stack<(string? TenantId, string? Reason)> states) : IDisposable
-        {
-            public void Dispose() => states.Pop();
-        }
-    }
 }

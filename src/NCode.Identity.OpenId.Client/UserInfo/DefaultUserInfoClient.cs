@@ -33,6 +33,9 @@ internal class DefaultUserInfoClient(
     /// </summary>
     internal const string AuthenticationType = "UserInfo";
 
+    private const string IssuerMismatch =
+        "The UserInfo response names another issuer than the provider.";
+
     private IProviderMetadataResolver MetadataResolver { get; } = metadataResolver;
     private ClientRequestSender Sender { get; } = sender;
     private ProviderHttpClient ProviderHttpClient { get; } = providerHttpClient;
@@ -65,11 +68,11 @@ internal class DefaultUserInfoClient(
         var profile = ProviderJwtProfile.ForUserInfo(registration, metadata);
         var signed = profile.SigningAlgorithms is { Count: > 0 };
 
-        var target = Sender.ResolveTarget(
-            registration,
-            metadata,
-            new ProviderEndpoint(OpenIdProtocol.MetadataNames.UserInfoEndpoint, userInfoEndpoint)
+        var userInfoProviderEndpoint = new ProviderEndpoint(
+            OpenIdProtocol.MetadataNames.UserInfoEndpoint,
+            userInfoEndpoint
         );
+        var target = Sender.ResolveTarget(registration, metadata, userInfoProviderEndpoint);
 
         DPoPProofKey? dpopKey = null;
         if (!string.IsNullOrEmpty(request.DPoPJwkThumbprint))
@@ -126,11 +129,10 @@ internal class DefaultUserInfoClient(
     )
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, target.Uri);
-        request.Headers.Accept.Add(
-            new MediaTypeWithQualityHeaderValue(
-                signed ? OpenIdProtocol.MediaTypes.Jwt : OpenIdProtocol.MediaTypes.Json
-            )
+        var acceptHeader = new MediaTypeWithQualityHeaderValue(
+            signed ? OpenIdProtocol.MediaTypes.Jwt : OpenIdProtocol.MediaTypes.Json
         );
+        request.Headers.Accept.Add(acceptHeader);
 
         if (dpopKey is null)
         {
@@ -145,15 +147,13 @@ internal class DefaultUserInfoClient(
                 OpenIdProtocol.TokenTypes.DPoP,
                 accessToken
             );
-            request.Headers.TryAddWithoutValidation(
-                OpenIdProtocol.DPoP.HeaderName,
-                await dpopKey.CreateProofAsync(
-                    HttpMethod.Get,
-                    target.Uri,
-                    accessToken,
-                    cancellationToken
-                )
+            var dpopProof = await dpopKey.CreateProofAsync(
+                HttpMethod.Get,
+                target.Uri,
+                accessToken,
+                cancellationToken
             );
+            request.Headers.TryAddWithoutValidation(OpenIdProtocol.DPoP.HeaderName, dpopProof);
         }
 
         return await ProviderHttpClient.SendAsync(
@@ -248,24 +248,23 @@ internal class DefaultUserInfoClient(
             );
 
         // OpenID Connect Core 1.0 §5.3.2: a response about another subject must not be used.
-        if (!string.Equals(sub.GetString(), request.ExpectedSubject, StringComparison.Ordinal))
+        var actualSubject = sub.GetString();
+        if (!string.Equals(actualSubject, request.ExpectedSubject, StringComparison.Ordinal))
             return new UserInfoResult(
                 UserInfoFailureCodes.SubjectMismatch,
                 "The UserInfo response is about another subject than the ID token."
             );
 
         // A provider must not label UserInfo claims with another issuer, which the claims identity would adopt.
-        if (
-            claimSet.TryGetProperty(JoseClaimNames.Payload.Iss, out var iss)
-            && (
-                iss.ValueKind != JsonValueKind.String
-                || !string.Equals(iss.GetString(), metadata.Issuer, StringComparison.Ordinal)
-            )
-        )
-            return new UserInfoResult(
-                UserInfoFailureCodes.InvalidIssuer,
-                "The UserInfo response names another issuer than the provider."
-            );
+        if (claimSet.TryGetProperty(JoseClaimNames.Payload.Iss, out var iss))
+        {
+            if (iss.ValueKind != JsonValueKind.String)
+                return new UserInfoResult(UserInfoFailureCodes.InvalidIssuer, IssuerMismatch);
+
+            var issValue = iss.GetString();
+            if (!string.Equals(issValue, metadata.Issuer, StringComparison.Ordinal))
+                return new UserInfoResult(UserInfoFailureCodes.InvalidIssuer, IssuerMismatch);
+        }
 
         var identity = ClaimsIdentityFactory.CreateClaimsIdentity(
             claimSet,

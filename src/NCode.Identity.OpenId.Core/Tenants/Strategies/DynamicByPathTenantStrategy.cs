@@ -26,8 +26,19 @@ internal class DynamicByPathTenantStrategy(
 
     private TemplateBinder? TenantRouteBinderOrNull { get; set; }
 
-    private TemplateBinder TenantRouteBinder =>
-        TenantRouteBinderOrNull ??= templateBinderFactory.Create(GetTenantRoute());
+    private TemplateBinder TenantRouteBinder
+    {
+        get
+        {
+            if (TenantRouteBinderOrNull is null)
+            {
+                var tenantRoute = GetTenantRoute();
+                TenantRouteBinderOrNull = templateBinderFactory.Create(tenantRoute);
+            }
+
+            return TenantRouteBinderOrNull;
+        }
+    }
 
     /// <inheritdoc />
     public override string StrategyCode => OpenIdConstants.TenantStrategyCodes.DynamicByPath;

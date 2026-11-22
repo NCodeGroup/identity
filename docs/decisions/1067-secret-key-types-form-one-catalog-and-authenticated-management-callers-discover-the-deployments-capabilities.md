@@ -51,8 +51,8 @@ reads it.**
 5. **Authentication is the whole requirement.** The handler answers when `IManagementCallerFeature` is present. It
    asks for no role, because tenant administrators and team administrators drive key forms from the document too.
 6. **An unauthenticated request gets the authentication-required problem.** The handler otherwise returns
-   `ManagementProblems.AuthenticationRequired()`, the same `401` problem document every other management route
-   answers when the caller carries no valid access token.
+   `ManagementProblems.AuthenticationRequired(HttpContext)`, the same `401` problem document every other management
+   route answers when the caller carries no valid access token.
 7. **The route declares `401` and no `403`.** The route has no authority check, so it cannot answer `403`. The host
    walk in `ManagementRouteProblemDeclarationTests` names `api/capabilities/get` among the authenticated-caller routes.
 
@@ -86,7 +86,8 @@ The catalog is a strategy collection and the document is a mediator fan-out
 - `GET /api/capabilities`, `ManagementCapabilitiesResource`, `DiscoverManagementCapabilitiesCommand`
 - `SecretTypeCapabilitiesProvider`, `AlgorithmCapabilitiesProvider`, `EccCurveCapabilitiesProvider`,
   `RemoteKeyProviderCapabilitiesProvider`
-- `ManagementProblems.AuthenticationRequired()`, `IManagementCallerFeature`, `ManagementRouteProblemDeclarationTests`
+- `ManagementProblems.AuthenticationRequired(HttpContext)`, `IManagementCallerFeature`,
+  `ManagementRouteProblemDeclarationTests`
 - [ADR-1104](1104-a-key-type-is-one-registered-descriptor-and-public-keys-are-imported-and-stored-by-encoding.md): the key-type catalog.
 - [ADR-1389](1389-one-algorithm-name-serves-every-key-type-and-curve-it-declares-and-ecdh-es-agreements-are-registered.md): the algorithms section.
 - [ADR-1001](1001-behavior-is-a-service-a-strategy-collection-or-a-mediator-seam-chosen-by-one-ladder.md): strategy

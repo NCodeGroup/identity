@@ -202,13 +202,21 @@ internal static class CoseHeaderPolicy
         foreach (var element in elements)
         {
             if (element.TryGetInt64(out var integer))
-                labels.Add(new CoseLabel(integer));
+            {
+                var integerLabel = new CoseLabel(integer);
+                labels.Add(integerLabel);
+            }
             else if (element.TryGetTextString(out var text))
-                labels.Add(new CoseLabel(text));
+            {
+                var textLabel = new CoseLabel(text);
+                labels.Add(textLabel);
+            }
             else
+            {
                 throw Invalid(
                     "The crit parameter lists a label that is neither an integer nor text."
                 );
+            }
         }
 
         return labels;

@@ -45,8 +45,9 @@ internal sealed partial class AwsKmsRemoteKeyProviderOptionsValidator
         )
         {
             failures ??= [];
+            var allowedRegionsText = string.Join(", ", options.AllowedRegions);
             failures.Add(
-                $"SecretProtection:RemoteKeyProviders:AwsKms:Region must be one of the allowed AWS regions: {string.Join(", ", options.AllowedRegions)}."
+                $"SecretProtection:RemoteKeyProviders:AwsKms:Region must be one of the allowed AWS regions: {allowedRegionsText}."
             );
         }
 

@@ -64,16 +64,15 @@ internal class ClientPromotionContributor(
 
         foreach (var clientId in computation.HostManagedSourceClientIds)
         {
-            context.AddNote(
-                new TenantPromotionNoteResource
-                {
-                    ResourceType = ManagementResourceTypes.Client,
-                    ResourceId = clientId,
-                    Code = TenantPromotionNoteCodes.HostManaged,
-                    Detail =
-                        "The host configures this client in the source tenant, so the promotion leaves it and its grants out.",
-                }
-            );
+            var hostManagedNote = new TenantPromotionNoteResource
+            {
+                ResourceType = ManagementResourceTypes.Client,
+                ResourceId = clientId,
+                Code = TenantPromotionNoteCodes.HostManaged,
+                Detail =
+                    "The host configures this client in the source tenant, so the promotion leaves it and its grants out.",
+            };
+            context.AddNote(hostManagedNote);
         }
 
         foreach (var promotion in computation.Promotions)
@@ -82,52 +81,48 @@ internal class ClientPromotionContributor(
 
             foreach (var detail in promotion.Errors)
             {
-                context.AddError(
-                    new TenantPromotionErrorResource
-                    {
-                        ResourceType = ManagementResourceTypes.Client,
-                        ResourceId = clientId,
-                        Detail = detail,
-                    }
-                );
-            }
-
-            context.AddChange(
-                new TenantPromotionChangeResource
+                var errorResource = new TenantPromotionErrorResource
                 {
                     ResourceType = ManagementResourceTypes.Client,
                     ResourceId = clientId,
-                    Action = promotion.Action,
-                }
-            );
+                    Detail = detail,
+                };
+                context.AddError(errorResource);
+            }
+
+            var changeResource = new TenantPromotionChangeResource
+            {
+                ResourceType = ManagementResourceTypes.Client,
+                ResourceId = clientId,
+                Action = promotion.Action,
+            };
+            context.AddChange(changeResource);
 
             foreach (var settingName in promotion.Settings.UnsetSettingNames)
             {
-                context.AddNote(
-                    new TenantPromotionNoteResource
-                    {
-                        ResourceType = ManagementResourceTypes.Client,
-                        ResourceId = clientId,
-                        Code = TenantPromotionNoteCodes.EnvironmentSettingUnset,
-                        Detail =
-                            $"The source client sets '{settingName}', which belongs to its environment, and the promoted settings do not.",
-                        SettingName = settingName,
-                    }
-                );
+                var unsetNote = new TenantPromotionNoteResource
+                {
+                    ResourceType = ManagementResourceTypes.Client,
+                    ResourceId = clientId,
+                    Code = TenantPromotionNoteCodes.EnvironmentSettingUnset,
+                    Detail =
+                        $"The source client sets '{settingName}', which belongs to its environment, and the promoted settings do not.",
+                    SettingName = settingName,
+                };
+                context.AddNote(unsetNote);
             }
 
             if (promotion.IsCredentialRequired)
             {
-                context.AddNote(
-                    new TenantPromotionNoteResource
-                    {
-                        ResourceType = ManagementResourceTypes.Client,
-                        ResourceId = clientId,
-                        Code = TenantPromotionNoteCodes.CredentialRequired,
-                        Detail =
-                            "The client authenticates with a credential, and the target tenant holds none for it, so the target needs one before the client can authenticate.",
-                    }
-                );
+                var credentialNote = new TenantPromotionNoteResource
+                {
+                    ResourceType = ManagementResourceTypes.Client,
+                    ResourceId = clientId,
+                    Code = TenantPromotionNoteCodes.CredentialRequired,
+                    Detail =
+                        "The client authenticates with a credential, and the target tenant holds none for it, so the target needs one before the client can authenticate.",
+                };
+                context.AddNote(credentialNote);
             }
 
             if (
@@ -136,13 +131,11 @@ internal class ClientPromotionContributor(
                 && promotion.Target is { } target
             )
             {
-                context.AddChangedLimits(
-                    context.TargetTenantNode,
-                    SettingSerializer.GetChangedLimits(
-                        target.Settings.Value,
-                        promotion.Settings.Document
-                    )
+                var changedLimits = SettingSerializer.GetChangedLimits(
+                    target.Settings.Value,
+                    promotion.Settings.Document
                 );
+                context.AddChangedLimits(context.TargetTenantNode, changedLimits);
             }
         }
 
@@ -243,21 +236,21 @@ internal class ClientPromotionContributor(
         TenantPromotionContext context,
         PersistedClient client,
         string changeType
-    ) =>
-        context.AddAuditEvent(
-            new ClientChangedAuditEvent
-            {
-                EventSource = AuditEventSources.Management,
-                TenantId = context.TargetTenant.TenantId,
-                ResourceId = client.ClientId,
-                ChangeType = changeType,
-                ResourceValues = JsonSerializer.SerializeToElement(
-                    ToResource(client),
-                    JsonSerializerOptions.Web
-                ),
-                Outcome = AuditOutcome.Success,
-            }
-        );
+    )
+    {
+        var resource = ToResource(client);
+        var resourceValues = JsonSerializer.SerializeToElement(resource, JsonSerializerOptions.Web);
+        var auditEvent = new ClientChangedAuditEvent
+        {
+            EventSource = AuditEventSources.Management,
+            TenantId = context.TargetTenant.TenantId,
+            ResourceId = client.ClientId,
+            ChangeType = changeType,
+            ResourceValues = resourceValues,
+            Outcome = AuditOutcome.Success,
+        };
+        context.AddAuditEvent(auditEvent);
+    }
 
     private static ClientResource ToResource(PersistedClient client) =>
         new()
@@ -346,15 +339,14 @@ internal class ClientPromotionContributor(
                 continue;
             }
 
-            context.AddError(
-                new TenantPromotionErrorResource
-                {
-                    ResourceType = ManagementResourceTypes.Client,
-                    ResourceId = finding.ClientId,
-                    Detail =
-                        $"The promoted tenant settings would make the client '{finding.ClientId}' incoherent: {finding.Violation.Description}",
-                }
-            );
+            var violationError = new TenantPromotionErrorResource
+            {
+                ResourceType = ManagementResourceTypes.Client,
+                ResourceId = finding.ClientId,
+                Detail =
+                    $"The promoted tenant settings would make the client '{finding.ClientId}' incoherent: {finding.Violation.Description}",
+            };
+            context.AddError(violationError);
         }
     }
 
@@ -457,30 +449,34 @@ internal class ClientPromotionContributor(
                     );
                 }
 
-                if (
-                    isResourceServerResolved
-                    && !string.Equals(
-                        string.IsNullOrEmpty(target.ResourceServerId)
-                            ? null
-                            : target.ResourceServerId,
-                        targetResourceServerId,
-                        StringComparison.Ordinal
-                    )
-                )
+                if (isResourceServerResolved)
                 {
-                    errors.Add(
-                        "The client in the target tenant acts for another resource server than the promoted one."
-                    );
+                    var currentResourceServerId = string.IsNullOrEmpty(target.ResourceServerId)
+                        ? null
+                        : target.ResourceServerId;
+                    if (
+                        !string.Equals(
+                            currentResourceServerId,
+                            targetResourceServerId,
+                            StringComparison.Ordinal
+                        )
+                    )
+                    {
+                        errors.Add(
+                            "The client in the target tenant acts for another resource server than the promoted one."
+                        );
+                    }
                 }
             }
 
+            var environmentSettings = context.GetEnvironmentSettingsOrDefault(
+                ManagementResourceTypes.Client,
+                source.ClientId
+            );
             var promoted = PromotedSettingsComposer.Compose(
                 source.Settings,
                 target?.Settings.Value,
-                context.GetEnvironmentSettingsOrDefault(
-                    ManagementResourceTypes.Client,
-                    source.ClientId
-                )
+                environmentSettings
             );
 
             foreach (var settingName in promoted.RefusedSettingNames)
@@ -560,19 +556,19 @@ internal class ClientPromotionContributor(
                 action = TenantPromotionActions.Unchanged;
             }
 
-            computation.Promotions.Add(
-                new ClientPromotion
-                {
-                    Source = source,
-                    Target = target,
-                    TargetResourceServerId = targetResourceServerId,
-                    Settings = promoted,
-                    Action = action,
-                    Errors = errors,
-                    IsSettingsChanged = isSettingsChanged,
-                    IsCredentialRequired = IsCredentialRequired(promoted.Document, target),
-                }
-            );
+            var isCredentialRequired = IsCredentialRequired(promoted.Document, target);
+            var clientPromotion = new ClientPromotion
+            {
+                Source = source,
+                Target = target,
+                TargetResourceServerId = targetResourceServerId,
+                Settings = promoted,
+                Action = action,
+                Errors = errors,
+                IsSettingsChanged = isSettingsChanged,
+                IsCredentialRequired = isCredentialRequired,
+            };
+            computation.Promotions.Add(clientPromotion);
         }
 
         return computation;

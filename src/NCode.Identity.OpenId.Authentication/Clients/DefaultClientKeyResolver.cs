@@ -102,11 +102,14 @@ internal sealed class DefaultClientKeyResolver(
         )
         {
             var jwksUriForLog = OutboundUriRedaction.ForLog(jwksUri);
+            var notHttpsException = new InvalidOperationException(
+                "The 'jwks_uri' must be an absolute https URI."
+            );
             Logger.ClientJwksFetchFailed(
                 openIdClient.ClientId,
                 jwksUriForLog,
                 ClientJwksFetchFailureReasons.NotHttps,
-                new InvalidOperationException("The 'jwks_uri' must be an absolute https URI.")
+                notHttpsException
             );
             return [];
         }
@@ -118,13 +121,14 @@ internal sealed class DefaultClientKeyResolver(
         )
         {
             var jwksUriForLog = OutboundUriRedaction.ForLog(jwksUri);
+            var hostNotAllowedException = new InvalidOperationException(
+                $"The 'jwks_uri' host '{uri.Host}' is not in the configured allow-list."
+            );
             Logger.ClientJwksFetchFailed(
                 openIdClient.ClientId,
                 jwksUriForLog,
                 ClientJwksFetchFailureReasons.HostNotAllowed,
-                new InvalidOperationException(
-                    $"The 'jwks_uri' host '{uri.Host}' is not in the configured allow-list."
-                )
+                hostNotAllowedException
             );
             return [];
         }
@@ -200,11 +204,11 @@ internal sealed class DefaultClientKeyResolver(
             // The cached keys hold only public key material (no native handles to dispose), so a plain absolute
             // expiration is sufficient and there is no eviction cleanup to perform.
             var cacheKey = GetCacheKey(uri);
-            MemoryCache.Set<IReadOnlyList<SecretKey>>(
-                cacheKey,
-                keys,
-                new MemoryCacheEntryOptions { AbsoluteExpirationRelativeToNow = cacheDuration }
-            );
+            var cacheEntryOptions = new MemoryCacheEntryOptions
+            {
+                AbsoluteExpirationRelativeToNow = cacheDuration,
+            };
+            MemoryCache.Set<IReadOnlyList<SecretKey>>(cacheKey, keys, cacheEntryOptions);
         }
 
         return keys;
@@ -240,13 +244,14 @@ internal sealed class DefaultClientKeyResolver(
 
             if (!response.IsSuccessStatusCode)
             {
+                var httpStatusException = new InvalidOperationException(
+                    $"The 'jwks_uri' document could not be fetched (HTTP {(int)response.StatusCode})."
+                );
                 Logger.ClientJwksFetchFailed(
                     openIdClient.ClientId,
                     uriForLog,
                     ClientJwksFetchFailureReasons.HttpStatus,
-                    new InvalidOperationException(
-                        $"The 'jwks_uri' document could not be fetched (HTTP {(int)response.StatusCode})."
-                    )
+                    httpStatusException
                 );
                 return [];
             }
@@ -260,13 +265,14 @@ internal sealed class DefaultClientKeyResolver(
             );
             if (readResult != OutboundHttpReadResult.Completed)
             {
+                var tooLargeException = new InvalidOperationException(
+                    "The 'jwks_uri' document exceeds the maximum allowed size."
+                );
                 Logger.ClientJwksFetchFailed(
                     openIdClient.ClientId,
                     uriForLog,
                     ClientJwksFetchFailureReasons.TooLarge,
-                    new InvalidOperationException(
-                        "The 'jwks_uri' document exceeds the maximum allowed size."
-                    )
+                    tooLargeException
                 );
                 return [];
             }
@@ -317,11 +323,12 @@ internal sealed class DefaultClientKeyResolver(
         )
         {
             var uriForLog = OutboundUriRedaction.ForLog(uri);
+            var invalidKeySetException = new InvalidOperationException(error);
             Logger.ClientJwksFetchFailed(
                 openIdClient.ClientId,
                 uriForLog,
                 ClientJwksFetchFailureReasons.InvalidKeySet,
-                new InvalidOperationException(error)
+                invalidKeySetException
             );
             return [];
         }

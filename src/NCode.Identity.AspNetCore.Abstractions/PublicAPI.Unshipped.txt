@@ -7,6 +7,8 @@ NCode.Identity.AspNetCore.HttpResultException.HttpResultException(Microsoft.AspN
 NCode.Identity.AspNetCore.HttpResultExtensions
 NCode.Identity.AspNetCore.HttpResultExtensions.extension(Microsoft.AspNetCore.Http.IResult!)
 NCode.Identity.AspNetCore.HttpResultExtensions.extension(Microsoft.AspNetCore.Http.IResult!).AsException(string? message = null) -> NCode.Identity.AspNetCore.HttpResultException!
+NCode.Identity.AspNetCore.IEndpointGate
+NCode.Identity.AspNetCore.IEndpointGate.InvokeAsync(Microsoft.AspNetCore.Http.HttpContext! httpContext, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Microsoft.AspNetCore.Http.IResult?>
 NCode.Identity.AspNetCore.IFrontChannelEndpointMetadata
 NCode.Identity.AspNetCore.IFrontChannelEndpointMetadata.IsFrontChannel.get -> bool
 NCode.Identity.AspNetCore.IResultExecutor<TResult>

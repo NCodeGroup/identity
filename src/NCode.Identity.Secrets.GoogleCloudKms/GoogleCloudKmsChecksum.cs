@@ -24,7 +24,8 @@ internal static class GoogleCloudKmsChecksum
 
         while (data.Length >= sizeof(ulong))
         {
-            crc = BitOperations.Crc32C(crc, BinaryPrimitives.ReadUInt64LittleEndian(data));
+            var word = BinaryPrimitives.ReadUInt64LittleEndian(data);
+            crc = BitOperations.Crc32C(crc, word);
             data = data[sizeof(ulong)..];
         }
 

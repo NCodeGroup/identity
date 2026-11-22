@@ -1163,12 +1163,15 @@ Until the first stable release, the [Unreleased] section describes the product a
   `tenant.key.generated`, `tenant.key.activated`, `tenant.key.retired`, `tenant.key.extended` or
   `tenant.key.removed`, in the `key` category with the `system` actor, published once the change is committed: the
   pass publishes after its save, and a seed queues its events on `TenantSeedContext.RunAfterCommit`, whose steps the
-  provisioner runs once the seed has committed
+  provisioner runs once the seed has committed. Neither the seed nor the pass changes the keys of a tenant the global
+  directory places in another cell, or of one whose placement it cannot read, so a cell that still holds a moved
+  tenant's copy never destroys a remote key the tenant's cell uses
   ([ADR-1404](docs/decisions/1404-a-tenants-provisioned-keys-roll-over-ahead-of-retirement-and-expire-after-a-grace.md),
   [ADR-1412](docs/decisions/1412-a-settings-change-reaches-every-replica-at-once-and-is-reconciled-per-team-against-what-changed.md),
   [ADR-1426](docs/decisions/1426-a-team-can-nest-beneath-a-parent-team-and-its-subtree-is-walked-depth-first.md),
   [docs/capabilities/key-rollover.md](docs/capabilities/key-rollover.md), [docs/audit-records.md](docs/audit-records.md),
-  [#166](https://github.com/NCodeGroup/identity/issues/166)).
+  [#166](https://github.com/NCodeGroup/identity/issues/166),
+  [#864](https://github.com/NCodeGroup/identity/issues/864)).
 
 - **A tenant's signing and encryption keys can stay inside a key management service, which signs every token and unwraps
   every content key sent to the tenant.** The tenant setting `tenant_key_provider` names a registered remote key
@@ -4038,6 +4041,15 @@ Until the first stable release, the [Unreleased] section describes the product a
   [#744](https://github.com/NCodeGroup/identity/issues/744),
   [ADR-1496](docs/decisions/1496-an-analyzer-reports-an-own-async-method-that-returns-task-or-lacks-a-trailing-cancellation-token.md)).
 
+- **The build reports a call, `await` or object creation nested in another call's arguments.**
+  `NCode.Identity.Analyzers` fails the build with `NCID0006` in the production code under `src/` and `hosts/`, and a
+  test holds `analyzers/` to it, unless the expression is a lambda argument, `nameof`, `typeof`, `default`, `sizeof`, a
+  literal, local, parameter or member access, sits where C# cannot declare a local (an initializer, a constructor
+  initializer or primary-constructor base, an attribute, a parameter default, a catch filter, a `when` clause, a query
+  expression, or an expression tree), or is an argument of a `[Conditional]` method
+  ([#867](https://github.com/NCodeGroup/identity/issues/867),
+  [ADR-1522](docs/decisions/1522-an-analyzer-fails-the-build-on-a-call-await-or-object-creation-nested-in-another-calls-arguments.md)).
+
 - **C# files carry a two-line SPDX header that the build checks.** Every C# file starts with
   `// Copyright © NCode Group` and `// SPDX-License-Identifier: Apache-2.0`; `.editorconfig` sets the header as
   `file_header_template` and raises `IDE0073` to `warning`, so a file whose header is missing or differs fails the build
@@ -4625,23 +4637,25 @@ Until the first stable release, the [Unreleased] section describes the product a
   ID it requests tokens for — and the server reaches the key through that identity with no stored secret; every master
   key records the identity that reaches it (`rootKeyAccessIdentity`, and the `root_key_access_identity` detail of
   `master_key.*` audit events) and the binding of its key's owner, and changing only the identity rewraps the master
-  keys without a rotation.
-  `KeyAccessClientCache<TClient>` keeps a client for an access identity once a call through it succeeds and drops one
-  that never worked. `PUT`, `DELETE` and `POST .../validate` on `/api/tenants/{tenantId}/encryption-keys/root-key` set or
-  change, remove and validate it (scope `update:encryption_keys`), and `GET .../encryption-keys` reports the root key and
-  the providers a tenant may choose (scope `read:encryption_keys`). A `PUT` answers `400` for a field that is blank, not
-  allowed, not registered or malformed, `409` with `Retry-After` and `retryAfterSeconds` within twice
-  `SecretProtection:MasterKeys:RefreshInterval` of the tenant's last rotation, `412` when it loses a race and `422` when
-  the probe fails; a `DELETE` answers `204` once none of the tenant's master keys remains under the key and `202` while
-  some do, and a master key of another owner whose own root key names the same key never holds the removal. The
-  server validates a key by wrapping 32 random bytes through it under a
-  context label of its own, unwrapping them and comparing the two in constant time, which proves that the key exists, is
-  enabled and grants both the encrypt and the decrypt permission through any provider. Setting or changing the key
-  rotates the tenant's master key so that the successor is created under it and rewraps every retired master key under
-  it, because earlier material exists in backups under the deployment's root key; removing it moves the master keys
-  under the nearest other root key, the team's when the team brings one and otherwise the deployment's, without a
-  rotation. An Azure Key Vault key reference names a host under the
-  deployment's Key Vault or Managed HSM host suffixes
+  keys without a rotation. `KeyAccessClientCache<TClient>` keeps a client for an access identity once a call through it
+  succeeds and drops one that never worked. `PUT`, `DELETE` and `POST .../validate` on
+  `/api/tenants/{tenantId}/encryption-keys/root-key` set or change, remove and validate it (scope
+  `update:encryption_keys`), and `GET .../encryption-keys` reports the root key and the providers a tenant may choose
+  (scope `read:encryption_keys`). A `PUT` answers `400` for a field that is blank, not allowed, not registered or
+  malformed, `409` with `Retry-After` and `retryAfterSeconds` within twice `SecretProtection:MasterKeys:RefreshInterval`
+  of the tenant's last rotation, `412` when it loses a race and `422` when the probe fails; a `DELETE` answers `204`
+  once none of the tenant's master keys remains under the key and `202` while some do, and a master key of another owner
+  whose own root key names the same key never holds the removal. The server validates a key by wrapping 32 random bytes
+  through it under a context label of its own, unwrapping them and comparing the two in constant time, which proves that
+  the key exists, is enabled and grants both the encrypt and the decrypt permission through any provider. Setting or
+  changing the key rotates the tenant's master key so that the successor is created under it and rewraps every retired
+  master key under it, because earlier material exists in backups under the deployment's root key; removing it moves the
+  master keys under the nearest other root key, the team's when the team brings one and otherwise the deployment's,
+  without a rotation; the removal completes once no master key under the key remains that does not conform to its
+  owner's nearest root key, which it reads through one indexed query on the master keys' root key provider and reference
+  (`IMasterKeyStore.GetWrappedByKeyPageAsync`); a change of a team's root key reads only the master keys under the
+  team's key and those of the owners under the team (`IMasterKeyStore.GetOwnerPageAsync`). An Azure Key Vault key
+  reference names a host under the deployment's Key Vault or Managed HSM host suffixes
   (`SecretProtection:RootKeyProviders:AzureKeyVault:ReferencedKeyHostSuffixes`, by default the public, China and US
   government cloud domains). Which owners can bring a key is a registered `IOwnerRootKeyPolicy`: the `platform` owner
   and the control-plane tenant, which the management API authenticates against, are refused, a consumer registers its
@@ -4658,6 +4672,7 @@ Until the first stable release, the [Unreleased] section describes the product a
   key the caller names, implemented by the AWS KMS, Google Cloud KMS and Azure Key Vault wrappers, and
   `IOwnerRootKeyManager` sets, removes and validates a root key
   ([#174](https://github.com/NCodeGroup/identity/issues/174), [#574](https://github.com/NCodeGroup/identity/issues/574),
+  [#865](https://github.com/NCodeGroup/identity/issues/865),
   [ADR-1414](docs/decisions/1414-a-tenant-can-wrap-its-master-keys-under-a-root-key-it-controls.md)).
 
 - **A package maps the exceptions it owns to protocol errors.** `IOpenIdExceptionTranslator` implementations, registered
@@ -4665,6 +4680,13 @@ Until the first stable release, the [Unreleased] section describes the product a
   authorization endpoint consult them, and an exception none answers is `server_error`
   ([#573](https://github.com/NCodeGroup/identity/issues/573),
   [ADR-1428](docs/decisions/1428-a-package-translates-the-exceptions-it-owns-into-protocol-errors-through-registered-translators.md)).
+
+- **An endpoint decides who may reach it before it reads the request.** `IEndpointGate` and
+  `AddEndpointGate<TBuilder, TGate>()` (`NCode.Identity.AspNetCore`) run a gate, created per request from the request's
+  services, before minimal APIs bind the endpoint's parameters and before its filters, a route group's gates before a
+  route's; a gate answers the request with a result or lets the endpoint run
+  ([#863](https://github.com/NCodeGroup/identity/issues/863),
+  [ADR-1520](docs/decisions/1520-a-caller-is-authenticated-before-its-request-body-is-read.md)).
 
 - **Every merge to `main` and every release tag publishes the host image, the management console image, the directory
   image, the chart and the host's OpenAPI document.** The five artifacts share one version on GHCR, are signed and
@@ -4783,15 +4805,24 @@ Until the first stable release, the [Unreleased] section describes the product a
 - **A management route's caller is only the principal its management access token authenticates.** On every management
   route `HttpContext.User` is the principal a valid management access token authenticates, or an anonymous principal
   whatever another authentication scheme set, such as a session cookie the host's default scheme reads, and
-  `IManagementCallerFeature` carries the authenticated caller. `GET /api/capabilities`, `GET /api/me`,
-  `GET /api/me/teams` and `GET /api/me/tenants` answer only that caller and answer anyone else `401` with a problem, so
-  the deployment's secret types, algorithms and key management services and a caller's role assignments stay
-  undisclosed to anonymous callers
-  ([#707](https://github.com/NCodeGroup/identity/issues/707),
-  [#715](https://github.com/NCodeGroup/identity/issues/715),
-  [#716](https://github.com/NCodeGroup/identity/issues/716),
+  `IManagementCallerFeature` carries the authenticated caller. A request without a valid management access token is
+  answered `401` before the route binds its parameters, so an anonymous request costs no more than its headers, and
+  `POST /api/tenant-imports` checks the caller's update authority at the platform node before it reads its body. Every
+  `/api` route reads a request body of at most 1 MiB unless the route sets a larger limit, as the tenant import does,
+  and a `401` carries a `WWW-Authenticate` challenge for each scheme the API accepts, `Bearer` and `DPoP`, the one the
+  request used with `error="invalid_token"`. `GET /api/capabilities`, `GET /api/me`, `GET /api/me/teams` and
+  `GET /api/me/tenants` answer only that caller and answer anyone else `401` with a problem, so the deployment's secret
+  types, algorithms and key management services and a caller's role assignments stay undisclosed to anonymous callers
+  ([#707](https://github.com/NCodeGroup/identity/issues/707), [#715](https://github.com/NCodeGroup/identity/issues/715),
+  [#716](https://github.com/NCodeGroup/identity/issues/716), [#863](https://github.com/NCodeGroup/identity/issues/863),
   [ADR-1067](docs/decisions/1067-secret-key-types-form-one-catalog-and-authenticated-management-callers-discover-the-deployments-capabilities.md),
-  [ADR-1044](docs/decisions/1044-the-management-api-authenticates-its-own-access-tokens-and-a-configured-client-bootstraps-the-first-globaladmin.md)).
+  [ADR-1044](docs/decisions/1044-the-management-api-authenticates-its-own-access-tokens-and-a-configured-client-bootstraps-the-first-globaladmin.md),
+  [ADR-1520](docs/decisions/1520-a-caller-is-authenticated-before-its-request-body-is-read.md)).
+
+- **The directory API and the control-plane authority API authenticate a caller before they read its request.**
+  `DirectoryAuthenticationGate` and `ControlPlaneAuthenticationGate` answer a request without a valid access token
+  before its parameters bind ([#863](https://github.com/NCodeGroup/identity/issues/863),
+  [ADR-1520](docs/decisions/1520-a-caller-is-authenticated-before-its-request-body-is-read.md)).
 
 - **No administrator raises the limits set on its scope.** A limit in a scope's settings is written only by the
   authority above that scope, so a team's administrators cannot lift the plan tier the platform sets, nor a child
@@ -6048,6 +6079,11 @@ Until the first stable release, the [Unreleased] section describes the product a
 - **Interactive return URLs refuse tabs, newlines and backslashes.** `LocalUrl.IsLocal`
   (`NCode.Identity.OpenId.Protocol.Abstractions`) is the one local-path rule; the interactive surface and the BFF use
   it, so a return URL such as `/\t/evil.example` cannot redirect off-site after sign-in.
+
+- **A BFF redirects a browser only to a local URL.** Every local redirect of the BFF (after logout, after the callback,
+  to the login endpoint and to the error page) goes through `BffNavigation.RedirectLocal`, which refuses a URL that
+  `LocalUrl.IsLocal` rejects, so a path base or a return URL that would leave the origin fails closed instead of
+  redirecting.
 
 - **The frontend bootstrap document never takes its issuer or API base from the request.** With `Frontend:Issuer` unset,
   `/config/bootstrap.json` publishes the stored issuer of the tenant that serves the surface: the `StaticSingle` tenant,

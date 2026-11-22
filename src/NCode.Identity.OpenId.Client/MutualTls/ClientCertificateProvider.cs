@@ -76,9 +76,8 @@ internal class ClientCertificateProvider(
             if (string.Equals(key.Metadata.Use, "enc", StringComparison.Ordinal))
                 continue;
 
-            var thumbprint = Convert.ToHexString(
-                SHA256.HashData(key.CertificateRawData.Value.Span)
-            );
+            var certificateHash = SHA256.HashData(key.CertificateRawData.Value.Span);
+            var thumbprint = Convert.ToHexString(certificateHash);
 
             if (!Certificates.TryGetValue(thumbprint, out var entry))
             {

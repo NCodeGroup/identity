@@ -39,21 +39,24 @@ public static class DefaultRegistration
         {
             var serviceCollection = builder.ServiceCollection;
 
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<ISecretKeyTypeDescriptor, OkpSecretKeyTypeDescriptor>()
-            );
+            var secretKeyTypeDescriptor = ServiceDescriptor.Singleton<
+                ISecretKeyTypeDescriptor,
+                OkpSecretKeyTypeDescriptor
+            >();
+            serviceCollection.TryAddEnumerable(secretKeyTypeDescriptor);
 
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    ICollectionDataSource<Algorithm>,
-                    EdDsaAlgorithmDataSource
-                >()
-            );
+            var algorithmDataSource = ServiceDescriptor.Singleton<
+                ICollectionDataSource<Algorithm>,
+                EdDsaAlgorithmDataSource
+            >();
+            serviceCollection.TryAddEnumerable(algorithmDataSource);
 
             // See ADR-1390.
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<IEcdhKeyAgreement, OkpEcdhKeyAgreement>()
-            );
+            var ecdhKeyAgreement = ServiceDescriptor.Singleton<
+                IEcdhKeyAgreement,
+                OkpEcdhKeyAgreement
+            >();
+            serviceCollection.TryAddEnumerable(ecdhKeyAgreement);
 
             return builder;
         }

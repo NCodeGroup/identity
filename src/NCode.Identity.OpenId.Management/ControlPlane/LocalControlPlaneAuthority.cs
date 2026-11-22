@@ -88,24 +88,30 @@ internal sealed class LocalControlPlaneAuthority(
         var teamAssignments = new List<PersistedRoleAssignment>();
         if (request.TeamId is { } teamId)
         {
+            var teamNode = ResourceNode.For(rootTenantId, ResourceNodeTypes.Team, teamId);
             var chain = await AuthorityChainResolver.GetAncestorNodesAsync(
-                ResourceNode.For(rootTenantId, ResourceNodeTypes.Team, teamId),
+                teamNode,
                 storeManager,
                 cancellationToken
             );
 
-            teamAssignments.AddRange(
-                assignments.Where(assignment =>
-                    string.Equals(
+            var chainAssignments = assignments.Where(assignment =>
+            {
+                if (
+                    !string.Equals(
                         assignment.ResourceType,
                         ResourceNodeTypes.Team,
                         StringComparison.Ordinal
                     )
-                    && chain.Contains(
-                        (ResourceNodeTypes.Team, assignment.ResourceId.ToLowerInvariant())
-                    )
                 )
-            );
+                {
+                    return false;
+                }
+
+                var resourceId = assignment.ResourceId.ToLowerInvariant();
+                return chain.Contains((ResourceNodeTypes.Team, resourceId));
+            });
+            teamAssignments.AddRange(chainAssignments);
         }
 
         return new ControlPlaneAuthority

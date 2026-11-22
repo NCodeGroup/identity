@@ -18,9 +18,9 @@ namespace NCode.Identity.Secrets.Persistence.Protection;
 /// else its nearest ancestor's, otherwise the configured root key provider. A row that already sits under that root key
 /// is examined only, and a row that is moved under it loses its recovery copy; a row moved under the deployment's root
 /// key gets a recovery copy when a recovery public key is configured, and when none is, the existing recovery copy is
-/// left as it is, because a recovery path is never removed silently. A request for an owner and its descendants pages
-/// every row, keeps those of the owner, of the owners under it and those still under the key its root key names, and
-/// resolves the root key of the owners it keeps only.
+/// left as it is, because a recovery path is never removed silently. A request for an owner and its descendants reads
+/// the rows under the key its root key names, then the owners that hold master keys and the rows of each owner under
+/// it, so no wrapped key of another owner is read, and it resolves the root key of the owners it keeps only.
 /// </remarks>
 // See ADR-1408 and ADR-1414.
 internal sealed class DefaultMasterKeyRewrapper(
@@ -77,10 +77,14 @@ internal sealed class DefaultMasterKeyRewrapper(
             var rows = await ListAsync(owner, rootKeys, cancellationToken);
             foreach (var row in rows)
             {
-                total = Add(
-                    total,
-                    await ProcessAsync(row, request, unwrapper, rootKeys, cancellationToken)
+                var processed = await ProcessAsync(
+                    row,
+                    request,
+                    unwrapper,
+                    rootKeys,
+                    cancellationToken
                 );
+                total = Add(total, processed);
             }
         }
         else
@@ -95,22 +99,38 @@ internal sealed class DefaultMasterKeyRewrapper(
                 )
                     ? root.Normalize()
                     : (SecretOwner?)null;
-            var inherits = new Dictionary<SecretOwner, bool>(SecretOwnerComparer.Instance);
 
-            string? cursor = null;
-            do
+            if (scope is { } scoped)
             {
-                var page = await GetPageAsync(cursor, scope, rootKeys, inherits, cancellationToken);
-                foreach (var row in page.Items)
+                total = await RewrapScopeAsync(
+                    request,
+                    scoped,
+                    unwrapper,
+                    rootKeys,
+                    cancellationToken
+                );
+            }
+            else
+            {
+                string? cursor = null;
+                do
                 {
-                    total = Add(
-                        total,
-                        await ProcessAsync(row, request, unwrapper, rootKeys, cancellationToken)
-                    );
-                }
+                    var page = await GetPageAsync(cursor, rootKeys, cancellationToken);
+                    foreach (var row in page.Items)
+                    {
+                        var processed = await ProcessAsync(
+                            row,
+                            request,
+                            unwrapper,
+                            rootKeys,
+                            cancellationToken
+                        );
+                        total = Add(total, processed);
+                    }
 
-                cursor = page.NextCursor;
-            } while (cursor is not null);
+                    cursor = page.NextCursor;
+                } while (cursor is not null);
+            }
         }
 
         Logger.MasterKeyRewrapCompleted(
@@ -142,68 +162,157 @@ internal sealed class DefaultMasterKeyRewrapper(
     )
     {
         await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
-        var rows = await storeManager
-            .GetStore<IMasterKeyStore>()
-            .ListAsync(owner.Normalize(), cancellationToken);
+        var store = storeManager.GetStore<IMasterKeyStore>();
+        var normalizedOwner = owner.Normalize();
+        var rows = await store.ListAsync(normalizedOwner, cancellationToken);
 
         await ReadRootKeysAsync(storeManager, rows, rootKeys, cancellationToken);
         return rows;
     }
 
-    // Reads a page of rows and the root key of each owner on it that this run has not read yet through the same unit of
-    // work. When a scope is set, only the rows of the scope, of the owners under it and those still under the key its
-    // root key names are kept, and only their owners' root keys are read.
+    // Reads a page of every row and the root key of each owner on it that this run has not read yet through the same
+    // unit of work.
     private async ValueTask<PagedResult<PersistedMasterKey>> GetPageAsync(
         string? cursor,
-        SecretOwner? scope,
         Dictionary<SecretOwner, PersistedOwnerRootKey?> rootKeys,
-        Dictionary<SecretOwner, bool> inherits,
         CancellationToken cancellationToken
     )
     {
         await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
-        var page = await storeManager
-            .GetStore<IMasterKeyStore>()
-            .GetPageAsync(new PageRequest { Limit = PageSize, Cursor = cursor }, cancellationToken);
+        var store = storeManager.GetStore<IMasterKeyStore>();
+        var pageRequest = new PageRequest { Limit = PageSize, Cursor = cursor };
+        var page = await store.GetPageAsync(pageRequest, cancellationToken);
 
-        if (scope is not { } owner)
-        {
-            await ReadRootKeysAsync(storeManager, page.Items, rootKeys, cancellationToken);
-            return page;
-        }
-
-        var kept = await SelectAsync(storeManager, owner, page.Items, inherits, cancellationToken);
-        await ReadRootKeysAsync(storeManager, kept, rootKeys, cancellationToken);
-        return new PagedResult<PersistedMasterKey> { Items = kept, NextCursor = page.NextCursor };
+        await ReadRootKeysAsync(storeManager, page.Items, rootKeys, cancellationToken);
+        return page;
     }
 
-    // Keeps the rows that sit under the key the root key of the owner names, whatever its state, and those of the
-    // owners that inherit from the owner.
-    private async ValueTask<IReadOnlyList<PersistedMasterKey>> SelectAsync(
-        IStoreManager storeManager,
-        SecretOwner owner,
-        IReadOnlyList<PersistedMasterKey> rows,
-        Dictionary<SecretOwner, bool> inherits,
+    // Rewraps the rows of an owner and of its descendants, and the rows that still sit under the key the root key of the
+    // owner names, whatever its state. It reads the rows under that key, then the owners that hold master keys and,
+    // for each owner under the scope, the rows of that owner, never every master key's wrapped material. A row that
+    // both reads return is processed once.
+    private async ValueTask<MasterKeyRewrapResult> RewrapScopeAsync(
+        MasterKeyRewrapRequest request,
+        SecretOwner scope,
+        RecoveryKeyUnwrapper? unwrapper,
+        Dictionary<SecretOwner, PersistedOwnerRootKey?> rootKeys,
         CancellationToken cancellationToken
     )
     {
-        var key = await storeManager
-            .GetStore<IOwnerRootKeyStore>()
-            .FindAsync(owner, cancellationToken);
+        var total = new MasterKeyRewrapResult(0, 0, 0, 0);
+        var processedKeyIds = new HashSet<Guid>();
 
-        var kept = new List<PersistedMasterKey>();
-        foreach (var row in rows)
+        var key = await FindRootKeyAsync(scope, cancellationToken);
+        if (key is not null)
         {
-            if (
-                (key is not null && MasterKeyFactory.IsWrappedByKey(row, key))
-                || await InheritsAsync(row.Owner, owner, inherits, cancellationToken)
-            )
+            string? keyCursor = null;
+            do
             {
-                kept.Add(row);
-            }
+                var keyPage = await GetWrappedByKeyPageAsync(
+                    key,
+                    keyCursor,
+                    rootKeys,
+                    cancellationToken
+                );
+                foreach (var row in keyPage.Items)
+                {
+                    processedKeyIds.Add(row.KeyId);
+                    var processed = await ProcessAsync(
+                        row,
+                        request,
+                        unwrapper,
+                        rootKeys,
+                        cancellationToken
+                    );
+                    total = Add(total, processed);
+                }
+
+                keyCursor = keyPage.NextCursor;
+            } while (keyCursor is not null);
         }
 
-        return kept;
+        var inherits = new Dictionary<SecretOwner, bool>(SecretOwnerComparer.Instance);
+        var seenOwners = new HashSet<SecretOwner>(SecretOwnerComparer.Instance);
+        string? ownerCursor = null;
+        do
+        {
+            var ownerPage = await GetOwnerPageAsync(ownerCursor, cancellationToken);
+            foreach (var owner in ownerPage.Items)
+            {
+                if (!seenOwners.Add(owner))
+                    continue;
+
+                var underScope = await InheritsAsync(owner, scope, inherits, cancellationToken);
+                if (!underScope)
+                    continue;
+
+                var rows = await ListAsync(owner, rootKeys, cancellationToken);
+                foreach (var row in rows)
+                {
+                    if (!processedKeyIds.Add(row.KeyId))
+                        continue;
+
+                    var processed = await ProcessAsync(
+                        row,
+                        request,
+                        unwrapper,
+                        rootKeys,
+                        cancellationToken
+                    );
+                    total = Add(total, processed);
+                }
+            }
+
+            ownerCursor = ownerPage.NextCursor;
+        } while (ownerCursor is not null);
+
+        return total;
+    }
+
+    // Reads the root key of an owner, whatever its state, which is the key that its rows are wrapped under.
+    private async ValueTask<PersistedOwnerRootKey?> FindRootKeyAsync(
+        SecretOwner owner,
+        CancellationToken cancellationToken
+    )
+    {
+        await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
+        var store = storeManager.GetStore<IOwnerRootKeyStore>();
+        return await store.FindAsync(owner, cancellationToken);
+    }
+
+    // Reads a page of the rows wrapped under a root key and the root key of each owner on it that this run has not read
+    // yet through the same unit of work.
+    private async ValueTask<PagedResult<PersistedMasterKey>> GetWrappedByKeyPageAsync(
+        PersistedOwnerRootKey key,
+        string? cursor,
+        Dictionary<SecretOwner, PersistedOwnerRootKey?> rootKeys,
+        CancellationToken cancellationToken
+    )
+    {
+        await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
+        var store = storeManager.GetStore<IMasterKeyStore>();
+        var pageRequest = new PageRequest { Limit = PageSize, Cursor = cursor };
+        var page = await store.GetWrappedByKeyPageAsync(
+            key.KeyWrapperName,
+            key.KeyReference,
+            pageRequest,
+            cancellationToken
+        );
+
+        await ReadRootKeysAsync(storeManager, page.Items, rootKeys, cancellationToken);
+        return page;
+    }
+
+    // Reads a page of the owners that hold master keys, which carries no wrapped material.
+    private async ValueTask<PagedResult<SecretOwner>> GetOwnerPageAsync(
+        string? cursor,
+        CancellationToken cancellationToken
+    )
+    {
+        await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
+        var store = storeManager.GetStore<IMasterKeyStore>();
+        var pageRequest = new PageRequest { Limit = PageSize, Cursor = cursor };
+        return await store.GetOwnerPageAsync(pageRequest, cancellationToken);
     }
 
     // Determines whether a candidate is the owner or has the owner among its ancestors, once per candidate in a run.
@@ -217,11 +326,16 @@ internal sealed class DefaultMasterKeyRewrapper(
         if (inherits.TryGetValue(candidate, out var known))
             return known;
 
-        var result =
-            SecretOwnerComparer.Instance.Equals(candidate, owner)
-            || (
-                await ParentResolver.GetAncestorsAsync(candidate.Normalize(), cancellationToken)
-            ).Contains(owner, SecretOwnerComparer.Instance);
+        var result = SecretOwnerComparer.Instance.Equals(candidate, owner);
+        if (!result)
+        {
+            var normalizedCandidate = candidate.Normalize();
+            var ancestors = await ParentResolver.GetAncestorsAsync(
+                normalizedCandidate,
+                cancellationToken
+            );
+            result = ancestors.Contains(owner, SecretOwnerComparer.Instance);
+        }
 
         inherits[candidate] = result;
         return result;
@@ -239,8 +353,9 @@ internal sealed class DefaultMasterKeyRewrapper(
             if (rootKeys.ContainsKey(owner))
                 continue;
 
+            var ownerRootKeyStore = storeManager.GetStore<IOwnerRootKeyStore>();
             rootKeys[owner] = await NearestRootKeyResolver.FindNearestAsync(
-                storeManager.GetStore<IOwnerRootKeyStore>(),
+                ownerRootKeyStore,
                 owner,
                 cancellationToken
             );
@@ -403,12 +518,13 @@ internal sealed class DefaultMasterKeyRewrapper(
     )
     {
         await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
-        var rows = await storeManager
-            .GetStore<IMasterKeyStore>()
-            .FindByKeyIdsAsync(row.Owner.Normalize(), [row.KeyId], cancellationToken);
+        var store = storeManager.GetStore<IMasterKeyStore>();
+        var normalizedOwner = row.Owner.Normalize();
+        var rows = await store.FindByKeyIdsAsync(normalizedOwner, [row.KeyId], cancellationToken);
 
+        var ownerRootKeyStore = storeManager.GetStore<IOwnerRootKeyStore>();
         var rootKey = await NearestRootKeyResolver.FindNearestAsync(
-            storeManager.GetStore<IOwnerRootKeyStore>(),
+            ownerRootKeyStore,
             row.Owner,
             cancellationToken
         );

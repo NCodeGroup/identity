@@ -129,13 +129,12 @@ internal class DefaultTenantResolver(
 
         if (!TenantAddressRules.IsValidTenantId(tenantId))
         {
-            failures.Add(
-                new TenantValidationFailure
-                {
-                    Detail =
-                        $"The tenant identifier '{tenantId}' must be {TenantAddressRules.TenantIdRequirement}.",
-                }
-            );
+            var invalidTenantIdFailure = new TenantValidationFailure
+            {
+                Detail =
+                    $"The tenant identifier '{tenantId}' must be {TenantAddressRules.TenantIdRequirement}.",
+            };
+            failures.Add(invalidTenantIdFailure);
         }
 
         Uri? issuerUri = null;
@@ -144,13 +143,11 @@ internal class DefaultTenantResolver(
             && !TenantAddressRules.TryParseIssuer(issuer, out issuerUri)
         )
         {
-            failures.Add(
-                new TenantValidationFailure
-                {
-                    Detail =
-                        $"The issuer '{issuer}' must be {TenantAddressRules.IssuerRequirement}.",
-                }
-            );
+            var invalidIssuerFailure = new TenantValidationFailure
+            {
+                Detail = $"The issuer '{issuer}' must be {TenantAddressRules.IssuerRequirement}.",
+            };
+            failures.Add(invalidIssuerFailure);
         }
 
         Uri? mtlsEndpointAliasAuthorityUri = null;
@@ -162,14 +159,13 @@ internal class DefaultTenantResolver(
             )
         )
         {
-            failures.Add(
-                new TenantValidationFailure
-                {
-                    Detail =
-                        $"The mTLS endpoint alias authority '{mtlsEndpointAliasAuthority}' must be "
-                        + $"{TenantAddressRules.MtlsEndpointAliasAuthorityRequirement}.",
-                }
-            );
+            var invalidAuthorityFailure = new TenantValidationFailure
+            {
+                Detail =
+                    $"The mTLS endpoint alias authority '{mtlsEndpointAliasAuthority}' must be "
+                    + $"{TenantAddressRules.MtlsEndpointAliasAuthorityRequirement}.",
+            };
+            failures.Add(invalidAuthorityFailure);
         }
 
         // The remaining rules, the strategy's included, are only meaningful for a well-formed identifier and issuer.
@@ -185,14 +181,13 @@ internal class DefaultTenantResolver(
         // tenant is never reissued (ADR-1160).
         if (await TenantDirectory.IsTenantIdRetiredAsync(tenantId, cancellationToken))
         {
-            failures.Add(
-                new TenantValidationFailure
-                {
-                    Detail =
-                        $"The tenant identifier '{tenantId}' belonged to a deleted tenant and is never reissued.",
-                    IsConflict = true,
-                }
-            );
+            var retiredTenantIdFailure = new TenantValidationFailure
+            {
+                Detail =
+                    $"The tenant identifier '{tenantId}' belonged to a deleted tenant and is never reissued.",
+                IsConflict = true,
+            };
+            failures.Add(retiredTenantIdFailure);
         }
 
         // The issuer is the tenant's identity and is asserted in every token it mints, so two tenants sharing one
@@ -208,13 +203,12 @@ internal class DefaultTenantResolver(
                 && !string.Equals(holder.TenantId, tenantId, StringComparison.OrdinalIgnoreCase)
             )
             {
-                failures.Add(
-                    new TenantValidationFailure
-                    {
-                        Detail = $"Another tenant already has the issuer '{issuer}'.",
-                        IsConflict = true,
-                    }
-                );
+                var duplicateIssuerFailure = new TenantValidationFailure
+                {
+                    Detail = $"Another tenant already has the issuer '{issuer}'.",
+                    IsConflict = true,
+                };
+                failures.Add(duplicateIssuerFailure);
             }
             else if (
                 await TenantDirectory.GetRetiredIssuerHolderOrDefaultAsync(
@@ -227,26 +221,24 @@ internal class DefaultTenantResolver(
             {
                 // Relying parties that trusted a retired issuer would accept another tenant's tokens under it, so only
                 // the tenant that gave it up can take it back (ADR-1160).
-                failures.Add(
-                    new TenantValidationFailure
-                    {
-                        Detail =
-                            $"The issuer '{issuer}' belonged to another tenant and is never reissued.",
-                        IsConflict = true,
-                    }
-                );
+                var retiredIssuerFailure = new TenantValidationFailure
+                {
+                    Detail =
+                        $"The issuer '{issuer}' belonged to another tenant and is never reissued.",
+                    IsConflict = true,
+                };
+                failures.Add(retiredIssuerFailure);
             }
             else if (await IsRootTenantAddressAsync(tenantId, issuerUri, cancellationToken))
             {
                 // The root tenant is created on demand at its configured address, so a tenant written there first would
                 // take the control plane's address and leave the root tenant unable to be created (ADR-1165).
-                failures.Add(
-                    new TenantValidationFailure
-                    {
-                        Detail = $"The issuer '{issuer}' is reserved for the root tenant.",
-                        IsConflict = true,
-                    }
-                );
+                var rootTenantAddressFailure = new TenantValidationFailure
+                {
+                    Detail = $"The issuer '{issuer}' is reserved for the root tenant.",
+                    IsConflict = true,
+                };
+                failures.Add(rootTenantAddressFailure);
             }
         }
 

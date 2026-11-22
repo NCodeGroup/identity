@@ -153,9 +153,11 @@ compiles it, no gate runs it as tests, and a `.Tests` project of its own unit-te
   ([ADR-1486](docs/decisions/1486-the-repositorys-own-analyzer-project-fails-the-build-on-a-field-an-auto-property-could-replace.md)),
   `NCID0004` reports an `IgnoreQueryFilters()` call that no `// Cross-tenant: <why>` comment explains
   ([ADR-1018](docs/decisions/1018-tenant-selection-is-shared-and-tenant-bound-rows-are-scoped-at-the-persistence-layer.md)),
-  and `NCID0005` reports a `Guid` member of a public type in a `Contracts` or `DataContracts` namespace, where a
+  `NCID0005` reports a `Guid` member of a public type in a `Contracts` or `DataContracts` namespace, where a
   surrogate key would reach a caller
-  ([ADR-1517](docs/decisions/1517-internal-surrogate-keys-are-uuidv7-minted-in-process-behind-one-seam-and-never-reach-a-caller.md))
+  ([ADR-1517](docs/decisions/1517-internal-surrogate-keys-are-uuidv7-minted-in-process-behind-one-seam-and-never-reach-a-caller.md)),
+  and `NCID0006` reports a call, `await` or object creation nested in another call's arguments in production code
+  ([ADR-1522](docs/decisions/1522-an-analyzer-fails-the-build-on-a-call-await-or-object-creation-nested-in-another-calls-arguments.md))
 - **Frontend (`frontend/`)** — the pnpm workspace of the web apps (`apps/auth`, `apps/conformance`,
   `apps/conformance-runner`, `apps/mgmt`, `apps/playground`, `apps/setup`) and their shared `@ncodegroup/identity-*`
   packages, themed with NCode Brand's Instrument, whose files `frontend/packages/brand` vendors from the release

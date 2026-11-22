@@ -41,20 +41,18 @@ internal static class DefaultRegistration
 
             // Every validation of a subject includes its standing; it is added after the default handler, which
             // TryAddSingleton registers only when no handler exists.
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    ICommandHandler<ValidateSubjectAuthenticationCommand>,
-                    DefaultValidateStandingOnSubjectAuthenticationHandler
-                >()
-            );
+            var standingHandler = ServiceDescriptor.Singleton<
+                ICommandHandler<ValidateSubjectAuthenticationCommand>,
+                DefaultValidateStandingOnSubjectAuthenticationHandler
+            >();
+            serviceCollection.TryAddEnumerable(standingHandler);
 
             // A blocked principal is refused wherever a subject's standing is validated.
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    ICommandHandler<ValidateSubjectStandingCommand>,
-                    DefaultValidateBlockedSubjectHandler
-                >()
-            );
+            var blockedSubjectHandler = ServiceDescriptor.Singleton<
+                ICommandHandler<ValidateSubjectStandingCommand>,
+                DefaultValidateBlockedSubjectHandler
+            >();
+            serviceCollection.TryAddEnumerable(blockedSubjectHandler);
 
             serviceCollection.TryAddSingleton<
                 ICommandResponseHandler<AuthenticateSubjectCommand, AuthenticateSubjectDisposition>,

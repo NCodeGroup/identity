@@ -260,8 +260,9 @@ internal class DefaultClientRegistrationEndpointHandler(
             return bindingError;
         }
 
+        var secretOwner = SecretOwner.ForTenant(tenantId);
         var protector = await SecretProtectorProvider.GetProtectorAsync(
-            SecretOwner.ForTenant(tenantId),
+            secretOwner,
             [],
             cancellationToken
         );
@@ -354,13 +355,14 @@ internal class DefaultClientRegistrationEndpointHandler(
             Payload = new RegistrationAccessTokenGrant { ClientId = clientId },
         };
 
+        var registrationGrantId = PersistedGrantService.CreateGrantId(
+            tenantId,
+            OpenIdConstants.PersistedGrantTypes.RegistrationAccessToken,
+            registrationAccessToken
+        );
         await PersistedGrantService.AddAsync(
             openIdContext,
-            PersistedGrantService.CreateGrantId(
-                tenantId,
-                OpenIdConstants.PersistedGrantTypes.RegistrationAccessToken,
-                registrationAccessToken
-            ),
+            registrationGrantId,
             registrationGrant,
             createdWhen,
             lifetime: null,
@@ -555,12 +557,8 @@ internal class DefaultClientRegistrationEndpointHandler(
             return coherenceError.WithStatusCode(StatusCodes.Status400BadRequest).AsHttpResult();
         }
 
-        var keysError = ImportRegisteredKeys(
-            request,
-            TimeProvider.GetUtcNow(),
-            errorFactory,
-            out var keys
-        );
+        var importedWhen = TimeProvider.GetUtcNow();
+        var keysError = ImportRegisteredKeys(request, importedWhen, errorFactory, out var keys);
         if (keysError is not null)
         {
             return keysError;
@@ -666,8 +664,9 @@ internal class DefaultClientRegistrationEndpointHandler(
         CancellationToken cancellationToken
     )
     {
+        var secretOwner = SecretOwner.ForTenant(client.TenantId);
         var protector = await SecretProtectorProvider.GetProtectorAsync(
-            SecretOwner.ForTenant(client.TenantId),
+            secretOwner,
             [],
             cancellationToken
         );
@@ -818,13 +817,18 @@ internal class DefaultClientRegistrationEndpointHandler(
         }
     }
 
-    private string GetRegistrationClientUri(OpenIdContext openIdContext, string clientId) =>
-        LinkGenerator.GetTenantUriByName(
-            openIdContext,
-            OpenIdConstants.EndpointNames.RegistrationManagement,
-            new { client_id = clientId }
-        )
-        ?? throw new InvalidOperationException("Unable to determine the registration client URI.");
+    private string GetRegistrationClientUri(OpenIdContext openIdContext, string clientId)
+    {
+        var routeValues = new { client_id = clientId };
+        return LinkGenerator.GetTenantUriByName(
+                openIdContext,
+                OpenIdConstants.EndpointNames.RegistrationManagement,
+                routeValues
+            )
+            ?? throw new InvalidOperationException(
+                "Unable to determine the registration client URI."
+            );
+    }
 
     /// <summary>
     /// Validates the submitted client metadata and resolves the effective values (defaults applied). The resolved grant
@@ -1046,7 +1050,8 @@ internal class DefaultClientRegistrationEndpointHandler(
             return null;
         }
 
-        var description = string.Join(" ", violations.Select(violation => violation.Description));
+        var descriptions = violations.Select(violation => violation.Description);
+        var description = string.Join(" ", descriptions);
         var code = violations.Any(violation =>
             string.Equals(
                 violation.SettingName,
@@ -1393,17 +1398,20 @@ internal class DefaultClientRegistrationEndpointHandler(
         ISecretProtector protector,
         string tokenEndpointAuthMethod,
         DateTimeOffset createdWhen
-    ) =>
-        ClientSecretIssuer.GenerateClientSecret(
+    )
+    {
+        var secretRequest = new SharedSecretRequest
+        {
+            SecretId = CryptoService.GenerateResourceId(),
+            CreatedWhen = createdWhen,
+            ExpiresWhen = DateTimeOffset.MaxValue,
+        };
+        return ClientSecretIssuer.GenerateClientSecret(
             protector,
             tokenEndpointAuthMethod,
-            new SharedSecretRequest
-            {
-                SecretId = CryptoService.GenerateResourceId(),
-                CreatedWhen = createdWhen,
-                ExpiresWhen = DateTimeOffset.MaxValue,
-            }
+            secretRequest
         );
+    }
 
     /// <summary>
     /// Imports the public keys of the <c>jwks</c> set a registration request carries, under the client-key policy: every
@@ -1941,7 +1949,10 @@ internal class DefaultClientRegistrationEndpointHandler(
     private static void SetListIfPresent(JsonObject settings, string key, string? value)
     {
         if (!string.IsNullOrEmpty(value))
-            settings[key] = new JsonArray(JsonValue.Create(value));
+        {
+            var item = JsonValue.Create(value);
+            settings[key] = new JsonArray(item);
+        }
     }
 
     // A list narrowed to one value reports it as the registered metadata; any other list names no single registration.
@@ -1962,7 +1973,10 @@ internal class DefaultClientRegistrationEndpointHandler(
         foreach (var node in array)
         {
             if (node?.GetValueKind() == JsonValueKind.String)
-                values.Add(node.GetValue<string>());
+            {
+                var stringValue = node.GetValue<string>();
+                values.Add(stringValue);
+            }
         }
 
         return values;

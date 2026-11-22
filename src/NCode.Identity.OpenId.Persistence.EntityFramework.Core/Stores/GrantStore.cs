@@ -39,25 +39,24 @@ internal class GrantStore(
         CancellationToken cancellationToken
     )
     {
-        return ValueTask.FromResult(
-            new PersistedGrant
-            {
-                GrantType = entity.GrantType,
-                HashedKey = entity.HashedKey,
-                GrantId = entity.GrantId,
-                ConcurrencyToken = entity.ConcurrencyToken,
-                TenantId = entity.Tenant.TenantId,
-                ClientId = entity.Client?.ClientId,
-                SubjectId = entity.SubjectId,
-                SessionId = entity.SessionId,
-                RefreshTokenLineageId = entity.RefreshTokenLineageId,
-                CreatedWhen = entity.CreatedWhen,
-                ExpiresWhen = entity.ExpiresWhen,
-                RevokedWhen = entity.RevokedWhen,
-                ConsumedWhen = entity.ConsumedWhen,
-                ProtectedPayload = entity.ProtectedPayload,
-            }
-        );
+        var persistedGrant = new PersistedGrant
+        {
+            GrantType = entity.GrantType,
+            HashedKey = entity.HashedKey,
+            GrantId = entity.GrantId,
+            ConcurrencyToken = entity.ConcurrencyToken,
+            TenantId = entity.Tenant.TenantId,
+            ClientId = entity.Client?.ClientId,
+            SubjectId = entity.SubjectId,
+            SessionId = entity.SessionId,
+            RefreshTokenLineageId = entity.RefreshTokenLineageId,
+            CreatedWhen = entity.CreatedWhen,
+            ExpiresWhen = entity.ExpiresWhen,
+            RevokedWhen = entity.RevokedWhen,
+            ConsumedWhen = entity.ConsumedWhen,
+            ProtectedPayload = entity.ProtectedPayload,
+        };
+        return ValueTask.FromResult(persistedGrant);
     }
 
     /// <inheritdoc />
@@ -280,7 +279,8 @@ internal class GrantStore(
         var grants = new List<PersistedGrant>(entities.Count);
         foreach (var entity in entities)
         {
-            grants.Add(await MapFromEntityAsync(entity, cancellationToken));
+            var mapped = await MapFromEntityAsync(entity, cancellationToken);
+            grants.Add(mapped);
         }
 
         return grants;

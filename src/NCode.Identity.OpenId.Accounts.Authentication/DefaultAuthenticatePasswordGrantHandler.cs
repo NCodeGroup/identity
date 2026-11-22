@@ -117,10 +117,11 @@ internal class DefaultAuthenticatePasswordGrantHandler(
             return Failed();
         }
 
+        var subjectCommand = new CreatePasswordGrantSubjectCommand(openIdContext, account);
         var subject = await openIdContext.Mediator.SendAsync<
             CreatePasswordGrantSubjectCommand,
             ClaimsPrincipal
-        >(new CreatePasswordGrantSubjectCommand(openIdContext, account), cancellationToken);
+        >(subjectCommand, cancellationToken);
 
         var principalId = await ResolvePrincipalIdAsync(
             openIdContext,

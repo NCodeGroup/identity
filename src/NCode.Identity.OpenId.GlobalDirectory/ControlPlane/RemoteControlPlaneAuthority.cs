@@ -52,23 +52,23 @@ internal sealed class RemoteControlPlaneAuthority(
         if (Cache.TryGetValue(key, out var cached) && cached.ExpiresAt > now)
             return cached.Authority;
 
-        var response = await Client.SendAsync(
-            new CellApiRequest(
-                HttpMethod.Post,
-                CreateAuthorityUri(),
-                GlobalDirectoryProtocol.ControlPlaneAudience,
-                GlobalDirectoryProtocol.ControlPlaneScope
-            )
-            {
-                Body = request,
-            },
-            cancellationToken
-        );
+        var authorityUri = CreateAuthorityUri();
+        var authorityRequest = new CellApiRequest(
+            HttpMethod.Post,
+            authorityUri,
+            GlobalDirectoryProtocol.ControlPlaneAudience,
+            GlobalDirectoryProtocol.ControlPlaneScope
+        )
+        {
+            Body = request,
+        };
+        var response = await Client.SendAsync(authorityRequest, cancellationToken);
 
         response.EnsureSuccess("get the control-plane authority");
         var authority = response.Read<ControlPlaneAuthority>();
 
-        Store(key, authority, TimeProvider.GetUtcNow() + CacheLifetime);
+        var storedAt = TimeProvider.GetUtcNow();
+        Store(key, authority, storedAt + CacheLifetime);
         return authority;
     }
 
@@ -87,9 +87,8 @@ internal sealed class RemoteControlPlaneAuthority(
                 "The cell does not know the issuer of the control plane."
             );
 
-        return new Uri(
-            uri.GetLeftPart(UriPartial.Authority) + DirectoryClientDefaults.AuthorityPath
-        );
+        var authority = uri.GetLeftPart(UriPartial.Authority);
+        return new Uri(authority + DirectoryClientDefaults.AuthorityPath);
     }
 
     /// <summary>

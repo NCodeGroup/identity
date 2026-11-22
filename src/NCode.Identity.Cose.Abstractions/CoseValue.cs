@@ -61,7 +61,8 @@ public sealed class CoseValue
             );
         }
 
-        return new CoseValue(encodedValue.ToArray());
+        var encodedBytes = encodedValue.ToArray();
+        return new CoseValue(encodedBytes);
     }
 
     /// <summary>
@@ -73,7 +74,8 @@ public sealed class CoseValue
     {
         var writer = new CborWriter(CborConformanceMode.Strict);
         writer.WriteInt64(value);
-        return new CoseValue(writer.Encode());
+        var encoded = writer.Encode();
+        return new CoseValue(encoded);
     }
 
     /// <summary>
@@ -88,7 +90,8 @@ public sealed class CoseValue
 
         var writer = new CborWriter(CborConformanceMode.Strict);
         writer.WriteTextString(value);
-        return new CoseValue(writer.Encode());
+        var encoded = writer.Encode();
+        return new CoseValue(encoded);
     }
 
     /// <summary>
@@ -100,7 +103,8 @@ public sealed class CoseValue
     {
         var writer = new CborWriter(CborConformanceMode.Strict);
         writer.WriteByteString(value);
-        return new CoseValue(writer.Encode());
+        var encoded = writer.Encode();
+        return new CoseValue(encoded);
     }
 
     /// <summary>
@@ -123,7 +127,8 @@ public sealed class CoseValue
                 writer.WriteInt64(label.IntegerValue);
         }
         writer.WriteEndArray();
-        return new CoseValue(writer.Encode());
+        var encoded = writer.Encode();
+        return new CoseValue(encoded);
     }
 
     /// <summary>
@@ -148,7 +153,8 @@ public sealed class CoseValue
             writer.WriteTextString(value);
         }
         writer.WriteEndArray();
-        return new CoseValue(writer.Encode());
+        var encoded = writer.Encode();
+        return new CoseValue(encoded);
     }
 
     /// <summary>
@@ -249,9 +255,14 @@ public sealed class CoseValue
         if (length is null)
             return false;
 
-        var elements = new List<CoseValue>(Math.Min(length.Value, reader.BytesRemaining));
+        var capacity = Math.Min(length.Value, reader.BytesRemaining);
+        var elements = new List<CoseValue>(capacity);
         for (var index = 0; index < length; index++)
-            elements.Add(new CoseValue(reader.ReadEncodedValue().ToArray()));
+        {
+            var encodedElement = reader.ReadEncodedValue().ToArray();
+            var element = new CoseValue(encodedElement);
+            elements.Add(element);
+        }
 
         reader.ReadEndArray();
         value = elements;

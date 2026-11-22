@@ -35,8 +35,10 @@ internal sealed class DeploymentPbkdf2IterationsValidator
     {
         ArgumentNullException.ThrowIfNull(options);
 
-        return options.Iterations >= Pbkdf2SecretVerifierOptions.MinimumDeploymentIterations
-            ? ValidateOptionsResult.Success
-            : ValidateOptionsResult.Fail(CreateMessage(options.Iterations));
+        if (options.Iterations >= Pbkdf2SecretVerifierOptions.MinimumDeploymentIterations)
+            return ValidateOptionsResult.Success;
+
+        var message = CreateMessage(options.Iterations);
+        return ValidateOptionsResult.Fail(message);
     }
 }

@@ -40,18 +40,32 @@ public static class DefaultRegistration
             >();
             serviceCollection.TryAddSingleton<IJwtValidator, DefaultJwtValidator>();
 
+            var claimValueHandler = ServiceDescriptor.Singleton<
+                IJwtValidationHandler,
+                ClaimValueRequirementHandler
+            >();
+            var tokenTypeHandler = ServiceDescriptor.Singleton<
+                IJwtValidationHandler,
+                TokenTypeRequirementHandler
+            >();
+            var tokenLifetimeHandler = ServiceDescriptor.Singleton<
+                IJwtValidationHandler,
+                TokenLifetimeRequirementHandler
+            >();
+            var certificateLifetimeHandler = ServiceDescriptor.Singleton<
+                IJwtValidationHandler,
+                CertificateLifetimeRequirementHandler
+            >();
+            var assertionHandler = ServiceDescriptor.Singleton<
+                IJwtValidationHandler,
+                AssertionRequirementHandler
+            >();
             serviceCollection.TryAddEnumerable([
-                ServiceDescriptor.Singleton<IJwtValidationHandler, ClaimValueRequirementHandler>(),
-                ServiceDescriptor.Singleton<IJwtValidationHandler, TokenTypeRequirementHandler>(),
-                ServiceDescriptor.Singleton<
-                    IJwtValidationHandler,
-                    TokenLifetimeRequirementHandler
-                >(),
-                ServiceDescriptor.Singleton<
-                    IJwtValidationHandler,
-                    CertificateLifetimeRequirementHandler
-                >(),
-                ServiceDescriptor.Singleton<IJwtValidationHandler, AssertionRequirementHandler>(),
+                claimValueHandler,
+                tokenTypeHandler,
+                tokenLifetimeHandler,
+                certificateLifetimeHandler,
+                assertionHandler,
             ]);
 
             return newBuilder;
@@ -78,9 +92,8 @@ public static class JwtValidationHandlerRegistration
         public IServiceBuilder<JwtLibrary> AddJwtValidationHandler<THandler>()
             where THandler : class, IJwtValidationHandler
         {
-            builder.ServiceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<IJwtValidationHandler, THandler>()
-            );
+            var handler = ServiceDescriptor.Singleton<IJwtValidationHandler, THandler>();
+            builder.ServiceCollection.TryAddEnumerable(handler);
             return builder;
         }
     }

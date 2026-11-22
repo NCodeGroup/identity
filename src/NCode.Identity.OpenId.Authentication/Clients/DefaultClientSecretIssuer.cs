@@ -150,10 +150,11 @@ internal sealed class DefaultClientSecretIssuer(
                 continue;
             }
 
+            var verifierId = CryptoService.GenerateResourceId();
             var verifier = SecretGenerator.ConvertToSharedSecretVerifier(
                 protector,
                 secret,
-                CryptoService.GenerateResourceId()
+                verifierId
             );
             removed.Add(secret);
             added.Add(verifier);
@@ -177,16 +178,13 @@ internal sealed class DefaultClientSecretIssuer(
         DateTimeOffset now
     )
     {
-        var issued = GenerateClientSecret(
-            protector,
-            tokenEndpointAuthMethod,
-            new SharedSecretRequest
-            {
-                SecretId = CryptoService.GenerateResourceId(),
-                CreatedWhen = now,
-                ExpiresWhen = DateTimeOffset.MaxValue,
-            }
-        );
+        var secretRequest = new SharedSecretRequest
+        {
+            SecretId = CryptoService.GenerateResourceId(),
+            CreatedWhen = now,
+            ExpiresWhen = DateTimeOffset.MaxValue,
+        };
+        var issued = GenerateClientSecret(protector, tokenEndpointAuthMethod, secretRequest);
 
         var kept = new List<PersistedSecret>(secrets.Count + 1);
         var removed = new List<PersistedSecret>();

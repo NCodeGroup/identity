@@ -23,15 +23,18 @@ internal class DefaultResourceServerValidator(IAuthorizationService authorizatio
         ClaimsPrincipal user,
         string tenantId,
         CancellationToken cancellationToken
-    ) =>
-        AuthorizeAsync(
+    )
+    {
+        var tenantNode = ResourceNode.For(tenantId, ResourceNodeTypes.Tenant, tenantId);
+        return AuthorizeAsync(
             user,
-            ResourceNode.For(tenantId, ResourceNodeTypes.Tenant, tenantId),
+            tenantNode,
             Operations.Create,
             "The caller is not authorized to create this resource server.",
             "Authentication is required to create this resource server.",
             cancellationToken
         );
+    }
 
     /// <inheritdoc />
     public ValueTask<ManagementError?> AuthorizeUpdateAsync(
@@ -39,15 +42,22 @@ internal class DefaultResourceServerValidator(IAuthorizationService authorizatio
         string tenantId,
         string resourceServerId,
         CancellationToken cancellationToken
-    ) =>
-        AuthorizeAsync(
+    )
+    {
+        var resourceServerNode = ResourceNode.For(
+            tenantId,
+            ResourceNodeTypes.ResourceServer,
+            resourceServerId
+        );
+        return AuthorizeAsync(
             user,
-            ResourceNode.For(tenantId, ResourceNodeTypes.ResourceServer, resourceServerId),
+            resourceServerNode,
             Operations.Update,
             "The caller is not authorized to update this resource server.",
             "Authentication is required to update this resource server.",
             cancellationToken
         );
+    }
 
     /// <inheritdoc />
     public ValueTask<ManagementError?> AuthorizeDeleteAsync(
@@ -55,15 +65,22 @@ internal class DefaultResourceServerValidator(IAuthorizationService authorizatio
         string tenantId,
         string resourceServerId,
         CancellationToken cancellationToken
-    ) =>
-        AuthorizeAsync(
+    )
+    {
+        var resourceServerNode = ResourceNode.For(
+            tenantId,
+            ResourceNodeTypes.ResourceServer,
+            resourceServerId
+        );
+        return AuthorizeAsync(
             user,
-            ResourceNode.For(tenantId, ResourceNodeTypes.ResourceServer, resourceServerId),
+            resourceServerNode,
             Operations.Delete,
             "The caller is not authorized to delete this resource server.",
             "Authentication is required to delete this resource server.",
             cancellationToken
         );
+    }
 
     /// <inheritdoc />
     public async ValueTask<ManagementError?> ValidateCreateAsync(

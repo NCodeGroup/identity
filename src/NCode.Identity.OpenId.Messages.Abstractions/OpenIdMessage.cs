@@ -218,13 +218,13 @@ public abstract class OpenIdMessage<T> : OpenIdMessage
     public static T Load(
         OpenIdEnvironment openIdEnvironment,
         IEnumerable<KeyValuePair<string, StringValues>> properties
-    ) =>
-        Load(
-            openIdEnvironment,
-            properties.Select(property =>
-                Parameter.Load(openIdEnvironment, property.Key, property.Value)
-            )
+    )
+    {
+        var parameters = properties.Select(property =>
+            Parameter.Load(openIdEnvironment, property.Key, property.Value)
         );
+        return Load(openIdEnvironment, parameters);
+    }
 
     /// <inheritdoc />
     protected OpenIdMessage()

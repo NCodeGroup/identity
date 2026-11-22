@@ -32,7 +32,8 @@ public static class RuntimeRolePostureCheckRegistration
         {
             ArgumentNullException.ThrowIfNull(serviceCollection);
 
-            serviceCollection.TryAddSingleton(new LocalDevelopmentMode(false));
+            var disabledMode = new LocalDevelopmentMode(false);
+            serviceCollection.TryAddSingleton(disabledMode);
 
             return serviceCollection.AddHostedService(serviceProvider =>
             {

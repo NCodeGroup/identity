@@ -52,7 +52,10 @@ internal class DefaultKeyWrapperCatalog : IKeyWrapperCatalog
         ValidateSelectedWrappers(protection, failures);
 
         if (failures.Count > 0)
-            throw new InvalidOperationException(string.Join(" ", failures));
+        {
+            var message = string.Join(" ", failures);
+            throw new InvalidOperationException(message);
+        }
     }
 
     private FrozenDictionary<string, IKeyWrapper> ProvidersByName { get; }
@@ -67,9 +70,10 @@ internal class DefaultKeyWrapperCatalog : IKeyWrapperCatalog
         if (ProvidersByName.TryGetValue(providerName, out var provider))
             return provider;
 
+        var registeredProviders = FormatNames(ProvidersByName.Keys);
         throw new InvalidOperationException(
             $"No root key provider is registered with the name '{providerName}'. "
-                + $"The registered providers are: {FormatNames(ProvidersByName.Keys)}."
+                + $"The registered providers are: {registeredProviders}."
         );
     }
 
@@ -85,9 +89,10 @@ internal class DefaultKeyWrapperCatalog : IKeyWrapperCatalog
         if (ReferencedByName.TryGetValue(name, out var wrapper))
             return wrapper;
 
+        var registeredWrappers = FormatNames(ReferencedByName.Keys);
         throw new InvalidOperationException(
             $"No key wrapper that wraps under a key the caller names is registered with the name '{name}'. "
-                + $"The registered ones are: {FormatNames(ReferencedByName.Keys)}."
+                + $"The registered ones are: {registeredWrappers}."
         );
     }
 
@@ -101,11 +106,12 @@ internal class DefaultKeyWrapperCatalog : IKeyWrapperCatalog
         if (string.IsNullOrWhiteSpace(name))
         {
             var actual = name is null ? "it is not set" : $"it is blank ('{name}')";
+            var registeredProviders = FormatNames(ProvidersByName.Keys);
 
             throw new InvalidOperationException(
                 $"{SecretProtectionOptions.DefaultSectionName}:{nameof(SecretProtectionOptions.RootKeyProvider)} is "
                     + $"required, but {actual}. Name one of the registered root key providers: "
-                    + $"{FormatNames(ProvidersByName.Keys)}."
+                    + $"{registeredProviders}."
             );
         }
 
@@ -128,9 +134,12 @@ internal class DefaultKeyWrapperCatalog : IKeyWrapperCatalog
         }
 
         if (duplicateNames.Count > 0)
+        {
+            var duplicates = FormatNames(duplicateNames);
             throw new InvalidOperationException(
-                $"More than one root key provider is registered with the same name: {FormatNames(duplicateNames)}."
+                $"More than one root key provider is registered with the same name: {duplicates}."
             );
+        }
 
         return providersByName.ToFrozenDictionary(StringComparer.Ordinal);
     }
@@ -172,7 +181,10 @@ internal class DefaultKeyWrapperCatalog : IKeyWrapperCatalog
             !string.IsNullOrWhiteSpace(rootKeyProvider)
             && ProvidersByName.TryGetValue(rootKeyProvider, out var root)
         )
-            failures.AddRange(root.GetConfigurationFailures());
+        {
+            var rootFailures = root.GetConfigurationFailures();
+            failures.AddRange(rootFailures);
+        }
 
         var ownerProviders = protection.OwnerRootKeys.Providers;
         if (ownerProviders is null)
@@ -186,13 +198,19 @@ internal class DefaultKeyWrapperCatalog : IKeyWrapperCatalog
                 continue;
 
             if (ReferencedByName.TryGetValue(provider, out var referenced))
-                failures.AddRange(referenced.GetReferenceConfigurationFailures());
+            {
+                var referenceFailures = referenced.GetReferenceConfigurationFailures();
+                failures.AddRange(referenceFailures);
+            }
         }
     }
 
     private static string FormatChoices(IEnumerable<string> names) =>
         names.Any() ? FormatNames(names) : "none";
 
-    private static string FormatNames(IEnumerable<string> names) =>
-        string.Join(", ", names.Order(StringComparer.Ordinal).Select(name => $"'{name}'"));
+    private static string FormatNames(IEnumerable<string> names)
+    {
+        var quotedNames = names.Order(StringComparer.Ordinal).Select(name => $"'{name}'");
+        return string.Join(", ", quotedNames);
+    }
 }

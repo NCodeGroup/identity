@@ -30,7 +30,10 @@ internal sealed class AuditRecordHandler(
     public ValueTask HandleAsync(IAuditEvent @event, CancellationToken cancellationToken)
     {
         if (Options.Enabled)
-            Queue.TryEnqueue(AuditRecordMapper.Map(@event, CellOptions.Name));
+        {
+            var record = AuditRecordMapper.Map(@event, CellOptions.Name);
+            Queue.TryEnqueue(record);
+        }
 
         return ValueTask.CompletedTask;
     }

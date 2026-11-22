@@ -107,10 +107,14 @@ internal class ManagementProblemResponseOperationTransformer : IOpenApiOperation
             }
 
             var own = response.Description;
-            if (
-                string.IsNullOrEmpty(own)
-                || string.Equals(own, ReasonPhrases.GetReasonPhrase(code), StringComparison.Ordinal)
-            )
+            var ownIsDefault = string.IsNullOrEmpty(own);
+            if (!ownIsDefault)
+            {
+                var reasonPhrase = ReasonPhrases.GetReasonPhrase(code);
+                ownIsDefault = string.Equals(own, reasonPhrase, StringComparison.Ordinal);
+            }
+
+            if (ownIsDefault)
             {
                 own = null;
             }

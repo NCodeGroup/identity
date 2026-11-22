@@ -40,18 +40,17 @@ internal class FederatedIdentityStore(
         CancellationToken cancellationToken
     )
     {
-        return ValueTask.FromResult(
-            new PersistedFederatedIdentity
-            {
-                TenantId = entity.Tenant.TenantId,
-                FederatedIdentityId = entity.FederatedIdentityId,
-                PrincipalId = entity.FederatedPrincipal.PrincipalId,
-                Issuer = entity.Issuer,
-                Subject = entity.Subject,
-                JoinKey = entity.JoinKey,
-                ConcurrencyToken = entity.ConcurrencyToken,
-            }
-        );
+        var persistedFederatedIdentity = new PersistedFederatedIdentity
+        {
+            TenantId = entity.Tenant.TenantId,
+            FederatedIdentityId = entity.FederatedIdentityId,
+            PrincipalId = entity.FederatedPrincipal.PrincipalId,
+            Issuer = entity.Issuer,
+            Subject = entity.Subject,
+            JoinKey = entity.JoinKey,
+            ConcurrencyToken = entity.ConcurrencyToken,
+        };
+        return ValueTask.FromResult(persistedFederatedIdentity);
     }
 
     /// <inheritdoc />
@@ -182,7 +181,8 @@ internal class FederatedIdentityStore(
         var normalizedSubjects = new List<string>(subjects.Count);
         foreach (var subject in subjects)
         {
-            normalizedSubjects.Add(Normalize(subject));
+            var normalizedSubject = Normalize(subject);
+            normalizedSubjects.Add(normalizedSubject);
         }
 
         var entities = await DbContext
@@ -197,7 +197,8 @@ internal class FederatedIdentityStore(
         var result = new List<PersistedFederatedIdentity>(entities.Count);
         foreach (var entity in entities)
         {
-            result.Add(await MapFromEntityAsync(entity, cancellationToken));
+            var mapped = await MapFromEntityAsync(entity, cancellationToken);
+            result.Add(mapped);
         }
 
         return result;
@@ -221,7 +222,8 @@ internal class FederatedIdentityStore(
         var result = new List<PersistedFederatedIdentity>(entities.Count);
         foreach (var entity in entities)
         {
-            result.Add(await MapFromEntityAsync(entity, cancellationToken));
+            var mapped = await MapFromEntityAsync(entity, cancellationToken);
+            result.Add(mapped);
         }
 
         return result;
@@ -243,7 +245,8 @@ internal class FederatedIdentityStore(
         var result = new List<PersistedFederatedIdentity>(entities.Count);
         foreach (var entity in entities)
         {
-            result.Add(await MapFromEntityAsync(entity, cancellationToken));
+            var mapped = await MapFromEntityAsync(entity, cancellationToken);
+            result.Add(mapped);
         }
 
         return result;

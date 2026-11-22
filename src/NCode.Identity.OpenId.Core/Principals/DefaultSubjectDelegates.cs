@@ -54,7 +54,8 @@ internal static class DefaultSubjectDelegates
 
                 if (ReferenceEquals(identity, primaryIdentity))
                 {
-                    claims = claims.Append(new Claim(primaryClaimType, subjectId));
+                    var primaryClaim = new Claim(primaryClaimType, subjectId);
+                    claims = claims.Append(primaryClaim);
                 }
 
                 return new ClaimsIdentity(

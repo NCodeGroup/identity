@@ -44,8 +44,11 @@ internal class DefaultSessionStateService(ICryptoService cryptoService) : ISessi
     }
 
     /// <inheritdoc />
-    public void ClearBrowserState(OpenIdContext openIdContext) =>
-        openIdContext.Http.Response.Cookies.Delete(BrowserStateCookieName, CreateCookieOptions());
+    public void ClearBrowserState(OpenIdContext openIdContext)
+    {
+        var cookieOptions = CreateCookieOptions();
+        openIdContext.Http.Response.Cookies.Delete(BrowserStateCookieName, cookieOptions);
+    }
 
     private string EnsureBrowserState(OpenIdContext openIdContext)
     {
@@ -60,11 +63,8 @@ internal class DefaultSessionStateService(ICryptoService cryptoService) : ISessi
         }
 
         var browserState = CryptoService.GenerateUrlSafeKey();
-        httpContext.Response.Cookies.Append(
-            BrowserStateCookieName,
-            browserState,
-            CreateCookieOptions()
-        );
+        var cookieOptions = CreateCookieOptions();
+        httpContext.Response.Cookies.Append(BrowserStateCookieName, browserState, cookieOptions);
         return browserState;
     }
 

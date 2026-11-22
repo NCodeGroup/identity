@@ -62,9 +62,10 @@ internal sealed class RemoteTenantDirectory(DirectoryHttpClient client) : ITenan
     {
         ArgumentException.ThrowIfNullOrEmpty(tenantId);
 
+        var segment = DirectoryHttpClient.Segment(tenantId);
         var response = await Client.SendAsync(
             HttpMethod.Post,
-            $"{Prefix}{DirectoryHttpClient.Segment(tenantId)}/release",
+            $"{Prefix}{segment}/release",
             body: null,
             cancellationToken
         );
@@ -86,17 +87,22 @@ internal sealed class RemoteTenantDirectory(DirectoryHttpClient client) : ITenan
 
         // The directory takes the source cell from the tenant's placement and the caller, so the body names only the
         // target.
+        var segment = DirectoryHttpClient.Segment(tenantId);
+        var offerRequest = new TenantMoveOfferRequest { ToCell = toCell };
         var response = await Client.SendAsync(
             HttpMethod.Post,
-            $"{Prefix}{DirectoryHttpClient.Segment(tenantId)}/move-offers",
-            new TenantMoveOfferRequest { ToCell = toCell },
+            $"{Prefix}{segment}/move-offers",
+            offerRequest,
             cancellationToken
         );
 
         if (response.IsConflict)
-            return MoveOfferResult.Conflict(
-                response.ReadProblemDetail("The directory refused to record a move offer.")
+        {
+            var detail = response.ReadProblemDetail(
+                "The directory refused to record a move offer."
             );
+            return MoveOfferResult.Conflict(detail);
+        }
 
         response.EnsureSuccess("offer a tenant to another cell");
         return MoveOfferResult.Offered();
@@ -114,17 +120,21 @@ internal sealed class RemoteTenantDirectory(DirectoryHttpClient client) : ITenan
         ArgumentException.ThrowIfNullOrEmpty(fromCell);
         ArgumentException.ThrowIfNullOrEmpty(toCell);
 
+        var tenantSegment = DirectoryHttpClient.Segment(tenantId);
+        var fromCellSegment = DirectoryHttpClient.Segment(fromCell);
+        var toCellSegment = DirectoryHttpClient.Segment(toCell);
         var response = await Client.SendAsync(
             HttpMethod.Post,
-            $"{Prefix}{DirectoryHttpClient.Segment(tenantId)}/move?fromCell={DirectoryHttpClient.Segment(fromCell)}&toCell={DirectoryHttpClient.Segment(toCell)}",
+            $"{Prefix}{tenantSegment}/move?fromCell={fromCellSegment}&toCell={toCellSegment}",
             body: null,
             cancellationToken
         );
 
         if (response.IsConflict)
-            return MoveResult.Conflict(
-                response.ReadProblemDetail("The directory refused to move a tenant.")
-            );
+        {
+            var detail = response.ReadProblemDetail("The directory refused to move a tenant.");
+            return MoveResult.Conflict(detail);
+        }
 
         response.EnsureSuccess("move a tenant");
         return MoveResult.Moved();
@@ -164,9 +174,10 @@ internal sealed class RemoteTenantDirectory(DirectoryHttpClient client) : ITenan
         );
 
         if (response.IsNotFound)
-            return ReservationResult.Conflict(
-                response.ReadProblemDetail("The directory has no record of the tenant.")
-            );
+        {
+            var detail = response.ReadProblemDetail("The directory has no record of the tenant.");
+            return ReservationResult.Conflict(detail);
+        }
 
         return ToReservationResult(response, "change the issuer of a tenant");
     }
@@ -179,9 +190,10 @@ internal sealed class RemoteTenantDirectory(DirectoryHttpClient client) : ITenan
     {
         ArgumentException.ThrowIfNullOrEmpty(tenantId);
 
+        var segment = DirectoryHttpClient.Segment(tenantId);
         var response = await Client.SendAsync(
             HttpMethod.Get,
-            $"{Prefix}{DirectoryHttpClient.Segment(tenantId)}",
+            $"{Prefix}{segment}",
             body: null,
             cancellationToken
         );
@@ -201,9 +213,10 @@ internal sealed class RemoteTenantDirectory(DirectoryHttpClient client) : ITenan
     {
         ArgumentException.ThrowIfNullOrEmpty(tenantId);
 
+        var segment = DirectoryHttpClient.Segment(tenantId);
         var response = await Client.SendAsync(
             HttpMethod.Get,
-            $"{Prefix}retired-ids/{DirectoryHttpClient.Segment(tenantId)}",
+            $"{Prefix}retired-ids/{segment}",
             body: null,
             cancellationToken
         );
@@ -223,9 +236,10 @@ internal sealed class RemoteTenantDirectory(DirectoryHttpClient client) : ITenan
     {
         ArgumentException.ThrowIfNullOrEmpty(issuer);
 
+        var segment = DirectoryHttpClient.Segment(issuer);
         var response = await Client.SendAsync(
             HttpMethod.Get,
-            $"retired-issuers?issuer={DirectoryHttpClient.Segment(issuer)}",
+            $"retired-issuers?issuer={segment}",
             body: null,
             cancellationToken
         );
@@ -243,9 +257,10 @@ internal sealed class RemoteTenantDirectory(DirectoryHttpClient client) : ITenan
     )
     {
         if (response.IsConflict)
-            return ReservationResult.Conflict(
-                response.ReadProblemDetail($"The directory refused to {operation}.")
-            );
+        {
+            var detail = response.ReadProblemDetail($"The directory refused to {operation}.");
+            return ReservationResult.Conflict(detail);
+        }
 
         response.EnsureSuccess(operation);
         return ReservationResult.Reserved();

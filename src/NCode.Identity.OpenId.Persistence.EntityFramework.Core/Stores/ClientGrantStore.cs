@@ -46,16 +46,15 @@ internal class ClientGrantStore(
         CancellationToken cancellationToken
     )
     {
-        return ValueTask.FromResult(
-            new PersistedClientGrant
-            {
-                TenantId = entity.Tenant.TenantId,
-                ClientId = entity.Client.ClientId,
-                ResourceServerId = entity.ResourceServer.ResourceServerId,
-                ConcurrencyToken = entity.ConcurrencyToken,
-                Scopes = DeserializeScopes(entity.ScopesJson),
-            }
-        );
+        var persistedClientGrant = new PersistedClientGrant
+        {
+            TenantId = entity.Tenant.TenantId,
+            ClientId = entity.Client.ClientId,
+            ResourceServerId = entity.ResourceServer.ResourceServerId,
+            ConcurrencyToken = entity.ConcurrencyToken,
+            Scopes = DeserializeScopes(entity.ScopesJson),
+        };
+        return ValueTask.FromResult(persistedClientGrant);
     }
 
     /// <inheritdoc />

@@ -34,9 +34,9 @@ internal sealed class SurrogateKeyConvention : IPropertyAddedConvention
 
         if (metadata.ClrType != typeof(Guid))
         {
-            throw new InvalidOperationException(
-                $"The surrogate key '{metadata.DeclaringType.DisplayName()}.{metadata.Name}' is not a Guid."
-            );
+            var message =
+                $"The surrogate key '{metadata.DeclaringType.DisplayName()}.{metadata.Name}' is not a Guid.";
+            throw new InvalidOperationException(message);
         }
 
         propertyBuilder.ValueGenerated(ValueGenerated.Never, fromDataAnnotation: true);

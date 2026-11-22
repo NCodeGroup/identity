@@ -63,18 +63,14 @@ internal sealed class RevocationDataFetcher(
         byte[] content,
         string contentType,
         CancellationToken cancellationToken
-    ) =>
-        SendAsync(
-            HttpMethod.Post,
-            location,
-            location,
-            subject,
-            new ByteArrayContent(content)
-            {
-                Headers = { ContentType = new MediaTypeHeaderValue(contentType) },
-            },
-            cancellationToken
-        );
+    )
+    {
+        var body = new ByteArrayContent(content)
+        {
+            Headers = { ContentType = new MediaTypeHeaderValue(contentType) },
+        };
+        return SendAsync(HttpMethod.Post, location, location, subject, body, cancellationToken);
+    }
 
     private async ValueTask<byte[]?> SendAsync(
         HttpMethod method,

@@ -119,9 +119,10 @@ internal class TenantRemoteSecretApiEndpointHandler(
         CancellationToken cancellationToken
     )
     {
+        var tenantNode = GetTenantNode(tenantId);
         var authorizationFailure = await GetAuthorizationFailureAsync(
             httpContext,
-            GetTenantNode(tenantId),
+            tenantNode,
             Operations.Create,
             cancellationToken
         );
@@ -238,9 +239,10 @@ internal class TenantRemoteSecretApiEndpointHandler(
         CancellationToken cancellationToken
     )
     {
+        var tenantNode = GetTenantNode(tenantId);
         var authorizationFailure = await GetAuthorizationFailureAsync(
             httpContext,
-            GetTenantNode(tenantId),
+            tenantNode,
             Operations.Create,
             cancellationToken
         );
@@ -343,12 +345,13 @@ internal class TenantRemoteSecretApiEndpointHandler(
     {
         var secretResource = ToSecretResource(secret);
 
+        var resourceValues = ToResourceValues(secretResource);
         await ManagementAuditRecorder.RecordTenantSecretChangedAsync(
             httpContext,
             tenantId,
             secret.SecretId,
             ResourceChangeTypes.Created,
-            ToResourceValues(secretResource)
+            resourceValues
         );
 
         await NotifyTenantChangedAsync(
@@ -381,9 +384,10 @@ internal class TenantRemoteSecretApiEndpointHandler(
     {
         cancellationToken.ThrowIfCancellationRequested();
 
+        var platformNode = GetPlatformNode(httpContext);
         var authorizationResult = await AuthorizationService.AuthorizeAsync(
             httpContext.User,
-            GetPlatformNode(httpContext),
+            platformNode,
             Operations.Update
         );
         if (authorizationResult.Succeeded)

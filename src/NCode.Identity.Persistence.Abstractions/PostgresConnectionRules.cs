@@ -92,8 +92,9 @@ public static class PostgresConnectionRules
             missing.Add($"{sectionName}:{nameof(PostgresConnectionParts.Password)}");
         if (missing.Count > 0)
         {
+            var missingParts = string.Join(", ", missing);
             throw new InvalidOperationException(
-                $"The '{sectionName}' parts are incomplete; set {string.Join(", ", missing)}."
+                $"The '{sectionName}' parts are incomplete; set {missingParts}."
             );
         }
 

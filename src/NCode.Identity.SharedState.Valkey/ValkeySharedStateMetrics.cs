@@ -70,11 +70,12 @@ internal sealed class ValkeySharedStateMetrics
     {
         var meter = meterFactory.Create(ValkeyMetrics.MeterName);
 
+        var advice = new InstrumentAdvice<double> { HistogramBucketBoundaries = BucketBoundaries };
         OperationDuration = meter.CreateHistogram(
             OperationDurationName,
             unit: "s",
             description: "The duration of a shared-state operation against its store.",
-            advice: new InstrumentAdvice<double> { HistogramBucketBoundaries = BucketBoundaries }
+            advice: advice
         );
     }
 
@@ -147,8 +148,12 @@ internal sealed class ValkeySharedStateMetrics
 
         var tags = new TagList { { OperationAttribute, operation }, { AdapterAttribute, Adapter } };
         if (exception is not null)
-            tags.Add(ErrorTypeAttribute, exception.GetType().FullName);
+        {
+            var errorType = exception.GetType().FullName;
+            tags.Add(ErrorTypeAttribute, errorType);
+        }
 
-        OperationDuration.Record(Stopwatch.GetElapsedTime(startTimestamp).TotalSeconds, tags);
+        var durationSeconds = Stopwatch.GetElapsedTime(startTimestamp).TotalSeconds;
+        OperationDuration.Record(durationSeconds, tags);
     }
 }

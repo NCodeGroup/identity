@@ -78,16 +78,18 @@ internal abstract class MutualTlsClientAuthenticationHandler(
 
         var form = await httpRequest.ReadFormAsync(cancellationToken);
 
-        if (
-            !form.TryGetValue(OpenIdProtocol.Parameters.ClientId, out var clientIdValues)
-            || string.IsNullOrEmpty(clientIdValues.ToString())
-        )
+        if (!form.TryGetValue(OpenIdProtocol.Parameters.ClientId, out var clientIdValues))
         {
             // No client_id present; this handler does not apply.
             return ClientAuthenticationResult.Undefined;
         }
 
         var clientId = clientIdValues.ToString();
+        if (string.IsNullOrEmpty(clientId))
+        {
+            // No client_id present; this handler does not apply.
+            return ClientAuthenticationResult.Undefined;
+        }
 
         OpenIdClient? publicClient;
         try

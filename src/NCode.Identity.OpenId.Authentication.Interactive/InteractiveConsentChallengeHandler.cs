@@ -30,12 +30,14 @@ internal sealed class InteractiveConsentChallengeHandler(InteractiveSurfacePaths
             command.OpenIdContext.Http,
             InteractiveAuthenticationDefaults.ConsentPath
         );
+        var escapedContinueUrl = Uri.EscapeDataString(command.ContinueUrl);
         var location = InteractiveLocaleSelector.AppendUiLocalesQuery(
-            $"{consentPath}?ReturnUrl=" + Uri.EscapeDataString(command.ContinueUrl),
+            $"{consentPath}?ReturnUrl=" + escapedContinueUrl,
             command.AuthorizationRequest.UiLocales
         );
 
         RedirectHttpResult result = TypedResults.Redirect(location);
-        return ValueTask.FromResult(ReadOnlyEndpointDisposition.Handled(result));
+        var disposition = ReadOnlyEndpointDisposition.Handled(result);
+        return ValueTask.FromResult(disposition);
     }
 }

@@ -22,9 +22,7 @@ internal static class DirectoryCaller
     /// </returns>
     public static string? GetCell(ClaimsPrincipal user)
     {
-        var clientId = user.FindFirst(
-            DirectoryAuthenticationEndpointFilter.ClientIdClaimType
-        )?.Value;
+        var clientId = user.FindFirst(DirectoryAuthenticationGate.ClientIdClaimType)?.Value;
         if (
             clientId is null
             || !clientId.StartsWith(

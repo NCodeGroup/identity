@@ -110,18 +110,22 @@ internal class DefaultDeviceAuthorizationEndpointHandler(
 
         var request = DeviceAuthorizationRequest.Load(openIdEnvironment, formData);
 
-        await mediator.SendAsync(
-            new ValidateDeviceAuthorizationRequestCommand(openIdContext, openIdClient, request),
-            cancellationToken
+        var validateCommand = new ValidateDeviceAuthorizationRequestCommand(
+            openIdContext,
+            openIdClient,
+            request
         );
+        await mediator.SendAsync(validateCommand, cancellationToken);
 
+        var createCommand = new CreateDeviceAuthorizationRequestCommand(
+            openIdContext,
+            openIdClient,
+            request
+        );
         var result = await mediator.SendAsync<
             CreateDeviceAuthorizationRequestCommand,
             DeviceAuthorizationResult
-        >(
-            new CreateDeviceAuthorizationRequestCommand(openIdContext, openIdClient, request),
-            cancellationToken
-        );
+        >(createCommand, cancellationToken);
 
         return TypedResults.Json(result, openIdEnvironment.JsonSerializerOptions);
     }

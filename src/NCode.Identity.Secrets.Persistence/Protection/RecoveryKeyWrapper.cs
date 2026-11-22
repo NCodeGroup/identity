@@ -91,7 +91,11 @@ internal class RecoveryKeyWrapper : IRecoveryKeyWrapper, IDisposable
     /// <exception cref="InvalidOperationException">
     /// Thrown when the text is not an RSA public key of at least 3072 bits.
     /// </exception>
-    internal static RecoveryKeyWrapper FromPem(string pem) => new(ImportPublicKey(pem));
+    internal static RecoveryKeyWrapper FromPem(string pem)
+    {
+        var publicKey = ImportPublicKey(pem);
+        return new(publicKey);
+    }
 
     /// <inheritdoc />
     public string Name => WrapperName;
@@ -138,14 +142,14 @@ internal class RecoveryKeyWrapper : IRecoveryKeyWrapper, IDisposable
             }
         );
 
-        return ValueTask.FromResult(
-            new WrappedKey
-            {
-                WrapperName = Name,
-                KeyId = keyId,
-                Ciphertext = ciphertext,
-            }
-        );
+        var wrappedKey = new WrappedKey
+        {
+            WrapperName = Name,
+            KeyId = keyId,
+            Ciphertext = ciphertext,
+        };
+
+        return ValueTask.FromResult(wrappedKey);
     }
 
     /// <inheritdoc />

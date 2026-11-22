@@ -80,11 +80,17 @@ internal static partial class AzureKeyVaultKeyId
     /// <returns>
     /// <see langword="true"/> if the version belongs to the referenced key; otherwise, <see langword="false"/>.
     /// </returns>
-    public static bool IsVersionOf(string keyVersionId, string keyReference) =>
-        IsKeyVersionId(keyVersionId)
-        && string.Equals(
-            IsKeyVersionId(keyReference) ? keyVersionId : GetKeyIdWithoutVersion(keyVersionId),
-            keyReference,
-            StringComparison.OrdinalIgnoreCase
-        );
+    public static bool IsVersionOf(string keyVersionId, string keyReference)
+    {
+        if (!IsKeyVersionId(keyVersionId))
+        {
+            return false;
+        }
+
+        var isReferenceVersion = IsKeyVersionId(keyReference);
+        var expectedReference = isReferenceVersion
+            ? keyVersionId
+            : GetKeyIdWithoutVersion(keyVersionId);
+        return string.Equals(expectedReference, keyReference, StringComparison.OrdinalIgnoreCase);
+    }
 }

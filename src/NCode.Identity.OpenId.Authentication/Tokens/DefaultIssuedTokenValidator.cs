@@ -90,16 +90,20 @@ internal class DefaultIssuedTokenValidator(
             cancellationToken
         );
 
-        return isSessionRevoked
-            ? JwtValidationResult.Fail(
-                parameters,
-                result.PropertyBag,
-                accessToken,
-                new JwtValidationException(
-                    "The end-user session the access token was issued under has been revoked."
-                )
-            )
-            : result;
+        if (!isSessionRevoked)
+        {
+            return result;
+        }
+
+        var revokedException = new JwtValidationException(
+            "The end-user session the access token was issued under has been revoked."
+        );
+        return JwtValidationResult.Fail(
+            parameters,
+            result.PropertyBag,
+            accessToken,
+            revokedException
+        );
     }
 
     /// <inheritdoc />

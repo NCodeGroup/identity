@@ -53,12 +53,11 @@ public static class ConformanceSeedRegistration
             }
 
             serviceCollection.AddSingleton(options);
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    ICommandHandler<SeedTenantCommand>,
-                    ConformanceSeedHandler
-                >()
-            );
+            var seedHandler = ServiceDescriptor.Singleton<
+                ICommandHandler<SeedTenantCommand>,
+                ConformanceSeedHandler
+            >();
+            serviceCollection.TryAddEnumerable(seedHandler);
 
             return builder;
         }

@@ -60,6 +60,9 @@ internal sealed class DefaultClientAuthenticationAttemptSettingDescriptorDataSou
                 OnMerge = SettingMerge.Min,
             };
 
+            var windowMinimum = TimeSpan.FromMinutes(1);
+            var windowMaximum = TimeSpan.FromDays(1);
+
             // client_authentication_failed_attempts_window: the length of the fixed windows the failures are counted
             // in, each starting at a multiple of its length. Between one minute and one day; default 15 minutes. Floor
             // (Max): a narrower scope may only lengthen it.
@@ -67,7 +70,7 @@ internal sealed class DefaultClientAuthenticationAttemptSettingDescriptorDataSou
             {
                 Name = OpenIdSettingNames.ClientAuthenticationFailedAttemptsWindow,
                 AppliesTo = Tenants,
-                Rule = SettingRules.Between(TimeSpan.FromMinutes(1), TimeSpan.FromDays(1)),
+                Rule = SettingRules.Between(windowMinimum, windowMaximum),
                 Default = TimeSpan.FromMinutes(15),
                 IsDiscoverable = false,
                 OnMerge = SettingMerge.Max,

@@ -177,3 +177,6 @@ NCode.Identity.AspNetCore.RetryAfterProblem
 const NCode.Identity.AspNetCore.RetryAfterProblem.MemberName = "retryAfterSeconds" -> string!
 static NCode.Identity.AspNetCore.RetryAfterProblem.Create(Microsoft.AspNetCore.Http.HttpContext! httpContext, System.TimeSpan wait, Microsoft.AspNetCore.Mvc.ProblemDetails! problem) -> Microsoft.AspNetCore.Http.HttpResults.ProblemHttpResult!
 static NCode.Identity.AspNetCore.RetryAfterProblem.GetWaitSeconds(System.TimeSpan wait) -> long
+NCode.Identity.AspNetCore.EndpointGateConventionBuilderExtensions
+NCode.Identity.AspNetCore.EndpointGateConventionBuilderExtensions.extension<TBuilder>(TBuilder)
+NCode.Identity.AspNetCore.EndpointGateConventionBuilderExtensions.extension<TBuilder>(TBuilder).AddEndpointGate<TGate>() -> TBuilder

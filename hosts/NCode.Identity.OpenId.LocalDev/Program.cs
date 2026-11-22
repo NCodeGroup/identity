@@ -20,9 +20,8 @@ var builder = DistributedApplication.CreateBuilder(args);
 // the newest NVS-managed install of that major on this process's PATH (the child resources inherit it), then fails the
 // AppHost at startup, naming ./build/frontend-install.ps1, when no Node of the pinned major is available or
 // node_modules does not match the pnpm pin and lockfile (ADR-1071).
-new FrontendToolchainGuard(
-    Path.Combine(builder.AppHostDirectory, "..", "..", "frontend")
-).EnsureReady();
+var frontendDirectory = Path.Combine(builder.AppHostDirectory, "..", "..", "frontend");
+new FrontendToolchainGuard(frontendDirectory).EnsureReady();
 
 // Every OP instance started below shares the one dev database, so they must all unwrap the same master keys: they are
 // handed the same development root key, as a key file (ADR-1235). The key is generated once per machine, outside the

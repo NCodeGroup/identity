@@ -43,8 +43,9 @@ internal class DefaultClientScopeService(
 
         // The DBMS returns only the enabled resource servers that are system-owned or that this client holds a grant
         // for; everything else cannot contribute an allowed scope (ADR-1080).
+        var resourceServerIds = grantedScopesByResourceServer.Keys.ToList();
         var projections = await resourceServerStore.GetEnabledScopeProjectionsBySystemOrIdsAsync(
-            grantedScopesByResourceServer.Keys.ToList(),
+            resourceServerIds,
             cancellationToken
         );
 
@@ -66,7 +67,8 @@ internal class DefaultClientScopeService(
             )
             {
                 // Read-time intersection: a granted scope no longer defined on the resource server is ignored.
-                allowedScopes.UnionWith(resourceServer.ScopeValues.Where(grantedScopes.Contains));
+                var definedGrantedScopes = resourceServer.ScopeValues.Where(grantedScopes.Contains);
+                allowedScopes.UnionWith(definedGrantedScopes);
             }
         }
 
@@ -146,9 +148,10 @@ internal class DefaultClientScopeService(
         string? cursor = null;
         do
         {
+            var pageRequest = new PageRequest { Cursor = cursor, Limit = PageSize };
             var page = await clientGrantStore.GetPageAsync(
                 clientId,
-                new PageRequest { Cursor = cursor, Limit = PageSize },
+                pageRequest,
                 cancellationToken
             );
 

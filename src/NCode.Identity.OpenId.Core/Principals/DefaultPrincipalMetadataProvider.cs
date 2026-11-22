@@ -45,9 +45,8 @@ internal sealed class DefaultPrincipalMetadataProvider(IStoreManagerFactory stor
             return PrincipalMetadata.Empty;
         }
 
-        return new PrincipalMetadata(
-            principal.ProfileMetadata.OrEmptyObject(),
-            principal.SystemMetadata.OrEmptyObject()
-        );
+        var profileMetadata = principal.ProfileMetadata.OrEmptyObject();
+        var systemMetadata = principal.SystemMetadata.OrEmptyObject();
+        return new PrincipalMetadata(profileMetadata, systemMetadata);
     }
 }

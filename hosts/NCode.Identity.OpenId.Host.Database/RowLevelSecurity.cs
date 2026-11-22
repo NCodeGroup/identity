@@ -113,18 +113,17 @@ public static class RowLevelSecurity
         IModel model
     )
     {
+        var comparer = Comparer<(string Schema, string Name)>.Create(
+            (x, y) =>
+            {
+                var bySchema = string.CompareOrdinal(x.Schema, y.Schema);
+                return bySchema != 0 ? bySchema : string.CompareOrdinal(x.Name, y.Name);
+            }
+        );
         var tables = new SortedDictionary<
             (string Schema, string Name),
             (string? Schema, string Name, string? TenantColumn)
-        >(
-            Comparer<(string Schema, string Name)>.Create(
-                (x, y) =>
-                {
-                    var bySchema = string.CompareOrdinal(x.Schema, y.Schema);
-                    return bySchema != 0 ? bySchema : string.CompareOrdinal(x.Name, y.Name);
-                }
-            )
-        );
+        >(comparer);
 
         foreach (var entityType in model.GetEntityTypes())
         {
@@ -161,17 +160,27 @@ public static class RowLevelSecurity
     /// </exception>
     private static string FindTenantColumn(IEntityType entityType, string tableName, string? schema)
     {
-        var property =
-            entityType.FindProperty(nameof(ISupportTenantEntity.NormalizedTenantId))
-            ?? throw new InvalidOperationException(
-                $"The entity type '{entityType.DisplayName()}' has no mapped "
+        var property = entityType.FindProperty(nameof(ISupportTenantEntity.NormalizedTenantId));
+        if (property is null)
+        {
+            var unmappedDisplayName = entityType.DisplayName();
+            throw new InvalidOperationException(
+                $"The entity type '{unmappedDisplayName}' has no mapped "
                     + $"{nameof(ISupportTenantEntity.NormalizedTenantId)} property."
             );
+        }
 
-        return property.GetColumnName(StoreObjectIdentifier.Table(tableName, schema))
-            ?? throw new InvalidOperationException(
-                $"The {nameof(ISupportTenantEntity.NormalizedTenantId)} property of '{entityType.DisplayName()}' "
+        var storeObject = StoreObjectIdentifier.Table(tableName, schema);
+        var columnName = property.GetColumnName(storeObject);
+        if (columnName is null)
+        {
+            var unnamedDisplayName = entityType.DisplayName();
+            throw new InvalidOperationException(
+                $"The {nameof(ISupportTenantEntity.NormalizedTenantId)} property of '{unnamedDisplayName}' "
                     + $"has no column in table '{tableName}'."
             );
+        }
+
+        return columnName;
     }
 }

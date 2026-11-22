@@ -50,10 +50,13 @@ internal class DefaultAuthorizationResponseModeProvider : IAuthorizationResponse
                     StringComparison.Ordinal
                 )
             )
+            {
+                var handlerType = handler.GetType();
                 throw new InvalidOperationException(
-                    $"The '{handler.GetType().Name}' handler cannot deliver the '{responseMode}' response mode, "
+                    $"The '{handlerType.Name}' handler cannot deliver the '{responseMode}' response mode, "
                         + "because it is the JARM shorthand that resolves to a handler that secures the default response mode."
                 );
+            }
 
             if (!handlersByResponseMode.TryAdd(responseMode, handler))
                 throw new InvalidOperationException(

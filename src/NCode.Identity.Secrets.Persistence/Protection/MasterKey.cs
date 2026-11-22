@@ -77,8 +77,9 @@ internal sealed class MasterKey : IDisposable
         }
 
         var normalizedOwner = owner.Normalize();
+        var materialSecret = Secret.Create(material);
 
-        return new MasterKey(keyId, normalizedOwner, version, Secret.Create(material));
+        return new MasterKey(keyId, normalizedOwner, version, materialSecret);
     }
 
     /// <summary>

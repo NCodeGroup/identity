@@ -41,12 +41,11 @@ internal static class DefaultRegistration
             // A tenant-resolution configuration that cannot work stops the host when it starts (ADR-1137). The shared
             // validator checks the strategy-independent members; each strategy's validator is registered beside it.
             serviceCollection.AddOptions<TenantResolutionOptions>().ValidateOnStart();
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    IValidateOptions<TenantResolutionOptions>,
-                    TenantResolutionOptionsValidator
-                >()
-            );
+            var tenantResolutionOptionsValidator = ServiceDescriptor.Singleton<
+                IValidateOptions<TenantResolutionOptions>,
+                TenantResolutionOptionsValidator
+            >();
+            serviceCollection.TryAddEnumerable(tenantResolutionOptionsValidator);
 
             // The materialized tenant (settings + secrets, merged platform->team->tenant) and its cache (ADR-1036).
             serviceCollection.AddMemoryCache();
@@ -61,12 +60,11 @@ internal static class DefaultRegistration
             serviceCollection.AddMediator();
             serviceCollection.TryAddScoped<ITenantProvisioner, DefaultTenantProvisioner>();
 
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    ICommandHandler<SeedTenantCommand>,
-                    OpenIdIdentityResourceServerSeedHandler
-                >()
-            );
+            var seedHandler = ServiceDescriptor.Singleton<
+                ICommandHandler<SeedTenantCommand>,
+                OpenIdIdentityResourceServerSeedHandler
+            >();
+            serviceCollection.TryAddEnumerable(seedHandler);
 
             // Every tenant is provisioned with a persisted key for each configured algorithm it holds no usable key for,
             // on the same seed path, and the configured keys are validated when the host starts (ADR-1169). The keys
@@ -78,95 +76,95 @@ internal static class DefaultRegistration
                 DefaultTenantKeyRolloverPlanner
             >();
             serviceCollection.TryAddSingleton<ITenantKeyRollover, DefaultTenantKeyRollover>();
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    ICommandHandler<SeedTenantCommand>,
-                    TenantKeySeedHandler
-                >()
-            );
+            serviceCollection.TryAddSingleton<
+                ITenantKeyPlacementGuard,
+                DefaultTenantKeyPlacementGuard
+            >();
+            var keySeedHandler = ServiceDescriptor.Singleton<
+                ICommandHandler<SeedTenantCommand>,
+                TenantKeySeedHandler
+            >();
+            serviceCollection.TryAddEnumerable(keySeedHandler);
             serviceCollection.AddHostedService<TenantKeyRolloverService>();
 
             serviceCollection.TryAddSingleton(TimeProvider.System);
 
             // A committed change to a tenant evicts it from this replica's cache and seeds it again, so a key its new
             // settings require is provisioned at once rather than when the tenant is next materialized (ADR-1169).
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    ICommandHandler<TenantChangedCommand>,
-                    TenantChangedHandler
-                >()
-            );
+            var tenantChangedHandler = ServiceDescriptor.Singleton<
+                ICommandHandler<TenantChangedCommand>,
+                TenantChangedHandler
+            >();
+            serviceCollection.TryAddEnumerable(tenantChangedHandler);
 
             // A tenant change announced on the replica broadcast channel evicts the tenant from this replica's cache,
             // so every replica serves the change rather than only the one that made it (ADR-1205).
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    IReplicaBroadcastHandler,
-                    TenantChangeBroadcastHandler
-                >()
-            );
+            var tenantChangeBroadcastHandler = ServiceDescriptor.Singleton<
+                IReplicaBroadcastHandler,
+                TenantChangeBroadcastHandler
+            >();
+            serviceCollection.TryAddEnumerable(tenantChangeBroadcastHandler);
 
             // A change to a team's effective settings seeds every tenant of the team that lacks a key its settings use
             // (ADR-1412).
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    ICommandHandler<ReconcileTeamSettingsCommand>,
-                    TenantKeyReconciliationHandler
-                >()
-            );
+            var reconcileTeamSettingsHandler = ServiceDescriptor.Singleton<
+                ICommandHandler<ReconcileTeamSettingsCommand>,
+                TenantKeyReconciliationHandler
+            >();
+            serviceCollection.TryAddEnumerable(reconcileTeamSettingsHandler);
 
             serviceCollection.AddOptions<OpenIdOptions>().ValidateOnStart();
 
             // The token lifetime settings are a bound collection, so they start empty and take their defaults only
             // when configuration names none; the validators run after this, so they check the names in force.
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    IPostConfigureOptions<OpenIdOptions>,
-                    TenantKeyRolloverOptionsDefaults
-                >()
-            );
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    IValidateOptions<OpenIdOptions>,
-                    TenantKeyProvisioningOptionsValidator
-                >()
-            );
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    IValidateOptions<OpenIdOptions>,
-                    TenantKeyRolloverOptionsValidator
-                >()
-            );
+            var rolloverOptionsDefaults = ServiceDescriptor.Singleton<
+                IPostConfigureOptions<OpenIdOptions>,
+                TenantKeyRolloverOptionsDefaults
+            >();
+            serviceCollection.TryAddEnumerable(rolloverOptionsDefaults);
+            var provisioningOptionsValidator = ServiceDescriptor.Singleton<
+                IValidateOptions<OpenIdOptions>,
+                TenantKeyProvisioningOptionsValidator
+            >();
+            serviceCollection.TryAddEnumerable(provisioningOptionsValidator);
+            var rolloverOptionsValidator = ServiceDescriptor.Singleton<
+                IValidateOptions<OpenIdOptions>,
+                TenantKeyRolloverOptionsValidator
+            >();
+            serviceCollection.TryAddEnumerable(rolloverOptionsValidator);
 
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<ITenantStrategy, StaticSingleTenantStrategy>()
-            );
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    IValidateOptions<TenantResolutionOptions>,
-                    StaticSingleTenantOptionsValidator
-                >()
-            );
+            var staticSingleTenantStrategy = ServiceDescriptor.Singleton<
+                ITenantStrategy,
+                StaticSingleTenantStrategy
+            >();
+            serviceCollection.TryAddEnumerable(staticSingleTenantStrategy);
+            var staticSingleTenantOptionsValidator = ServiceDescriptor.Singleton<
+                IValidateOptions<TenantResolutionOptions>,
+                StaticSingleTenantOptionsValidator
+            >();
+            serviceCollection.TryAddEnumerable(staticSingleTenantOptionsValidator);
 
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<ITenantStrategy, DynamicByHostTenantStrategy>()
-            );
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    IValidateOptions<TenantResolutionOptions>,
-                    DynamicByHostTenantOptionsValidator
-                >()
-            );
+            var dynamicByHostTenantStrategy = ServiceDescriptor.Singleton<
+                ITenantStrategy,
+                DynamicByHostTenantStrategy
+            >();
+            serviceCollection.TryAddEnumerable(dynamicByHostTenantStrategy);
+            var dynamicByHostTenantOptionsValidator = ServiceDescriptor.Singleton<
+                IValidateOptions<TenantResolutionOptions>,
+                DynamicByHostTenantOptionsValidator
+            >();
+            serviceCollection.TryAddEnumerable(dynamicByHostTenantOptionsValidator);
 
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<ITenantStrategy, DynamicByPathTenantStrategy>()
-            );
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    IValidateOptions<TenantResolutionOptions>,
-                    DynamicByPathTenantOptionsValidator
-                >()
-            );
+            var dynamicByPathTenantStrategy = ServiceDescriptor.Singleton<
+                ITenantStrategy,
+                DynamicByPathTenantStrategy
+            >();
+            serviceCollection.TryAddEnumerable(dynamicByPathTenantStrategy);
+            var dynamicByPathTenantOptionsValidator = ServiceDescriptor.Singleton<
+                IValidateOptions<TenantResolutionOptions>,
+                DynamicByPathTenantOptionsValidator
+            >();
+            serviceCollection.TryAddEnumerable(dynamicByPathTenantOptionsValidator);
 
             return builder;
         }

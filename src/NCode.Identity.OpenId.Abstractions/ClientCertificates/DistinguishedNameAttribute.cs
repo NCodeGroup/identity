@@ -30,8 +30,11 @@ internal readonly record struct DistinguishedNameAttribute(
     /// <param name="oid">The dotted object identifier of the attribute type.</param>
     /// <param name="text">The character-string value, before preparation.</param>
     /// <exception cref="ArgumentException">The <paramref name="text"/> is not valid Unicode.</exception>
-    public static DistinguishedNameAttribute FromText(string oid, string text) =>
-        new(oid, Prepare(text), default);
+    public static DistinguishedNameAttribute FromText(string oid, string text)
+    {
+        var preparedText = Prepare(text);
+        return new(oid, preparedText, default);
+    }
 
     /// <summary>
     /// Creates an attribute from one BER-encoded value, such as the value of a <c>#</c>-hex attribute or of an
@@ -110,7 +113,8 @@ internal readonly record struct DistinguishedNameAttribute(
                     pendingSpace = false;
                 }
 
-                builder.Append(char.ToUpperInvariant(c));
+                var upperChar = char.ToUpperInvariant(c);
+                builder.Append(upperChar);
             }
         }
 

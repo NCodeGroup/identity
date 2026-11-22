@@ -68,7 +68,8 @@ internal static class DistinguishedNameAttributeTypes
             return true;
         }
 
-        return Keywords.TryGetValue(trimmed.ToUpperInvariant(), out oid);
+        var upperKeyword = trimmed.ToUpperInvariant();
+        return Keywords.TryGetValue(upperKeyword, out oid);
     }
 
     private static bool IsDottedOid(string value)

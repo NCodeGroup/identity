@@ -137,17 +137,15 @@ public sealed class InstanceSetupCommandLine
         if (isUserNameMissing || isPasswordMissing)
             return 2;
 
-        var result = await setupService.SetUpAsync(
-            new InstanceSetupRequest
-            {
-                Root = root,
-                ManagementConsole = options.ManagementConsole.IsConfigured
-                    ? options.ManagementConsole
-                    : null,
-                Automation = options.Automation.IsConfigured ? options.Automation : null,
-            },
-            cancellationToken
-        );
+        var request = new InstanceSetupRequest
+        {
+            Root = root,
+            ManagementConsole = options.ManagementConsole.IsConfigured
+                ? options.ManagementConsole
+                : null,
+            Automation = options.Automation.IsConfigured ? options.Automation : null,
+        };
+        var result = await setupService.SetUpAsync(request, cancellationToken);
         if (!result.Succeeded)
         {
             logger.InstanceSetupCommandFailed(result.Error.StatusCode);

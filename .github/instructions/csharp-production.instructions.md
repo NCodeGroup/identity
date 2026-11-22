@@ -676,13 +676,17 @@ than inlining the rationale.
   [ADR-1483](../../docs/decisions/1483-every-management-error-is-a-problem-document-that-its-route-declares.md),
   [ADR-1481](../../docs/decisions/1481-the-composition-layer-serves-the-api-reference-only-where-a-host-enables-it-and-each-management-problem-says-when-it-occurs.md) and
   [ADR-1067](../../docs/decisions/1067-secret-key-types-form-one-catalog-and-authenticated-management-callers-discover-the-deployments-capabilities.md).
-- 👁 **A management route reads its caller only from what `ManagementAuthenticationEndpointFilter` published.** The
-  filter sets `HttpContext.User` to the principal a valid management access token authenticates, or to an anonymous
-  principal whatever an authentication scheme set, and sets `IManagementCallerFeature` only for that authenticated
-  caller. A route that authorizes reads `HttpContext.User`; a route that only authenticates its caller, such as
-  `GET /api/capabilities` and `GET /api/me`, reads `IManagementCallerFeature`, answers
-  `ManagementProblems.AuthenticationRequired()` without it and declares `401` and no `403`. See
+- 👁 **A management route reads its caller only from what `ManagementCallerGate` published.** The gate answers `401`
+  before the route binds its parameters to a request without a valid management access token, sets `HttpContext.User` to
+  the principal a valid token authenticates whatever an authentication scheme set, and sets `IManagementCallerFeature`
+  only for that authenticated caller. A route that authorizes reads `HttpContext.User`; a route that only authenticates
+  its caller, such as `GET /api/capabilities` and `GET /api/me`, reads `IManagementCallerFeature`, answers
+  `ManagementProblems.AuthenticationRequired(HttpContext)` without it and declares `401` and no `403`. See
   [ADR-1044](../../docs/decisions/1044-the-management-api-authenticates-its-own-access-tokens-and-a-configured-client-bootstraps-the-first-globaladmin.md).
+- 👁 **An API authenticates its caller before it reads the body.** Add the check as an `IEndpointGate` with
+  `AddEndpointGate<TGate>()`, never as an endpoint filter, which runs after minimal APIs bind the request's parameters
+  and read its body. See
+  [ADR-1520](../../docs/decisions/1520-a-caller-is-authenticated-before-its-request-body-is-read.md).
 - 👁 **A stored settings document that cannot be honored is answered `409` once, by the management route group.** A
   management request resolves a document a store holds with
   `IEffectiveSettingsResolver.ResolveStored(parent, scopeName, ownerId, document)`, and the platform's committed one
@@ -1001,8 +1005,16 @@ Drawn from _Clean Code_ (R. C. Martin) and _Refactoring_ (Fowler / Beck). All �
 The template's [Clean Code](csharp.instructions.md#clean-code) rules: small functions that do one thing, few
 parameters, command-query separation, no `null` where an empty form exists, intention-revealing names, typed exceptions
 and no empty `catch` or `async void`, comments that say why and no commented-out code, a type for a concept with
-invariants, the Law of Demeter, and no call nested in another call's arguments. The family adds:
+invariants, and the Law of Demeter. The family adds:
 
+- ✅ **No call, `await` or object creation nested in another call's arguments** — template
+  [Clean Code](csharp.instructions.md#clean-code); hoist it into a named local first. `NCID0006`, from
+  `analyzers/NCode.Identity.Analyzers`, fails the build in production code (`src/`, `hosts/`, and `analyzers/` through
+  its test) on such an expression, and exempts a lambda argument, `nameof`, `typeof`, `default` and `sizeof`, a place C#
+  cannot declare a local in (an initializer, a constructor initializer, an attribute argument, a parameter default, a
+  catch filter, a `when` clause or a query expression), a lambda converted to an `Expression<TDelegate>`, and the
+  arguments of a `[Conditional]` method
+  ([ADR-1522](../../docs/decisions/1522-an-analyzer-fails-the-build-on-a-call-await-or-object-creation-nested-in-another-calls-arguments.md)).
 - **Few parameters**: a clump that mirrors a well-known BCL shape
   (`ClaimsIdentity(authenticationType, nameType, roleType)`) is acceptable, and a private single-call-site helper isn't
   worth a parameter object.

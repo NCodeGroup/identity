@@ -55,12 +55,11 @@ public static class DefaultRegistration
                 .ValidateOnStart();
 
             // A key that a caller names stays in the cloud locations the composition names for the deployment's keys.
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    IPostConfigureOptions<GoogleCloudKmsKeyWrapperOptions>,
-                    GoogleCloudKmsKeyResidencyOptionsSetup
-                >()
-            );
+            var residencyDescriptor = ServiceDescriptor.Singleton<
+                IPostConfigureOptions<GoogleCloudKmsKeyWrapperOptions>,
+                GoogleCloudKmsKeyResidencyOptionsSetup
+            >();
+            serviceCollection.TryAddEnumerable(residencyDescriptor);
 
             serviceCollection.TryAddSingleton(TimeProvider.System);
             serviceCollection.TryAddSingleton<
@@ -68,9 +67,11 @@ public static class DefaultRegistration
                 DefaultGoogleCloudKmsClientFactory
             >();
 
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<IKeyWrapper, GoogleCloudKmsKeyWrapper>()
-            );
+            var keyWrapperDescriptor = ServiceDescriptor.Singleton<
+                IKeyWrapper,
+                GoogleCloudKmsKeyWrapper
+            >();
+            serviceCollection.TryAddEnumerable(keyWrapperDescriptor);
 
             return builder;
         }

@@ -91,12 +91,8 @@ internal class GoogleCloudKmsKeyWrapper(
             );
         }
 
-        return await WrapUnderAsync(
-            new ReferencedKey(keyName, Access: null),
-            key,
-            context,
-            cancellationToken
-        );
+        var referencedKey = new ReferencedKey(keyName, Access: null);
+        return await WrapUnderAsync(referencedKey, key, context, cancellationToken);
     }
 
     /// <inheritdoc />
@@ -113,17 +109,15 @@ internal class GoogleCloudKmsKeyWrapper(
         }
 
         var allowedLocations = RootKeyOptions.Value.AllowedLocations;
-        if (
-            allowedLocations.Count > 0
-            && !allowedLocations.Contains(
-                GoogleCloudKmsKeyName.GetLocation(keyReference),
-                StringComparer.Ordinal
-            )
-        )
+        if (allowedLocations.Count > 0)
         {
-            failure =
-                $"must be the resource name of a Cloud KMS crypto key in one of the allowed locations: {string.Join(", ", allowedLocations)}";
-            return false;
+            var location = GoogleCloudKmsKeyName.GetLocation(keyReference);
+            if (!allowedLocations.Contains(location, StringComparer.Ordinal))
+            {
+                failure =
+                    $"must be the resource name of a Cloud KMS crypto key in one of the allowed locations: {string.Join(", ", allowedLocations)}";
+                return false;
+            }
         }
 
         failure = null;
@@ -205,7 +199,11 @@ internal class GoogleCloudKmsKeyWrapper(
 
         var response = await ClientFactory.ExecuteAsync(
             referencedKey.Access,
-            (client, token) => new ValueTask<EncryptResponse>(client.EncryptAsync(request, token)),
+            (client, token) =>
+            {
+                var encryptTask = client.EncryptAsync(request, token);
+                return new ValueTask<EncryptResponse>(encryptTask);
+            },
             cancellationToken
         );
 
@@ -222,14 +220,14 @@ internal class GoogleCloudKmsKeyWrapper(
 
         // The service reports the version it encrypted with, which confirms that the intended crypto key was used.
         var versionName = response.Name;
-        if (
-            !GoogleCloudKmsKeyName.IsCryptoKeyVersionName(versionName)
-            || !string.Equals(
-                GoogleCloudKmsKeyName.GetCryptoKeyName(versionName),
-                keyName,
-                StringComparison.Ordinal
-            )
-        )
+        var versionOfKey = false;
+        if (GoogleCloudKmsKeyName.IsCryptoKeyVersionName(versionName))
+        {
+            var versionKeyName = GoogleCloudKmsKeyName.GetCryptoKeyName(versionName);
+            versionOfKey = string.Equals(versionKeyName, keyName, StringComparison.Ordinal);
+        }
+
+        if (!versionOfKey)
         {
             throw new IOException(
                 $"Google Cloud KMS reported '{versionName}', which is not a version of the named crypto key; the call can be retried."
@@ -314,8 +312,9 @@ internal class GoogleCloudKmsKeyWrapper(
 
         var text = wrappedKey.Ciphertext;
 
+        var byteCount = WrappedKeyCiphertext.GetByteCount(text);
         using var ciphertextLease = BufferFactory.Rent(
-            WrappedKeyCiphertext.GetByteCount(text),
+            byteCount,
             isSensitive: false,
             out Memory<byte> ciphertext
         );

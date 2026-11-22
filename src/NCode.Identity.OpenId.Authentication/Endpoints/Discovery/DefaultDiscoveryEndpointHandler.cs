@@ -53,10 +53,8 @@ internal class DefaultDiscoveryEndpointHandler : IEndpointProvider
 
         var result = new DiscoveryResult { Issuer = openIdContext.Tenant.Issuer };
 
-        await mediator.SendAsync(
-            new DiscoverMetadataCommand(openIdContext, result.Metadata),
-            cancellationToken
-        );
+        var discoverCommand = new DiscoverMetadataCommand(openIdContext, result.Metadata);
+        await mediator.SendAsync(discoverCommand, cancellationToken);
 
         return TypedResults.Json(result, openIdEnvironment.JsonSerializerOptions);
     }

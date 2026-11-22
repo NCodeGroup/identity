@@ -35,19 +35,22 @@ public static class IdentityServerApiReferenceEndpointRouteBuilderExtensions
     /// <param name="nonce">The nonce generated for the response.</param>
     /// <returns>The <see cref="HtmlPageSecurityPolicy"/> to apply to the page's response.</returns>
     // See ADR-1256 and ADR-1481.
-    private static HtmlPageSecurityPolicy CreatePagePolicy(string nonce) =>
-        new()
+    private static HtmlPageSecurityPolicy CreatePagePolicy(string nonce)
+    {
+        var scriptNonceSource = ContentSecurityPolicySources.Nonce(nonce);
+        var styleNonceSource = ContentSecurityPolicySources.Nonce(nonce);
+        return new()
         {
             Directives =
             [
                 new ContentSecurityPolicyDirective(
                     ContentSecurityPolicyDirectives.ScriptSrc,
-                    ContentSecurityPolicySources.Nonce(nonce),
+                    scriptNonceSource,
                     ContentSecurityPolicySources.StrictDynamic
                 ),
                 new ContentSecurityPolicyDirective(
                     ContentSecurityPolicyDirectives.StyleSrc,
-                    ContentSecurityPolicySources.Nonce(nonce)
+                    styleNonceSource
                 ),
                 new ContentSecurityPolicyDirective(
                     ContentSecurityPolicyDirectives.ImgSrc,
@@ -60,6 +63,7 @@ public static class IdentityServerApiReferenceEndpointRouteBuilderExtensions
                 ),
             ],
         };
+    }
 
     extension(IEndpointRouteBuilder endpoints)
     {
@@ -97,7 +101,8 @@ public static class IdentityServerApiReferenceEndpointRouteBuilderExtensions
                 (scalarOptions, httpContext) =>
                 {
                     var nonce = ContentSecurityPolicySources.CreateNonce();
-                    httpContext.Response.SetHtmlPageSecurity(CreatePagePolicy(nonce));
+                    var pagePolicy = CreatePagePolicy(nonce);
+                    httpContext.Response.SetHtmlPageSecurity(pagePolicy);
 
                     // Scalar's bundled stylesheet reads its nonce from this element.
                     scalarOptions

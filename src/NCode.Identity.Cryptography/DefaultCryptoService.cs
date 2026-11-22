@@ -100,14 +100,20 @@ internal class DefaultCryptoService : ICryptoService
 
         // A buffer the size of a SHA-512 digest fits every framework hash; a longer digest falls back to the heap.
         Span<byte> hashBytes = stackalloc byte[MaxStackAlloc];
-        return CryptographicOperations.TryHashData(
-            hashAlgorithm,
-            data,
-            hashBytes,
-            out var bytesWritten
+        if (
+            CryptographicOperations.TryHashData(
+                hashAlgorithm,
+                data,
+                hashBytes,
+                out var bytesWritten
+            )
         )
-            ? encoder.Encode(hashBytes[..bytesWritten])
-            : encoder.Encode(CryptographicOperations.HashData(hashAlgorithm, data));
+        {
+            return encoder.Encode(hashBytes[..bytesWritten]);
+        }
+
+        var heapHash = CryptographicOperations.HashData(hashAlgorithm, data);
+        return encoder.Encode(heapHash);
     }
 
     /// <inheritdoc />

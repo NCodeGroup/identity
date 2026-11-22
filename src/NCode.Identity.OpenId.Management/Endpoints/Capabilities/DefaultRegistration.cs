@@ -23,36 +23,31 @@ internal static class DefaultRegistration
             builder.AddEndpoint<CapabilitiesApiEndpointHandler>();
 
             // Capability providers compose the discovery document (ADR-1067); applications can register more.
-            builder.ServiceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    ICommandHandler<DiscoverManagementCapabilitiesCommand>,
-                    SecretTypeCapabilitiesProvider
-                >()
-            );
-            builder.ServiceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    ICommandHandler<DiscoverManagementCapabilitiesCommand>,
-                    EccCurveCapabilitiesProvider
-                >()
-            );
-            builder.ServiceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    ICommandHandler<DiscoverManagementCapabilitiesCommand>,
-                    AlgorithmCapabilitiesProvider
-                >()
-            );
-            builder.ServiceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    ICommandHandler<DiscoverManagementCapabilitiesCommand>,
-                    RemoteKeyProviderCapabilitiesProvider
-                >()
-            );
-            builder.ServiceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    ICommandHandler<DiscoverManagementCapabilitiesCommand>,
-                    CellCapabilitiesProvider
-                >()
-            );
+            var secretTypeProvider = ServiceDescriptor.Singleton<
+                ICommandHandler<DiscoverManagementCapabilitiesCommand>,
+                SecretTypeCapabilitiesProvider
+            >();
+            builder.ServiceCollection.TryAddEnumerable(secretTypeProvider);
+            var eccCurveProvider = ServiceDescriptor.Singleton<
+                ICommandHandler<DiscoverManagementCapabilitiesCommand>,
+                EccCurveCapabilitiesProvider
+            >();
+            builder.ServiceCollection.TryAddEnumerable(eccCurveProvider);
+            var algorithmProvider = ServiceDescriptor.Singleton<
+                ICommandHandler<DiscoverManagementCapabilitiesCommand>,
+                AlgorithmCapabilitiesProvider
+            >();
+            builder.ServiceCollection.TryAddEnumerable(algorithmProvider);
+            var remoteKeyProvider = ServiceDescriptor.Singleton<
+                ICommandHandler<DiscoverManagementCapabilitiesCommand>,
+                RemoteKeyProviderCapabilitiesProvider
+            >();
+            builder.ServiceCollection.TryAddEnumerable(remoteKeyProvider);
+            var cellProvider = ServiceDescriptor.Singleton<
+                ICommandHandler<DiscoverManagementCapabilitiesCommand>,
+                CellCapabilitiesProvider
+            >();
+            builder.ServiceCollection.TryAddEnumerable(cellProvider);
         }
     }
 }

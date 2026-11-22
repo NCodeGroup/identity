@@ -72,17 +72,30 @@ public class DurationSecondsParser : ParameterParser<TimeSpan?>
         JsonSerializerOptions options
     )
     {
-        TimeSpan? parsedValue = reader.TokenType switch
+        TimeSpan? parsedValue;
+        switch (reader.TokenType)
         {
-            JsonTokenType.Null => null,
-            JsonTokenType.Number => TimeSpan.FromSeconds(reader.GetInt64()),
-            JsonTokenType.String => Parse(
-                openIdEnvironment,
-                descriptor,
-                Deserialize<StringValues>(ref reader, options)
-            ),
-            _ => throw new JsonException("Expected a number of seconds."),
-        };
+            case JsonTokenType.Null:
+                parsedValue = null;
+                break;
+
+            case JsonTokenType.Number:
+            {
+                var seconds = reader.GetInt64();
+                parsedValue = TimeSpan.FromSeconds(seconds);
+                break;
+            }
+
+            case JsonTokenType.String:
+            {
+                var stringValues = Deserialize<StringValues>(ref reader, options);
+                parsedValue = Parse(openIdEnvironment, descriptor, stringValues);
+                break;
+            }
+
+            default:
+                throw new JsonException("Expected a number of seconds.");
+        }
         return Create(openIdEnvironment, descriptor, this, parsedValue);
     }
 

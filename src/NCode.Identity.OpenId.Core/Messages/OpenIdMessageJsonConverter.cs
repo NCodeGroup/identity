@@ -162,7 +162,8 @@ internal class OpenIdMessageJsonConverter<T>(OpenIdEnvironment openIdEnvironment
         if (asJson)
         {
             writer.WriteString(TypeKey, message.TypeDiscriminator);
-            writer.WriteString(FormatKey, format.ToString().ToLowerInvariant());
+            var formatName = format.ToString().ToLowerInvariant();
+            writer.WriteString(FormatKey, formatName);
         }
 
         foreach (var parameter in message.Parameters)

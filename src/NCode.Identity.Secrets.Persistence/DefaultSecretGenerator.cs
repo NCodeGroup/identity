@@ -98,10 +98,10 @@ internal class DefaultSecretGenerator(
         var material = descriptor.GenerateKeyMaterial(
             request.GenerationParameters,
             bytes =>
-                protector.ProtectToString(
-                    bytes,
-                    SecretProtectionContext.ForPersistedSecret(request.SecretId)
-                )
+            {
+                var context = SecretProtectionContext.ForPersistedSecret(request.SecretId);
+                return protector.ProtectToString(bytes, context);
+            }
         );
 
         var secret = new PersistedSecret
@@ -146,7 +146,8 @@ internal class DefaultSecretGenerator(
 
         if (!RemoteKeyDescriptorCatalog.CreatesKeys(request.Provider))
         {
-            throw new RemoteKeyRefusedException(RemoteKeyRefusals.CreatesNoKeys(request.Provider));
+            var refusal = RemoteKeyRefusals.CreatesNoKeys(request.Provider);
+            throw new RemoteKeyRefusedException(refusal);
         }
 
         var (activatesWhen, retiresWhen) = SecretLifecycle.Resolve(
@@ -409,11 +410,8 @@ internal class DefaultSecretGenerator(
 
         using var octetsBuffer = BufferFactory.CreateContiguousBufferWriter(isSensitive: true, 64);
         IBufferWriter<byte> octetsWriter = octetsBuffer;
-        protector.Unprotect(
-            secret.EncodedValue,
-            SecretProtectionContext.ForPersistedSecret(secret.SecretId),
-            ref octetsWriter
-        );
+        var protectionContext = SecretProtectionContext.ForPersistedSecret(secret.SecretId);
+        protector.Unprotect(secret.EncodedValue, protectionContext, ref octetsWriter);
 
         // Only a secret the server generated is known to have the entropy that lets its verifier skip the work factor.
         var isGenerated = string.Equals(
@@ -422,17 +420,19 @@ internal class DefaultSecretGenerator(
             StringComparison.Ordinal
         );
 
+        var sharedSecretRequest = new SharedSecretRequest
+        {
+            SecretId = secretId,
+            Use = secret.Use,
+            Algorithm = secret.Algorithm,
+            CreatedWhen = secret.CreatedWhen,
+            ExpiresWhen = secret.ExpiresWhen,
+        };
+
         return CreateVerifierSecret(
             protector,
             isGenerated ? GeneratedSecretScheme : SuppliedSecretScheme,
-            new SharedSecretRequest
-            {
-                SecretId = secretId,
-                Use = secret.Use,
-                Algorithm = secret.Algorithm,
-                CreatedWhen = secret.CreatedWhen,
-                ExpiresWhen = secret.ExpiresWhen,
-            },
+            sharedSecretRequest,
             secret.Origin,
             octetsBuffer.WrittenSpan
         );
@@ -518,14 +518,17 @@ internal class DefaultSecretGenerator(
         SharedSecretRequest request,
         string origin,
         ReadOnlySpan<byte> secret
-    ) =>
-        CreateSharedSecret(
+    )
+    {
+        var encodedValue = Protect(protector, request.SecretId, secret);
+        return CreateSharedSecret(
             request,
             SecretEncodings.SymmetricRaw,
             origin,
             secret.Length,
-            Protect(protector, request.SecretId, secret)
+            encodedValue
         );
+    }
 
     private static void EnsureNotEmpty(ReadOnlySpan<byte> secretValue)
     {
@@ -542,7 +545,11 @@ internal class DefaultSecretGenerator(
         ISecretProtector protector,
         string secretId,
         ReadOnlySpan<byte> bytes
-    ) => protector.ProtectToString(bytes, SecretProtectionContext.ForPersistedSecret(secretId));
+    )
+    {
+        var context = SecretProtectionContext.ForPersistedSecret(secretId);
+        return protector.ProtectToString(bytes, context);
+    }
 
     // The single construction of a shared-secret PersistedSecret, shared by every generate, import and convert method so
     // the stored shape cannot drift between them: a Symmetric secret whose size is that of the secret's UTF-8 octets and

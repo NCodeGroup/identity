@@ -24,9 +24,11 @@ public sealed class RefreshTokenRequest(string refreshToken) : TokenRequest
     public override void AddGrantParameters(ICollection<KeyValuePair<string, string>> parameters)
     {
         ArgumentNullException.ThrowIfNull(parameters);
-        parameters.Add(
-            new KeyValuePair<string, string>(OpenIdProtocol.Parameters.RefreshToken, RefreshToken)
+        var refreshTokenParameter = new KeyValuePair<string, string>(
+            OpenIdProtocol.Parameters.RefreshToken,
+            RefreshToken
         );
+        parameters.Add(refreshTokenParameter);
     }
 
     private static string ValidateNotEmpty(

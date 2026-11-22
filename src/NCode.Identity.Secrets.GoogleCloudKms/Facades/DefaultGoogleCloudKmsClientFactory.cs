@@ -87,12 +87,11 @@ internal sealed class DefaultGoogleCloudKmsClientFactory(TimeProvider timeProvid
     )
     {
         var source = await GoogleCredential.GetApplicationDefaultAsync(cancellationToken);
-        var credential = source.Impersonate(
-            new ImpersonatedCredential.Initializer(access.Identity)
-            {
-                Scopes = KeyManagementServiceClient.DefaultScopes,
-            }
-        );
+        var initializer = new ImpersonatedCredential.Initializer(access.Identity)
+        {
+            Scopes = KeyManagementServiceClient.DefaultScopes,
+        };
+        var credential = source.Impersonate(initializer);
 
         return await new KeyManagementServiceClientBuilder
         {

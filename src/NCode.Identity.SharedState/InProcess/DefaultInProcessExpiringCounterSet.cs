@@ -43,7 +43,8 @@ internal class DefaultInProcessExpiringCounterSet(TimeProvider timeProvider) : I
 
         SweepIfDue(now);
 
-        return ValueTask.FromResult(Increment(key, expiresWhen, now));
+        var count = Increment(key, expiresWhen, now);
+        return ValueTask.FromResult(count);
     }
 
     /// <inheritdoc />
@@ -53,7 +54,8 @@ internal class DefaultInProcessExpiringCounterSet(TimeProvider timeProvider) : I
 
         var now = TimeProvider.GetUtcNow();
 
-        return ValueTask.FromResult(Read(key, now));
+        var count = Read(key, now);
+        return ValueTask.FromResult(count);
     }
 
     /// <inheritdoc />
@@ -80,7 +82,8 @@ internal class DefaultInProcessExpiringCounterSet(TimeProvider timeProvider) : I
                     ? Read(referenceKey, now)
                     : 0L;
 
-            counts.Add(new ExpiringCounterCount(count, reference));
+            var counted = new ExpiringCounterCount(count, reference);
+            counts.Add(counted);
 
             if (count + reference * increment.ReferenceWeight > increment.Limit)
                 break;

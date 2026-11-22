@@ -130,7 +130,8 @@ internal class BffLoginHandler(
 
         var scopes = new List<string> { OpenIdProtocol.ScopeTypes.OpenId };
         scopes.AddRange(options.Scopes);
-        var scope = string.Join(' ', scopes.Distinct(StringComparer.Ordinal));
+        var distinctScopes = scopes.Distinct(StringComparer.Ordinal);
+        var scope = string.Join(' ', distinctScopes);
 
         var authorizationRequest = new AuthorizationRequest(redirectUri, state, verifier)
         {
@@ -208,7 +209,7 @@ internal class BffLoginHandler(
     {
         await AuditRecorder.LoginFailedAsync(httpContext, reason, cancellationToken);
         var errorUrl = BffNavigation.ErrorUrl(httpContext.Request, options, reason);
-        httpContext.Response.Redirect(errorUrl);
+        BffNavigation.RedirectLocal(httpContext.Response, errorUrl);
     }
 
     private static ValueTask WriteInvalidRequestAsync(

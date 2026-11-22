@@ -50,9 +50,11 @@ internal sealed class TenantChangeBroadcastHandler(
     {
         // A deleted tenant's master keys must not stay usable on any replica, so they leave this replica's memory with
         // the tenant.
-        SecretProtectorProvider.Evict(SecretOwner.ForTenant(message));
+        var owner = SecretOwner.ForTenant(message);
+        SecretProtectorProvider.Evict(owner);
 
-        return TenantCache.RemoveAsync(message, new PropertyBagDictionary(), cancellationToken);
+        var propertyBag = new PropertyBagDictionary();
+        return TenantCache.RemoveAsync(message, propertyBag, cancellationToken);
     }
 
     /// <inheritdoc />

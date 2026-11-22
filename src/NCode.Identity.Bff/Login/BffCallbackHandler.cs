@@ -405,7 +405,7 @@ internal class BffCallbackHandler(
         await AuditRecorder.LoginSucceededAsync(httpContext, subject, cancellationToken);
 
         var returnUrl = BffNavigation.LocalUrl(request, transaction.ReturnUrl);
-        httpContext.Response.Redirect(returnUrl);
+        BffNavigation.RedirectLocal(httpContext.Response, returnUrl);
     }
 
     private async ValueTask FailAsync(
@@ -418,6 +418,6 @@ internal class BffCallbackHandler(
         Logger.LoginFailed(reason);
         await AuditRecorder.LoginFailedAsync(httpContext, reason, cancellationToken);
         var errorUrl = BffNavigation.ErrorUrl(httpContext.Request, frontend.Options, reason);
-        httpContext.Response.Redirect(errorUrl);
+        BffNavigation.RedirectLocal(httpContext.Response, errorUrl);
     }
 }

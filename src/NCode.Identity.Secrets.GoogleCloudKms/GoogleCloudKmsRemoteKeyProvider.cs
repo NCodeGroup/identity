@@ -133,14 +133,18 @@ internal class GoogleCloudKmsRemoteKeyProvider(
         var version = await CreateVersionAsync(cryptoKeyName, request, cancellationToken);
 
         var versionName = version.Name;
-        if (
-            !GoogleCloudKmsKeyName.IsCryptoKeyVersionName(versionName)
-            || !string.Equals(
-                GoogleCloudKmsKeyName.GetCryptoKeyName(versionName),
+        var versionOfCryptoKey = false;
+        if (GoogleCloudKmsKeyName.IsCryptoKeyVersionName(versionName))
+        {
+            var versionCryptoKeyName = GoogleCloudKmsKeyName.GetCryptoKeyName(versionName);
+            versionOfCryptoKey = string.Equals(
+                versionCryptoKeyName,
                 cryptoKeyName,
                 StringComparison.Ordinal
-            )
-        )
+            );
+        }
+
+        if (!versionOfCryptoKey)
         {
             throw new IOException(
                 $"Google Cloud KMS created '{versionName}', which is not a version of the crypto key '{cryptoKeyName}'; the response names another key."
@@ -236,10 +240,8 @@ internal class GoogleCloudKmsRemoteKeyProvider(
         var isDigest = request.Algorithm.DigestAlgorithm is not null;
         if (request.Algorithm.DigestAlgorithm is { } digestAlgorithm)
         {
-            signRequest.Digest = CreateDigest(
-                digestAlgorithm,
-                UnsafeByteOperations.UnsafeWrap(data)
-            );
+            var digestBytes = UnsafeByteOperations.UnsafeWrap(data);
+            signRequest.Digest = CreateDigest(digestAlgorithm, digestBytes);
             signRequest.DigestCrc32C = checksum;
         }
         else
@@ -256,9 +258,10 @@ internal class GoogleCloudKmsRemoteKeyProvider(
         var response = await ClientFactory.ExecuteAsync(
             access: null,
             (client, _) =>
-                new ValueTask<AsymmetricSignResponse>(
-                    client.AsymmetricSignAsync(signRequest, callSettings)
-                ),
+            {
+                var signTask = client.AsymmetricSignAsync(signRequest, callSettings);
+                return new ValueTask<AsymmetricSignResponse>(signTask);
+            },
             cancellationToken
         );
 
@@ -341,9 +344,10 @@ internal class GoogleCloudKmsRemoteKeyProvider(
             response = await ClientFactory.ExecuteAsync(
                 access: null,
                 (client, _) =>
-                    new ValueTask<AsymmetricDecryptResponse>(
-                        client.AsymmetricDecryptAsync(decryptRequest, callSettings)
-                    ),
+                {
+                    var decryptTask = client.AsymmetricDecryptAsync(decryptRequest, callSettings);
+                    return new ValueTask<AsymmetricDecryptResponse>(decryptTask);
+                },
                 cancellationToken
             );
         }
@@ -414,9 +418,13 @@ internal class GoogleCloudKmsRemoteKeyProvider(
             await ClientFactory.ExecuteAsync(
                 access: null,
                 (client, _) =>
-                    new ValueTask<CryptoKeyVersion>(
-                        client.DestroyCryptoKeyVersionAsync(destroyRequest, callSettings)
-                    ),
+                {
+                    var destroyTask = client.DestroyCryptoKeyVersionAsync(
+                        destroyRequest,
+                        callSettings
+                    );
+                    return new ValueTask<CryptoKeyVersion>(destroyTask);
+                },
                 cancellationToken
             );
         }
@@ -463,24 +471,20 @@ internal class GoogleCloudKmsRemoteKeyProvider(
                 {
                     // An update with the field mask 'labels' replaces the whole label map, so the other labels are read
                     // first and written back.
-                    var cryptoKey = await client.GetCryptoKeyAsync(
-                        new GetCryptoKeyRequest { Name = cryptoKeyName },
-                        callSettings
-                    );
+                    var getRequest = new GetCryptoKeyRequest { Name = cryptoKeyName };
+                    var cryptoKey = await client.GetCryptoKeyAsync(getRequest, callSettings);
 
                     cryptoKey.Labels[DeploymentLabelKey] = deployment;
 
-                    return await client.UpdateCryptoKeyAsync(
-                        new UpdateCryptoKeyRequest
+                    var updateRequest = new UpdateCryptoKeyRequest
+                    {
+                        CryptoKey = cryptoKey,
+                        UpdateMask = new Google.Protobuf.WellKnownTypes.FieldMask
                         {
-                            CryptoKey = cryptoKey,
-                            UpdateMask = new Google.Protobuf.WellKnownTypes.FieldMask
-                            {
-                                Paths = { "labels" },
-                            },
+                            Paths = { "labels" },
                         },
-                        callSettings
-                    );
+                    };
+                    return await client.UpdateCryptoKeyAsync(updateRequest, callSettings);
                 },
                 cancellationToken
             );
@@ -526,11 +530,9 @@ internal class GoogleCloudKmsRemoteKeyProvider(
             async (client, _) =>
             {
                 var result = new List<CryptoKey>();
+                var listCryptoKeysRequest = new ListCryptoKeysRequest { Parent = keyRing };
                 await foreach (
-                    var cryptoKey in client.ListCryptoKeysAsync(
-                        new ListCryptoKeysRequest { Parent = keyRing },
-                        callSettings
-                    )
+                    var cryptoKey in client.ListCryptoKeysAsync(listCryptoKeysRequest, callSettings)
                 )
                 {
                     if (
@@ -556,13 +558,14 @@ internal class GoogleCloudKmsRemoteKeyProvider(
                 async (client, _) =>
                 {
                     var result = new List<CryptoKeyVersion>();
+                    var listVersionsRequest = new ListCryptoKeyVersionsRequest
+                    {
+                        Parent = cryptoKey.Name,
+                        Filter = "state=ENABLED",
+                    };
                     await foreach (
                         var version in client.ListCryptoKeyVersionsAsync(
-                            new ListCryptoKeyVersionsRequest
-                            {
-                                Parent = cryptoKey.Name,
-                                Filter = "state=ENABLED",
-                            },
+                            listVersionsRequest,
                             callSettings
                         )
                     )
@@ -650,9 +653,13 @@ internal class GoogleCloudKmsRemoteKeyProvider(
         return await ClientFactory.ExecuteAsync(
             access: null,
             (client, _) =>
-                new ValueTask<CryptoKeyVersion>(
-                    client.CreateCryptoKeyVersionAsync(versionRequest, callSettings)
-                ),
+            {
+                var createVersionTask = client.CreateCryptoKeyVersionAsync(
+                    versionRequest,
+                    callSettings
+                );
+                return new ValueTask<CryptoKeyVersion>(createVersionTask);
+            },
             cancellationToken
         );
     }
@@ -707,9 +714,13 @@ internal class GoogleCloudKmsRemoteKeyProvider(
             await ClientFactory.ExecuteAsync(
                 access: null,
                 (client, _) =>
-                    new ValueTask<CryptoKey>(
-                        client.CreateCryptoKeyAsync(cryptoKeyRequest, callSettings)
-                    ),
+                {
+                    var createCryptoKeyTask = client.CreateCryptoKeyAsync(
+                        cryptoKeyRequest,
+                        callSettings
+                    );
+                    return new ValueTask<CryptoKey>(createCryptoKeyTask);
+                },
                 cancellationToken
             );
         }
@@ -738,9 +749,10 @@ internal class GoogleCloudKmsRemoteKeyProvider(
             var version = await ClientFactory.ExecuteAsync(
                 access: null,
                 (client, _) =>
-                    new ValueTask<CryptoKeyVersion>(
-                        client.GetCryptoKeyVersionAsync(versionRequest, callSettings)
-                    ),
+                {
+                    var versionTask = client.GetCryptoKeyVersionAsync(versionRequest, callSettings);
+                    return new ValueTask<CryptoKeyVersion>(versionTask);
+                },
                 cancellationToken
             );
 
@@ -762,11 +774,13 @@ internal class GoogleCloudKmsRemoteKeyProvider(
                 );
             }
 
-            var delay = TimeSpan.FromTicks(Math.Min(nextDelay.Ticks, (PollTimeout - waited).Ticks));
+            var delayTicks = Math.Min(nextDelay.Ticks, (PollTimeout - waited).Ticks);
+            var delay = TimeSpan.FromTicks(delayTicks);
             await Task.Delay(delay, TimeProvider, cancellationToken);
 
             waited += delay;
-            nextDelay = TimeSpan.FromTicks(Math.Min(nextDelay.Ticks * 2, MaxPollDelay.Ticks));
+            var nextDelayTicks = Math.Min(nextDelay.Ticks * 2, MaxPollDelay.Ticks);
+            nextDelay = TimeSpan.FromTicks(nextDelayTicks);
         }
     }
 
@@ -785,16 +799,22 @@ internal class GoogleCloudKmsRemoteKeyProvider(
         var publicKey = await ClientFactory.ExecuteAsync(
             access: null,
             (client, _) =>
-                new ValueTask<PublicKey>(client.GetPublicKeyAsync(publicKeyRequest, callSettings)),
+            {
+                var publicKeyTask = client.GetPublicKeyAsync(publicKeyRequest, callSettings);
+                return new ValueTask<PublicKey>(publicKeyTask);
+            },
             cancellationToken
         );
 
         var pem = publicKey.Pem;
-        if (
-            !string.Equals(publicKey.Name, versionName, StringComparison.Ordinal)
-            || publicKey.PemCrc32C
-                != GoogleCloudKmsChecksum.Compute(SecureEncoding.UTF8.GetBytes(pem))
-        )
+        var isPublicKeyVerified = false;
+        if (string.Equals(publicKey.Name, versionName, StringComparison.Ordinal))
+        {
+            var pemBytes = SecureEncoding.UTF8.GetBytes(pem);
+            isPublicKeyVerified = publicKey.PemCrc32C == GoogleCloudKmsChecksum.Compute(pemBytes);
+        }
+
+        if (!isPublicKeyVerified)
         {
             throw new IOException(
                 $"Google Cloud KMS did not confirm the integrity of the public key of '{versionName}'; the call can be retried."
@@ -859,7 +879,11 @@ internal class GoogleCloudKmsRemoteKeyProvider(
     private static CallSettings CreateCallSettings(
         CallSettings settings,
         CancellationToken cancellationToken
-    ) => settings.MergedWith(CallSettings.FromCancellationToken(cancellationToken));
+    )
+    {
+        var tokenSettings = CallSettings.FromCancellationToken(cancellationToken);
+        return settings.MergedWith(tokenSettings);
+    }
 
     private static FrozenDictionary<
         string,
@@ -874,8 +898,9 @@ internal class GoogleCloudKmsRemoteKeyProvider(
             var algorithm in Enum.GetValues<CryptoKeyVersion.Types.CryptoKeyVersionAlgorithm>()
         )
         {
+            var algorithmName = algorithm.ToString();
             var originalName = typeof(CryptoKeyVersion.Types.CryptoKeyVersionAlgorithm)
-                .GetField(algorithm.ToString())
+                .GetField(algorithmName)
                 ?.GetCustomAttribute<OriginalNameAttribute>()
                 ?.Name;
 

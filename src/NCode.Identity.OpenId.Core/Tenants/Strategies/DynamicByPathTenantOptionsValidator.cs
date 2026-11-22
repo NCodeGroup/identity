@@ -105,9 +105,8 @@ internal class DynamicByPathTenantOptionsValidator : IValidateOptions<TenantReso
             return;
 
         var tenantId = TenantAddressRules.ProbeTenantIds[0];
-        var probeIssuer = new Uri(
-            TenantAddressRules.ExpandIssuerTemplate(issuerTemplate, tenantId)
-        );
+        var probeIssuerValue = TenantAddressRules.ExpandIssuerTemplate(issuerTemplate, tenantId);
+        var probeIssuer = new Uri(probeIssuerValue);
         ValidateServedIssuer(probeIssuer, tenantId, key, issuerTemplate, options, failures);
     }
 

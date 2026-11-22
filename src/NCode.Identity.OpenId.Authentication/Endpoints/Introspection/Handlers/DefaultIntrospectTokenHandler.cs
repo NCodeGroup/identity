@@ -192,11 +192,12 @@ internal class DefaultIntrospectTokenHandler(
         }
 
         // A family past its horizon is refused by the refresh grant, so it is not active (ADR-1297).
+        var utcNow = TimeProvider.GetUtcNowWithPrecisionInSeconds();
         if (
             RefreshTokenExpiration.HasLineageExpired(
                 openIdClient.Settings,
                 payload.LineageCreatedWhen,
-                TimeProvider.GetUtcNowWithPrecisionInSeconds()
+                utcNow
             )
         )
         {

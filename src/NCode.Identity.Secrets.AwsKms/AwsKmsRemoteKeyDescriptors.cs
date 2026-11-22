@@ -71,14 +71,13 @@ internal sealed class AwsKmsRemoteKeyDescriptors(IOptions<AwsKmsRemoteKeyProvide
         {
             foreach (var keySizeBits in RsaKeySizesBits)
             {
-                rows.Add(
-                    CreateRsaRow(
-                        $"RS{hashSizeBits}",
-                        keySizeBits,
-                        $"RSASSA_PKCS1_V1_5_SHA_{hashSizeBits}",
-                        digest
-                    )
+                var row = CreateRsaRow(
+                    $"RS{hashSizeBits}",
+                    keySizeBits,
+                    $"RSASSA_PKCS1_V1_5_SHA_{hashSizeBits}",
+                    digest
                 );
+                rows.Add(row);
             }
         }
 
@@ -86,50 +85,47 @@ internal sealed class AwsKmsRemoteKeyDescriptors(IOptions<AwsKmsRemoteKeyProvide
         {
             foreach (var keySizeBits in RsaKeySizesBits)
             {
-                rows.Add(
-                    CreateRsaRow(
-                        $"PS{hashSizeBits}",
-                        keySizeBits,
-                        $"RSASSA_PSS_SHA_{hashSizeBits}",
-                        digest
-                    )
+                var row = CreateRsaRow(
+                    $"PS{hashSizeBits}",
+                    keySizeBits,
+                    $"RSASSA_PSS_SHA_{hashSizeBits}",
+                    digest
                 );
+                rows.Add(row);
             }
         }
 
         foreach (var (hashSizeBits, digest, curve) in Hashes)
         {
-            rows.Add(
-                new RemoteSigningAlgorithm
-                {
-                    Provider = RemoteKeyProviderNames.AwsKms,
-                    Algorithm = $"ES{hashSizeBits}",
-                    SecretType = SecretKeyTypes.Ecc,
-                    KeySizeBits = curve.CurveSizeBits,
-                    Curve = curve.CurveName,
-                    KeySpec = $"ECC_NIST_P{curve.CurveSizeBits}",
-                    SigningAlgorithm = $"ECDSA_SHA_{hashSizeBits}",
-                    DigestAlgorithm = digest,
-                    IsDerEncodedSignature = true,
-                }
-            );
+            var row = new RemoteSigningAlgorithm
+            {
+                Provider = RemoteKeyProviderNames.AwsKms,
+                Algorithm = $"ES{hashSizeBits}",
+                SecretType = SecretKeyTypes.Ecc,
+                KeySizeBits = curve.CurveSizeBits,
+                Curve = curve.CurveName,
+                KeySpec = $"ECC_NIST_P{curve.CurveSizeBits}",
+                SigningAlgorithm = $"ECDSA_SHA_{hashSizeBits}",
+                DigestAlgorithm = digest,
+                IsDerEncodedSignature = true,
+            };
+            rows.Add(row);
         }
 
         foreach (var (algorithm, encryptionAlgorithm) in DecryptionAlgorithms)
         {
             foreach (var keySizeBits in RsaKeySizesBits)
             {
-                rows.Add(
-                    new RemoteDecryptionAlgorithm
-                    {
-                        Provider = RemoteKeyProviderNames.AwsKms,
-                        Algorithm = algorithm,
-                        SecretType = SecretKeyTypes.Rsa,
-                        KeySizeBits = keySizeBits,
-                        KeySpec = $"RSA_{keySizeBits}",
-                        EncryptionAlgorithm = encryptionAlgorithm,
-                    }
-                );
+                var row = new RemoteDecryptionAlgorithm
+                {
+                    Provider = RemoteKeyProviderNames.AwsKms,
+                    Algorithm = algorithm,
+                    SecretType = SecretKeyTypes.Rsa,
+                    KeySizeBits = keySizeBits,
+                    KeySpec = $"RSA_{keySizeBits}",
+                    EncryptionAlgorithm = encryptionAlgorithm,
+                };
+                rows.Add(row);
             }
         }
 
@@ -137,18 +133,17 @@ internal sealed class AwsKmsRemoteKeyDescriptors(IOptions<AwsKmsRemoteKeyProvide
         {
             foreach (var (_, _, curve) in Hashes)
             {
-                rows.Add(
-                    new RemoteKeyAgreementAlgorithm
-                    {
-                        Provider = RemoteKeyProviderNames.AwsKms,
-                        Algorithm = algorithm,
-                        SecretType = SecretKeyTypes.Ecc,
-                        KeySizeBits = curve.CurveSizeBits,
-                        Curve = curve.CurveName,
-                        KeySpec = $"ECC_NIST_P{curve.CurveSizeBits}",
-                        KeyAgreementAlgorithm = "ECDH",
-                    }
-                );
+                var row = new RemoteKeyAgreementAlgorithm
+                {
+                    Provider = RemoteKeyProviderNames.AwsKms,
+                    Algorithm = algorithm,
+                    SecretType = SecretKeyTypes.Ecc,
+                    KeySizeBits = curve.CurveSizeBits,
+                    Curve = curve.CurveName,
+                    KeySpec = $"ECC_NIST_P{curve.CurveSizeBits}",
+                    KeyAgreementAlgorithm = "ECDH",
+                };
+                rows.Add(row);
             }
         }
 

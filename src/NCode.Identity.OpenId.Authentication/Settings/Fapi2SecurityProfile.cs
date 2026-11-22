@@ -87,20 +87,28 @@ internal sealed class Fapi2SecurityProfile : ISecurityProfile
         ceiling.Set(OpenIdSettingKeys.RefreshTokenRotationRetryRequired, true);
 
         // Short-lived authorization code and PAR request_uri (Min ceilings can only be shortened by a child).
-        ceiling.Set(OpenIdSettingKeys.AuthorizationCodeLifetime, TimeSpan.FromSeconds(60));
-        ceiling.Set(OpenIdSettingKeys.PushedAuthorizationRequestLifetime, TimeSpan.FromSeconds(90));
+        var authorizationCodeLifetime = TimeSpan.FromSeconds(60);
+        ceiling.Set(OpenIdSettingKeys.AuthorizationCodeLifetime, authorizationCodeLifetime);
+        var pushedAuthorizationRequestLifetime = TimeSpan.FromSeconds(90);
+        ceiling.Set(
+            OpenIdSettingKeys.PushedAuthorizationRequestLifetime,
+            pushedAuthorizationRequestLifetime
+        );
 
         // Tight clock skew for signed request objects / client assertions (Min ceiling): FAPI 2.0 allows at most a
         // 60-second future tolerance when validating token time claims, so a child may only reduce it further.
-        ceiling.Set(OpenIdSettingKeys.ClockSkew, TimeSpan.FromSeconds(60));
+        var clockSkew = TimeSpan.FromSeconds(60);
+        ceiling.Set(OpenIdSettingKeys.ClockSkew, clockSkew);
 
         // Pin the client-assertion lifetime at the secure default (Min ceiling) so raising the platform-wide value for
         // other clients never extends to a FAPI client (ADR-1187).
-        ceiling.Set(OpenIdSettingKeys.ClientAssertionMaxLifetime, TimeSpan.FromMinutes(5));
+        var clientAssertionMaxLifetime = TimeSpan.FromMinutes(5);
+        ceiling.Set(OpenIdSettingKeys.ClientAssertionMaxLifetime, clientAssertionMaxLifetime);
 
         // A request object carries 'nbf' and 'exp', at most 60 minutes apart (FAPI 2.0 Message Signing §5.3.1,
         // FAPI 1.0 Advanced §5.2.2); pinned so raising the platform-wide values never extends to a FAPI client (ADR-1187).
-        ceiling.Set(OpenIdSettingKeys.RequestObjectMaxLifetime, TimeSpan.FromMinutes(60));
+        var requestObjectMaxLifetime = TimeSpan.FromMinutes(60);
+        ceiling.Set(OpenIdSettingKeys.RequestObjectMaxLifetime, requestObjectMaxLifetime);
         ceiling.Set(OpenIdSettingKeys.RequestObjectNotBeforeRequired, true);
 
         // FAPI 2.0 §5.3.2.2-8: no http redirect URI except a native client's loopback redirect (RFC 8252 §7.3);

@@ -96,7 +96,12 @@ public readonly record struct SecretOwner
     /// the invariant culture.
     /// </summary>
     /// <returns>The normalized <see cref="SecretOwner"/>.</returns>
-    public SecretOwner Normalize() => new(OwnerType.ToLowerInvariant(), OwnerId.ToLowerInvariant());
+    public SecretOwner Normalize()
+    {
+        var normalizedOwnerType = OwnerType.ToLowerInvariant();
+        var normalizedOwnerId = OwnerId.ToLowerInvariant();
+        return new SecretOwner(normalizedOwnerType, normalizedOwnerId);
+    }
 
     /// <summary>
     /// Returns the owner as the owner type and the owner identifier joined by a colon.

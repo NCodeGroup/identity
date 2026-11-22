@@ -58,21 +58,19 @@ internal abstract class BaseOwnableApiEndpointHandler : BaseApiEndpointHandler
     )
     {
         var roleHolder = ToRoleHolderResource(assignment);
-        return ManagementAuditRecorder.RecordResourceChangeAsync(
-            httpContext,
-            new RoleAssignmentChangedAuditEvent
-            {
-                EventSource = AuditEventSources.Management,
-                TenantId = assignment.TenantId,
-                SubjectId = assignment.PrincipalId,
-                ResourceId = assignment.AssignmentId,
-                NodeType = assignment.ResourceType,
-                NodeId = assignment.ResourceId,
-                ChangeType = changeType,
-                ResourceValues = ToResourceValues(roleHolder),
-                Outcome = AuditOutcome.Success,
-            }
-        );
+        var auditEvent = new RoleAssignmentChangedAuditEvent
+        {
+            EventSource = AuditEventSources.Management,
+            TenantId = assignment.TenantId,
+            SubjectId = assignment.PrincipalId,
+            ResourceId = assignment.AssignmentId,
+            NodeType = assignment.ResourceType,
+            NodeId = assignment.ResourceId,
+            ChangeType = changeType,
+            ResourceValues = ToResourceValues(roleHolder),
+            Outcome = AuditOutcome.Success,
+        };
+        return ManagementAuditRecorder.RecordResourceChangeAsync(httpContext, auditEvent);
     }
 
     /// <summary>

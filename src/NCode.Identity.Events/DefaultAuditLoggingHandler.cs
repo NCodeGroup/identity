@@ -45,19 +45,15 @@ internal class DefaultAuditLoggingHandler(ILoggerFactory loggerFactory)
         }
 
         var state = AuditRecordAttributes.Create(@event);
-        state.Add(new("{OriginalFormat}", MessageTemplate));
+        var originalFormat = new KeyValuePair<string, object?>("{OriginalFormat}", MessageTemplate);
+        state.Add(originalFormat);
 
         var message = $"Audit '{@event.EventName}' {@event.Outcome}.";
 
         // The state is the record's per-event audit.* key set, which a [LoggerMessage] method cannot declare,
         // so this logs through ILogger.Log directly (ADR-1283).
-        Logger.Log(
-            level,
-            new EventId(EventIds.AuditRecorded, nameof(EventIds.AuditRecorded)),
-            state,
-            null,
-            (_, _) => message
-        );
+        var eventId = new EventId(EventIds.AuditRecorded, nameof(EventIds.AuditRecorded));
+        Logger.Log(level, eventId, state, null, (_, _) => message);
 
         return ValueTask.CompletedTask;
     }

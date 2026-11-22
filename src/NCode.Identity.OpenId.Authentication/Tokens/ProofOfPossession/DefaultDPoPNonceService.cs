@@ -49,7 +49,8 @@ internal sealed class DefaultDPoPNonceService(IExpiringKeySet keySet, TimeProvid
         var key = ExpiringKeys.Create(Purpose, openIdContext.Tenant.TenantId, nonce);
 
         // A key already present is a live nonce with this value, which validates just the same.
-        await KeySet.TryAddAsync(key, TimeProvider.GetUtcNow() + NonceLifetime, cancellationToken);
+        var expiresWhen = TimeProvider.GetUtcNow() + NonceLifetime;
+        await KeySet.TryAddAsync(key, expiresWhen, cancellationToken);
 
         return nonce;
     }

@@ -44,7 +44,8 @@ public static class ExpiringKeys
         foreach (var component in components)
         {
             var length = SecureEncoding.UTF8.GetByteCount(component);
-            BinaryPrimitives.WriteInt32BigEndian(buffer.GetSpan(sizeof(int)), length);
+            var lengthSpan = buffer.GetSpan(sizeof(int));
+            BinaryPrimitives.WriteInt32BigEndian(lengthSpan, length);
             buffer.Advance(sizeof(int));
             SecureEncoding.UTF8.GetBytes(component, buffer);
         }

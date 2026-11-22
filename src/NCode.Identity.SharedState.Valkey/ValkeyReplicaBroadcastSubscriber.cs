@@ -47,9 +47,8 @@ internal sealed class ValkeyReplicaBroadcastSubscriber(
     /// <inheritdoc />
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        var pending = new Queue<string>(
-            Handlers.Select(x => x.Channel).Distinct(StringComparer.Ordinal)
-        );
+        var channels = Handlers.Select(x => x.Channel).Distinct(StringComparer.Ordinal);
+        var pending = new Queue<string>(channels);
 
         while (pending.Count > 0)
         {
@@ -121,8 +120,10 @@ internal sealed class ValkeyReplicaBroadcastSubscriber(
     private void OnMessage(string channel, RedisValue value)
     {
         _ = Task.Run(() =>
-            DispatchAsync(channel, value.ToString(), CancellationToken.None).AsTask()
-        );
+        {
+            var message = value.ToString();
+            return DispatchAsync(channel, message, CancellationToken.None).AsTask();
+        });
     }
 
     /// <summary>
@@ -165,13 +166,13 @@ internal sealed class ValkeyReplicaBroadcastSubscriber(
     internal ValueTask HandleMissedMessagesAsync(
         string channel,
         CancellationToken cancellationToken
-    ) =>
-        InvokeMissedMessagesAsync(
-            Handlers.Where(handler =>
-                string.Equals(handler.Channel, channel, StringComparison.Ordinal)
-            ),
-            cancellationToken
+    )
+    {
+        var channelHandlers = Handlers.Where(handler =>
+            string.Equals(handler.Channel, channel, StringComparison.Ordinal)
         );
+        return InvokeMissedMessagesAsync(channelHandlers, cancellationToken);
+    }
 
     private async ValueTask InvokeMissedMessagesAsync(
         IEnumerable<IReplicaBroadcastHandler> handlers,

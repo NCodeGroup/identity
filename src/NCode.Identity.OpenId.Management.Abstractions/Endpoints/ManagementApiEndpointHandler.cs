@@ -56,11 +56,11 @@ public abstract class ManagementApiEndpointHandler
         JsonSerializer.SerializeToElement(resource, JsonSerializerOptions.Web);
 
     /// <summary>
-    /// Returns the problem-details <see cref="IResult"/> for a failed authorization: <c>403 Forbidden</c> when the
-    /// user is authenticated (but lacks permission) and <c>401 Unauthorized</c> when the user is anonymous. The
-    /// management API publishes the bearer principal itself through <c>ManagementAuthenticationEndpointFilter</c>
-    /// and never through an authentication scheme, so the refusal never runs a scheme's forbid or challenge, which
-    /// could redirect to an interactive page.
+    /// Returns the problem-details <see cref="IResult"/> for a failed authorization: <c>403 Forbidden</c> when the user
+    /// is authenticated (but lacks permission) and <c>401 Unauthorized</c> when the user is anonymous. The management
+    /// API publishes the bearer principal itself through <c>ManagementCallerGate</c> and never through an
+    /// authentication scheme, so the refusal never runs a scheme's forbid or challenge, which could redirect to an
+    /// interactive page.
     /// </summary>
     /// <param name="httpContext">The <see cref="HttpContext"/> for the current request.</param>
     /// <returns>The <see cref="IResult"/> representing the authorization failure.</returns>
@@ -72,7 +72,7 @@ public abstract class ManagementApiEndpointHandler
                 detail: "The caller is not authorized for this operation.",
                 statusCode: StatusCodes.Status403Forbidden
             )
-            : ManagementProblems.AuthenticationRequired();
+            : ManagementProblems.AuthenticationRequired(httpContext);
     }
 
     /// <summary>
@@ -143,7 +143,11 @@ public abstract class ManagementApiEndpointHandler
             authorizationResource,
             authorizationRequirement,
             readAsync,
-            (value, _) => ValueTask.FromResult(mapper(value)),
+            (value, _) =>
+            {
+                var response = mapper(value);
+                return ValueTask.FromResult(response);
+            },
             cancellationToken
         );
 
@@ -259,8 +263,11 @@ public abstract class ManagementApiEndpointHandler
         var page = await fetchPageAsync();
 
         var items = page.Items.Select(mapper).ToList();
-        return TypedResults.Json(
-            new CollectionResource<TResource> { Items = items, ContinuationToken = page.NextCursor }
-        );
+        var collectionResource = new CollectionResource<TResource>
+        {
+            Items = items,
+            ContinuationToken = page.NextCursor,
+        };
+        return TypedResults.Json(collectionResource);
     }
 }

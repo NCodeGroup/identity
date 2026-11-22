@@ -522,9 +522,10 @@ internal class ClientApiEndpointHandler(
         // A client list is scoped to the addressed tenant (the query filter enforces it); authorize for that tenant.
         var effectiveLimit = NormalizeLimit(limit);
 
+        var tenantScope = TenantScopeResource.For(tenantId);
         return await ProcessListAsync(
             httpContext,
-            TenantScopeResource.For(tenantId),
+            tenantScope,
             async () =>
             {
                 await using var storeManager = await StoreManagerFactory.CreateAsync(
@@ -671,9 +672,10 @@ internal class ClientApiEndpointHandler(
         // The report is authorized like the client list: for the addressed tenant.
         var effectiveLimit = NormalizeLimit(limit);
 
+        var tenantScope = TenantScopeResource.For(tenantId);
         return await ProcessListAsync(
             httpContext,
-            TenantScopeResource.For(tenantId),
+            tenantScope,
             async () =>
             {
                 await using var storeManager = await StoreManagerFactory.CreateAsync(
@@ -968,8 +970,11 @@ internal class ClientApiEndpointHandler(
             );
     }
 
-    private static ValidationProblem ClientIdRefused(string error) =>
-        TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["clientId"] = [error] });
+    private static ValidationProblem ClientIdRefused(string error)
+    {
+        var errors = new Dictionary<string, string[]> { ["clientId"] = [error] };
+        return TypedResults.ValidationProblem(errors);
+    }
 
     /// <summary>
     /// Validates and stages a client through the <see cref="IClientCreator"/>, saves it, and answers the created
@@ -998,9 +1003,13 @@ internal class ClientApiEndpointHandler(
 
         if (!creation.Succeeded)
         {
-            return creation.Error is { } creationError
-                ? ToErrorResult(creationError)
-                : SettingsValidationProblem(FlattenSettingErrors(creation.SettingErrors));
+            if (creation.Error is { } creationError)
+            {
+                return ToErrorResult(creationError);
+            }
+
+            var flattenedSettingErrors = FlattenSettingErrors(creation.SettingErrors);
+            return SettingsValidationProblem(flattenedSettingErrors);
         }
 
         var client = creation.Client;
@@ -1024,12 +1033,13 @@ internal class ClientApiEndpointHandler(
 
         var resource = ToClientResource(client);
 
+        var resourceValues = ToResourceValues(resource);
         await ManagementAuditRecorder.RecordClientChangedAsync(
             httpContext,
             client.TenantId,
             client.ClientId,
             ResourceChangeTypes.Created,
-            ToResourceValues(resource)
+            resourceValues
         );
 
         if (creatorAssignment is not null)
@@ -1137,12 +1147,14 @@ internal class ClientApiEndpointHandler(
         await store.UpdateAsync(client, cancellationToken);
         await storeManager.SaveChangesAsync(cancellationToken);
 
+        var updatedClientResource = ToClientResource(client);
+        var updatedValues = ToResourceValues(updatedClientResource);
         await ManagementAuditRecorder.RecordClientChangedAsync(
             httpContext,
             client.TenantId,
             client.ClientId,
             ResourceChangeTypes.Updated,
-            ToResourceValues(ToClientResource(client))
+            updatedValues
         );
 
         return TypedResults.NoContent();
@@ -1208,7 +1220,8 @@ internal class ClientApiEndpointHandler(
             return changeRefusal;
         }
 
-        var resourceValues = ToResourceValues(ToClientResource(client));
+        var clientResource = ToClientResource(client);
+        var resourceValues = ToResourceValues(clientResource);
 
         await store.RemoveAsync(clientId, cancellationToken);
 
@@ -1543,26 +1556,36 @@ internal class ClientApiEndpointHandler(
             tokenEndpointAuthMethod
         );
 
-        var reconciliation = string.Equals(
-            storedTokenEndpointAuthMethod,
-            tokenEndpointAuthMethod,
-            StringComparison.Ordinal
+        ClientSecretReconciliation reconciliation;
+        if (
+            string.Equals(
+                storedTokenEndpointAuthMethod,
+                tokenEndpointAuthMethod,
+                StringComparison.Ordinal
+            )
         )
-            ? new ClientSecretReconciliation
+        {
+            reconciliation = new ClientSecretReconciliation
             {
                 Secrets = [.. client.Secrets.Value],
                 RemovedSecrets = [],
                 AddedSecrets = [],
-            }
-            : ClientSecretIssuer.ReconcileClientSecrets(
-                await SecretProtectorProvider.GetProtectorAsync(
-                    SecretOwner.ForTenant(client.TenantId),
-                    [],
-                    cancellationToken
-                ),
+            };
+        }
+        else
+        {
+            var secretOwner = SecretOwner.ForTenant(client.TenantId);
+            var protector = await SecretProtectorProvider.GetProtectorAsync(
+                secretOwner,
+                [],
+                cancellationToken
+            );
+            reconciliation = ClientSecretIssuer.ReconcileClientSecrets(
+                protector,
                 tokenEndpointAuthMethod,
                 client.Secrets.Value
             );
+        }
 
         // Issuing a secret is creating one, which needs the authority CreateSecretAsync needs.
         if (reconciliation.IssuedSecret is not null)
@@ -1595,12 +1618,14 @@ internal class ClientApiEndpointHandler(
 
         await storeManager.SaveChangesAsync(cancellationToken);
 
+        var clientSettingsResource = ToClientSettingsResource(clientSettings);
+        var clientSettingsValues = ToResourceValues(clientSettingsResource);
         await ManagementAuditRecorder.RecordClientChangedAsync(
             httpContext,
             clientSettings.TenantId,
             clientSettings.ClientId,
             ResourceChangeTypes.SettingsUpdated,
-            ToResourceValues(ToClientSettingsResource(clientSettings))
+            clientSettingsValues
         );
 
         await RecordSecretChangesAsync(httpContext, client, reconciliation);
@@ -1610,9 +1635,13 @@ internal class ClientApiEndpointHandler(
         );
 
         // The issued secret's material is revealed here only (ADR-1050).
-        return reconciliation.IssuedSecret is { } issued
-            ? TypedResults.Ok(ToCreatedSecretResource(issued.Secret, issued.SecretMaterial))
-            : TypedResults.NoContent();
+        if (reconciliation.IssuedSecret is { } issued)
+        {
+            var issuedResource = ToCreatedSecretResource(issued.Secret, issued.SecretMaterial);
+            return TypedResults.Ok(issuedResource);
+        }
+
+        return TypedResults.NoContent();
     }
 
     [SuppressMessage(
@@ -1628,25 +1657,29 @@ internal class ClientApiEndpointHandler(
     {
         foreach (var secret in reconciliation.RemovedSecrets)
         {
+            var removedResource = ToSecretResource(secret);
+            var removedValues = ToResourceValues(removedResource);
             await ManagementAuditRecorder.RecordClientSecretChangedAsync(
                 httpContext,
                 client.TenantId,
                 client.ClientId,
                 secret.SecretId,
                 ResourceChangeTypes.Deleted,
-                ToResourceValues(ToSecretResource(secret))
+                removedValues
             );
         }
 
         foreach (var secret in reconciliation.AddedSecrets)
         {
+            var addedResource = ToSecretResource(secret);
+            var addedValues = ToResourceValues(addedResource);
             await ManagementAuditRecorder.RecordClientSecretChangedAsync(
                 httpContext,
                 client.TenantId,
                 client.ClientId,
                 secret.SecretId,
                 ResourceChangeTypes.Created,
-                ToResourceValues(ToSecretResource(secret))
+                addedValues
             );
         }
     }
@@ -1788,8 +1821,9 @@ internal class ClientApiEndpointHandler(
             return secretIdConflict;
         }
 
+        var secretOwner = SecretOwner.ForTenant(client.TenantId);
         var protector = await SecretProtectorProvider.GetProtectorAsync(
-            SecretOwner.ForTenant(client.TenantId),
+            secretOwner,
             [],
             cancellationToken
         );
@@ -1801,35 +1835,39 @@ internal class ClientApiEndpointHandler(
             // used as the HMAC key for client_secret_jwt: the issuer stores it in the form the client's method needs,
             // never as the raw-byte / base64url-reveal crypto-key material GenerateSecret produces (which never UTF-8
             // round-trips). See ADR-1391.
-            generatedSecret = isSharedSecret
-                ? ClientSecretIssuer.GenerateClientSecret(
+            if (isSharedSecret)
+            {
+                var sharedSecretRequest = new SharedSecretRequest
+                {
+                    SecretId = secretId,
+                    Use = request.Use,
+                    Algorithm = request.Algorithm,
+                    CreatedWhen = createdWhen,
+                    ExpiresWhen = request.ExpiresWhen,
+                    EntropyBits = validation.GenerationParameters.KeySizeBits,
+                };
+                generatedSecret = ClientSecretIssuer.GenerateClientSecret(
                     protector,
                     tokenEndpointAuthMethod,
-                    new SharedSecretRequest
-                    {
-                        SecretId = secretId,
-                        Use = request.Use,
-                        Algorithm = request.Algorithm,
-                        CreatedWhen = createdWhen,
-                        ExpiresWhen = request.ExpiresWhen,
-                        EntropyBits = validation.GenerationParameters.KeySizeBits,
-                    }
-                )
-                : SecretGenerator.GenerateSecret(
-                    protector,
-                    new GenerateSecretRequest
-                    {
-                        SecretId = secretId,
-                        SecretType = request.SecretType,
-                        GenerationParameters = validation.GenerationParameters,
-                        Use = request.Use,
-                        Algorithm = request.Algorithm,
-                        CreatedWhen = createdWhen,
-                        ActivatesWhen = request.ActivatesWhen,
-                        RetiresWhen = request.RetiresWhen,
-                        ExpiresWhen = request.ExpiresWhen,
-                    }
+                    sharedSecretRequest
                 );
+            }
+            else
+            {
+                var generateSecretRequest = new GenerateSecretRequest
+                {
+                    SecretId = secretId,
+                    SecretType = request.SecretType,
+                    GenerationParameters = validation.GenerationParameters,
+                    Use = request.Use,
+                    Algorithm = request.Algorithm,
+                    CreatedWhen = createdWhen,
+                    ActivatesWhen = request.ActivatesWhen,
+                    RetiresWhen = request.RetiresWhen,
+                    ExpiresWhen = request.ExpiresWhen,
+                };
+                generatedSecret = SecretGenerator.GenerateSecret(protector, generateSecretRequest);
+            }
         }
         catch (Exception exception)
             when (exception is ArgumentException or InvalidOperationException)
@@ -1847,13 +1885,14 @@ internal class ClientApiEndpointHandler(
 
         var secretResource = ToSecretResource(generatedSecret.Secret);
 
+        var createdValues = ToResourceValues(secretResource);
         await ManagementAuditRecorder.RecordClientSecretChangedAsync(
             httpContext,
             client.TenantId,
             clientId,
             secretId,
             ResourceChangeTypes.Created,
-            ToResourceValues(secretResource)
+            createdValues
         );
 
         // The store assigns the secret's token on insert (ADR-1012), so no re-read is needed.
@@ -1862,9 +1901,13 @@ internal class ClientApiEndpointHandler(
         );
 
         // The one-time material is revealed here only (ADR-1050); the audit snapshot above stays material-free.
+        var createdSecretResource = ToCreatedSecretResource(
+            generatedSecret.Secret,
+            generatedSecret.SecretMaterial
+        );
         return TypedResults.Created(
             $"/tenants/{tenantId}/clients/{clientId}/secrets/{secretId}",
-            ToCreatedSecretResource(generatedSecret.Secret, generatedSecret.SecretMaterial)
+            createdSecretResource
         );
     }
 
@@ -1973,13 +2016,14 @@ internal class ClientApiEndpointHandler(
 
         var secretResource = ToSecretResource(importedSecret);
 
+        var importedValues = ToResourceValues(secretResource);
         await ManagementAuditRecorder.RecordClientSecretChangedAsync(
             httpContext,
             client.TenantId,
             clientId,
             secretId,
             ResourceChangeTypes.Created,
-            ToResourceValues(secretResource)
+            importedValues
         );
 
         httpContext.Response.Headers.ETag = ManagementEntityTags.Format(
@@ -2160,13 +2204,15 @@ internal class ClientApiEndpointHandler(
         await store.UpdateSecretAsync(clientId, updated, cancellationToken);
         await storeManager.SaveChangesAsync(cancellationToken);
 
+        var updatedResource = ToSecretResource(updated);
+        var updatedValues = ToResourceValues(updatedResource);
         await ManagementAuditRecorder.RecordClientSecretChangedAsync(
             httpContext,
             clientSecret.TenantId,
             clientId,
             secretId,
             ResourceChangeTypes.Updated,
-            ToResourceValues(ToSecretResource(updated))
+            updatedValues
         );
 
         return TypedResults.NoContent();
@@ -2234,7 +2280,8 @@ internal class ClientApiEndpointHandler(
             return changeRefusal;
         }
 
-        var secretValues = ToResourceValues(ToSecretResource(clientSecret.Value));
+        var secretResource = ToSecretResource(clientSecret.Value);
+        var secretValues = ToResourceValues(secretResource);
 
         await store.RemoveSecretAsync(clientId, secretId, cancellationToken);
         await storeManager.SaveChangesAsync(cancellationToken);
@@ -2385,8 +2432,9 @@ internal class ClientApiEndpointHandler(
             return replacementIdConflict;
         }
 
+        var secretOwner = SecretOwner.ForTenant(client.TenantId);
         var protector = await SecretProtectorProvider.GetProtectorAsync(
-            SecretOwner.ForTenant(client.TenantId),
+            secretOwner,
             [],
             cancellationToken
         );
@@ -2395,18 +2443,19 @@ internal class ClientApiEndpointHandler(
         try
         {
             // A client's shared secret is its client_secret (ADR-1391), stored in the form the client's method needs.
+            var secretRequest = new SharedSecretRequest
+            {
+                SecretId = replacementId,
+                Use = createRequest.Use,
+                Algorithm = createRequest.Algorithm,
+                CreatedWhen = createdWhen,
+                ExpiresWhen = createRequest.ExpiresWhen,
+                EntropyBits = validation.GenerationParameters.KeySizeBits,
+            };
             generatedSecret = ClientSecretIssuer.GenerateClientSecret(
                 protector,
                 tokenEndpointAuthMethod,
-                new SharedSecretRequest
-                {
-                    SecretId = replacementId,
-                    Use = createRequest.Use,
-                    Algorithm = createRequest.Algorithm,
-                    CreatedWhen = createdWhen,
-                    ExpiresWhen = createRequest.ExpiresWhen,
-                    EntropyBits = validation.GenerationParameters.KeySizeBits,
-                }
+                secretRequest
             );
         }
         catch (Exception exception)
@@ -2451,13 +2500,14 @@ internal class ClientApiEndpointHandler(
 
         var replacementResource = ToSecretResource(generatedSecret.Secret);
 
+        var replacementValues = ToResourceValues(replacementResource);
         await ManagementAuditRecorder.RecordClientSecretChangedAsync(
             httpContext,
             client.TenantId,
             clientId,
             replacementId,
             ResourceChangeTypes.Created,
-            ToResourceValues(replacementResource)
+            replacementValues
         );
         if (shortened is not null)
         {
@@ -2478,9 +2528,13 @@ internal class ClientApiEndpointHandler(
         );
 
         // The replacement's material is revealed here only (ADR-1050).
+        var createdSecretResource = ToCreatedSecretResource(
+            generatedSecret.Secret,
+            generatedSecret.SecretMaterial
+        );
         return TypedResults.Created(
             $"/tenants/{tenantId}/clients/{clientId}/secrets/{replacementId}",
-            ToCreatedSecretResource(generatedSecret.Secret, generatedSecret.SecretMaterial)
+            createdSecretResource
         );
     }
 

@@ -30,6 +30,9 @@ internal class DefaultSecretKeyCollectionProviderFactory(
     ) => DefaultSecretKeyCollectionProvider.Create(SecretKeyCollectionFactory, dataSources, owns);
 
     /// <inheritdoc />
-    public ISecretKeyCollectionProvider CreateStatic(IEnumerable<SecretKey> secretKeys) =>
-        Create(new StaticCollectionDataSource<SecretKey>(secretKeys), owns: true);
+    public ISecretKeyCollectionProvider CreateStatic(IEnumerable<SecretKey> secretKeys)
+    {
+        var dataSource = new StaticCollectionDataSource<SecretKey>(secretKeys);
+        return Create(dataSource, owns: true);
+    }
 }

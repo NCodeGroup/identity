@@ -36,8 +36,11 @@ internal class StaticSingleTenantStrategy(
             : tenantId;
     }
 
-    private bool IsConfiguredTenant(string tenantId) =>
-        string.Equals(tenantId, ResolveConfiguredTenantId(), StringComparison.Ordinal);
+    private bool IsConfiguredTenant(string tenantId)
+    {
+        var configuredTenantId = ResolveConfiguredTenantId();
+        return string.Equals(tenantId, configuredTenantId, StringComparison.Ordinal);
+    }
 
     /// <inheritdoc />
     public override bool TryGetTenantId(
@@ -60,7 +63,8 @@ internal class StaticSingleTenantStrategy(
     )
     {
         var issuer = IsConfiguredTenant(tenantId) ? Options.Issuer : null;
-        return ValueTask.FromResult(string.IsNullOrEmpty(issuer) ? null : issuer);
+        var defaultIssuer = string.IsNullOrEmpty(issuer) ? null : issuer;
+        return ValueTask.FromResult(defaultIssuer);
     }
 
     /// <inheritdoc />
@@ -73,7 +77,8 @@ internal class StaticSingleTenantStrategy(
     )
     {
         var alias = IsConfiguredTenant(tenantId) ? Options.MtlsEndpointAliasAuthority : null;
-        return ValueTask.FromResult(string.IsNullOrEmpty(alias) ? null : alias);
+        var defaultAlias = string.IsNullOrEmpty(alias) ? null : alias;
+        return ValueTask.FromResult(defaultAlias);
     }
 
     /// <inheritdoc />

@@ -34,9 +34,11 @@ internal static class DefaultRegistration
 
             var serviceCollection = builder.ServiceCollection;
 
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<IContinueProvider, DefaultEndSessionContinueProvider>()
-            );
+            var continueProvider = ServiceDescriptor.Singleton<
+                IContinueProvider,
+                DefaultEndSessionContinueProvider
+            >();
+            serviceCollection.TryAddEnumerable(continueProvider);
 
             serviceCollection.TryAddSingleton<
                 ICommandResponseHandler<LoadEndSessionRequestCommand, IEndSessionRequest>,

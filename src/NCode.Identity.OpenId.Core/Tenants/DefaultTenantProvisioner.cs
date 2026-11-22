@@ -58,11 +58,10 @@ internal sealed class DefaultTenantProvisioner(
     )
     {
         // The tenant's team exists before the tenant, so the tenant's foreign key to it holds (ADR-1411).
+        var isRootTeam = string.Equals(teamId, RootOptions.TeamId, StringComparison.Ordinal);
         await TeamProvisioner.EnsureCreatedAsync(
             teamId,
-            string.Equals(teamId, RootOptions.TeamId, StringComparison.Ordinal)
-                ? RootOptions.TeamDisplayName
-                : teamId,
+            isRootTeam ? RootOptions.TeamDisplayName : teamId,
             cancellationToken
         );
 
@@ -92,7 +91,8 @@ internal sealed class DefaultTenantProvisioner(
         );
         if (failures.Count > 0)
         {
-            var details = string.Join(" ", failures.Select(failure => failure.Detail));
+            var failureDetails = failures.Select(failure => failure.Detail);
+            var details = string.Join(" ", failureDetails);
             throw new InvalidOperationException(
                 $"The tenant '{tenantId}' cannot be created at its default address: {details}"
             );
@@ -191,7 +191,8 @@ internal sealed class DefaultTenantProvisioner(
             };
 
             // Every seed handler runs and enlists in the shared unit of work; the seeded data commits together below.
-            await Mediator.SendAsync(new SeedTenantCommand(context), cancellationToken);
+            var seedCommand = new SeedTenantCommand(context);
+            await Mediator.SendAsync(seedCommand, cancellationToken);
 
             try
             {

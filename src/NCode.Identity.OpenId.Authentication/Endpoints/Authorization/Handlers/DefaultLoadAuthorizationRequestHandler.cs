@@ -201,10 +201,9 @@ internal class DefaultLoadAuthorizationRequestHandler(
             var expectedAudience = settings.GetValue(
                 OpenIdSettingKeys.RequestObjectExpectedAudience
             );
+            var hasNoExpectedAudience = string.IsNullOrEmpty(expectedAudience);
             parameters.ValidateAudience(
-                string.IsNullOrEmpty(expectedAudience)
-                    ? openIdContext.Tenant.Issuer
-                    : expectedAudience
+                hasNoExpectedAudience ? openIdContext.Tenant.Issuer : expectedAudience
             );
 
             var result = await JwtValidator.ValidateAsync(
@@ -317,7 +316,8 @@ internal class DefaultLoadAuthorizationRequestHandler(
 
         using var request = new HttpRequestMessage(HttpMethod.Get, requestUri);
 
-        request.Options.Set(new HttpRequestOptionsKey<OpenIdClient>("OpenIdClient"), openIdClient);
+        var openIdClientKey = new HttpRequestOptionsKey<OpenIdClient>("OpenIdClient");
+        request.Options.Set(openIdClientKey, openIdClient);
 
         using var httpClient = HttpClientFactory.CreateClient(GuardedHttpClient.Name);
         using var buffer = BufferFactory.CreateContiguousBufferWriter(isSensitive: false);

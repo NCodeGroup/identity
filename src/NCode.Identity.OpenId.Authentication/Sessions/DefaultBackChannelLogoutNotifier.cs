@@ -164,14 +164,12 @@ internal class DefaultBackChannelLogoutNotifier(
 
         // Delivery runs as a durable, retryable dispatch job so a failed POST is retried out of band (and can run on a
         // durable dispatcher adapter); it never fails the logout request.
-        await JobDispatcher.DispatchAsync(
-            new BackChannelLogoutDeliveryJob
-            {
-                ClientId = openIdClient.ClientId,
-                LogoutUri = logoutUri,
-                LogoutToken = logoutToken,
-            },
-            cancellationToken: cancellationToken
-        );
+        var deliveryJob = new BackChannelLogoutDeliveryJob
+        {
+            ClientId = openIdClient.ClientId,
+            LogoutUri = logoutUri,
+            LogoutToken = logoutToken,
+        };
+        await JobDispatcher.DispatchAsync(deliveryJob, cancellationToken: cancellationToken);
     }
 }

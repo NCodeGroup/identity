@@ -124,15 +124,19 @@ internal class DefaultResourceServerCredentialResolver(
         {
             foreach (var resourceServer in matches.Values)
             {
+                var owner = SecretOwner.ForTenant(openIdContext.Tenant.TenantId);
                 var protector = await SecretProtectorProvider.GetProtectorForSecretsAsync(
-                    SecretOwner.ForTenant(openIdContext.Tenant.TenantId),
+                    owner,
                     resourceServer.Secrets.Value,
                     cancellationToken
                 );
 
-                resourceServers.Add(
-                    CreateResolvedResourceServer(openIdContext, resourceServer, protector)
+                var resolved = CreateResolvedResourceServer(
+                    openIdContext,
+                    resourceServer,
+                    protector
                 );
+                resourceServers.Add(resolved);
             }
         }
         catch
@@ -172,8 +176,9 @@ internal class DefaultResourceServerCredentialResolver(
             return new ResourceServerCredentialResolution { ResourceServers = [] };
         }
 
+        var owner = SecretOwner.ForTenant(openIdContext.Tenant.TenantId);
         var protector = await SecretProtectorProvider.GetProtectorForSecretsAsync(
-            SecretOwner.ForTenant(openIdContext.Tenant.TenantId),
+            owner,
             resourceServer.Secrets.Value,
             cancellationToken
         );
@@ -198,9 +203,8 @@ internal class DefaultResourceServerCredentialResolver(
             resourceServer.Settings.Value
         );
 
-        var secretsProvider = SecretKeyCollectionProviderFactory.CreateStatic(
-            SecretSerializer.DeserializeSecrets(protector, resourceServer.Secrets.Value)
-        );
+        var secrets = SecretSerializer.DeserializeSecrets(protector, resourceServer.Secrets.Value);
+        var secretsProvider = SecretKeyCollectionProviderFactory.CreateStatic(secrets);
 
         return new ResolvedResourceServer
         {

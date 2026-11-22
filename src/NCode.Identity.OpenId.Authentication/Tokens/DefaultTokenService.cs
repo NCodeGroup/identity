@@ -123,9 +123,10 @@ internal class DefaultTokenService(
 
             var identity = openIdContext.Environment.GetSubjectIdentity(subject);
 
+            var authTimeValue = authTime.ToUnixTimeSeconds().ToString(CultureInfo.InvariantCulture);
             var claim = new Claim(
                 JoseClaimNames.Payload.AuthTime,
-                authTime.ToUnixTimeSeconds().ToString(CultureInfo.InvariantCulture),
+                authTimeValue,
                 ClaimValueTypes.Integer64,
                 issuer,
                 issuer,
@@ -180,25 +181,21 @@ internal class DefaultTokenService(
         var subjectClaims = new List<Claim>();
         var payloadClaims = CreatePayloadClaims(tokenRequest.ExtraPayloadClaims);
 
-        await mediator.SendAsync(
-            new GetAccessTokenSubjectClaimsCommand(
-                openIdContext,
-                openIdClient,
-                tokenContext,
-                subjectClaims
-            ),
-            cancellationToken
+        var accessTokenSubjectClaimsCommand = new GetAccessTokenSubjectClaimsCommand(
+            openIdContext,
+            openIdClient,
+            tokenContext,
+            subjectClaims
         );
+        await mediator.SendAsync(accessTokenSubjectClaimsCommand, cancellationToken);
 
-        await mediator.SendAsync(
-            new GetAccessTokenPayloadClaimsCommand(
-                openIdContext,
-                openIdClient,
-                tokenContext,
-                payloadClaims
-            ),
-            cancellationToken
+        var accessTokenPayloadClaimsCommand = new GetAccessTokenPayloadClaimsCommand(
+            openIdContext,
+            openIdClient,
+            tokenContext,
+            payloadClaims
         );
+        await mediator.SendAsync(accessTokenPayloadClaimsCommand, cancellationToken);
 
         if (
             settings.TryGetValue(
@@ -207,15 +204,13 @@ internal class DefaultTokenService(
             ) && sendIdClaimsInAccessToken
         )
         {
-            await mediator.SendAsync(
-                new GetIdTokenSubjectClaimsCommand(
-                    openIdContext,
-                    openIdClient,
-                    tokenContext,
-                    subjectClaims
-                ),
-                cancellationToken
+            var idTokenSubjectClaimsCommand = new GetIdTokenSubjectClaimsCommand(
+                openIdContext,
+                openIdClient,
+                tokenContext,
+                subjectClaims
             );
+            await mediator.SendAsync(idTokenSubjectClaimsCommand, cancellationToken);
         }
 
         var lifetime = settings.GetValue(OpenIdSettingKeys.AccessTokenLifetime);
@@ -239,10 +234,16 @@ internal class DefaultTokenService(
 
         // Bind the access token audience to the resource servers resolved above (ADR-1026); fall back to the client
         // when no resource-server audience applies (for example, a scopeless token).
-        StringValues audience =
-            resolution.Audiences.Count > 0
-                ? new StringValues(resolution.Audiences.ToArray())
-                : new StringValues(openIdClient.ClientId);
+        StringValues audience;
+        if (resolution.Audiences.Count > 0)
+        {
+            var audienceValues = resolution.Audiences.ToArray();
+            audience = new StringValues(audienceValues);
+        }
+        else
+        {
+            audience = new StringValues(openIdClient.ClientId);
+        }
 
         var parameters = new JwtEncodingParameters
         {
@@ -380,25 +381,21 @@ internal class DefaultTokenService(
         var subjectClaims = new List<Claim>();
         var payloadClaims = CreatePayloadClaims(tokenRequest.ExtraPayloadClaims);
 
-        await mediator.SendAsync(
-            new GetIdTokenSubjectClaimsCommand(
-                openIdContext,
-                openIdClient,
-                tokenContext,
-                subjectClaims
-            ),
-            cancellationToken
+        var idTokenSubjectClaimsCommand = new GetIdTokenSubjectClaimsCommand(
+            openIdContext,
+            openIdClient,
+            tokenContext,
+            subjectClaims
         );
+        await mediator.SendAsync(idTokenSubjectClaimsCommand, cancellationToken);
 
-        await mediator.SendAsync(
-            new GetIdTokenPayloadClaimsCommand(
-                openIdContext,
-                openIdClient,
-                tokenContext,
-                payloadClaims
-            ),
-            cancellationToken
+        var idTokenPayloadClaimsCommand = new GetIdTokenPayloadClaimsCommand(
+            openIdContext,
+            openIdClient,
+            tokenContext,
+            payloadClaims
         );
+        await mediator.SendAsync(idTokenPayloadClaimsCommand, cancellationToken);
 
         var lifetime = settings.GetValue(OpenIdSettingKeys.IdTokenLifetime);
         var createdWhen = tokenRequest.CreatedWhen;

@@ -20,5 +20,9 @@ internal class DefaultConsentChallengeHandler
     public ValueTask<ReadOnlyEndpointDisposition> HandleAsync(
         ConsentChallengeCommand command,
         CancellationToken cancellationToken
-    ) => ValueTask.FromResult(ReadOnlyEndpointDisposition.UnHandled());
+    )
+    {
+        var disposition = ReadOnlyEndpointDisposition.UnHandled();
+        return ValueTask.FromResult(disposition);
+    }
 }

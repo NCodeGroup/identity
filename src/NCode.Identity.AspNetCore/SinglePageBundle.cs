@@ -158,9 +158,11 @@ public sealed class SinglePageBundle<TIndex>(string? rootPath, Func<string, TInd
         response.Headers.CacheControl = ImmutableCacheControl;
 
         var lastModified = file.LastModified;
-        var entityTag = new EntityTagHeaderValue(
-            $"\"{(lastModified.ToFileTime() ^ file.Length).ToString("x", CultureInfo.InvariantCulture)}\""
+        var tagText = (lastModified.ToFileTime() ^ file.Length).ToString(
+            "x",
+            CultureInfo.InvariantCulture
         );
+        var entityTag = new EntityTagHeaderValue($"\"{tagText}\"");
         return TypedResults.PhysicalFile(
             physicalPath,
             contentType,

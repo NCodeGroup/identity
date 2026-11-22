@@ -255,14 +255,16 @@ public static class DefaultRegistration
                 )
                 .ValidateOnStart();
 
-            serviceCollection.TryAddSingleton(
-                static serviceProvider => new SinglePageBundle<InteractiveBundleShell>(
-                    serviceProvider
-                        .GetRequiredService<IOptions<InteractiveAuthenticationOptions>>()
-                        .Value.BundleRootPath,
+            serviceCollection.TryAddSingleton(static serviceProvider =>
+            {
+                var interactiveOptions = serviceProvider.GetRequiredService<
+                    IOptions<InteractiveAuthenticationOptions>
+                >();
+                return new SinglePageBundle<InteractiveBundleShell>(
+                    interactiveOptions.Value.BundleRootPath,
                     InteractiveBundleShell.TryCreate
-                )
-            );
+                );
+            });
             serviceCollection.TryAddSingleton<InteractiveSurfacePaths>();
 
             // The locales the surface ships are the UI locales the tenant settings and discovery name, English first.
@@ -282,12 +284,11 @@ public static class DefaultRegistration
 
             OrderUiLocales(serviceCollection);
 
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    IValidateOptions<InteractiveAuthenticationOptions>,
-                    InteractiveAuthenticationOptionsValidator
-                >()
-            );
+            var optionsValidator = ServiceDescriptor.Singleton<
+                IValidateOptions<InteractiveAuthenticationOptions>,
+                InteractiveAuthenticationOptionsValidator
+            >();
+            serviceCollection.TryAddEnumerable(optionsValidator);
 
             serviceCollection.TryAddSingleton<InteractiveLocaleSelector>();
 
@@ -299,21 +300,19 @@ public static class DefaultRegistration
             >();
 
             // The branding settings join the descriptor catalog only where the surface that shows them is registered.
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    ICollectionDataSource<SettingDescriptor>,
-                    InteractiveSettingDescriptorDataSource
-                >()
-            );
+            var settingDescriptorDataSource = ServiceDescriptor.Singleton<
+                ICollectionDataSource<SettingDescriptor>,
+                InteractiveSettingDescriptorDataSource
+            >();
+            serviceCollection.TryAddEnumerable(settingDescriptorDataSource);
 
             // The content-negotiation seam in OpenIdResult selects this formatter when an interactive browser
             // explicitly requests text/html, rendering a non-redirectable authorization error as a styled HTML page.
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    IOpenIdResponseFormatter,
-                    InteractiveOpenIdErrorResponseFormatter
-                >()
-            );
+            var errorResponseFormatter = ServiceDescriptor.Singleton<
+                IOpenIdResponseFormatter,
+                InteractiveOpenIdErrorResponseFormatter
+            >();
+            serviceCollection.TryAddEnumerable(errorResponseFormatter);
 
             // The surface's endpoints flow through the same MapEndpointGroups discovery as every other endpoint.
             builder.AddEndpointGroup<InteractiveAuthenticationEndpointGroup>();
@@ -323,24 +322,22 @@ public static class DefaultRegistration
             builder.AddEndpointGroup<InteractiveBundleAssetEndpointGroup>();
 
             // Replace the core no-op consent-challenge handler with one that redirects to the interactive consent page.
-            serviceCollection.Replace(
-                ServiceDescriptor.Singleton<
-                    ICommandResponseHandler<ConsentChallengeCommand, ReadOnlyEndpointDisposition>,
-                    InteractiveConsentChallengeHandler
-                >()
-            );
+            var consentChallengeHandler = ServiceDescriptor.Singleton<
+                ICommandResponseHandler<ConsentChallengeCommand, ReadOnlyEndpointDisposition>,
+                InteractiveConsentChallengeHandler
+            >();
+            serviceCollection.Replace(consentChallengeHandler);
 
             // Replace the core default end-session confirmation handler with one that redirects to the interactive
             // logout confirmation page.
-            serviceCollection.Replace(
-                ServiceDescriptor.Singleton<
-                    ICommandResponseHandler<
-                        EndSessionConfirmationChallengeCommand,
-                        ReadOnlyEndpointDisposition
-                    >,
-                    InteractiveEndSessionConfirmationChallengeHandler
-                >()
-            );
+            var endSessionConfirmationHandler = ServiceDescriptor.Singleton<
+                ICommandResponseHandler<
+                    EndSessionConfirmationChallengeCommand,
+                    ReadOnlyEndpointDisposition
+                >,
+                InteractiveEndSessionConfirmationChallengeHandler
+            >();
+            serviceCollection.Replace(endSessionConfirmationHandler);
 
             serviceCollection.AddAntiforgery(antiforgery =>
             {

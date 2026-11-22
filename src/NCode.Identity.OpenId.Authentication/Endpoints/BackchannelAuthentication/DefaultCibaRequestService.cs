@@ -270,17 +270,15 @@ internal sealed class DefaultCibaRequestService(
 
         // The approval happens outside a protocol request, so there is no request to validate against, and the
         // authentication age the authorization request enforced is not checked again.
-        await openIdContext.Mediator.SendAsync(
-            new ValidateSubjectAuthenticationCommand(
-                openIdContext,
-                openIdClient,
-                OpenIdRequest: null,
-                subjectAuthentication,
-                operationDisposition,
-                EnforceAuthenticationAge: false
-            ),
-            cancellationToken
+        var validateCommand = new ValidateSubjectAuthenticationCommand(
+            openIdContext,
+            openIdClient,
+            OpenIdRequest: null,
+            subjectAuthentication,
+            operationDisposition,
+            EnforceAuthenticationAge: false
         );
+        await openIdContext.Mediator.SendAsync(validateCommand, cancellationToken);
 
         return !operationDisposition.HasError;
     }

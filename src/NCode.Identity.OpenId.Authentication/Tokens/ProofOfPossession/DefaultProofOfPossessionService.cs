@@ -49,9 +49,12 @@ internal class DefaultProofOfPossessionService(
             cancellationToken
         );
 
+        var requireTlsClientCertificateBoundAccessTokens = settings.GetValue(
+            OpenIdSettingKeys.RequireTlsClientCertificateBoundAccessTokens
+        );
         var certificateThumbprint = await EvaluateMutualTlsAsync(
             openIdContext,
-            settings.GetValue(OpenIdSettingKeys.RequireTlsClientCertificateBoundAccessTokens),
+            requireTlsClientCertificateBoundAccessTokens,
             cancellationToken
         );
 
@@ -78,9 +81,14 @@ internal class DefaultProofOfPossessionService(
         }
 
         // Apply any other security-profile token-request requirements a registered profile composes.
+        var profileContext = new TokenRequestProfileContext(
+            openIdContext,
+            openIdClient,
+            confirmation
+        );
         await SecurityProfileCatalog.EvaluateRequirementsAsync(
             settings,
-            new TokenRequestProfileContext(openIdContext, openIdClient, confirmation),
+            profileContext,
             cancellationToken
         );
 
@@ -142,16 +150,17 @@ internal class DefaultProofOfPossessionService(
             string proofJwkThumbprint;
             try
             {
+                var proofRequest = new DPoPProofValidationRequest
+                {
+                    ProofJwt = proofJwt,
+                    HttpMethod = request.Method,
+                    HttpUri = httpUri,
+                    Settings = openIdContext.Tenant.SettingsProvider.Collection,
+                    AccessToken = accessToken,
+                };
                 proofJwkThumbprint = await DPoPProofValidator.ValidateAsync(
                     openIdContext,
-                    new DPoPProofValidationRequest
-                    {
-                        ProofJwt = proofJwt,
-                        HttpMethod = request.Method,
-                        HttpUri = httpUri,
-                        Settings = openIdContext.Tenant.SettingsProvider.Collection,
-                        AccessToken = accessToken,
-                    },
+                    proofRequest,
                     cancellationToken
                 );
             }
@@ -191,9 +200,8 @@ internal class DefaultProofOfPossessionService(
                 );
             }
 
-            var thumbprint = Base64Url.EncodeToString(
-                SHA256.HashData(certificate.Certificate.RawData)
-            );
+            var certificateHash = SHA256.HashData(certificate.Certificate.RawData);
+            var thumbprint = Base64Url.EncodeToString(certificateHash);
             if (
                 !string.Equals(
                     thumbprint,
@@ -265,15 +273,17 @@ internal class DefaultProofOfPossessionService(
         // Host (ADR-1365).
         var httpUri = TenantRequestUri.GetPublishedUri(openIdContext);
 
+        var proofRequest = new DPoPProofValidationRequest
+        {
+            ProofJwt = proofJwt,
+            HttpMethod = request.Method,
+            HttpUri = httpUri,
+            Settings = openIdClient.Settings,
+        };
+
         return await DPoPProofValidator.ValidateAsync(
             openIdContext,
-            new DPoPProofValidationRequest
-            {
-                ProofJwt = proofJwt,
-                HttpMethod = request.Method,
-                HttpUri = httpUri,
-                Settings = openIdClient.Settings,
-            },
+            proofRequest,
             cancellationToken
         );
     }
@@ -302,6 +312,7 @@ internal class DefaultProofOfPossessionService(
                 .AsException();
         }
 
-        return Base64Url.EncodeToString(SHA256.HashData(certificate.Certificate.RawData));
+        var certificateHash = SHA256.HashData(certificate.Certificate.RawData);
+        return Base64Url.EncodeToString(certificateHash);
     }
 }

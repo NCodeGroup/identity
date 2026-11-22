@@ -138,7 +138,8 @@ public class OpenIdDbContext(
     /// <inheritdoc />
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
-        optionsBuilder.AddInterceptors(new ConcurrencyTokenSaveChangesInterceptor());
+        var interceptor = new ConcurrencyTokenSaveChangesInterceptor();
+        optionsBuilder.AddInterceptors(interceptor);
         UseSplitQueriesByDefault(optionsBuilder);
     }
 

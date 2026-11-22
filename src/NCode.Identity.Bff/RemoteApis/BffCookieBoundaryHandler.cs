@@ -67,7 +67,10 @@ internal sealed class BffCookieBoundaryHandler : DelegatingHandler
 
         headers.Remove(HeaderNames.Cookie);
         if (kept.Count > 0)
-            headers.TryAddWithoutValidation(HeaderNames.Cookie, string.Join("; ", kept));
+        {
+            var joined = string.Join("; ", kept);
+            headers.TryAddWithoutValidation(HeaderNames.Cookie, joined);
+        }
     }
 
     private static void RemoveBffSetCookies(HttpResponseHeaders headers)

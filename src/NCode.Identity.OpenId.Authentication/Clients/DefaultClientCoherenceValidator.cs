@@ -65,15 +65,17 @@ internal sealed class DefaultClientCoherenceValidator : IClientCoherenceValidato
         JsonElement clientSettings
     )
     {
+        var jsonSerializerOptions = OpenIdEnvironmentProvider.Get().JsonSerializerOptions;
+        var registeredValues = SettingSerializer.DeserializeSettings(
+            clientSettings,
+            OpenIdSettingScopes.Client,
+            jsonSerializerOptions
+        );
+        var registeredSettings = SettingCollectionFactory.Create(registeredValues);
+
         var context = new ClientCoherenceContext
         {
-            RegisteredSettings = SettingCollectionFactory.Create(
-                SettingSerializer.DeserializeSettings(
-                    clientSettings,
-                    OpenIdSettingScopes.Client,
-                    OpenIdEnvironmentProvider.Get().JsonSerializerOptions
-                )
-            ),
+            RegisteredSettings = registeredSettings,
             EffectiveSettings = EffectiveSettingsResolver.Resolve(
                 tenantSettings,
                 OpenIdSettingScopes.Client,

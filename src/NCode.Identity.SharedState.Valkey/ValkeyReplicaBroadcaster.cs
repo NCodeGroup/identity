@@ -45,9 +45,8 @@ internal sealed class ValkeyReplicaBroadcaster(
             async cancellationToken =>
             {
                 var subscriber = await Connection.GetSubscriberAsync(cancellationToken);
-                await subscriber
-                    .PublishAsync(RedisChannel.Literal(KeyPrefix + channel), message)
-                    .WaitAsync(cancellationToken);
+                var redisChannel = RedisChannel.Literal(KeyPrefix + channel);
+                await subscriber.PublishAsync(redisChannel, message).WaitAsync(cancellationToken);
             },
             cancellationToken
         );

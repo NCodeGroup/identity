@@ -32,7 +32,8 @@ internal static class Sc25519
         if (BitConverter.IsLittleEndian)
         {
             // Zero-copy reinterpret of the input bytes as eight 64-bit limbs.
-            ReduceWide(MemoryMarshal.Cast<byte, ulong>(wide), r);
+            var wideLimbs = MemoryMarshal.Cast<byte, ulong>(wide);
+            ReduceWide(wideLimbs, r);
         }
         else
         {
@@ -208,7 +209,8 @@ internal static class Sc25519
         {
             for (var i = 0; i < limbs.Length; i++)
             {
-                BinaryPrimitives.WriteUInt64LittleEndian(bytes.Slice(i * 8, 8), limbs[i]);
+                var limbBytes = bytes.Slice(i * 8, 8);
+                BinaryPrimitives.WriteUInt64LittleEndian(limbBytes, limbs[i]);
             }
         }
     }

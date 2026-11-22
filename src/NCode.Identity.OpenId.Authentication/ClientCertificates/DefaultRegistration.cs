@@ -31,20 +31,18 @@ internal static class DefaultRegistration
             var serviceCollection = builder.ServiceCollection;
 
             serviceCollection.AddOptions<MutualTlsForwardingOptions>();
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    IValidateOptions<MutualTlsForwardingOptions>,
-                    MutualTlsForwardingOptionsValidator
-                >()
-            );
+            var mutualTlsForwardingOptionsValidator = ServiceDescriptor.Singleton<
+                IValidateOptions<MutualTlsForwardingOptions>,
+                MutualTlsForwardingOptionsValidator
+            >();
+            serviceCollection.TryAddEnumerable(mutualTlsForwardingOptionsValidator);
 
             serviceCollection.AddOptions<ClientCertificateRevocationOptions>().ValidateOnStart();
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    IValidateOptions<ClientCertificateRevocationOptions>,
-                    ClientCertificateRevocationOptionsValidator
-                >()
-            );
+            var revocationOptionsValidator = ServiceDescriptor.Singleton<
+                IValidateOptions<ClientCertificateRevocationOptions>,
+                ClientCertificateRevocationOptionsValidator
+            >();
+            serviceCollection.TryAddEnumerable(revocationOptionsValidator);
 
             serviceCollection.TryAddSingleton<
                 IClientCertificateResolver,
@@ -64,31 +62,29 @@ internal static class DefaultRegistration
 
             // Each source below has a descriptor of the same name, so the configured selection is validated without
             // constructing a source; by default the checker asks OCSP, then the CRLs. See ADR-1259 and ADR-1400.
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    ICollectionDataSource<ClientCertificateRevocationSourceDescriptor>,
-                    DefaultClientCertificateRevocationSourceDataSource
-                >()
-            );
+            var revocationSourceDataSource = ServiceDescriptor.Singleton<
+                ICollectionDataSource<ClientCertificateRevocationSourceDescriptor>,
+                DefaultClientCertificateRevocationSourceDataSource
+            >();
+            serviceCollection.TryAddEnumerable(revocationSourceDataSource);
             serviceCollection.TryAddSingleton<
                 IClientCertificateRevocationSourceCatalog,
                 DefaultClientCertificateRevocationSourceCatalog
             >();
 
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    IClientCertificateRevocationSource,
-                    OcspClientCertificateRevocationSource
-                >()
+            var ocspRevocationSource = ServiceDescriptor.Singleton<
+                IClientCertificateRevocationSource,
+                OcspClientCertificateRevocationSource
+            >();
+
+            serviceCollection.TryAddEnumerable(ocspRevocationSource);
+            var crlRevocationSource = ServiceDescriptor.Singleton<
+                IClientCertificateRevocationSource,
+                CrlClientCertificateRevocationSource
+            >(serviceProvider =>
+                serviceProvider.GetRequiredService<CrlClientCertificateRevocationSource>()
             );
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    IClientCertificateRevocationSource,
-                    CrlClientCertificateRevocationSource
-                >(serviceProvider =>
-                    serviceProvider.GetRequiredService<CrlClientCertificateRevocationSource>()
-                )
-            );
+            serviceCollection.TryAddEnumerable(crlRevocationSource);
 
             serviceCollection.TryAddSingleton<
                 IClientCertificateRevocationChecker,
@@ -97,40 +93,39 @@ internal static class DefaultRegistration
 
             // The host constructs the checker as it starts, so a source and descriptor that do not correspond stop the
             // host rather than the first mutual-TLS authentication. See ADR-1400.
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    IHostedService,
-                    ClientCertificateRevocationCheckerWarmup
-                >()
-            );
+            var revocationCheckerWarmup = ServiceDescriptor.Singleton<
+                IHostedService,
+                ClientCertificateRevocationCheckerWarmup
+            >();
+            serviceCollection.TryAddEnumerable(revocationCheckerWarmup);
 
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    IClientCertificateHeaderDecoder,
-                    Base64DerClientCertificateHeaderDecoder
-                >()
-            );
+            var base64DerHeaderDecoder = ServiceDescriptor.Singleton<
+                IClientCertificateHeaderDecoder,
+                Base64DerClientCertificateHeaderDecoder
+            >();
 
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    IClientCertificateHeaderDecoder,
-                    PemClientCertificateHeaderDecoder
-                >()
-            );
+            serviceCollection.TryAddEnumerable(base64DerHeaderDecoder);
 
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    IClientCertificateHeaderDecoder,
-                    UrlEncodedPemClientCertificateHeaderDecoder
-                >()
-            );
+            var pemHeaderDecoder = ServiceDescriptor.Singleton<
+                IClientCertificateHeaderDecoder,
+                PemClientCertificateHeaderDecoder
+            >();
 
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    IClientCertificateHeaderDecoder,
-                    EnvoyXfccClientCertificateHeaderDecoder
-                >()
-            );
+            serviceCollection.TryAddEnumerable(pemHeaderDecoder);
+
+            var urlEncodedPemHeaderDecoder = ServiceDescriptor.Singleton<
+                IClientCertificateHeaderDecoder,
+                UrlEncodedPemClientCertificateHeaderDecoder
+            >();
+
+            serviceCollection.TryAddEnumerable(urlEncodedPemHeaderDecoder);
+
+            var envoyXfccHeaderDecoder = ServiceDescriptor.Singleton<
+                IClientCertificateHeaderDecoder,
+                EnvoyXfccClientCertificateHeaderDecoder
+            >();
+
+            serviceCollection.TryAddEnumerable(envoyXfccHeaderDecoder);
 
             return builder;
         }

@@ -41,17 +41,16 @@ internal class FederatedPrincipalStore(
         CancellationToken cancellationToken
     )
     {
-        return ValueTask.FromResult(
-            new PersistedFederatedPrincipal
-            {
-                TenantId = entity.Tenant.TenantId,
-                PrincipalId = entity.PrincipalId,
-                ProfileMetadata = entity.ProfileMetadataJson,
-                SystemMetadata = entity.SystemMetadataJson,
-                IsBlocked = entity.IsBlocked,
-                ConcurrencyToken = entity.ConcurrencyToken,
-            }
-        );
+        var persistedFederatedPrincipal = new PersistedFederatedPrincipal
+        {
+            TenantId = entity.Tenant.TenantId,
+            PrincipalId = entity.PrincipalId,
+            ProfileMetadata = entity.ProfileMetadataJson,
+            SystemMetadata = entity.SystemMetadataJson,
+            IsBlocked = entity.IsBlocked,
+            ConcurrencyToken = entity.ConcurrencyToken,
+        };
+        return ValueTask.FromResult(persistedFederatedPrincipal);
     }
 
     /// <inheritdoc />
@@ -167,22 +166,19 @@ internal class FederatedPrincipalStore(
 
         // A principal's consents and grants are personal data of its end user and are erased with it. See ADR-1229.
         var tenantKey = entity.TenantId;
-        DbContext.Consents.RemoveRange(
-            await DbContext
-                .Consents.Where(consent =>
-                    consent.TenantId == tenantKey
-                    && consent.NormalizedSubjectId == normalizedPrincipalId
-                )
-                .ToListAsync(cancellationToken)
-        );
-        DbContext.Grants.RemoveRange(
-            await DbContext
-                .Grants.Where(grant =>
-                    grant.TenantId == tenantKey
-                    && grant.NormalizedSubjectId == normalizedPrincipalId
-                )
-                .ToListAsync(cancellationToken)
-        );
+        var consents = await DbContext
+            .Consents.Where(consent =>
+                consent.TenantId == tenantKey
+                && consent.NormalizedSubjectId == normalizedPrincipalId
+            )
+            .ToListAsync(cancellationToken);
+        DbContext.Consents.RemoveRange(consents);
+        var grants = await DbContext
+            .Grants.Where(grant =>
+                grant.TenantId == tenantKey && grant.NormalizedSubjectId == normalizedPrincipalId
+            )
+            .ToListAsync(cancellationToken);
+        DbContext.Grants.RemoveRange(grants);
 
         DbContext.FederatedPrincipals.Remove(entity);
     }

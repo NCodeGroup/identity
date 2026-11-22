@@ -85,10 +85,8 @@ internal class DefaultConsentService(
     {
         // Never trust a granted scope that was not part of what was requested/presented.
         var requestedSet = new HashSet<string>(requestedScopes, ScopeComparer);
-        var grantedSet = new HashSet<string>(
-            grantedScopes.Where(requestedSet.Contains),
-            ScopeComparer
-        );
+        var requestedGrantedScopes = grantedScopes.Where(requestedSet.Contains);
+        var grantedSet = new HashSet<string>(requestedGrantedScopes, ScopeComparer);
 
         using var tenantScope = AmbientTenantAccessor.BeginScope(openIdContext.Tenant.TenantId);
         await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
@@ -172,16 +170,20 @@ internal class DefaultConsentService(
             );
 
             var scopes = consent
-                .GrantedScopes.Select(value => new ConsentScope(
-                    value,
-                    descriptions.GetValueOrDefault(value),
-                    IsGranted: true
-                ))
+                .GrantedScopes.Select(value =>
+                {
+                    var description = descriptions.GetValueOrDefault(value);
+                    return new ConsentScope(value, description, IsGranted: true);
+                })
                 .ToList();
 
-            applications.Add(
-                new AuthorizedApplication(consent.ClientId, ResolveClientName(client), scopes)
+            var grantedClientName = ResolveClientName(client);
+            var application = new AuthorizedApplication(
+                consent.ClientId,
+                grantedClientName,
+                scopes
             );
+            applications.Add(application);
         }
 
         return applications
@@ -232,14 +234,16 @@ internal class DefaultConsentService(
         );
 
         var scopes = requestedScopes
-            .Select(value => new ConsentScope(
-                value,
-                descriptions.GetValueOrDefault(value),
-                granted.Contains(value)
-            ))
+            .Select(value =>
+            {
+                var description = descriptions.GetValueOrDefault(value);
+                var isGranted = granted.Contains(value);
+                return new ConsentScope(value, description, isGranted);
+            })
             .ToList();
 
-        return new PendingConsent(clientId, ResolveClientName(client), scopes);
+        var clientName = ResolveClientName(client);
+        return new PendingConsent(clientId, clientName, scopes);
     }
 
     private async ValueTask<PersistedConsent?> ReadConsentAsync(

@@ -348,7 +348,7 @@ public sealed class ResourceServerApiEndpointHandlerTests : IDisposable
         {
             User = new ClaimsPrincipal(new ClaimsIdentity(authenticationType: "test")),
         };
-        // The shared environment filter publishes the context in the pipeline; emulate it for direct handler calls.
+        // The management caller gate publishes the context in the pipeline; emulate it for direct handler calls.
         httpContext.Features.Set<IOpenIdContextFeature>(
             Mock.Of<IOpenIdContextFeature>(feature =>
                 feature.OpenIdContext

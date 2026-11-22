@@ -177,12 +177,17 @@ internal sealed class CertificateRevocationList
                 : ReadOnlyMemory<byte>.Empty;
             algorithm.ThrowIfNotEmpty();
 
-            var issuer = new X500DistinguishedName(tbs.ReadEncodedValue().Span);
+            var encodedIssuer = tbs.ReadEncodedValue();
+            var issuer = new X500DistinguishedName(encodedIssuer.Span);
             var thisUpdate = ReadTime(tbs);
 
             DateTimeOffset? nextUpdate = null;
-            if (tbs.HasData && IsTime(tbs.PeekTag()))
-                nextUpdate = ReadTime(tbs);
+            if (tbs.HasData)
+            {
+                var nextTag = tbs.PeekTag();
+                if (IsTime(nextTag))
+                    nextUpdate = ReadTime(tbs);
+            }
 
             var hasUnsupportedFeatures = false;
             CrlIssuingDistributionPoint? issuingDistributionPoint = null;
@@ -260,7 +265,8 @@ internal sealed class CertificateRevocationList
                         entries.Add(serialNumber, serialEntries);
                     }
 
-                    serialEntries.Add(new CrlEntry(serialNumber, currentIssuer, isRemoveFromCrl));
+                    var crlEntry = new CrlEntry(serialNumber, currentIssuer, isRemoveFromCrl);
+                    serialEntries.Add(crlEntry);
                 }
             }
 
@@ -294,11 +300,10 @@ internal sealed class CertificateRevocationList
                             break;
 
                         case FreshestCrlOid:
-                            freshestCrlUris.AddRange(
-                                CrlDistributionPoints
-                                    .ReadPoints(value)
-                                    .SelectMany(distributionPoint => distributionPoint.Uris)
-                            );
+                            var freshestUris = CrlDistributionPoints
+                                .ReadPoints(value)
+                                .SelectMany(distributionPoint => distributionPoint.Uris);
+                            freshestCrlUris.AddRange(freshestUris);
                             break;
 
                         case IssuerAltNameOid:
@@ -445,11 +450,11 @@ internal sealed class CertificateRevocationList
     /// sign revocation lists, its subject must match the issuer named in the list, and the signature must verify
     /// with the certificate's public key. The verdict for each signer is computed once per list.
     /// </summary>
-    public bool IsSignedBy(X509Certificate2 signer) =>
-        SignerVerdicts.GetOrAdd(
-            signer.GetCertHashString(HashAlgorithmName.SHA256),
-            _ => VerifySignedBy(signer)
-        );
+    public bool IsSignedBy(X509Certificate2 signer)
+    {
+        var signerHash = signer.GetCertHashString(HashAlgorithmName.SHA256);
+        return SignerVerdicts.GetOrAdd(signerHash, _ => VerifySignedBy(signer));
+    }
 
     private bool VerifySignedBy(X509Certificate2 issuer)
     {
@@ -464,7 +469,8 @@ internal sealed class CertificateRevocationList
         try
         {
             var issuerName = DistinguishedName.FromX500(Issuer);
-            if (!issuerName.Matches(DistinguishedName.FromX500(issuer.SubjectName)))
+            var subjectName = DistinguishedName.FromX500(issuer.SubjectName);
+            if (!issuerName.Matches(subjectName))
                 return false;
 
             // RSA PKCS#1 v1.5, RSASSA-PSS and ECDSA signatures with SHA-256, SHA-384 or SHA-512 are supported. A list

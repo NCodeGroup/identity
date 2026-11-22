@@ -38,19 +38,19 @@ internal static class EndSessionHttpResults
                 disposition.FrontChannelLogoutUris,
                 disposition.RedirectUri
             );
-            httpContext.Response.SetHtmlPageSecurity(
-                CreateFrontChannelLogoutPolicy(
-                    disposition.FrontChannelLogoutUris,
-                    disposition.RedirectUri
-                )
+            var policy = CreateFrontChannelLogoutPolicy(
+                disposition.FrontChannelLogoutUris,
+                disposition.RedirectUri
             );
+            httpContext.Response.SetHtmlPageSecurity(policy);
             return TypedResults.Content(html, "text/html; charset=utf-8", SecureEncoding.UTF8);
         }
 
         if (!string.IsNullOrEmpty(disposition.RedirectUri))
         {
             // See ADR-1203.
-            return TypedResults.Redirect(RedirectLocation.Escape(disposition.RedirectUri));
+            var location = RedirectLocation.Escape(disposition.RedirectUri);
+            return TypedResults.Redirect(location);
         }
 
         return TypedResults.Content("You have been logged out.", "text/plain", SecureEncoding.UTF8);
@@ -73,19 +73,18 @@ internal static class EndSessionHttpResults
 
         foreach (var uri in frontChannelLogoutUris)
         {
-            builder
-                .Append("<iframe hidden src=\"")
-                .Append(encoder.Encode(uri))
-                .Append("\"></iframe>");
+            var encodedUri = encoder.Encode(uri);
+            builder.Append("<iframe hidden src=\"").Append(encodedUri).Append("\"></iframe>");
         }
 
         if (!string.IsNullOrEmpty(redirectUri))
         {
             // Redirect only after the iframes have had a chance to load; the target is read from a DOM attribute so
             // the validated URI is never interpolated into an inline script literal.
+            var encodedRedirectUri = encoder.Encode(redirectUri);
             builder
                 .Append("<a id=\"pl\" data-url=\"")
-                .Append(encoder.Encode(redirectUri))
+                .Append(encodedRedirectUri)
                 .Append("\" hidden></a>")
                 .Append("<script>" + RedirectScript + "</script>");
         }
@@ -121,7 +120,11 @@ internal static class EndSessionHttpResults
 
         if (!string.IsNullOrEmpty(redirectUri))
         {
-            directives.Add(new(ContentSecurityPolicyDirectives.ScriptSrc, RedirectScriptSource));
+            var scriptDirective = new ContentSecurityPolicyDirective(
+                ContentSecurityPolicyDirectives.ScriptSrc,
+                RedirectScriptSource
+            );
+            directives.Add(scriptDirective);
         }
 
         return new HtmlPageSecurityPolicy { Directives = [.. directives] };

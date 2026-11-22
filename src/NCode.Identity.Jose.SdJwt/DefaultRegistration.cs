@@ -53,9 +53,11 @@ public static class DefaultRegistration
                 .AddOptions<SdJwtOptions>()
                 .Configure(configureOptions)
                 .ValidateOnStart();
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<IValidateOptions<SdJwtOptions>, SdJwtOptionsValidator>()
-            );
+            var optionsValidator = ServiceDescriptor.Singleton<
+                IValidateOptions<SdJwtOptions>,
+                SdJwtOptionsValidator
+            >();
+            serviceCollection.TryAddEnumerable(optionsValidator);
 
             // The digest algorithms are data, registered as instances beside any the application registers.
             serviceCollection.TryAddEnumerableInstance(SdJwtDigestAlgorithms.Sha256);
@@ -71,9 +73,11 @@ public static class DefaultRegistration
             serviceCollection.TryAddSingleton<ISdJwtIssuer, DefaultSdJwtIssuer>();
             serviceCollection.TryAddSingleton<ISdJwtHolder, DefaultSdJwtHolder>();
             serviceCollection.TryAddSingleton<ISdJwtVerifier, DefaultSdJwtVerifier>();
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<IConfirmationKeyResolver, JwkConfirmationKeyResolver>()
-            );
+            var keyResolver = ServiceDescriptor.Singleton<
+                IConfirmationKeyResolver,
+                JwkConfirmationKeyResolver
+            >();
+            serviceCollection.TryAddEnumerable(keyResolver);
 
             return builder;
         }

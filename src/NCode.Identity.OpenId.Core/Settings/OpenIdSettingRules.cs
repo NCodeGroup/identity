@@ -147,8 +147,11 @@ internal static class OpenIdSettingRules
     /// <summary>
     /// Gets the rule for a refresh token reuse interval: from zero, which turns it off, to one minute.
     /// </summary>
-    public static SettingRule<TimeSpan> RefreshTokenReuseInterval() =>
-        SettingRules.Between(TimeSpan.Zero, TimeSpan.FromSeconds(60));
+    public static SettingRule<TimeSpan> RefreshTokenReuseInterval()
+    {
+        var maximum = TimeSpan.FromSeconds(60);
+        return SettingRules.Between(TimeSpan.Zero, maximum);
+    }
 
     /// <summary>
     /// Gets the rule for a grant type: a grant type the server names, or an absolute URI, which is how RFC 6749 §4.5
@@ -312,8 +315,15 @@ internal static class OpenIdSettingRules
         SettingRules.Must<string>(
             "an IP address written in its canonical form, such as '192.0.2.10'",
             value =>
-                IPAddress.TryParse(value, out var address)
-                && string.Equals(address.ToString(), value, StringComparison.OrdinalIgnoreCase)
+            {
+                if (!IPAddress.TryParse(value, out var address))
+                {
+                    return false;
+                }
+
+                var canonical = address.ToString();
+                return string.Equals(canonical, value, StringComparison.OrdinalIgnoreCase);
+            }
         );
 
     /// <summary>

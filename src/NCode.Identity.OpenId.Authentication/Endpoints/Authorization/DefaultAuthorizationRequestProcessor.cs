@@ -109,34 +109,33 @@ internal class DefaultAuthorizationRequestProcessor(
         // interaction_required) bypass that pipeline, so echo the delivery's state onto them here (OIDC Core 3.1.2.6).
         var state = delivery.State;
 
-        await mediator.SendAsync(
-            new ValidateAuthorizationRequestCommand(
-                openIdContext,
-                openIdClient,
-                authorizationRequest,
-                delivery
-            ),
-            cancellationToken
+        var validateCommand = new ValidateAuthorizationRequestCommand(
+            openIdContext,
+            openIdClient,
+            authorizationRequest,
+            delivery
         );
+        await mediator.SendAsync(validateCommand, cancellationToken);
 
+        var authenticateCommand = new AuthenticateCommand(
+            openIdContext,
+            openIdClient,
+            authorizationRequest
+        );
         var authenticateSubjectDisposition = await mediator.SendAsync<
             AuthenticateCommand,
             AuthenticateSubjectDisposition
-        >(
-            new AuthenticateCommand(openIdContext, openIdClient, authorizationRequest),
-            cancellationToken
-        );
+        >(authenticateCommand, cancellationToken);
 
         if (authenticateSubjectDisposition.HasError)
         {
-            return ReadOnlyEndpointDisposition.Handled(
-                new AuthorizationResult(
-                    openIdContext,
-                    openIdClient,
-                    delivery,
-                    authenticateSubjectDisposition.Error
-                )
+            var authenticateErrorResult = new AuthorizationResult(
+                openIdContext,
+                openIdClient,
+                delivery,
+                authenticateSubjectDisposition.Error
             );
+            return ReadOnlyEndpointDisposition.Handled(authenticateErrorResult);
         }
 
         if (!authenticateSubjectDisposition.IsAuthenticated)
@@ -145,14 +144,16 @@ internal class DefaultAuthorizationRequestProcessor(
             // of redirecting the user-agent to the interactive login surface.
             if (authorizationRequest.PromptTypes.Contains(OpenIdProtocol.PromptTypes.None))
             {
-                return ReadOnlyEndpointDisposition.Handled(
-                    new AuthorizationResult(
-                        openIdContext,
-                        openIdClient,
-                        delivery,
-                        openIdContext.ErrorFactory.LoginRequired().WithState(state)
-                    )
+                var loginRequiredError = openIdContext
+                    .ErrorFactory.LoginRequired()
+                    .WithState(state);
+                var loginRequiredResult = new AuthorizationResult(
+                    openIdContext,
+                    openIdClient,
+                    delivery,
+                    loginRequiredError
                 );
+                return ReadOnlyEndpointDisposition.Handled(loginRequiredResult);
             }
 
             return await ChallengeAsync(
@@ -165,29 +166,26 @@ internal class DefaultAuthorizationRequestProcessor(
 
         var authenticationTicket = authenticateSubjectDisposition.Ticket.Value;
 
+        var authorizeCommand = new AuthorizeCommand(
+            openIdContext,
+            openIdClient,
+            authorizationRequest,
+            authenticationTicket
+        );
         var authorizeSubjectDisposition = await mediator.SendAsync<
             AuthorizeCommand,
             AuthorizeDisposition
-        >(
-            new AuthorizeCommand(
-                openIdContext,
-                openIdClient,
-                authorizationRequest,
-                authenticationTicket
-            ),
-            cancellationToken
-        );
+        >(authorizeCommand, cancellationToken);
 
         if (authorizeSubjectDisposition.HasError)
         {
-            return ReadOnlyEndpointDisposition.Handled(
-                new AuthorizationResult(
-                    openIdContext,
-                    openIdClient,
-                    delivery,
-                    authorizeSubjectDisposition.Error
-                )
+            var authorizeErrorResult = new AuthorizationResult(
+                openIdContext,
+                openIdClient,
+                delivery,
+                authorizeSubjectDisposition.Error
             );
+            return ReadOnlyEndpointDisposition.Handled(authorizeErrorResult);
         }
 
         if (authorizeSubjectDisposition.ChallengeRequired)
@@ -215,32 +213,36 @@ internal class DefaultAuthorizationRequestProcessor(
 
             // No interactive consent surface is registered to render the consent screen, so the request cannot
             // obtain consent and the client is told interaction is required.
-            return ReadOnlyEndpointDisposition.Handled(
-                new AuthorizationResult(
-                    openIdContext,
-                    openIdClient,
-                    delivery,
-                    openIdContext.ErrorFactory.InteractionRequired().WithState(state)
-                )
+            var interactionRequiredError = openIdContext
+                .ErrorFactory.InteractionRequired()
+                .WithState(state);
+            var interactionRequiredResult = new AuthorizationResult(
+                openIdContext,
+                openIdClient,
+                delivery,
+                interactionRequiredError
             );
+            return ReadOnlyEndpointDisposition.Handled(interactionRequiredResult);
         }
 
+        var createTicketCommand = new CreateAuthorizationTicketCommand(
+            openIdContext,
+            openIdClient,
+            authorizationRequest,
+            authenticationTicket
+        );
         var authorizationTicket = await mediator.SendAsync<
             CreateAuthorizationTicketCommand,
             IAuthorizationTicket
-        >(
-            new CreateAuthorizationTicketCommand(
-                openIdContext,
-                openIdClient,
-                authorizationRequest,
-                authenticationTicket
-            ),
-            cancellationToken
-        );
+        >(createTicketCommand, cancellationToken);
 
-        return ReadOnlyEndpointDisposition.Handled(
-            new AuthorizationResult(openIdContext, openIdClient, delivery, authorizationTicket)
+        var authorizationResult = new AuthorizationResult(
+            openIdContext,
+            openIdClient,
+            delivery,
+            authorizationTicket
         );
+        return ReadOnlyEndpointDisposition.Handled(authorizationResult);
     }
 
     private async ValueTask<ReadOnlyEndpointDisposition> ChallengeAsync(
@@ -269,17 +271,16 @@ internal class DefaultAuthorizationRequestProcessor(
         // for the following parameters, see the OpenIdConnectHandler class for reference:
         // https://github.com/dotnet/aspnetcore/blob/cd5ca6985645aa4929747bd690109a99a97126e3/src/Security/Authentication/OpenIdConnect/src/OpenIdConnectHandler.cs#L398
 
-        authenticationProperties.SetParameter(
-            OpenIdProtocol.Parameters.Prompt,
-            // OpenIdConnectHandler requires a string, but we have an IReadOnlyList<string>
-            string.Join(OpenIdProtocol.ParameterSeparatorChar, authorizationRequest.PromptTypes)
+        // OpenIdConnectHandler requires a string, but we have an IReadOnlyList<string>
+        var prompt = string.Join(
+            OpenIdProtocol.ParameterSeparatorChar,
+            authorizationRequest.PromptTypes
         );
+        authenticationProperties.SetParameter(OpenIdProtocol.Parameters.Prompt, prompt);
 
-        authenticationProperties.SetParameter(
-            OpenIdProtocol.Parameters.Scope,
-            // OpenIdConnectHandler requires an ICollection<string> but we have an IReadOnlyList<string>
-            authorizationRequest.Scopes.ToList()
-        );
+        // OpenIdConnectHandler requires an ICollection<string> but we have an IReadOnlyList<string>
+        var scopes = authorizationRequest.Scopes.ToList();
+        authenticationProperties.SetParameter(OpenIdProtocol.Parameters.Scope, scopes);
 
         authenticationProperties.SetParameter(
             OpenIdProtocol.Parameters.MaxAge,
@@ -292,21 +293,23 @@ internal class DefaultAuthorizationRequestProcessor(
         // See ADR-1402.
         if (authorizationRequest.UiLocales.Count > 0)
         {
-            authenticationProperties.SetParameter(
-                OpenIdProtocol.Parameters.UiLocales,
-                string.Join(OpenIdProtocol.ParameterSeparatorChar, authorizationRequest.UiLocales)
+            var uiLocales = string.Join(
+                OpenIdProtocol.ParameterSeparatorChar,
+                authorizationRequest.UiLocales
             );
+            authenticationProperties.SetParameter(OpenIdProtocol.Parameters.UiLocales, uiLocales);
         }
 
         // additional authentication properties can be set via mediator middleware
 
+        var challengeCommand = new ChallengeCommand(
+            openIdContext,
+            openIdClient,
+            authorizationRequest,
+            authenticationProperties
+        );
         var disposition = await mediator.SendAsync<ChallengeCommand, ReadOnlyEndpointDisposition>(
-            new ChallengeCommand(
-                openIdContext,
-                openIdClient,
-                authorizationRequest,
-                authenticationProperties
-            ),
+            challengeCommand,
             cancellationToken
         );
         return disposition;
@@ -329,13 +332,14 @@ internal class DefaultAuthorizationRequestProcessor(
             cancellationToken
         );
 
+        var consentChallengeCommand = new ConsentChallengeCommand(
+            openIdContext,
+            openIdClient,
+            authorizationRequest,
+            continueUrl
+        );
         return await mediator.SendAsync<ConsentChallengeCommand, ReadOnlyEndpointDisposition>(
-            new ConsentChallengeCommand(
-                openIdContext,
-                openIdClient,
-                authorizationRequest,
-                continueUrl
-            ),
+            consentChallengeCommand,
             cancellationToken
         );
     }
@@ -347,12 +351,15 @@ internal class DefaultAuthorizationRequestProcessor(
         CancellationToken cancellationToken
     )
     {
+        var continueLifetime = openIdClient.Settings.GetValue(
+            OpenIdSettingKeys.ContinueAuthorizationLifetime
+        );
         var continueUrl = await ContinueService.GetContinueUrlAsync(
             openIdContext,
             OpenIdConstants.ContinueCodes.Authorization,
             openIdClient.ClientId,
             subjectId: null,
-            openIdClient.Settings.GetValue(OpenIdSettingKeys.ContinueAuthorizationLifetime),
+            continueLifetime,
             authorizationRequest,
             cancellationToken
         );

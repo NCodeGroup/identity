@@ -60,9 +60,9 @@ roles only at its owning node or beneath it.**
    `DefaultClientPrincipalResolver` keeps it in `HttpContext.Items` (`ActingClientMemo`) and neither reads the store nor
    opens a store manager for a caller it has answered.
 5. **The management API resolves the acting client when it authenticates the caller.**
-   `ManagementAuthenticationEndpointFilter` asks the resolver as soon as the bearer token authenticates, before the
-   endpoint runs. Authorization and the audit recorder reuse the answer, so a change a client makes for itself,
-   deleting itself included, is audited as `AuditActor.Client(clientId)`.
+   `ManagementCallerGate` asks the resolver as soon as the bearer token authenticates, before the endpoint runs.
+   Authorization and the audit recorder reuse the answer, so a change a client makes for itself, deleting itself
+   included, is audited as `AuditActor.Client(clientId)`.
 6. **Every refusal of a client acting for itself asks the resolver.** Token exchange answers `invalid_grant` for such a
    `subject_token`, and a client's own token is a valid `actor_token`. UserInfo answers `invalid_token`. No endpoint
    compares a subject with a client's principal itself.
@@ -152,10 +152,9 @@ roles only at its owning node or beneath it.**
   [ADR-1424](1424-a-management-route-authorizes-at-the-node-it-names-before-it-reads-through-replaceable-validators.md),
   [ADR-1465](1465-role-lists-share-one-audited-grant-and-revoke-flow-and-a-caller-discovers-its-own-assignments.md)
 - `src/NCode.Identity.OpenId.Core/PrincipalResolution/DefaultPrincipalResolver.cs`,
-  `src/NCode.Identity.OpenId.Persistence.EntityFramework.Core/Stores/ClientStore.cs`,
-  `IClientPrincipalResolver.cs`, `DefaultClientPrincipalResolver.cs`, `ActingClientMemo.cs`,
-  `ManagementAuthenticationEndpointFilter.cs`, `DefaultManagementAuditRecorder.cs`,
-  `DefaultUserInfoEndpointProvider.cs`
+  `src/NCode.Identity.OpenId.Persistence.EntityFramework.Core/Stores/ClientStore.cs`, `IClientPrincipalResolver.cs`,
+  `DefaultClientPrincipalResolver.cs`, `ActingClientMemo.cs`, `ManagementCallerGate.cs`,
+  `DefaultManagementAuditRecorder.cs`, `DefaultUserInfoEndpointProvider.cs`
 - Issues [#557](https://github.com/NCodeGroup/identity/issues/557), [#587](https://github.com/NCodeGroup/identity/issues/587),
   [#588](https://github.com/NCodeGroup/identity/issues/588), [#589](https://github.com/NCodeGroup/identity/issues/589),
   [#632](https://github.com/NCodeGroup/identity/issues/632), [#633](https://github.com/NCodeGroup/identity/issues/633),

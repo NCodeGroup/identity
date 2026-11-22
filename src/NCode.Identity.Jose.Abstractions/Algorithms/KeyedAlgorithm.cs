@@ -74,7 +74,8 @@ public abstract class KeyedAlgorithm : Algorithm
     {
         ArgumentNullException.ThrowIfNull(secretKey);
 
-        return TryGetKeyType(secretKey.GetType(), out var algorithmKeyType)
+        var secretKeyType = secretKey.GetType();
+        return TryGetKeyType(secretKeyType, out var algorithmKeyType)
             && algorithmKeyType.IsKeyCompatible(secretKey);
     }
 }

@@ -58,13 +58,10 @@ internal sealed class DefaultClaimsIdentityFactory : IClaimsIdentityFactory
 
             if (value.ValueKind == JsonValueKind.Array)
             {
-                subject.AddClaims(
-                    value
-                        .EnumerateArray()
-                        .Select(item =>
-                            ClaimValueMapper.ToClaim(name, item, effectiveIssuer, subject)
-                        )
-                );
+                var arrayClaims = value
+                    .EnumerateArray()
+                    .Select(item => ClaimValueMapper.ToClaim(name, item, effectiveIssuer, subject));
+                subject.AddClaims(arrayClaims);
             }
             else
             {

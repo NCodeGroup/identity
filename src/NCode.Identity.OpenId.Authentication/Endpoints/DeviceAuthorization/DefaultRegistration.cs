@@ -34,12 +34,11 @@ internal static class DefaultRegistration
 
             serviceCollection.TryAddSingleton<IUserCodeGenerator, DefaultUserCodeGenerator>();
 
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    ICommandHandler<ValidateDeviceAuthorizationRequestCommand>,
-                    DefaultValidateDeviceAuthorizationRequestHandler
-                >()
-            );
+            var validateHandler = ServiceDescriptor.Singleton<
+                ICommandHandler<ValidateDeviceAuthorizationRequestCommand>,
+                DefaultValidateDeviceAuthorizationRequestHandler
+            >();
+            serviceCollection.TryAddEnumerable(validateHandler);
 
             serviceCollection.TryAddSingleton<
                 ICommandResponseHandler<

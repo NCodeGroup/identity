@@ -63,10 +63,15 @@ internal sealed class BffPageReload(BffCookies cookies)
         )
             return false;
 
-        return frontend.Options.Session.SameSite == SameSiteMode.Strict
-            && Cookies.ReadSessionHandle(request, frontend) is null
-            && !Cookies.HasPageReload(request, frontend)
-            && LocalUrl.IsLocal(GetOwnUrl(request));
+        if (
+            frontend.Options.Session.SameSite != SameSiteMode.Strict
+            || Cookies.ReadSessionHandle(request, frontend) is not null
+            || Cookies.HasPageReload(request, frontend)
+        )
+            return false;
+
+        var ownUrl = GetOwnUrl(request);
+        return LocalUrl.IsLocal(ownUrl);
     }
 
     /// <summary>
@@ -96,7 +101,8 @@ internal sealed class BffPageReload(BffCookies cookies)
         if (HttpMethods.IsHead(request.Method))
             return;
 
-        var encoded = HtmlEncoder.Default.Encode(GetOwnUrl(request));
+        var ownUrl = GetOwnUrl(request);
+        var encoded = HtmlEncoder.Default.Encode(ownUrl);
         var body = PageTemplate.Replace(UrlPlaceholder, encoded, StringComparison.Ordinal);
         await response.WriteAsync(body, SecureEncoding.UTF8, cancellationToken);
     }

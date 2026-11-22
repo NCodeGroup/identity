@@ -541,12 +541,12 @@ internal class DefaultClientKeyImporter(
 
         if (!descriptor.PublicKeyImportFormats.Contains(request.Format))
         {
+            var supportedFormats = descriptor.PublicKeyImportFormats.Select(format =>
+                $"'{format}'"
+            );
             error =
                 $"The import format '{request.Format}' is not supported for a '{descriptor.KeyType}' key; expected "
-                + string.Join(
-                    ", ",
-                    descriptor.PublicKeyImportFormats.Select(format => $"'{format}'")
-                )
+                + string.Join(", ", supportedFormats)
                 + ".";
             return false;
         }
@@ -601,14 +601,13 @@ internal class DefaultClientKeyImporter(
                 return false;
             }
 
-            error = AlgorithmCollectionProvider.Collection.ValidateKeyAlgorithm(
-                new KeyAlgorithmDeclaration
-                {
-                    Key = publicKey,
-                    Use = use ?? operationsUse,
-                    Algorithm = algorithm,
-                }
-            );
+            var declaration = new KeyAlgorithmDeclaration
+            {
+                Key = publicKey,
+                Use = use ?? operationsUse,
+                Algorithm = algorithm,
+            };
+            error = AlgorithmCollectionProvider.Collection.ValidateKeyAlgorithm(declaration);
             if (error is not null)
                 return false;
         }

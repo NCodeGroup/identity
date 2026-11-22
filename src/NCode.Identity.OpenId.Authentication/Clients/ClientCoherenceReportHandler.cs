@@ -147,7 +147,12 @@ internal sealed class ClientCoherenceReportHandler(
     }
 
     // A document the settings cannot honor is described by its reason.
-    private static string Describe(IncoherentClient client) =>
-        client.DocumentError
-        ?? string.Join(" ", client.Violations.Select(violation => violation.Description));
+    private static string Describe(IncoherentClient client)
+    {
+        if (client.DocumentError is { } documentError)
+            return documentError;
+
+        var descriptions = client.Violations.Select(violation => violation.Description);
+        return string.Join(" ", descriptions);
+    }
 }

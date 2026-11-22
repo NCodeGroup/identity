@@ -81,8 +81,13 @@ internal class DynamicByHostTenantOptionsValidator : IValidateOptions<TenantReso
         // Tenants served by host must each have a host of their own, so the identifier has to vary the host.
         var hosts = TenantAddressRules
             .ProbeTenantIds.Select(tenantId =>
-                new Uri(TenantAddressRules.ExpandIssuerTemplate(issuerTemplate, tenantId)).Host
-            )
+            {
+                var expandedIssuer = TenantAddressRules.ExpandIssuerTemplate(
+                    issuerTemplate,
+                    tenantId
+                );
+                return new Uri(expandedIssuer).Host;
+            })
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .Count();
         if (hosts != TenantAddressRules.ProbeTenantIds.Count)
@@ -98,14 +103,8 @@ internal class DynamicByHostTenantOptionsValidator : IValidateOptions<TenantReso
             issuerTemplate,
             TenantAddressRules.ProbeTenantIds[0]
         );
-        ValidateServedIssuer(
-            new Uri(probeIssuer),
-            key,
-            issuerTemplate,
-            options,
-            hostPattern,
-            failures
-        );
+        var probeUri = new Uri(probeIssuer);
+        ValidateServedIssuer(probeUri, key, issuerTemplate, options, hostPattern, failures);
     }
 
     // See ADR-1165 (a tenant's mTLS endpoint alias is a routed tenant property).
@@ -125,8 +124,13 @@ internal class DynamicByHostTenantOptionsValidator : IValidateOptions<TenantReso
 
         var aliasHosts = TenantAddressRules
             .ProbeTenantIds.Select(tenantId =>
-                new Uri(TenantAddressRules.ExpandIssuerTemplate(aliasTemplate, tenantId)).Host
-            )
+            {
+                var expandedAlias = TenantAddressRules.ExpandIssuerTemplate(
+                    aliasTemplate,
+                    tenantId
+                );
+                return new Uri(expandedAlias).Host;
+            })
             .ToList();
 
         // An alias host routes to its tenant like an issuer host does, so it too must be a host of the tenant's own.
@@ -151,22 +155,22 @@ internal class DynamicByHostTenantOptionsValidator : IValidateOptions<TenantReso
 
         // The alias serves the endpoints on a host of its own, where the TLS terminator asks for a client certificate.
         var issuerTemplate = options.IssuerTemplate;
-        if (
-            !string.IsNullOrEmpty(issuerTemplate)
-            && TenantAddressRules.TryParseIssuer(
-                TenantAddressRules.ExpandIssuerTemplate(
-                    issuerTemplate,
-                    TenantAddressRules.ProbeTenantIds[0]
-                ),
-                out var probeIssuer
-            )
-            && string.Equals(probeIssuer.Host, aliasHost, StringComparison.OrdinalIgnoreCase)
-        )
+        if (!string.IsNullOrEmpty(issuerTemplate))
         {
-            failures.Add(
-                $"{key} '{aliasTemplate}' must give a tenant a host other than its issuer host from "
-                    + $"{Prefix}:{nameof(options.IssuerTemplate)}."
+            var probeTenantIssuer = TenantAddressRules.ExpandIssuerTemplate(
+                issuerTemplate,
+                TenantAddressRules.ProbeTenantIds[0]
             );
+            if (
+                TenantAddressRules.TryParseIssuer(probeTenantIssuer, out var probeIssuer)
+                && string.Equals(probeIssuer.Host, aliasHost, StringComparison.OrdinalIgnoreCase)
+            )
+            {
+                failures.Add(
+                    $"{key} '{aliasTemplate}' must give a tenant a host other than its issuer host from "
+                        + $"{Prefix}:{nameof(options.IssuerTemplate)}."
+                );
+            }
         }
     }
 

@@ -30,13 +30,17 @@ internal static class RuntimeDatabaseRegistration
             ArgumentNullException.ThrowIfNull(endpoint);
             ArgumentNullException.ThrowIfNull(password);
 
+            var hostProperty = endpoint.Property(EndpointProperty.Host);
+            var hostExpression = ReferenceExpression.Create($"{hostProperty}");
             project.WithEnvironment(
                 $"{LocalDatabase.ConnectionPartsSection}__Host",
-                ReferenceExpression.Create($"{endpoint.Property(EndpointProperty.Host)}")
+                hostExpression
             );
+            var portProperty = endpoint.Property(EndpointProperty.Port);
+            var portExpression = ReferenceExpression.Create($"{portProperty}");
             project.WithEnvironment(
                 $"{LocalDatabase.ConnectionPartsSection}__Port",
-                ReferenceExpression.Create($"{endpoint.Property(EndpointProperty.Port)}")
+                portExpression
             );
 
             foreach (var (name, value) in LocalDatabase.RuntimeDatabaseParts(password))

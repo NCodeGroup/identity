@@ -56,12 +56,11 @@ public static class DefaultRegistration
                 .AddOptions<DirectoryServerOptions>()
                 .Configure(options => section.BindStrictly(options))
                 .ValidateOnStart();
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    IValidateOptions<DirectoryServerOptions>,
-                    DirectoryServerOptionsValidator
-                >()
-            );
+            var optionsValidator = ServiceDescriptor.Singleton<
+                IValidateOptions<DirectoryServerOptions>,
+                DirectoryServerOptionsValidator
+            >();
+            serviceCollection.TryAddEnumerable(optionsValidator);
 
             serviceCollection.TryAddSingleton(TimeProvider.System);
             serviceCollection.AddPersistedPayloadSerializer();

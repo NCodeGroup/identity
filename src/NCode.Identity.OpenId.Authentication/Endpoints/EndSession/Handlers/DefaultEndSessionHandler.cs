@@ -90,18 +90,14 @@ internal class DefaultEndSessionHandler(
         else
         {
             // Run the logout side effects (revocation, back-channel notification, and any application extensions).
-            await mediator.SendAsync(
-                new OnSessionTerminatedCommand(
-                    openIdContext,
-                    new SessionTermination(
-                        SessionTerminationReasons.Logout,
-                        subject.SubjectId,
-                        subject.SessionId,
-                        subject.ParticipatingClientIds
-                    )
-                ),
-                cancellationToken
+            var termination = new SessionTermination(
+                SessionTerminationReasons.Logout,
+                subject.SubjectId,
+                subject.SessionId,
+                subject.ParticipatingClientIds
             );
+            var terminatedCommand = new OnSessionTerminatedCommand(openIdContext, termination);
+            await mediator.SendAsync(terminatedCommand, cancellationToken);
         }
 
         var frontChannelLogoutUris = settings.GetValue(

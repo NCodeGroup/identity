@@ -246,6 +246,7 @@ internal sealed class BffInstrumentedSessionStore(IBffSessionStore inner, BffMet
             return;
 
         activity.SetStatus(ActivityStatusCode.Error);
-        activity.SetTag(BffMetrics.ErrorTypeAttribute, exception.GetType().FullName);
+        var errorType = exception.GetType().FullName;
+        activity.SetTag(BffMetrics.ErrorTypeAttribute, errorType);
     }
 }

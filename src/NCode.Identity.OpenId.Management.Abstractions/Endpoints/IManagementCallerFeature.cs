@@ -7,8 +7,8 @@ using JetBrains.Annotations;
 namespace NCode.Identity.OpenId.Management.Endpoints;
 
 /// <summary>
-/// Provides the caller that the management authentication filter authenticated from the request's management access
-/// token. The feature is present only for such a caller.
+/// Provides the caller that the management caller gate authenticated from the request's management access token. The
+/// feature is present only for such a caller.
 /// </summary>
 [PublicAPI]
 public interface IManagementCallerFeature

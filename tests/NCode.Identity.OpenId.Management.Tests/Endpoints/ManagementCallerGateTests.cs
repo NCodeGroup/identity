@@ -4,16 +4,23 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
+using NCode.Identity.AspNetCore;
+using NCode.Identity.OpenId.Contexts;
 using NCode.Identity.OpenId.GlobalDirectory;
 using NCode.Identity.OpenId.Management.ControlPlane;
+using NCode.Mediator;
 
 namespace NCode.Identity.OpenId.Management.Endpoints;
 
-public sealed class ManagementAuthenticationEndpointFilterTests : IDisposable
+public sealed class ManagementCallerGateTests : IDisposable
 {
     private MockRepository MockRepository { get; } = new(MockBehavior.Strict);
 
     public void Dispose() => MockRepository.Verify();
+
+    private Mock<IOpenIdContextFactory> MockContextFactory { get; }
+
+    private Mock<IMediator> MockMediator { get; }
 
     private Mock<IManagementTokenValidator> MockTokenValidator { get; }
 
@@ -21,17 +28,35 @@ public sealed class ManagementAuthenticationEndpointFilterTests : IDisposable
 
     private DefaultHttpContext HttpContext { get; } = new();
 
-    private ManagementAuthenticationEndpointFilter Filter { get; }
+    private ManagementCallerGate Gate { get; }
 
-    public ManagementAuthenticationEndpointFilterTests()
+    public ManagementCallerGateTests()
     {
+        MockContextFactory = MockRepository.Create<IOpenIdContextFactory>();
+        MockMediator = MockRepository.Create<IMediator>();
         MockTokenValidator = MockRepository.Create<IManagementTokenValidator>();
         MockControlPlaneAuthority = MockRepository.Create<IControlPlaneAuthority>();
 
-        Filter = new ManagementAuthenticationEndpointFilter(
+        Gate = new ManagementCallerGate(
+            MockContextFactory.Object,
+            MockMediator.Object,
             MockTokenValidator.Object,
             MockControlPlaneAuthority.Object
         );
+    }
+
+    private void SetupMaterialization()
+    {
+        MockContextFactory
+            .Setup(x =>
+                x.CreateForControlPlaneAsync(
+                    HttpContext,
+                    MockMediator.Object,
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync(Mock.Of<OpenIdContext>())
+            .Verifiable();
     }
 
     private void SetupValidation(ManagementTokenValidation validation)
@@ -48,15 +73,12 @@ public sealed class ManagementAuthenticationEndpointFilterTests : IDisposable
     public async Task InvokeAsync_WhenTheTokenAuthenticates_SetsThePrincipalAndTheCallerFeature()
     {
         var principal = new ClaimsPrincipal(new ClaimsIdentity("Bearer"));
+        SetupMaterialization();
         SetupValidation(ManagementTokenValidation.Authenticated(principal));
 
-        var expected = TypedResults.NoContent();
-        EndpointFilterDelegate next = _ => ValueTask.FromResult<object?>(expected);
-        var context = EndpointFilterInvocationContext.Create(HttpContext);
+        var result = await Gate.InvokeAsync(HttpContext, CancellationToken.None);
 
-        var result = await Filter.InvokeAsync(context, next);
-
-        Assert.Same(expected, result);
+        Assert.Null(result);
         Assert.Same(principal, HttpContext.User);
         Assert.Same(principal, HttpContext.Features.Get<IManagementCallerFeature>()?.Caller);
     }
@@ -70,6 +92,7 @@ public sealed class ManagementAuthenticationEndpointFilterTests : IDisposable
                 "Bearer"
             )
         );
+        SetupMaterialization();
         SetupValidation(ManagementTokenValidation.Authenticated(principal));
         MockControlPlaneAuthority
             .Setup(x =>
@@ -87,17 +110,10 @@ public sealed class ManagementAuthenticationEndpointFilterTests : IDisposable
             )
             .Verifiable();
 
-        bool? isActingClient = null;
-        EndpointFilterDelegate next = _ =>
-        {
-            isActingClient = HttpContext.Features.Get<ManagementActorFeature>()?.IsActingClient;
-            return ValueTask.FromResult<object?>(TypedResults.NoContent());
-        };
-        var context = EndpointFilterInvocationContext.Create(HttpContext);
+        var result = await Gate.InvokeAsync(HttpContext, CancellationToken.None);
 
-        await Filter.InvokeAsync(context, next);
-
-        Assert.True(isActingClient);
+        Assert.Null(result);
+        Assert.True(HttpContext.Features.Get<ManagementActorFeature>()?.IsActingClient);
     }
 
     [Fact]
@@ -109,6 +125,7 @@ public sealed class ManagementAuthenticationEndpointFilterTests : IDisposable
                 "Bearer"
             )
         );
+        SetupMaterialization();
         SetupValidation(ManagementTokenValidation.Authenticated(principal));
         MockControlPlaneAuthority
             .Setup(x =>
@@ -117,16 +134,14 @@ public sealed class ManagementAuthenticationEndpointFilterTests : IDisposable
             .ReturnsAsync(new ControlPlaneAuthority { PrincipalId = "admin-1" })
             .Verifiable();
 
-        EndpointFilterDelegate next = _ => ValueTask.FromResult<object?>(TypedResults.NoContent());
-        var context = EndpointFilterInvocationContext.Create(HttpContext);
+        var result = await Gate.InvokeAsync(HttpContext, CancellationToken.None);
 
-        await Filter.InvokeAsync(context, next);
-
+        Assert.Null(result);
         Assert.False(HttpContext.Features.Get<ManagementActorFeature>()?.IsActingClient);
     }
 
     [Fact]
-    public async Task InvokeAsync_WhenTheAuthorityIsUnavailable_StoresFalseAndCallsTheRoute()
+    public async Task InvokeAsync_WhenTheAuthorityIsUnavailable_StoresFalseAndLetsTheRequestThrough()
     {
         var principal = new ClaimsPrincipal(
             new ClaimsIdentity(
@@ -134,6 +149,7 @@ public sealed class ManagementAuthenticationEndpointFilterTests : IDisposable
                 "Bearer"
             )
         );
+        SetupMaterialization();
         SetupValidation(ManagementTokenValidation.Authenticated(principal));
         MockControlPlaneAuthority
             .Setup(x =>
@@ -142,13 +158,9 @@ public sealed class ManagementAuthenticationEndpointFilterTests : IDisposable
             .ThrowsAsync(new DirectoryUnavailableException("The control plane is unavailable."))
             .Verifiable();
 
-        var expected = TypedResults.NoContent();
-        EndpointFilterDelegate next = _ => ValueTask.FromResult<object?>(expected);
-        var context = EndpointFilterInvocationContext.Create(HttpContext);
+        var result = await Gate.InvokeAsync(HttpContext, CancellationToken.None);
 
-        var result = await Filter.InvokeAsync(context, next);
-
-        Assert.Same(expected, result);
+        Assert.Null(result);
         Assert.False(HttpContext.Features.Get<ManagementActorFeature>()?.IsActingClient);
     }
 
@@ -158,13 +170,12 @@ public sealed class ManagementAuthenticationEndpointFilterTests : IDisposable
         var principal = new ClaimsPrincipal(
             new ClaimsIdentity([new Claim("sub", "admin-1")], "Bearer")
         );
+        SetupMaterialization();
         SetupValidation(ManagementTokenValidation.Authenticated(principal));
 
-        EndpointFilterDelegate next = _ => ValueTask.FromResult<object?>(TypedResults.NoContent());
-        var context = EndpointFilterInvocationContext.Create(HttpContext);
+        var result = await Gate.InvokeAsync(HttpContext, CancellationToken.None);
 
-        await Filter.InvokeAsync(context, next);
-
+        Assert.Null(result);
         Assert.False(HttpContext.Features.Get<ManagementActorFeature>()?.IsActingClient);
     }
 
@@ -173,93 +184,76 @@ public sealed class ManagementAuthenticationEndpointFilterTests : IDisposable
     {
         HttpContext.User = new ClaimsPrincipal(new ClaimsIdentity("Cookies"));
         var principal = new ClaimsPrincipal(new ClaimsIdentity("Bearer"));
+        SetupMaterialization();
         SetupValidation(ManagementTokenValidation.Authenticated(principal));
 
-        var expected = TypedResults.NoContent();
-        EndpointFilterDelegate next = _ => ValueTask.FromResult<object?>(expected);
-        var context = EndpointFilterInvocationContext.Create(HttpContext);
+        var result = await Gate.InvokeAsync(HttpContext, CancellationToken.None);
 
-        var result = await Filter.InvokeAsync(context, next);
-
-        Assert.Same(expected, result);
+        Assert.Null(result);
         Assert.Same(principal, HttpContext.User);
     }
 
     [Fact]
-    public async Task InvokeAsync_WhenTheTokenDoesNotAuthenticate_CallsTheRouteAnonymously()
+    public async Task InvokeAsync_WithoutAValidToken_AnswersAuthenticationRequired()
     {
+        SetupMaterialization();
         SetupValidation(ManagementTokenValidation.Unauthenticated);
 
-        var expected = TypedResults.NoContent();
-        EndpointFilterDelegate next = _ => ValueTask.FromResult<object?>(expected);
-        var context = EndpointFilterInvocationContext.Create(HttpContext);
+        var result = await Gate.InvokeAsync(HttpContext, CancellationToken.None);
 
-        var result = await Filter.InvokeAsync(context, next);
-
-        Assert.Same(expected, result);
-        Assert.False(HttpContext.User.Identity?.IsAuthenticated);
+        var problem = Assert.IsType<ProblemHttpResult>(result);
+        Assert.Equal(StatusCodes.Status401Unauthorized, problem.StatusCode);
+        string[] expectedChallenges = ["Bearer", "DPoP"];
+        Assert.Equal(expectedChallenges, HttpContext.Response.Headers.WWWAuthenticate.ToArray());
         Assert.Null(HttpContext.Features.Get<IManagementCallerFeature>());
     }
 
     [Fact]
-    public async Task InvokeAsync_WhenTheTokenDoesNotAuthenticate_DiscardsThePrincipalAnotherSchemeSet()
+    public async Task InvokeAsync_WithoutAValidToken_DoesNotPublishThePrincipalAnotherSchemeSet()
     {
-        HttpContext.User = new ClaimsPrincipal(new ClaimsIdentity("Cookies"));
-        HttpContext.Features.Set<IManagementCallerFeature>(
-            new DefaultManagementCallerFeature(HttpContext.User)
-        );
+        var other = new ClaimsPrincipal(new ClaimsIdentity("Cookies"));
+        HttpContext.User = other;
+        SetupMaterialization();
         SetupValidation(ManagementTokenValidation.Unauthenticated);
 
-        var expected = TypedResults.NoContent();
-        EndpointFilterDelegate next = _ => ValueTask.FromResult<object?>(expected);
-        var context = EndpointFilterInvocationContext.Create(HttpContext);
+        var result = await Gate.InvokeAsync(HttpContext, CancellationToken.None);
 
-        var result = await Filter.InvokeAsync(context, next);
-
-        Assert.Same(expected, result);
-        Assert.False(HttpContext.User.Identity?.IsAuthenticated);
+        Assert.IsType<ProblemHttpResult>(result);
         Assert.Null(HttpContext.Features.Get<IManagementCallerFeature>());
+        Assert.Null(HttpContext.Features.Get<ManagementActorFeature>());
     }
 
     [Fact]
-    public async Task InvokeAsync_WhenTheValidatorIsUnavailable_AnswersServiceUnavailableWithoutCallingTheRoute()
+    public async Task InvokeAsync_WhenTheValidatorIsUnavailable_AnswersServiceUnavailableWithRetryAfter()
     {
+        SetupMaterialization();
         SetupValidation(ManagementTokenValidation.Unavailable(TimeSpan.FromSeconds(30)));
 
-        var nextCalled = false;
-        EndpointFilterDelegate next = _ =>
-        {
-            nextCalled = true;
-            return ValueTask.FromResult<object?>(TypedResults.NoContent());
-        };
-        var context = EndpointFilterInvocationContext.Create(HttpContext);
-
-        var result = await Filter.InvokeAsync(context, next);
+        var result = await Gate.InvokeAsync(HttpContext, CancellationToken.None);
 
         var problem = Assert.IsType<ProblemHttpResult>(result);
         Assert.Equal(StatusCodes.Status503ServiceUnavailable, problem.StatusCode);
         Assert.Equal("30", HttpContext.Response.Headers.RetryAfter.ToString());
-        Assert.False(nextCalled);
     }
 
     [Fact]
-    public async Task InvokeAsync_WhenTheRouteCannotReachTheControlPlane_AnswersServiceUnavailableWithRetryAfter()
+    public async Task InvokeAsync_WhenTheContextCannotBeMaterialized_ReturnsItsResultWithoutValidatingTheToken()
     {
-        var principal = new ClaimsPrincipal(new ClaimsIdentity("Bearer"));
-        SetupValidation(ManagementTokenValidation.Authenticated(principal));
+        var refusal = TypedResults.NotFound();
+        MockContextFactory
+            .Setup(x =>
+                x.CreateForControlPlaneAsync(
+                    HttpContext,
+                    MockMediator.Object,
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ThrowsAsync(refusal.AsException("x"))
+            .Verifiable();
 
-        EndpointFilterDelegate next = _ =>
-            throw new DirectoryUnavailableException("The control plane is unavailable.");
-        var context = EndpointFilterInvocationContext.Create(HttpContext);
+        var result = await Gate.InvokeAsync(HttpContext, CancellationToken.None);
 
-        var result = await Filter.InvokeAsync(context, next);
-
-        var problem = Assert.IsType<ProblemHttpResult>(result);
-        Assert.Equal(StatusCodes.Status503ServiceUnavailable, problem.StatusCode);
-        Assert.Equal(
-            $"{GlobalDirectoryProtocol.UnavailableRetryAfterSeconds}",
-            HttpContext.Response.Headers.RetryAfter.ToString()
-        );
+        Assert.Same(refusal, result);
     }
 
     #endregion

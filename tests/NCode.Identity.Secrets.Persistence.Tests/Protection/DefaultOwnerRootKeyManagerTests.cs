@@ -65,7 +65,8 @@ public class DefaultOwnerRootKeyManagerTests : BaseTests
             .Verifiable(Times.AtMost(int.MaxValue));
 
     // The in-memory stores do not page master keys, so the manager reads the master keys through a store that lists
-    // an owner's rows from them and pages every stored row, of every owner, in pages of the requested size.
+    // an owner's rows from them and pages the stored rows under a root key, of every owner, in pages of the requested
+    // size. It sets up no other page, so a read of every master key fails the strict mock.
     private void SetupPagingMasterKeys()
     {
         PagingMasterKeys
@@ -82,21 +83,47 @@ public class DefaultOwnerRootKeyManagerTests : BaseTests
             .Verifiable(Times.AtMost(int.MaxValue));
 
         PagingMasterKeys
-            .Setup(x => x.GetPageAsync(It.IsAny<PageRequest>(), It.IsAny<CancellationToken>()))
+            .Setup(x =>
+                x.GetWrappedByKeyPageAsync(
+                    It.IsAny<string>(),
+                    It.IsAny<string>(),
+                    It.IsAny<PageRequest>(),
+                    It.IsAny<CancellationToken>()
+                )
+            )
             .Returns(
-                (PageRequest page, CancellationToken _) =>
+                (
+                    string rootKeyProvider,
+                    string rootKeyReference,
+                    PageRequest page,
+                    CancellationToken _
+                ) =>
                 {
+                    var rows = Stores
+                        .MasterKeys.Where(row =>
+                            string.Equals(
+                                row.RootKeyProvider,
+                                rootKeyProvider,
+                                StringComparison.Ordinal
+                            )
+                            && string.Equals(
+                                row.RootKeyReference,
+                                rootKeyReference,
+                                StringComparison.Ordinal
+                            )
+                        )
+                        .ToList();
                     var skip = page.Cursor is null
                         ? 0
                         : int.Parse(page.Cursor, CultureInfo.InvariantCulture);
-                    var items = Stores.MasterKeys.Skip(skip).Take(page.Limit).ToList();
+                    var items = rows.Skip(skip).Take(page.Limit).ToList();
                     var next = skip + items.Count;
                     return ValueTask.FromResult(
                         new PagedResult<PersistedMasterKey>
                         {
                             Items = items,
                             NextCursor =
-                                next < Stores.MasterKeys.Count
+                                next < rows.Count
                                     ? next.ToString(CultureInfo.InvariantCulture)
                                     : null,
                         }
@@ -788,6 +815,21 @@ public class DefaultOwnerRootKeyManagerTests : BaseTests
     {
         Stores.Seed(CreateRootKey());
         Stores.Seed(CreateRow(1, Time.GetUtcNow().AddDays(-1)));
+        ExpectEvictAndNotify();
+        ExpectRewrap(new MasterKeyRewrapResult(1, 1, 0, 0));
+
+        var removal = await CreateManager().RemoveAsync(Owner, CancellationToken.None);
+
+        Assert.True(removal.Removed);
+        Assert.Null(removal.Remaining);
+        Assert.Empty(Stores.RootKeys);
+    }
+
+    [Fact]
+    public async Task Remove_WithARowUnderAnotherKeyOnly_DeletesTheBinding()
+    {
+        Stores.Seed(CreateRootKey());
+        Stores.Seed(CreateRow(1, Time.GetUtcNow().AddDays(-1), rootKeyReference: OtherReference));
         ExpectEvictAndNotify();
         ExpectRewrap(new MasterKeyRewrapResult(1, 1, 0, 0));
 

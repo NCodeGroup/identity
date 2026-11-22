@@ -42,7 +42,10 @@ internal static class BffRemoteApiEndpoints
         List<string> failures = [];
         BffRemoteApiValidation.Validate(key, api, localDevelopment.Enabled, failures);
         if (failures.Count > 0)
-            throw new InvalidOperationException(string.Join(" ", failures));
+        {
+            var message = string.Join(" ", failures);
+            throw new InvalidOperationException(message);
+        }
 
         var isRegistered = services
             .GetServices<IBffTokenRequirement>()
@@ -64,7 +67,8 @@ internal static class BffRemoteApiEndpoints
             );
         }
 
-        catalog.AddCheck(new BffRemoteApiPathCheck(key, api.Path));
+        var pathCheck = new BffRemoteApiPathCheck(key, api.Path);
+        catalog.AddCheck(pathCheck);
 
         return MapEndpoint(endpoints, api, null);
     }

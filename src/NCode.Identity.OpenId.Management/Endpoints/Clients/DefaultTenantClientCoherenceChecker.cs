@@ -87,14 +87,12 @@ internal sealed class DefaultTenantClientCoherenceChecker(
                     currentTenantSettings,
                     clientSettings.Value
                 );
-                findings.AddRange(
-                    violations
-                        .ExceptBy(existing.Select(GetIdentity), GetIdentity)
-                        .Select(violation => new ClientCoherenceFinding(
-                            clientSettings.ClientId,
-                            violation
-                        ))
+                var existingIdentities = existing.Select(GetIdentity);
+                var introducedViolations = violations.ExceptBy(existingIdentities, GetIdentity);
+                var introducedFindings = introducedViolations.Select(
+                    violation => new ClientCoherenceFinding(clientSettings.ClientId, violation)
                 );
+                findings.AddRange(introducedFindings);
             }
 
             page = page with { Cursor = result.NextCursor };

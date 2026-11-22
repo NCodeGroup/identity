@@ -67,12 +67,11 @@ internal sealed record InteractiveBundleShell(
         }
 
         var headEnd = rootIndex + RootOpenTag.Length;
-        return new InteractiveBundleShell(
-            html.AsMemory(0, preludeLength),
-            html.AsMemory(preludeLength, headEnd - preludeLength),
-            HtmlIconLinks.Remove(html[preludeLength..headEnd]).AsMemory(),
-            html.AsMemory(headEnd)
-        );
+        var prelude = html.AsMemory(0, preludeLength);
+        var headPrefix = html.AsMemory(preludeLength, headEnd - preludeLength);
+        var iconlessHead = HtmlIconLinks.Remove(html[preludeLength..headEnd]).AsMemory();
+        var rest = html.AsMemory(headEnd);
+        return new InteractiveBundleShell(prelude, headPrefix, iconlessHead, rest);
     }
 
     // The base must precede every element whose URL it resolves, so it is written first inside <head>. The tag name is

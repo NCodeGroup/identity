@@ -29,8 +29,9 @@ public static class SecretKeyExtensions
 #pragma warning disable CA2208
             if (secretKey is not T typedSecretKey)
             {
+                var secretKeyType = secretKey.GetType();
                 throw new ArgumentException(
-                    $"The secret key was expected to be a type of '{typeof(T).FullName}', but '{secretKey.GetType().FullName}' was given instead.",
+                    $"The secret key was expected to be a type of '{typeof(T).FullName}', but '{secretKeyType.FullName}' was given instead.",
                     nameof(secretKey)
                 );
             }

@@ -45,11 +45,14 @@ internal sealed record FrontendPins(int NodeMajor, string PnpmVersion)
     /// </exception>
     internal static FrontendPins Parse(string nodeVersionText, string packageJsonText)
     {
-        var nodeMajor =
-            ParseNodeMajor(nodeVersionText)
-            ?? throw new InvalidOperationException(
-                $"frontend/.node-version must start with the Node major number, found '{nodeVersionText.Trim()}'."
+        var parsedNodeMajor = ParseNodeMajor(nodeVersionText);
+        if (parsedNodeMajor is not { } nodeMajor)
+        {
+            var trimmedNodeVersionText = nodeVersionText.Trim();
+            throw new InvalidOperationException(
+                $"frontend/.node-version must start with the Node major number, found '{trimmedNodeVersionText}'."
             );
+        }
 
         var jsonElement = JsonElement.Parse(packageJsonText);
 
@@ -90,9 +93,11 @@ internal sealed record FrontendPins(int NodeMajor, string PnpmVersion)
     /// <returns>The pinned Node major and pnpm version.</returns>
     internal static FrontendPins Read(string frontendDirectory)
     {
-        return Parse(
-            File.ReadAllText(Path.Combine(frontendDirectory, ".node-version"), SecureEncoding.UTF8),
-            File.ReadAllText(Path.Combine(frontendDirectory, "package.json"), SecureEncoding.UTF8)
-        );
+        var nodeVersionPath = Path.Combine(frontendDirectory, ".node-version");
+        var nodeVersionText = File.ReadAllText(nodeVersionPath, SecureEncoding.UTF8);
+        var packageJsonPath = Path.Combine(frontendDirectory, "package.json");
+        var packageJsonText = File.ReadAllText(packageJsonPath, SecureEncoding.UTF8);
+
+        return Parse(nodeVersionText, packageJsonText);
     }
 }

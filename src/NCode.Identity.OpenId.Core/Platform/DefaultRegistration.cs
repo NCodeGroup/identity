@@ -48,31 +48,28 @@ internal static class DefaultRegistration
 
             // A committed platform settings change is applied on this replica before the write returns and then announced
             // to every replica (ADR-1412).
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    ICommandHandler<PlatformSettingsChangedCommand>,
-                    PlatformSettingsChangedHandler
-                >()
-            );
+            var settingsChangedHandler = ServiceDescriptor.Singleton<
+                ICommandHandler<PlatformSettingsChangedCommand>,
+                PlatformSettingsChangedHandler
+            >();
+            serviceCollection.TryAddEnumerable(settingsChangedHandler);
 
             // A platform settings change announced on the replica broadcast channel makes every replica read the committed
             // settings again, so each serves the change rather than only the one that made it (ADR-1412).
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    IReplicaBroadcastHandler,
-                    PlatformSettingsChangeBroadcastHandler
-                >()
-            );
+            var settingsChangeBroadcastHandler = ServiceDescriptor.Singleton<
+                IReplicaBroadcastHandler,
+                PlatformSettingsChangeBroadcastHandler
+            >();
+            serviceCollection.TryAddEnumerable(settingsChangeBroadcastHandler);
 
             // A platform or tenant interval that a timer refuses stops the host when it starts instead of failing the
             // first time a timer is created (ADR-1137).
             serviceCollection.AddOptions<OpenIdOptions>().ValidateOnStart();
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    IValidateOptions<OpenIdOptions>,
-                    OpenIdIntervalsOptionsValidator
-                >()
-            );
+            var intervalsOptionsValidator = ServiceDescriptor.Singleton<
+                IValidateOptions<OpenIdOptions>,
+                OpenIdIntervalsOptionsValidator
+            >();
+            serviceCollection.TryAddEnumerable(intervalsOptionsValidator);
 
             return builder;
         }

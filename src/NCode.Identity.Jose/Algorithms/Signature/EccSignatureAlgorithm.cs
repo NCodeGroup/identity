@@ -49,13 +49,8 @@ internal class EccSignatureAlgorithm : SignatureAlgorithm
         // (RFC 7518 §3.4).
         SignatureSizeBytes = 2 * ((keySizeBits + 7) / 8);
 
-        KeyTypes =
-        [
-            AlgorithmKeyType.OnCurves(
-                typeof(EccSecretKey),
-                [new AlgorithmCurve(specification.Curve.CurveName, keySizeBits)]
-            ),
-        ];
+        var algorithmCurve = new AlgorithmCurve(specification.Curve.CurveName, keySizeBits);
+        KeyTypes = [AlgorithmKeyType.OnCurves(typeof(EccSecretKey), [algorithmCurve])];
     }
 
     /// <inheritdoc />
@@ -64,12 +59,8 @@ internal class EccSignatureAlgorithm : SignatureAlgorithm
     // The key's curve is checked again when it is used, by the curve itself rather than its name.
     private void EnsureCurve(ECDsa key)
     {
-        if (
-            !EccCurveSpecification.IsSameNamedCurve(
-                key.ExportParameters(includePrivateParameters: false).Curve,
-                Curve
-            )
-        )
+        var parameters = key.ExportParameters(includePrivateParameters: false);
+        if (!EccCurveSpecification.IsSameNamedCurve(parameters.Curve, Curve))
         {
             // the argument that is invalid is the caller's secretKey, not this helper's ECDsa parameter
 #pragma warning disable CA2208

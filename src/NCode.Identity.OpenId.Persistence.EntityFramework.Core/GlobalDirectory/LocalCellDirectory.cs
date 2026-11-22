@@ -45,10 +45,7 @@ internal sealed class LocalCellDirectory(IOptions<CellOptions> cellOptions) : IC
     )
     {
         var descriptor = Descriptor;
-        return ValueTask.FromResult<CellDescriptor?>(
-            string.Equals(descriptor.Name, name, StringComparison.OrdinalIgnoreCase)
-                ? descriptor
-                : null
-        );
+        var isMatch = string.Equals(descriptor.Name, name, StringComparison.OrdinalIgnoreCase);
+        return ValueTask.FromResult<CellDescriptor?>(isMatch ? descriptor : null);
     }
 }

@@ -57,8 +57,9 @@ internal sealed partial class RemoteKeyOptionsValidator(
         {
             if (remoteKeyDescriptorCatalog.ProvidersThatCreateKeys.Any())
             {
+                var deploymentKey = Key(nameof(RemoteKeyOptions.Deployment));
                 failures.Add(
-                    $"{Key(nameof(RemoteKeyOptions.Deployment))} is required because a remote key provider that creates keys is registered."
+                    $"{deploymentKey} is required because a remote key provider that creates keys is registered."
                 );
             }
         }
@@ -67,15 +68,17 @@ internal sealed partial class RemoteKeyOptionsValidator(
             || !DeploymentPattern().IsMatch(keys.Deployment)
         )
         {
+            var deploymentKey = Key(nameof(RemoteKeyOptions.Deployment));
             failures.Add(
-                $"{Key(nameof(RemoteKeyOptions.Deployment))} must be lowercase letters and digits in hyphen-separated groups, at most {MaximumDeploymentLength} characters; it is '{keys.Deployment}'."
+                $"{deploymentKey} must be lowercase letters and digits in hyphen-separated groups, at most {MaximumDeploymentLength} characters; it is '{keys.Deployment}'."
             );
         }
 
         if (keys.SweepInterval < MinimumSweepInterval || !TimerPeriod.IsValid(keys.SweepInterval))
         {
+            var sweepIntervalKey = Key(nameof(RemoteKeyOptions.SweepInterval));
             failures.Add(
-                $"{Key(nameof(RemoteKeyOptions.SweepInterval))} must be between {MinimumSweepInterval} and {TimerPeriod.MaxValue}; it is {keys.SweepInterval}."
+                $"{sweepIntervalKey} must be between {MinimumSweepInterval} and {TimerPeriod.MaxValue}; it is {keys.SweepInterval}."
             );
         }
 
@@ -84,8 +87,9 @@ internal sealed partial class RemoteKeyOptionsValidator(
             || keys.SweepGracePeriod > MaximumSweepGracePeriod
         )
         {
+            var sweepGracePeriodKey = Key(nameof(RemoteKeyOptions.SweepGracePeriod));
             failures.Add(
-                $"{Key(nameof(RemoteKeyOptions.SweepGracePeriod))} must be between {MinimumSweepGracePeriod} and {MaximumSweepGracePeriod}; it is {keys.SweepGracePeriod}."
+                $"{sweepGracePeriodKey} must be between {MinimumSweepGracePeriod} and {MaximumSweepGracePeriod}; it is {keys.SweepGracePeriod}."
             );
         }
 

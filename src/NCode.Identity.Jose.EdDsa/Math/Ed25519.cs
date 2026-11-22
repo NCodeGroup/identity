@@ -86,7 +86,8 @@ internal static class Ed25519
 
             // S = (k * s + r) mod L
             rPoint.CopyTo(signature[..32]);
-            Sc25519.MulAdd(k, s, r, signature.Slice(32, 32));
+            var signatureS = signature.Slice(32, 32);
+            Sc25519.MulAdd(k, s, r, signatureS);
         }
         finally
         {
@@ -106,12 +107,13 @@ internal static class Ed25519
         ReadOnlySpan<byte> signature
     )
     {
-        if (
-            signature.Length != SignatureSize
-            || publicKey.Length != PublicKeySize
-            || !Sc25519.IsCanonical(signature.Slice(32, 32))
-            || !Ge25519.TryFromBytes(publicKey, out var a)
-        )
+        if (signature.Length != SignatureSize || publicKey.Length != PublicKeySize)
+        {
+            return false;
+        }
+
+        var encodedS = signature.Slice(32, 32);
+        if (!Sc25519.IsCanonical(encodedS) || !Ge25519.TryFromBytes(publicKey, out var a))
         {
             return false;
         }
@@ -132,9 +134,11 @@ internal static class Ed25519
         Sc25519.Reduce(kHash, k);
 
         // Check the cofactorless group equation [S]B = R + [k]A by recomputing [S]B - [k]A and comparing to R.
-        var sB = Ge25519.ScalarMultBase(signature.Slice(32, 32));
+        var baseScalar = signature.Slice(32, 32);
+        var sB = Ge25519.ScalarMultBase(baseScalar);
         var kA = Ge25519.ScalarMult(k, a);
-        var check = Ge25519.Add(sB, Ge25519.Neg(kA));
+        var negKA = Ge25519.Neg(kA);
+        var check = Ge25519.Add(sB, negKA);
 
         Span<byte> checkBytes = stackalloc byte[32];
         check.ToBytes(checkBytes);

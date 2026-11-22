@@ -47,17 +47,18 @@ internal class ValkeyExpiringKeySet(
             return false;
 
         // The server counts a time-to-live in whole milliseconds and rejects zero, so round up.
-        var expiration = new Expiration(
-            TimeSpan.FromMilliseconds(Math.Ceiling(timeToLive.TotalMilliseconds))
-        );
+        var roundedMilliseconds = Math.Ceiling(timeToLive.TotalMilliseconds);
+        var milliseconds = TimeSpan.FromMilliseconds(roundedMilliseconds);
+        var expiration = new Expiration(milliseconds);
 
         return await Metrics.MeasureAsync(
             ValkeySharedStateMetrics.KeySetTryAddOperation,
             async cancellationToken =>
             {
                 var database = await Connection.GetDatabaseAsync(cancellationToken);
+                var redisKey = GetKey(key);
                 return await database
-                    .StringSetAsync(GetKey(key), Marker, expiration, ValueCondition.NotExists)
+                    .StringSetAsync(redisKey, Marker, expiration, ValueCondition.NotExists)
                     .WaitAsync(cancellationToken);
             },
             cancellationToken
@@ -74,7 +75,8 @@ internal class ValkeyExpiringKeySet(
             async cancellationToken =>
             {
                 var database = await Connection.GetDatabaseAsync(cancellationToken);
-                return await database.KeyExistsAsync(GetKey(key)).WaitAsync(cancellationToken);
+                var redisKey = GetKey(key);
+                return await database.KeyExistsAsync(redisKey).WaitAsync(cancellationToken);
             },
             cancellationToken
         );

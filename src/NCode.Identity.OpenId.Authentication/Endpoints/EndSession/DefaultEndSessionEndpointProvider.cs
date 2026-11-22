@@ -62,13 +62,15 @@ internal class DefaultEndSessionEndpointProvider : IEndpointProvider
         var openIdContext = httpContext.GetOpenIdContext();
         var mediator = openIdContext.Mediator;
 
+        var loadCommand = new LoadEndSessionRequestCommand(openIdContext);
         var request = await mediator.SendAsync<LoadEndSessionRequestCommand, IEndSessionRequest>(
-            new LoadEndSessionRequestCommand(openIdContext),
+            loadCommand,
             cancellationToken
         );
 
+        var resolveCommand = new ResolveEndSessionSubjectCommand(openIdContext, request);
         var subject = await mediator.SendAsync<ResolveEndSessionSubjectCommand, EndSessionSubject>(
-            new ResolveEndSessionSubjectCommand(openIdContext, request),
+            resolveCommand,
             cancellationToken
         );
 
@@ -77,26 +79,30 @@ internal class DefaultEndSessionEndpointProvider : IEndpointProvider
         // See ADR-1380.
         if (subject.RequiresConfirmation)
         {
+            var parkCommand = new ParkEndSessionRequestCommand(openIdContext, request, subject);
             var continueUrl = await mediator.SendAsync<ParkEndSessionRequestCommand, string>(
-                new ParkEndSessionRequestCommand(openIdContext, request, subject),
+                parkCommand,
                 cancellationToken
             );
 
+            var challengeCommand = new EndSessionConfirmationChallengeCommand(
+                openIdContext,
+                request,
+                continueUrl
+            );
             var challenge = await mediator.SendAsync<
                 EndSessionConfirmationChallengeCommand,
                 ReadOnlyEndpointDisposition
-            >(
-                new EndSessionConfirmationChallengeCommand(openIdContext, request, continueUrl),
-                cancellationToken
-            );
+            >(challengeCommand, cancellationToken);
             if (challenge.WasHandled)
             {
                 return challenge.HasHttpResult ? challenge.HttpResult : EmptyHttpResult.Instance;
             }
         }
 
+        var endSessionCommand = new EndSessionCommand(openIdContext, request, subject);
         var disposition = await mediator.SendAsync<EndSessionCommand, EndSessionDisposition>(
-            new EndSessionCommand(openIdContext, request, subject),
+            endSessionCommand,
             cancellationToken
         );
 

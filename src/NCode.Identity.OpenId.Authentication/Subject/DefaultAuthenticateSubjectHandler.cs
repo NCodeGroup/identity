@@ -74,7 +74,8 @@ internal class DefaultAuthenticateSubjectHandler(
         );
         if (formUnreadable)
         {
-            return Failed(UnreadableForm.CreateError(openIdContext.ErrorFactory));
+            var unreadableFormError = UnreadableForm.CreateError(openIdContext.ErrorFactory);
+            return Failed(unreadableFormError);
         }
 
         // A protected resource is reached only with an access token (OpenID Connect Core 1.0 §5.3.1); an interactive
@@ -120,11 +121,10 @@ internal class DefaultAuthenticateSubjectHandler(
                 attemptedUsername: null,
                 cancellationToken
             );
-            return Failed(
-                errorFactory
-                    .AccessDenied("Failed to authenticate the end-user.")
-                    .WithException(baseResult.Failure)
-            );
+            var accessDeniedError = errorFactory
+                .AccessDenied("Failed to authenticate the end-user.")
+                .WithException(baseResult.Failure);
+            return Failed(accessDeniedError);
         }
 
         Debug.Assert(baseResult.Succeeded);
@@ -162,13 +162,15 @@ internal class DefaultAuthenticateSubjectHandler(
         CancellationToken cancellationToken
     )
     {
+        var accessTokenCommand = new AuthenticateAccessTokenCommand(
+            openIdContext,
+            accessToken,
+            requiredAudiences
+        );
         var disposition = await openIdContext.Mediator.SendAsync<
             AuthenticateAccessTokenCommand,
             AuthenticateAccessTokenDisposition
-        >(
-            new AuthenticateAccessTokenCommand(openIdContext, accessToken, requiredAudiences),
-            cancellationToken
-        );
+        >(accessTokenCommand, cancellationToken);
 
         if (disposition.HasError)
         {
@@ -187,11 +189,12 @@ internal class DefaultAuthenticateSubjectHandler(
             return Undefined();
         }
 
+        var bearerProperties = new AuthenticationProperties();
         return await CompleteAsync(
             openIdContext,
             disposition.Principal,
             BearerScheme,
-            new AuthenticationProperties(),
+            bearerProperties,
             cancellationToken
         );
     }
@@ -216,9 +219,10 @@ internal class DefaultAuthenticateSubjectHandler(
                 attemptedUsername: null,
                 cancellationToken
             );
-            return Failed(
-                errorFactory.AccessDenied("Unable to determine the end-user's subject id.")
+            var subjectIdMissingError = errorFactory.AccessDenied(
+                "Unable to determine the end-user's subject id."
             );
+            return Failed(subjectIdMissingError);
         }
 
         // Resolve the authenticated subject to a stable, server-owned principal id, provisioning a federated principal

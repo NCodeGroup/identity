@@ -40,14 +40,13 @@ internal sealed class DefaultJwtEncoder(
 
         if (parameters.SigningCredentials is not null)
         {
-            var signingOptions = new JoseSigningOptions(
-                new JoseSignatureOptions(parameters.SigningCredentials)
-                {
-                    TokenType = parameters.TokenType,
-                    AddKeyIdHeader = parameters.AddKeyIdHeader,
-                    ProtectedHeaders = parameters.ExtraSignatureHeaderClaims,
-                }
-            );
+            var signatureOptions = new JoseSignatureOptions(parameters.SigningCredentials)
+            {
+                TokenType = parameters.TokenType,
+                AddKeyIdHeader = parameters.AddKeyIdHeader,
+                ProtectedHeaders = parameters.ExtraSignatureHeaderClaims,
+            };
+            var signingOptions = new JoseSigningOptions(signatureOptions);
 
             encodedToken = await JoseSerializer
                 .CreateEncoder(signingOptions)
@@ -61,12 +60,11 @@ internal sealed class DefaultJwtEncoder(
         if (parameters.EncryptionCredentials is not null)
         {
             var encryptionCredentials = parameters.EncryptionCredentials;
-            var recipient = new JoseRecipientOptions(
-                new JoseKeyManagementCredentials(
-                    encryptionCredentials.SecretKey,
-                    encryptionCredentials.KeyManagementAlgorithm
-                )
-            )
+            var keyManagementCredentials = new JoseKeyManagementCredentials(
+                encryptionCredentials.SecretKey,
+                encryptionCredentials.KeyManagementAlgorithm
+            );
+            var recipient = new JoseRecipientOptions(keyManagementCredentials)
             {
                 AddKeyIdHeader = parameters.AddKeyIdHeader,
             };

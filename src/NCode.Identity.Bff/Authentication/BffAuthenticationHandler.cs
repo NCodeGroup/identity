@@ -77,9 +77,9 @@ internal class BffAuthenticationHandler(
             );
         var frontend = Frontends.GetRequired(Context);
         var connection = Connections.Create(frontend, session.Handle, logoutUrl);
-        return new ClaimsPrincipal(
-            new BffConnectionIdentity(principal.Identities.Single(), connection)
-        );
+        var identity = principal.Identities.Single();
+        var connectionIdentity = new BffConnectionIdentity(identity, connection);
+        return new ClaimsPrincipal(connectionIdentity);
     }
 
     /// <inheritdoc />
@@ -138,14 +138,16 @@ internal class BffAuthenticationHandler(
             frontend.Options.PathPrefix + BffEndpointPaths.Login
         );
         var escaped = Uri.EscapeDataString(returnUrl);
-        Response.Redirect($"{loginUrl}?returnUrl={escaped}");
+        var location = $"{loginUrl}?returnUrl={escaped}";
+        BffNavigation.RedirectLocal(Response, location);
         return Task.CompletedTask;
     }
 
     /// <inheritdoc />
     public async Task SignOutAsync(AuthenticationProperties? properties)
     {
-        if (!BffGuardedEndpoints.IsApi(Context.GetEndpoint()))
+        var endpoint = Context.GetEndpoint();
+        if (!BffGuardedEndpoints.IsApi(endpoint))
         {
             throw new InvalidOperationException(
                 "SignOutAsync with the BFF scheme ends a session only on an endpoint marked AsBffApi() or [BffApi], whose anti-forgery checks keep another site from ending it; a page posts a form to /bff/logout."

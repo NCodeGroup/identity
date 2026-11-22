@@ -118,8 +118,10 @@ and the docs say "tenant root key" or "team root key". A team's key is held per 
     other root key (an ancestor's or the deployment's) and rewraps the rows under the key onto it, with a recovery copy
     when it is the deployment's and one is configured. The record is deleted once no master key under the key remains
     that does not conform to its owner's nearest root key, so a master key of another owner whose own root key names the
-    same key stays under it and never holds the removal. Rows that cannot be unwrapped keep it in `removing` and the
-    validation service retries.
+    same key stays under it and never holds the removal. The check reads only the master keys under the key, through
+    `IMasterKeyStore.GetWrappedByKeyPageAsync` and the index `IX_MasterKeys_RootKeyProvider_RootKeyReference` on the
+    master keys' root key provider and reference. Rows that cannot be unwrapped keep it in `removing` and the validation
+    service retries.
 15. **A probe validates the key.** The server wraps and unwraps a random 32-byte value under the owner context through the
     key and access identity, compares in constant time and zeroes both. Any failure fails closed.
 16. **The rewrap engine wraps each row under its owner's root.** The manager moves only nonconforming rows whose root
@@ -162,9 +164,11 @@ and the docs say "tenant root key" or "team root key". A team's key is held per 
     change of a team's root key rewraps the master keys of the team, of the owners under it and of any still under its
     key, with the engine of
     [ADR-1408](1408-an-offline-host-command-rewraps-every-master-key-under-the-configured-root-and-recovery-keys.md).
-    The cell's directory change feed also reconciles every mirrored team's key for its region every 15 minutes, so a key
-    that failed its probe or its rotation cooldown is applied once it can be, and it removes the owner root key of a
-    team whose row is gone.
+    The rewrap reads the rows under the team's key through `IMasterKeyStore.GetWrappedByKeyPageAsync` and the rows of
+    the owners under the team, found through `IMasterKeyStore.GetOwnerPageAsync`, never every master key. The cell's
+    directory change feed also reconciles every mirrored team's key for its region every 15 minutes, so a key that
+    failed its probe or its rotation cooldown is applied once it can be, and it removes the owner root key of a team
+    whose row is gone.
     The console shows a team's root keys per region.
 22. **A key stays in the cell's cloud regions.** The AWS and Google Cloud adapters refuse a key reference whose region or
     location is not in `Cell:CloudRegions`, so a key outside them is never used by the cell.

@@ -116,13 +116,16 @@ internal static class BffReverseProxyRoutes
 
             if (!hasRequirement)
             {
-                errors.Add(
-                    Failure(route, $"{key} needs {BffReverseProxyMetadataKeys.TokenRequirement}.")
+                var failure = Failure(
+                    route,
+                    $"{key} needs {BffReverseProxyMetadataKeys.TokenRequirement}."
                 );
+                errors.Add(failure);
             }
             else if (string.IsNullOrWhiteSpace(value))
             {
-                errors.Add(Failure(route, $"{key} must not be blank."));
+                var failure = Failure(route, $"{key} must not be blank.");
+                errors.Add(failure);
             }
         }
     }

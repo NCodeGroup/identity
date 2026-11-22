@@ -129,15 +129,14 @@ internal static partial class TenantAddressRules
     {
         authorityUri = null;
 
-        if (
-            !TryParseIssuer(authority, out var uri)
-            || uri.Scheme != Uri.UriSchemeHttps
-            || !string.Equals(
-                uri.GetLeftPart(UriPartial.Authority),
-                authority.TrimEnd('/'),
-                StringComparison.OrdinalIgnoreCase
-            )
-        )
+        if (!TryParseIssuer(authority, out var uri) || uri.Scheme != Uri.UriSchemeHttps)
+        {
+            return false;
+        }
+
+        var uriAuthority = uri.GetLeftPart(UriPartial.Authority);
+        var trimmedAuthority = authority.TrimEnd('/');
+        if (!string.Equals(uriAuthority, trimmedAuthority, StringComparison.OrdinalIgnoreCase))
         {
             return false;
         }
@@ -199,8 +198,10 @@ internal static partial class TenantAddressRules
         if (
             IsSinglePlaceholderTemplate(issuerTemplate)
             && ProbeTenantIds.All(tenantId =>
-                TryParseIssuer(ExpandIssuerTemplate(issuerTemplate, tenantId), out _)
-            )
+            {
+                var expandedIssuer = ExpandIssuerTemplate(issuerTemplate, tenantId);
+                return TryParseIssuer(expandedIssuer, out _);
+            })
         )
         {
             return true;
@@ -228,11 +229,10 @@ internal static partial class TenantAddressRules
         if (
             IsSinglePlaceholderTemplate(aliasTemplate)
             && ProbeTenantIds.All(tenantId =>
-                TryParseMtlsEndpointAliasAuthority(
-                    ExpandIssuerTemplate(aliasTemplate, tenantId),
-                    out _
-                )
-            )
+            {
+                var expandedAlias = ExpandIssuerTemplate(aliasTemplate, tenantId);
+                return TryParseMtlsEndpointAliasAuthority(expandedAlias, out _);
+            })
         )
         {
             return true;

@@ -85,15 +85,16 @@ internal abstract class JwtAuthorizationResponseModeHandler(
 
         var responseJwt = await JwtEncoder.EncodeAsync(parameters, cancellationToken);
 
+        var responseValues = new StringValues(responseJwt);
+        var responseParameter = KeyValuePair.Create(
+            OpenIdProtocol.Parameters.Response,
+            responseValues
+        );
+
         await WriteAsync(
             httpContext.Response,
             result.Delivery.RedirectUri,
-            [
-                KeyValuePair.Create(
-                    OpenIdProtocol.Parameters.Response,
-                    new StringValues(responseJwt)
-                ),
-            ],
+            [responseParameter],
             cancellationToken
         );
     }

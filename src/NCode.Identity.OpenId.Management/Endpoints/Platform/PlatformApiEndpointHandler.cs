@@ -183,9 +183,10 @@ internal class PlatformApiEndpointHandler(
         CancellationToken cancellationToken
     )
     {
+        var platformNode = GetPlatformNode(httpContext);
         return await ProcessGetAsync(
             httpContext,
-            authorizationResource: GetPlatformNode(httpContext),
+            authorizationResource: platformNode,
             Operations.Read,
             async token =>
             {
@@ -239,9 +240,10 @@ internal class PlatformApiEndpointHandler(
         // The settings are resolved only after authorization, so a caller who may not read them learns nothing about a
         // document that cannot be honored, and the stored document's token is not the effective view's.
         // The authorization is against the persisted settings, like the raw settings read. See ADR-1245.
+        var platformNode = GetPlatformNode(httpContext);
         return await ProcessGetAsync(
             httpContext,
-            authorizationResource: GetPlatformNode(httpContext),
+            authorizationResource: platformNode,
             Operations.Read,
             async token =>
             {
@@ -278,9 +280,10 @@ internal class PlatformApiEndpointHandler(
         CancellationToken cancellationToken
     )
     {
+        var platformNode = GetPlatformNode(httpContext);
         var authorizationFailure = await GetAuthorizationFailureAsync(
             httpContext,
-            GetPlatformNode(httpContext),
+            platformNode,
             Operations.Read,
             cancellationToken
         );
@@ -321,9 +324,10 @@ internal class PlatformApiEndpointHandler(
         CancellationToken cancellationToken
     )
     {
+        var platformNode = GetPlatformNode(httpContext);
         var authorizationFailure = await GetAuthorizationFailureAsync(
             httpContext,
-            GetPlatformNode(httpContext),
+            platformNode,
             Operations.Update,
             cancellationToken
         );
@@ -425,9 +429,10 @@ internal class PlatformApiEndpointHandler(
         CancellationToken cancellationToken
     )
     {
+        var platformNode = GetPlatformNode(httpContext);
         var authorizationFailure = await GetAuthorizationFailureAsync(
             httpContext,
-            GetPlatformNode(httpContext),
+            platformNode,
             Operations.Update,
             cancellationToken
         );
@@ -529,10 +534,12 @@ internal class PlatformApiEndpointHandler(
         // change is audited and announced.
         var publishFailure = await TryPublishAsync(settingsValue, cancellationToken);
 
+        var platformSettingsResource = ToPlatformSettingsResource(platformSettings);
+        var resourceValues = ToResourceValues(platformSettingsResource);
         await ManagementAuditRecorder.RecordPlatformChangedAsync(
             httpContext,
             ResourceChangeTypes.SettingsUpdated,
-            ToResourceValues(ToPlatformSettingsResource(platformSettings))
+            resourceValues
         );
 
         await NotifyPlatformSettingsChangedAsync(
@@ -569,10 +576,8 @@ internal class PlatformApiEndpointHandler(
     {
         try
         {
-            await PlatformDirectory.PublishAsync(
-                new PlatformDocument { Settings = settings.Clone() },
-                cancellationToken
-            );
+            var document = new PlatformDocument { Settings = settings.Clone() };
+            await PlatformDirectory.PublishAsync(document, cancellationToken);
             return null;
         }
         catch (DirectoryUnavailableException exception)
@@ -587,16 +592,16 @@ internal class PlatformApiEndpointHandler(
     /// </summary>
     /// <param name="httpContext">The <see cref="HttpContext"/> for the current request.</param>
     /// <returns>The <see cref="ProblemHttpResult"/> that asks the caller to retry.</returns>
-    private static ProblemHttpResult DirectoryUnavailableProblem(HttpContext httpContext) =>
-        RetryAfterProblem.Create(
-            httpContext,
-            TimeSpan.FromSeconds(GlobalDirectoryProtocol.UnavailableRetryAfterSeconds),
-            new ProblemDetails
-            {
-                Status = StatusCodes.Status503ServiceUnavailable,
-                Detail = "The global directory is unavailable. Retry the request.",
-            }
-        );
+    private static ProblemHttpResult DirectoryUnavailableProblem(HttpContext httpContext)
+    {
+        var retryAfter = TimeSpan.FromSeconds(GlobalDirectoryProtocol.UnavailableRetryAfterSeconds);
+        var problemDetails = new ProblemDetails
+        {
+            Status = StatusCodes.Status503ServiceUnavailable,
+            Detail = "The global directory is unavailable. Retry the request.",
+        };
+        return RetryAfterProblem.Create(httpContext, retryAfter, problemDetails);
+    }
 
     /// <summary>
     /// Resolves the effective settings of the platform's committed settings document, which a settings write replaces.
@@ -691,15 +696,15 @@ internal class PlatformApiEndpointHandler(
                     continue;
                 }
 
-                errors.AddRange(
+                var introducedViolations =
                     await TeamClientCoherenceChecker.FindIntroducedViolationsAsync(
                         storeManager,
                         team.TeamId,
                         currentTeamSettings,
                         newTeamSettings,
                         cancellationToken
-                    )
-                );
+                    );
+                errors.AddRange(introducedViolations);
             }
 
             teamPage = teamPage with { Cursor = teamResult.NextCursor };
@@ -720,9 +725,9 @@ internal class PlatformApiEndpointHandler(
     )
     {
         var mediator = httpContext.RequestServices.GetRequiredService<IMediator>();
-        return mediator.SendAsync(
-            new PlatformSettingsChangedCommand(previousSettings.Clone(), settings.Clone()),
-            cancellationToken
-        );
+        var previousClone = previousSettings.Clone();
+        var settingsClone = settings.Clone();
+        var command = new PlatformSettingsChangedCommand(previousClone, settingsClone);
+        return mediator.SendAsync(command, cancellationToken);
     }
 }

@@ -54,10 +54,11 @@ internal class DefaultLogoutTokenValidator(
                 "The discovery document of the provider lacks the issuer."
             );
 
+        var jwtProfile = ProviderJwtProfile.ForLogoutToken(registration, metadata);
         var validation = await ProviderJwtValidator.ValidateAsync(
             request.LogoutToken,
             issuer,
-            ProviderJwtProfile.ForLogoutToken(registration, metadata),
+            jwtProfile,
             cancellationToken
         );
         if (!validation.IsValid)
@@ -67,10 +68,8 @@ internal class DefaultLogoutTokenValidator(
         string? sub = null;
         if (payload.TryGetProperty(JoseClaimNames.Payload.Sub, out var subElement))
         {
-            if (
-                subElement.ValueKind != JsonValueKind.String
-                || string.IsNullOrEmpty(sub = subElement.GetString())
-            )
+            sub = subElement.ValueKind == JsonValueKind.String ? subElement.GetString() : null;
+            if (string.IsNullOrEmpty(sub))
                 return Fail(
                     TokenValidationFailureCodes.InvalidClaim,
                     "The 'sub' claim of the logout token is not a non-empty string."
@@ -80,10 +79,8 @@ internal class DefaultLogoutTokenValidator(
         string? sid = null;
         if (payload.TryGetProperty(JoseClaimNames.Payload.Sid, out var sidElement))
         {
-            if (
-                sidElement.ValueKind != JsonValueKind.String
-                || string.IsNullOrEmpty(sid = sidElement.GetString())
-            )
+            sid = sidElement.ValueKind == JsonValueKind.String ? sidElement.GetString() : null;
+            if (string.IsNullOrEmpty(sid))
                 return Fail(
                     TokenValidationFailureCodes.InvalidClaim,
                     "The 'sid' claim of the logout token is not a non-empty string."
@@ -138,12 +135,8 @@ internal class DefaultLogoutTokenValidator(
                 "The logout token has no valid 'exp' claim."
             );
 
-        if (
-            await ExpiringKeySet.ContainsAsync(
-                CreateReplayKey(issuer, registration.ClientId, jti),
-                cancellationToken
-            )
-        )
+        var replayKey = CreateReplayKey(issuer, registration.ClientId, jti);
+        if (await ExpiringKeySet.ContainsAsync(replayKey, cancellationToken))
             return Fail(
                 TokenValidationFailureCodes.TokenReplayed,
                 "The logout token has already been handled."
@@ -168,8 +161,9 @@ internal class DefaultLogoutTokenValidator(
                 nameof(result)
             );
 
+        var replayKey = CreateReplayKey(result.Issuer, registration.ClientId, result.TokenId);
         return ExpiringKeySet.TryAddAsync(
-            CreateReplayKey(result.Issuer, registration.ClientId, result.TokenId),
+            replayKey,
             result.ExpiresAt + ProviderJwtValidator.ClockSkew,
             cancellationToken
         );
@@ -183,7 +177,8 @@ internal class DefaultLogoutTokenValidator(
         );
 
         Span<byte> digest = stackalloc byte[SHA256.HashSizeInBytes];
-        SHA256.HashData(SecureEncoding.UTF8.GetBytes(material), digest);
+        var materialBytes = SecureEncoding.UTF8.GetBytes(material);
+        SHA256.HashData(materialBytes, digest);
 
         return ReplayKeyPurpose + ":" + Convert.ToHexStringLower(digest);
     }

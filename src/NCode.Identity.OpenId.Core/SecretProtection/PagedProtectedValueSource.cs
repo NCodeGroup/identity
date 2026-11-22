@@ -123,11 +123,12 @@ internal abstract class PagedProtectedValueSource(
         {
             using var tenantScope = AmbientTenantAccessor.BeginScope(tenantId);
             await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
+            var pageRequest = new PageRequest { Limit = PageSize, Cursor = cursor };
             var page = await GetPageAsync(
                 storeManager,
                 owner,
                 prefixes,
-                new PageRequest { Limit = PageSize, Cursor = cursor },
+                pageRequest,
                 cancellationToken
             );
 
@@ -175,11 +176,12 @@ internal abstract class PagedProtectedValueSource(
             // An owner's values are rows of its tenant, read, rewrapped and saved in the tenant's scope. See ADR-1018.
             using var tenantScope = AmbientTenantAccessor.BeginScope(tenantId);
             await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
+            var pageRequest = new PageRequest { Limit = PageSize, Cursor = cursor };
             var page = await GetPageAsync(
                 storeManager,
                 owner,
                 prefixes,
-                new PageRequest { Limit = PageSize, Cursor = cursor },
+                pageRequest,
                 cancellationToken
             );
 
@@ -192,9 +194,10 @@ internal abstract class PagedProtectedValueSource(
             try
             {
                 // One protector per page, which loads the retired keys that the values name.
+                var matchingValues = matching.Select(value => value.ProtectedValue);
                 var protector = await ProtectorProvider.GetProtectorAsync(
                     owner,
-                    [.. matching.Select(value => value.ProtectedValue)],
+                    [.. matchingValues],
                     cancellationToken
                 );
 
@@ -203,10 +206,9 @@ internal abstract class PagedProtectedValueSource(
                     string rewritten;
                     try
                     {
-                        rewritten = protector.RewrapToString(
-                            value.ProtectedValue,
-                            GetContext(value)
-                        );
+                        var protectedValue = value.ProtectedValue;
+                        var context = GetContext(value);
+                        rewritten = protector.RewrapToString(protectedValue, context);
                     }
                     catch (CryptographicException exception)
                     {

@@ -49,10 +49,8 @@ internal sealed class DefaultOutboundHttpForgeryGuard(
 
             try
             {
-                await socket.ConnectAsync(
-                    new IPEndPoint(address, endPoint.Port),
-                    cancellationToken
-                );
+                var endPointAddress = new IPEndPoint(address, endPoint.Port);
+                await socket.ConnectAsync(endPointAddress, cancellationToken);
 
                 return new NetworkStream(socket, ownsSocket: true);
             }
@@ -100,13 +98,17 @@ internal sealed class DefaultOutboundHttpForgeryGuard(
         if (IPAddress.IsLoopback(address))
             return true;
 
-        return address.AddressFamily switch
+        switch (address.AddressFamily)
         {
-            AddressFamily.InterNetwork => IsDisallowedV4(address.GetAddressBytes()),
-            AddressFamily.InterNetworkV6 => IsDisallowedV6(address),
-            // An address family the fetch cannot vet is refused.
-            _ => true,
-        };
+            case AddressFamily.InterNetwork:
+                var addressBytes = address.GetAddressBytes();
+                return IsDisallowedV4(addressBytes);
+            case AddressFamily.InterNetworkV6:
+                return IsDisallowedV6(address);
+            default:
+                // An address family the fetch cannot vet is refused.
+                return true;
+        }
     }
 
     private static bool IsDisallowedV4(byte[] b) =>

@@ -57,11 +57,14 @@ public abstract class SecretKey
     /// A derived class overrides this method to append its own members after the base members, each preceded by <c>, </c>.
     /// </summary>
     /// <param name="builder">The <see cref="StringBuilder"/> that receives the members.</param>
-    protected virtual void AppendMembers(StringBuilder builder) =>
+    protected virtual void AppendMembers(StringBuilder builder)
+    {
+        var quotedKeyId = QuoteOrNull(KeyId);
         builder.Append(
             CultureInfo.InvariantCulture,
-            $"KeyId = {QuoteOrNull(KeyId)}, Size = {KeySizeBits}"
+            $"KeyId = {quotedKeyId}, Size = {KeySizeBits}"
         );
+    }
 
     private string Format()
     {

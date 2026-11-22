@@ -48,10 +48,11 @@ internal class DefaultSelectTokenGrantHandlerHandler(IEnumerable<ITokenGrantHand
 
         // Tags the request's duration measurement with the grant type, or _OTHER for one no handler serves, so a caller
         // cannot create a series per value it invents (ADR-1197).
+        var isHandledGrantType = HandlersByGrantType.Contains(grantType);
         OpenIdMetricAttributes.Add(
             openIdContext.Http,
             OpenIdMetricAttributes.GrantType,
-            HandlersByGrantType.Contains(grantType) ? grantType : OpenIdMetricAttributes.OtherValue
+            isHandledGrantType ? grantType : OpenIdMetricAttributes.OtherValue
         );
 
         // grant_types_supported

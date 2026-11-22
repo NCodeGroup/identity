@@ -39,7 +39,11 @@ public static class DirectoryDatabaseGrants
         foreach (var entityType in model.GetEntityTypes())
         {
             if (entityType.GetTableName() is { } tableName)
-                tables.Add(new DatabaseObjectName(entityType.GetSchema(), tableName));
+            {
+                var schema = entityType.GetSchema();
+                var table = new DatabaseObjectName(schema, tableName);
+                tables.Add(table);
+            }
         }
 
         var sequences = model

@@ -27,9 +27,8 @@ public static class ServiceCollectionExtensions
         >()
             where THandler : class, IAuthorizationHandler
         {
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<IAuthorizationHandler, THandler>()
-            );
+            var handlerDescriptor = ServiceDescriptor.Singleton<IAuthorizationHandler, THandler>();
+            serviceCollection.TryAddEnumerable(handlerDescriptor);
             return serviceCollection;
         }
     }

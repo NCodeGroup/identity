@@ -134,7 +134,8 @@ internal class PrincipalApiEndpointHandler(
         }
 
         httpContext.Response.Headers.ETag = ManagementEntityTags.Format(principal.ConcurrencyToken);
-        return TypedResults.Json(ToPrincipalResource(principal));
+        var principalResource = ToPrincipalResource(principal);
+        return TypedResults.Json(principalResource);
     }
 
     /// <summary>
@@ -271,20 +272,21 @@ internal class PrincipalApiEndpointHandler(
         HttpContext httpContext,
         string tenantId,
         PersistedFederatedPrincipal principal
-    ) =>
-        ManagementAuditRecorder.RecordResourceChangeAsync(
-            httpContext,
-            new PrincipalChangedAuditEvent
-            {
-                EventSource = AuditEventSources.Management,
-                TenantId = tenantId,
-                SubjectId = principal.PrincipalId,
-                ResourceId = principal.PrincipalId,
-                ChangeType = ResourceChangeTypes.Updated,
-                ResourceValues = ToResourceValues(ToPrincipalResource(principal)),
-                Outcome = AuditOutcome.Success,
-            }
-        );
+    )
+    {
+        var principalResource = ToPrincipalResource(principal);
+        var auditEvent = new PrincipalChangedAuditEvent
+        {
+            EventSource = AuditEventSources.Management,
+            TenantId = tenantId,
+            SubjectId = principal.PrincipalId,
+            ResourceId = principal.PrincipalId,
+            ChangeType = ResourceChangeTypes.Updated,
+            ResourceValues = ToResourceValues(principalResource),
+            Outcome = AuditOutcome.Success,
+        };
+        return ManagementAuditRecorder.RecordResourceChangeAsync(httpContext, auditEvent);
+    }
 
     private async ValueTask<bool> AuthorizeTenantAsync(
         HttpContext httpContext,
@@ -293,9 +295,10 @@ internal class PrincipalApiEndpointHandler(
         CancellationToken cancellationToken
     )
     {
+        var tenantScope = TenantScopeResource.For(tenantId);
         var result = await AuthorizationService.AuthorizeAsync(
             httpContext.User,
-            TenantScopeResource.For(tenantId),
+            tenantScope,
             operation
         );
         return result.Succeeded;

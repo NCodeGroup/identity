@@ -75,16 +75,25 @@ public static class JsonElements
         return false;
     }
 
-    private static bool TryGetDateTimeOffset(JsonElement element, out DateTimeOffset value) =>
-        DateCoercion.TryParseDateTimeOffset(element.GetString(), out value);
+    private static bool TryGetDateTimeOffset(JsonElement element, out DateTimeOffset value)
+    {
+        var text = element.GetString();
+        return DateCoercion.TryParseDateTimeOffset(text, out value);
+    }
 
-    private static bool TryGetDateTime(JsonElement element, out DateTime value) =>
-        DateCoercion.TryParseDateTime(element.GetString(), out value);
+    private static bool TryGetDateTime(JsonElement element, out DateTime value)
+    {
+        var text = element.GetString();
+        return DateCoercion.TryParseDateTime(text, out value);
+    }
 
-    private static bool TryGetGuid(JsonElement element, out Guid value) =>
+    private static bool TryGetGuid(JsonElement element, out Guid value)
+    {
         // Guid.TryParse accepts all standard Guid formats (D/N/B/P/X), not only the hyphenated form the strict
         // JsonElement.TryGetGuid reader allows — matching ObjectJsonConverter.
-        Guid.TryParse(element.GetString(), out value);
+        var text = element.GetString();
+        return Guid.TryParse(text, out value);
+    }
 
     private static bool TryGetBytes(JsonElement element, [NotNullWhen(true)] out byte[]? value)
     {

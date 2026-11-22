@@ -224,15 +224,14 @@ internal static class CoseMessageReader
                 );
 
             var headers = ReadLayer(reader, kind, options);
-            layers.Add(
-                new ParsedCoseLayer
-                {
-                    ProtectedBytes = headers.ProtectedBytes,
-                    Protected = headers.Protected,
-                    Unprotected = headers.Unprotected,
-                    Third = ReadByteString(reader),
-                }
-            );
+            var layer = new ParsedCoseLayer
+            {
+                ProtectedBytes = headers.ProtectedBytes,
+                Protected = headers.Protected,
+                Unprotected = headers.Unprotected,
+                Third = ReadByteString(reader),
+            };
+            layers.Add(layer);
             reader.ReadEndArray();
         }
 

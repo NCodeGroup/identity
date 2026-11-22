@@ -48,7 +48,8 @@ internal static class DevelopmentKeyFile
                 return path;
         }
 
-        var temporaryPath = Path.Combine(directory, $"{fileName}.{Guid.NewGuid():N}.tmp");
+        var temporaryId = Guid.NewGuid();
+        var temporaryPath = Path.Combine(directory, $"{fileName}.{temporaryId:N}.tmp");
 
         try
         {
@@ -148,9 +149,12 @@ internal static class DevelopmentKeyFile
             json.WriteStartObject();
             json.WriteString("kty", "EC");
             json.WriteString("crv", "P-256");
-            json.WriteString("x", Base64Url.EncodeToString(parameters.Q.X));
-            json.WriteString("y", Base64Url.EncodeToString(parameters.Q.Y));
-            json.WriteString("kid", Path.GetFileNameWithoutExtension(path));
+            var xCoordinate = Base64Url.EncodeToString(parameters.Q.X);
+            json.WriteString("x", xCoordinate);
+            var yCoordinate = Base64Url.EncodeToString(parameters.Q.Y);
+            json.WriteString("y", yCoordinate);
+            var keyId = Path.GetFileNameWithoutExtension(path);
+            json.WriteString("kid", keyId);
             json.WriteString("use", "sig");
             json.WriteString("alg", "ES256");
             json.WriteEndObject();

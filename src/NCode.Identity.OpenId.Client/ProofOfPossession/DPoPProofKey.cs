@@ -28,18 +28,18 @@ internal sealed class DPoPProofKey(
         Uri requestUri,
         string? accessToken,
         CancellationToken cancellationToken
-    ) =>
-        ProofService.CreateProofAsync(
-            new DPoPProofCreationOptions
-            {
-                SigningCredentials = Credentials,
-                HttpMethod = method.Method,
-                HttpUri = requestUri.AbsoluteUri,
-                AccessToken = accessToken,
-                Nonce = NonceCache.Get(requestUri),
-            },
-            cancellationToken
-        );
+    )
+    {
+        var options = new DPoPProofCreationOptions
+        {
+            SigningCredentials = Credentials,
+            HttpMethod = method.Method,
+            HttpUri = requestUri.AbsoluteUri,
+            AccessToken = accessToken,
+            Nonce = NonceCache.Get(requestUri),
+        };
+        return ProofService.CreateProofAsync(options, cancellationToken);
+    }
 
     public void RecordNonce(Uri requestUri, string nonce) => NonceCache.Set(requestUri, nonce);
 }

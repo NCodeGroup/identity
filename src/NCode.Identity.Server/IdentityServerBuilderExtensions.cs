@@ -69,10 +69,13 @@ public static class IdentityServerBuilderExtensions
         if (unknownPaths.Count == 0)
             return;
 
+        var unknownPathsText = string.Join(", ", unknownPaths);
+        var orderedSubsections = OpenIdSubsections.Order(StringComparer.Ordinal);
+        var subsectionsText = string.Join(", ", orderedSubsections);
         throw new InvalidOperationException(
             $"The configuration section '{openIdSection.Path}' contains unrecognized key(s): "
-                + $"{string.Join(", ", unknownPaths)}. Its recognized subsections are "
-                + $"{string.Join(", ", OpenIdSubsections.Order(StringComparer.Ordinal))}."
+                + $"{unknownPathsText}. Its recognized subsections are "
+                + $"{subsectionsText}."
         );
     }
 
@@ -258,40 +261,38 @@ public static class IdentityServerBuilderExtensions
                 .Configure(options => cellSection.BindStrictly(options))
                 .ValidateOnStart();
 
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<IValidateOptions<CellOptions>, CellOptionsValidator>()
-            );
+            var cellOptionsValidator = ServiceDescriptor.Singleton<
+                IValidateOptions<CellOptions>,
+                CellOptionsValidator
+            >();
+            serviceCollection.TryAddEnumerable(cellOptionsValidator);
 
             // The cell's name is the tag of the keys the server creates in a key management service, so the sweep of
             // one cell never destroys the keys of another (ADR-1478).
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    IPostConfigureOptions<SecretProtectionOptions>,
-                    CellRemoteKeyOptionsSetup
-                >()
-            );
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    IValidateOptions<SecretProtectionOptions>,
-                    CellRemoteKeyOptionsSetup
-                >()
-            );
+            var remoteKeyPostConfigure = ServiceDescriptor.Singleton<
+                IPostConfigureOptions<SecretProtectionOptions>,
+                CellRemoteKeyOptionsSetup
+            >();
+            serviceCollection.TryAddEnumerable(remoteKeyPostConfigure);
+            var remoteKeyValidator = ServiceDescriptor.Singleton<
+                IValidateOptions<SecretProtectionOptions>,
+                CellRemoteKeyOptionsSetup
+            >();
+            serviceCollection.TryAddEnumerable(remoteKeyValidator);
 
             // The shared-state adapters keep the cell's state apart from the other cells on their server, and the
             // key management service adapters keep its keys in its cloud regions; the adapters know no cell
             // (ADR-1164, ADR-1235).
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    IPostConfigureOptions<SharedStateOptions>,
-                    CellScopeOptionsSetup
-                >()
-            );
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    IPostConfigureOptions<KeyResidencyOptions>,
-                    CellScopeOptionsSetup
-                >()
-            );
+            var sharedStatePostConfigure = ServiceDescriptor.Singleton<
+                IPostConfigureOptions<SharedStateOptions>,
+                CellScopeOptionsSetup
+            >();
+            serviceCollection.TryAddEnumerable(sharedStatePostConfigure);
+            var keyResidencyPostConfigure = ServiceDescriptor.Singleton<
+                IPostConfigureOptions<KeyResidencyOptions>,
+                CellScopeOptionsSetup
+            >();
+            serviceCollection.TryAddEnumerable(keyResidencyPostConfigure);
 
             // Setup lists the API reference among the instance's addresses when the host serves it.
             serviceCollection
@@ -308,9 +309,10 @@ public static class IdentityServerBuilderExtensions
 
             // The client library loads the named key rings, and the directory client reads the global directory with
             // one of them when Directory:Url is set.
-            builder.OpenIdClientLibraryBuilder.AddOpenIdClientKeyRings(
-                configuration.GetSection(OpenIdClientDefaults.KeyRingsSectionName)
+            var keyRingsSection = configuration.GetSection(
+                OpenIdClientDefaults.KeyRingsSectionName
             );
+            builder.OpenIdClientLibraryBuilder.AddOpenIdClientKeyRings(keyRingsSection);
             builder.OpenIdClientLibraryBuilder.AddOpenIdDirectoryClient(configuration);
 
             return builder;

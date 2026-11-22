@@ -63,7 +63,11 @@ internal sealed class BffFrontendCatalog : IBffOptionsAccessor, IDisposable
         if (sources.Length > 0)
         {
             Subscription = ChangeToken.OnChange(
-                () => new CompositeChangeToken([.. sources.Select(x => x.GetChangeToken())]),
+                () =>
+                {
+                    var tokens = sources.Select(x => x.GetChangeToken());
+                    return new CompositeChangeToken([.. tokens]);
+                },
                 Reload
             );
         }
@@ -99,7 +103,10 @@ internal sealed class BffFrontendCatalog : IBffOptionsAccessor, IDisposable
             check.Check(set, failures);
 
         if (failures.Count > 0)
-            throw new InvalidOperationException(string.Join(" ", failures));
+        {
+            var message = string.Join(" ", failures);
+            throw new InvalidOperationException(message);
+        }
 
         return set;
     }
@@ -184,7 +191,10 @@ internal sealed class BffFrontendCatalog : IBffOptionsAccessor, IDisposable
         {
             check.Check(Current, failures);
             if (failures.Count > 0)
-                throw new InvalidOperationException(string.Join(" ", failures));
+            {
+                var message = string.Join(" ", failures);
+                throw new InvalidOperationException(message);
+            }
 
             AddedChecks.Add(check);
         }
@@ -229,7 +239,8 @@ internal sealed class BffFrontendCatalog : IBffOptionsAccessor, IDisposable
             return feature.Frontend;
 
         var result = Current.Select(httpContext.Request);
-        httpContext.Features.Set(new BffFrontendFeature(result));
+        var resolvedFeature = new BffFrontendFeature(result);
+        httpContext.Features.Set(resolvedFeature);
         return result;
     }
 

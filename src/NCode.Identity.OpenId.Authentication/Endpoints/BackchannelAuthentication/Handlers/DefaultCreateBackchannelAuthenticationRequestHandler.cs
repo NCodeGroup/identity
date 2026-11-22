@@ -77,13 +77,14 @@ internal class DefaultCreateBackchannelAuthenticationRequestHandler(
             Payload = payload,
         };
 
+        var grantId = PersistedGrantService.CreateGrantId(
+            tenantId,
+            OpenIdConstants.PersistedGrantTypes.Ciba,
+            authReqId
+        );
         await PersistedGrantService.AddAsync(
             openIdContext,
-            PersistedGrantService.CreateGrantId(
-                tenantId,
-                OpenIdConstants.PersistedGrantTypes.Ciba,
-                authReqId
-            ),
+            grantId,
             cibaGrant,
             createdWhen,
             lifetime,

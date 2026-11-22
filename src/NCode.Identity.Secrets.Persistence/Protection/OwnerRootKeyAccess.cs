@@ -34,6 +34,14 @@ internal static class OwnerRootKeyAccess
     /// The access, or <see langword="null"/> when <paramref name="accessIdentity"/> is <see langword="null"/>.
     /// </returns>
     // See ADR-1414.
-    public static KeyAccess? For(SecretOwner owner, string? accessIdentity) =>
-        accessIdentity is null ? null : new KeyAccess(accessIdentity, GetBinding(owner));
+    public static KeyAccess? For(SecretOwner owner, string? accessIdentity)
+    {
+        if (accessIdentity is null)
+        {
+            return null;
+        }
+
+        var binding = GetBinding(owner);
+        return new KeyAccess(accessIdentity, binding);
+    }
 }

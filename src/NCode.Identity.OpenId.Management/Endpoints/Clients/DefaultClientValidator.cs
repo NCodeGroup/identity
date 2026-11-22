@@ -30,9 +30,10 @@ internal class DefaultClientValidator(IAuthorizationService authorizationService
         CancellationToken cancellationToken
     )
     {
+        var tenantNode = ResourceNode.For(tenantId, ResourceNodeTypes.Tenant, tenantId);
         var error = await AuthorizeAsync(
             user,
-            ResourceNode.For(tenantId, ResourceNodeTypes.Tenant, tenantId),
+            tenantNode,
             Operations.Create,
             "The caller is not authorized to create this client.",
             "Authentication is required to create this client.",
@@ -43,9 +44,14 @@ internal class DefaultClientValidator(IAuthorizationService authorizationService
             return error;
         }
 
+        var resourceServerNode = ResourceNode.For(
+            tenantId,
+            ResourceNodeTypes.ResourceServer,
+            resourceServerId
+        );
         return await AuthorizeAsync(
             user,
-            ResourceNode.For(tenantId, ResourceNodeTypes.ResourceServer, resourceServerId),
+            resourceServerNode,
             Operations.Update,
             "The caller is not authorized to create a client for this resource server.",
             "Authentication is required to create a client for this resource server.",
@@ -61,15 +67,18 @@ internal class DefaultClientValidator(IAuthorizationService authorizationService
         string owningNodeType,
         string owningNodeId,
         CancellationToken cancellationToken
-    ) =>
-        AuthorizeAsync(
+    )
+    {
+        var owningNode = ResourceNode.For(controlPlaneTenantId, owningNodeType, owningNodeId);
+        return AuthorizeAsync(
             user,
-            ResourceNode.For(controlPlaneTenantId, owningNodeType, owningNodeId),
+            owningNode,
             Operations.Create,
             "The caller is not authorized to create a machine client of this owner.",
             "Authentication is required to create a machine client.",
             cancellationToken
         );
+    }
 
     /// <inheritdoc />
     public ValueTask<ManagementError?> AuthorizeUpdateAsync(
@@ -77,15 +86,18 @@ internal class DefaultClientValidator(IAuthorizationService authorizationService
         string tenantId,
         string clientId,
         CancellationToken cancellationToken
-    ) =>
-        AuthorizeAsync(
+    )
+    {
+        var clientNode = ResourceNode.For(tenantId, ResourceNodeTypes.Client, clientId);
+        return AuthorizeAsync(
             user,
-            ResourceNode.For(tenantId, ResourceNodeTypes.Client, clientId),
+            clientNode,
             Operations.Update,
             "The caller is not authorized to update this client.",
             "Authentication is required to update this client.",
             cancellationToken
         );
+    }
 
     /// <inheritdoc />
     public ValueTask<ManagementError?> AuthorizeDeleteAsync(
@@ -93,15 +105,18 @@ internal class DefaultClientValidator(IAuthorizationService authorizationService
         string tenantId,
         string clientId,
         CancellationToken cancellationToken
-    ) =>
-        AuthorizeAsync(
+    )
+    {
+        var clientNode = ResourceNode.For(tenantId, ResourceNodeTypes.Client, clientId);
+        return AuthorizeAsync(
             user,
-            ResourceNode.For(tenantId, ResourceNodeTypes.Client, clientId),
+            clientNode,
             Operations.Delete,
             "The caller is not authorized to delete this client.",
             "Authentication is required to delete this client.",
             cancellationToken
         );
+    }
 
     /// <inheritdoc />
     public async ValueTask<ManagementError?> ValidateCreateAsync(

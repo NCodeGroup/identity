@@ -48,13 +48,15 @@ internal static class OwnerRootKeyProbe
             out Memory<byte> probe
         );
 
+        var probeContextSize = SecretProtectionFormat.GetProbeContextSize(owner);
         using var contextLease = BufferFactory.Rent(
-            SecretProtectionFormat.GetProbeContextSize(owner),
+            probeContextSize,
             isSensitive: false,
             out Memory<byte> contextBuffer
         );
+        var probeId = Guid.NewGuid();
         var contextWritten = SecretProtectionFormat.WriteProbeContext(
-            Guid.NewGuid(),
+            probeId,
             owner,
             contextBuffer.Span
         );
@@ -87,7 +89,8 @@ internal static class OwnerRootKeyProbe
         }
         catch (Exception exception)
         {
-            return Truncate($"{exception.GetType().Name}: {exception.Message}");
+            var exceptionType = exception.GetType();
+            return Truncate($"{exceptionType.Name}: {exception.Message}");
         }
     }
 

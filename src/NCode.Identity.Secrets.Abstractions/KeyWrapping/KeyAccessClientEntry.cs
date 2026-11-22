@@ -99,7 +99,11 @@ internal sealed class KeyAccessClientEntry<TClient>(
     /// <summary>
     /// Records the current timestamp as the last use.
     /// </summary>
-    private void Stamp() => Volatile.Write(ref _lastUse, timeProvider.GetTimestamp());
+    private void Stamp()
+    {
+        var timestamp = timeProvider.GetTimestamp();
+        Volatile.Write(ref _lastUse, timestamp);
+    }
 
     /// <summary>
     /// Disposes the client once, when the entry is released, nothing is in flight and the client was created.

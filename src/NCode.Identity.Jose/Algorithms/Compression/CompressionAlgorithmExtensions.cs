@@ -22,9 +22,10 @@ internal static class CompressionAlgorithmExtensions
                 return Disposable.Empty;
             }
 
+            var initialCapacity = Math.Min(uncompressedData.Length, 1024);
             var buffer = BufferFactory.CreateContiguousBufferWriter(
                 isSensitive: true,
-                Math.Min(uncompressedData.Length, 1024)
+                initialCapacity
             );
 
             try

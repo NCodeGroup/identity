@@ -127,10 +127,8 @@ internal sealed class RemoteKeySweepService(
             // One provider whose dispatch fails must not stop the pass, as the master key maintenance handles each owner.
             try
             {
-                await JobDispatcher.DispatchAsync(
-                    new RemoteKeySweepJob { Provider = descriptor.Name },
-                    cancellationToken: cancellationToken
-                );
+                var sweepJob = new RemoteKeySweepJob { Provider = descriptor.Name };
+                await JobDispatcher.DispatchAsync(sweepJob, cancellationToken: cancellationToken);
             }
             catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
             {

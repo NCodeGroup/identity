@@ -60,9 +60,12 @@ internal sealed class DefaultClientCertificateRevocationChecker(
             var name = source.Name;
 
             if (!catalog.TryGet(name, out _))
+            {
+                var sourceTypeName = source.GetType().Name;
                 throw new InvalidOperationException(
-                    $"The client-certificate revocation source '{source.GetType().Name}' is named '{name}', which no revocation source descriptor names."
+                    $"The client-certificate revocation source '{sourceTypeName}' is named '{name}', which no revocation source descriptor names."
                 );
+            }
 
             if (!sourcesByName.TryAdd(name, source))
                 throw new InvalidOperationException(

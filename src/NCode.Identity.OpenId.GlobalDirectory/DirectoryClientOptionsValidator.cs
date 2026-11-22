@@ -25,8 +25,9 @@ internal sealed class DirectoryClientOptionsValidator : IValidateOptions<Directo
 
         if (!AbsoluteUri.TryParseServiceUrl(options.Url, out _))
         {
+            var url = DirectoryUrls.Describe(options.Url);
             failures.Add(
-                $"{Prefix}:{nameof(DirectoryClientOptions.Url)} '{DirectoryUrls.Describe(options.Url)}' must be an absolute https URL, or an http URL on a loopback host, with no user information, query or fragment."
+                $"{Prefix}:{nameof(DirectoryClientOptions.Url)} '{url}' must be an absolute https URL, or an http URL on a loopback host, with no user information, query or fragment."
             );
         }
 

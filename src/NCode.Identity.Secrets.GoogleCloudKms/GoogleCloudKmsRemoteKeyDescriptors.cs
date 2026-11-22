@@ -61,71 +61,84 @@ internal sealed class GoogleCloudKmsRemoteKeyDescriptors(
 
         foreach (var keySizeBits in RsaKeySizesBits)
         {
-            rows.Add(
-                CreateRsaRow(
-                    "RS256",
-                    keySizeBits,
-                    $"RSA_SIGN_PKCS1_{keySizeBits}_SHA256",
-                    HashAlgorithmName.SHA256
-                )
-            );
-        }
-
-        rows.Add(
-            CreateRsaRow("RS512", 4096, "RSA_SIGN_PKCS1_4096_SHA512", HashAlgorithmName.SHA512)
-        );
-
-        rows.Add(CreateRsaRow("PS512", 4096, "RSA_SIGN_PSS_4096_SHA512", HashAlgorithmName.SHA512));
-
-        foreach (var keySizeBits in RsaKeySizesBits)
-        {
-            rows.Add(
-                CreateRsaRow(
-                    "PS256",
-                    keySizeBits,
-                    $"RSA_SIGN_PSS_{keySizeBits}_SHA256",
-                    HashAlgorithmName.SHA256
-                )
-            );
-        }
-
-        rows.Add(
-            CreateEccRow(
-                "ES256",
-                EccCurveSpecification.P256,
-                "EC_SIGN_P256_SHA256",
+            var row = CreateRsaRow(
+                "RS256",
+                keySizeBits,
+                $"RSA_SIGN_PKCS1_{keySizeBits}_SHA256",
                 HashAlgorithmName.SHA256
-            )
-        );
+            );
+            rows.Add(row);
+        }
 
-        rows.Add(
-            CreateEccRow(
-                "ES384",
-                EccCurveSpecification.P384,
-                "EC_SIGN_P384_SHA384",
-                HashAlgorithmName.SHA384
-            )
+        var rs512Row = CreateRsaRow(
+            "RS512",
+            4096,
+            "RSA_SIGN_PKCS1_4096_SHA512",
+            HashAlgorithmName.SHA512
         );
+        rows.Add(rs512Row);
+
+        var ps512Row = CreateRsaRow(
+            "PS512",
+            4096,
+            "RSA_SIGN_PSS_4096_SHA512",
+            HashAlgorithmName.SHA512
+        );
+        rows.Add(ps512Row);
 
         foreach (var keySizeBits in RsaKeySizesBits)
         {
-            rows.Add(
-                CreateDecryptionRow("RSA-OAEP", keySizeBits, $"RSA_DECRYPT_OAEP_{keySizeBits}_SHA1")
+            var row = CreateRsaRow(
+                "PS256",
+                keySizeBits,
+                $"RSA_SIGN_PSS_{keySizeBits}_SHA256",
+                HashAlgorithmName.SHA256
             );
+            rows.Add(row);
+        }
+
+        var es256Row = CreateEccRow(
+            "ES256",
+            EccCurveSpecification.P256,
+            "EC_SIGN_P256_SHA256",
+            HashAlgorithmName.SHA256
+        );
+        rows.Add(es256Row);
+
+        var es384Row = CreateEccRow(
+            "ES384",
+            EccCurveSpecification.P384,
+            "EC_SIGN_P384_SHA384",
+            HashAlgorithmName.SHA384
+        );
+        rows.Add(es384Row);
+
+        foreach (var keySizeBits in RsaKeySizesBits)
+        {
+            var row = CreateDecryptionRow(
+                "RSA-OAEP",
+                keySizeBits,
+                $"RSA_DECRYPT_OAEP_{keySizeBits}_SHA1"
+            );
+            rows.Add(row);
         }
 
         foreach (var keySizeBits in RsaKeySizesBits)
         {
-            rows.Add(
-                CreateDecryptionRow(
-                    "RSA-OAEP-256",
-                    keySizeBits,
-                    $"RSA_DECRYPT_OAEP_{keySizeBits}_SHA256"
-                )
+            var row = CreateDecryptionRow(
+                "RSA-OAEP-256",
+                keySizeBits,
+                $"RSA_DECRYPT_OAEP_{keySizeBits}_SHA256"
             );
+            rows.Add(row);
         }
 
-        rows.Add(CreateDecryptionRow("RSA-OAEP-512", 4096, "RSA_DECRYPT_OAEP_4096_SHA512"));
+        var rsaOaep512Row = CreateDecryptionRow(
+            "RSA-OAEP-512",
+            4096,
+            "RSA_DECRYPT_OAEP_4096_SHA512"
+        );
+        rows.Add(rsaOaep512Row);
 
         return rows;
     }

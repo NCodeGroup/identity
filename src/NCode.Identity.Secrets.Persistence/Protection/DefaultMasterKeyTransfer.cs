@@ -82,7 +82,8 @@ internal sealed class DefaultMasterKeyTransfer(
         ArgumentNullException.ThrowIfNull(recipient);
 
         var key = owner.Normalize();
-        var encoder = JoseSerializer.CreateEncoder(CreateEncryptionOptions(recipient));
+        var encryptionOptions = CreateEncryptionOptions(recipient);
+        var encoder = JoseSerializer.CreateEncoder(encryptionOptions);
 
         IReadOnlyList<PersistedMasterKey> rows;
         PersistedOwnerRootKey? rootKey;
@@ -139,7 +140,8 @@ internal sealed class DefaultMasterKeyTransfer(
         await JoseSerializer.DecodeAsync(token, recipientPrivate, decoded, cancellationToken);
 
         using var imported = ReadPackage(decoded.AsReadOnlySequence, key);
-        if (!SecretOwnerComparer.Instance.Equals(imported.Owner.Normalize(), key))
+        var importedOwner = imported.Owner.Normalize();
+        if (!SecretOwnerComparer.Instance.Equals(importedOwner, key))
         {
             throw new InvalidOperationException(
                 $"The master key transfer package is for another owner than '{key}'."
@@ -148,20 +150,26 @@ internal sealed class DefaultMasterKeyTransfer(
 
         // The root key that the package brings passes the checks that setting it would, so a move cannot wrap master
         // keys under a key that this cell does not allow, such as a key outside its cloud regions.
-        if (
-            imported.RootKey is { } bringing
-            && OwnerRootKeyRequestValidation.GetRefusalOrDefault(
-                OwnerRootKeyManager,
-                key,
-                new OwnerRootKeyRequest(bringing.KeyWrapperName, bringing.KeyReference)
-                {
-                    AccessIdentity = bringing.AccessIdentity,
-                }
-            )
-                is { } refusal
-        )
+        if (imported.RootKey is { } bringing)
         {
-            return new MasterKeyTransferResult(0) { RefusalDetail = refusal.Reason };
+            var rootKeyRequest = new OwnerRootKeyRequest(
+                bringing.KeyWrapperName,
+                bringing.KeyReference
+            )
+            {
+                AccessIdentity = bringing.AccessIdentity,
+            };
+            if (
+                OwnerRootKeyRequestValidation.GetRefusalOrDefault(
+                    OwnerRootKeyManager,
+                    key,
+                    rootKeyRequest
+                ) is
+                { } refusal
+            )
+            {
+                return new MasterKeyTransferResult(0) { RefusalDetail = refusal.Reason };
+            }
         }
 
         await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
@@ -186,7 +194,8 @@ internal sealed class DefaultMasterKeyTransfer(
         foreach (var importedKey in imported.Keys)
         {
             var wraps = await Factory.WrapAsync(importedKey.MasterKey, target, cancellationToken);
-            await masterKeyStore.AddAsync(CreateRow(importedKey, key, wraps), cancellationToken);
+            var row = CreateRow(importedKey, key, wraps);
+            await masterKeyStore.AddAsync(row, cancellationToken);
         }
 
         await storeManager.SaveChangesAsync(cancellationToken);
@@ -222,14 +231,11 @@ internal sealed class DefaultMasterKeyTransfer(
             );
         }
 
+        var credentials = new JoseKeyManagementCredentials(recipient, keyManagement);
+
         return new JoseEncryptionOptions(encryption)
         {
-            Recipients =
-            [
-                new JoseRecipientOptions(
-                    new JoseKeyManagementCredentials(recipient, keyManagement)
-                ),
-            ],
+            Recipients = [new JoseRecipientOptions(credentials)],
         };
     }
 
@@ -475,7 +481,8 @@ internal sealed class DefaultMasterKeyTransfer(
 
         while (reader.Read() && reader.TokenType != JsonTokenType.EndArray)
         {
-            keys.Add(ReadKey(ref reader, owner));
+            var importedKey = ReadKey(ref reader, owner);
+            keys.Add(importedKey);
         }
     }
 
@@ -560,11 +567,8 @@ internal sealed class DefaultMasterKeyTransfer(
                 throw Malformed();
             }
 
-            return new ImportedKey(
-                created,
-                retired,
-                MasterKey.Create(id, owner, keyVersion, material)
-            );
+            var masterKey = MasterKey.Create(id, owner, keyVersion, material);
+            return new ImportedKey(created, retired, masterKey);
         }
         finally
         {

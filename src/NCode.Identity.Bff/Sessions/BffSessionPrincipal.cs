@@ -97,7 +97,8 @@ internal static class BffSessionPrincipal
         var list = new List<Claim>(claims.Count);
         foreach (var stored in claims)
         {
-            list.Add(new Claim(stored.Type, stored.Value, stored.ValueType, issuer));
+            var claim = new Claim(stored.Type, stored.Value, stored.ValueType, issuer);
+            list.Add(claim);
         }
 
         var identity = new ClaimsIdentity(
@@ -122,8 +123,10 @@ internal static class BffSessionPrincipal
 
         var principal = Create(state.Payload.Claims, state.Metadata.Issuer);
         var identity = principal.Identities.Single();
-        identity.AddClaim(new Claim(BffClaimTypes.LogoutUrl, logoutUrl));
-        identity.AddClaim(new Claim(BffClaimTypes.LogoutSid, state.Payload.LogoutGuard));
+        var logoutUrlClaim = new Claim(BffClaimTypes.LogoutUrl, logoutUrl);
+        identity.AddClaim(logoutUrlClaim);
+        var logoutSidClaim = new Claim(BffClaimTypes.LogoutSid, state.Payload.LogoutGuard);
+        identity.AddClaim(logoutSidClaim);
         return principal;
     }
 }

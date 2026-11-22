@@ -54,13 +54,12 @@ internal sealed class SetupApiHandler(
             return TypedResults.NotFound();
         }
 
-        return TypedResults.Ok(
-            new SetupStatusResponse
-            {
-                TokenSource = SetupTokenService.TokenSource,
-                MinimumPasswordLength = SetupDefaults.MinimumRootPasswordLength,
-            }
-        );
+        var status = new SetupStatusResponse
+        {
+            TokenSource = SetupTokenService.TokenSource,
+            MinimumPasswordLength = SetupDefaults.MinimumRootPasswordLength,
+        };
+        return TypedResults.Ok(status);
     }
 
     /// <summary>
@@ -114,18 +113,17 @@ internal sealed class SetupApiHandler(
         }
 
         var console = OptionsAccessor.Value.Wizard.ManagementConsole;
-        return TypedResults.Ok(
-            new CheckSetupTokenResponse
-            {
-                ManagementConsole = console.IsConfigured
-                    ? new SetupManagementConsoleHint
-                    {
-                        BaseUrl = console.BaseUrl,
-                        ClientId = console.ClientId,
-                    }
-                    : null,
-            }
-        );
+        var response = new CheckSetupTokenResponse
+        {
+            ManagementConsole = console.IsConfigured
+                ? new SetupManagementConsoleHint
+                {
+                    BaseUrl = console.BaseUrl,
+                    ClientId = console.ClientId,
+                }
+                : null,
+        };
+        return TypedResults.Ok(response);
     }
 
     /// <summary>
@@ -188,26 +186,25 @@ internal sealed class SetupApiHandler(
             );
             if (failures.Count > 0)
             {
+                var detail = string.Join(' ', failures);
                 return TypedResults.Problem(
-                    detail: string.Join(' ', failures),
+                    detail: detail,
                     statusCode: StatusCodes.Status400BadRequest
                 );
             }
         }
 
-        var result = await InstanceSetupService.SetUpAsync(
-            new InstanceSetupRequest
+        var setupRequest = new InstanceSetupRequest
+        {
+            Root = new SetupRootOptions
             {
-                Root = new SetupRootOptions
-                {
-                    UserName = request.UserName,
-                    Email = request.Email,
-                    Password = request.Password,
-                },
-                ManagementConsole = console,
+                UserName = request.UserName,
+                Email = request.Email,
+                Password = request.Password,
             },
-            cancellationToken
-        );
+            ManagementConsole = console,
+        };
+        var result = await InstanceSetupService.SetUpAsync(setupRequest, cancellationToken);
         if (!result.Succeeded)
         {
             return TypedResults.Problem(
@@ -223,15 +220,13 @@ internal sealed class SetupApiHandler(
     {
         httpContext.Response.Headers.CacheControl = "no-store";
 
-        return RetryAfterProblem.Create(
-            httpContext,
-            retryAfter,
-            new ProblemDetails
-            {
-                Status = StatusCodes.Status429TooManyRequests,
-                Detail = GetRateLimitedDetail(RetryAfterProblem.GetWaitSeconds(retryAfter)),
-            }
-        );
+        var waitSeconds = RetryAfterProblem.GetWaitSeconds(retryAfter);
+        var problem = new ProblemDetails
+        {
+            Status = StatusCodes.Status429TooManyRequests,
+            Detail = GetRateLimitedDetail(waitSeconds),
+        };
+        return RetryAfterProblem.Create(httpContext, retryAfter, problem);
     }
 
     /// <summary>

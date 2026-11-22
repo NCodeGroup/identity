@@ -43,20 +43,21 @@ internal sealed class OwnerRootKeyUnavailableEndpointFilter(
         {
             Logger.OwnerRootKeyUnavailable(exception.Owner);
 
+            var problemDetails = new ProblemDetails
+            {
+                Status = StatusCodes.Status503ServiceUnavailable,
+                Detail =
+                    "The tenant's root key is unavailable, so its encryption keys cannot be used until it is restored.",
+                Extensions =
+                {
+                    [ManagementProblemMembers.OwnerType] = exception.Owner.OwnerType,
+                    [ManagementProblemMembers.OwnerId] = exception.Owner.OwnerId,
+                },
+            };
             return RetryAfterProblem.Create(
                 context.HttpContext,
                 Options.Value.OwnerRootKeys.RetryInterval,
-                new ProblemDetails
-                {
-                    Status = StatusCodes.Status503ServiceUnavailable,
-                    Detail =
-                        "The tenant's root key is unavailable, so its encryption keys cannot be used until it is restored.",
-                    Extensions =
-                    {
-                        [ManagementProblemMembers.OwnerType] = exception.Owner.OwnerType,
-                        [ManagementProblemMembers.OwnerId] = exception.Owner.OwnerId,
-                    },
-                }
+                problemDetails
             );
         }
     }

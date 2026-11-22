@@ -24,11 +24,12 @@ internal sealed class FragmentAuthorizationResponseModeHandler : IAuthorizationR
         CancellationToken cancellationToken
     )
     {
+        var parameters = AuthorizationResponseWriter.GetParameters(message);
         AuthorizationResponseWriter.WriteRedirect(
             httpContext.Response,
             result.Delivery.RedirectUri,
             useQuery: false,
-            AuthorizationResponseWriter.GetParameters(message)
+            parameters
         );
         return ValueTask.CompletedTask;
     }

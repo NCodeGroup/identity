@@ -26,9 +26,7 @@ internal sealed class MasterKeyRewrapJobHandler(IMasterKeyManager masterKeyManag
     {
         ArgumentNullException.ThrowIfNull(job);
 
-        await MasterKeyManager.RewrapAsync(
-            new SecretOwner(job.OwnerType, job.OwnerId),
-            cancellationToken
-        );
+        var secretOwner = new SecretOwner(job.OwnerType, job.OwnerId);
+        await MasterKeyManager.RewrapAsync(secretOwner, cancellationToken);
     }
 }

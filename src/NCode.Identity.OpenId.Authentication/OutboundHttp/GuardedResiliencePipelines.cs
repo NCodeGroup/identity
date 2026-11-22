@@ -84,18 +84,21 @@ internal sealed class GuardedResiliencePipelines(
     /// <returns>The error type.</returns>
     // The protocol client's ProviderResiliencePipelines.GetErrorType maps outcomes the same way; the client package
     // cannot reference this one (ADR-1285), so the two copies are kept in step, and both test suites pin the values.
-    internal static string GetErrorType(Outcome<HttpResponseMessage> outcome) =>
-        outcome switch
+    internal static string GetErrorType(Outcome<HttpResponseMessage> outcome)
+    {
+        switch (outcome)
         {
-            { Result: { } response } => ((int)response.StatusCode).ToString(
-                CultureInfo.InvariantCulture
-            ),
-            { Exception: TimeoutRejectedException } => AuthenticationMetrics.TimeoutErrorType,
-            { Exception: HttpRequestException exception } => ToSnakeCase(
-                exception.HttpRequestError.ToString()
-            ),
-            _ => OpenIdMetricAttributes.OtherValue,
-        };
+            case { Result: { } response }:
+                return ((int)response.StatusCode).ToString(CultureInfo.InvariantCulture);
+            case { Exception: TimeoutRejectedException }:
+                return AuthenticationMetrics.TimeoutErrorType;
+            case { Exception: HttpRequestException exception }:
+                var requestError = exception.HttpRequestError.ToString();
+                return ToSnakeCase(requestError);
+            default:
+                return OpenIdMetricAttributes.OtherValue;
+        }
+    }
 
     private static string ToSnakeCase(string name)
     {
@@ -107,7 +110,8 @@ internal sealed class GuardedResiliencePipelines(
             {
                 if (index > 0)
                     builder.Append('_');
-                builder.Append(char.ToLowerInvariant(character));
+                var lowerCharacter = char.ToLowerInvariant(character);
+                builder.Append(lowerCharacter);
             }
             else
             {
@@ -153,27 +157,26 @@ internal sealed class GuardedResiliencePipelines(
 
         if (maxRetryAttempts > 0)
         {
-            builder.AddRetry(
-                new RetryStrategyOptions<HttpResponseMessage>
+            var retryOptions = new RetryStrategyOptions<HttpResponseMessage>
+            {
+                MaxRetryAttempts = maxRetryAttempts,
+                Delay = options.RetryDelay,
+                BackoffType = DelayBackoffType.Exponential,
+                UseJitter = true,
+                ShouldHandle = static args =>
                 {
-                    MaxRetryAttempts = maxRetryAttempts,
-                    Delay = options.RetryDelay,
-                    BackoffType = DelayBackoffType.Exponential,
-                    UseJitter = true,
-                    ShouldHandle = static args =>
-                    {
-                        var isTransient = IsTransient(args.Outcome);
-                        return ValueTask.FromResult(isTransient);
-                    },
-                    OnRetry = args =>
-                    {
-                        var errorType = GetErrorType(args.Outcome);
-                        metrics.OutboundRetried(errorType);
-                        args.Outcome.Result?.Dispose();
-                        return ValueTask.CompletedTask;
-                    },
-                }
-            );
+                    var isTransient = IsTransient(args.Outcome);
+                    return ValueTask.FromResult(isTransient);
+                },
+                OnRetry = args =>
+                {
+                    var errorType = GetErrorType(args.Outcome);
+                    metrics.OutboundRetried(errorType);
+                    args.Outcome.Result?.Dispose();
+                    return ValueTask.CompletedTask;
+                },
+            };
+            builder.AddRetry(retryOptions);
         }
 
         var attemptTimeout = CreateTimeout(

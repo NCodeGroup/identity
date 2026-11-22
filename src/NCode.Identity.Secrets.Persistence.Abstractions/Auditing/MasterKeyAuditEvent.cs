@@ -50,11 +50,18 @@ public sealed record MasterKeyAuditEvent : AuditEvent, ISupportAuditDetails
     /// <remarks>
     /// Lists the master key first and the owner that it protects second.
     /// </remarks>
-    public override IReadOnlyList<AuditResource> Resources =>
-        [
-            new AuditResource(AuditResourceTypes.MasterKey, Key.KeyId.ToString("D")),
-            new AuditResource(Key.Owner.OwnerType, Key.Owner.OwnerId),
-        ];
+    public override IReadOnlyList<AuditResource> Resources
+    {
+        get
+        {
+            var keyId = Key.KeyId.ToString("D");
+            return
+            [
+                new AuditResource(AuditResourceTypes.MasterKey, keyId),
+                new AuditResource(Key.Owner.OwnerType, Key.Owner.OwnerId),
+            ];
+        }
+    }
 
     /// <inheritdoc />
     /// <remarks>

@@ -55,17 +55,15 @@ internal class TenantEnvironmentSettingDescriptorDataSource(
 
             // environment_name: a free-form display name for the tenant's environment, such as sandbox. Empty by
             // default, which shows no name. Override (Replace): a child fully replaces the parent value.
+            var environmentNameRule = SettingRules.Must<string>(
+                $"at most {MaxEnvironmentNameLength} characters with no control characters",
+                value => value.Length <= MaxEnvironmentNameLength && !value.Any(char.IsControl)
+            );
             yield return new SettingDescriptor<string>
             {
                 Name = OpenIdSettingNames.EnvironmentName,
                 AppliesTo = [OpenIdSettingScopes.Tenant],
-                Rule = SettingRules.EmptyOr(
-                    SettingRules.Must<string>(
-                        $"at most {MaxEnvironmentNameLength} characters with no control characters",
-                        value =>
-                            value.Length <= MaxEnvironmentNameLength && !value.Any(char.IsControl)
-                    )
-                ),
+                Rule = SettingRules.EmptyOr(environmentNameRule),
                 Default = string.Empty,
 
                 IsDiscoverable = false,

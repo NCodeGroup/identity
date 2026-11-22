@@ -75,24 +75,26 @@ internal sealed class BffMetrics
     {
         var meter = meterFactory.Create(BffTelemetry.MeterName);
 
+        var refreshAdvice = new InstrumentAdvice<double>
+        {
+            HistogramBucketBoundaries = RefreshBucketBoundaries,
+        };
         TokenRefreshDuration = meter.CreateHistogram(
             TokenRefreshDurationName,
             unit: "s",
             description: "The time a request spent getting a refreshed user access token, waits included.",
-            advice: new InstrumentAdvice<double>
-            {
-                HistogramBucketBoundaries = RefreshBucketBoundaries,
-            }
+            advice: refreshAdvice
         );
 
+        var storeAdvice = new InstrumentAdvice<double>
+        {
+            HistogramBucketBoundaries = StoreBucketBoundaries,
+        };
         SessionStoreOperationDuration = meter.CreateHistogram(
             SessionStoreOperationDurationName,
             unit: "s",
             description: "The duration of a BFF session store operation.",
-            advice: new InstrumentAdvice<double>
-            {
-                HistogramBucketBoundaries = StoreBucketBoundaries,
-            }
+            advice: storeAdvice
         );
     }
 
@@ -112,7 +114,8 @@ internal sealed class BffMetrics
         if (failureReason is not null)
             tags.Add(ErrorTypeAttribute, failureReason);
 
-        TokenRefreshDuration.Record(Stopwatch.GetElapsedTime(startTimestamp).TotalSeconds, tags);
+        var elapsedSeconds = Stopwatch.GetElapsedTime(startTimestamp).TotalSeconds;
+        TokenRefreshDuration.Record(elapsedSeconds, tags);
     }
 
     /// <summary>
@@ -132,11 +135,12 @@ internal sealed class BffMetrics
 
         var tags = new TagList { { SessionStoreOperationAttribute, operation } };
         if (exception is not null)
-            tags.Add(ErrorTypeAttribute, exception.GetType().FullName);
+        {
+            var errorType = exception.GetType().FullName;
+            tags.Add(ErrorTypeAttribute, errorType);
+        }
 
-        SessionStoreOperationDuration.Record(
-            Stopwatch.GetElapsedTime(startTimestamp).TotalSeconds,
-            tags
-        );
+        var elapsedSeconds = Stopwatch.GetElapsedTime(startTimestamp).TotalSeconds;
+        SessionStoreOperationDuration.Record(elapsedSeconds, tags);
     }
 }

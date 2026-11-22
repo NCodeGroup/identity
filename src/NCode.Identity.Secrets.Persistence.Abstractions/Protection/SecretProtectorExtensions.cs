@@ -38,9 +38,11 @@ public static class SecretProtectorExtensions
         {
             ArgumentNullException.ThrowIfNull(protector);
 
+            var protectedLength = protector.GetProtectedLength(plaintext.Length);
+            var protectState = new ProtectToStringState(protector, plaintext, context);
             return string.Create(
-                protector.GetProtectedLength(plaintext.Length),
-                new ProtectToStringState(protector, plaintext, context),
+                protectedLength,
+                protectState,
                 static (chars, state) =>
                 {
                     var writer = chars.GetFixedBufferWriter();
@@ -75,9 +77,10 @@ public static class SecretProtectorExtensions
         {
             ArgumentNullException.ThrowIfNull(protector);
 
+            var rewrapState = new RewrapToStringState(protector, protectedValue, context);
             return string.Create(
                 protectedValue.Length,
-                new RewrapToStringState(protector, protectedValue, context),
+                rewrapState,
                 static (chars, state) =>
                 {
                     var writer = chars.GetFixedBufferWriter();

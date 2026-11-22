@@ -34,17 +34,16 @@ internal sealed class GoogleCloudKmsRemoteKeyProviderOptionsValidator
             );
         }
 
-        if (
-            options.AllowedLocations.Count > 0
-            && !options.AllowedLocations.Contains(
-                GoogleCloudKmsKeyName.GetLocation(options.KeyRing),
-                StringComparer.Ordinal
-            )
-        )
+        if (options.AllowedLocations.Count > 0)
         {
-            return ValidateOptionsResult.Fail(
-                $"SecretProtection:RemoteKeyProviders:GoogleCloudKms:KeyRing must be in one of the allowed Cloud KMS locations: {string.Join(", ", options.AllowedLocations)}."
-            );
+            var location = GoogleCloudKmsKeyName.GetLocation(options.KeyRing);
+            if (!options.AllowedLocations.Contains(location, StringComparer.Ordinal))
+            {
+                var allowedLocationsText = string.Join(", ", options.AllowedLocations);
+                return ValidateOptionsResult.Fail(
+                    $"SecretProtection:RemoteKeyProviders:GoogleCloudKms:KeyRing must be in one of the allowed Cloud KMS locations: {allowedLocationsText}."
+                );
+            }
         }
 
         return ValidateOptionsResult.Success;

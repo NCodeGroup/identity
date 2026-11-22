@@ -1,6 +1,7 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.AspNetCore.Http;
 using NCode.Identity.Bff.Options;
 
@@ -9,10 +10,38 @@ namespace NCode.Identity.Bff.Navigation;
 /// <summary>
 /// Builds the absolute and local URLs that the BFF endpoints redirect to. An absolute URL comes from
 /// <see cref="BffFrontendOptions.PublicOrigin"/>, never from the request; a local URL takes the request's path base.
+/// Every local redirect goes through <see cref="RedirectLocal"/>.
 /// </summary>
 // See ADR-1365.
 internal static class BffNavigation
 {
+    /// <summary>
+    /// Determines whether a URL is local to the origin of the BFF.
+    /// </summary>
+    /// <param name="url">The URL to check.</param>
+    private static bool IsLocalUrl([NotNullWhen(true)] string? url) =>
+        NCode.Identity.OpenId.LocalUrl.IsLocal(url);
+
+    /// <summary>
+    /// Redirects the browser to a local URL of the BFF, and refuses a URL that is not local
+    /// (<see cref="NCode.Identity.OpenId.LocalUrl.IsLocal(string)"/>), so neither the path base nor a stored return URL
+    /// can send the browser off the origin.
+    /// </summary>
+    /// <param name="response">The current response.</param>
+    /// <param name="url">The local URL to redirect to.</param>
+    /// <exception cref="InvalidOperationException">The URL is not local.</exception>
+    public static void RedirectLocal(HttpResponse response, string url)
+    {
+        ArgumentNullException.ThrowIfNull(response);
+
+        if (!IsLocalUrl(url))
+            throw new InvalidOperationException(
+                "The BFF refuses to redirect to a URL that is not local."
+            );
+
+        response.Redirect(url);
+    }
+
     /// <summary>
     /// Gets the absolute redirect URI of the callback endpoint of a frontend.
     /// </summary>

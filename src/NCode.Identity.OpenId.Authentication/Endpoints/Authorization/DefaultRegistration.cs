@@ -59,58 +59,50 @@ internal static class DefaultRegistration
             >();
 
             // Response modes are an open vocabulary: a package adds one by registering its handler (ADR-1201).
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    IAuthorizationResponseModeHandler,
-                    QueryAuthorizationResponseModeHandler
-                >()
-            );
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    IAuthorizationResponseModeHandler,
-                    FragmentAuthorizationResponseModeHandler
-                >()
-            );
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    IAuthorizationResponseModeHandler,
-                    FormPostAuthorizationResponseModeHandler
-                >()
-            );
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    IAuthorizationResponseModeHandler,
-                    QueryJwtAuthorizationResponseModeHandler
-                >()
-            );
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    IAuthorizationResponseModeHandler,
-                    FragmentJwtAuthorizationResponseModeHandler
-                >()
-            );
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    IAuthorizationResponseModeHandler,
-                    FormPostJwtAuthorizationResponseModeHandler
-                >()
-            );
+            var queryResponseMode = ServiceDescriptor.Singleton<
+                IAuthorizationResponseModeHandler,
+                QueryAuthorizationResponseModeHandler
+            >();
+            serviceCollection.TryAddEnumerable(queryResponseMode);
+            var fragmentResponseMode = ServiceDescriptor.Singleton<
+                IAuthorizationResponseModeHandler,
+                FragmentAuthorizationResponseModeHandler
+            >();
+            serviceCollection.TryAddEnumerable(fragmentResponseMode);
+            var formPostResponseMode = ServiceDescriptor.Singleton<
+                IAuthorizationResponseModeHandler,
+                FormPostAuthorizationResponseModeHandler
+            >();
+            serviceCollection.TryAddEnumerable(formPostResponseMode);
+            var queryJwtResponseMode = ServiceDescriptor.Singleton<
+                IAuthorizationResponseModeHandler,
+                QueryJwtAuthorizationResponseModeHandler
+            >();
+            serviceCollection.TryAddEnumerable(queryJwtResponseMode);
+            var fragmentJwtResponseMode = ServiceDescriptor.Singleton<
+                IAuthorizationResponseModeHandler,
+                FragmentJwtAuthorizationResponseModeHandler
+            >();
+            serviceCollection.TryAddEnumerable(fragmentJwtResponseMode);
+            var formPostJwtResponseMode = ServiceDescriptor.Singleton<
+                IAuthorizationResponseModeHandler,
+                FormPostJwtAuthorizationResponseModeHandler
+            >();
+            serviceCollection.TryAddEnumerable(formPostJwtResponseMode);
 
             // Continue Providers
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    IContinueProvider,
-                    DefaultAuthorizationContinueProvider
-                >()
-            );
+            var continueProvider = ServiceDescriptor.Singleton<
+                IContinueProvider,
+                DefaultAuthorizationContinueProvider
+            >();
+            serviceCollection.TryAddEnumerable(continueProvider);
 
             // Serialization
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    IOpenIdJsonConverterProvider,
-                    AuthorizationJsonConverterProvider
-                >()
-            );
+            var jsonConverterProvider = ServiceDescriptor.Singleton<
+                IOpenIdJsonConverterProvider,
+                AuthorizationJsonConverterProvider
+            >();
+            serviceCollection.TryAddEnumerable(jsonConverterProvider);
 
             // Mediator
             serviceCollection.TryAddSingleton<

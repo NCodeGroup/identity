@@ -36,14 +36,13 @@ internal class ClientGrantPromotionContributor(IHostManagedClientChecker hostMan
         {
             foreach (var detail in promotion.Errors)
             {
-                context.AddError(
-                    new TenantPromotionErrorResource
-                    {
-                        ResourceType = ManagementResourceTypes.ClientGrant,
-                        ResourceId = promotion.ResourceId,
-                        Detail = detail,
-                    }
-                );
+                var errorResource = new TenantPromotionErrorResource
+                {
+                    ResourceType = ManagementResourceTypes.ClientGrant,
+                    ResourceId = promotion.ResourceId,
+                    Detail = detail,
+                };
+                context.AddError(errorResource);
             }
 
             if (promotion.TargetResourceServerId is null)
@@ -51,14 +50,13 @@ internal class ClientGrantPromotionContributor(IHostManagedClientChecker hostMan
                 continue;
             }
 
-            context.AddChange(
-                new TenantPromotionChangeResource
-                {
-                    ResourceType = ManagementResourceTypes.ClientGrant,
-                    ResourceId = promotion.ResourceId,
-                    Action = promotion.Action,
-                }
-            );
+            var changeResource = new TenantPromotionChangeResource
+            {
+                ResourceType = ManagementResourceTypes.ClientGrant,
+                ResourceId = promotion.ResourceId,
+                Action = promotion.Action,
+            };
+            context.AddChange(changeResource);
 
             if (promotion.Action != TenantPromotionActions.Unchanged)
             {
@@ -90,17 +88,15 @@ internal class ClientGrantPromotionContributor(IHostManagedClientChecker hostMan
 
             if (promotion.Target is null)
             {
-                await store.AddAsync(
-                    new PersistedClientGrant
-                    {
-                        TenantId = context.TargetTenant.TenantId,
-                        ClientId = promotion.ClientId,
-                        ResourceServerId = targetResourceServerId,
-                        ConcurrencyToken = string.Empty,
-                        Scopes = [.. promotion.Source.Scopes],
-                    },
-                    cancellationToken
-                );
+                var clientGrant = new PersistedClientGrant
+                {
+                    TenantId = context.TargetTenant.TenantId,
+                    ClientId = promotion.ClientId,
+                    ResourceServerId = targetResourceServerId,
+                    ConcurrencyToken = string.Empty,
+                    Scopes = [.. promotion.Source.Scopes],
+                };
+                await store.AddAsync(clientGrant, cancellationToken);
             }
             else
             {
@@ -128,9 +124,8 @@ internal class ClientGrantPromotionContributor(IHostManagedClientChecker hostMan
 
         if (client is { OwningNodeType: { } owningNodeType, OwningNodeId: { } owningNodeId })
         {
-            context.AddRequiredCreateAuthority(
-                ResourceNode.For(client.TenantId, owningNodeType, owningNodeId)
-            );
+            var owningNode = ResourceNode.For(client.TenantId, owningNodeType, owningNodeId);
+            context.AddRequiredCreateAuthority(owningNode);
         }
     }
 
@@ -162,17 +157,16 @@ internal class ClientGrantPromotionContributor(IHostManagedClientChecker hostMan
                     $"The resource server '{grant.ResourceServerId}' the grant reaches is neither promoted nor a system resource server of the target tenant."
                 );
 
-                promotions.Add(
-                    new ClientGrantPromotion
-                    {
-                        ClientId = clientId,
-                        Source = grant,
-                        Target = null,
-                        TargetResourceServerId = null,
-                        Action = TenantPromotionActions.Unchanged,
-                        Errors = errors,
-                    }
-                );
+                var unpromotedGrant = new ClientGrantPromotion
+                {
+                    ClientId = clientId,
+                    Source = grant,
+                    Target = null,
+                    TargetResourceServerId = null,
+                    Action = TenantPromotionActions.Unchanged,
+                    Errors = errors,
+                };
+                promotions.Add(unpromotedGrant);
                 continue;
             }
 
@@ -218,17 +212,16 @@ internal class ClientGrantPromotionContributor(IHostManagedClientChecker hostMan
                 action = TenantPromotionActions.Updated;
             }
 
-            promotions.Add(
-                new ClientGrantPromotion
-                {
-                    ClientId = clientId,
-                    Source = grant,
-                    Target = target,
-                    TargetResourceServerId = targetResourceServerId,
-                    Action = action,
-                    Errors = errors,
-                }
-            );
+            var grantPromotion = new ClientGrantPromotion
+            {
+                ClientId = clientId,
+                Source = grant,
+                Target = target,
+                TargetResourceServerId = targetResourceServerId,
+                Action = action,
+                Errors = errors,
+            };
+            promotions.Add(grantPromotion);
         }
 
         return promotions;

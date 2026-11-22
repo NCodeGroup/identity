@@ -24,4 +24,13 @@
     <ItemGroup>
         <ProjectReference Include="..\..\analyzers\NCode.Identity.Analyzers\NCode.Identity.Analyzers.csproj" />
     </ItemGroup>
+
+    <ItemGroup>
+        <!-- No build loads the analyzers into their own project, so a test runs NestedCallArgumentAnalyzer over these sources. -->
+        <None
+            Include="..\..\analyzers\NCode.Identity.Analyzers\*.cs"
+            LinkBase="AnalyzerSources"
+            CopyToOutputDirectory="PreserveNewest"
+        />
+    </ItemGroup>
 </Project>

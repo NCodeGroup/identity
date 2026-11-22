@@ -51,10 +51,11 @@ internal sealed class DefaultEffectiveSettingsResolver(
         ArgumentNullException.ThrowIfNull(parentSettings);
         ArgumentNullException.ThrowIfNull(scopeName);
 
+        var jsonSerializerOptions = OpenIdEnvironmentProvider.Get().JsonSerializerOptions;
         var scopeSettings = SettingSerializer.DeserializeSettings(
             settings,
             scopeName,
-            OpenIdEnvironmentProvider.Get().JsonSerializerOptions
+            jsonSerializerOptions
         );
         var impliedSettings = TenantEnvironmentCatalog.SelectImpliedProfiles(
             parentSettings,
@@ -75,7 +76,8 @@ internal sealed class DefaultEffectiveSettingsResolver(
         ArgumentNullException.ThrowIfNull(parentSettings);
         ArgumentNullException.ThrowIfNull(scopeName);
 
-        return parentSettings.Merge(ReadScopeSettings(parentSettings, scopeName, settings));
+        var scopeSettings = ReadScopeSettings(parentSettings, scopeName, settings);
+        return parentSettings.Merge(scopeSettings);
     }
 
     /// <inheritdoc />
@@ -105,10 +107,8 @@ internal sealed class DefaultEffectiveSettingsResolver(
         CancellationToken cancellationToken
     )
     {
-        var platform = await OpenIdPlatformProvider.GetAsync(
-            OpenIdEnvironmentProvider.Get(),
-            cancellationToken
-        );
+        var environment = OpenIdEnvironmentProvider.Get();
+        var platform = await OpenIdPlatformProvider.GetAsync(environment, cancellationToken);
 
         return Resolve(
             platform.ConfiguredSettingsProvider.Collection,
@@ -123,10 +123,8 @@ internal sealed class DefaultEffectiveSettingsResolver(
         CancellationToken cancellationToken
     )
     {
-        var platform = await OpenIdPlatformProvider.GetAsync(
-            OpenIdEnvironmentProvider.Get(),
-            cancellationToken
-        );
+        var environment = OpenIdEnvironmentProvider.Get();
+        var platform = await OpenIdPlatformProvider.GetAsync(environment, cancellationToken);
         var configuredSettings = platform.ConfiguredSettingsProvider.Collection;
 
         await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
@@ -174,7 +172,8 @@ internal sealed class DefaultEffectiveSettingsResolver(
         var platformSettings = await ResolvePlatformAsync(cancellationToken);
         var lineage = await ReadLineageAsync(teamId, cancellationToken);
 
-        return Fold(platformSettings, lineage.Take(lineage.Count - 1));
+        var parentLineage = lineage.Take(lineage.Count - 1);
+        return Fold(platformSettings, parentLineage);
     }
 
     /// <inheritdoc />

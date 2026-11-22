@@ -208,10 +208,13 @@ public static class ExpandOnlyRule
                 violations.Add("Its [ExpandMigration] marker states no reason.");
 
             if (contracting.Count != 0)
+            {
+                var expandContracting = string.Join("; ", contracting);
                 violations.Add(
-                    $"It is marked [ExpandMigration] but {string.Join("; ", contracting)}; "
+                    $"It is marked [ExpandMigration] but {expandContracting}; "
                         + "mark it [ContractMigration] instead."
                 );
+            }
 
             if (dataChanges.Count == 0)
                 violations.Add("It is marked [ExpandMigration] but changes no data.");
@@ -219,17 +222,23 @@ public static class ExpandOnlyRule
         else
         {
             if (contracting.Count != 0)
+            {
+                var unmarkedContracting = string.Join("; ", contracting);
                 violations.Add(
-                    $"It {string.Join("; ", contracting)}, which the previous release still reads; expand in this "
+                    $"It {unmarkedContracting}, which the previous release still reads; expand in this "
                         + "release and contract in a later one, or mark a deliberate contract step [ContractMigration]."
                 );
+            }
 
             if (dataChanges.Count != 0)
+            {
+                var unmarkedDataChanges = string.Join("; ", dataChanges);
                 violations.Add(
-                    $"It {string.Join("; ", dataChanges)}, which the rule cannot classify; mark it [ExpandMigration] "
+                    $"It {unmarkedDataChanges}, which the rule cannot classify; mark it [ExpandMigration] "
                         + "when the previous release still reads every row it writes, "
                         + "or [ContractMigration] when it does not."
                 );
+            }
         }
 
         return violations;

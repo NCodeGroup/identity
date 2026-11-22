@@ -81,9 +81,10 @@ internal class DefaultAuthenticateHandler(
         var subjectId = openIdContext.GetSubjectId(subject);
         if (string.IsNullOrEmpty(subjectId))
         {
-            return Failed(
-                errorFactory.AccessDenied("Unable to determine the the end-user's subject id.")
+            var accessDeniedError = errorFactory.AccessDenied(
+                "Unable to determine the the end-user's subject id."
             );
+            return Failed(accessDeniedError);
         }
 
         // Server-authoritative session check: when the cookie names a session, validate it is still active and not

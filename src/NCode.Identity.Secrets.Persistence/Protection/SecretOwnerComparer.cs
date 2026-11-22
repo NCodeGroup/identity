@@ -23,9 +23,10 @@ internal sealed class SecretOwnerComparer : IEqualityComparer<SecretOwner>
         && StringComparer.OrdinalIgnoreCase.Equals(x.OwnerId, y.OwnerId);
 
     /// <inheritdoc />
-    public int GetHashCode(SecretOwner obj) =>
-        HashCode.Combine(
-            StringComparer.OrdinalIgnoreCase.GetHashCode(obj.OwnerType),
-            StringComparer.OrdinalIgnoreCase.GetHashCode(obj.OwnerId)
-        );
+    public int GetHashCode(SecretOwner obj)
+    {
+        var ownerTypeHashCode = StringComparer.OrdinalIgnoreCase.GetHashCode(obj.OwnerType);
+        var ownerIdHashCode = StringComparer.OrdinalIgnoreCase.GetHashCode(obj.OwnerId);
+        return HashCode.Combine(ownerTypeHashCode, ownerIdHashCode);
+    }
 }

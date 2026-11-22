@@ -64,7 +64,8 @@ internal sealed class BffClientSession(
                 return;
 
             CurrentUser = user;
-            CurrentTask = Task.FromResult(StateOf(user));
+            var seededState = StateOf(user);
+            CurrentTask = Task.FromResult(seededState);
         }
     }
 
@@ -81,7 +82,8 @@ internal sealed class BffClientSession(
         CancellationToken cancellationToken
     )
     {
-        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
+        var disposedFlag = Volatile.Read(ref _disposed);
+        ObjectDisposedException.ThrowIf(disposedFlag != 0, this);
 
         TaskCompletionSource<AuthenticationState>? first = null;
         bool startMonitor;
@@ -203,10 +205,8 @@ internal sealed class BffClientSession(
 
         try
         {
-            using var request = new HttpRequestMessage(
-                HttpMethod.Get,
-                navigation.ToAbsoluteUri(current.UserPath)
-            );
+            var requestUri = navigation.ToAbsoluteUri(current.UserPath);
+            using var request = new HttpRequestMessage(HttpMethod.Get, requestUri);
             request.Headers.Add(current.AntiforgeryHeaderName, current.AntiforgeryHeaderValue);
 
             var client = httpClientFactory.CreateClient(BffBlazorClientDefaults.HttpClientName);
@@ -272,7 +272,8 @@ internal sealed class BffClientSession(
             if (first is not null)
             {
                 CurrentUser = known ? user : null;
-                first.TrySetResult(StateOf(CurrentUser));
+                var firstState = StateOf(CurrentUser);
+                first.TrySetResult(firstState);
             }
             else if (known)
             {
@@ -281,7 +282,8 @@ internal sealed class BffClientSession(
 
                 if (differs)
                 {
-                    changed = Task.FromResult(StateOf(user));
+                    var changedState = StateOf(user);
+                    changed = Task.FromResult(changedState);
                     CurrentTask = changed;
                 }
             }
@@ -296,18 +298,25 @@ internal sealed class BffClientSession(
         if (current is null || next is null)
             return current is null != next is null;
 
-        return !string.Equals(
-                current.Principal.FindFirst(SubjectClaimType)?.Value,
-                next.Principal.FindFirst(SubjectClaimType)?.Value,
-                StringComparison.Ordinal
-            )
-            || !string.Equals(
-                current.Principal.FindFirst(BffClaimTypes.LogoutSid)?.Value,
-                next.Principal.FindFirst(BffClaimTypes.LogoutSid)?.Value,
-                StringComparison.Ordinal
-            );
+        var currentSubject = current.Principal.FindFirst(SubjectClaimType)?.Value;
+        var nextSubject = next.Principal.FindFirst(SubjectClaimType)?.Value;
+        if (!string.Equals(currentSubject, nextSubject, StringComparison.Ordinal))
+            return true;
+
+        var currentLogoutSid = current.Principal.FindFirst(BffClaimTypes.LogoutSid)?.Value;
+        var nextLogoutSid = next.Principal.FindFirst(BffClaimTypes.LogoutSid)?.Value;
+        return !string.Equals(currentLogoutSid, nextLogoutSid, StringComparison.Ordinal);
     }
 
-    private static AuthenticationState StateOf(BffClientUser? user) =>
-        new(user?.Principal ?? new ClaimsPrincipal(new ClaimsIdentity()));
+    private static AuthenticationState StateOf(BffClientUser? user)
+    {
+        var principal = user?.Principal;
+        if (principal is null)
+        {
+            var identity = new ClaimsIdentity();
+            principal = new ClaimsPrincipal(identity);
+        }
+
+        return new AuthenticationState(principal);
+    }
 }

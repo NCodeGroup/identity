@@ -270,10 +270,8 @@ internal sealed class DefaultOwnerRootKeyManager(
         }
 
         var wrapper = Catalog.GetReferenced(keyWrapperName);
-        var referencedKey = new ReferencedKey(
-            keyReference,
-            OwnerRootKeyAccess.For(key, accessIdentity)
-        );
+        var access = OwnerRootKeyAccess.For(key, accessIdentity);
+        var referencedKey = new ReferencedKey(keyReference, access);
         var probeFailure = await OwnerRootKeyProbe.ProbeAsync(
             wrapper,
             referencedKey,
@@ -325,7 +323,9 @@ internal sealed class DefaultOwnerRootKeyManager(
 
         var (rotation, rewrap) = await CompleteSetAsync(key, stored);
 
-        return new OwnerRootKeyChange(OwnerRootKeyInfo.From(stored), change, rotation, rewrap);
+        var storedInfo = OwnerRootKeyInfo.From(stored);
+
+        return new OwnerRootKeyChange(storedInfo, change, rotation, rewrap);
     }
 
     /// <inheritdoc />
@@ -377,10 +377,8 @@ internal sealed class DefaultOwnerRootKeyManager(
         }
 
         var wrapper = Catalog.GetReferenced(binding.KeyWrapperName);
-        var referencedKey = new ReferencedKey(
-            binding.KeyReference,
-            OwnerRootKeyAccess.For(key, binding.AccessIdentity)
-        );
+        var access = OwnerRootKeyAccess.For(key, binding.AccessIdentity);
+        var referencedKey = new ReferencedKey(binding.KeyReference, access);
         var probeFailure = await OwnerRootKeyProbe.ProbeAsync(
             wrapper,
             referencedKey,
@@ -434,12 +432,8 @@ internal sealed class DefaultOwnerRootKeyManager(
         {
             // Another replica validated or changed the key at the same time, so its result stands.
             var (current, _) = await ReadAsync(key, cancellationToken);
-            return new OwnerRootKeyValidation(
-                current is null ? null : OwnerRootKeyInfo.From(current),
-                null,
-                null,
-                NoRewrap
-            );
+            var currentInfo = current is null ? null : OwnerRootKeyInfo.From(current);
+            return new OwnerRootKeyValidation(currentInfo, null, null, NoRewrap);
         }
 
         if (change is not null)
@@ -450,16 +444,16 @@ internal sealed class DefaultOwnerRootKeyManager(
         }
 
         if (!IsState(binding, OwnerRootKeyStates.Active))
-            return new OwnerRootKeyValidation(
-                OwnerRootKeyInfo.From(binding),
-                change,
-                null,
-                NoRewrap
-            );
+        {
+            var inactiveBindingInfo = OwnerRootKeyInfo.From(binding);
+            return new OwnerRootKeyValidation(inactiveBindingInfo, change, null, NoRewrap);
+        }
 
         var (rotation, rewrap) = await CompleteAsync(key, binding, cancellationToken);
 
-        return new OwnerRootKeyValidation(OwnerRootKeyInfo.From(binding), change, rotation, rewrap);
+        var bindingInfo = OwnerRootKeyInfo.From(binding);
+
+        return new OwnerRootKeyValidation(bindingInfo, change, rotation, rewrap);
     }
 
     private static SecretOwner Normalize(SecretOwner owner)
@@ -691,14 +685,16 @@ internal sealed class DefaultOwnerRootKeyManager(
             }
         }
 
-        var rewrap = await Rewrapper.RewrapAsync(CreateRewrapRequest(key), cancellationToken);
+        var rewrapRequest = CreateRewrapRequest(key);
+        var rewrap = await Rewrapper.RewrapAsync(rewrapRequest, cancellationToken);
 
         return (rotation, rewrap);
     }
 
     // Counts the master keys under the key the binding names that do not conform to their owner's nearest root key,
-    // whatever the state of the binding. A master key of another owner whose own root key names the same key conforms
-    // and stays, so it never holds the removal.
+    // whatever the state of the binding. It reads only the master keys under the key, by the provider and reference of
+    // the binding. A master key of another owner whose own root key names the same key conforms and stays, so it never
+    // holds the removal.
     private async ValueTask<int> CountWrappedByKeyAsync(
         PersistedOwnerRootKey binding,
         CancellationToken cancellationToken
@@ -712,22 +708,23 @@ internal sealed class DefaultOwnerRootKeyManager(
         do
         {
             await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
+            var pageRequest = new PageRequest { Limit = CountPageSize, Cursor = cursor };
             var page = await storeManager
                 .GetStore<IMasterKeyStore>()
-                .GetPageAsync(
-                    new PageRequest { Limit = CountPageSize, Cursor = cursor },
+                .GetWrappedByKeyPageAsync(
+                    binding.KeyWrapperName,
+                    binding.KeyReference,
+                    pageRequest,
                     cancellationToken
                 );
 
             foreach (var row in page.Items)
             {
-                if (!MasterKeyFactory.IsWrappedByKey(row, binding))
-                    continue;
-
                 if (!nearestRootKeys.TryGetValue(row.Owner, out var nearest))
                 {
+                    var ownerRootKeyStore = storeManager.GetStore<IOwnerRootKeyStore>();
                     nearest = await NearestRootKeyResolver.FindNearestAsync(
-                        storeManager.GetStore<IOwnerRootKeyStore>(),
+                        ownerRootKeyStore,
                         row.Owner,
                         cancellationToken
                     );
@@ -752,7 +749,8 @@ internal sealed class DefaultOwnerRootKeyManager(
         MasterKeyRewrapResult Rewrap
     )> CompleteRemovalAsync(SecretOwner key, CancellationToken cancellationToken)
     {
-        var rewrap = await Rewrapper.RewrapAsync(CreateRewrapRequest(key), cancellationToken);
+        var rewrapRequest = CreateRewrapRequest(key);
+        var rewrap = await Rewrapper.RewrapAsync(rewrapRequest, cancellationToken);
 
         var (binding, _) = await ReadAsync(key, cancellationToken);
         if (binding is null)

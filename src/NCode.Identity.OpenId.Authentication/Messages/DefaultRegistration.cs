@@ -29,12 +29,11 @@ internal static class DefaultRegistration
         {
             var serviceCollection = builder.ServiceCollection;
 
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    ICollectionDataSource<KnownParameter>,
-                    DefaultAuthenticationParameterDataSource
-                >()
-            );
+            var parameterDataSource = ServiceDescriptor.Singleton<
+                ICollectionDataSource<KnownParameter>,
+                DefaultAuthenticationParameterDataSource
+            >();
+            serviceCollection.TryAddEnumerable(parameterDataSource);
 
             serviceCollection.TryAddSingleton<
                 ICommandResponseHandler<LoadRequestValuesCommand, IRequestValues>,

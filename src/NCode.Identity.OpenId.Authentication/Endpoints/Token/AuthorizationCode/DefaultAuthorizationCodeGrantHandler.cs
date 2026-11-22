@@ -87,15 +87,13 @@ internal class DefaultAuthorizationCodeGrantHandler(
 
         var authorizationGrant = persistedGrant.Payload;
 
-        await mediator.SendAsync(
-            new ValidateTokenGrantCommand<AuthorizationGrant>(
-                openIdContext,
-                openIdClient,
-                tokenRequest,
-                authorizationGrant
-            ),
-            cancellationToken
+        var validateCommand = new ValidateTokenGrantCommand<AuthorizationGrant>(
+            openIdContext,
+            openIdClient,
+            tokenRequest,
+            authorizationGrant
         );
+        await mediator.SendAsync(validateCommand, cancellationToken);
 
         // RFC 9449 §10: when the authorization request pre-registered a DPoP key via dpop_jkt, the proof presented at
         // the token endpoint must be bound to that exact key.

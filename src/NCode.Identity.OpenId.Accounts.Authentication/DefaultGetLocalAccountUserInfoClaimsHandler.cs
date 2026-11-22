@@ -96,7 +96,8 @@ internal sealed class DefaultGetLocalAccountUserInfoClaimsHandler(
         {
             if (claimTypes.Contains(claim.Type))
             {
-                TryAdd(claims, claim.Type, ToClaimValue(claim.Type, claim.Value));
+                var claimValue = ToClaimValue(claim.Type, claim.Value);
+                TryAdd(claims, claim.Type, claimValue);
             }
         }
     }

@@ -26,14 +26,18 @@ internal static class BffComponentsConvention
         var metadata = endpointBuilder.Metadata;
         if (metadata.OfType<ComponentTypeMetadata>().Any())
         {
-            metadata.Add(new BffPageAttribute());
+            var pageAttribute = new BffPageAttribute();
+            metadata.Add(pageAttribute);
             metadata.Add(BffBlazorLibraryRequirement.Instance);
         }
         else if (metadata.OfType<HubMetadata>().Any() || metadata.OfType<NegotiateMetadata>().Any())
         {
-            metadata.Add(new BffHubAttribute());
-            metadata.Add(new AllowAnonymousAttribute());
-            metadata.Add(new BffSelfRevalidatingHubAttribute());
+            var hubAttribute = new BffHubAttribute();
+            metadata.Add(hubAttribute);
+            var allowAnonymousAttribute = new AllowAnonymousAttribute();
+            metadata.Add(allowAnonymousAttribute);
+            var selfRevalidatingHubAttribute = new BffSelfRevalidatingHubAttribute();
+            metadata.Add(selfRevalidatingHubAttribute);
             metadata.Add(BffBlazorLibraryRequirement.Instance);
         }
     }

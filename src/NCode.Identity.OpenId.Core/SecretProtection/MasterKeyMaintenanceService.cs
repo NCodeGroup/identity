@@ -163,19 +163,13 @@ internal sealed class MasterKeyMaintenanceService(
         {
             var rotation = await MasterKeyManager.RotateAsync(owner, cancellationToken);
 
-            await PostCommitWork.RunAsync(
-                TimeProvider,
-                PublishAsync,
-                (
-                    owner,
-                    CreateEvent(
-                        MasterKeyChanges.Rotated,
-                        MasterKeyChangeReasons.RotationPeriodElapsed,
-                        rotation.ActiveKey,
-                        rotation.RetiredKey
-                    )
-                )
+            var rotatedEvent = CreateEvent(
+                MasterKeyChanges.Rotated,
+                MasterKeyChangeReasons.RotationPeriodElapsed,
+                rotation.ActiveKey,
+                rotation.RetiredKey
             );
+            await PostCommitWork.RunAsync(TimeProvider, PublishAsync, (owner, rotatedEvent));
         }
         catch (StoreConcurrencyException)
         {
@@ -231,19 +225,13 @@ internal sealed class MasterKeyMaintenanceService(
             var destroyed = await MasterKeyManager.DestroyRetiredAsync(owner, cancellationToken);
             foreach (var key in destroyed)
             {
-                await PostCommitWork.RunAsync(
-                    TimeProvider,
-                    PublishAsync,
-                    (
-                        owner,
-                        CreateEvent(
-                            MasterKeyChanges.Destroyed,
-                            MasterKeyChangeReasons.Unreferenced,
-                            key,
-                            null
-                        )
-                    )
+                var destroyedEvent = CreateEvent(
+                    MasterKeyChanges.Destroyed,
+                    MasterKeyChangeReasons.Unreferenced,
+                    key,
+                    null
                 );
+                await PostCommitWork.RunAsync(TimeProvider, PublishAsync, (owner, destroyedEvent));
             }
         }
         catch (Exception exception) when (!cancellationToken.IsCancellationRequested)

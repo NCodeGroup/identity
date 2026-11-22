@@ -182,9 +182,14 @@ internal sealed class TeamSettingsReconciliationService(
         using var unscoped = AmbientTenantAccessor.BeginUnscoped(UnscopedReason);
 
         if (EveryTeamUnsettled)
+        {
             await ReconcileEveryTeamAsync(stoppingToken);
+        }
         else
-            await ReconcileSubtreesAsync(Unsettled.ToList(), stoppingToken);
+        {
+            var unsettledTeamIds = Unsettled.ToList();
+            await ReconcileSubtreesAsync(unsettledTeamIds, stoppingToken);
+        }
 
         UpdateRetryDeadline();
     }

@@ -108,7 +108,8 @@ internal class DefaultRequestRateLimiter(
                     ? overageLimit
                     : 0;
 
-            limits.Add(new JudgedRateLimit(descriptor, partitionValue, limit, overage));
+            var judgedLimit = new JudgedRateLimit(descriptor, partitionValue, limit, overage);
+            limits.Add(judgedLimit);
         }
 
         if (limits.Count == 0)
@@ -240,7 +241,8 @@ internal class DefaultRequestRateLimiter(
     // so an outage is logged once per replica rather than once per request.
     private void RecordStoreFailure(string tenantId, string stage, Exception exception)
     {
-        var previous = Interlocked.Exchange(ref _storeFailedTimestamp, TimeProvider.GetTimestamp());
+        var timestamp = TimeProvider.GetTimestamp();
+        var previous = Interlocked.Exchange(ref _storeFailedTimestamp, timestamp);
         if (previous == BreakerClosed)
             Logger.RateLimitStoreUnavailable(tenantId, stage, StoreRetryInterval, exception);
     }
@@ -360,12 +362,9 @@ internal class DefaultRequestRateLimiter(
         string partition,
         string value,
         DateTimeOffset windowStart
-    ) =>
-        ExpiringKeys.Create(
-            Purpose,
-            tenantId,
-            partition,
-            value,
-            windowStart.UtcTicks.ToString(CultureInfo.InvariantCulture)
-        );
+    )
+    {
+        var windowTicks = windowStart.UtcTicks.ToString(CultureInfo.InvariantCulture);
+        return ExpiringKeys.Create(Purpose, tenantId, partition, value, windowTicks);
+    }
 }

@@ -42,14 +42,12 @@ internal sealed class CertificateLifetimeRequirementHandler
 
         // X509Certificate2 reports its validity in local time, so convert it to UTC before comparing it with the UTC
         // clock; otherwise a host outside UTC shifts the window by its offset.
-        var notBefore = new DateTimeOffset(
-            certificate.NotBefore.ToUniversalTime()
-        ).WithPrecisionInSeconds();
+        var notBeforeUtc = certificate.NotBefore.ToUniversalTime();
+        var notBefore = new DateTimeOffset(notBeforeUtc).WithPrecisionInSeconds();
         var notBeforeTicks = notBefore.UtcTicks;
 
-        var notAfter = new DateTimeOffset(
-            certificate.NotAfter.ToUniversalTime()
-        ).WithPrecisionInSeconds();
+        var notAfterUtc = certificate.NotAfter.ToUniversalTime();
+        var notAfter = new DateTimeOffset(notAfterUtc).WithPrecisionInSeconds();
         var notAfterTicks = notAfter.UtcTicks;
 
         if (notBeforeTicks > nowTicks + clockSkewTicks)

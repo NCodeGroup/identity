@@ -80,15 +80,14 @@ public static class DeploymentSafetyRegistration
             || allowedHosts.Split(';').Any(host => host.Trim() == "*")
         )
         {
-            violations.Add(
-                new DeploymentSafetyViolation(
-                    AllowedHostsConfigurationKey,
-                    allowedHosts is null or ""
-                        ? "is not set, so every Host header is accepted."
-                        : "'*' accepts every Host header.",
-                    "List this deployment's host names explicitly."
-                )
+            var violation = new DeploymentSafetyViolation(
+                AllowedHostsConfigurationKey,
+                allowedHosts is null or ""
+                    ? "is not set, so every Host header is accepted."
+                    : "'*' accepts every Host header.",
+                "List this deployment's host names explicitly."
             );
+            violations.Add(violation);
         }
 
         // Pruning discards a signing key whose master key, or the root key that wraps it, was lost or changed, and
@@ -125,9 +124,14 @@ public static class DeploymentSafetyRegistration
         void AddSectionViolationIfPresent(string sectionName, string problem)
         {
             if (configuration.GetSection(sectionName).Exists())
-                violations.Add(
-                    new DeploymentSafetyViolation(sectionName, problem, "Remove the section.")
+            {
+                var violation = new DeploymentSafetyViolation(
+                    sectionName,
+                    problem,
+                    "Remove the section."
                 );
+                violations.Add(violation);
+            }
         }
     }
 
@@ -144,38 +148,35 @@ public static class DeploymentSafetyRegistration
         var rootKeyProvider = configuration[RootKeyProviderConfigurationKey];
         if (string.IsNullOrWhiteSpace(rootKeyProvider))
         {
-            violations.Add(
-                new DeploymentSafetyViolation(
-                    RootKeyProviderConfigurationKey,
-                    "is not set, so no root key protects the stored secrets.",
-                    providerResolution
-                )
+            var violation = new DeploymentSafetyViolation(
+                RootKeyProviderConfigurationKey,
+                "is not set, so no root key protects the stored secrets.",
+                providerResolution
             );
+            violations.Add(violation);
         }
         else if (
             string.Equals(rootKeyProvider, KeyWrapperNames.Ephemeral, StringComparison.Ordinal)
         )
         {
-            violations.Add(
-                new DeploymentSafetyViolation(
-                    RootKeyProviderConfigurationKey,
-                    $"'{KeyWrapperNames.Ephemeral}' keeps the root key in memory, so every restart makes every "
-                        + "stored secret unreadable.",
-                    providerResolution
-                )
+            var violation = new DeploymentSafetyViolation(
+                RootKeyProviderConfigurationKey,
+                $"'{KeyWrapperNames.Ephemeral}' keeps the root key in memory, so every restart makes every "
+                    + "stored secret unreadable.",
+                providerResolution
             );
+            violations.Add(violation);
         }
 
         // An inline root key in a deployment's configuration is a leaked key even when another provider is selected.
         if (!string.IsNullOrWhiteSpace(configuration[LocalRootKeyConfigurationKey]))
         {
-            violations.Add(
-                new DeploymentSafetyViolation(
-                    LocalRootKeyConfigurationKey,
-                    "holds a root key inline in configuration.",
-                    "Mount the key as a file and set 'SecretProtection:RootKeyProviders:Local:KeyPath' instead."
-                )
+            var violation = new DeploymentSafetyViolation(
+                LocalRootKeyConfigurationKey,
+                "holds a root key inline in configuration.",
+                "Mount the key as a file and set 'SecretProtection:RootKeyProviders:Local:KeyPath' instead."
             );
+            violations.Add(violation);
         }
 
         var recoveryDisabled =
@@ -186,14 +187,13 @@ public static class DeploymentSafetyRegistration
             && !recoveryDisabled
         )
         {
-            violations.Add(
-                new DeploymentSafetyViolation(
-                    RecoveryPublicKeyPathConfigurationKey,
-                    "is not set, so losing the root key loses every stored secret.",
-                    $"Configure a recovery public key, or set '{RecoveryDisabledConfigurationKey}' to true to "
-                        + "accept that risk."
-                )
+            var violation = new DeploymentSafetyViolation(
+                RecoveryPublicKeyPathConfigurationKey,
+                "is not set, so losing the root key loses every stored secret.",
+                $"Configure a recovery public key, or set '{RecoveryDisabledConfigurationKey}' to true to "
+                    + "accept that risk."
             );
+            violations.Add(violation);
         }
     }
 
@@ -241,31 +241,27 @@ public static class DeploymentSafetyRegistration
 
             // A supplied client secret's verifier keeps at least the recommended work factor (ADR-1391). The options
             // are configured in code, so they are checked as the host starts.
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    IValidateOptions<Pbkdf2SecretVerifierOptions>,
-                    DeploymentPbkdf2IterationsValidator
-                >()
-            );
+            var pbkdf2Validator = ServiceDescriptor.Singleton<
+                IValidateOptions<Pbkdf2SecretVerifierOptions>,
+                DeploymentPbkdf2IterationsValidator
+            >();
+            serviceCollection.TryAddEnumerable(pbkdf2Validator);
             serviceCollection.AddOptions<Pbkdf2SecretVerifierOptions>().ValidateOnStart();
 
             // The platform-wide environment type needs the registered types, so it is checked as the host starts too.
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    IValidateOptions<OpenIdOptions>,
-                    DeploymentEnvironmentTypeValidator
-                >()
-            );
+            var environmentTypeValidator = ServiceDescriptor.Singleton<
+                IValidateOptions<OpenIdOptions>,
+                DeploymentEnvironmentTypeValidator
+            >();
+            serviceCollection.TryAddEnumerable(environmentTypeValidator);
             serviceCollection.AddOptions<OpenIdOptions>().ValidateOnStart();
 
             var violations = DeploymentSafetyRegistration.FindViolations(configuration);
             if (violations.Count == 0)
                 return serviceCollection;
 
-            var detail = string.Join(
-                Environment.NewLine,
-                violations.Select(violation => $"  - {violation}")
-            );
+            var violationLines = violations.Select(violation => $"  - {violation}");
+            var detail = string.Join(Environment.NewLine, violationLines);
             throw new InvalidOperationException(
                 $"Refusing to start a deployment: {violations.Count} setting(s) are unsafe "
                     + $"for a deployment.{Environment.NewLine}{detail}{Environment.NewLine}"

@@ -51,9 +51,11 @@ public static class DefaultRegistration
                 BffAuthenticationStateProvider
             >();
 
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Scoped<CircuitHandler, BffCircuitHandler>()
-            );
+            var circuitHandlerDescriptor = ServiceDescriptor.Scoped<
+                CircuitHandler,
+                BffCircuitHandler
+            >();
+            serviceCollection.TryAddEnumerable(circuitHandlerDescriptor);
 
             return newBuilder;
         }

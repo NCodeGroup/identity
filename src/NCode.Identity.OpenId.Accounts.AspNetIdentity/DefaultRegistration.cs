@@ -124,9 +124,11 @@ public static class DefaultRegistration
 
             // ASP.NET Core Identity's AddIdentityCore keeps a registration that exists, so this one wins whether it is
             // made before or after the host's.
-            serviceCollection.Replace(
-                ServiceDescriptor.Singleton<ILookupNormalizer, TenantLookupNormalizer>()
-            );
+            var lookupNormalizerDescriptor = ServiceDescriptor.Singleton<
+                ILookupNormalizer,
+                TenantLookupNormalizer
+            >();
+            serviceCollection.Replace(lookupNormalizerDescriptor);
 
             // See ADR-1239.
             serviceCollection.TryAddSingleton<AspNetIdentityDummyPasswordHash<TUser>>();

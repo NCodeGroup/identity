@@ -203,7 +203,8 @@ internal sealed class DeveloperInteractiveSeedHandler(
             missingKeys.Add($"{prefix}:RedirectUris");
         }
 
-        Logger.DeveloperBffClientSkipped(clientId, string.Join(" and ", missingKeys));
+        var missingKeysText = string.Join(" and ", missingKeys);
+        Logger.DeveloperBffClientSkipped(clientId, missingKeysText);
     }
 
     private static bool MatchesConfiguration(PersistedClient stored, PersistedClient configured) =>
@@ -222,7 +223,9 @@ internal sealed class DeveloperInteractiveSeedHandler(
             return false;
         }
 
-        return stored.Select(KeyIdentity).ToHashSet().SetEquals(configured.Select(KeyIdentity));
+        var storedIdentities = stored.Select(KeyIdentity).ToHashSet();
+        var configuredIdentities = configured.Select(KeyIdentity);
+        return storedIdentities.SetEquals(configuredIdentities);
     }
 
     private static (
@@ -238,10 +241,11 @@ internal sealed class DeveloperInteractiveSeedHandler(
     private IReadOnlyList<PersistedSecret> ImportKeys(string clientId, string jwks)
     {
         var jsonElement = ParseKeySet(clientId, jwks);
+        var utcNow = TimeProvider.GetUtcNow();
         if (
             ClientKeyImporter.TryImportRegisteredKeySet(
                 jsonElement,
-                TimeProvider.GetUtcNow(),
+                utcNow,
                 out var keys,
                 out var error
             )
@@ -290,16 +294,15 @@ internal sealed class DeveloperInteractiveSeedHandler(
         }
 
         // A single-page application cannot keep a secret, so it registers as a public client (RFC 7591 §2 'none').
-        var settings = JsonSerializer.SerializeToElement(
-            new Dictionary<string, object>
-            {
-                [OpenIdSettingNames.RedirectUris] = spaClient.RedirectUris,
-                [OpenIdSettingNames.TokenEndpointAuthMethod] = OpenIdProtocol
-                    .ClientAuthenticationMethods
-                    .None,
-                [OpenIdSettingNames.RequireConsent] = spaClient.RequireConsent,
-            }
-        );
+        var settingsValues = new Dictionary<string, object>
+        {
+            [OpenIdSettingNames.RedirectUris] = spaClient.RedirectUris,
+            [OpenIdSettingNames.TokenEndpointAuthMethod] = OpenIdProtocol
+                .ClientAuthenticationMethods
+                .None,
+            [OpenIdSettingNames.RequireConsent] = spaClient.RequireConsent,
+        };
+        var settings = JsonSerializer.SerializeToElement(settingsValues);
         await SeededClientValidator.EnsureCanBeSeededAsync(
             "developer client",
             clientId,

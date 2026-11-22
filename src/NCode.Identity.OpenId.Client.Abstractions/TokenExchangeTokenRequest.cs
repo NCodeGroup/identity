@@ -52,41 +52,52 @@ public sealed class TokenExchangeTokenRequest(string subjectToken, string subjec
     public override void AddGrantParameters(ICollection<KeyValuePair<string, string>> parameters)
     {
         ArgumentNullException.ThrowIfNull(parameters);
-        parameters.Add(
-            new KeyValuePair<string, string>(OpenIdProtocol.Parameters.SubjectToken, SubjectToken)
+        var subjectTokenParameter = new KeyValuePair<string, string>(
+            OpenIdProtocol.Parameters.SubjectToken,
+            SubjectToken
         );
-        parameters.Add(
-            new KeyValuePair<string, string>(
-                OpenIdProtocol.Parameters.SubjectTokenType,
-                SubjectTokenType
-            )
+        parameters.Add(subjectTokenParameter);
+        var subjectTokenTypeParameter = new KeyValuePair<string, string>(
+            OpenIdProtocol.Parameters.SubjectTokenType,
+            SubjectTokenType
         );
+        parameters.Add(subjectTokenTypeParameter);
 
         if (ActorToken is not null)
-            parameters.Add(
-                new KeyValuePair<string, string>(OpenIdProtocol.Parameters.ActorToken, ActorToken)
+        {
+            var actorTokenParameter = new KeyValuePair<string, string>(
+                OpenIdProtocol.Parameters.ActorToken,
+                ActorToken
             );
+            parameters.Add(actorTokenParameter);
+        }
 
         if (ActorTokenType is not null)
-            parameters.Add(
-                new KeyValuePair<string, string>(
-                    OpenIdProtocol.Parameters.ActorTokenType,
-                    ActorTokenType
-                )
+        {
+            var actorTokenTypeParameter = new KeyValuePair<string, string>(
+                OpenIdProtocol.Parameters.ActorTokenType,
+                ActorTokenType
             );
+            parameters.Add(actorTokenTypeParameter);
+        }
 
         if (RequestedTokenType is not null)
-            parameters.Add(
-                new KeyValuePair<string, string>(
-                    OpenIdProtocol.Parameters.RequestedTokenType,
-                    RequestedTokenType
-                )
+        {
+            var requestedTokenTypeParameter = new KeyValuePair<string, string>(
+                OpenIdProtocol.Parameters.RequestedTokenType,
+                RequestedTokenType
             );
+            parameters.Add(requestedTokenTypeParameter);
+        }
 
         foreach (var audience in Audiences)
-            parameters.Add(
-                new KeyValuePair<string, string>(OpenIdProtocol.Parameters.Audience, audience)
+        {
+            var audienceParameter = new KeyValuePair<string, string>(
+                OpenIdProtocol.Parameters.Audience,
+                audience
             );
+            parameters.Add(audienceParameter);
+        }
     }
 
     private static string ValidateNotEmpty(

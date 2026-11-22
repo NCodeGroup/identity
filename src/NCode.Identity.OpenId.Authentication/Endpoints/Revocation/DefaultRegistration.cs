@@ -28,12 +28,11 @@ internal static class DefaultRegistration
 
             builder.AddMessageFactory<TokenRevocationRequest>();
 
-            builder.ServiceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    ICommandHandler<RevokeTokenCommand>,
-                    DefaultRevokeTokenHandler
-                >()
-            );
+            var revokeHandler = ServiceDescriptor.Singleton<
+                ICommandHandler<RevokeTokenCommand>,
+                DefaultRevokeTokenHandler
+            >();
+            builder.ServiceCollection.TryAddEnumerable(revokeHandler);
         }
     }
 }

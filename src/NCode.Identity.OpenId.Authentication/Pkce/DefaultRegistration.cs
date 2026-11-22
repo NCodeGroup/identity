@@ -28,19 +28,20 @@ internal static class DefaultRegistration
         {
             var serviceCollection = builder.ServiceCollection;
 
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<ICodeChallengeMethod, S256CodeChallengeMethod>()
-            );
+            var codeChallengeMethod = ServiceDescriptor.Singleton<
+                ICodeChallengeMethod,
+                S256CodeChallengeMethod
+            >();
+            serviceCollection.TryAddEnumerable(codeChallengeMethod);
             serviceCollection.TryAddSingleton<
                 ICodeChallengeMethodCollectionProvider,
                 DefaultCodeChallengeMethodCollectionProvider
             >();
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    ICollectionDataSource<SettingDescriptor>,
-                    DefaultPkceSettingDescriptorDataSource
-                >()
-            );
+            var settingDataSource = ServiceDescriptor.Singleton<
+                ICollectionDataSource<SettingDescriptor>,
+                DefaultPkceSettingDescriptorDataSource
+            >();
+            serviceCollection.TryAddEnumerable(settingDataSource);
 
             return builder;
         }

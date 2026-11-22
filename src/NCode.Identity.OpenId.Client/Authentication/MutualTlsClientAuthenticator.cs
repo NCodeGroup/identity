@@ -23,12 +23,11 @@ internal abstract class MutualTlsClientAuthenticator : IClientAuthenticator
     {
         ArgumentNullException.ThrowIfNull(context);
 
-        context.Parameters.Add(
-            new KeyValuePair<string, string>(
-                OpenIdProtocol.Parameters.ClientId,
-                context.Registration.ClientId
-            )
+        var clientIdParameter = new KeyValuePair<string, string>(
+            OpenIdProtocol.Parameters.ClientId,
+            context.Registration.ClientId
         );
+        context.Parameters.Add(clientIdParameter);
         return ValueTask.CompletedTask;
     }
 }

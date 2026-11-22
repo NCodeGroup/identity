@@ -84,10 +84,8 @@ internal class DefaultTenantConfigurationExporter(
         string? clientCursor = null;
         do
         {
-            var clientPage = await clientStore.GetPageAsync(
-                new PageRequest { Cursor = clientCursor, Limit = PageLimit },
-                cancellationToken
-            );
+            var clientPageRequest = new PageRequest { Cursor = clientCursor, Limit = PageLimit };
+            var clientPage = await clientStore.GetPageAsync(clientPageRequest, cancellationToken);
 
             foreach (var client in clientPage.Items)
             {
@@ -99,15 +97,14 @@ internal class DefaultTenantConfigurationExporter(
                     continue;
                 }
 
-                clients.Add(
-                    new TenantConfigurationClient
-                    {
-                        ClientId = client.ClientId,
-                        IsDisabled = client.IsDisabled,
-                        ResourceServerId = client.ResourceServerId,
-                        Settings = client.Settings.Value,
-                    }
-                );
+                var configurationClient = new TenantConfigurationClient
+                {
+                    ClientId = client.ClientId,
+                    IsDisabled = client.IsDisabled,
+                    ResourceServerId = client.ResourceServerId,
+                    Settings = client.Settings.Value,
+                };
+                clients.Add(configurationClient);
 
                 await ReadClientGrantsAsync(
                     grantStore,
@@ -131,20 +128,22 @@ internal class DefaultTenantConfigurationExporter(
         string? grantCursor = null;
         do
         {
+            var grantPageRequest = new PageRequest { Cursor = grantCursor, Limit = PageLimit };
             var grantPage = await grantStore.GetPageAsync(
                 clientId,
-                new PageRequest { Cursor = grantCursor, Limit = PageLimit },
+                grantPageRequest,
                 cancellationToken
             );
 
-            clientGrants.AddRange(
-                grantPage.Items.Select(grant => new TenantConfigurationClientGrant
+            var configurationGrants = grantPage.Items.Select(
+                grant => new TenantConfigurationClientGrant
                 {
                     ClientId = clientId,
                     ResourceServerId = grant.ResourceServerId,
                     Scopes = [.. grant.Scopes],
-                })
+                }
             );
+            clientGrants.AddRange(configurationGrants);
 
             grantCursor = grantPage.NextCursor;
         } while (grantCursor is not null);
@@ -160,13 +159,11 @@ internal class DefaultTenantConfigurationExporter(
         string? cursor = null;
         do
         {
-            var page = await store.GetPageAsync(
-                new PageRequest { Cursor = cursor, Limit = PageLimit },
-                cancellationToken
-            );
+            var pageRequest = new PageRequest { Cursor = cursor, Limit = PageLimit };
+            var page = await store.GetPageAsync(pageRequest, cancellationToken);
 
-            resourceServers.AddRange(
-                page.Items.Select(resourceServer => new TenantConfigurationResourceServer
+            var configurationResourceServers = page.Items.Select(
+                resourceServer => new TenantConfigurationResourceServer
                 {
                     ResourceServerId = resourceServer.ResourceServerId,
                     Identifier = resourceServer.Identifier,
@@ -183,8 +180,9 @@ internal class DefaultTenantConfigurationExporter(
                             IsSystem = scope.IsSystem,
                         }),
                     ],
-                })
+                }
             );
+            resourceServers.AddRange(configurationResourceServers);
 
             cursor = page.NextCursor;
         } while (cursor is not null);

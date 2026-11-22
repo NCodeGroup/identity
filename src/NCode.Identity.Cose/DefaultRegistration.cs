@@ -108,9 +108,11 @@ public static class DefaultRegistration
                 .AddOptions<CoseOptions>()
                 .Configure(configureOptions)
                 .ValidateOnStart();
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<IValidateOptions<CoseOptions>, CoseOptionsValidator>()
-            );
+            var optionsValidator = ServiceDescriptor.Singleton<
+                IValidateOptions<CoseOptions>,
+                CoseOptionsValidator
+            >();
+            serviceCollection.TryAddEnumerable(optionsValidator);
 
             // The algorithms, key types and curves are data, registered as instances beside any the application
             // registers.

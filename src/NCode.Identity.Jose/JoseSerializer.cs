@@ -182,9 +182,8 @@ internal partial class JoseSerializer(
                 break;
 
             default:
-                throw new JoseException(
-                    $"The token type '{token.GetType().Name}' is not supported."
-                );
+                var tokenTypeName = token.GetType().Name;
+                throw new JoseException($"The token type '{tokenTypeName}' is not supported.");
         }
     }
 
@@ -227,7 +226,11 @@ internal partial class JoseSerializer(
         string token,
         SecretKey secretKey,
         CancellationToken cancellationToken
-    ) => DecodeAsync(Parse(token), secretKey, cancellationToken);
+    )
+    {
+        var parsedToken = Parse(token);
+        return DecodeAsync(parsedToken, secretKey, cancellationToken);
+    }
 
     private static string DecodeUtf8(ReadOnlySequence<byte> byteSequence)
     {
@@ -261,7 +264,11 @@ internal partial class JoseSerializer(
         string token,
         SecretKey secretKey,
         CancellationToken cancellationToken
-    ) => DeserializeAsync<T>(Parse(token), secretKey, jsonOptions: null, cancellationToken);
+    )
+    {
+        var parsedToken = Parse(token);
+        return DeserializeAsync<T>(parsedToken, secretKey, jsonOptions: null, cancellationToken);
+    }
 
     /// <inheritdoc />
     public ValueTask<T?> DeserializeAsync<T>(
@@ -269,7 +276,11 @@ internal partial class JoseSerializer(
         SecretKey secretKey,
         JsonSerializerOptions? jsonOptions,
         CancellationToken cancellationToken
-    ) => DeserializeAsync<T>(Parse(token), secretKey, jsonOptions, cancellationToken);
+    )
+    {
+        var parsedToken = Parse(token);
+        return DeserializeAsync<T>(parsedToken, secretKey, jsonOptions, cancellationToken);
+    }
 
     private T? Deserialize<T>(
         ReadOnlySequence<byte> byteSequence,
@@ -301,9 +312,8 @@ internal partial class JoseSerializer(
                 break;
 
             default:
-                throw new JoseException(
-                    $"The token type '{token.GetType().Name}' is not supported."
-                );
+                var tokenTypeName = token.GetType().Name;
+                throw new JoseException($"The token type '{tokenTypeName}' is not supported.");
         }
     }
 
@@ -335,16 +345,25 @@ internal partial class JoseSerializer(
     }
 
     /// <inheritdoc />
-    public void VerifyJws(string token, SecretKey secretKey, ReadOnlySpan<byte> detachedPayload) =>
-        VerifyJws(Parse(token), secretKey, detachedPayload);
+    public void VerifyJws(string token, SecretKey secretKey, ReadOnlySpan<byte> detachedPayload)
+    {
+        var parsedToken = Parse(token);
+        VerifyJws(parsedToken, secretKey, detachedPayload);
+    }
 
     /// <inheritdoc />
-    public void VerifyJws(string token, SecretKey secretKey, ReadOnlySpan<char> detachedPayload) =>
-        VerifyJws(Parse(token), secretKey, detachedPayload);
+    public void VerifyJws(string token, SecretKey secretKey, ReadOnlySpan<char> detachedPayload)
+    {
+        var parsedToken = Parse(token);
+        VerifyJws(parsedToken, secretKey, detachedPayload);
+    }
 
     /// <inheritdoc />
-    public void VerifyJws<T>(string token, SecretKey secretKey, T detachedPayload) =>
-        VerifyJws(Parse(token), secretKey, detachedPayload, jsonOptions: null);
+    public void VerifyJws<T>(string token, SecretKey secretKey, T detachedPayload)
+    {
+        var parsedToken = Parse(token);
+        VerifyJws(parsedToken, secretKey, detachedPayload, jsonOptions: null);
+    }
 
     /// <inheritdoc />
     public void VerifyJws<T>(
@@ -352,7 +371,11 @@ internal partial class JoseSerializer(
         SecretKey secretKey,
         T detachedPayload,
         JsonSerializerOptions? jsonOptions
-    ) => VerifyJws(Parse(token), secretKey, detachedPayload, jsonOptions);
+    )
+    {
+        var parsedToken = Parse(token);
+        VerifyJws(parsedToken, secretKey, detachedPayload, jsonOptions);
+    }
 
     /// <summary>
     /// Provides the ability to serialize a value to UTF8 using memory pooling.
@@ -422,8 +445,10 @@ internal partial class JoseSerializer(
     /// <param name="writer">The writer that receives the characters.</param>
     private static void EncodeBase64Url(ReadOnlySpan<byte> bytes, IBufferWriter<char> writer)
     {
-        var span = writer.GetSpan(Base64Url.GetEncodedLength(bytes.Length));
-        writer.Advance(Base64Url.EncodeToChars(bytes, span));
+        var encodedLength = Base64Url.GetEncodedLength(bytes.Length);
+        var span = writer.GetSpan(encodedLength);
+        var written = Base64Url.EncodeToChars(bytes, span);
+        writer.Advance(written);
     }
 
     private IDisposable EncodeJose<T>(bool b64, T value, out ReadOnlySpan<char> chars)

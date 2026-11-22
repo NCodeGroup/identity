@@ -128,7 +128,8 @@ internal class DefaultBffUserTokenService(
         }
         catch (Exception exception)
         {
-            RefreshCompleted(activity, startTimestamp, attempt, exception.GetType().FullName);
+            var errorType = exception.GetType().FullName;
+            RefreshCompleted(activity, startTimestamp, attempt, errorType);
             throw;
         }
     }

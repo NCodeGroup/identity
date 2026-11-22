@@ -83,7 +83,8 @@ internal sealed class DefaultTenantTransferKeyService(
         try
         {
             var keyId = CreateKeyId();
-            var secretKey = SecretKeyFactory.CreateEccPkcs8(CreateMetadata(keyId), pkcs8);
+            var metadata = CreateMetadata(keyId);
+            var secretKey = SecretKeyFactory.CreateEccPkcs8(metadata, pkcs8);
 
             if (
                 !SecretKeyTypeCatalog.TryGet(secretKey.KeyType, out var descriptor)
@@ -95,10 +96,12 @@ internal sealed class DefaultTenantTransferKeyService(
                 );
             }
 
+            var protectedPkcs8 = Protector.Protect(pkcs8);
+            var expiresAt = TimeProvider.GetUtcNow() + Lifetime;
             var added = await ExpiringValueSet.TryAddAsync(
                 KeyPrefix + keyId,
-                Protector.Protect(pkcs8),
-                TimeProvider.GetUtcNow() + Lifetime,
+                protectedPkcs8,
+                expiresAt,
                 cancellationToken
             );
 
@@ -129,8 +132,10 @@ internal sealed class DefaultTenantTransferKeyService(
         byte[]? pkcs8 = null;
         try
         {
-            pkcs8 = Protector.Unprotect(value.Value.ToArray());
-            return SecretKeyFactory.CreateEccPkcs8(CreateMetadata(keyId), pkcs8);
+            var protectedBytes = value.Value.ToArray();
+            pkcs8 = Protector.Unprotect(protectedBytes);
+            var metadata = CreateMetadata(keyId);
+            return SecretKeyFactory.CreateEccPkcs8(metadata, pkcs8);
         }
         catch (CryptographicException)
         {

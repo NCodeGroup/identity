@@ -37,11 +37,10 @@ internal static class AuthorizationResponseWriter
                 )
             )
             .Select(parameter =>
-                KeyValuePair.Create(
-                    parameter.Descriptor.ParameterName,
-                    parameter.GetStringValues(environment)
-                )
-            )
+            {
+                var stringValues = parameter.GetStringValues(environment);
+                return KeyValuePair.Create(parameter.Descriptor.ParameterName, stringValues);
+            })
             .ToList();
     }
 
@@ -131,7 +130,8 @@ internal static class AuthorizationResponseWriter
                     builder.Append('&');
                 }
 
-                builder.Append(Uri.EscapeDataString(parameterName));
+                var encodedName = Uri.EscapeDataString(parameterName);
+                builder.Append(encodedName);
             }
             else
             {
@@ -146,13 +146,15 @@ internal static class AuthorizationResponseWriter
                         builder.Append('&');
                     }
 
-                    builder.Append(Uri.EscapeDataString(parameterName));
+                    var encodedParameterName = Uri.EscapeDataString(parameterName);
+                    builder.Append(encodedParameterName);
 
                     if (string.IsNullOrEmpty(stringValue))
                         continue;
 
                     builder.Append('=');
-                    builder.Append(Uri.EscapeDataString(stringValue));
+                    var encodedValue = Uri.EscapeDataString(stringValue);
+                    builder.Append(encodedValue);
                 }
             }
         }
@@ -210,7 +212,8 @@ internal static class AuthorizationResponseWriter
         CancellationToken cancellationToken
     )
     {
-        httpResponse.SetHtmlPageSecurity(CreateFormPostPolicy(redirectUri));
+        var formPostPolicy = CreateFormPostPolicy(redirectUri);
+        httpResponse.SetHtmlPageSecurity(formPostPolicy);
 
         // The page is rendered into a pooled buffer and transcoded straight into the response pipe, so no per-request
         // document string is built. The page carries the response parameters (an authorization code, tokens or a JARM
@@ -269,9 +272,10 @@ internal static class AuthorizationResponseWriter
         var sizeHint = value.Length;
         while (true)
         {
+            var buffer = writer.GetSpan(sizeHint);
             var status = encoder.Encode(
                 value,
-                writer.GetSpan(sizeHint),
+                buffer,
                 out var consumed,
                 out var written,
                 isFinalBlock: true

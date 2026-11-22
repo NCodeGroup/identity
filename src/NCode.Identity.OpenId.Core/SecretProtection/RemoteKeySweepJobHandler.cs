@@ -83,12 +83,8 @@ internal sealed class RemoteKeySweepJobHandler(
 
         // The keys are listed first, so a key that a secret records during the pass is never a candidate.
         var candidates = new List<RemoteKeyListing>();
-        await foreach (
-            var listing in provider.ListKeysAsync(
-                new RemoteKeyListRequest { Deployment = deployment },
-                cancellationToken
-            )
-        )
+        var listRequest = new RemoteKeyListRequest { Deployment = deployment };
+        await foreach (var listing in provider.ListKeysAsync(listRequest, cancellationToken))
         {
             if (listing.CreatedWhen <= sweptBefore)
                 candidates.Add(listing);
@@ -104,17 +100,13 @@ internal sealed class RemoteKeySweepJobHandler(
             if (referenced.Contains(listing.KeyId))
                 continue;
 
-            var destroyed = await RemoteSecretDestroyer.DestroyKeyAsync(
-                new RemoteKeyReference(job.Provider, listing.KeyId)
-            );
+            var remoteKeyReference = new RemoteKeyReference(job.Provider, listing.KeyId);
+            var destroyed = await RemoteSecretDestroyer.DestroyKeyAsync(remoteKeyReference);
             if (!destroyed)
                 continue;
 
-            await PostCommitWork.RunAsync(
-                TimeProvider,
-                PublishAsync,
-                CreateEvent(job.Provider, listing)
-            );
+            var sweepEvent = CreateEvent(job.Provider, listing);
+            await PostCommitWork.RunAsync(TimeProvider, PublishAsync, sweepEvent);
         }
     }
 

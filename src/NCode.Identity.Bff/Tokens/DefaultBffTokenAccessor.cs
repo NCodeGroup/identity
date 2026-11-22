@@ -78,7 +78,8 @@ internal class DefaultBffTokenAccessor : IBffTokenAccessor
 
     private static void ThrowIfNotGuarded(HttpContext httpContext)
     {
-        if (!BffGuardedEndpoints.IsGuarded(httpContext.GetEndpoint()))
+        var endpoint = httpContext.GetEndpoint();
+        if (!BffGuardedEndpoints.IsGuarded(endpoint))
             throw new InvalidOperationException(
                 "A BFF access token is available only to an endpoint the BFF guards. Mark an API AsBffApi() or [BffApi], a hub AsBffHub() or [BffHub], or a page AsBffPage() or [BffPage]."
             );

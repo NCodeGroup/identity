@@ -51,7 +51,8 @@ internal sealed class IssuerOnlyAssertionAudienceRequirement
                 return aud.GetString() is { Length: > 0 } single ? [single] : [];
 
             case JsonValueKind.Array:
-                var list = new List<string>(aud.GetArrayLength());
+                var arrayLength = aud.GetArrayLength();
+                var list = new List<string>(arrayLength);
                 foreach (var item in aud.EnumerateArray())
                 {
                     if (item.TryGetValue<string>(out var value) && value is { Length: > 0 })

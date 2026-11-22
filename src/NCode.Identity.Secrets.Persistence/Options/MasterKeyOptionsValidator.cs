@@ -32,8 +32,9 @@ internal sealed class MasterKeyOptionsValidator : IValidateOptions<SecretProtect
 
         if (keys.RotationPeriod < MinimumRotationPeriod)
         {
+            var rotationPeriodKey = Key(nameof(MasterKeyOptions.RotationPeriod));
             failures.Add(
-                $"{Key(nameof(MasterKeyOptions.RotationPeriod))} must be at least {MinimumRotationPeriod}; it is {keys.RotationPeriod}."
+                $"{rotationPeriodKey} must be at least {MinimumRotationPeriod}; it is {keys.RotationPeriod}."
             );
         }
 
@@ -42,15 +43,18 @@ internal sealed class MasterKeyOptionsValidator : IValidateOptions<SecretProtect
             || keys.RefreshInterval > MaximumRefreshInterval
         )
         {
+            var refreshIntervalKey = Key(nameof(MasterKeyOptions.RefreshInterval));
             failures.Add(
-                $"{Key(nameof(MasterKeyOptions.RefreshInterval))} must be between {MinimumRefreshInterval} and {MaximumRefreshInterval}; it is {keys.RefreshInterval}."
+                $"{refreshIntervalKey} must be between {MinimumRefreshInterval} and {MaximumRefreshInterval}; it is {keys.RefreshInterval}."
             );
         }
 
         if (keys.RetirementGrace < keys.RefreshInterval * 2)
         {
+            var retirementGraceKey = Key(nameof(MasterKeyOptions.RetirementGrace));
+            var refreshIntervalKey = Key(nameof(MasterKeyOptions.RefreshInterval));
             failures.Add(
-                $"{Key(nameof(MasterKeyOptions.RetirementGrace))} must be at least twice {Key(nameof(MasterKeyOptions.RefreshInterval))} ({keys.RefreshInterval * 2}); it is {keys.RetirementGrace}."
+                $"{retirementGraceKey} must be at least twice {refreshIntervalKey} ({keys.RefreshInterval * 2}); it is {keys.RetirementGrace}."
             );
         }
 
@@ -59,8 +63,9 @@ internal sealed class MasterKeyOptionsValidator : IValidateOptions<SecretProtect
             || !TimerPeriod.IsValid(keys.MaintenanceInterval)
         )
         {
+            var maintenanceIntervalKey = Key(nameof(MasterKeyOptions.MaintenanceInterval));
             failures.Add(
-                $"{Key(nameof(MasterKeyOptions.MaintenanceInterval))} must be between {MinimumMaintenanceInterval} and {TimerPeriod.MaxValue}; it is {keys.MaintenanceInterval}."
+                $"{maintenanceIntervalKey} must be between {MinimumMaintenanceInterval} and {TimerPeriod.MaxValue}; it is {keys.MaintenanceInterval}."
             );
         }
 

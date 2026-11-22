@@ -86,15 +86,19 @@ internal struct Fe448
     // Zero-copy views of the eight sequential ulong limb fields as a span (C# structs default to sequential layout,
     // so the limbs are contiguous). Avoids copying limbs in and out of the field element.
     [MethodImpl(Opt)]
-    private static Span<ulong> LimbsOf(ref Fe448 value) =>
-        MemoryMarshal.CreateSpan(ref Unsafe.As<Fe448, ulong>(ref value), 8);
+    private static Span<ulong> LimbsOf(ref Fe448 value)
+    {
+        ref var limb = ref Unsafe.As<Fe448, ulong>(ref value);
+        return MemoryMarshal.CreateSpan(ref limb, 8);
+    }
 
     [MethodImpl(Opt)]
-    private static ReadOnlySpan<ulong> ReadOnlyLimbsOf(in Fe448 value) =>
-        MemoryMarshal.CreateReadOnlySpan(
-            ref Unsafe.As<Fe448, ulong>(ref Unsafe.AsRef(in value)),
-            8
-        );
+    private static ReadOnlySpan<ulong> ReadOnlyLimbsOf(in Fe448 value)
+    {
+        ref var valueRef = ref Unsafe.AsRef(in value);
+        ref var limb = ref Unsafe.As<Fe448, ulong>(ref valueRef);
+        return MemoryMarshal.CreateReadOnlySpan(ref limb, 8);
+    }
 
     [MethodImpl(Opt)]
     public static Fe448 Mul(in Fe448 a, in Fe448 b)

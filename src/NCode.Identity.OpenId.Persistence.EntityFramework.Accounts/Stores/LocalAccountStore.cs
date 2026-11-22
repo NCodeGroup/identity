@@ -53,7 +53,11 @@ internal sealed class LocalAccountStore(
     protected override ValueTask<PersistedLocalAccount> MapFromEntityAsync(
         LocalAccountEntity entity,
         CancellationToken cancellationToken
-    ) => ValueTask.FromResult(MapFromEntity(entity));
+    )
+    {
+        var persisted = MapFromEntity(entity);
+        return ValueTask.FromResult(persisted);
+    }
 
     /// <inheritdoc />
     protected override async ValueTask<LocalAccountEntity?> GetEntityOrDefaultAsync(
@@ -120,17 +124,16 @@ internal sealed class LocalAccountStore(
 
         foreach (var claim in account.Claims)
         {
-            entity.Claims.Add(
-                new LocalAccountClaimEntity
-                {
-                    Id = NextId(),
-                    TenantId = tenantEntity.Id,
-                    NormalizedTenantId = tenantEntity.NormalizedTenantId,
-                    Tenant = tenantEntity,
-                    Type = claim.Type,
-                    Value = claim.Value,
-                }
-            );
+            var claimEntity = new LocalAccountClaimEntity
+            {
+                Id = NextId(),
+                TenantId = tenantEntity.Id,
+                NormalizedTenantId = tenantEntity.NormalizedTenantId,
+                Tenant = tenantEntity,
+                Type = claim.Type,
+                Value = claim.Value,
+            };
+            entity.Claims.Add(claimEntity);
         }
 
         await Accounts.AddAsync(entity, cancellationToken);
@@ -266,17 +269,16 @@ internal sealed class LocalAccountStore(
 
         foreach (var claim in claims)
         {
-            entity.Claims.Add(
-                new LocalAccountClaimEntity
-                {
-                    Id = NextId(),
-                    TenantId = entity.TenantId,
-                    NormalizedTenantId = entity.NormalizedTenantId,
-                    Tenant = entity.Tenant,
-                    Type = claim.Type,
-                    Value = claim.Value,
-                }
-            );
+            var claimEntity = new LocalAccountClaimEntity
+            {
+                Id = NextId(),
+                TenantId = entity.TenantId,
+                NormalizedTenantId = entity.NormalizedTenantId,
+                Tenant = entity.Tenant,
+                Type = claim.Type,
+                Value = claim.Value,
+            };
+            entity.Claims.Add(claimEntity);
         }
 
         // Touch the account row so its concurrency token bumps (the claims collection change alone would not mark it).
@@ -338,17 +340,16 @@ internal sealed class LocalAccountStore(
 
             foreach (var claim in record.Claims)
             {
-                entity.Claims.Add(
-                    new LocalAccountClaimEntity
-                    {
-                        Id = NextId(),
-                        TenantId = tenantEntity.Id,
-                        NormalizedTenantId = tenantEntity.NormalizedTenantId,
-                        Tenant = tenantEntity,
-                        Type = claim.Type,
-                        Value = claim.Value,
-                    }
-                );
+                var claimEntity = new LocalAccountClaimEntity
+                {
+                    Id = NextId(),
+                    TenantId = tenantEntity.Id,
+                    NormalizedTenantId = tenantEntity.NormalizedTenantId,
+                    Tenant = tenantEntity,
+                    Type = claim.Type,
+                    Value = claim.Value,
+                };
+                entity.Claims.Add(claimEntity);
             }
 
             await Accounts.AddAsync(entity, cancellationToken);

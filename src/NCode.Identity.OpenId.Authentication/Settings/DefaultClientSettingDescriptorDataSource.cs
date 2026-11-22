@@ -40,11 +40,12 @@ internal class DefaultClientSettingDescriptorDataSource(
             // profile permits (default derived from the registered method descriptors). A ceiling over the registered
             // method, never a choice between methods. Ceiling (Intersect): a child narrows the parent's set; unset =
             // unrestricted (ADR-1010).
+            var eachAuthMethod = AuthMethod();
             yield return new SettingDescriptor<IReadOnlyCollection<string>>
             {
                 Name = OpenIdSettingNames.TokenEndpointAuthMethodsSupported,
                 AppliesTo = [OpenIdSettingScopes.Tenant, OpenIdSettingScopes.Client],
-                Rule = SettingRules.Each(AuthMethod()),
+                Rule = SettingRules.Each(eachAuthMethod),
                 Default = AuthMethods,
 
                 IsDiscoverable = true,

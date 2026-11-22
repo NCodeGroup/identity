@@ -148,12 +148,12 @@ internal class BffAccessTokenHandler(
         }
         else
         {
-            context = contexts.ForRequest(
+            var httpContext =
                 accessor.HttpContext
-                    ?? throw new InvalidOperationException(
-                        "The BFF access token handler requires a current HttpContext or a current BFF connection."
-                    )
-            );
+                ?? throw new InvalidOperationException(
+                    "The BFF access token handler requires a current HttpContext or a current BFF connection."
+                );
+            context = contexts.ForRequest(httpContext);
         }
 
         return context;

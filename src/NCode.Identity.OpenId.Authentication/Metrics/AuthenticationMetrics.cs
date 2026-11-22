@@ -77,15 +77,21 @@ internal sealed class AuthenticationMetrics
     /// </summary>
     /// <param name="errorType">The bounded failure: the response's status code, <c>timeout</c>, or the
     /// <see cref="HttpRequestError"/> in snake case.</param>
-    public void OutboundRetried(string errorType) =>
-        OutboundRetries.Add(1, new KeyValuePair<string, object?>(ErrorTypeAttribute, errorType));
+    public void OutboundRetried(string errorType)
+    {
+        var errorTypeTag = new KeyValuePair<string, object?>(ErrorTypeAttribute, errorType);
+        OutboundRetries.Add(1, errorTypeTag);
+    }
 
     /// <summary>
     /// Records that an attempt, or a whole call, of the guarded outbound client timed out.
     /// </summary>
     /// <param name="scope">The bounded scope: <c>attempt</c> or <c>total</c>.</param>
-    public void OutboundTimedOut(string scope) =>
-        OutboundTimeouts.Add(1, new KeyValuePair<string, object?>(TimeoutScopeAttribute, scope));
+    public void OutboundTimedOut(string scope)
+    {
+        var scopeTag = new KeyValuePair<string, object?>(TimeoutScopeAttribute, scope);
+        OutboundTimeouts.Add(1, scopeTag);
+    }
 
     /// <summary>
     /// Records that a request was judged against a registered rate-limit descriptor.
@@ -94,11 +100,17 @@ internal sealed class AuthenticationMetrics
     /// <param name="result">The bounded result: <c>admitted</c>, <c>overage</c>, <c>rejected</c>, or
     /// <c>store_unavailable</c>.</param>
     /// <param name="environmentType">The tenant's registered environment type, a bounded value.</param>
-    public void RateLimitJudged(string partition, string result, string environmentType) =>
-        RateLimitingRequests.Add(
-            1,
-            new KeyValuePair<string, object?>(RateLimitingPartitionAttribute, partition),
-            new KeyValuePair<string, object?>(RateLimitingResultAttribute, result),
-            new KeyValuePair<string, object?>(TenantEnvironmentTypeAttribute, environmentType)
+    public void RateLimitJudged(string partition, string result, string environmentType)
+    {
+        var partitionTag = new KeyValuePair<string, object?>(
+            RateLimitingPartitionAttribute,
+            partition
         );
+        var resultTag = new KeyValuePair<string, object?>(RateLimitingResultAttribute, result);
+        var environmentTypeTag = new KeyValuePair<string, object?>(
+            TenantEnvironmentTypeAttribute,
+            environmentType
+        );
+        RateLimitingRequests.Add(1, partitionTag, resultTag, environmentTypeTag);
+    }
 }

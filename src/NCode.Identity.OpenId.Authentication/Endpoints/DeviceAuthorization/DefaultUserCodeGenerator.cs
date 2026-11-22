@@ -28,7 +28,8 @@ internal sealed class DefaultUserCodeGenerator : IUserCodeGenerator
             if (index > 0 && index % GroupSize == 0)
                 builder.Append('-');
 
-            builder.Append(Alphabet[RandomNumberGenerator.GetInt32(Alphabet.Length)]);
+            var alphabetIndex = RandomNumberGenerator.GetInt32(Alphabet.Length);
+            builder.Append(Alphabet[alphabetIndex]);
         }
 
         return builder.ToString();

@@ -41,8 +41,9 @@ public static class StrictConfigurationBindingExtensions
             }
             catch (InvalidOperationException exception)
             {
+                var instanceTypeName = instance.GetType().Name;
                 throw new InvalidOperationException(
-                    $"The configuration section '{section.Path}' does not match {instance.GetType().Name}: "
+                    $"The configuration section '{section.Path}' does not match {instanceTypeName}: "
                         + exception.Message,
                     exception
                 );

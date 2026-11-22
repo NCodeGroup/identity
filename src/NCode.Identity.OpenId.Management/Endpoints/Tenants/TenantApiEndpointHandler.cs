@@ -504,9 +504,15 @@ internal class TenantApiEndpointHandler(
         }
 
         return tenant =>
-            teamSettings.TryGetValue(tenant.TeamId, out var settings) && settings is not null
-                ? ToTenantResource(tenant, ResolveEnvironment(settings, tenant))
-                : ToTenantResource(tenant);
+        {
+            if (teamSettings.TryGetValue(tenant.TeamId, out var settings) && settings is not null)
+            {
+                var environment = ResolveEnvironment(settings, tenant);
+                return ToTenantResource(tenant, environment);
+            }
+
+            return ToTenantResource(tenant);
+        };
     }
 
     /// <summary>
@@ -640,19 +646,18 @@ internal class TenantApiEndpointHandler(
 
         // Listing tenants across teams is platform authority: a global admin or an assignment at the platform node
         // lists them, and nothing beneath the platform does.
+        var platformNode = GetPlatformNode(httpContext);
         return await ProcessListAsync(
             httpContext,
-            GetPlatformNode(httpContext),
+            platformNode,
             async () =>
             {
                 await using var storeManager = await StoreManagerFactory.CreateAsync(
                     cancellationToken
                 );
                 var store = storeManager.GetStore<ITenantStore>();
-                var page = await store.GetPageAsync(
-                    new PageRequest { Cursor = cursor, Limit = effectiveLimit },
-                    cancellationToken
-                );
+                var pageRequest = new PageRequest { Cursor = cursor, Limit = effectiveLimit };
+                var page = await store.GetPageAsync(pageRequest, cancellationToken);
                 toTenantResource = await CreateTenantResourceMapperAsync(
                     page.Items,
                     cancellationToken
@@ -685,20 +690,18 @@ internal class TenantApiEndpointHandler(
         var effectiveLimit = NormalizeLimit(limit);
         Func<PersistedTenant, TenantResource> toTenantResource = ToTenantResource;
 
+        var teamNode = GetTeamNode(httpContext, teamId);
         return await ProcessListAsync(
             httpContext,
-            GetTeamNode(httpContext, teamId),
+            teamNode,
             async () =>
             {
                 await using var storeManager = await StoreManagerFactory.CreateAsync(
                     cancellationToken
                 );
                 var store = storeManager.GetStore<ITenantStore>();
-                var page = await store.GetPageAsync(
-                    teamId,
-                    new PageRequest { Cursor = cursor, Limit = effectiveLimit },
-                    cancellationToken
-                );
+                var pageRequest = new PageRequest { Cursor = cursor, Limit = effectiveLimit };
+                var page = await store.GetPageAsync(teamId, pageRequest, cancellationToken);
                 toTenantResource = await CreateTenantResourceMapperAsync(
                     page.Items,
                     cancellationToken
@@ -726,9 +729,10 @@ internal class TenantApiEndpointHandler(
     )
     {
         // The tenant is read and its environment is resolved only after authorization (ADR-1245).
+        var tenantNode = GetTenantNode(tenantId);
         return await ProcessGetAsync(
             httpContext,
-            GetTenantNode(tenantId),
+            tenantNode,
             Operations.Read,
             async token =>
             {
@@ -807,6 +811,7 @@ internal class TenantApiEndpointHandler(
                 cancellationToken
             );
 
+        var settingsObject = ToJsonObject(request.Settings);
         var tenant = new PersistedTenant
         {
             TenantId = tenantId,
@@ -820,7 +825,7 @@ internal class TenantApiEndpointHandler(
             {
                 TenantId = tenantId,
                 ConcurrencyToken = string.Empty,
-                Value = SerializeToElement(ToJsonObject(request.Settings)),
+                Value = SerializeToElement(settingsObject),
             },
             Secrets = new PersistedTenantSecrets
             {
@@ -896,12 +901,14 @@ internal class TenantApiEndpointHandler(
 
         // The audit record carries the tenant's own state, as an update's and a deletion's do; the environment is
         // derived from its settings and stamps the audit event itself (ADR-1289).
+        var tenantResource = ToTenantResource(tenant);
+        var resourceValues = ToResourceValues(tenantResource);
         await ManagementAuditRecorder.RecordTenantChangedAsync(
             httpContext,
             tenant.TeamId,
             tenant.TenantId,
             ResourceChangeTypes.Created,
-            ToResourceValues(ToTenantResource(tenant))
+            resourceValues
         );
 
         if (creatorAssignment is not null)
@@ -940,25 +947,22 @@ internal class TenantApiEndpointHandler(
         // A tenant without an issuer reserves its identifier alone.
         var issuer = tenant.Issuer ?? string.Empty;
 
-        var reservationResult = await TenantDirectory.ReserveAsync(
-            new TenantReservation
-            {
-                TenantId = tenant.TenantId,
-                Issuer = issuer,
-                TeamId = tenant.TeamId,
-                Cell = CellOptions.Name,
-            },
-            cancellationToken
-        );
+        var reservation = new TenantReservation
+        {
+            TenantId = tenant.TenantId,
+            Issuer = issuer,
+            TeamId = tenant.TeamId,
+            Cell = CellOptions.Name,
+        };
+        var reservationResult = await TenantDirectory.ReserveAsync(reservation, cancellationToken);
         if (!reservationResult.IsReserved)
         {
-            return ToErrorResult(
-                new ManagementError
-                {
-                    StatusCode = StatusCodes.Status409Conflict,
-                    Detail = reservationResult.ConflictDetail,
-                }
-            );
+            var reservationError = new ManagementError
+            {
+                StatusCode = StatusCodes.Status409Conflict,
+                Detail = reservationResult.ConflictDetail,
+            };
+            return ToErrorResult(reservationError);
         }
 
         var isInserted = false;
@@ -974,24 +978,24 @@ internal class TenantApiEndpointHandler(
             await storeManager.SaveChangesAsync(cancellationToken);
             isInserted = true;
 
+            var placementRequest = new TenantPlacementRequest
+            {
+                TenantId = tenant.TenantId,
+                Issuer = issuer,
+                Cell = CellOptions.Name,
+            };
             var placementResult = await TenantDirectory.PlaceAsync(
-                new TenantPlacementRequest
-                {
-                    TenantId = tenant.TenantId,
-                    Issuer = issuer,
-                    Cell = CellOptions.Name,
-                },
+                placementRequest,
                 cancellationToken
             );
             if (!placementResult.IsReserved)
             {
-                return ToErrorResult(
-                    new ManagementError
-                    {
-                        StatusCode = StatusCodes.Status409Conflict,
-                        Detail = placementResult.ConflictDetail,
-                    }
-                );
+                var placementError = new ManagementError
+                {
+                    StatusCode = StatusCodes.Status409Conflict,
+                    Detail = placementResult.ConflictDetail,
+                };
+                return ToErrorResult(placementError);
             }
 
             isPlaced = true;
@@ -1042,16 +1046,16 @@ internal class TenantApiEndpointHandler(
     /// </summary>
     /// <param name="httpContext">The <see cref="HttpContext"/> for the current request.</param>
     /// <returns>The <see cref="ProblemHttpResult"/> that asks the caller to retry.</returns>
-    private static ProblemHttpResult DirectoryUnavailableProblem(HttpContext httpContext) =>
-        RetryAfterProblem.Create(
-            httpContext,
-            TimeSpan.FromSeconds(GlobalDirectoryProtocol.UnavailableRetryAfterSeconds),
-            new ProblemDetails
-            {
-                Status = StatusCodes.Status503ServiceUnavailable,
-                Detail = "The global directory is unavailable. Retry the request.",
-            }
-        );
+    private static ProblemHttpResult DirectoryUnavailableProblem(HttpContext httpContext)
+    {
+        var retryAfter = TimeSpan.FromSeconds(GlobalDirectoryProtocol.UnavailableRetryAfterSeconds);
+        var problem = new ProblemDetails
+        {
+            Status = StatusCodes.Status503ServiceUnavailable,
+            Detail = "The global directory is unavailable. Retry the request.",
+        };
+        return RetryAfterProblem.Create(httpContext, retryAfter, problem);
+    }
 
     /// <summary>
     /// Answers the problem that stops a delete in this cell while the global directory places the tenant in another
@@ -1119,9 +1123,10 @@ internal class TenantApiEndpointHandler(
         CancellationToken cancellationToken
     )
     {
+        var tenantNode = GetTenantNode(tenantId);
         var authorizationFailure = await GetAuthorizationFailureAsync(
             httpContext,
-            GetTenantNode(tenantId),
+            tenantNode,
             Operations.Read,
             cancellationToken
         );
@@ -1176,9 +1181,10 @@ internal class TenantApiEndpointHandler(
     )
     {
         // Previewing a new tenant is part of creating it, which is authority at the team node (ADR-1417).
+        var teamNode = GetTeamNode(httpContext, teamId);
         var authorizationResult = await AuthorizationService.AuthorizeAsync(
             httpContext.User,
-            GetTeamNode(httpContext, teamId),
+            teamNode,
             Operations.Create
         );
         if (!authorizationResult.Succeeded)
@@ -1246,25 +1252,24 @@ internal class TenantApiEndpointHandler(
             cancellationToken
         );
 
-        return TypedResults.Ok(
-            new TenantAddressResource
-            {
-                TenantId = tenantId,
-                Issuer = effectiveIssuer,
-                IsIssuerDerived = proposedIssuer is null && effectiveIssuer is not null,
-                MtlsEndpointAliasAuthority = effectiveAlias,
-                IsMtlsEndpointAliasAuthorityDerived =
-                    proposedAlias is null && effectiveAlias is not null,
-                Exists = exists,
-                Failures = failures
-                    .Select(failure => new TenantAddressFailure
-                    {
-                        Detail = failure.Detail,
-                        IsConflict = failure.IsConflict,
-                    })
-                    .ToList(),
-            }
-        );
+        var resource = new TenantAddressResource
+        {
+            TenantId = tenantId,
+            Issuer = effectiveIssuer,
+            IsIssuerDerived = proposedIssuer is null && effectiveIssuer is not null,
+            MtlsEndpointAliasAuthority = effectiveAlias,
+            IsMtlsEndpointAliasAuthorityDerived =
+                proposedAlias is null && effectiveAlias is not null,
+            Exists = exists,
+            Failures = failures
+                .Select(failure => new TenantAddressFailure
+                {
+                    Detail = failure.Detail,
+                    IsConflict = failure.IsConflict,
+                })
+                .ToList(),
+        };
+        return TypedResults.Ok(resource);
     }
 
     /// <summary>
@@ -1372,24 +1377,24 @@ internal class TenantApiEndpointHandler(
         {
             try
             {
+                var issuerChange = new TenantIssuerChange
+                {
+                    TenantId = tenant.TenantId,
+                    PreviousIssuer = previousIssuer,
+                    Issuer = model.Issuer,
+                };
                 var changeResult = await TenantDirectory.ChangeIssuerAsync(
-                    new TenantIssuerChange
-                    {
-                        TenantId = tenant.TenantId,
-                        PreviousIssuer = previousIssuer,
-                        Issuer = model.Issuer,
-                    },
+                    issuerChange,
                     cancellationToken
                 );
                 if (!changeResult.IsReserved)
                 {
-                    return ToErrorResult(
-                        new ManagementError
-                        {
-                            StatusCode = StatusCodes.Status409Conflict,
-                            Detail = changeResult.ConflictDetail,
-                        }
-                    );
+                    var conflictError = new ManagementError
+                    {
+                        StatusCode = StatusCodes.Status409Conflict,
+                        Detail = changeResult.ConflictDetail,
+                    };
+                    return ToErrorResult(conflictError);
                 }
             }
             catch (DirectoryUnavailableException)
@@ -1419,12 +1424,14 @@ internal class TenantApiEndpointHandler(
             throw;
         }
 
+        var tenantResource = ToTenantResource(tenant);
+        var resourceValues = ToResourceValues(tenantResource);
         await ManagementAuditRecorder.RecordTenantChangedAsync(
             httpContext,
             tenant.TeamId,
             tenant.TenantId,
             ResourceChangeTypes.Updated,
-            ToResourceValues(ToTenantResource(tenant))
+            resourceValues
         );
 
         await NotifyTenantChangedAsync(
@@ -1456,15 +1463,13 @@ internal class TenantApiEndpointHandler(
     {
         try
         {
-            await TenantDirectory.ChangeIssuerAsync(
-                new TenantIssuerChange
-                {
-                    TenantId = tenantId,
-                    PreviousIssuer = attemptedIssuer,
-                    Issuer = previousIssuer,
-                },
-                cancellationToken
-            );
+            var issuerChange = new TenantIssuerChange
+            {
+                TenantId = tenantId,
+                PreviousIssuer = attemptedIssuer,
+                Issuer = previousIssuer,
+            };
+            await TenantDirectory.ChangeIssuerAsync(issuerChange, cancellationToken);
         }
         catch (DirectoryUnavailableException)
         {
@@ -1539,24 +1544,21 @@ internal class TenantApiEndpointHandler(
         );
         if (effectiveSettings.GetValue(OpenIdSettingKeys.DeletionProtection))
         {
-            return ToErrorResult(
-                new ManagementError
-                {
-                    StatusCode = StatusCodes.Status409Conflict,
-                    Detail =
-                        "The tenant has deletion protection enabled. Set its 'deletion_protection' setting to false, then delete it.",
-                }
-            );
+            var deletionProtectionError = new ManagementError
+            {
+                StatusCode = StatusCodes.Status409Conflict,
+                Detail =
+                    "The tenant has deletion protection enabled. Set its 'deletion_protection' setting to false, then delete it.",
+            };
+            return ToErrorResult(deletionProtectionError);
         }
 
-        var resourceValues = ToResourceValues(ToTenantResource(tenant));
+        var tenantResource = ToTenantResource(tenant);
+        var resourceValues = ToResourceValues(tenantResource);
 
         // The tenant's row is gone when the deletion is audited, so its environment type is recorded now (ADR-1289).
-        ManagementTenantEnvironment.Remember(
-            httpContext,
-            tenant.TenantId,
-            effectiveSettings.GetValue(OpenIdSettingKeys.EnvironmentType)
-        );
+        var environmentType = effectiveSettings.GetValue(OpenIdSettingKeys.EnvironmentType);
+        ManagementTenantEnvironment.Remember(httpContext, tenant.TenantId, environmentType);
 
         await store.RemoveAsync(tenantId, cancellationToken);
         await storeManager.SaveChangesAsync(cancellationToken);
@@ -1571,10 +1573,12 @@ internal class TenantApiEndpointHandler(
         {
             try
             {
-                await TenantDirectory.RetireAsync(
-                    new TenantRetirement { TenantId = tenant.TenantId, Issuer = tenant.Issuer },
-                    cancellationToken
-                );
+                var retirement = new TenantRetirement
+                {
+                    TenantId = tenant.TenantId,
+                    Issuer = tenant.Issuer,
+                };
+                await TenantDirectory.RetireAsync(retirement, cancellationToken);
             }
             catch (DirectoryUnavailableException exception)
             {
@@ -1643,55 +1647,62 @@ internal class TenantApiEndpointHandler(
             return AuthorizationFailed(httpContext);
         }
 
-        var lastDay = to ?? DateOnly.FromDateTime(TimeProvider.GetUtcNow().UtcDateTime);
+        DateOnly lastDay;
+        if (to is { } requestedLastDay)
+        {
+            lastDay = requestedLastDay;
+        }
+        else
+        {
+            var utcNow = TimeProvider.GetUtcNow();
+            lastDay = DateOnly.FromDateTime(utcNow.UtcDateTime);
+        }
+
         if (from is null && lastDay.DayNumber < DefaultUsageDays)
         {
             // The default range would start before DateOnly.MinValue, which AddDays refuses by throwing.
-            return TypedResults.ValidationProblem(
-                new Dictionary<string, string[]>
-                {
-                    ["to"] =
-                    [
-                        $"Without 'from', 'to' must be at least {DefaultUsageDays} days after the first representable day.",
-                    ],
-                }
-            );
+            var toErrors = new Dictionary<string, string[]>
+            {
+                ["to"] =
+                [
+                    $"Without 'from', 'to' must be at least {DefaultUsageDays} days after the first representable day.",
+                ],
+            };
+            return TypedResults.ValidationProblem(toErrors);
         }
 
         var firstDay = from ?? lastDay.AddDays(-DefaultUsageDays);
         if (firstDay > lastDay || lastDay.DayNumber - firstDay.DayNumber >= MaxUsageDays)
         {
-            return TypedResults.ValidationProblem(
-                new Dictionary<string, string[]>
-                {
-                    ["from"] =
-                    [
-                        $"The range must run forward from 'from' to 'to' and span at most {MaxUsageDays} days.",
-                    ],
-                }
-            );
+            var fromErrors = new Dictionary<string, string[]>
+            {
+                ["from"] =
+                [
+                    $"The range must run forward from 'from' to 'to' and span at most {MaxUsageDays} days.",
+                ],
+            };
+            return TypedResults.ValidationProblem(fromErrors);
         }
 
         await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
         var store = storeManager.GetStore<ITenantUsageStore>();
         var usage = await store.ListAsync(tenantId, firstDay, lastDay, cancellationToken);
 
-        return TypedResults.Ok(
-            new TenantUsageResource
-            {
-                TenantId = tenantId,
-                From = firstDay,
-                To = lastDay,
-                Entries = usage
-                    .Select(entry => new TenantUsageEntry
-                    {
-                        Day = entry.Day,
-                        Meter = entry.Meter,
-                        Count = entry.Count,
-                    })
-                    .ToList(),
-            }
-        );
+        var resource = new TenantUsageResource
+        {
+            TenantId = tenantId,
+            From = firstDay,
+            To = lastDay,
+            Entries = usage
+                .Select(entry => new TenantUsageEntry
+                {
+                    Day = entry.Day,
+                    Meter = entry.Meter,
+                    Count = entry.Count,
+                })
+                .ToList(),
+        };
+        return TypedResults.Ok(resource);
     }
 
     /// <summary>
@@ -1709,9 +1720,10 @@ internal class TenantApiEndpointHandler(
         CancellationToken cancellationToken
     )
     {
+        var tenantNode = GetTenantNode(tenantId);
         return await ProcessGetAsync(
             httpContext,
-            GetTenantNode(tenantId),
+            tenantNode,
             Operations.Read,
             async token =>
             {
@@ -1779,9 +1791,10 @@ internal class TenantApiEndpointHandler(
         // The settings are resolved only after authorization, so a caller who may not read them learns nothing about a
         // document that cannot be honored, and the stored document's token is not the effective view's.
         // See ADR-1245.
+        var tenantNode = GetTenantNode(tenantId);
         return await ProcessGetAsync(
             httpContext,
-            GetTenantNode(tenantId),
+            tenantNode,
             Operations.Read,
             async token =>
             {
@@ -1827,9 +1840,10 @@ internal class TenantApiEndpointHandler(
         CancellationToken cancellationToken
     )
     {
+        var tenantNode = GetTenantNode(tenantId);
         return await ProcessGetAsync(
             httpContext,
-            GetTenantNode(tenantId),
+            tenantNode,
             Operations.Read,
             token => TenantConfigurationExporter.ExportAsync(tenantId, token),
             document => document,
@@ -1954,9 +1968,10 @@ internal class TenantApiEndpointHandler(
         CancellationToken cancellationToken
     )
     {
+        var tenantNode = GetTenantNode(tenantId);
         var authorizationFailure = await GetAuthorizationFailureAsync(
             httpContext,
-            GetTenantNode(tenantId),
+            tenantNode,
             Operations.Update,
             cancellationToken
         );
@@ -2052,12 +2067,14 @@ internal class TenantApiEndpointHandler(
 
         await storeManager.SaveChangesAsync(cancellationToken);
 
+        var settingsResource = ToTenantSettingsResource(tenantSettings);
+        var resourceValues = ToResourceValues(settingsResource);
         await ManagementAuditRecorder.RecordTenantChangedAsync(
             httpContext,
             tenant.TeamId,
             tenantSettings.TenantId,
             ResourceChangeTypes.SettingsUpdated,
-            ToResourceValues(ToTenantSettingsResource(tenantSettings))
+            resourceValues
         );
 
         await NotifyTenantChangedAsync(
@@ -2089,9 +2106,10 @@ internal class TenantApiEndpointHandler(
         CancellationToken cancellationToken
     )
     {
+        var tenantNode = GetTenantNode(tenantId);
         return await ProcessGetAsync(
             httpContext,
-            GetTenantNode(tenantId),
+            tenantNode,
             Operations.Read,
             async token =>
             {
@@ -2124,9 +2142,10 @@ internal class TenantApiEndpointHandler(
         CancellationToken cancellationToken
     )
     {
+        var tenantNode = GetTenantNode(tenantId);
         var authorizationFailure = await GetAuthorizationFailureAsync(
             httpContext,
-            GetTenantNode(tenantId),
+            tenantNode,
             Operations.Create,
             cancellationToken
         );
@@ -2160,8 +2179,9 @@ internal class TenantApiEndpointHandler(
             return secretIdConflict;
         }
 
+        var owner = SecretOwner.ForTenant(tenantId);
         var protector = await SecretProtectorProvider.GetProtectorAsync(
-            SecretOwner.ForTenant(tenantId),
+            owner,
             [],
             cancellationToken
         );
@@ -2169,21 +2189,19 @@ internal class TenantApiEndpointHandler(
         GeneratedSecret generatedSecret;
         try
         {
-            generatedSecret = SecretGenerator.GenerateSecret(
-                protector,
-                new GenerateSecretRequest
-                {
-                    SecretId = secretId,
-                    SecretType = request.SecretType,
-                    GenerationParameters = validation.GenerationParameters,
-                    Use = request.Use,
-                    Algorithm = request.Algorithm,
-                    CreatedWhen = createdWhen,
-                    ActivatesWhen = request.ActivatesWhen,
-                    RetiresWhen = request.RetiresWhen,
-                    ExpiresWhen = request.ExpiresWhen,
-                }
-            );
+            var generateRequest = new GenerateSecretRequest
+            {
+                SecretId = secretId,
+                SecretType = request.SecretType,
+                GenerationParameters = validation.GenerationParameters,
+                Use = request.Use,
+                Algorithm = request.Algorithm,
+                CreatedWhen = createdWhen,
+                ActivatesWhen = request.ActivatesWhen,
+                RetiresWhen = request.RetiresWhen,
+                ExpiresWhen = request.ExpiresWhen,
+            };
+            generatedSecret = SecretGenerator.GenerateSecret(protector, generateRequest);
         }
         catch (Exception exception)
             when (exception is ArgumentException or InvalidOperationException)
@@ -2200,13 +2218,14 @@ internal class TenantApiEndpointHandler(
         await storeManager.SaveChangesAsync(cancellationToken);
 
         var secretResource = ToSecretResource(generatedSecret.Secret);
+        var resourceValues = ToResourceValues(secretResource);
 
         await ManagementAuditRecorder.RecordTenantSecretChangedAsync(
             httpContext,
             tenantId,
             secretId,
             ResourceChangeTypes.Created,
-            ToResourceValues(secretResource)
+            resourceValues
         );
 
         await NotifyTenantChangedAsync(
@@ -2239,9 +2258,10 @@ internal class TenantApiEndpointHandler(
         CancellationToken cancellationToken
     )
     {
+        var tenantNode = GetTenantNode(tenantId);
         var authorizationFailure = await GetAuthorizationFailureAsync(
             httpContext,
-            GetTenantNode(tenantId),
+            tenantNode,
             Operations.Create,
             cancellationToken
         );
@@ -2307,13 +2327,14 @@ internal class TenantApiEndpointHandler(
         await storeManager.SaveChangesAsync(cancellationToken);
 
         var importedSecretResource = ToSecretResource(importedSecret);
+        var resourceValues = ToResourceValues(importedSecretResource);
 
         await ManagementAuditRecorder.RecordTenantSecretChangedAsync(
             httpContext,
             tenantId,
             secretId,
             ResourceChangeTypes.Created,
-            ToResourceValues(importedSecretResource)
+            resourceValues
         );
 
         await NotifyTenantChangedAsync(
@@ -2349,9 +2370,10 @@ internal class TenantApiEndpointHandler(
         CancellationToken cancellationToken
     )
     {
+        var tenantNode = GetTenantNode(tenantId);
         return await ProcessGetAsync(
             httpContext,
-            GetTenantNode(tenantId),
+            tenantNode,
             Operations.Read,
             async token =>
             {
@@ -2382,9 +2404,10 @@ internal class TenantApiEndpointHandler(
         CancellationToken cancellationToken
     )
     {
+        var tenantNode = GetTenantNode(tenantId);
         return await ProcessGetAsync(
             httpContext,
-            GetTenantNode(tenantId),
+            tenantNode,
             Operations.Read,
             async token =>
             {
@@ -2421,9 +2444,10 @@ internal class TenantApiEndpointHandler(
         CancellationToken cancellationToken
     )
     {
+        var tenantNode = GetTenantNode(tenantId);
         var authorizationFailure = await GetAuthorizationFailureAsync(
             httpContext,
-            GetTenantNode(tenantId),
+            tenantNode,
             Operations.Update,
             cancellationToken
         );
@@ -2465,12 +2489,14 @@ internal class TenantApiEndpointHandler(
         await store.UpdateSecretAsync(tenantId, updated, cancellationToken);
         await storeManager.SaveChangesAsync(cancellationToken);
 
+        var updatedResource = ToSecretResource(updated);
+        var resourceValues = ToResourceValues(updatedResource);
         await ManagementAuditRecorder.RecordTenantSecretChangedAsync(
             httpContext,
             tenantId,
             secretId,
             ResourceChangeTypes.Updated,
-            ToResourceValues(ToSecretResource(updated))
+            resourceValues
         );
 
         await NotifyTenantChangedAsync(
@@ -2502,9 +2528,10 @@ internal class TenantApiEndpointHandler(
         CancellationToken cancellationToken
     )
     {
+        var tenantNode = GetTenantNode(tenantId);
         var authorizationFailure = await GetAuthorizationFailureAsync(
             httpContext,
-            GetTenantNode(tenantId),
+            tenantNode,
             Operations.Delete,
             cancellationToken
         );
@@ -2535,7 +2562,8 @@ internal class TenantApiEndpointHandler(
             return placedElsewhere;
         }
 
-        var secretValues = ToResourceValues(ToSecretResource(secret));
+        var secretResource = ToSecretResource(secret);
+        var secretValues = ToResourceValues(secretResource);
 
         await store.RemoveSecretAsync(tenantId, secretId, cancellationToken);
         await storeManager.SaveChangesAsync(cancellationToken);
@@ -2761,9 +2789,10 @@ internal class TenantApiEndpointHandler(
         CancellationToken cancellationToken
     )
     {
+        var tenantNode = GetTenantNode(tenantId);
         var authorizationFailure = await GetAuthorizationFailureAsync(
             httpContext,
-            GetTenantNode(tenantId),
+            tenantNode,
             Operations.Read,
             cancellationToken
         );
@@ -2783,9 +2812,12 @@ internal class TenantApiEndpointHandler(
         // See ADR-1414.
         var owner = SecretOwner.ForTenant(tenant.TenantId);
 
+        var rootKeyManager = OwnerRootKeyManager.CanBringRootKey(owner, out _)
+            ? OwnerRootKeyManager
+            : null;
         return await EncryptionKeyEndpoints.GetAsync(
             MasterKeyManager,
-            OwnerRootKeyManager.CanBringRootKey(owner, out _) ? OwnerRootKeyManager : null,
+            rootKeyManager,
             owner,
             cancellationToken
         );
@@ -2809,9 +2841,10 @@ internal class TenantApiEndpointHandler(
         CancellationToken cancellationToken
     )
     {
+        var tenantNode = GetTenantNode(tenantId);
         var authorizationFailure = await GetAuthorizationFailureAsync(
             httpContext,
-            GetTenantNode(tenantId),
+            tenantNode,
             Operations.Update,
             cancellationToken
         );
@@ -2827,11 +2860,12 @@ internal class TenantApiEndpointHandler(
             return ManagementProblems.ResourceNotFound();
         }
 
+        var owner = SecretOwner.ForTenant(tenant.TenantId);
         return await EncryptionKeyEndpoints.RekeyAsync(
             MasterKeyManager,
             ManagementAuditRecorder,
             httpContext,
-            SecretOwner.ForTenant(tenant.TenantId),
+            owner,
             cancellationToken
         );
     }
@@ -2858,9 +2892,10 @@ internal class TenantApiEndpointHandler(
         CancellationToken cancellationToken
     )
     {
+        var tenantNode = GetTenantNode(tenantId);
         var authorizationFailure = await GetAuthorizationFailureAsync(
             httpContext,
-            GetTenantNode(tenantId),
+            tenantNode,
             Operations.Update,
             cancellationToken
         );
@@ -2909,9 +2944,10 @@ internal class TenantApiEndpointHandler(
         CancellationToken cancellationToken
     )
     {
+        var tenantNode = GetTenantNode(tenantId);
         var authorizationFailure = await GetAuthorizationFailureAsync(
             httpContext,
-            GetTenantNode(tenantId),
+            tenantNode,
             Operations.Update,
             cancellationToken
         );
@@ -2927,11 +2963,12 @@ internal class TenantApiEndpointHandler(
             return ManagementProblems.ResourceNotFound();
         }
 
+        var owner = SecretOwner.ForTenant(tenant.TenantId);
         return await EncryptionKeyEndpoints.RemoveRootKeyAsync(
             OwnerRootKeyManager,
             ManagementAuditRecorder,
             httpContext,
-            SecretOwner.ForTenant(tenant.TenantId),
+            owner,
             cancellationToken
         );
     }
@@ -2951,9 +2988,10 @@ internal class TenantApiEndpointHandler(
         CancellationToken cancellationToken
     )
     {
+        var tenantNode = GetTenantNode(tenantId);
         var authorizationFailure = await GetAuthorizationFailureAsync(
             httpContext,
-            GetTenantNode(tenantId),
+            tenantNode,
             Operations.Update,
             cancellationToken
         );
@@ -2969,11 +3007,12 @@ internal class TenantApiEndpointHandler(
             return ManagementProblems.ResourceNotFound();
         }
 
+        var owner = SecretOwner.ForTenant(tenant.TenantId);
         return await EncryptionKeyEndpoints.ValidateRootKeyAsync(
             OwnerRootKeyManager,
             ManagementAuditRecorder,
             httpContext,
-            SecretOwner.ForTenant(tenant.TenantId),
+            owner,
             cancellationToken
         );
     }

@@ -666,7 +666,7 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
                 .AddSingleton(MockMediator.Object)
                 .BuildServiceProvider(),
         };
-        // The shared environment filter publishes the context in the pipeline; emulate it for direct handler calls.
+        // The management caller gate publishes the context in the pipeline; emulate it for direct handler calls.
         httpContext.Features.Set<IOpenIdContextFeature>(
             Mock.Of<IOpenIdContextFeature>(feature =>
                 feature.OpenIdContext

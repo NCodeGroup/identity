@@ -157,7 +157,10 @@ internal sealed class OcspResponse
                 var certificateSequence = explicitCertificates.ReadSequence();
                 explicitCertificates.ThrowIfNotEmpty();
                 while (certificateSequence.HasData)
-                    certificates.Add(certificateSequence.ReadEncodedValue());
+                {
+                    var encodedCertificate = certificateSequence.ReadEncodedValue();
+                    certificates.Add(encodedCertificate);
+                }
             }
 
             basic.ThrowIfNotEmpty();
@@ -182,7 +185,8 @@ internal sealed class OcspResponse
             if (responderTag == ExplicitOneTag)
             {
                 var explicitName = tbs.ReadSequence(ExplicitOneTag);
-                responderName = new X500DistinguishedName(explicitName.ReadEncodedValue().Span);
+                var encodedName = explicitName.ReadEncodedValue();
+                responderName = new X500DistinguishedName(encodedName.Span);
                 explicitName.ThrowIfNotEmpty();
             }
             else if (responderTag == ExplicitTwoTag)
@@ -201,7 +205,10 @@ internal sealed class OcspResponse
             var responses = new List<OcspSingleResponse>();
             var singleResponses = tbs.ReadSequence();
             while (singleResponses.HasData)
-                responses.Add(ReadSingleResponse(singleResponses));
+            {
+                var singleResponse = ReadSingleResponse(singleResponses);
+                responses.Add(singleResponse);
+            }
 
             var hasUnsupportedFeatures = false;
             if (tbs.HasData && tbs.PeekTag() == ExplicitOneTag)
@@ -301,15 +308,17 @@ internal sealed class OcspResponse
             Signature.Span
         );
 
-    private bool IdentifiesResponder(X509Certificate2 certificate) =>
-        ResponderName is { } name
-            ? RevocationNames.Matches(name, certificate.SubjectName)
-            : ResponderKeyHash.Span.SequenceEqual(
-                CryptographicOperations.HashData(
-                    HashAlgorithmName.SHA1,
-                    certificate.PublicKey.EncodedKeyValue.RawData
-                )
-            );
+    private bool IdentifiesResponder(X509Certificate2 certificate)
+    {
+        if (ResponderName is { } name)
+            return RevocationNames.Matches(name, certificate.SubjectName);
+
+        var keyHash = CryptographicOperations.HashData(
+            HashAlgorithmName.SHA1,
+            certificate.PublicKey.EncodedKeyValue.RawData
+        );
+        return ResponderKeyHash.Span.SequenceEqual(keyHash);
+    }
 
     private bool IsAuthorizedResponder(
         X509Certificate2 responder,

@@ -45,12 +45,11 @@ public static class DefaultRegistration
             serviceCollection.TryAddSingleton(TimeProvider.System);
 
             serviceCollection.AddOptions<BffBlazorClientOptions>();
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    IValidateOptions<BffBlazorClientOptions>,
-                    BffBlazorClientOptionsValidator
-                >()
-            );
+            var validatorDescriptor = ServiceDescriptor.Singleton<
+                IValidateOptions<BffBlazorClientOptions>,
+                BffBlazorClientOptionsValidator
+            >();
+            serviceCollection.TryAddEnumerable(validatorDescriptor);
 
             serviceCollection.AddAuthorizationCore();
             serviceCollection.AddCascadingAuthenticationState();

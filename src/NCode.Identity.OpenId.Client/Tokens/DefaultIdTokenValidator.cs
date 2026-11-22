@@ -51,10 +51,11 @@ internal class DefaultIdTokenValidator(
                 "The discovery document of the provider lacks the issuer."
             );
 
+        var jwtProfile = ProviderJwtProfile.ForIdToken(registration, metadata);
         var validation = await ProviderJwtValidator.ValidateAsync(
             request.IdToken,
             issuer,
-            ProviderJwtProfile.ForIdToken(registration, metadata),
+            jwtProfile,
             cancellationToken
         );
         if (!validation.IsValid)
@@ -64,49 +65,57 @@ internal class DefaultIdTokenValidator(
         var header = decodedJwt.Header;
         var payload = decodedJwt.Payload;
 
+        string? subValue = null;
         if (
-            !payload.TryGetProperty(JoseClaimNames.Payload.Sub, out var sub)
-            || sub.ValueKind != JsonValueKind.String
-            || string.IsNullOrEmpty(sub.GetString())
+            payload.TryGetProperty(JoseClaimNames.Payload.Sub, out var sub)
+            && sub.ValueKind == JsonValueKind.String
         )
+        {
+            subValue = sub.GetString();
+        }
+
+        if (string.IsNullOrEmpty(subValue))
             return Fail(
                 TokenValidationFailureCodes.InvalidClaim,
                 "The ID token has no 'sub' claim."
             );
 
-        if (
-            request.Subject is { } expectedSubject
-            && !string.Equals(sub.GetString(), expectedSubject, StringComparison.Ordinal)
-        )
-            return Fail(
-                TokenValidationFailureCodes.SubjectMismatch,
-                "The 'sub' claim of the ID token does not match the expected subject."
-            );
+        if (request.Subject is { } expectedSubject)
+        {
+            if (!string.Equals(subValue, expectedSubject, StringComparison.Ordinal))
+                return Fail(
+                    TokenValidationFailureCodes.SubjectMismatch,
+                    "The 'sub' claim of the ID token does not match the expected subject."
+                );
+        }
 
-        if (
-            payload.TryGetProperty(JoseClaimNames.Payload.Azp, out var azp)
-            && (
-                azp.ValueKind != JsonValueKind.String
-                || !string.Equals(azp.GetString(), registration.ClientId, StringComparison.Ordinal)
-            )
-        )
-            return Fail(
-                TokenValidationFailureCodes.InvalidAudience,
-                "The 'azp' claim of the ID token does not match the client."
-            );
+        if (payload.TryGetProperty(JoseClaimNames.Payload.Azp, out var azp))
+        {
+            var azpValue = azp.ValueKind == JsonValueKind.String ? azp.GetString() : null;
+            if (!string.Equals(azpValue, registration.ClientId, StringComparison.Ordinal))
+                return Fail(
+                    TokenValidationFailureCodes.InvalidAudience,
+                    "The 'azp' claim of the ID token does not match the client."
+                );
+        }
 
-        if (
-            request.Nonce is { } expectedNonce
-            && (
-                !payload.TryGetProperty(JoseClaimNames.Payload.Nonce, out var nonce)
-                || nonce.ValueKind != JsonValueKind.String
-                || !string.Equals(nonce.GetString(), expectedNonce, StringComparison.Ordinal)
+        if (request.Nonce is { } expectedNonce)
+        {
+            string? nonceValue = null;
+            if (
+                payload.TryGetProperty(JoseClaimNames.Payload.Nonce, out var nonce)
+                && nonce.ValueKind == JsonValueKind.String
             )
-        )
-            return Fail(
-                TokenValidationFailureCodes.NonceMismatch,
-                "The 'nonce' claim of the ID token does not match the request."
-            );
+            {
+                nonceValue = nonce.GetString();
+            }
+
+            if (!string.Equals(nonceValue, expectedNonce, StringComparison.Ordinal))
+                return Fail(
+                    TokenValidationFailureCodes.NonceMismatch,
+                    "The 'nonce' claim of the ID token does not match the request."
+                );
+        }
 
         if (request.MaxAge is { } maxAge)
         {

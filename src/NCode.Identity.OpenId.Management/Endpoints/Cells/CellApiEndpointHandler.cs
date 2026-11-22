@@ -23,7 +23,7 @@ GET api/cells (control-plane cell only)
 /// <summary>
 /// Provides the API endpoint that lists the cells of the platform, so a management client learns each cell's name,
 /// region and kind. The directory owns the list, so the route is mapped only on the control-plane cell. It answers any
-/// caller that the management authentication filter authenticated from a management access token, which it reads from
+/// caller that the management caller gate authenticated from a management access token, which it reads from
 /// <see cref="IManagementCallerFeature"/>, and it never returns a cell's management URL.
 /// </summary>
 internal class CellApiEndpointHandler(
@@ -80,12 +80,13 @@ internal class CellApiEndpointHandler(
     )
     {
         if (httpContext.Features.Get<IManagementCallerFeature>() is null)
-            return ManagementProblems.AuthenticationRequired();
+            return ManagementProblems.AuthenticationRequired(httpContext);
 
         try
         {
             var descriptors = await CellDirectory.ListAsync(cancellationToken);
-            return TypedResults.Json(descriptors.Select(ToCellResource).ToList());
+            var cells = descriptors.Select(ToCellResource).ToList();
+            return TypedResults.Json(cells);
         }
         catch (DirectoryUnavailableException)
         {
@@ -99,14 +100,14 @@ internal class CellApiEndpointHandler(
     /// </summary>
     /// <param name="httpContext">The <see cref="HttpContext"/> for the current request.</param>
     /// <returns>The <see cref="ProblemHttpResult"/> that asks the caller to retry.</returns>
-    private static ProblemHttpResult DirectoryUnavailableProblem(HttpContext httpContext) =>
-        RetryAfterProblem.Create(
-            httpContext,
-            TimeSpan.FromSeconds(GlobalDirectoryProtocol.UnavailableRetryAfterSeconds),
-            new ProblemDetails
-            {
-                Status = StatusCodes.Status503ServiceUnavailable,
-                Detail = "The global directory is unavailable. Retry the request.",
-            }
-        );
+    private static ProblemHttpResult DirectoryUnavailableProblem(HttpContext httpContext)
+    {
+        var retryAfter = TimeSpan.FromSeconds(GlobalDirectoryProtocol.UnavailableRetryAfterSeconds);
+        var problemDetails = new ProblemDetails
+        {
+            Status = StatusCodes.Status503ServiceUnavailable,
+            Detail = "The global directory is unavailable. Retry the request.",
+        };
+        return RetryAfterProblem.Create(httpContext, retryAfter, problemDetails);
+    }
 }

@@ -28,13 +28,11 @@ internal class DefaultValidateStandingOnSubjectAuthenticationHandler
             return;
         }
 
-        await openIdContext.Mediator.SendAsync(
-            new ValidateSubjectStandingCommand(
-                openIdContext,
-                subjectAuthentication,
-                operationDisposition
-            ),
-            cancellationToken
+        var standingCommand = new ValidateSubjectStandingCommand(
+            openIdContext,
+            subjectAuthentication,
+            operationDisposition
         );
+        await openIdContext.Mediator.SendAsync(standingCommand, cancellationToken);
     }
 }

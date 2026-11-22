@@ -31,6 +31,7 @@ internal class DefaultUnsupportedBackchannelAuthenticationHandler
             .WithDescription("The supplied login hint could not be resolved to a known user.")
             .WithStatusCode(StatusCodes.Status400BadRequest);
 
-        return ValueTask.FromResult(new AuthenticateSubjectDisposition(error));
+        var disposition = new AuthenticateSubjectDisposition(error);
+        return ValueTask.FromResult(disposition);
     }
 }

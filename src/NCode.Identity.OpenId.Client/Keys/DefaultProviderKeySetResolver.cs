@@ -50,9 +50,10 @@ internal class DefaultProviderKeySetResolver(
     {
         var jwksUri = await GetJwksUriAsync(authority, cancellationToken);
 
+        var policy = CreatePolicy();
         return await Cache.GetAsync(
             jwksUri,
-            CreatePolicy(),
+            policy,
             token => FetchAsync(jwksUri, token),
             cancellationToken
         );
@@ -66,9 +67,10 @@ internal class DefaultProviderKeySetResolver(
     {
         var jwksUri = await GetJwksUriAsync(authority, cancellationToken);
 
+        var policy = CreatePolicy();
         return await Cache.RefreshAsync(
             jwksUri,
-            CreatePolicy(),
+            policy,
             token => FetchAsync(jwksUri, token),
             cancellationToken
         );
@@ -98,12 +100,10 @@ internal class DefaultProviderKeySetResolver(
             throw Fail(jwksUri, "The jwks_uri is not an https URL (or http on a loopback host).");
 
         using var request = new HttpRequestMessage(HttpMethod.Get, jwksUri);
-        request.Headers.Accept.Add(
-            new MediaTypeWithQualityHeaderValue(OpenIdProtocol.MediaTypes.JwkSet)
-        );
-        request.Headers.Accept.Add(
-            new MediaTypeWithQualityHeaderValue(OpenIdProtocol.MediaTypes.Json)
-        );
+        var jwkSetAccept = new MediaTypeWithQualityHeaderValue(OpenIdProtocol.MediaTypes.JwkSet);
+        request.Headers.Accept.Add(jwkSetAccept);
+        var jsonAccept = new MediaTypeWithQualityHeaderValue(OpenIdProtocol.MediaTypes.Json);
+        request.Headers.Accept.Add(jsonAccept);
 
         ProviderHttpResponse response;
         try

@@ -85,27 +85,25 @@ internal class DefaultAuthorizationRequestClient(
                 );
             }
 
-            return new AuthorizationRequestResult(
-                new Uri(
-                    AddQuery(
-                        authorizationEndpoint,
-                        BuildParameters(request, registration.ClientId, dpopJkt)
-                    )
-                )
-            )
+            var authorizationParameters = BuildParameters(request, registration.ClientId, dpopJkt);
+            var authorizationQueryUrl = AddQuery(authorizationEndpoint, authorizationParameters);
+            var authorizationQueryUri = new Uri(authorizationQueryUrl);
+            return new AuthorizationRequestResult(authorizationQueryUri)
             {
                 DPoPJwkThumbprint = dpopJkt,
             };
         }
 
+        var pushedEndpoint = new ProviderEndpoint(
+            OpenIdProtocol.MetadataNames.PushedAuthorizationRequestEndpoint,
+            parEndpoint
+        );
+        var pushedParameters = BuildParameters(request, clientId: null, dpopJkt);
         var response = await Sender.PostFormAsync(
             registration,
             metadata,
-            new ProviderEndpoint(
-                OpenIdProtocol.MetadataNames.PushedAuthorizationRequestEndpoint,
-                parEndpoint
-            ),
-            BuildParameters(request, clientId: null, dpopJkt),
+            pushedEndpoint,
+            pushedParameters,
             includeClientId: true,
             cancellationToken
         );
@@ -134,21 +132,21 @@ internal class DefaultAuthorizationRequestClient(
                 );
             }
 
+            var clientIdParameter = new KeyValuePair<string, string>(
+                OpenIdProtocol.Parameters.ClientId,
+                registration.ClientId
+            );
+            var requestUriParameter = new KeyValuePair<string, string>(
+                OpenIdProtocol.Parameters.RequestUri,
+                requestUri
+            );
             var authorizationUri = AddQuery(
                 authorizationEndpoint,
-                [
-                    new KeyValuePair<string, string>(
-                        OpenIdProtocol.Parameters.ClientId,
-                        registration.ClientId
-                    ),
-                    new KeyValuePair<string, string>(
-                        OpenIdProtocol.Parameters.RequestUri,
-                        requestUri
-                    ),
-                ]
+                [clientIdParameter, requestUriParameter]
             );
 
-            return new AuthorizationRequestResult(new Uri(authorizationUri), requestUri, expiresIn)
+            var requestResultUri = new Uri(authorizationUri);
+            return new AuthorizationRequestResult(requestResultUri, requestUri, expiresIn)
             {
                 DPoPJwkThumbprint = dpopJkt,
             };
@@ -174,67 +172,88 @@ internal class DefaultAuthorizationRequestClient(
         };
 
         if (clientId is not null)
-            parameters.Add(
-                new KeyValuePair<string, string>(OpenIdProtocol.Parameters.ClientId, clientId)
+        {
+            var clientIdParameter = new KeyValuePair<string, string>(
+                OpenIdProtocol.Parameters.ClientId,
+                clientId
             );
+            parameters.Add(clientIdParameter);
+        }
 
-        parameters.Add(
-            new KeyValuePair<string, string>(
-                OpenIdProtocol.Parameters.RedirectUri,
-                request.RedirectUri
-            )
+        var redirectUriParameter = new KeyValuePair<string, string>(
+            OpenIdProtocol.Parameters.RedirectUri,
+            request.RedirectUri
         );
-        parameters.Add(
-            new KeyValuePair<string, string>(OpenIdProtocol.Parameters.State, request.State)
+        parameters.Add(redirectUriParameter);
+        var stateParameter = new KeyValuePair<string, string>(
+            OpenIdProtocol.Parameters.State,
+            request.State
         );
-        parameters.Add(
-            new KeyValuePair<string, string>(
-                OpenIdProtocol.Parameters.CodeChallenge,
-                ComputeS256Challenge(request.CodeVerifier)
-            )
+        parameters.Add(stateParameter);
+        var codeChallenge = ComputeS256Challenge(request.CodeVerifier);
+        var codeChallengeParameter = new KeyValuePair<string, string>(
+            OpenIdProtocol.Parameters.CodeChallenge,
+            codeChallenge
         );
-        parameters.Add(
-            new KeyValuePair<string, string>(
-                OpenIdProtocol.Parameters.CodeChallengeMethod,
-                OpenIdProtocol.CodeChallengeMethods.S256
-            )
+        parameters.Add(codeChallengeParameter);
+        var codeChallengeMethodParameter = new KeyValuePair<string, string>(
+            OpenIdProtocol.Parameters.CodeChallengeMethod,
+            OpenIdProtocol.CodeChallengeMethods.S256
         );
+        parameters.Add(codeChallengeMethodParameter);
 
         if (!string.IsNullOrEmpty(request.Nonce))
-            parameters.Add(
-                new KeyValuePair<string, string>(OpenIdProtocol.Parameters.Nonce, request.Nonce)
+        {
+            var nonceParameter = new KeyValuePair<string, string>(
+                OpenIdProtocol.Parameters.Nonce,
+                request.Nonce
             );
+            parameters.Add(nonceParameter);
+        }
 
         if (!string.IsNullOrEmpty(request.Scope))
-            parameters.Add(
-                new KeyValuePair<string, string>(OpenIdProtocol.Parameters.Scope, request.Scope)
+        {
+            var scopeParameter = new KeyValuePair<string, string>(
+                OpenIdProtocol.Parameters.Scope,
+                request.Scope
             );
+            parameters.Add(scopeParameter);
+        }
 
         if (!string.IsNullOrEmpty(request.ResponseMode))
-            parameters.Add(
-                new KeyValuePair<string, string>(
-                    OpenIdProtocol.Parameters.ResponseMode,
-                    request.ResponseMode
-                )
+        {
+            var responseModeParameter = new KeyValuePair<string, string>(
+                OpenIdProtocol.Parameters.ResponseMode,
+                request.ResponseMode
             );
+            parameters.Add(responseModeParameter);
+        }
 
         foreach (var resource in request.Resources)
-            parameters.Add(
-                new KeyValuePair<string, string>(OpenIdProtocol.Parameters.Resource, resource)
+        {
+            var resourceParameter = new KeyValuePair<string, string>(
+                OpenIdProtocol.Parameters.Resource,
+                resource
             );
+            parameters.Add(resourceParameter);
+        }
 
         if (dpopJkt is not null)
-            parameters.Add(
-                new KeyValuePair<string, string>(
-                    OpenIdProtocol.Parameters.DPoPJwkThumbprint,
-                    dpopJkt
-                )
+        {
+            var dpopJwkThumbprintParameter = new KeyValuePair<string, string>(
+                OpenIdProtocol.Parameters.DPoPJwkThumbprint,
+                dpopJkt
             );
+            parameters.Add(dpopJwkThumbprintParameter);
+        }
 
         if (request.AdditionalParameters is { } additionalParameters)
         {
             foreach (var (name, value) in additionalParameters)
-                parameters.Add(new KeyValuePair<string, string>(name, value));
+            {
+                var additionalParameter = new KeyValuePair<string, string>(name, value);
+                parameters.Add(additionalParameter);
+            }
         }
 
         return parameters;
@@ -247,7 +266,8 @@ internal class DefaultAuthorizationRequestClient(
             isSensitive: true,
             out Span<byte> verifierBytes
         );
-        return Base64Url.EncodeToString(SHA256.HashData(verifierBytes));
+        var hash = SHA256.HashData(verifierBytes);
+        return Base64Url.EncodeToString(hash);
     }
 
     private static string AddQuery(string endpoint, List<KeyValuePair<string, string>> parameters)
@@ -258,11 +278,11 @@ internal class DefaultAuthorizationRequestClient(
         var separator = endpoint.Contains('?') ? '&' : '?';
         foreach (var (name, value) in parameters)
         {
-            builder
-                .Append(separator)
-                .Append(Uri.EscapeDataString(name))
-                .Append('=')
-                .Append(Uri.EscapeDataString(value));
+            builder.Append(separator);
+            var escapedName = Uri.EscapeDataString(name);
+            builder.Append(escapedName).Append('=');
+            var escapedValue = Uri.EscapeDataString(value);
+            builder.Append(escapedValue);
             separator = '&';
         }
 

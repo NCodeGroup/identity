@@ -163,10 +163,11 @@ internal sealed class OwnerRootKeyValidationService(
         {
             var validation = await OwnerRootKeyManager.ValidateAsync(owner, cancellationToken);
 
+            var validationEvents = CreateEvents(validation);
             await PostCommitWork.RunAsync(
                 TimeProvider,
                 PublishAsync,
-                (owner, Events: CreateEvents(validation))
+                (owner, Events: validationEvents)
             );
         }
         catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
@@ -182,36 +183,36 @@ internal sealed class OwnerRootKeyValidationService(
 
         if (validation is { RootKey: { } rootKey, Change: { } change })
         {
-            events.Add(
-                RootKeyAuditEvents.Create(
-                    rootKey,
-                    change,
-                    RootKeyChangeReasons.ForValidation(change),
-                    AuditEventSources.OpenId,
-                    AuditActor.System,
-                    TimeProvider.GetUtcNow()
-                )
+            var changeReason = RootKeyChangeReasons.ForValidation(change);
+            var changeTime = TimeProvider.GetUtcNow();
+            var changeEvent = RootKeyAuditEvents.Create(
+                rootKey,
+                change,
+                changeReason,
+                AuditEventSources.OpenId,
+                AuditActor.System,
+                changeTime
             );
+            events.Add(changeEvent);
         }
 
         if (validation.Rotation is { } rotation)
         {
             var now = TimeProvider.GetUtcNow();
-            events.Add(
-                new MasterKeyAuditEvent
-                {
-                    EventId = Guid.CreateVersion7(now),
-                    EventTime = now,
-                    EventSource = AuditEventSources.OpenId,
-                    TenantId = rotation.Owner.TenantId,
-                    Actor = AuditActor.System,
-                    Outcome = AuditOutcome.Success,
-                    Change = MasterKeyChanges.Rotated,
-                    Reason = MasterKeyChangeReasons.RootKeyChanged,
-                    Key = rotation.ActiveKey,
-                    RetiredKey = rotation.RetiredKey,
-                }
-            );
+            var rotatedEvent = new MasterKeyAuditEvent
+            {
+                EventId = Guid.CreateVersion7(now),
+                EventTime = now,
+                EventSource = AuditEventSources.OpenId,
+                TenantId = rotation.Owner.TenantId,
+                Actor = AuditActor.System,
+                Outcome = AuditOutcome.Success,
+                Change = MasterKeyChanges.Rotated,
+                Reason = MasterKeyChangeReasons.RootKeyChanged,
+                Key = rotation.ActiveKey,
+                RetiredKey = rotation.RetiredKey,
+            };
+            events.Add(rotatedEvent);
         }
 
         return events;

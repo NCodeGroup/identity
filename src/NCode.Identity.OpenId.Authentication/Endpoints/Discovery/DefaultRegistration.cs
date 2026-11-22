@@ -26,26 +26,23 @@ internal static class DefaultRegistration
 
             var serviceCollection = builder.ServiceCollection;
 
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    ICommandHandler<DiscoverMetadataCommand>,
-                    DefaultDiscoverMetadataHandler
-                >()
-            );
+            var metadataHandler = ServiceDescriptor.Singleton<
+                ICommandHandler<DiscoverMetadataCommand>,
+                DefaultDiscoverMetadataHandler
+            >();
+            serviceCollection.TryAddEnumerable(metadataHandler);
 
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    ICommandHandler<DiscoverMetadataCommand>,
-                    DefaultDiscoverScopesHandler
-                >()
-            );
+            var scopesHandler = ServiceDescriptor.Singleton<
+                ICommandHandler<DiscoverMetadataCommand>,
+                DefaultDiscoverScopesHandler
+            >();
+            serviceCollection.TryAddEnumerable(scopesHandler);
 
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    ICommandHandler<DiscoverMetadataCommand>,
-                    DefaultDiscoverSessionManagementHandler
-                >()
-            );
+            var sessionManagementHandler = ServiceDescriptor.Singleton<
+                ICommandHandler<DiscoverMetadataCommand>,
+                DefaultDiscoverSessionManagementHandler
+            >();
+            serviceCollection.TryAddEnumerable(sessionManagementHandler);
         }
     }
 }

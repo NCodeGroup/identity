@@ -102,12 +102,13 @@ internal class PrivateKeyJwtClientAuthenticator(
             .Cast<SecretKey>()
             .ToList();
 
+        var preferredAlgorithms = BuildPreferredAlgorithms(
+            context.Metadata.TokenEndpointAuthSigningAlgValuesSupported
+        );
         if (
             !CredentialSelector.TryGetSigningCredentials(
                 AlgorithmCollectionProvider.Collection,
-                BuildPreferredAlgorithms(
-                    context.Metadata.TokenEndpointAuthSigningAlgValuesSupported
-                ),
+                preferredAlgorithms,
                 candidateKeys,
                 out var credentials
             )
@@ -117,36 +118,37 @@ internal class PrivateKeyJwtClientAuthenticator(
             );
 
         var now = TimeProvider.GetUtcNow();
-        var assertion = await JwtEncoder.EncodeAsync(
-            new JwtEncodingParameters
+        var encodingParameters = new JwtEncodingParameters
+        {
+            SigningCredentials = credentials,
+            Issuer = clientId,
+            Audience = new StringValues(audience),
+            IssuedAt = now,
+            NotBefore = now,
+            Expires = now + AssertionLifetime,
+            ExtraPayloadClaims = new Dictionary<string, object>
             {
-                SigningCredentials = credentials,
-                Issuer = clientId,
-                Audience = new StringValues(audience),
-                IssuedAt = now,
-                NotBefore = now,
-                Expires = now + AssertionLifetime,
-                ExtraPayloadClaims = new Dictionary<string, object>
-                {
-                    [JoseClaimNames.Payload.Sub] = clientId,
-                    [JoseClaimNames.Payload.Jti] = CreateJti(),
-                },
+                [JoseClaimNames.Payload.Sub] = clientId,
+                [JoseClaimNames.Payload.Jti] = CreateJti(),
             },
-            cancellationToken
-        );
+        };
+        var assertion = await JwtEncoder.EncodeAsync(encodingParameters, cancellationToken);
 
-        context.Parameters.Add(
-            new KeyValuePair<string, string>(
-                OpenIdProtocol.Parameters.ClientAssertionType,
-                OpenIdProtocol.ClientAssertionTypes.JwtBearer
-            )
+        var clientAssertionTypeParameter = new KeyValuePair<string, string>(
+            OpenIdProtocol.Parameters.ClientAssertionType,
+            OpenIdProtocol.ClientAssertionTypes.JwtBearer
         );
-        context.Parameters.Add(
-            new KeyValuePair<string, string>(OpenIdProtocol.Parameters.ClientAssertion, assertion)
+        context.Parameters.Add(clientAssertionTypeParameter);
+        var clientAssertionParameter = new KeyValuePair<string, string>(
+            OpenIdProtocol.Parameters.ClientAssertion,
+            assertion
         );
-        context.Parameters.Add(
-            new KeyValuePair<string, string>(OpenIdProtocol.Parameters.ClientId, clientId)
+        context.Parameters.Add(clientAssertionParameter);
+        var clientIdParameter = new KeyValuePair<string, string>(
+            OpenIdProtocol.Parameters.ClientId,
+            clientId
         );
+        context.Parameters.Add(clientIdParameter);
     }
 
     private List<string> BuildPreferredAlgorithms(List<string>? supported)

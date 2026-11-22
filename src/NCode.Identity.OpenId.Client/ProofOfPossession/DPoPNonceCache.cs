@@ -18,10 +18,11 @@ internal sealed class DPoPNonceCache
 
     private ConcurrentDictionary<string, string> Nonces { get; } = new(StringComparer.Ordinal);
 
-    public string? Get(Uri requestUri) =>
-        Nonces.TryGetValue(requestUri.GetLeftPart(UriPartial.Authority), out var nonce)
-            ? nonce
-            : null;
+    public string? Get(Uri requestUri)
+    {
+        var origin = requestUri.GetLeftPart(UriPartial.Authority);
+        return Nonces.TryGetValue(origin, out var nonce) ? nonce : null;
+    }
 
     public void Set(Uri requestUri, string nonce)
     {

@@ -55,19 +55,19 @@ internal partial class DefaultCoseSerializer
         IBufferWriter<byte> keyWriter = keyBuffer;
         key.ExportPrivateKey(ref keyWriter);
 
-        var ciphertext = Encrypt(
-            algorithm,
-            keyBuffer.WrittenSpan,
-            nonce,
-            content,
-            CoseStructures.Encrypt("Encrypt0", protectedBytes, options.ExternalAad.Span)
+        var structure = CoseStructures.Encrypt(
+            "Encrypt0",
+            protectedBytes,
+            options.ExternalAad.Span
         );
+        var ciphertext = Encrypt(algorithm, keyBuffer.WrittenSpan, nonce, content, structure);
 
+        var carriedContent = CarriedContent(ciphertext, options);
         return CoseMessageWriter.Encrypt0(
             options.OmitTag ? null : CoseTags.Encrypt0,
             protectedBytes,
             unprotectedHeaders,
-            CarriedContent(ciphertext, options)
+            carriedContent
         );
     }
 
@@ -110,7 +110,8 @@ internal partial class DefaultCoseSerializer
                     nameof(recipients)
                 );
 
-            algorithms[0].NewKey(direct, new Dictionary<string, object>(), contentKey);
+            var directHeaders = new Dictionary<string, object>();
+            algorithms[0].NewKey(direct, directHeaders, contentKey);
             entries = [NewRecipientEntry(recipient, [])];
         }
         else
@@ -123,19 +124,15 @@ internal partial class DefaultCoseSerializer
         RandomSource.Fill(nonce);
         unprotectedHeaders[CoseHeaderLabels.InitializationVector] = CoseValue.FromByteString(nonce);
 
-        var ciphertext = Encrypt(
-            algorithm,
-            contentKey,
-            nonce,
-            content,
-            CoseStructures.Encrypt("Encrypt", protectedBytes, options.ExternalAad.Span)
-        );
+        var structure = CoseStructures.Encrypt("Encrypt", protectedBytes, options.ExternalAad.Span);
+        var ciphertext = Encrypt(algorithm, contentKey, nonce, content, structure);
 
+        var carriedContent = CarriedContent(ciphertext, options);
         return CoseMessageWriter.Encrypt(
             options.OmitTag ? null : CoseTags.Encrypt,
             protectedBytes,
             unprotectedHeaders,
-            CarriedContent(ciphertext, options),
+            carriedContent,
             entries
         );
     }
@@ -318,8 +315,12 @@ internal partial class DefaultCoseSerializer
 
             foreach (var candidate in candidates)
             {
+                var contentKeySize = Math.Max(
+                    recipient.Third.Length,
+                    algorithm.ContentKeySizeBytes
+                );
                 using var lease = BufferFactory.Rent(
-                    Math.Max(recipient.Third.Length, algorithm.ContentKeySizeBytes),
+                    contentKeySize,
                     isSensitive: true,
                     out Span<byte> contentKey
                 );
@@ -417,14 +418,9 @@ internal partial class DefaultCoseSerializer
     {
         var cipherTextSize = algorithm.GetCipherTextSizeBytes(plaintext.Length);
         var output = new byte[cipherTextSize + algorithm.AuthenticationTagSizeBytes];
-        algorithm.Encrypt(
-            contentKey,
-            nonce,
-            plaintext,
-            structure,
-            output.AsSpan(0, cipherTextSize),
-            output.AsSpan(cipherTextSize)
-        );
+        var cipherSpan = output.AsSpan(0, cipherTextSize);
+        var tagSpan = output.AsSpan(cipherTextSize);
+        algorithm.Encrypt(contentKey, nonce, plaintext, structure, cipherSpan, tagSpan);
 
         return output;
     }

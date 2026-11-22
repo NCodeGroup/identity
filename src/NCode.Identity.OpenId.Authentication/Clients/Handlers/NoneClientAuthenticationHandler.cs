@@ -53,9 +53,14 @@ internal class NoneClientAuthenticationHandler(
 
         var form = await httpRequest.ReadFormAsync(cancellationToken);
 
+        if (!form.TryGetValue(OpenIdProtocol.Parameters.ClientId, out var clientIdValues))
+        {
+            return ClientAuthenticationResult.Undefined;
+        }
+
+        var clientIdText = clientIdValues.ToString();
         if (
-            !form.TryGetValue(OpenIdProtocol.Parameters.ClientId, out var clientIdValues)
-            || string.IsNullOrEmpty(clientIdValues.ToString())
+            string.IsNullOrEmpty(clientIdText)
             || form.ContainsKey(OpenIdProtocol.Parameters.ClientSecret)
             || form.ContainsKey(OpenIdProtocol.Parameters.ClientAssertion)
         )
@@ -63,11 +68,7 @@ internal class NoneClientAuthenticationHandler(
             return ClientAuthenticationResult.Undefined;
         }
 
-        var resolution = await ResolveClientAsync(
-            openIdContext,
-            clientIdValues.ToString(),
-            cancellationToken
-        );
+        var resolution = await ResolveClientAsync(openIdContext, clientIdText, cancellationToken);
         if (!resolution.HasClient)
             return resolution;
 

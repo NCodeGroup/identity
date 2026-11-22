@@ -44,38 +44,35 @@ internal class ResourceServerPromotionContributor(
         {
             foreach (var detail in promotion.Errors)
             {
-                context.AddError(
-                    new TenantPromotionErrorResource
-                    {
-                        ResourceType = ManagementResourceTypes.ResourceServer,
-                        ResourceId = promotion.TargetId,
-                        Detail = detail,
-                    }
-                );
-            }
-
-            context.AddChange(
-                new TenantPromotionChangeResource
+                var errorResource = new TenantPromotionErrorResource
                 {
                     ResourceType = ManagementResourceTypes.ResourceServer,
                     ResourceId = promotion.TargetId,
-                    Action = promotion.Action,
-                }
-            );
+                    Detail = detail,
+                };
+                context.AddError(errorResource);
+            }
+
+            var changeResource = new TenantPromotionChangeResource
+            {
+                ResourceType = ManagementResourceTypes.ResourceServer,
+                ResourceId = promotion.TargetId,
+                Action = promotion.Action,
+            };
+            context.AddChange(changeResource);
 
             foreach (var settingName in promotion.Settings.UnsetSettingNames)
             {
-                context.AddNote(
-                    new TenantPromotionNoteResource
-                    {
-                        ResourceType = ManagementResourceTypes.ResourceServer,
-                        ResourceId = promotion.TargetId,
-                        Code = TenantPromotionNoteCodes.EnvironmentSettingUnset,
-                        Detail =
-                            $"The source resource server sets '{settingName}', which belongs to its environment, and the promoted settings do not.",
-                        SettingName = settingName,
-                    }
-                );
+                var unsetNote = new TenantPromotionNoteResource
+                {
+                    ResourceType = ManagementResourceTypes.ResourceServer,
+                    ResourceId = promotion.TargetId,
+                    Code = TenantPromotionNoteCodes.EnvironmentSettingUnset,
+                    Detail =
+                        $"The source resource server sets '{settingName}', which belongs to its environment, and the promoted settings do not.",
+                    SettingName = settingName,
+                };
+                context.AddNote(unsetNote);
             }
 
             if (
@@ -84,13 +81,11 @@ internal class ResourceServerPromotionContributor(
                 && promotion.Target is { } target
             )
             {
-                context.AddChangedLimits(
-                    context.TargetTenantNode,
-                    SettingSerializer.GetChangedLimits(
-                        target.Settings.Value,
-                        promotion.Settings.Document
-                    )
+                var changedLimits = SettingSerializer.GetChangedLimits(
+                    target.Settings.Value,
+                    promotion.Settings.Document
                 );
+                context.AddChangedLimits(context.TargetTenantNode, changedLimits);
             }
         }
     }
@@ -202,7 +197,8 @@ internal class ResourceServerPromotionContributor(
 
         foreach (var scope in promotion.MissingScopes)
         {
-            await store.AddScopeAsync(target.ResourceServerId, CopyScope(scope), cancellationToken);
+            var persistedScope = CopyScope(scope);
+            await store.AddScopeAsync(target.ResourceServerId, persistedScope, cancellationToken);
         }
 
         foreach (var scope in promotion.ChangedScopes)
@@ -217,21 +213,21 @@ internal class ResourceServerPromotionContributor(
         TenantPromotionContext context,
         PersistedResourceServer resourceServer,
         string changeType
-    ) =>
-        context.AddAuditEvent(
-            new ResourceServerChangedAuditEvent
-            {
-                EventSource = AuditEventSources.Management,
-                TenantId = context.TargetTenant.TenantId,
-                ResourceId = resourceServer.ResourceServerId,
-                ChangeType = changeType,
-                ResourceValues = JsonSerializer.SerializeToElement(
-                    ToResource(resourceServer),
-                    JsonSerializerOptions.Web
-                ),
-                Outcome = AuditOutcome.Success,
-            }
-        );
+    )
+    {
+        var resource = ToResource(resourceServer);
+        var resourceValues = JsonSerializer.SerializeToElement(resource, JsonSerializerOptions.Web);
+        var auditEvent = new ResourceServerChangedAuditEvent
+        {
+            EventSource = AuditEventSources.Management,
+            TenantId = context.TargetTenant.TenantId,
+            ResourceId = resourceServer.ResourceServerId,
+            ChangeType = changeType,
+            ResourceValues = resourceValues,
+            Outcome = AuditOutcome.Success,
+        };
+        context.AddAuditEvent(auditEvent);
+    }
 
     private static ResourceServerResource ToResource(PersistedResourceServer resourceServer) =>
         new()
@@ -316,13 +312,14 @@ internal class ResourceServerPromotionContributor(
 
             computation.TargetIdentifiers[source.ResourceServerId] = targetId;
 
+            var environmentSettings = context.GetEnvironmentSettingsOrDefault(
+                ManagementResourceTypes.ResourceServer,
+                targetId
+            );
             var promoted = PromotedSettingsComposer.Compose(
                 source.Settings,
                 target?.Settings.Value,
-                context.GetEnvironmentSettingsOrDefault(
-                    ManagementResourceTypes.ResourceServer,
-                    targetId
-                )
+                environmentSettings
             );
 
             foreach (var settingName in promoted.RefusedSettingNames)
@@ -363,14 +360,13 @@ internal class ResourceServerPromotionContributor(
                     )
                 )
                 {
-                    changedScopes.Add(
-                        new PersistedScope
-                        {
-                            Value = targetScope.Value,
-                            Description = sourceScope.Description,
-                            IsSystem = targetScope.IsSystem,
-                        }
-                    );
+                    var changedScope = new PersistedScope
+                    {
+                        Value = targetScope.Value,
+                        Description = sourceScope.Description,
+                        IsSystem = targetScope.IsSystem,
+                    };
+                    changedScopes.Add(changedScope);
                 }
             }
 
@@ -398,20 +394,19 @@ internal class ResourceServerPromotionContributor(
                 action = TenantPromotionActions.Unchanged;
             }
 
-            computation.Promotions.Add(
-                new ResourceServerPromotion
-                {
-                    Source = source,
-                    Target = target,
-                    TargetId = targetId,
-                    Settings = promoted,
-                    MissingScopes = missingScopes,
-                    ChangedScopes = changedScopes,
-                    Action = action,
-                    Errors = errors,
-                    IsSettingsChanged = isSettingsChanged,
-                }
-            );
+            var resourceServerPromotion = new ResourceServerPromotion
+            {
+                Source = source,
+                Target = target,
+                TargetId = targetId,
+                Settings = promoted,
+                MissingScopes = missingScopes,
+                ChangedScopes = changedScopes,
+                Action = action,
+                Errors = errors,
+                IsSettingsChanged = isSettingsChanged,
+            };
+            computation.Promotions.Add(resourceServerPromotion);
         }
 
         return computation;

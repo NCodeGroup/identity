@@ -33,8 +33,9 @@ internal sealed class InteractiveEndSessionConfirmationChallengeHandler(
             command.OpenIdContext.Http,
             InteractiveAuthenticationDefaults.LogoutConfirmPath
         );
+        var escapedContinueUrl = Uri.EscapeDataString(command.ContinueUrl);
         var location = InteractiveLocaleSelector.AppendUiLocalesQuery(
-            $"{confirmPath}?ReturnUrl=" + Uri.EscapeDataString(command.ContinueUrl),
+            $"{confirmPath}?ReturnUrl=" + escapedContinueUrl,
             command.Request.UiLocales
         );
 

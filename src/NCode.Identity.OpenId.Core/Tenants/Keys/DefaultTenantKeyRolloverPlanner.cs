@@ -95,16 +95,15 @@ internal sealed class DefaultTenantKeyRolloverPlanner(
                 continue;
             }
 
-            plan.Retirements.Add(
-                new TenantKeyRetirement
-                {
-                    Secret = secret,
-                    ActivatesWhen = Min(secret.ActivatesWhen, now),
-                    RetiresWhen = now,
-                    ExpiresWhen = now + lifetimes.RetirementGrace,
-                    Reason = TenantKeyChangeReasons.UnusedAlgorithm,
-                }
-            );
+            var retirement = new TenantKeyRetirement
+            {
+                Secret = secret,
+                ActivatesWhen = Min(secret.ActivatesWhen, now),
+                RetiresWhen = now,
+                ExpiresWhen = now + lifetimes.RetirementGrace,
+                Reason = TenantKeyChangeReasons.UnusedAlgorithm,
+            };
+            plan.Retirements.Add(retirement);
         }
     }
 
@@ -180,9 +179,8 @@ internal sealed class DefaultTenantKeyRolloverPlanner(
             var graceEnd = secret.RetiresWhen + lifetimes.RetirementGrace;
             if (graceEnd > secret.ExpiresWhen && !retiring.Contains(secret))
             {
-                plan.Extensions.Add(
-                    new TenantKeyExtension { Secret = secret, ExpiresWhen = graceEnd }
-                );
+                var extension = new TenantKeyExtension { Secret = secret, ExpiresWhen = graceEnd };
+                plan.Extensions.Add(extension);
             }
         }
 
@@ -250,7 +248,8 @@ internal sealed class DefaultTenantKeyRolloverPlanner(
         if (serving.Count > 0)
         {
             coverageEnd = serving.Max(secret => secret.RetiresWhen);
-            handOver = Max(now, serving.Min(secret => secret.ActivatesWhen));
+            var earliestActivation = serving.Min(secret => secret.ActivatesWhen);
+            handOver = Max(now, earliestActivation);
 
             // The key is published already, so activating it is the least disruptive way to sign again, unless a
             // superseded key still signs until the hand-over.
@@ -260,9 +259,8 @@ internal sealed class DefaultTenantKeyRolloverPlanner(
                 && serving.MinBy(secret => secret.ActivatesWhen) is { } upcoming
             )
             {
-                plan.Activations.Add(
-                    new TenantKeyActivation { Secret = upcoming, ActivatesWhen = now }
-                );
+                var activation = new TenantKeyActivation { Secret = upcoming, ActivatesWhen = now };
+                plan.Activations.Add(activation);
             }
         }
         else if (activeSuperseded.Count > 0)
@@ -270,35 +268,31 @@ internal sealed class DefaultTenantKeyRolloverPlanner(
             // The key in the tenant's custody is published for the whole delay before it signs, so a verifier that
             // cached the JWKS holds it by then; the superseded keys sign until it activates, or until the last of them
             // retires on its own when that comes first.
-            handOver = Min(
-                now + lifetimes.ActivationDelay,
-                activeSuperseded.Max(secret => secret.RetiresWhen)
-            );
+            var lastRetirement = activeSuperseded.Max(secret => secret.RetiresWhen);
+            handOver = Min(now + lifetimes.ActivationDelay, lastRetirement);
             coverageEnd = handOver + lifetimes.Lifetime;
-            plan.Generations.Add(
-                CreateGeneration(
-                    specification,
-                    handOver,
-                    coverageEnd,
-                    lifetimes,
-                    TenantKeyChangeReasons.CustodyChanged
-                )
+            var custodyGeneration = CreateGeneration(
+                specification,
+                handOver,
+                coverageEnd,
+                lifetimes,
+                TenantKeyChangeReasons.CustodyChanged
             );
+            plan.Generations.Add(custodyGeneration);
         }
         else
         {
             // Nothing to hand over from, so the key activates at once; the delay would only prolong the outage.
             handOver = now;
             coverageEnd = now + lifetimes.Lifetime;
-            plan.Generations.Add(
-                CreateGeneration(
-                    specification,
-                    now,
-                    coverageEnd,
-                    lifetimes,
-                    TenantKeyChangeReasons.NoActiveKey
-                )
+            var immediateGeneration = CreateGeneration(
+                specification,
+                now,
+                coverageEnd,
+                lifetimes,
+                TenantKeyChangeReasons.NoActiveKey
             );
+            plan.Generations.Add(immediateGeneration);
         }
 
         // A superseded key that signs retires at the hand-over, unless it retires sooner on its own; one published
@@ -310,30 +304,28 @@ internal sealed class DefaultTenantKeyRolloverPlanner(
             {
                 if (secret.RetiresWhen > handOver)
                 {
-                    plan.Retirements.Add(
-                        new TenantKeyRetirement
-                        {
-                            Secret = secret,
-                            ActivatesWhen = secret.ActivatesWhen,
-                            RetiresWhen = handOver,
-                            ExpiresWhen = handOver + lifetimes.RetirementGrace,
-                            Reason = TenantKeyChangeReasons.CustodyChanged,
-                        }
-                    );
+                    var handOverRetirement = new TenantKeyRetirement
+                    {
+                        Secret = secret,
+                        ActivatesWhen = secret.ActivatesWhen,
+                        RetiresWhen = handOver,
+                        ExpiresWhen = handOver + lifetimes.RetirementGrace,
+                        Reason = TenantKeyChangeReasons.CustodyChanged,
+                    };
+                    plan.Retirements.Add(handOverRetirement);
                 }
             }
             else
             {
-                plan.Retirements.Add(
-                    new TenantKeyRetirement
-                    {
-                        Secret = secret,
-                        ActivatesWhen = Min(secret.ActivatesWhen, now),
-                        RetiresWhen = now,
-                        ExpiresWhen = now + lifetimes.RetirementGrace,
-                        Reason = TenantKeyChangeReasons.CustodyChanged,
-                    }
-                );
+                var immediateRetirement = new TenantKeyRetirement
+                {
+                    Secret = secret,
+                    ActivatesWhen = Min(secret.ActivatesWhen, now),
+                    RetiresWhen = now,
+                    ExpiresWhen = now + lifetimes.RetirementGrace,
+                    Reason = TenantKeyChangeReasons.CustodyChanged,
+                };
+                plan.Retirements.Add(immediateRetirement);
             }
         }
 
@@ -344,15 +336,14 @@ internal sealed class DefaultTenantKeyRolloverPlanner(
         while (coverageEnd <= horizon)
         {
             var successorRetiresWhen = coverageEnd + lifetimes.Lifetime;
-            plan.Generations.Add(
-                CreateGeneration(
-                    specification,
-                    coverageEnd,
-                    successorRetiresWhen,
-                    lifetimes,
-                    TenantKeyChangeReasons.Successor
-                )
+            var successorGeneration = CreateGeneration(
+                specification,
+                coverageEnd,
+                successorRetiresWhen,
+                lifetimes,
+                TenantKeyChangeReasons.Successor
             );
+            plan.Generations.Add(successorGeneration);
             coverageEnd = successorRetiresWhen;
         }
     }

@@ -50,12 +50,14 @@ internal partial class DefaultCoseSerializer
             content
         );
 
+        var carriedContent = CarriedContent(content, options);
+        var tag = ComputeTag(binding, credentials.SecretKey, structure);
         return CoseMessageWriter.Mac0(
             options.OmitTag ? null : CoseTags.Mac0,
             protectedBytes,
             unprotectedHeaders,
-            CarriedContent(content, options),
-            ComputeTag(binding, credentials.SecretKey, structure)
+            carriedContent,
+            tag
         );
     }
 
@@ -104,7 +106,8 @@ internal partial class DefaultCoseSerializer
             );
             RandomSource.Fill(contentKey);
 
-            macKey = SecretKeyFactory.CreateSymmetric(new KeyMetadata(), contentKey);
+            var keyMetadata = new KeyMetadata();
+            macKey = SecretKeyFactory.CreateSymmetric(keyMetadata, contentKey);
             if (!macAlgorithm.IsKeyCompatible(macKey))
                 throw new ArgumentException(
                     "The message authentication code algorithm does not accept a key of the size its hash needs.",
@@ -120,12 +123,14 @@ internal partial class DefaultCoseSerializer
             options.ExternalAad.Span,
             content
         );
+        var carriedContent = CarriedContent(content, options);
+        var tag = ComputeTag(binding, macKey, structure);
         return CoseMessageWriter.Mac(
             options.OmitTag ? null : CoseTags.Mac,
             protectedBytes,
             unprotectedHeaders,
-            CarriedContent(content, options),
-            ComputeTag(binding, macKey, structure),
+            carriedContent,
+            tag,
             entries
         );
     }
@@ -289,8 +294,9 @@ internal partial class DefaultCoseSerializer
         if (!keyDistribution.SupportsKeyWrapping)
             return true;
 
+        var contentKeySize = Math.Max(recipient.Third.Length, 1);
         using var lease = BufferFactory.Rent(
-            Math.Max(recipient.Third.Length, 1),
+            contentKeySize,
             isSensitive: true,
             out Span<byte> contentKey
         );
@@ -306,7 +312,8 @@ internal partial class DefaultCoseSerializer
         )
             return false;
 
-        macKey = SecretKeyFactory.CreateSymmetric(new KeyMetadata(), contentKey[..written]);
+        var keyMetadata = new KeyMetadata();
+        macKey = SecretKeyFactory.CreateSymmetric(keyMetadata, contentKey[..written]);
         return macAlgorithm.IsKeyCompatible(macKey);
     }
 
@@ -419,14 +426,12 @@ internal partial class DefaultCoseSerializer
         {
             var recipient = recipients.Recipients[index];
             using var writer = BufferFactory.CreateContiguousBufferWriter(isSensitive: false);
+            var wrapHeaders = new Dictionary<string, object>();
             algorithms[index]
-                .WrapKey(
-                    recipient.Credentials.SecretKey,
-                    new Dictionary<string, object>(),
-                    contentKey,
-                    writer
-                );
-            entries.Add(NewRecipientEntry(recipient, writer.WrittenSpan.ToArray()));
+                .WrapKey(recipient.Credentials.SecretKey, wrapHeaders, contentKey, writer);
+            var wrapped = writer.WrittenSpan.ToArray();
+            var entry = NewRecipientEntry(recipient, wrapped);
+            entries.Add(entry);
         }
 
         return entries;
@@ -450,9 +455,10 @@ internal partial class DefaultCoseSerializer
             recipient.Credentials.SecretKey.KeyId is { Length: > 0 } keyId
             && !unprotectedHeaders.ContainsKey(CoseHeaderLabels.KeyId)
         )
-            unprotectedHeaders[CoseHeaderLabels.KeyId] = CoseValue.FromByteString(
-                CoseKeyIdentifiers.GetBytes(keyId)
-            );
+        {
+            var keyIdBytes = CoseKeyIdentifiers.GetBytes(keyId);
+            unprotectedHeaders[CoseHeaderLabels.KeyId] = CoseValue.FromByteString(keyIdBytes);
+        }
 
         return new CoseLayerEntry([], unprotectedHeaders, ciphertext);
     }
@@ -476,10 +482,8 @@ internal partial class DefaultCoseSerializer
     {
         try
         {
-            return CryptographicOperations.FixedTimeEquals(
-                ComputeTag(binding, key, structure),
-                received
-            );
+            var tag = ComputeTag(binding, key, structure);
+            return CryptographicOperations.FixedTimeEquals(tag, received);
         }
         catch (Exception exception) when (exception is ArgumentException or CryptographicException)
         {

@@ -37,24 +37,21 @@ internal static class DefaultRegistration
             // OnSessionTerminatedCommand is the session-termination side-effect extension point: applications add
             // handlers (for example, front-channel logout or custom auditing) alongside these defaults, ordered by
             // mediator priority.
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    ICommandHandler<OnSessionTerminatedCommand>,
-                    DefaultRevokeGrantsOnSessionTerminatedHandler
-                >()
-            );
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    ICommandHandler<OnSessionTerminatedCommand>,
-                    DefaultBackChannelLogoutOnSessionTerminatedHandler
-                >()
-            );
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    ICommandHandler<OnSessionTerminatedCommand>,
-                    DefaultAuditSessionTerminatedHandler
-                >()
-            );
+            var revokeGrantsHandler = ServiceDescriptor.Singleton<
+                ICommandHandler<OnSessionTerminatedCommand>,
+                DefaultRevokeGrantsOnSessionTerminatedHandler
+            >();
+            serviceCollection.TryAddEnumerable(revokeGrantsHandler);
+            var backChannelLogoutHandler = ServiceDescriptor.Singleton<
+                ICommandHandler<OnSessionTerminatedCommand>,
+                DefaultBackChannelLogoutOnSessionTerminatedHandler
+            >();
+            serviceCollection.TryAddEnumerable(backChannelLogoutHandler);
+            var auditHandler = ServiceDescriptor.Singleton<
+                ICommandHandler<OnSessionTerminatedCommand>,
+                DefaultAuditSessionTerminatedHandler
+            >();
+            serviceCollection.TryAddEnumerable(auditHandler);
 
             serviceCollection.TryAddSingleton<ISessionStateService, DefaultSessionStateService>();
             serviceCollection.TryAddSingleton<
@@ -67,21 +64,19 @@ internal static class DefaultRegistration
             >();
 
             // Back-channel logout delivery runs as a durable, retryable dispatch job; the handler performs the POST.
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Scoped<
-                    IDispatchJobHandler<BackChannelLogoutDeliveryJob>,
-                    BackChannelLogoutDeliveryJobHandler
-                >()
-            );
+            var deliveryJobHandler = ServiceDescriptor.Scoped<
+                IDispatchJobHandler<BackChannelLogoutDeliveryJob>,
+                BackChannelLogoutDeliveryJobHandler
+            >();
+            serviceCollection.TryAddEnumerable(deliveryJobHandler);
 
             // A session that ends while no request uses it is terminated in the background, once (ADR-1223).
             serviceCollection.AddOptions<EndedSessionTerminationOptions>().ValidateOnStart();
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    IValidateOptions<EndedSessionTerminationOptions>,
-                    EndedSessionTerminationOptionsValidator
-                >()
-            );
+            var optionsValidator = ServiceDescriptor.Singleton<
+                IValidateOptions<EndedSessionTerminationOptions>,
+                EndedSessionTerminationOptionsValidator
+            >();
+            serviceCollection.TryAddEnumerable(optionsValidator);
             serviceCollection.TryAddSingleton(TimeProvider.System);
             serviceCollection.AddHostedService<EndedSessionTerminationService>();
 

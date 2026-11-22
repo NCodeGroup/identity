@@ -117,22 +117,27 @@ public static class DefaultRegistration
             // the serializer and every key ring (ADR-1479).
             serviceCollection.TryAddSingleton<IRemoteKeyResolver, DefaultRemoteKeyResolver>();
 
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    ISecretKeyTypeDescriptor,
-                    SymmetricSecretKeyTypeDescriptor
-                >()
-            );
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<ISecretKeyTypeDescriptor, RsaSecretKeyTypeDescriptor>()
-            );
+            var symmetricDescriptor = ServiceDescriptor.Singleton<
+                ISecretKeyTypeDescriptor,
+                SymmetricSecretKeyTypeDescriptor
+            >();
+            serviceCollection.TryAddEnumerable(symmetricDescriptor);
+            var rsaDescriptor = ServiceDescriptor.Singleton<
+                ISecretKeyTypeDescriptor,
+                RsaSecretKeyTypeDescriptor
+            >();
+            serviceCollection.TryAddEnumerable(rsaDescriptor);
             // The AKP (Algorithm Key Pair) descriptor backs post-quantum ML-DSA (FIPS 204 / RFC 9964) keys.
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<ISecretKeyTypeDescriptor, AkpSecretKeyTypeDescriptor>()
-            );
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<ISecretKeyTypeDescriptor, EccSecretKeyTypeDescriptor>()
-            );
+            var akpDescriptor = ServiceDescriptor.Singleton<
+                ISecretKeyTypeDescriptor,
+                AkpSecretKeyTypeDescriptor
+            >();
+            serviceCollection.TryAddEnumerable(akpDescriptor);
+            var eccDescriptor = ServiceDescriptor.Singleton<
+                ISecretKeyTypeDescriptor,
+                EccSecretKeyTypeDescriptor
+            >();
+            serviceCollection.TryAddEnumerable(eccDescriptor);
 
             return builder;
         }

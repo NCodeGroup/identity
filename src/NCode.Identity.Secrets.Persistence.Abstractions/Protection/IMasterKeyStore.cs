@@ -115,6 +115,42 @@ public interface IMasterKeyStore : IStore<PersistedMasterKey>
     );
 
     /// <summary>
+    /// Gets a page of the <see cref="PersistedMasterKey"/> instances of every owner whose root key provider and root
+    /// key reference equal the specified provider and reference, ordered by an opaque row identifier.
+    /// </summary>
+    /// <remarks>
+    /// The provider and the reference are compared ordinally. A master key whose root key is the deployment root key
+    /// has no root key reference, so it is never returned.
+    /// </remarks>
+    /// <param name="rootKeyProvider">The name of the root key provider that wraps the master keys.</param>
+    /// <param name="rootKeyReference">The reference of the root key that wraps the master keys.</param>
+    /// <param name="page">The <see cref="PageRequest"/> that selects the page.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation, containing the page.</returns>
+    // See ADR-1414.
+    ValueTask<PagedResult<PersistedMasterKey>> GetWrappedByKeyPageAsync(
+        string rootKeyProvider,
+        string rootKeyReference,
+        PageRequest page,
+        CancellationToken cancellationToken
+    );
+
+    /// <summary>
+    /// Gets a page of the owners that hold a <see cref="PersistedMasterKey"/>, active or retired, read from the rows in
+    /// an opaque row order. Only the owner of each row leaves the store, never a wrapped key, a key check or a token;
+    /// an owner with several master keys can appear on more than one page.
+    /// </summary>
+    /// <param name="page">The <see cref="PageRequest"/> that selects the page.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation, containing the page, in which
+    /// an owner appears once.</returns>
+    // See ADR-1414.
+    ValueTask<PagedResult<SecretOwner>> GetOwnerPageAsync(
+        PageRequest page,
+        CancellationToken cancellationToken
+    );
+
+    /// <summary>
     /// Gets a page of the active <see cref="PersistedMasterKey"/> instances that were created before an instant,
     /// ordered by an opaque row identifier.
     /// </summary>

@@ -85,7 +85,8 @@ internal class DefaultCoseAlgorithmCatalog : ICoseAlgorithmCatalog
                 continue;
 
             EnsureFits(algorithm, joseAlgorithm);
-            bindings.Add(algorithm.Identifier, new CoseAlgorithmBinding(algorithm, joseAlgorithm));
+            var binding = new CoseAlgorithmBinding(algorithm, joseAlgorithm);
+            bindings.Add(algorithm.Identifier, binding);
         }
 
         BindingsByIdentifier = bindings.ToFrozenDictionary();
@@ -121,8 +122,11 @@ internal class DefaultCoseAlgorithmCatalog : ICoseAlgorithmCatalog
             && joseAlgorithm is SignatureAlgorithm macAlgorithm
             && (tagSize < MinimumTagSizeBytes || tagSize > macAlgorithm.GetSignatureSizeBytes(0))
         )
+        {
+            var maximumTagSize = macAlgorithm.GetSignatureSizeBytes(0);
             throw new InvalidOperationException(
-                $"The COSE algorithm {algorithm.Identifier} has a tag size of {tagSize} bytes, which is outside {MinimumTagSizeBytes} to {macAlgorithm.GetSignatureSizeBytes(0)}."
+                $"The COSE algorithm {algorithm.Identifier} has a tag size of {tagSize} bytes, which is outside {MinimumTagSizeBytes} to {maximumTagSize}."
             );
+        }
     }
 }

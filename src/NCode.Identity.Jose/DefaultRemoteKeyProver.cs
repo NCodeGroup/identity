@@ -98,8 +98,9 @@ internal sealed class DefaultRemoteKeyProver(
             out Memory<byte> challenge
         );
 
+        var signatureSizeBytes = signatureAlgorithm.GetSignatureSizeBytes(key.KeySizeBits);
         using var signatureLease = BufferFactory.Rent(
-            signatureAlgorithm.GetSignatureSizeBytes(key.KeySizeBits),
+            signatureSizeBytes,
             isSensitive: false,
             out Memory<byte> signature
         );
@@ -145,35 +146,31 @@ internal sealed class DefaultRemoteKeyProver(
                 );
             }
 
+            var encryptionCredentials = new JoseEncryptionCredentials(
+                key,
+                keyManagementAlgorithm,
+                encryptionAlgorithm,
+                null
+            );
+            var encryptionOptions = new JoseEncryptionOptions(encryptionCredentials);
             var token = await JoseSerializer
-                .CreateEncoder(
-                    new JoseEncryptionOptions(
-                        new JoseEncryptionCredentials(
-                            key,
-                            keyManagementAlgorithm,
-                            encryptionAlgorithm,
-                            null
-                        )
-                    )
-                )
+                .CreateEncoder(encryptionOptions)
                 .EncodeAsync((ReadOnlyMemory<byte>)challenge, cancellationToken);
 
             using var payload = BufferFactory.CreateContiguousBufferWriter(isSensitive: false);
-            await JoseSerializer.DecodeAsync(
-                JoseSerializer.Parse(token),
-                key,
-                payload,
-                cancellationToken
-            );
+            var parsedToken = JoseSerializer.Parse(token);
+            await JoseSerializer.DecodeAsync(parsedToken, key, payload, cancellationToken);
 
             if (!IsChallenge(payload.WrittenSpan, challenge.Span))
             {
-                throw new RemoteKeyRefusedException(DecryptionRefusalMessage(reference));
+                var refusalMessage = DecryptionRefusalMessage(reference);
+                throw new RemoteKeyRefusedException(refusalMessage);
             }
         }
         catch (Exception exception) when (exception is JoseException or CryptographicException)
         {
-            throw new RemoteKeyRefusedException(DecryptionRefusalMessage(reference), exception);
+            var refusalMessage = DecryptionRefusalMessage(reference);
+            throw new RemoteKeyRefusedException(refusalMessage, exception);
         }
     }
 

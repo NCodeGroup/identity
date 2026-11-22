@@ -44,7 +44,7 @@ flowchart LR
 | **Infrastructure ports** | `NCode.Identity.Dispatch(.Abstractions)` runs background jobs, `NCode.Identity.Events(.Abstractions)` carries events, and `NCode.Identity.SharedState(.Abstractions)` holds the state every replica sees, with its opt-in `NCode.Identity.SharedState.Valkey` adapter. |
 | **Composition** | `NCode.Identity.Registration` and `NCode.Identity.Registration.AspNetCore` hold the service builder and the endpoint registration, `NCode.Identity.Server` provides `AddIdentityServer()`, and the opt-in `NCode.Identity.AspNetCore.OpenTelemetry` registers the OpenTelemetry metrics that only a host references. |
 | **Hosts (`hosts/`)** | The deployables, which no package ships, are `NCode.Identity.OpenId.Host`, `NCode.Identity.OpenId.Host.Database`, `NCode.Identity.OpenId.Host.MigrationService`, `NCode.Identity.ManagementConsole.Host`, `NCode.Identity.OpenId.GlobalDirectory.Host` and `NCode.Identity.OpenId.LocalDev`. |
-| **Build analyzers** | `NCode.Identity.Analyzers`, under `analyzers/`, holds the repository's own Roslyn analyzers `NCID0001`, `NCID0004` and `NCID0005`, which every project's build loads and no package ships. |
+| **Build analyzers** | `NCode.Identity.Analyzers`, under `analyzers/`, holds the repository's own Roslyn analyzers `NCID0001`, `NCID0004`, `NCID0005` and `NCID0006`, which every project's build loads and no package ships. |
 | **Frontend (`frontend/`)** | The pnpm workspace of the web apps `apps/auth`, `apps/conformance`, `apps/conformance-runner`, `apps/mgmt`, `apps/playground` and `apps/setup` and their shared `@ncodegroup/identity-*` packages is themed with NCode Brand's Instrument. |
 
 ## Design Rules

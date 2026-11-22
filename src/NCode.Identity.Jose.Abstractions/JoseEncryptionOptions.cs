@@ -41,15 +41,11 @@ public sealed class JoseEncryptionOptions
     {
         EncryptionAlgorithm = encryptionCredentials.AuthenticatedEncryptionAlgorithm;
         CompressionAlgorithm = encryptionCredentials.CompressionAlgorithm;
-        Recipients =
-        [
-            new JoseRecipientOptions(
-                new JoseKeyManagementCredentials(
-                    encryptionCredentials.SecretKey,
-                    encryptionCredentials.KeyManagementAlgorithm
-                )
-            ),
-        ];
+        var credentials = new JoseKeyManagementCredentials(
+            encryptionCredentials.SecretKey,
+            encryptionCredentials.KeyManagementAlgorithm
+        );
+        Recipients = [new JoseRecipientOptions(credentials)];
     }
 
     /// <summary>

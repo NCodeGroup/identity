@@ -49,9 +49,11 @@ public static class TransportSecurityRegistration
 
             serviceCollection.TryAddSingleton<TransportCertificateProbe>();
             serviceCollection.TryAddSingleton(TimeProvider.System);
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<IHostedService, TransportSecurityStartupCheck>()
-            );
+            var startupCheckDescriptor = ServiceDescriptor.Singleton<
+                IHostedService,
+                TransportSecurityStartupCheck
+            >();
+            serviceCollection.TryAddEnumerable(startupCheckDescriptor);
 
             return serviceCollection;
         }

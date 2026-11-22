@@ -16,7 +16,11 @@ internal sealed class JsonWebKeySetJsonConverter : JsonConverter<JsonWebKeySet>
         ref Utf8JsonReader reader,
         Type typeToConvert,
         JsonSerializerOptions options
-    ) => new(JsonElement.ParseValue(ref reader));
+    )
+    {
+        var element = JsonElement.ParseValue(ref reader);
+        return new(element);
+    }
 
     /// <inheritdoc />
     public override void Write(

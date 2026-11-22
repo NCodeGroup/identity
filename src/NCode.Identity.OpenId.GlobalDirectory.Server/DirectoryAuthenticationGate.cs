@@ -14,8 +14,9 @@ using NCode.Identity.OpenId.Client;
 namespace NCode.Identity.OpenId.GlobalDirectory.Server;
 
 /// <summary>
-/// The authentication endpoint filter of the directory API. It validates the bearer access token of a request with
-/// <see cref="IIssuerAccessTokenValidator"/> against <see cref="DirectoryServerOptions.Issuer"/> and the audience
+/// The authentication gate of the directory API. It runs before the route binds its body, validates the bearer access
+/// token of a request with <see cref="IIssuerAccessTokenValidator"/> against
+/// <see cref="DirectoryServerOptions.Issuer"/> and the audience
 /// <see cref="GlobalDirectoryProtocol.DirectoryAudience"/>, and requires the scope
 /// <see cref="GlobalDirectoryProtocol.DirectoryScope"/>. A request that lacks a valid token with the scope is answered
 /// <c>401 Unauthorized</c>, and a request whose issuer cannot be reached is answered <c>503 Service Unavailable</c>
@@ -23,13 +24,14 @@ namespace NCode.Identity.OpenId.GlobalDirectory.Server;
 /// <see cref="GlobalDirectoryProtocol.UnavailableRetryAfterSeconds"/> in <c>Retry-After</c> and in the problem's
 /// <c>retryAfterSeconds</c>, never allowed. A token bound to a key (one that carries a <c>cnf</c> claim) is answered
 /// <c>401 Unauthorized</c>, because the directory checks no proof of possession. A request that passes carries a
-/// principal whose <c>client_id</c> claim names the calling machine client.
+/// principal whose <c>client_id</c> claim names the calling machine client. A request refused here costs no more than
+/// its headers.
 /// </summary>
-// See ADR-1411.
-internal sealed class DirectoryAuthenticationEndpointFilter(
+// See ADR-1520 and ADR-1411.
+internal sealed class DirectoryAuthenticationGate(
     IIssuerAccessTokenValidator validator,
     IOptions<DirectoryServerOptions> options
-) : IEndpointFilter
+) : IEndpointGate
 {
     /// <summary>
     /// The claim type of the machine client that the request authenticates as.
@@ -115,10 +117,13 @@ internal sealed class DirectoryAuthenticationEndpointFilter(
             case JsonValueKind.Array:
                 foreach (var element in scope.EnumerateArray())
                 {
+                    if (element.ValueKind != JsonValueKind.String)
+                        continue;
+
+                    var candidate = element.GetString();
                     if (
-                        element.ValueKind == JsonValueKind.String
-                        && string.Equals(
-                            element.GetString(),
+                        string.Equals(
+                            candidate,
                             GlobalDirectoryProtocol.DirectoryScope,
                             StringComparison.Ordinal
                         )
@@ -164,13 +169,11 @@ internal sealed class DirectoryAuthenticationEndpointFilter(
     private IOptions<DirectoryServerOptions> Options { get; } = options;
 
     /// <inheritdoc />
-    public async ValueTask<object?> InvokeAsync(
-        EndpointFilterInvocationContext context,
-        EndpointFilterDelegate next
+    public async ValueTask<IResult?> InvokeAsync(
+        HttpContext httpContext,
+        CancellationToken cancellationToken
     )
     {
-        var httpContext = context.HttpContext;
-
         if (!TryGetBearerToken(httpContext, out var token))
             return Unauthorized(httpContext);
 
@@ -178,22 +181,22 @@ internal sealed class DirectoryAuthenticationEndpointFilter(
             Options.Value.Issuer,
             GlobalDirectoryProtocol.DirectoryAudience,
             token,
-            httpContext.RequestAborted
+            cancellationToken
         );
 
         if (result.IsUnavailable)
         {
-            return RetryAfterProblem.Create(
-                httpContext,
-                TimeSpan.FromSeconds(GlobalDirectoryProtocol.UnavailableRetryAfterSeconds),
-                new ProblemDetails
-                {
-                    Title = "Service Unavailable",
-                    Detail =
-                        "The issuer of the directory's access tokens is unavailable. Retry the request.",
-                    Status = StatusCodes.Status503ServiceUnavailable,
-                }
+            var retryAfter = TimeSpan.FromSeconds(
+                GlobalDirectoryProtocol.UnavailableRetryAfterSeconds
             );
+            var problem = new ProblemDetails
+            {
+                Title = "Service Unavailable",
+                Detail =
+                    "The issuer of the directory's access tokens is unavailable. Retry the request.",
+                Status = StatusCodes.Status503ServiceUnavailable,
+            };
+            return RetryAfterProblem.Create(httpContext, retryAfter, problem);
         }
 
         if (!result.IsValid)
@@ -214,15 +217,11 @@ internal sealed class DirectoryAuthenticationEndpointFilter(
         if (payload.TryGetProperty(JoseClaimNames.Payload.Cnf, out _))
             return Unauthorized(httpContext);
 
-        var identity = new ClaimsIdentity(
-            [
-                new Claim(ClientIdClaimType, clientId),
-                new Claim(ScopeClaimType, GlobalDirectoryProtocol.DirectoryScope),
-            ],
-            AuthenticationType
-        );
+        var clientIdClaim = new Claim(ClientIdClaimType, clientId);
+        var scopeClaim = new Claim(ScopeClaimType, GlobalDirectoryProtocol.DirectoryScope);
+        var identity = new ClaimsIdentity([clientIdClaim, scopeClaim], AuthenticationType);
         httpContext.User = new ClaimsPrincipal(identity);
 
-        return await next(context);
+        return null;
     }
 }

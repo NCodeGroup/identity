@@ -19,19 +19,20 @@ internal sealed class IssuerOnlyRequestObjectAudienceRequirement
         CancellationToken cancellationToken
     )
     {
-        if (
-            context.Request.OriginalRequestObject is not null
-            && !string.IsNullOrEmpty(
-                context.Client.Settings.GetValue(OpenIdSettingKeys.RequestObjectExpectedAudience)
-            )
-        )
+        if (context.Request.OriginalRequestObject is not null)
         {
-            throw context
-                .OpenIdContext.ErrorFactory.InvalidRequest(
-                    "Under a selected security profile a request object must be addressed to the issuer identifier, so the client must not set 'request_object_expected_audience'.",
-                    OpenIdProtocol.ErrorCodes.InvalidRequestJwt
-                )
-                .AsException();
+            var expectedAudience = context.Client.Settings.GetValue(
+                OpenIdSettingKeys.RequestObjectExpectedAudience
+            );
+            if (!string.IsNullOrEmpty(expectedAudience))
+            {
+                throw context
+                    .OpenIdContext.ErrorFactory.InvalidRequest(
+                        "Under a selected security profile a request object must be addressed to the issuer identifier, so the client must not set 'request_object_expected_audience'.",
+                        OpenIdProtocol.ErrorCodes.InvalidRequestJwt
+                    )
+                    .AsException();
+            }
         }
 
         return ValueTask.CompletedTask;

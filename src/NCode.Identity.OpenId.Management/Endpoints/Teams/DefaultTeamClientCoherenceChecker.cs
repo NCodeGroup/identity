@@ -177,12 +177,11 @@ internal sealed class DefaultTeamClientCoherenceChecker(
                     cancellationToken
                 );
 
-                errors.AddRange(
-                    findings.Select(finding => new SettingError(
-                        finding.Violation.GoverningSettingName,
-                        $"The change would make the client '{finding.ClientId}' of tenant '{tenantSettings.TenantId}' incoherent: {finding.Violation.Description}"
-                    ))
-                );
+                var coherenceErrors = findings.Select(finding => new SettingError(
+                    finding.Violation.GoverningSettingName,
+                    $"The change would make the client '{finding.ClientId}' of tenant '{tenantSettings.TenantId}' incoherent: {finding.Violation.Description}"
+                ));
+                errors.AddRange(coherenceErrors);
             }
 
             page = page with { Cursor = result.NextCursor };

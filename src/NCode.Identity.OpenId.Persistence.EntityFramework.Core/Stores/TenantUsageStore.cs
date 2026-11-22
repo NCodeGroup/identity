@@ -67,15 +67,16 @@ internal sealed class TenantUsageStore(
         var lastDay = usage.Max(entry => entry.Day);
         if (checkpoint is null)
         {
+            var tenantUsageCheckpointEntity = new TenantUsageCheckpointEntity
+            {
+                Id = KeyGenerator.CreateKey(),
+                ReplicaId = replicaId,
+                LastBatchNumber = batchNumber,
+                LastDay = lastDay,
+                ConcurrencyToken = Guid.NewGuid().ToString("N"),
+            };
             await DbContext.TenantUsageCheckpoints.AddAsync(
-                new TenantUsageCheckpointEntity
-                {
-                    Id = KeyGenerator.CreateKey(),
-                    ReplicaId = replicaId,
-                    LastBatchNumber = batchNumber,
-                    LastDay = lastDay,
-                    ConcurrencyToken = Guid.NewGuid().ToString("N"),
-                },
+                tenantUsageCheckpointEntity,
                 cancellationToken
             );
             return;

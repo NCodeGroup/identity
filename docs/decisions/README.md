@@ -185,6 +185,8 @@ The records are grouped by area; within an area they are in number order.
 | [1517](./1517-internal-surrogate-keys-are-uuidv7-minted-in-process-behind-one-seam-and-never-reach-a-caller.md) | Internal surrogate keys are UUIDv7 minted in-process behind one seam, and never reach a caller | Accepted |
 | [1518](./1518-a-long-lived-openid-object-owns-a-concurrent-property-bag-and-an-operation-layers-a-child-over-its-owners.md) | A long-lived OpenID object owns a concurrent property bag, and an operation layers a child over its owner's | Accepted |
 | [1519](./1519-every-microsoft-extensions-aspnet-core-and-ef-core-package-is-on-the-target-frameworks-release-band.md) | Every Microsoft.Extensions, ASP.NET Core and EF Core package is on the target framework's release band | Accepted |
+| [1520](./1520-a-caller-is-authenticated-before-its-request-body-is-read.md) | A caller is authenticated before its request body is read | Accepted |
+| [1522](./1522-an-analyzer-fails-the-build-on-a-call-await-or-object-creation-nested-in-another-calls-arguments.md) | An analyzer fails the build on a call, await or object creation nested in another call's arguments | Accepted |
 
 ### Management API
 

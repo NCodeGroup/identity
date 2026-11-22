@@ -41,32 +41,33 @@ partial class JoseSerializer
             var format = root.TryGetProperty(JoseClaimNames.Json.Recipients, out _)
                 ? JoseSerializationFormat.General
                 : JoseSerializationFormat.Flattened;
-            return new JsonJwt(
-                JoseProtectionTypes.Jwe,
-                format,
-                token,
-                root,
-                ComputeJweHeader(root)
-            );
+            var jweHeader = ComputeJweHeader(root);
+            return new JsonJwt(JoseProtectionTypes.Jwe, format, token, root, jweHeader);
         }
 
         if (root.TryGetProperty(JoseClaimNames.Json.Signatures, out _))
+        {
+            var jwsHeader = ComputeJwsHeader(root);
             return new JsonJwt(
                 JoseProtectionTypes.Jws,
                 JoseSerializationFormat.General,
                 token,
                 root,
-                ComputeJwsHeader(root)
+                jwsHeader
             );
+        }
 
         if (root.TryGetProperty(JoseClaimNames.Json.Signature, out _))
+        {
+            var jwsHeader = ComputeJwsHeader(root);
             return new JsonJwt(
                 JoseProtectionTypes.Jws,
                 JoseSerializationFormat.Flattened,
                 token,
                 root,
-                ComputeJwsHeader(root)
+                jwsHeader
             );
+        }
 
         throw new JoseException("The JOSE JSON serialization is neither a recognized JWS nor JWE.");
     }
@@ -227,9 +228,10 @@ partial class JoseSerializer
             return;
         }
 
+        var innerException = AsInnerException(failures);
         throw new JoseIntegrityException(
             "None of the JWS signatures could be verified with the provided key.",
-            AsInnerException(failures)
+            innerException
         );
     }
 
@@ -241,7 +243,8 @@ partial class JoseSerializer
             if (signaturesElement.ValueKind != JsonValueKind.Array)
                 throw new JoseException("The 'signatures' member must be an array.");
 
-            signatures.AddRange(signaturesElement.EnumerateArray());
+            var signatureElements = signaturesElement.EnumerateArray();
+            signatures.AddRange(signatureElements);
         }
         else
         {
@@ -261,7 +264,10 @@ partial class JoseSerializer
                 continue;
 
             foreach (var property in source.EnumerateObject())
-                merged[property.Name] = JsonNode.Parse(property.Value.GetRawText());
+            {
+                var rawText = property.Value.GetRawText();
+                merged[property.Name] = JsonNode.Parse(rawText);
+            }
         }
 
         return JsonSerializer.SerializeToElement(merged);
@@ -333,9 +339,10 @@ partial class JoseSerializer
             return;
         }
 
+        var innerException = AsInnerException(failures);
         throw new JoseIntegrityException(
             "None of the JWS signatures could be verified with the provided key.",
-            AsInnerException(failures)
+            innerException
         );
     }
 
@@ -377,7 +384,8 @@ partial class JoseSerializer
             if (recipientsElement.ValueKind != JsonValueKind.Array)
                 throw new JoseException("The 'recipients' member must be an array.");
 
-            recipients.AddRange(recipientsElement.EnumerateArray());
+            var recipientElements = recipientsElement.EnumerateArray();
+            recipients.AddRange(recipientElements);
         }
         else
         {
@@ -429,9 +437,10 @@ partial class JoseSerializer
             return;
         }
 
+        var innerException = AsInnerException(failures);
         throw new JoseEncryptionException(
             "None of the JWE recipients could be decrypted with the provided key.",
-            AsInnerException(failures)
+            innerException
         );
     }
 
@@ -591,6 +600,7 @@ partial class JoseSerializer
             return Encode(SecureEncoding.ASCII, encodedProtected, out associatedData);
 
         var combined = string.Concat(encodedProtected, ".", encodedAad);
-        return Encode(SecureEncoding.ASCII, combined.AsSpan(), out associatedData);
+        var combinedSpan = combined.AsSpan();
+        return Encode(SecureEncoding.ASCII, combinedSpan, out associatedData);
     }
 }

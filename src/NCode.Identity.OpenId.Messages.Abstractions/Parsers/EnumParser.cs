@@ -41,7 +41,8 @@ public class EnumParser<T> : ParameterParser<T>
 
     private static string ConvertToString(T value)
     {
-        return JsonNamingPolicy.ConvertName(value.ToString());
+        var name = value.ToString();
+        return JsonNamingPolicy.ConvertName(name);
     }
 
     private static bool TryParseValue(ReadOnlySpan<char> value, out T result)
@@ -101,7 +102,8 @@ public class EnumParser<T> : ParameterParser<T>
         var stringValue = stringValues[0];
         Debug.Assert(stringValue is not null);
 
-        return ParseValue(openIdEnvironment, descriptor, stringValue.AsSpan());
+        var stringSpan = stringValue.AsSpan();
+        return ParseValue(openIdEnvironment, descriptor, stringSpan);
     }
 
     private static T ParseValue(
@@ -133,75 +135,43 @@ public class EnumParser<T> : ParameterParser<T>
 
         if (underlyingType == typeof(byte))
         {
-            ParseFlags(
-                openIdEnvironment,
-                descriptor,
-                stringValues,
-                out Unsafe.As<T, byte>(ref result)
-            );
+            ref var resultByte = ref Unsafe.As<T, byte>(ref result);
+            ParseFlags(openIdEnvironment, descriptor, stringValues, out resultByte);
         }
         else if (underlyingType == typeof(sbyte))
         {
-            ParseFlags(
-                openIdEnvironment,
-                descriptor,
-                stringValues,
-                out Unsafe.As<T, sbyte>(ref result)
-            );
+            ref var resultSbyte = ref Unsafe.As<T, sbyte>(ref result);
+            ParseFlags(openIdEnvironment, descriptor, stringValues, out resultSbyte);
         }
         else if (underlyingType == typeof(short))
         {
-            ParseFlags(
-                openIdEnvironment,
-                descriptor,
-                stringValues,
-                out Unsafe.As<T, short>(ref result)
-            );
+            ref var resultShort = ref Unsafe.As<T, short>(ref result);
+            ParseFlags(openIdEnvironment, descriptor, stringValues, out resultShort);
         }
         else if (underlyingType == typeof(ushort))
         {
-            ParseFlags(
-                openIdEnvironment,
-                descriptor,
-                stringValues,
-                out Unsafe.As<T, ushort>(ref result)
-            );
+            ref var resultUshort = ref Unsafe.As<T, ushort>(ref result);
+            ParseFlags(openIdEnvironment, descriptor, stringValues, out resultUshort);
         }
         else if (underlyingType == typeof(int))
         {
-            ParseFlags(
-                openIdEnvironment,
-                descriptor,
-                stringValues,
-                out Unsafe.As<T, int>(ref result)
-            );
+            ref var resultInt = ref Unsafe.As<T, int>(ref result);
+            ParseFlags(openIdEnvironment, descriptor, stringValues, out resultInt);
         }
         else if (underlyingType == typeof(uint))
         {
-            ParseFlags(
-                openIdEnvironment,
-                descriptor,
-                stringValues,
-                out Unsafe.As<T, uint>(ref result)
-            );
+            ref var resultUint = ref Unsafe.As<T, uint>(ref result);
+            ParseFlags(openIdEnvironment, descriptor, stringValues, out resultUint);
         }
         else if (underlyingType == typeof(long))
         {
-            ParseFlags(
-                openIdEnvironment,
-                descriptor,
-                stringValues,
-                out Unsafe.As<T, long>(ref result)
-            );
+            ref var resultLong = ref Unsafe.As<T, long>(ref result);
+            ParseFlags(openIdEnvironment, descriptor, stringValues, out resultLong);
         }
         else if (underlyingType == typeof(ulong))
         {
-            ParseFlags(
-                openIdEnvironment,
-                descriptor,
-                stringValues,
-                out Unsafe.As<T, ulong>(ref result)
-            );
+            ref var resultUlong = ref Unsafe.As<T, ulong>(ref result);
+            ParseFlags(openIdEnvironment, descriptor, stringValues, out resultUlong);
         }
         else
         {

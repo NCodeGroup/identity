@@ -41,11 +41,12 @@ internal class DefaultPkceSettingDescriptorDataSource(
             // (RFC 7636 / RFC 8414). Only S256 ships and is the default; 'plain' exposes the verifier in the
             // authorization request and is not a transformation the server offers (OAuth 2.1 §7.5.2).
             // Ceiling (Intersect): a child narrows the parent's set; it cannot re-add a method the parent removed.
+            var methodsRule = SettingRules.OneOf(MethodNames);
             yield return new SettingDescriptor<IReadOnlyCollection<string>>
             {
                 Name = OpenIdSettingNames.CodeChallengeMethodsSupported,
                 AppliesTo = [OpenIdSettingScopes.Tenant, OpenIdSettingScopes.Client],
-                Rule = SettingRules.Each(SettingRules.OneOf(MethodNames)),
+                Rule = SettingRules.Each(methodsRule),
                 Default = [.. DefaultMethods.Intersect(MethodNames, StringComparer.Ordinal)],
 
                 IsDiscoverable = true,

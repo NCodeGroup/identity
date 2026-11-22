@@ -32,9 +32,8 @@ internal static class WorkspaceInstall
         string? installedPackageManager;
         try
         {
-            installedPackageManager = ReadPackageManager(
-                File.ReadAllText(modulesPath, SecureEncoding.UTF8)
-            );
+            var modulesText = File.ReadAllText(modulesPath, SecureEncoding.UTF8);
+            installedPackageManager = ReadPackageManager(modulesText);
         }
         catch (JsonException)
         {
@@ -70,14 +69,15 @@ internal static class WorkspaceInstall
                 "lock.yaml"
             );
 
-            if (
-                !File.Exists(installedLockPath)
-                || !string.Equals(
-                    ReadNormalized(lockPath),
-                    ReadNormalized(installedLockPath),
-                    StringComparison.Ordinal
-                )
-            )
+            var lockChanged = !File.Exists(installedLockPath);
+            if (!lockChanged)
+            {
+                var lockText = ReadNormalized(lockPath);
+                var installedLockText = ReadNormalized(installedLockPath);
+                lockChanged = !string.Equals(lockText, installedLockText, StringComparison.Ordinal);
+            }
+
+            if (lockChanged)
             {
                 problems.Add(
                     "pnpm-lock.yaml changed since the last install (new or updated dependencies or workspace packages)."

@@ -59,15 +59,16 @@ internal sealed class DefaultJwtValidator(
         string nameClaimType,
         string roleClaimType,
         CancellationToken cancellationToken
-    ) =>
-        ValueTask.FromResult(
-            ClaimsIdentityFactory.CreateClaimsIdentity(
-                decodedJwt.Payload,
-                authenticationType,
-                nameClaimType,
-                roleClaimType
-            )
+    )
+    {
+        var claimsIdentity = ClaimsIdentityFactory.CreateClaimsIdentity(
+            decodedJwt.Payload,
+            authenticationType,
+            nameClaimType,
+            roleClaimType
         );
+        return ValueTask.FromResult(claimsIdentity);
+    }
 
     private IServiceProvider ServiceProvider { get; } = serviceProvider;
     private TimeProvider TimeProvider { get; } = timeProvider;
@@ -89,15 +90,25 @@ internal sealed class DefaultJwtValidator(
         {
             var joseToken = ParseCompact(token);
 
-            var decodedJwt =
-                joseToken.ProtectionType == JoseProtectionTypes.Jwe
-                    ? await DecodeNestedAsync(joseToken, parameters, propertyBag, cancellationToken)
-                    : await DecodeSignedAsync(
-                        joseToken,
-                        parameters,
-                        propertyBag,
-                        cancellationToken
-                    );
+            DecodedJwt decodedJwt;
+            if (joseToken.ProtectionType == JoseProtectionTypes.Jwe)
+            {
+                decodedJwt = await DecodeNestedAsync(
+                    joseToken,
+                    parameters,
+                    propertyBag,
+                    cancellationToken
+                );
+            }
+            else
+            {
+                decodedJwt = await DecodeSignedAsync(
+                    joseToken,
+                    parameters,
+                    propertyBag,
+                    cancellationToken
+                );
+            }
 
             var context = new JwtValidationContext(
                 decodedJwt.SigningKey,
@@ -115,15 +126,12 @@ internal sealed class DefaultJwtValidator(
 
             if (!context.HasSucceeded)
             {
-                return JwtValidationResult.Fail(
-                    parameters,
-                    propertyBag,
-                    token,
-                    new JwtValidationException(BuildFailureReason(context))
-                    {
-                        FailureCode = context.FailureCode ?? JwtValidationFailureCodes.InvalidToken,
-                    }
-                );
+                var failureReason = BuildFailureReason(context);
+                var failureException = new JwtValidationException(failureReason)
+                {
+                    FailureCode = context.FailureCode ?? JwtValidationFailureCodes.InvalidToken,
+                };
+                return JwtValidationResult.Fail(parameters, propertyBag, token, failureException);
             }
 
             var createClaimsIdentity =
@@ -207,17 +215,16 @@ internal sealed class DefaultJwtValidator(
             );
         }
 
+        var filteredDecryptionKeys = FilterKeys(
+            decryptionKeys,
+            SecretKeyUses.Encryption,
+            keyManagementAlgorithm,
+            parameters.ClockSkew
+        );
+        var narrowedDecryptionKeys = NarrowByKeyId(header, filteredDecryptionKeys);
         var (enclosedToken, decryptionKey) = await DecryptAsync(
             encryptedToken,
-            NarrowByKeyId(
-                header,
-                FilterKeys(
-                    decryptionKeys,
-                    SecretKeyUses.Encryption,
-                    keyManagementAlgorithm,
-                    parameters.ClockSkew
-                )
-            ),
+            narrowedDecryptionKeys,
             cancellationToken
         );
 
@@ -282,14 +289,15 @@ internal sealed class DefaultJwtValidator(
             cancellationToken
         );
 
+        var filteredValidationKeys = FilterKeys(
+            validationKeys,
+            SecretKeyUses.Signature,
+            signatureAlgorithm,
+            parameters.ClockSkew
+        );
         var (payload, secretKey) = await DeserializePayloadAsync(
             signedToken,
-            FilterKeys(
-                validationKeys,
-                SecretKeyUses.Signature,
-                signatureAlgorithm,
-                parameters.ClockSkew
-            ),
+            filteredValidationKeys,
             cancellationToken
         );
 

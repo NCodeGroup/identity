@@ -4,37 +4,31 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
-using Microsoft.Extensions.DependencyInjection;
 using NCode.Identity.AspNetCore;
 using NCode.Identity.Jose;
 using NCode.Identity.OpenId.Authentication.Tokens.Commands;
 using NCode.Identity.OpenId.Contexts;
 using NCode.Identity.OpenId.GlobalDirectory;
-using NCode.Identity.OpenId.Persistence.Tenants;
+using NCode.Identity.OpenId.Management.Endpoints;
 using NCode.Mediator;
 
 namespace NCode.Identity.OpenId.Management.ControlPlane;
 
 /// <summary>
-/// The authentication endpoint filter of the control-plane authority API that the control-plane cell serves to the
-/// other cells. It materializes the control-plane environment for the request, authenticates the bearer or DPoP access
-/// token of the request for the control-plane audience, and requires the <c>control-plane</c> scope and a
-/// <c>client_id</c> that names a cell's machine client. A request without a valid token is answered
-/// <c>401 Unauthorized</c> and a request whose token lacks the scope or names another client is answered
-/// <c>403 Forbidden</c>, never allowed. A request that passes runs inside an unscoped ambient scope, because the roles
-/// it reads are the control plane's own rows.
+/// The authentication gate of the control-plane authority API that the control-plane cell serves to the other cells. It
+/// runs before the route binds its body, materializes the control-plane environment for the request, authenticates the
+/// bearer or DPoP access token of the request for the control-plane audience, and requires the <c>control-plane</c>
+/// scope and a <c>client_id</c> that names a cell's machine client. A request without a valid token is answered
+/// <c>401 Unauthorized</c> that challenges with both schemes the gate accepts, <c>Bearer</c> and <c>DPoP</c>, in
+/// <c>WWW-Authenticate</c>, and a request whose token lacks the scope or names another client is answered
+/// <c>403 Forbidden</c>, never allowed. A request refused here costs no more than its headers.
 /// </summary>
-// See ADR-1411 and ADR-1466.
-internal sealed class ControlPlaneAuthenticationEndpointFilter(
+// See ADR-1520, ADR-1411 and ADR-1466.
+internal sealed class ControlPlaneAuthenticationGate(
     IOpenIdContextFactory openIdContextFactory,
-    IAmbientTenantAccessor ambientTenantAccessor
-) : IEndpointFilter
+    IMediator mediator
+) : IEndpointGate
 {
-    /// <summary>
-    /// The reason that the filter gives the unscoped scope it opens.
-    /// </summary>
-    internal const string UnscopedReason = "control-plane authority";
-
     private const string BearerPrefix = "Bearer ";
     private const string DPoPPrefix = "DPoP ";
 
@@ -43,32 +37,21 @@ internal sealed class ControlPlaneAuthenticationEndpointFilter(
 
     private IOpenIdContextFactory OpenIdContextFactory { get; } = openIdContextFactory;
 
-    private IAmbientTenantAccessor AmbientTenantAccessor { get; } = ambientTenantAccessor;
+    private IMediator Mediator { get; } = mediator;
 
     /// <inheritdoc />
-    public async ValueTask<object?> InvokeAsync(
-        EndpointFilterInvocationContext context,
-        EndpointFilterDelegate next
+    public async ValueTask<IResult?> InvokeAsync(
+        HttpContext httpContext,
+        CancellationToken cancellationToken
     )
     {
-        var httpContext = context.HttpContext;
-
-        // With RouteHandlerOptions.ThrowOnBadRequest off, minimal APIs set 400 for a body that fails to bind and still
-        // run the filters, never the route.
-        if (httpContext.Response.StatusCode >= StatusCodes.Status400BadRequest)
-        {
-            return TypedResults.Empty;
-        }
-
-        var mediator = httpContext.RequestServices.GetRequiredService<IMediator>();
-
         try
         {
-            // The factory publishes the context on the request (an IOpenIdContextFeature) for the filter to read.
+            // The factory publishes the context on the request (an IOpenIdContextFeature) for the gate to read.
             await OpenIdContextFactory.CreateForControlPlaneAsync(
                 httpContext,
-                mediator,
-                httpContext.RequestAborted
+                Mediator,
+                cancellationToken
             );
         }
         catch (HttpResultException exception)
@@ -88,7 +71,7 @@ internal sealed class ControlPlaneAuthenticationEndpointFilter(
         var disposition = await openIdContext.Mediator.SendAsync<
             AuthenticateAccessTokenCommand,
             AuthenticateAccessTokenDisposition
-        >(command, httpContext.RequestAborted);
+        >(command, cancellationToken);
 
         if (!disposition.IsAuthenticated)
             return Unauthorized(httpContext);
@@ -103,19 +86,11 @@ internal sealed class ControlPlaneAuthenticationEndpointFilter(
             );
         }
 
-        using var scope = AmbientTenantAccessor.BeginUnscoped(UnscopedReason);
-        return await next(context);
+        return null;
     }
 
-    private static ProblemHttpResult Unauthorized(HttpContext httpContext)
-    {
-        httpContext.Response.Headers.WWWAuthenticate = "Bearer";
-        return TypedResults.Problem(
-            title: "Unauthorized",
-            detail: "A valid access token for the control plane is required.",
-            statusCode: StatusCodes.Status401Unauthorized
-        );
-    }
+    private static ProblemHttpResult Unauthorized(HttpContext httpContext) =>
+        ManagementProblems.AuthenticationRequired(httpContext);
 
     private static bool TryGetBearerToken(HttpContext httpContext, out string token)
     {

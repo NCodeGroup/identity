@@ -54,19 +54,17 @@ public static class DefaultRegistration
                 .ValidateOnStart();
 
             // A key that a caller names stays in the cloud regions the composition names for the deployment's keys.
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    IPostConfigureOptions<AwsKmsKeyWrapperOptions>,
-                    AwsKmsKeyResidencyOptionsSetup
-                >()
-            );
+            var residencyDescriptor = ServiceDescriptor.Singleton<
+                IPostConfigureOptions<AwsKmsKeyWrapperOptions>,
+                AwsKmsKeyResidencyOptionsSetup
+            >();
+            serviceCollection.TryAddEnumerable(residencyDescriptor);
 
             serviceCollection.TryAddSingleton(TimeProvider.System);
             serviceCollection.TryAddSingleton<IAwsKmsClientFactory, DefaultAwsKmsClientFactory>();
 
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<IKeyWrapper, AwsKmsKeyWrapper>()
-            );
+            var keyWrapperDescriptor = ServiceDescriptor.Singleton<IKeyWrapper, AwsKmsKeyWrapper>();
+            serviceCollection.TryAddEnumerable(keyWrapperDescriptor);
 
             return builder;
         }

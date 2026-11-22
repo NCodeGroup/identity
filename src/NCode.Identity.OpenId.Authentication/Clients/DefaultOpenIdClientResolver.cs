@@ -179,8 +179,9 @@ internal class DefaultOpenIdClientResolver(
         var now = TimeProvider.GetUtcNow();
         var liveSecrets = SelectUnexpired(persistedClient.Secrets.Value, now);
 
+        var tenantOwner = SecretOwner.ForTenant(tenantId);
         var protector = await SecretProtectorProvider.GetProtectorForSecretsAsync(
-            SecretOwner.ForTenant(tenantId),
+            tenantOwner,
             liveSecrets,
             cancellationToken
         );

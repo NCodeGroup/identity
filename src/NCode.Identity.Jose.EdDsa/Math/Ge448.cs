@@ -116,9 +116,14 @@ internal struct Ge448
     {
         var a = Fe448.Mul(p._x, q._x);
         var b = Fe448.Mul(p._y, q._y);
-        var c = Fe448.Mul(Fe448.Mul(D, p._t), q._t);
+        var dpt = Fe448.Mul(D, p._t);
+        var c = Fe448.Mul(dpt, q._t);
         var d = Fe448.Mul(p._z, q._z);
-        var e = Fe448.Sub(Fe448.Sub(Fe448.Mul(Fe448.Add(p._x, p._y), Fe448.Add(q._x, q._y)), a), b);
+        var xySumP = Fe448.Add(p._x, p._y);
+        var xySumQ = Fe448.Add(q._x, q._y);
+        var xyProduct = Fe448.Mul(xySumP, xySumQ);
+        var xyProductMinusA = Fe448.Sub(xyProduct, a);
+        var e = Fe448.Sub(xyProductMinusA, b);
         var f = Fe448.Sub(d, c);
         var g = Fe448.Add(d, c);
         var h = Fe448.Sub(b, a);
@@ -137,8 +142,12 @@ internal struct Ge448
     {
         var a = Fe448.Sqr(p._x);
         var b = Fe448.Sqr(p._y);
-        var c = Fe448.Add(Fe448.Sqr(p._z), Fe448.Sqr(p._z));
-        var e = Fe448.Sub(Fe448.Sub(Fe448.Sqr(Fe448.Add(p._x, p._y)), a), b);
+        var zSquared = Fe448.Sqr(p._z);
+        var c = Fe448.Add(zSquared, zSquared);
+        var xySum = Fe448.Add(p._x, p._y);
+        var xySquared = Fe448.Sqr(xySum);
+        var xySquaredMinusA = Fe448.Sub(xySquared, a);
+        var e = Fe448.Sub(xySquaredMinusA, b);
         var g = Fe448.Add(a, b);
         var f = Fe448.Sub(g, c);
         var h = Fe448.Sub(a, b);
@@ -239,10 +248,15 @@ internal struct Ge448
     {
         var y2 = Fe448.Sqr(y);
         var u = Fe448.Sub(y2, Fe448.One);
-        var v = Fe448.Sub(Fe448.Mul(D, y2), Fe448.One);
-        var candidate = Fe448.Sqrt(Fe448.Mul(u, Fe448.Invert(v)));
+        var dy2 = Fe448.Mul(D, y2);
+        var v = Fe448.Sub(dy2, Fe448.One);
+        var vInverse = Fe448.Invert(v);
+        var uvInverse = Fe448.Mul(u, vInverse);
+        var candidate = Fe448.Sqrt(uvInverse);
 
-        if (Fe448.Sub(Fe448.Mul(v, Fe448.Sqr(candidate)), u).IsNonZero() != 0)
+        var candidateSquared = Fe448.Sqr(candidate);
+        var vxx = Fe448.Mul(v, candidateSquared);
+        if (Fe448.Sub(vxx, u).IsNonZero() != 0)
         {
             x = default;
             return false; // not a square: invalid point

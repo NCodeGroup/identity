@@ -160,17 +160,15 @@ internal sealed class OcspClientCertificateRevocationSource(
     {
         using var responder = X509CertificateLoader.LoadCertificate(encoded.Span);
 
-        var status = await CrlSource.CheckAsync(
-            new ClientCertificateRevocationContext
-            {
-                Certificate = responder,
-                Issuer = context.Issuer,
-                TrustAnchor = context.TrustAnchor,
-                Intermediates = context.Intermediates,
-                Depth = context.Depth + 1,
-            },
-            cancellationToken
-        );
+        var responderContext = new ClientCertificateRevocationContext
+        {
+            Certificate = responder,
+            Issuer = context.Issuer,
+            TrustAnchor = context.TrustAnchor,
+            Intermediates = context.Intermediates,
+            Depth = context.Depth + 1,
+        };
+        var status = await CrlSource.CheckAsync(responderContext, cancellationToken);
         return status == ClientCertificateRevocationStatus.Good;
     }
 
@@ -186,9 +184,8 @@ internal sealed class OcspClientCertificateRevocationSource(
         using var issuer = X509CertificateLoader.LoadCertificate(issuerData);
 
         var request = OcspRequest.Encode(certificateId);
-        var getUri =
-            (uri.EndsWith('/') ? uri : uri + "/")
-            + Uri.EscapeDataString(Convert.ToBase64String(request));
+        var encodedRequest = Convert.ToBase64String(request);
+        var getUri = (uri.EndsWith('/') ? uri : uri + "/") + Uri.EscapeDataString(encodedRequest);
         var encoded =
             getUri.Length <= MaxGetRequestLength
                 ? await Fetcher.GetAsync(getUri, uri, subject, cancellationToken)
@@ -287,9 +284,7 @@ internal sealed class OcspClientCertificateRevocationSource(
             cacheUntil = null;
         }
 
-        return new RevocationRetrieval<OcspVerifiedStatus>(
-            new OcspVerifiedStatus(single.Status, uncheckedResponder),
-            cacheUntil
-        );
+        var verifiedStatus = new OcspVerifiedStatus(single.Status, uncheckedResponder);
+        return new RevocationRetrieval<OcspVerifiedStatus>(verifiedStatus, cacheUntil);
     }
 }

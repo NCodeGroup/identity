@@ -88,11 +88,12 @@ internal sealed class OpenIdExceptionEndpointFilter : IEndpointFilter
                 cancellationToken
             );
 
+            var exceptionInfo = ExceptionDispatchInfo.Capture(exception);
             var disposition = await handler.HandleExceptionAsync(
                 openIdEnvironment,
                 httpContext,
                 openIdContext.Mediator,
-                ExceptionDispatchInfo.Capture(exception),
+                exceptionInfo,
                 cancellationToken
             );
 

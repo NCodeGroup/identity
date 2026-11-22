@@ -52,7 +52,8 @@ internal class DataProtectionKeyRingReader(IOptions<KeyManagementOptions> keyMan
             var expirationDate = ReadExpirationDate(element);
             foreach (var value in element.Descendants(MasterKeyXmlFormat.ValueName))
             {
-                result.Add(new KeyRingValue(value.Value, expirationDate));
+                var keyRingValue = new KeyRingValue(value.Value, expirationDate);
+                result.Add(keyRingValue);
             }
         }
 

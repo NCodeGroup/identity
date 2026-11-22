@@ -47,7 +47,8 @@ public abstract class AsymmetricSecretKey(
         var collection = new X509Certificate2Collection();
         foreach (var rawData in IssuerCertificatesRawData)
         {
-            collection.Add(X509CertificateLoader.LoadCertificate(rawData.Span));
+            var certificate = X509CertificateLoader.LoadCertificate(rawData.Span);
+            collection.Add(certificate);
         }
 
         return collection;

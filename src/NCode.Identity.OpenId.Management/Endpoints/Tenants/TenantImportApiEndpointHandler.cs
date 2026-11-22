@@ -45,7 +45,8 @@ POST api/tenant-imports/transfer-keys
 /// package, imports every section and the master keys, retags the remote keys that the imported secrets reference to
 /// this cell, and moves the tenant's placement in the global directory to this cell. A package names the cell it is
 /// offered to, and only that cell imports it. The tenant stays disabled. Every cell maps the routes, and the caller
-/// needs the update operation on the platform node.
+/// needs the update operation on the platform node. The import route authorizes the caller before its body binds, in
+/// <see cref="TenantImportAuthorizationGate"/>, and again in its handler.
 /// </summary>
 // See ADR-1514.
 internal class TenantImportApiEndpointHandler(
@@ -87,9 +88,13 @@ internal class TenantImportApiEndpointHandler(
             .WithTags(OpenIdConstants.EndpointTags.Tenants)
             .AddEndpointFilter<RouteGroupBuilder, ControlPlaneScopeEndpointFilter>();
 
+        var requestSizeLimit = new RequestSizeLimitAttribute(
+            TenantTransferLimits.MaxImportRequestBytes
+        );
         imports
             .MapPost("", ImportTenantAsync)
-            .WithMetadata(new RequestSizeLimitAttribute(TenantTransferLimits.MaxImportRequestBytes))
+            .AddEndpointGate<RouteHandlerBuilder, TenantImportAuthorizationGate>()
+            .WithMetadata(requestSizeLimit)
             .Produces<TenantImportResource>()
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status401Unauthorized)
@@ -119,9 +124,10 @@ internal class TenantImportApiEndpointHandler(
         CancellationToken cancellationToken
     )
     {
+        var platformNode = GetPlatformNode(httpContext);
         var authorizationFailure = await GetAuthorizationFailureAsync(
             httpContext,
-            GetPlatformNode(httpContext),
+            platformNode,
             Operations.Update,
             cancellationToken
         );
@@ -132,9 +138,12 @@ internal class TenantImportApiEndpointHandler(
         }
 
         var transferKey = await TenantTransferKeyService.CreateAsync(cancellationToken);
-        return TypedResults.Json(
-            new TenantTransferKeyResource { Kid = transferKey.KeyId, Jwk = transferKey.Jwk }
-        );
+        var resource = new TenantTransferKeyResource
+        {
+            Kid = transferKey.KeyId,
+            Jwk = transferKey.Jwk,
+        };
+        return TypedResults.Json(resource);
     }
 
     /// <summary>
@@ -159,9 +168,10 @@ internal class TenantImportApiEndpointHandler(
         CancellationToken cancellationToken
     )
     {
+        var platformNode = GetPlatformNode(httpContext);
         var authorizationFailure = await GetAuthorizationFailureAsync(
             httpContext,
-            GetPlatformNode(httpContext),
+            platformNode,
             Operations.Update,
             cancellationToken
         );
@@ -365,19 +375,18 @@ internal class TenantImportApiEndpointHandler(
             teamId = imported.TeamId;
         }
 
+        var sourceCellValues = new Dictionary<string, string> { ["sourceCell"] = sourceCell };
+        var resourceValues = JsonSerializer.SerializeToElement(sourceCellValues);
         await ManagementAuditRecorder.RecordTenantChangedAsync(
             httpContext,
             teamId,
             tenantId,
             ResourceChangeTypes.Imported,
-            JsonSerializer.SerializeToElement(
-                new Dictionary<string, string> { ["sourceCell"] = sourceCell }
-            )
+            resourceValues
         );
 
-        return TypedResults.Ok(
-            new TenantImportResource { TenantId = tenantId, SourceCell = sourceCell }
-        );
+        var resource = new TenantImportResource { TenantId = tenantId, SourceCell = sourceCell };
+        return TypedResults.Ok(resource);
     }
 
     // Imports each section in order, then the master keys, and retags the remote keys that the imported secrets
@@ -406,8 +415,9 @@ internal class TenantImportApiEndpointHandler(
             remoteKeys.UnionWith(result.RemoteKeys);
         }
 
+        var owner = SecretOwner.ForTenant(tenantId);
         var transfer = await MasterKeyTransfer.ImportAsync(
-            SecretOwner.ForTenant(tenantId),
+            owner,
             masterKeys,
             privateKey,
             cancellationToken
@@ -746,28 +756,28 @@ internal class TenantImportApiEndpointHandler(
     private static ProblemHttpResult Unprocessable(string detail) =>
         TypedResults.Problem(detail: detail, statusCode: StatusCodes.Status422UnprocessableEntity);
 
-    private static ProblemHttpResult DirectoryUnavailableProblem(HttpContext httpContext) =>
-        RetryAfterProblem.Create(
-            httpContext,
-            TimeSpan.FromSeconds(GlobalDirectoryProtocol.UnavailableRetryAfterSeconds),
-            new ProblemDetails
-            {
-                Status = StatusCodes.Status503ServiceUnavailable,
-                Detail = "The global directory is unavailable. Retry the request.",
-            }
-        );
+    private static ProblemHttpResult DirectoryUnavailableProblem(HttpContext httpContext)
+    {
+        var retryAfter = TimeSpan.FromSeconds(GlobalDirectoryProtocol.UnavailableRetryAfterSeconds);
+        var problem = new ProblemDetails
+        {
+            Status = StatusCodes.Status503ServiceUnavailable,
+            Detail = "The global directory is unavailable. Retry the request.",
+        };
+        return RetryAfterProblem.Create(httpContext, retryAfter, problem);
+    }
 
     // The problem's moveOutcome tells a caller, such as the console, that the move may have committed.
-    private static ProblemHttpResult MoveUnknownProblem(HttpContext httpContext) =>
-        RetryAfterProblem.Create(
-            httpContext,
-            TimeSpan.FromSeconds(GlobalDirectoryProtocol.UnavailableRetryAfterSeconds),
-            new ProblemDetails
-            {
-                Status = StatusCodes.Status503ServiceUnavailable,
-                Detail =
-                    "The outcome of the move is unknown. Read the tenant's placement in the global directory before releasing it at the source; a repeated import clears this cell's copy.",
-                Extensions = { [ManagementProblemMembers.MoveOutcome] = "unknown" },
-            }
-        );
+    private static ProblemHttpResult MoveUnknownProblem(HttpContext httpContext)
+    {
+        var retryAfter = TimeSpan.FromSeconds(GlobalDirectoryProtocol.UnavailableRetryAfterSeconds);
+        var problem = new ProblemDetails
+        {
+            Status = StatusCodes.Status503ServiceUnavailable,
+            Detail =
+                "The outcome of the move is unknown. Read the tenant's placement in the global directory before releasing it at the source; a repeated import clears this cell's copy.",
+            Extensions = { [ManagementProblemMembers.MoveOutcome] = "unknown" },
+        };
+        return RetryAfterProblem.Create(httpContext, retryAfter, problem);
+    }
 }

@@ -108,34 +108,32 @@ internal class DefaultBackchannelAuthenticationEndpointHandler(
         var request = BackchannelAuthenticationRequest.Load(openIdEnvironment, formData);
 
         // A signed request object, when present, supersedes the form parameters (CIBA §7.1.1).
+        var loadCommand = new LoadBackchannelAuthenticationRequestCommand(
+            openIdContext,
+            openIdClient,
+            request
+        );
         var effectiveRequest = await mediator.SendAsync<
             LoadBackchannelAuthenticationRequestCommand,
             IBackchannelAuthenticationRequest
-        >(
-            new LoadBackchannelAuthenticationRequestCommand(openIdContext, openIdClient, request),
-            cancellationToken
-        );
+        >(loadCommand, cancellationToken);
 
-        await mediator.SendAsync(
-            new ValidateBackchannelAuthenticationRequestCommand(
-                openIdContext,
-                openIdClient,
-                effectiveRequest
-            ),
-            cancellationToken
+        var validateCommand = new ValidateBackchannelAuthenticationRequestCommand(
+            openIdContext,
+            openIdClient,
+            effectiveRequest
         );
+        await mediator.SendAsync(validateCommand, cancellationToken);
 
+        var authenticateCommand = new AuthenticateBackchannelRequestCommand(
+            openIdContext,
+            openIdClient,
+            effectiveRequest
+        );
         var disposition = await mediator.SendAsync<
             AuthenticateBackchannelRequestCommand,
             AuthenticateSubjectDisposition
-        >(
-            new AuthenticateBackchannelRequestCommand(
-                openIdContext,
-                openIdClient,
-                effectiveRequest
-            ),
-            cancellationToken
-        );
+        >(authenticateCommand, cancellationToken);
 
         if (disposition.HasError)
         {
@@ -153,18 +151,16 @@ internal class DefaultBackchannelAuthenticationEndpointHandler(
                 .AsHttpResult();
         }
 
+        var createCommand = new CreateBackchannelAuthenticationRequestCommand(
+            openIdContext,
+            openIdClient,
+            effectiveRequest,
+            disposition.Ticket.Value
+        );
         var result = await mediator.SendAsync<
             CreateBackchannelAuthenticationRequestCommand,
             BackchannelAuthenticationResult
-        >(
-            new CreateBackchannelAuthenticationRequestCommand(
-                openIdContext,
-                openIdClient,
-                effectiveRequest,
-                disposition.Ticket.Value
-            ),
-            cancellationToken
-        );
+        >(createCommand, cancellationToken);
 
         return TypedResults.Json(result, openIdEnvironment.JsonSerializerOptions);
     }

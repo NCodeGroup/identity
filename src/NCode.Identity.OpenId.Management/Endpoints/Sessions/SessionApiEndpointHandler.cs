@@ -130,9 +130,10 @@ internal class SessionApiEndpointHandler(
             );
         }
 
+        var tenantScope = TenantScopeResource.For(tenantId);
         var authorizationResult = await AuthorizationService.AuthorizeAsync(
             httpContext.User,
-            TenantScopeResource.For(tenantId),
+            tenantScope,
             Operations.List
         );
 
@@ -151,9 +152,12 @@ internal class SessionApiEndpointHandler(
         );
 
         var items = sessions.Select(ToSessionResource).ToList();
-        return TypedResults.Json(
-            new CollectionResource<SessionResource> { Items = items, ContinuationToken = null }
-        );
+        var collection = new CollectionResource<SessionResource>
+        {
+            Items = items,
+            ContinuationToken = null,
+        };
+        return TypedResults.Json(collection);
     }
 
     /// <summary>
@@ -183,9 +187,10 @@ internal class SessionApiEndpointHandler(
             );
         }
 
+        var tenantScope = TenantScopeResource.For(tenantId);
         var authorizationResult = await AuthorizationService.AuthorizeAsync(
             httpContext.User,
-            TenantScopeResource.For(tenantId),
+            tenantScope,
             Operations.Delete
         );
 
@@ -215,7 +220,8 @@ internal class SessionApiEndpointHandler(
             revoked
         );
 
-        return TypedResults.Json(new SessionRevocationResult { Revoked = revoked });
+        var sessionRevocationResult = new SessionRevocationResult { Revoked = revoked };
+        return TypedResults.Json(sessionRevocationResult);
     }
 
     /// <summary>
@@ -235,9 +241,10 @@ internal class SessionApiEndpointHandler(
         CancellationToken cancellationToken
     )
     {
+        var tenantScope = TenantScopeResource.For(tenantId);
         var authorizationResult = await AuthorizationService.AuthorizeAsync(
             httpContext.User,
-            TenantScopeResource.For(tenantId),
+            tenantScope,
             Operations.Delete
         );
 

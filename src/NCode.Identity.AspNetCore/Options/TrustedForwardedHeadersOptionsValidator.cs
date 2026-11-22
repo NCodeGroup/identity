@@ -79,10 +79,19 @@ internal sealed class TrustedForwardedHeadersOptionsValidator
     }
 
     // IPv4 must be written canonically: the parser also accepts shorthand and octal forms that denote another address.
-    private static bool TryParseAddress(string entry, [NotNullWhen(true)] out IPAddress? address) =>
-        IPAddress.TryParse(entry, out address)
-        && (
-            address.AddressFamily != AddressFamily.InterNetwork
-            || string.Equals(address.ToString(), entry, StringComparison.Ordinal)
-        );
+    private static bool TryParseAddress(string entry, [NotNullWhen(true)] out IPAddress? address)
+    {
+        if (!IPAddress.TryParse(entry, out address))
+        {
+            return false;
+        }
+
+        if (address.AddressFamily != AddressFamily.InterNetwork)
+        {
+            return true;
+        }
+
+        var text = address.ToString();
+        return string.Equals(text, entry, StringComparison.Ordinal);
+    }
 }

@@ -45,8 +45,11 @@ internal class DefaultCoseKeyConverter(
     private static CoseException Unsupported(string code, string message) => new(code, message);
 
     /// <inheritdoc />
-    public SecretKey ReadPublicKey(ReadOnlyMemory<byte> encodedKey) =>
-        ConvertMap(CborGuard.ReadRootMap(encodedKey, Options));
+    public SecretKey ReadPublicKey(ReadOnlyMemory<byte> encodedKey)
+    {
+        var map = CborGuard.ReadRootMap(encodedKey, Options);
+        return ConvertMap(map);
+    }
 
     /// <inheritdoc />
     public IReadOnlyList<SecretKey> ReadPublicKeySet(ReadOnlyMemory<byte> encodedKeySet)
@@ -70,11 +73,13 @@ internal class DefaultCoseKeyConverter(
                 );
 
             // The declared length is peer data.
-            maps = new List<IReadOnlyDictionary<CoseLabel, CoseValue>>(
-                Math.Min(length, reader.BytesRemaining)
-            );
+            var capacity = Math.Min(length, reader.BytesRemaining);
+            maps = new List<IReadOnlyDictionary<CoseLabel, CoseValue>>(capacity);
             for (var index = 0; index < length; index++)
-                maps.Add(CborGuard.ReadMap(reader, Options.MaxNestingDepth - 1));
+            {
+                var map = CborGuard.ReadMap(reader, Options.MaxNestingDepth - 1);
+                maps.Add(map);
+            }
 
             reader.ReadEndArray();
             if (reader.BytesRemaining != 0)
@@ -90,7 +95,8 @@ internal class DefaultCoseKeyConverter(
         {
             try
             {
-                keys.Add(ConvertMap(map));
+                var key = ConvertMap(map);
+                keys.Add(key);
             }
             catch (CoseException exception)
                 when (exception.FailureCode
@@ -106,8 +112,11 @@ internal class DefaultCoseKeyConverter(
     }
 
     /// <inheritdoc />
-    public byte[] WritePublicKey(SecretKey secretKey) =>
-        CborMapWriter.EncodeMap(BuildMap(secretKey));
+    public byte[] WritePublicKey(SecretKey secretKey)
+    {
+        var map = BuildMap(secretKey);
+        return CborMapWriter.EncodeMap(map);
+    }
 
     /// <inheritdoc />
     public byte[] WritePublicKeySet(IEnumerable<SecretKey> secretKeys)
@@ -150,9 +159,10 @@ internal class DefaultCoseKeyConverter(
         };
 
         if (!string.IsNullOrEmpty(secretKey.KeyId))
-            map[CoseKeyParameterLabels.KeyId] = CoseValue.FromByteString(
-                CoseKeyIdentifiers.GetBytes(secretKey.KeyId)
-            );
+        {
+            var keyIdBytes = CoseKeyIdentifiers.GetBytes(secretKey.KeyId);
+            map[CoseKeyParameterLabels.KeyId] = CoseValue.FromByteString(keyIdBytes);
+        }
 
         if (descriptor.RequiresAlgorithm)
         {
@@ -354,22 +364,21 @@ internal class DefaultCoseKeyConverter(
             if (!element.TryGetInt64(out var operation))
                 throw InvalidKey("A key operation of the COSE_Key is not an integer.");
 
-            operations.Add(
-                operation switch
-                {
-                    CoseKeyOperations.Sign => JsonWebKeyOperations.Sign,
-                    CoseKeyOperations.Verify => JsonWebKeyOperations.Verify,
-                    CoseKeyOperations.Encrypt => JsonWebKeyOperations.Encrypt,
-                    CoseKeyOperations.Decrypt => JsonWebKeyOperations.Decrypt,
-                    CoseKeyOperations.WrapKey => JsonWebKeyOperations.WrapKey,
-                    CoseKeyOperations.UnwrapKey => JsonWebKeyOperations.UnwrapKey,
-                    CoseKeyOperations.DeriveKey => JsonWebKeyOperations.DeriveKey,
-                    CoseKeyOperations.DeriveBits => JsonWebKeyOperations.DeriveBits,
-                    _ => throw InvalidKey(
-                        "A key operation of the COSE_Key is not valid for a public key."
-                    ),
-                }
-            );
+            var operationName = operation switch
+            {
+                CoseKeyOperations.Sign => JsonWebKeyOperations.Sign,
+                CoseKeyOperations.Verify => JsonWebKeyOperations.Verify,
+                CoseKeyOperations.Encrypt => JsonWebKeyOperations.Encrypt,
+                CoseKeyOperations.Decrypt => JsonWebKeyOperations.Decrypt,
+                CoseKeyOperations.WrapKey => JsonWebKeyOperations.WrapKey,
+                CoseKeyOperations.UnwrapKey => JsonWebKeyOperations.UnwrapKey,
+                CoseKeyOperations.DeriveKey => JsonWebKeyOperations.DeriveKey,
+                CoseKeyOperations.DeriveBits => JsonWebKeyOperations.DeriveBits,
+                _ => throw InvalidKey(
+                    "A key operation of the COSE_Key is not valid for a public key."
+                ),
+            };
+            operations.Add(operationName);
         }
 
         return [.. operations];
@@ -407,12 +416,13 @@ internal class DefaultCoseKeyConverter(
             // The import hands the public key bytes to a callback and reports their encoding only once it returns, so
             // the bytes are held in a rented buffer until the key is deserialized.
             Memory<byte> keyMaterial = default;
+            var importParameters = new SecretKeyImportParameters
+            {
+                Format = SecretKeyImportFormats.Jwk,
+                KeyMaterial = jwk.ToJsonString(),
+            };
             var imported = secretKeyDescriptor.ImportPublicKeyMaterial(
-                new SecretKeyImportParameters
-                {
-                    Format = SecretKeyImportFormats.Jwk,
-                    KeyMaterial = jwk.ToJsonString(),
-                },
+                importParameters,
                 bytes =>
                 {
                     lease?.Dispose();
@@ -422,13 +432,14 @@ internal class DefaultCoseKeyConverter(
                 }
             );
 
+            var keyMetadata = new KeyMetadata
+            {
+                KeyId = keyId,
+                Algorithm = joseAlgorithm,
+                Use = use,
+            };
             return secretKeyDescriptor.DeserializeKeyMaterial(
-                new KeyMetadata
-                {
-                    KeyId = keyId,
-                    Algorithm = joseAlgorithm,
-                    Use = use,
-                },
+                keyMetadata,
                 imported.SecretEncoding,
                 keyMaterial.Span
             );

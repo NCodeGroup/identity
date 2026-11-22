@@ -175,7 +175,10 @@ internal class DefaultMasterKeyRing(
             // to leave the evicted owner uncached. The protector still uses the keys, which an eviction does not zero.
             // An eviction of another owner also retracts the entry, which only costs the next call one reload.
             if (Volatile.Read(ref _evictionCount) != evictionsBefore)
-                Entries.TryRemove(new KeyValuePair<SecretOwner, MasterKeyRingEntry>(key, entry));
+            {
+                var retractedEntry = new KeyValuePair<SecretOwner, MasterKeyRingEntry>(key, entry);
+                Entries.TryRemove(retractedEntry);
+            }
 
             // A protected value that names a master key the owner has no row for fails only this call. It is not a
             // failure of the load, so the entry stays cached and no refusal is recorded for an owner-rooted owner.
@@ -440,9 +443,11 @@ internal class DefaultMasterKeyRing(
             var unwrappedTimestamp =
                 !validating && reused && cached is not null ? cached.UnwrappedTimestamp : now;
 
+            var frozenKeys = keys.ToFrozenDictionary();
+
             return new MasterKeyRingEntry(
                 active,
-                keys.ToFrozenDictionary(),
+                frozenKeys,
                 now,
                 rowsOwnerRooted,
                 unwrappedTimestamp
@@ -556,8 +561,9 @@ internal class DefaultMasterKeyRing(
             PersistedOwnerRootKey? rootKey = null;
             if (activeRow is null || rowsUnderOwnerRootKey)
             {
+                var ownerRootKeyStore = storeManager.GetStore<IOwnerRootKeyStore>();
                 rootKey = await NearestRootKeyResolver.FindNearestAsync(
-                    storeManager.GetStore<IOwnerRootKeyStore>(),
+                    ownerRootKeyStore,
                     key,
                     cancellationToken
                 );

@@ -77,7 +77,8 @@ internal sealed class AuditRecordStore(
             if (!skipped.Add(record.EventId))
                 continue;
 
-            await DbContext.AuditRecords.AddAsync(CreateEntity(record), cancellationToken);
+            var auditRecord = CreateEntity(record);
+            await DbContext.AuditRecords.AddAsync(auditRecord, cancellationToken);
             added++;
         }
 
@@ -109,16 +110,15 @@ internal sealed class AuditRecordStore(
         var ordinal = 0;
         foreach (var resource in record.Resources)
         {
-            entity.Resources.Add(
-                new AuditRecordResourceEntity
-                {
-                    Id = KeyGenerator.CreateKey(),
-                    AuditRecord = entity,
-                    Ordinal = ordinal++,
-                    Type = resource.Type,
-                    ResourceId = resource.Id,
-                }
-            );
+            var auditRecordResourceEntity = new AuditRecordResourceEntity
+            {
+                Id = KeyGenerator.CreateKey(),
+                AuditRecord = entity,
+                Ordinal = ordinal++,
+                Type = resource.Type,
+                ResourceId = resource.Id,
+            };
+            entity.Resources.Add(auditRecordResourceEntity);
         }
 
         return entity;

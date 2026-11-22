@@ -27,21 +27,24 @@ internal static class DefaultRegistration
         {
             var serviceCollection = builder.ServiceCollection;
 
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    ICollectionDataSource<SettingDescriptor>,
-                    DefaultClientSettingDescriptorDataSource
-                >()
-            );
+            var clientSettingDataSource = ServiceDescriptor.Singleton<
+                ICollectionDataSource<SettingDescriptor>,
+                DefaultClientSettingDescriptorDataSource
+            >();
+            serviceCollection.TryAddEnumerable(clientSettingDataSource);
 
             // The FAPI 2.0 and FAPI 1.0 Advanced security profiles; the catalog (Core) resolves them from this strategy
             // collection.
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<ISecurityProfile, Fapi2SecurityProfile>()
-            );
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<ISecurityProfile, Fapi1AdvancedSecurityProfile>()
-            );
+            var fapi2Profile = ServiceDescriptor.Singleton<
+                ISecurityProfile,
+                Fapi2SecurityProfile
+            >();
+            serviceCollection.TryAddEnumerable(fapi2Profile);
+            var fapi1Profile = ServiceDescriptor.Singleton<
+                ISecurityProfile,
+                Fapi1AdvancedSecurityProfile
+            >();
+            serviceCollection.TryAddEnumerable(fapi1Profile);
 
             return builder;
         }

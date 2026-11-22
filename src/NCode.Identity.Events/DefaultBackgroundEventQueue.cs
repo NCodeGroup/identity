@@ -39,7 +39,9 @@ internal class DefaultBackgroundEventQueue(ILogger<DefaultBackgroundEventQueue> 
         // never stall the publishing path.
         if (!Channel.Writer.TryWrite(@event))
         {
-            Logger.BackgroundEventDropped(@event.GetType().FullName ?? @event.GetType().Name);
+            var typeName = @event.GetType().FullName;
+            typeName ??= @event.GetType().Name;
+            Logger.BackgroundEventDropped(typeName);
         }
 
         return ValueTask.CompletedTask;

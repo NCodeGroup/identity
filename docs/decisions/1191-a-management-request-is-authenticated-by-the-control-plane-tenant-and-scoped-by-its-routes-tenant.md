@@ -39,12 +39,12 @@ questions decide how a call is handled, and the answers must not depend on the h
 A management request is authenticated by the control-plane tenant and scoped by the tenant its route names. The two
 are independent: the first is the security domain that issued the caller's token, the second selects the data.
 
-1. **The control-plane tenant authenticates every management request.** `ManagementEnvironmentEndpointFilter`, the
-   outermost filter of the `/api` group, creates the request's `OpenIdContext` for the control-plane tenant through
-   `IOpenIdContextFactory.CreateForControlPlaneAsync`, whatever tenant the host or path addresses. The authentication
-   filter, the endpoints and `OwnershipHandler` read that context, so a caller is authenticated, and its principal
-   resolved, by the tenant that issued its token. A workload tenant's token never authenticates the API; control-plane
-   principals administer a workload tenant through role assignments at that tenant's node
+1. **The control-plane tenant authenticates every management request.** `ManagementCallerGate`, which runs on the `/api`
+   group before the route binds its parameters, creates the request's `OpenIdContext` for the control-plane tenant
+   through `IOpenIdContextFactory.CreateForControlPlaneAsync`, whatever tenant the host or path addresses. The gate, the
+   endpoints and `OwnershipHandler` read that context, so a caller is authenticated, and its principal resolved, by the
+   tenant that issued its token. A workload tenant's token never authenticates the API; control-plane principals
+   administer a workload tenant through role assignments at that tenant's node
    ([ADR-1417](1417-management-authority-is-a-role-assignment-at-a-node-of-the-platform-team-and-tenant-hierarchy.md)).
 2. **The control-plane cell issues management tokens, and every cell validates them through
    `IManagementTokenValidator`.** The control-plane tenant of the control-plane cell (`Cell:IsControlPlane`) is the one
@@ -125,7 +125,7 @@ are independent: the first is the security domain that issued the caller's token
 
 ## References
 
-- Code: `ManagementRootGroup`, `TenantManagementGroup`, `ClientManagementGroup`, `ManagementEnvironmentEndpointFilter`,
+- Code: `ManagementRootGroup`, `TenantManagementGroup`, `ClientManagementGroup`, `ManagementCallerGate`,
   `TenantScopeEndpointFilter`, `ControlPlaneScopeEndpointFilter`, `IManagementTokenValidator`, `CellOptions`,
   `ITenantStrategy`, `ITenantResolver`, `IOpenIdTenantFactory`, `IOpenIdContextFactory`, `IAmbientTenantAccessor`,
   `OwnershipHandler`.

@@ -473,11 +473,10 @@ internal static class BffFrontendOptionsValidation
 
         if (!isValid)
         {
-            failures.Add(
-                isLocalDevelopment
-                    ? $"{key}:Authority {QuoteUrl(authority)} must be an absolute 'https:' or 'http:' URI without whitespace."
-                    : $"{key}:Authority {QuoteUrl(authority)} must be an absolute 'https:' URI without whitespace unless LocalDevelopment:Enabled is true."
-            );
+            var failure = isLocalDevelopment
+                ? $"{key}:Authority {QuoteUrl(authority)} must be an absolute 'https:' or 'http:' URI without whitespace."
+                : $"{key}:Authority {QuoteUrl(authority)} must be an absolute 'https:' URI without whitespace unless LocalDevelopment:Enabled is true.";
+            failures.Add(failure);
         }
     }
 
@@ -488,28 +487,31 @@ internal static class BffFrontendOptionsValidation
         List<string> failures
     )
     {
-        var isValid =
+        var isValid = false;
+        if (
             !string.IsNullOrEmpty(publicOrigin)
             && AbsoluteUri.TryParse(publicOrigin, out var uri)
             && uri.UserInfo.Length == 0
-            && string.Equals(
-                publicOrigin,
-                uri.GetLeftPart(UriPartial.Authority) + uri.AbsolutePath.TrimEnd('/'),
-                StringComparison.Ordinal
-            )
-            && (
-                string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.Ordinal)
-                || (
-                    isLocalDevelopment
-                    && string.Equals(uri.Scheme, Uri.UriSchemeHttp, StringComparison.Ordinal)
-                )
-            );
+        )
+        {
+            var leftPart = uri.GetLeftPart(UriPartial.Authority);
+            var trimmedPath = uri.AbsolutePath.TrimEnd('/');
+            isValid =
+                string.Equals(publicOrigin, leftPart + trimmedPath, StringComparison.Ordinal)
+                && (
+                    string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.Ordinal)
+                    || (
+                        isLocalDevelopment
+                        && string.Equals(uri.Scheme, Uri.UriSchemeHttp, StringComparison.Ordinal)
+                    )
+                );
+        }
 
         if (!isValid)
         {
-            failures.Add(
-                $"{key}:PublicOrigin {QuoteUrl(publicOrigin)} must be the absolute URL the BFF is published at — scheme, host, optional port and path base, without user info, a query, a fragment or a trailing '/' — and must use 'https' unless LocalDevelopment:Enabled is true."
-            );
+            var failure =
+                $"{key}:PublicOrigin {QuoteUrl(publicOrigin)} must be the absolute URL the BFF is published at — scheme, host, optional port and path base, without user info, a query, a fragment or a trailing '/' — and must use 'https' unless LocalDevelopment:Enabled is true.";
+            failures.Add(failure);
         }
     }
 
@@ -565,18 +567,17 @@ internal static class BffFrontendOptionsValidation
     {
         foreach (var entry in trustedOrigins ?? [])
         {
-            var isValid =
-                !string.IsNullOrEmpty(entry)
-                && AbsoluteUri.TryParse(entry, out var uri)
-                && string.Equals(
-                    entry,
-                    uri.GetLeftPart(UriPartial.Authority),
-                    StringComparison.Ordinal
-                )
-                && (
-                    isLocalDevelopment
-                    || string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.Ordinal)
-                );
+            var isValid = false;
+            if (!string.IsNullOrEmpty(entry) && AbsoluteUri.TryParse(entry, out var uri))
+            {
+                var leftPart = uri.GetLeftPart(UriPartial.Authority);
+                isValid =
+                    string.Equals(entry, leftPart, StringComparison.Ordinal)
+                    && (
+                        isLocalDevelopment
+                        || string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.Ordinal)
+                    );
+            }
 
             if (!isValid)
             {

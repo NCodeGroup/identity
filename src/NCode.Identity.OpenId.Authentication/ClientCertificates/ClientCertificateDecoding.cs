@@ -43,7 +43,8 @@ internal static class ClientCertificateDecoding
                 if (!Convert.TryFromBase64Chars(remaining[fields.Base64Data], der, out _))
                     return Fail(certificates, out certificate);
 
-                certificates.Add(X509CertificateLoader.LoadCertificate(der));
+                var loadedCertificate = X509CertificateLoader.LoadCertificate(der);
+                certificates.Add(loadedCertificate);
                 remaining = remaining[fields.Location.End..].TrimStart();
             }
         }
@@ -72,7 +73,8 @@ internal static class ClientCertificateDecoding
                     return Fail(certificates, out certificate);
 
                 var der = Convert.FromBase64String(part);
-                certificates.Add(X509CertificateLoader.LoadCertificate(der));
+                var loadedCertificate = X509CertificateLoader.LoadCertificate(der);
+                certificates.Add(loadedCertificate);
             }
         }
         catch (Exception exception) when (exception is FormatException or CryptographicException)

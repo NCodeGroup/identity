@@ -55,7 +55,8 @@ public abstract class Parameter : IParameter
         params IEnumerable<string> stringValues
     )
     {
-        return Load(openIdEnvironment, parameterName, stringValues.ToArray());
+        var stringValuesArray = stringValues.ToArray();
+        return Load(openIdEnvironment, parameterName, stringValuesArray);
     }
 
     /// <summary>

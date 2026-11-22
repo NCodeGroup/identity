@@ -36,10 +36,12 @@ internal sealed class CellRegistrationService(
     /// delay.</param>
     /// <returns>The <see cref="TimeSpan"/> to wait before the next attempt, never above
     /// <see cref="MaxDelay"/>.</returns>
-    internal static TimeSpan GetDelay(int attempt, double jitter) =>
-        TimeSpan.FromSeconds(
-            Math.Min(Math.Pow(2, attempt - 1), MaxDelay.TotalSeconds) * (0.5 + jitter / 2)
-        );
+    internal static TimeSpan GetDelay(int attempt, double jitter)
+    {
+        var doubled = Math.Pow(2, attempt - 1);
+        var capped = Math.Min(doubled, MaxDelay.TotalSeconds);
+        return TimeSpan.FromSeconds(capped * (0.5 + jitter / 2));
+    }
 
     private ICellDirectory CellDirectory { get; } = cellDirectory;
 
@@ -88,7 +90,8 @@ internal sealed class CellRegistrationService(
             }
             catch (DirectoryUnavailableException exception)
             {
-                var delay = GetDelay(attempt, Random.Shared.NextDouble());
+                var jitter = Random.Shared.NextDouble();
+                var delay = GetDelay(attempt, jitter);
                 Logger.CellRegistrationFailed(exception, attempt, delay);
                 await Task.Delay(delay, TimeProvider, cancellationToken);
             }

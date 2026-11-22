@@ -111,7 +111,11 @@ internal abstract class TenantStrategy(
     public virtual async ValueTask<PersistedTenant> ResolveControlPlaneTenantAsync(
         HttpContext httpContext,
         CancellationToken cancellationToken
-    ) => await GetTenantByIdAsync(httpContext, GetControlPlaneTenantId(), cancellationToken);
+    )
+    {
+        var controlPlaneTenantId = GetControlPlaneTenantId();
+        return await GetTenantByIdAsync(httpContext, controlPlaneTenantId, cancellationToken);
+    }
 
     /// <inheritdoc />
     /// <remarks>

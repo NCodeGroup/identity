@@ -47,54 +47,53 @@ internal static class DefaultRegistration
                 DefaultSelectTokenGrantHandlerHandler
             >();
 
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    ICommandHandler<ValidateTokenRequestCommand>,
-                    DefaultValidateTokenRequestHandler
-                >()
-            );
+            var validateTokenRequestHandler = ServiceDescriptor.Singleton<
+                ICommandHandler<ValidateTokenRequestCommand>,
+                DefaultValidateTokenRequestHandler
+            >();
+            serviceCollection.TryAddEnumerable(validateTokenRequestHandler);
 
             // Authorization Code
 
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    ITokenGrantHandler,
-                    DefaultAuthorizationCodeGrantHandler
-                >()
-            );
+            var authorizationCodeGrantHandler = ServiceDescriptor.Singleton<
+                ITokenGrantHandler,
+                DefaultAuthorizationCodeGrantHandler
+            >();
+            serviceCollection.TryAddEnumerable(authorizationCodeGrantHandler);
 
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    ICommandHandler<ValidateTokenGrantCommand<AuthorizationGrant>>,
-                    DefaultValidateAuthorizationCodeGrantHandler
-                >()
-            );
+            var validateAuthorizationCodeGrantHandler = ServiceDescriptor.Singleton<
+                ICommandHandler<ValidateTokenGrantCommand<AuthorizationGrant>>,
+                DefaultValidateAuthorizationCodeGrantHandler
+            >();
+            serviceCollection.TryAddEnumerable(validateAuthorizationCodeGrantHandler);
 
             // Refresh Token
 
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<ITokenGrantHandler, DefaultRefreshTokenGrantHandler>()
-            );
+            var refreshTokenGrantHandler = ServiceDescriptor.Singleton<
+                ITokenGrantHandler,
+                DefaultRefreshTokenGrantHandler
+            >();
+            serviceCollection.TryAddEnumerable(refreshTokenGrantHandler);
 
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    ICommandHandler<ValidateTokenGrantCommand<RefreshTokenGrant>>,
-                    DefaultValidateRefreshTokenGrantHandler
-                >()
-            );
+            var validateRefreshTokenGrantHandler = ServiceDescriptor.Singleton<
+                ICommandHandler<ValidateTokenGrantCommand<RefreshTokenGrant>>,
+                DefaultValidateRefreshTokenGrantHandler
+            >();
+            serviceCollection.TryAddEnumerable(validateRefreshTokenGrantHandler);
 
             // Device Code
 
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<ITokenGrantHandler, DefaultDeviceCodeGrantHandler>()
-            );
+            var deviceCodeGrantHandler = ServiceDescriptor.Singleton<
+                ITokenGrantHandler,
+                DefaultDeviceCodeGrantHandler
+            >();
+            serviceCollection.TryAddEnumerable(deviceCodeGrantHandler);
 
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    ICommandHandler<ValidateTokenGrantCommand<DeviceCodeGrant>>,
-                    DefaultValidateDeviceCodeGrantHandler
-                >()
-            );
+            var validateDeviceCodeGrantHandler = ServiceDescriptor.Singleton<
+                ICommandHandler<ValidateTokenGrantCommand<DeviceCodeGrant>>,
+                DefaultValidateDeviceCodeGrantHandler
+            >();
+            serviceCollection.TryAddEnumerable(validateDeviceCodeGrantHandler);
 
             // CIBA (Client-Initiated Backchannel Authentication)
 
@@ -103,38 +102,39 @@ internal static class DefaultRegistration
                 DefaultCibaTokenResponseService
             >();
 
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<ITokenGrantHandler, DefaultCibaGrantHandler>()
-            );
+            var cibaGrantHandler = ServiceDescriptor.Singleton<
+                ITokenGrantHandler,
+                DefaultCibaGrantHandler
+            >();
+            serviceCollection.TryAddEnumerable(cibaGrantHandler);
 
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    ICommandHandler<ValidateTokenGrantCommand<CibaGrant>>,
-                    DefaultValidateCibaGrantHandler
-                >()
-            );
+            var validateCibaGrantHandler = ServiceDescriptor.Singleton<
+                ICommandHandler<ValidateTokenGrantCommand<CibaGrant>>,
+                DefaultValidateCibaGrantHandler
+            >();
+            serviceCollection.TryAddEnumerable(validateCibaGrantHandler);
 
             // Client Credentials
 
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    ITokenGrantHandler,
-                    DefaultClientCredentialsGrantHandler
-                >()
-            );
+            var clientCredentialsGrantHandler = ServiceDescriptor.Singleton<
+                ITokenGrantHandler,
+                DefaultClientCredentialsGrantHandler
+            >();
+            serviceCollection.TryAddEnumerable(clientCredentialsGrantHandler);
 
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    ICommandHandler<ValidateTokenGrantCommand<ClientCredentialsGrant>>,
-                    DefaultValidateClientCredentialsGrantHandler
-                >()
-            );
+            var validateClientCredentialsGrantHandler = ServiceDescriptor.Singleton<
+                ICommandHandler<ValidateTokenGrantCommand<ClientCredentialsGrant>>,
+                DefaultValidateClientCredentialsGrantHandler
+            >();
+            serviceCollection.TryAddEnumerable(validateClientCredentialsGrantHandler);
 
             // Password
 
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<ITokenGrantHandler, DefaultPasswordGrantHandler>()
-            );
+            var passwordGrantHandler = ServiceDescriptor.Singleton<
+                ITokenGrantHandler,
+                DefaultPasswordGrantHandler
+            >();
+            serviceCollection.TryAddEnumerable(passwordGrantHandler);
 
             // The password grant is unsupported until a host registers the local-account authentication capability
             // (the NCode.Identity.OpenId.Accounts.Authentication package), which replaces this default handler.
@@ -146,12 +146,11 @@ internal static class DefaultRegistration
                 DefaultUnsupportedPasswordGrantHandler
             >();
 
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    ICommandHandler<ValidateTokenGrantCommand<PasswordGrant>>,
-                    DefaultValidatePasswordGrantHandler
-                >()
-            );
+            var validatePasswordGrantHandler = ServiceDescriptor.Singleton<
+                ICommandHandler<ValidateTokenGrantCommand<PasswordGrant>>,
+                DefaultValidatePasswordGrantHandler
+            >();
+            serviceCollection.TryAddEnumerable(validatePasswordGrantHandler);
 
             // Token Exchange (RFC 8693)
 
@@ -160,16 +159,17 @@ internal static class DefaultRegistration
                 DefaultSubjectTokenValidator
             >();
 
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<ITokenGrantHandler, DefaultTokenExchangeGrantHandler>()
-            );
+            var tokenExchangeGrantHandler = ServiceDescriptor.Singleton<
+                ITokenGrantHandler,
+                DefaultTokenExchangeGrantHandler
+            >();
+            serviceCollection.TryAddEnumerable(tokenExchangeGrantHandler);
 
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    ICommandHandler<ValidateTokenGrantCommand<TokenExchangeGrant>>,
-                    DefaultValidateTokenExchangeGrantHandler
-                >()
-            );
+            var validateTokenExchangeGrantHandler = ServiceDescriptor.Singleton<
+                ICommandHandler<ValidateTokenGrantCommand<TokenExchangeGrant>>,
+                DefaultValidateTokenExchangeGrantHandler
+            >();
+            serviceCollection.TryAddEnumerable(validateTokenExchangeGrantHandler);
         }
     }
 }

@@ -26,7 +26,7 @@ namespace NCode.Identity.OpenId.GlobalDirectory.Server;
 /// calling cell: the platform and team writes need the control-plane cell
 /// (<see cref="DirectoryServerOptions.ControlPlaneCell"/>), and a tenant write needs the cell that holds the tenant.
 /// </summary>
-// See ADR-1411. DirectoryAuthenticationEndpointFilter checks the token.
+// See ADR-1411. DirectoryAuthenticationGate checks the token before the route binds its body.
 [PublicAPI]
 public static class DirectoryEndpoints
 {
@@ -1059,8 +1059,11 @@ public static class DirectoryEndpoints
     /// <c>true</c> when the caller's machine client names the cell, compared case-sensitively; otherwise <c>false</c>,
     /// including when the caller is not a cell.
     /// </returns>
-    private static bool IsCaller(HttpContext httpContext, string cell) =>
-        string.Equals(DirectoryCaller.GetCell(httpContext.User), cell, StringComparison.Ordinal);
+    private static bool IsCaller(HttpContext httpContext, string cell)
+    {
+        var callerCell = DirectoryCaller.GetCell(httpContext.User);
+        return string.Equals(callerCell, cell, StringComparison.Ordinal);
+    }
 
     /// <summary>
     /// Refuses a write that only the control-plane cell makes, such as a platform or team write.
@@ -1242,19 +1245,23 @@ public static class DirectoryEndpoints
 
             var group = endpoints
                 .MapGroup(RoutePrefix)
-                .AddEndpointFilter<DirectoryAuthenticationEndpointFilter>()
+                .AddEndpointGate<RouteGroupBuilder, DirectoryAuthenticationGate>()
                 .WithConfidentialBodies()
                 .ProducesProblem(StatusCodes.Status401Unauthorized)
                 .ProducesProblem(StatusCodes.Status503ServiceUnavailable);
 
-            MapTenants(group.MapGroup("tenants"));
+            var tenantsGroup = group.MapGroup("tenants");
+            MapTenants(tenantsGroup);
             group
                 .MapGet("retired-issuers", GetRetiredIssuerAsync)
                 .ProducesProblem(StatusCodes.Status400BadRequest)
                 .ProducesProblem(StatusCodes.Status404NotFound);
-            MapTeams(group.MapGroup("teams"));
-            MapPlatform(group.MapGroup("platform"));
-            MapCells(group.MapGroup("cells"));
+            var teamsGroup = group.MapGroup("teams");
+            MapTeams(teamsGroup);
+            var platformGroup = group.MapGroup("platform");
+            MapPlatform(platformGroup);
+            var cellsGroup = group.MapGroup("cells");
+            MapCells(cellsGroup);
 
             return group;
         }

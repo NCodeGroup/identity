@@ -42,7 +42,7 @@ GET api/me/tenants
 /// <see cref="IControlPlaneAuthority"/> resolves the caller's <c>sub</c> and <c>client_id</c> claims to, and the role
 /// assignments are those the cell holds for it. Team role assignments are held only in the control-plane cell, so
 /// <c>GET api/me/teams</c> is mapped only there; the other routes are mapped in every cell. It answers only a caller
-/// that the management authentication filter authenticated from a management access token, which it reads from
+/// that the management caller gate authenticated from a management access token, which it reads from
 /// <see cref="IManagementCallerFeature"/>; any other request gets the authentication-required problem.
 /// </summary>
 // See ADR-1465 and ADR-1044.
@@ -255,9 +255,9 @@ internal class CallerApiEndpointHandler(
     }
 
     /// <summary>
-    /// Answers the caller that the management authentication filter authenticated from a management access token,
-    /// read from <see cref="IManagementCallerFeature"/>, in the request's control-plane tenant scope through one
-    /// store manager; any other request gets the authentication-required problem.
+    /// Answers the caller that the management caller gate authenticated from a management access token, read from
+    /// <see cref="IManagementCallerFeature"/>, in the request's control-plane tenant scope through one store manager;
+    /// any other request gets the authentication-required problem.
     /// </summary>
     /// <param name="httpContext">The <see cref="HttpContext"/> for the current request.</param>
     /// <param name="answerAsync">The delegate that answers the caller from the request's <see cref="OpenIdContext"/>,
@@ -279,7 +279,7 @@ internal class CallerApiEndpointHandler(
     {
         var caller = httpContext.Features.Get<IManagementCallerFeature>()?.Caller;
         if (caller is null)
-            return ManagementProblems.AuthenticationRequired();
+            return ManagementProblems.AuthenticationRequired(httpContext);
 
         var openIdContext = httpContext.GetOpenIdContext();
 
@@ -315,10 +315,12 @@ internal class CallerApiEndpointHandler(
             return (null, []);
         }
 
-        var authority = await ControlPlaneAuthority.GetAsync(
-            new ControlPlaneAuthorityRequest { Subject = subject, ClientId = clientId },
-            cancellationToken
-        );
+        var authorityRequest = new ControlPlaneAuthorityRequest
+        {
+            Subject = subject,
+            ClientId = clientId,
+        };
+        var authority = await ControlPlaneAuthority.GetAsync(authorityRequest, cancellationToken);
 
         var principalId = authority.PrincipalId;
         if (string.IsNullOrEmpty(principalId))

@@ -32,18 +32,21 @@ internal static class DefaultRegistration
                 IPasswordAttemptLimiter,
                 DefaultPasswordAttemptLimiter
             >();
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<IPasswordBlocklist, CommonPasswordBlocklist>()
-            );
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<IPasswordBlocklist, AccountNamePasswordBlocklist>()
-            );
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    ICollectionDataSource<SettingDescriptor>,
-                    DefaultPasswordSettingDescriptorDataSource
-                >()
-            );
+            var commonBlocklist = ServiceDescriptor.Singleton<
+                IPasswordBlocklist,
+                CommonPasswordBlocklist
+            >();
+            serviceCollection.TryAddEnumerable(commonBlocklist);
+            var accountNameBlocklist = ServiceDescriptor.Singleton<
+                IPasswordBlocklist,
+                AccountNamePasswordBlocklist
+            >();
+            serviceCollection.TryAddEnumerable(accountNameBlocklist);
+            var settingDataSource = ServiceDescriptor.Singleton<
+                ICollectionDataSource<SettingDescriptor>,
+                DefaultPasswordSettingDescriptorDataSource
+            >();
+            serviceCollection.TryAddEnumerable(settingDataSource);
 
             return builder;
         }

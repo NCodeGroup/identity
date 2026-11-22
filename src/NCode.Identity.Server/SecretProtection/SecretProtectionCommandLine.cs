@@ -271,16 +271,14 @@ public sealed class SecretProtectionCommandLine
         if (RecoveryPrivateKeyPath is not null && lease is null)
             return 1;
 
-        var result = await rewrapper.RewrapAsync(
-            new MasterKeyRewrapRequest
-            {
-                RecoveryOnly = string.Equals(Verb, RewrapRecoveryVerb, StringComparison.Ordinal),
-                Owner = Owner,
-                DryRun = DryRun,
-                RecoveryPrivateKeyPem = lease?.Pem ?? default,
-            },
-            cancellationToken
-        );
+        var request = new MasterKeyRewrapRequest
+        {
+            RecoveryOnly = string.Equals(Verb, RewrapRecoveryVerb, StringComparison.Ordinal),
+            Owner = Owner,
+            DryRun = DryRun,
+            RecoveryPrivateKeyPem = lease?.Pem ?? default,
+        };
+        var result = await rewrapper.RewrapAsync(request, cancellationToken);
 
         if (Owner is { } owner && result.Examined == 0)
         {

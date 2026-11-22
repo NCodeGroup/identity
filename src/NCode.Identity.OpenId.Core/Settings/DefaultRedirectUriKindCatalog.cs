@@ -47,9 +47,12 @@ internal sealed class DefaultRedirectUriKindCatalog : IRedirectUriKindCatalog
             var kindName = kind.KindName;
 
             if (string.IsNullOrEmpty(kindName) || kindName.Any(char.IsWhiteSpace))
+            {
+                var kindTypeName = kind.GetType().Name;
                 throw new InvalidOperationException(
-                    $"The '{kind.GetType().Name}' redirect URI kind must have a name that is not empty and contains no whitespace."
+                    $"The '{kindTypeName}' redirect URI kind must have a name that is not empty and contains no whitespace."
                 );
+            }
 
             if (!kindsByName.TryAdd(kindName, kind))
                 throw new InvalidOperationException(

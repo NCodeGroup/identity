@@ -49,17 +49,17 @@ internal sealed class AssumedRoleKmsClient(
 
         var config = AwsKmsClientConfiguration.Create(region);
 
+        var credentialsResolver = DefaultAWSCredentialsIdentityResolver.GetCredentials(config);
+        var assumeRoleOptions = new AssumeRoleAWSCredentialsOptions { ExternalId = access.Binding };
         var credentials = new AssumeRoleAWSCredentials(
-            DefaultAWSCredentialsIdentityResolver.GetCredentials(config),
+            credentialsResolver,
             access.Identity,
             RoleSessionName,
-            new AssumeRoleAWSCredentialsOptions { ExternalId = access.Binding }
+            assumeRoleOptions
         );
 
-        return new AssumedRoleKmsClient(
-            new AmazonKeyManagementServiceClient(credentials, config),
-            credentials
-        );
+        var client = new AmazonKeyManagementServiceClient(credentials, config);
+        return new AssumedRoleKmsClient(client, credentials);
     }
 
     /// <inheritdoc />

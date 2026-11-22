@@ -56,7 +56,8 @@ internal sealed class BffSessionRetirementService(
 
             try
             {
-                await Task.WhenAny(signal.Task, Task.Delay(delay, timeProvider, waiting.Token));
+                var delayTask = Task.Delay(delay, timeProvider, waiting.Token);
+                await Task.WhenAny(signal.Task, delayTask);
             }
             finally
             {

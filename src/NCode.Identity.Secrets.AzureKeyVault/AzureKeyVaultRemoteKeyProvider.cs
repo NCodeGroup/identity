@@ -119,23 +119,27 @@ internal class AzureKeyVaultRemoteKeyProvider(
             + (providerOptions.HardwareProtected ? HardwareSuffix : SoftwareSuffix);
         var row = request.Algorithm;
 
-        var key = row.SecretType switch
+        KeyVaultKey key;
+        switch (row.SecretType)
         {
-            SecretKeyTypes.Rsa => await CreateRsaKeyAsync(
-                vaultUri,
-                CreateRsaOptions(request, name, providerOptions.HardwareProtected),
-                cancellationToken
-            ),
-            SecretKeyTypes.Ecc => await CreateEcKeyAsync(
-                vaultUri,
-                CreateEcOptions(request, name, providerOptions.HardwareProtected),
-                cancellationToken
-            ),
-            _ => throw new ArgumentException(
-                $"The secret type '{row.SecretType}' is not one that Azure Key Vault holds.",
-                nameof(request)
-            ),
-        };
+            case SecretKeyTypes.Rsa:
+            {
+                var rsaOptions = CreateRsaOptions(request, name, providerOptions.HardwareProtected);
+                key = await CreateRsaKeyAsync(vaultUri, rsaOptions, cancellationToken);
+                break;
+            }
+            case SecretKeyTypes.Ecc:
+            {
+                var ecOptions = CreateEcOptions(request, name, providerOptions.HardwareProtected);
+                key = await CreateEcKeyAsync(vaultUri, ecOptions, cancellationToken);
+                break;
+            }
+            default:
+                throw new ArgumentException(
+                    $"The secret type '{row.SecretType}' is not one that Azure Key Vault holds.",
+                    nameof(request)
+                );
+        }
 
         var keyId = key.Id?.AbsoluteUri;
         if (!AzureKeyVaultKeyId.IsKeyVersionId(keyId))
@@ -176,14 +180,16 @@ internal class AzureKeyVaultRemoteKeyProvider(
             );
         }
 
-        var identifier = new KeyVaultKeyIdentifier(new Uri(keyId));
+        var keyUri = new Uri(keyId);
+        var identifier = new KeyVaultKeyIdentifier(keyUri);
 
         var response = await ClientFactory.ExecuteKeyClientAsync(
             identifier.VaultUri,
             (client, token) =>
-                new ValueTask<Response<KeyVaultKey>>(
-                    client.GetKeyAsync(identifier.Name, identifier.Version, token)
-                ),
+            {
+                var getKeyTask = client.GetKeyAsync(identifier.Name, identifier.Version, token);
+                return new ValueTask<Response<KeyVaultKey>>(getKeyTask);
+            },
             cancellationToken
         );
 
@@ -208,7 +214,8 @@ internal class AzureKeyVaultRemoteKeyProvider(
             );
         }
 
-        subjectPublicKeyInfo.Write(ExportSubjectPublicKeyInfo(key, keyId));
+        var publicKeyInfo = ExportSubjectPublicKeyInfo(key, keyId);
+        subjectPublicKeyInfo.Write(publicKeyInfo);
     }
 
     /// <inheritdoc />
@@ -257,7 +264,10 @@ internal class AzureKeyVaultRemoteKeyProvider(
             keyId,
             access: null,
             (client, token) =>
-                new ValueTask<SignResult>(client.SignAsync(algorithm, digest, token)),
+            {
+                var signTask = client.SignAsync(algorithm, digest, token);
+                return new ValueTask<SignResult>(signTask);
+            },
             cancellationToken
         );
 
@@ -330,9 +340,10 @@ internal class AzureKeyVaultRemoteKeyProvider(
                 keyId,
                 access: null,
                 (client, token) =>
-                    new ValueTask<UnwrapResult>(
-                        client.UnwrapKeyAsync(algorithm, encryptedKey, token)
-                    ),
+                {
+                    var unwrapTask = client.UnwrapKeyAsync(algorithm, encryptedKey, token);
+                    return new ValueTask<UnwrapResult>(unwrapTask);
+                },
                 cancellationToken
             );
         }
@@ -411,7 +422,8 @@ internal class AzureKeyVaultRemoteKeyProvider(
 
         // The key lives in the vault that its identifier names, which stays right when the configured vault changes.
         var keyUri = new Uri(keyId);
-        var vaultUri = new Uri(keyUri.GetLeftPart(UriPartial.Authority));
+        var authority = keyUri.GetLeftPart(UriPartial.Authority);
+        var vaultUri = new Uri(authority);
         var properties = new KeyProperties(keyUri) { Enabled = false };
 
         try
@@ -419,9 +431,14 @@ internal class AzureKeyVaultRemoteKeyProvider(
             await ClientFactory.ExecuteKeyClientAsync(
                 vaultUri,
                 (client, token) =>
-                    new ValueTask<Response<KeyVaultKey>>(
-                        client.UpdateKeyPropertiesAsync(properties, keyOperations: null, token)
-                    ),
+                {
+                    var updateTask = client.UpdateKeyPropertiesAsync(
+                        properties,
+                        keyOperations: null,
+                        token
+                    );
+                    return new ValueTask<Response<KeyVaultKey>>(updateTask);
+                },
                 cancellationToken
             );
         }
@@ -453,7 +470,8 @@ internal class AzureKeyVaultRemoteKeyProvider(
         }
 
         // The key lives in the vault that its identifier names, which stays right when the configured vault changes.
-        var identifier = new KeyVaultKeyIdentifier(new Uri(keyId));
+        var keyUri = new Uri(keyId);
+        var identifier = new KeyVaultKeyIdentifier(keyUri);
 
         try
         {
@@ -492,10 +510,19 @@ internal class AzureKeyVaultRemoteKeyProvider(
         ArgumentNullException.ThrowIfNull(keyId);
 
         var vaultUri = ProviderOptions.Value.VaultUri;
-        return Uri.TryCreate(vaultUri, UriKind.Absolute, out var vault)
-            && AzureKeyVaultKeyId.IsKeyVersionId(keyId)
-            && Uri.Compare(
-                new Uri(keyId),
+        if (!Uri.TryCreate(vaultUri, UriKind.Absolute, out var vault))
+        {
+            return false;
+        }
+
+        if (!AzureKeyVaultKeyId.IsKeyVersionId(keyId))
+        {
+            return false;
+        }
+
+        var keyUri = new Uri(keyId);
+        return Uri.Compare(
+                keyUri,
                 vault,
                 UriComponents.SchemeAndServer,
                 UriFormat.SafeUnescaped,
@@ -703,9 +730,10 @@ internal class AzureKeyVaultRemoteKeyProvider(
         var response = await ClientFactory.ExecuteKeyClientWithoutRetryAsync(
             vaultUri,
             (client, token) =>
-                new ValueTask<Response<KeyVaultKey>>(
-                    client.CreateRsaKeyAsync(createOptions, token)
-                ),
+            {
+                var createTask = client.CreateRsaKeyAsync(createOptions, token);
+                return new ValueTask<Response<KeyVaultKey>>(createTask);
+            },
             cancellationToken
         );
 
@@ -721,7 +749,10 @@ internal class AzureKeyVaultRemoteKeyProvider(
         var response = await ClientFactory.ExecuteKeyClientWithoutRetryAsync(
             vaultUri,
             (client, token) =>
-                new ValueTask<Response<KeyVaultKey>>(client.CreateEcKeyAsync(createOptions, token)),
+            {
+                var createTask = client.CreateEcKeyAsync(createOptions, token);
+                return new ValueTask<Response<KeyVaultKey>>(createTask);
+            },
             cancellationToken
         );
 

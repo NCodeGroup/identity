@@ -57,20 +57,18 @@ public static class SecretsLibraryRegistration
                 )
                 .ValidateOnStart();
 
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    IValidateOptions<GoogleCloudKmsRemoteKeyProviderOptions>,
-                    GoogleCloudKmsRemoteKeyProviderOptionsValidator
-                >()
-            );
+            var validatorDescriptor = ServiceDescriptor.Singleton<
+                IValidateOptions<GoogleCloudKmsRemoteKeyProviderOptions>,
+                GoogleCloudKmsRemoteKeyProviderOptionsValidator
+            >();
+            serviceCollection.TryAddEnumerable(validatorDescriptor);
 
             // The provider creates keys only in the cloud locations the composition names for the deployment's keys.
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    IPostConfigureOptions<GoogleCloudKmsRemoteKeyProviderOptions>,
-                    GoogleCloudKmsKeyResidencyOptionsSetup
-                >()
-            );
+            var residencyDescriptor = ServiceDescriptor.Singleton<
+                IPostConfigureOptions<GoogleCloudKmsRemoteKeyProviderOptions>,
+                GoogleCloudKmsKeyResidencyOptionsSetup
+            >();
+            serviceCollection.TryAddEnumerable(residencyDescriptor);
 
             serviceCollection.TryAddSingleton(TimeProvider.System);
             serviceCollection.TryAddSingleton<
@@ -78,16 +76,17 @@ public static class SecretsLibraryRegistration
                 DefaultGoogleCloudKmsClientFactory
             >();
 
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<IRemoteKeyProvider, GoogleCloudKmsRemoteKeyProvider>()
-            );
+            var providerDescriptor = ServiceDescriptor.Singleton<
+                IRemoteKeyProvider,
+                GoogleCloudKmsRemoteKeyProvider
+            >();
+            serviceCollection.TryAddEnumerable(providerDescriptor);
 
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    IRemoteKeyDescriptorSource,
-                    GoogleCloudKmsRemoteKeyDescriptors
-                >()
-            );
+            var descriptorSourceDescriptor = ServiceDescriptor.Singleton<
+                IRemoteKeyDescriptorSource,
+                GoogleCloudKmsRemoteKeyDescriptors
+            >();
+            serviceCollection.TryAddEnumerable(descriptorSourceDescriptor);
 
             return builder;
         }

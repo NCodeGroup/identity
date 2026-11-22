@@ -33,45 +33,54 @@ internal class DefaultTenantValidator(
         string controlPlaneTenantId,
         string teamId,
         CancellationToken cancellationToken
-    ) =>
-        AuthorizeAsync(
+    )
+    {
+        var node = ResourceNode.For(controlPlaneTenantId, ResourceNodeTypes.Team, teamId);
+        return AuthorizeAsync(
             user,
-            ResourceNode.For(controlPlaneTenantId, ResourceNodeTypes.Team, teamId),
+            node,
             Operations.Create,
             "The caller is not authorized to create this tenant.",
             "Authentication is required to create this tenant.",
             cancellationToken
         );
+    }
 
     /// <inheritdoc />
     public ValueTask<ManagementError?> AuthorizeUpdateAsync(
         ClaimsPrincipal user,
         string tenantId,
         CancellationToken cancellationToken
-    ) =>
-        AuthorizeAsync(
+    )
+    {
+        var node = ResourceNode.For(tenantId, ResourceNodeTypes.Tenant, tenantId);
+        return AuthorizeAsync(
             user,
-            ResourceNode.For(tenantId, ResourceNodeTypes.Tenant, tenantId),
+            node,
             Operations.Update,
             "The caller is not authorized to update this tenant.",
             "Authentication is required to update this tenant.",
             cancellationToken
         );
+    }
 
     /// <inheritdoc />
     public ValueTask<ManagementError?> AuthorizeDeleteAsync(
         ClaimsPrincipal user,
         string tenantId,
         CancellationToken cancellationToken
-    ) =>
-        AuthorizeAsync(
+    )
+    {
+        var node = ResourceNode.For(tenantId, ResourceNodeTypes.Tenant, tenantId);
+        return AuthorizeAsync(
             user,
-            ResourceNode.For(tenantId, ResourceNodeTypes.Tenant, tenantId),
+            node,
             Operations.Delete,
             "The caller is not authorized to delete this tenant.",
             "Authentication is required to delete this tenant.",
             cancellationToken
         );
+    }
 
     /// <inheritdoc />
     public async ValueTask<ManagementError?> ValidateCreateAsync(

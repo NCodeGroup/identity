@@ -68,11 +68,19 @@ internal sealed class ManagementConsoleOptionsValidator(LocalDevelopmentMode loc
 
         if (!isValid)
         {
-            failures.Add(
-                isWellFormed
-                    ? $"{Key}:ManagementApiUrl is '{Describe(options.ManagementApiUrl)}' and must use 'https' unless LocalDevelopment:Enabled is true."
-                    : $"{Key}:ManagementApiUrl must be an absolute https URL without user info, query or fragment; it is '{Describe(options.ManagementApiUrl)}'."
-            );
+            string managementApiUrlFailure;
+            if (isWellFormed)
+            {
+                managementApiUrlFailure =
+                    $"{Key}:ManagementApiUrl is '{Describe(options.ManagementApiUrl)}' and must use 'https' unless LocalDevelopment:Enabled is true.";
+            }
+            else
+            {
+                managementApiUrlFailure =
+                    $"{Key}:ManagementApiUrl must be an absolute https URL without user info, query or fragment; it is '{Describe(options.ManagementApiUrl)}'.";
+            }
+
+            failures.Add(managementApiUrlFailure);
         }
 
         foreach (
@@ -98,11 +106,19 @@ internal sealed class ManagementConsoleOptionsValidator(LocalDevelopmentMode loc
 
             if (!isCellValid)
             {
-                failures.Add(
-                    isCellWellFormed
-                        ? $"{cellKey} is '{Describe(cellUrl)}' and must use 'https' unless LocalDevelopment:Enabled is true."
-                        : $"{cellKey} must be an absolute https URL without user info, query or fragment; it is '{Describe(cellUrl)}'."
-                );
+                string cellFailure;
+                if (isCellWellFormed)
+                {
+                    cellFailure =
+                        $"{cellKey} is '{Describe(cellUrl)}' and must use 'https' unless LocalDevelopment:Enabled is true.";
+                }
+                else
+                {
+                    cellFailure =
+                        $"{cellKey} must be an absolute https URL without user info, query or fragment; it is '{Describe(cellUrl)}'.";
+                }
+
+                failures.Add(cellFailure);
             }
         }
 
@@ -117,8 +133,9 @@ internal sealed class ManagementConsoleOptionsValidator(LocalDevelopmentMode loc
 
         if (branding.LogoUrl is not null && !AbsoluteUri.TryParseHttps(branding.LogoUrl, out _))
         {
+            var logoUrlDescription = Describe(branding.LogoUrl);
             failures.Add(
-                $"{Key}:Branding:LogoUrl must be an absolute https URL; it is '{Describe(branding.LogoUrl)}'."
+                $"{Key}:Branding:LogoUrl must be an absolute https URL; it is '{logoUrlDescription}'."
             );
         }
 
@@ -127,8 +144,9 @@ internal sealed class ManagementConsoleOptionsValidator(LocalDevelopmentMode loc
             && !AbsoluteUri.TryParseHttps(branding.FaviconUrl, out _)
         )
         {
+            var faviconUrlDescription = Describe(branding.FaviconUrl);
             failures.Add(
-                $"{Key}:Branding:FaviconUrl must be an absolute https URL; it is '{Describe(branding.FaviconUrl)}'."
+                $"{Key}:Branding:FaviconUrl must be an absolute https URL; it is '{faviconUrlDescription}'."
             );
         }
 

@@ -25,23 +25,25 @@ public static class DefaultRegistration
     // The account-sourced UserInfo enricher is grant-agnostic (any access token issued for a local account), so both
     // the password-grant and interactive registrations wire it; TryAddEnumerable keys on the implementation type, so
     // registering it from both entry points adds it exactly once.
-    private static void AddLocalAccountUserInfoClaims(IServiceCollection serviceCollection) =>
-        serviceCollection.TryAddEnumerable(
-            ServiceDescriptor.Singleton<
-                ICommandHandler<GetUserInfoClaimsCommand>,
-                DefaultGetLocalAccountUserInfoClaimsHandler
-            >()
-        );
+    private static void AddLocalAccountUserInfoClaims(IServiceCollection serviceCollection)
+    {
+        var descriptor = ServiceDescriptor.Singleton<
+            ICommandHandler<GetUserInfoClaimsCommand>,
+            DefaultGetLocalAccountUserInfoClaimsHandler
+        >();
+        serviceCollection.TryAddEnumerable(descriptor);
+    }
 
     // The subject-validation handler is grant-agnostic (it runs wherever an end user's standing is validated), so both
     // the password-grant and interactive registrations wire it; TryAddEnumerable adds it exactly once.
-    private static void AddLocalAccountSubjectValidation(IServiceCollection serviceCollection) =>
-        serviceCollection.TryAddEnumerable(
-            ServiceDescriptor.Singleton<
-                ICommandHandler<ValidateSubjectStandingCommand>,
-                DefaultValidateLocalAccountSubjectHandler
-            >()
-        );
+    private static void AddLocalAccountSubjectValidation(IServiceCollection serviceCollection)
+    {
+        var descriptor = ServiceDescriptor.Singleton<
+            ICommandHandler<ValidateSubjectStandingCommand>,
+            DefaultValidateLocalAccountSubjectHandler
+        >();
+        serviceCollection.TryAddEnumerable(descriptor);
+    }
 
     /// <param name="builder">The <see cref="OpenIdAuthenticationLibrary"/> builder these capabilities extend.</param>
     extension(IServiceBuilder<OpenIdAuthenticationLibrary> builder)
@@ -66,15 +68,14 @@ public static class DefaultRegistration
             var serviceCollection = builder.ServiceCollection;
 
             // Replace (not TryAdd) so this capability wins over the base "unsupported password grant" default handler.
-            serviceCollection.Replace(
-                ServiceDescriptor.Singleton<
-                    ICommandResponseHandler<
-                        AuthenticatePasswordGrantCommand,
-                        AuthenticateSubjectDisposition
-                    >,
-                    DefaultAuthenticatePasswordGrantHandler
-                >()
-            );
+            var passwordGrantDescriptor = ServiceDescriptor.Singleton<
+                ICommandResponseHandler<
+                    AuthenticatePasswordGrantCommand,
+                    AuthenticateSubjectDisposition
+                >,
+                DefaultAuthenticatePasswordGrantHandler
+            >();
+            serviceCollection.Replace(passwordGrantDescriptor);
 
             serviceCollection.TryAddSingleton<
                 ICommandResponseHandler<CreatePasswordGrantSubjectCommand, ClaimsPrincipal>,
@@ -116,12 +117,11 @@ public static class DefaultRegistration
             // Replace (not TryAdd) so this capability wins over the surface's default changer, which reports that no
             // change is supported, whatever the order the two registrations run in.
             // See ADR-1230.
-            serviceCollection.Replace(
-                ServiceDescriptor.Singleton<
-                    IInteractivePasswordChanger,
-                    LocalAccountInteractivePasswordChanger
-                >()
-            );
+            var passwordChangerDescriptor = ServiceDescriptor.Singleton<
+                IInteractivePasswordChanger,
+                LocalAccountInteractivePasswordChanger
+            >();
+            serviceCollection.Replace(passwordChangerDescriptor);
 
             AddLocalAccountUserInfoClaims(serviceCollection);
             AddLocalAccountSubjectValidation(serviceCollection);

@@ -84,7 +84,8 @@ internal sealed class BffRemoteApiHandler(
         if (error != ForwarderError.None && !cancellationToken.IsCancellationRequested)
         {
             var exception = context.GetForwarderErrorFeature()?.Exception;
-            logger.RemoteApiForwardFailed(api.Path, error.ToString(), exception);
+            var errorName = error.ToString();
+            logger.RemoteApiForwardFailed(api.Path, errorName, exception);
         }
     }
 }

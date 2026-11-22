@@ -67,11 +67,14 @@ public static class DefaultRegistration
             serviceCollection.AddHttpContextAccessor();
 
             // The strict posture holds unless the host's configuration turns the local development switch on.
-            serviceCollection.TryAddSingleton(new LocalDevelopmentMode(false));
+            var localDevelopmentMode = new LocalDevelopmentMode(false);
+            serviceCollection.TryAddSingleton(localDevelopmentMode);
             serviceCollection.AddOptions<BffOptions>().ValidateOnStart();
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<IValidateOptions<BffOptions>, BffOptionsValidator>()
-            );
+            var bffOptionsValidator = ServiceDescriptor.Singleton<
+                IValidateOptions<BffOptions>,
+                BffOptionsValidator
+            >();
+            serviceCollection.TryAddEnumerable(bffOptionsValidator);
 
             serviceCollection.AddAntiforgery(options =>
             {
@@ -82,37 +85,43 @@ public static class DefaultRegistration
                 options.Cookie.HttpOnly = true;
             });
             serviceCollection.AddOptions<AntiforgeryOptions>().ValidateOnStart();
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    IValidateOptions<AntiforgeryOptions>,
-                    BffAntiforgeryCookieValidator
-                >()
-            );
+            var antiforgeryCookieValidator = ServiceDescriptor.Singleton<
+                IValidateOptions<AntiforgeryOptions>,
+                BffAntiforgeryCookieValidator
+            >();
+            serviceCollection.TryAddEnumerable(antiforgeryCookieValidator);
 
             // The BFF's instruments are created through the IMeterFactory (ADR-1197).
             serviceCollection.AddMetrics();
             serviceCollection.TryAddSingleton<BffMetrics>();
 
             serviceCollection.AddRouting();
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<IBffFrontendSelector, HostBffFrontendSelector>()
-            );
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<IBffFrontendSelector, PathBffFrontendSelector>()
-            );
+            var hostFrontendSelector = ServiceDescriptor.Singleton<
+                IBffFrontendSelector,
+                HostBffFrontendSelector
+            >();
+            serviceCollection.TryAddEnumerable(hostFrontendSelector);
+            var pathFrontendSelector = ServiceDescriptor.Singleton<
+                IBffFrontendSelector,
+                PathBffFrontendSelector
+            >();
+            serviceCollection.TryAddEnumerable(pathFrontendSelector);
             serviceCollection.TryAddSingleton<BffFrontendCatalog>();
             serviceCollection.TryAddSingleton<IBffOptionsAccessor>(serviceProvider =>
                 serviceProvider.GetRequiredService<BffFrontendCatalog>()
             );
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<IBffFrontendSetCheck, BffClientAuthenticationCheck>()
-            );
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<IBffFrontendSetCheck, BffKeyRingCheck>()
-            );
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<MatcherPolicy, BffFrontendMatcherPolicy>()
-            );
+            var clientAuthenticationCheck = ServiceDescriptor.Singleton<
+                IBffFrontendSetCheck,
+                BffClientAuthenticationCheck
+            >();
+            serviceCollection.TryAddEnumerable(clientAuthenticationCheck);
+            var keyRingCheck = ServiceDescriptor.Singleton<IBffFrontendSetCheck, BffKeyRingCheck>();
+            serviceCollection.TryAddEnumerable(keyRingCheck);
+            var frontendMatcherPolicy = ServiceDescriptor.Singleton<
+                MatcherPolicy,
+                BffFrontendMatcherPolicy
+            >();
+            serviceCollection.TryAddEnumerable(frontendMatcherPolicy);
 
             serviceCollection.TryAddSingleton<IBffSessionStore, DefaultBffSessionStore>();
             serviceCollection.TryAddSingleton<BffInstrumentedSessionStore>();
@@ -158,21 +167,31 @@ public static class DefaultRegistration
                 IBffExchangeTokenService,
                 DefaultBffExchangeTokenService
             >();
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<IBffTokenRequirement, BffUserTokenRequirement>()
-            );
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<IBffTokenRequirement, BffClientTokenRequirement>()
-            );
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<IBffTokenRequirement, BffUserOrClientTokenRequirement>()
-            );
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<IBffTokenRequirement, BffExchangeTokenRequirement>()
-            );
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<IBffTokenRequirement, BffNoneTokenRequirement>()
-            );
+            var userTokenRequirement = ServiceDescriptor.Singleton<
+                IBffTokenRequirement,
+                BffUserTokenRequirement
+            >();
+            serviceCollection.TryAddEnumerable(userTokenRequirement);
+            var clientTokenRequirement = ServiceDescriptor.Singleton<
+                IBffTokenRequirement,
+                BffClientTokenRequirement
+            >();
+            serviceCollection.TryAddEnumerable(clientTokenRequirement);
+            var userOrClientTokenRequirement = ServiceDescriptor.Singleton<
+                IBffTokenRequirement,
+                BffUserOrClientTokenRequirement
+            >();
+            serviceCollection.TryAddEnumerable(userOrClientTokenRequirement);
+            var exchangeTokenRequirement = ServiceDescriptor.Singleton<
+                IBffTokenRequirement,
+                BffExchangeTokenRequirement
+            >();
+            serviceCollection.TryAddEnumerable(exchangeTokenRequirement);
+            var noneTokenRequirement = ServiceDescriptor.Singleton<
+                IBffTokenRequirement,
+                BffNoneTokenRequirement
+            >();
+            serviceCollection.TryAddEnumerable(noneTokenRequirement);
             serviceCollection.TryAddSingleton<IBffTokenAccessor, DefaultBffTokenAccessor>();
 
             serviceCollection.AddHttpForwarder();

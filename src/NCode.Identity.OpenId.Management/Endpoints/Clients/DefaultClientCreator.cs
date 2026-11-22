@@ -47,13 +47,13 @@ internal sealed class DefaultClientCreator(
     {
         if (!ClientIdRules.IsValid(request.ClientId))
         {
-            return ClientCreation.Failed(
-                BadRequest(
-                    $"The client_id must be 1 to {ClientIdRules.MaxLength} unreserved URI characters."
-                )
+            var invalidClientIdError = BadRequest(
+                $"The client_id must be 1 to {ClientIdRules.MaxLength} unreserved URI characters."
             );
+            return ClientCreation.Failed(invalidClientIdError);
         }
 
+        var settingsObject = ClientSettingsJson.ToJsonObject(request.Settings);
         var client = new PersistedClient
         {
             TenantId = request.TenantId,
@@ -68,9 +68,7 @@ internal sealed class DefaultClientCreator(
                 TenantId = request.TenantId,
                 ClientId = request.ClientId,
                 ConcurrencyToken = string.Empty,
-                Value = JsonSerializer.SerializeToElement(
-                    ClientSettingsJson.ToJsonObject(request.Settings)
-                ),
+                Value = JsonSerializer.SerializeToElement(settingsObject),
             },
             Secrets = new PersistedClientSecrets
             {
@@ -98,29 +96,29 @@ internal sealed class DefaultClientCreator(
             && !DefaultClientSettingsEvaluator.IsClientCredentialsOnly(client.Settings.Value)
         )
         {
-            return ClientCreation.InvalidSettings(
-                ClientSettingsJson.ToSettingErrors([
-                    new SettingError(
-                        OpenIdSettingNames.GrantTypesSupported,
-                        DefaultClientSettingsEvaluator.MachineClientGrantTypesDetail
-                    ),
-                ])
+            var machineClientSettingError = new SettingError(
+                OpenIdSettingNames.GrantTypesSupported,
+                DefaultClientSettingsEvaluator.MachineClientGrantTypesDetail
             );
+            var machineClientSettingErrors = ClientSettingsJson.ToSettingErrors([
+                machineClientSettingError,
+            ]);
+            return ClientCreation.InvalidSettings(machineClientSettingErrors);
         }
 
         // Setting names are a closed vocabulary (ADR-1139), and a client carries only the settings that apply within it
         // (ADR-1149): a settings document that cannot be honored is rejected here rather than stored and failed on
         // every request that resolves the client.
+        var jsonSerializerOptions = OpenIdEnvironmentProvider.Get().JsonSerializerOptions;
         var settingErrors = SettingSerializer.ValidateSettings(
             request.Settings,
             OpenIdSettingScopes.Client,
-            OpenIdEnvironmentProvider.Get().JsonSerializerOptions
+            jsonSerializerOptions
         );
         if (settingErrors.Count > 0)
         {
-            return ClientCreation.InvalidSettings(
-                ClientSettingsJson.ToSettingErrors(settingErrors)
-            );
+            var invalidSettings = ClientSettingsJson.ToSettingErrors(settingErrors);
+            return ClientCreation.InvalidSettings(invalidSettings);
         }
 
         var effectiveSettingErrors = await ClientSettingsEvaluator.ValidateEffectiveSettingsAsync(
@@ -131,9 +129,10 @@ internal sealed class DefaultClientCreator(
         );
         if (effectiveSettingErrors.Count > 0)
         {
-            return ClientCreation.InvalidSettings(
-                ClientSettingsJson.ToSettingErrors(effectiveSettingErrors)
+            var invalidEffectiveSettings = ClientSettingsJson.ToSettingErrors(
+                effectiveSettingErrors
             );
+            return ClientCreation.InvalidSettings(invalidEffectiveSettings);
         }
 
         var jwksUriRefusal = await ClientJwksUriChecker.GetRefusalAsync(
@@ -143,9 +142,8 @@ internal sealed class DefaultClientCreator(
         );
         if (jwksUriRefusal is not null)
         {
-            return ClientCreation.InvalidSettings(
-                ClientSettingsJson.ToSettingErrors([jwksUriRefusal.Value])
-            );
+            var invalidJwksUriSettings = ClientSettingsJson.ToSettingErrors([jwksUriRefusal.Value]);
+            return ClientCreation.InvalidSettings(invalidJwksUriSettings);
         }
 
         if (request.Jwks is { } jwks)
@@ -153,21 +151,24 @@ internal sealed class DefaultClientCreator(
             // A client's public keys come from one source: the keys registered for it or its jwks_uri (ADR-1161).
             if (ClientKeySourceChecker.HasJwksUri(client.Settings.Value))
             {
-                return ClientCreation.Failed(
-                    BadRequest("A client registers its keys by value or by jwks_uri, never both.")
+                var bothSourcesError = BadRequest(
+                    "A client registers its keys by value or by jwks_uri, never both."
                 );
+                return ClientCreation.Failed(bothSourcesError);
             }
 
+            var utcNow = TimeProvider.GetUtcNow();
             if (
                 !ClientKeyImporter.TryImportRegisteredKeySet(
                     jwks,
-                    TimeProvider.GetUtcNow(),
+                    utcNow,
                     out var secrets,
                     out var importError
                 )
             )
             {
-                return ClientCreation.Failed(BadRequest(importError));
+                var importFailureError = BadRequest(importError);
+                return ClientCreation.Failed(importFailureError);
             }
 
             client.Secrets.Value = secrets;

@@ -128,12 +128,11 @@ internal abstract class BaseApiEndpointHandler : ManagementApiEndpointHandler
             var count = counts[name];
             if (count > maxErrorsPerSetting)
             {
-                kept.Add(
-                    new SettingError(
-                        name,
-                        $"Errors not listed for '{name}': {count - maxErrorsPerSetting}."
-                    )
+                var summary = new SettingError(
+                    name,
+                    $"Errors not listed for '{name}': {count - maxErrorsPerSetting}."
                 );
+                kept.Add(summary);
             }
         }
 
@@ -200,7 +199,8 @@ internal abstract class BaseApiEndpointHandler : ManagementApiEndpointHandler
             return null;
         }
 
-        var names = string.Join(", ", changedLimits.Select(name => $"'{name}'"));
+        var quotedNames = changedLimits.Select(name => $"'{name}'");
+        var names = string.Join(", ", quotedNames);
         return TypedResults.Problem(
             detail: $"The caller may not change the limits {names}: a limit is set by the administrators above the resource whose settings carry it.",
             statusCode: StatusCodes.Status403Forbidden
@@ -393,7 +393,11 @@ internal abstract class BaseApiEndpointHandler : ManagementApiEndpointHandler
     {
         var keyId = GetKeyId(imported);
         if (
-            !secrets.Any(secret => string.Equals(GetKeyId(secret), keyId, StringComparison.Ordinal))
+            !secrets.Any(secret =>
+            {
+                var secretKeyId = GetKeyId(secret);
+                return string.Equals(secretKeyId, keyId, StringComparison.Ordinal);
+            })
         )
             return null;
 
@@ -434,12 +438,15 @@ internal abstract class BaseApiEndpointHandler : ManagementApiEndpointHandler
     /// </summary>
     /// <param name="httpContext">The <see cref="HttpContext"/> for the current request.</param>
     /// <returns>The platform's <see cref="ResourceNode"/>.</returns>
-    internal static ResourceNode GetPlatformNode(HttpContext httpContext) =>
-        ResourceNode.For(
-            httpContext.GetOpenIdContext().Tenant.TenantId,
+    internal static ResourceNode GetPlatformNode(HttpContext httpContext)
+    {
+        var openIdContext = httpContext.GetOpenIdContext();
+        return ResourceNode.For(
+            openIdContext.Tenant.TenantId,
             ResourceNodeTypes.Platform,
             OpenIdConstants.PlatformResourceId
         );
+    }
 
     /// <summary>
     /// Gets a team's authority node, addressed from the control-plane tenant the request runs under.
@@ -447,12 +454,11 @@ internal abstract class BaseApiEndpointHandler : ManagementApiEndpointHandler
     /// <param name="httpContext">The <see cref="HttpContext"/> for the current request.</param>
     /// <param name="teamId">The identifier of the team.</param>
     /// <returns>The team's <see cref="ResourceNode"/>.</returns>
-    internal static ResourceNode GetTeamNode(HttpContext httpContext, string teamId) =>
-        ResourceNode.For(
-            httpContext.GetOpenIdContext().Tenant.TenantId,
-            ResourceNodeTypes.Team,
-            teamId
-        );
+    internal static ResourceNode GetTeamNode(HttpContext httpContext, string teamId)
+    {
+        var openIdContext = httpContext.GetOpenIdContext();
+        return ResourceNode.For(openIdContext.Tenant.TenantId, ResourceNodeTypes.Team, teamId);
+    }
 
     /// <summary>
     /// Gets a tenant's authority node: its own id addresses the tenant node.
@@ -480,9 +486,7 @@ internal abstract class BaseApiEndpointHandler : ManagementApiEndpointHandler
     )
     {
         var mediator = httpContext.RequestServices.GetRequiredService<IMediator>();
-        return mediator.SendAsync(
-            new TenantChangedCommand(tenantId, settingsChanged),
-            cancellationToken
-        );
+        var command = new TenantChangedCommand(tenantId, settingsChanged);
+        return mediator.SendAsync(command, cancellationToken);
     }
 }

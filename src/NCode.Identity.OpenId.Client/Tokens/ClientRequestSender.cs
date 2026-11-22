@@ -173,7 +173,11 @@ internal class ClientRequestSender(
         ClientRegistration registration,
         OpenIdProviderMetadata metadata,
         ProviderEndpoint endpoint
-    ) => ResolveTarget(registration, metadata, endpoint, GetAuthenticator(registration));
+    )
+    {
+        var authenticator = GetAuthenticator(registration);
+        return ResolveTarget(registration, metadata, endpoint, authenticator);
+    }
 
     private IClientAuthenticator GetAuthenticator(ClientRegistration registration) =>
         Authenticators.TryGetValue(registration.AuthenticationMethod, out var authenticator)
@@ -235,42 +239,40 @@ internal class ClientRequestSender(
         var formParameters = new List<KeyValuePair<string, string>>(parameters);
 
         using var request = new HttpRequestMessage(HttpMethod.Post, uri);
-        request.Headers.Accept.Add(
-            new MediaTypeWithQualityHeaderValue(OpenIdProtocol.MediaTypes.Json)
-        );
+        var acceptHeader = new MediaTypeWithQualityHeaderValue(OpenIdProtocol.MediaTypes.Json);
+        request.Headers.Accept.Add(acceptHeader);
 
-        await authenticator.AuthenticateAsync(
-            new ClientAuthenticationContext(
-                registration,
-                metadata,
-                target,
-                request,
-                formParameters
-            ),
-            cancellationToken
+        var authenticationContext = new ClientAuthenticationContext(
+            registration,
+            metadata,
+            target,
+            request,
+            formParameters
         );
+        await authenticator.AuthenticateAsync(authenticationContext, cancellationToken);
 
         if (
             includeClientId
             && !formParameters.Exists(static p => p.Key == OpenIdProtocol.Parameters.ClientId)
         )
-            formParameters.Add(
-                new KeyValuePair<string, string>(
-                    OpenIdProtocol.Parameters.ClientId,
-                    registration.ClientId
-                )
+        {
+            var clientIdParameter = new KeyValuePair<string, string>(
+                OpenIdProtocol.Parameters.ClientId,
+                registration.ClientId
             );
+            formParameters.Add(clientIdParameter);
+        }
 
         if (dpopKey is not null)
-            request.Headers.TryAddWithoutValidation(
-                OpenIdProtocol.DPoP.HeaderName,
-                await dpopKey.CreateProofAsync(
-                    HttpMethod.Post,
-                    uri,
-                    accessToken: null,
-                    cancellationToken
-                )
+        {
+            var dpopProof = await dpopKey.CreateProofAsync(
+                HttpMethod.Post,
+                uri,
+                accessToken: null,
+                cancellationToken
             );
+            request.Headers.TryAddWithoutValidation(OpenIdProtocol.DPoP.HeaderName, dpopProof);
+        }
 
         request.Content = new FormUrlEncodedContent(formParameters);
 

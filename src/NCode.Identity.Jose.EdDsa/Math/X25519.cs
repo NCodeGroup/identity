@@ -147,17 +147,23 @@ internal static class X25519
                 var d = Fe25519.Sub(x3, z3);
                 var da = Fe25519.Mul(d, a);
                 var cb = Fe25519.Mul(c, b);
-                x3 = Fe25519.Sqr(Fe25519.Add(da, cb));
-                z3 = Fe25519.Mul(x1, Fe25519.Sqr(Fe25519.Sub(da, cb)));
+                var daPlusCb = Fe25519.Add(da, cb);
+                x3 = Fe25519.Sqr(daPlusCb);
+                var daMinusCb = Fe25519.Sub(da, cb);
+                var daMinusCbSquared = Fe25519.Sqr(daMinusCb);
+                z3 = Fe25519.Mul(x1, daMinusCbSquared);
                 x2 = Fe25519.Mul(aa, bb);
                 // z2 = E * (AA + a24 * E) with a24 = 121665; since AA = BB + E, that is E * (BB + 121666 * E).
-                z2 = Fe25519.Mul(e, Fe25519.Add(bb, Fe25519.Mul121666(e)));
+                var scaledE = Fe25519.Mul121666(e);
+                var bbPlusScaledE = Fe25519.Add(bb, scaledE);
+                z2 = Fe25519.Mul(e, bbPlusScaledE);
             }
 
             Fe25519.CSwap(ref x2, ref x3, swap);
             Fe25519.CSwap(ref z2, ref z3, swap);
 
-            Fe25519.Mul(x2, Fe25519.Invert(z2)).ToBytes(output);
+            var z2Inverse = Fe25519.Invert(z2);
+            Fe25519.Mul(x2, z2Inverse).ToBytes(output);
         }
         finally
         {

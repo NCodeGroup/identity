@@ -40,15 +40,21 @@ public sealed class AuthorizationCodeTokenRequest(
     public override void AddGrantParameters(ICollection<KeyValuePair<string, string>> parameters)
     {
         ArgumentNullException.ThrowIfNull(parameters);
-        parameters.Add(
-            new KeyValuePair<string, string>(OpenIdProtocol.Parameters.AuthorizationCode, Code)
+        var codeParameter = new KeyValuePair<string, string>(
+            OpenIdProtocol.Parameters.AuthorizationCode,
+            Code
         );
-        parameters.Add(
-            new KeyValuePair<string, string>(OpenIdProtocol.Parameters.RedirectUri, RedirectUri)
+        parameters.Add(codeParameter);
+        var redirectUriParameter = new KeyValuePair<string, string>(
+            OpenIdProtocol.Parameters.RedirectUri,
+            RedirectUri
         );
-        parameters.Add(
-            new KeyValuePair<string, string>(OpenIdProtocol.Parameters.CodeVerifier, CodeVerifier)
+        parameters.Add(redirectUriParameter);
+        var codeVerifierParameter = new KeyValuePair<string, string>(
+            OpenIdProtocol.Parameters.CodeVerifier,
+            CodeVerifier
         );
+        parameters.Add(codeVerifierParameter);
     }
 
     private static string ValidateNotEmpty(

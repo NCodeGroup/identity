@@ -57,7 +57,8 @@ public sealed class DistinguishedName
                     var value = attributeReader.ReadEncodedValue();
                     attributeReader.ThrowIfNotEmpty();
 
-                    attributes.Add(DistinguishedNameAttribute.FromEncodedValue(oid, value));
+                    var attribute = DistinguishedNameAttribute.FromEncodedValue(oid, value);
+                    attributes.Add(attribute);
                 }
 
                 if (attributes.Count == 0)

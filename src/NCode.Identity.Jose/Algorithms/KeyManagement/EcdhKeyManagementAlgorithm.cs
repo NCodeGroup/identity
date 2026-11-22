@@ -61,10 +61,8 @@ internal class EcdhKeyManagementAlgorithm : CommonKeyManagementAlgorithm
                     var onCurves = keyTypes.Count(keyType => keyType.Curves.Count > 0);
                     if (onCurves == 0)
                     {
-                        return new AlgorithmKeyType(
-                            group.Key,
-                            keyTypes.SelectMany(keyType => keyType.KeyBitSizes)
-                        );
+                        var keyBitSizes = keyTypes.SelectMany(keyType => keyType.KeyBitSizes);
+                        return new AlgorithmKeyType(group.Key, keyBitSizes);
                     }
 
                     if (onCurves != keyTypes.Count)
@@ -76,12 +74,10 @@ internal class EcdhKeyManagementAlgorithm : CommonKeyManagementAlgorithm
                         );
                     }
 
-                    return AlgorithmKeyType.OnCurves(
-                        group.Key,
-                        keyTypes
-                            .SelectMany(keyType => keyType.Curves)
-                            .DistinctBy(curve => curve.Name, StringComparer.Ordinal)
-                    );
+                    var distinctCurves = keyTypes
+                        .SelectMany(keyType => keyType.Curves)
+                        .DistinctBy(curve => curve.Name, StringComparer.Ordinal);
+                    return AlgorithmKeyType.OnCurves(group.Key, distinctCurves);
                 }),
         ];
 
@@ -208,12 +204,13 @@ internal class EcdhKeyManagementAlgorithm : CommonKeyManagementAlgorithm
 
         try
         {
+            var importParameters = new SecretKeyImportParameters
+            {
+                Format = SecretKeyImportFormats.Jwk,
+                KeyMaterial = SecureEncoding.UTF8.GetString(minimalBuffer.WrittenSpan),
+            };
             var imported = descriptor.ImportPublicKeyMaterial(
-                new SecretKeyImportParameters
-                {
-                    Format = SecretKeyImportFormats.Jwk,
-                    KeyMaterial = SecureEncoding.UTF8.GetString(minimalBuffer.WrittenSpan),
-                },
+                importParameters,
                 // The material is a public key, so it is carried rather than protected.
                 static publicKey =>
                     Convert.ToBase64String(publicKey)
@@ -468,8 +465,9 @@ internal class EcdhKeyManagementAlgorithm : CommonKeyManagementAlgorithm
 
         // The shared secret's size is the agreement's, which a package contributes, so it is a sensitive rental, zeroed
         // when it is returned.
+        var sharedSecretSizeBytes = keyAgreement.GetSharedSecretSizeBytes(secretKey);
         using var sharedSecretLease = BufferFactory.Rent(
-            keyAgreement.GetSharedSecretSizeBytes(secretKey),
+            sharedSecretSizeBytes,
             isSensitive: true,
             out Span<byte> sharedSecret
         );
@@ -618,8 +616,9 @@ internal class EcdhKeyManagementAlgorithm : CommonKeyManagementAlgorithm
             out var apv
         );
 
+        var sharedSecretSizeBytes = keyAgreement.GetSharedSecretSizeBytes(secretKey);
         using var sharedSecretLease = BufferFactory.Rent(
-            keyAgreement.GetSharedSecretSizeBytes(secretKey),
+            sharedSecretSizeBytes,
             isSensitive: true,
             out Span<byte> sharedSecret
         );
@@ -676,8 +675,9 @@ internal class EcdhKeyManagementAlgorithm : CommonKeyManagementAlgorithm
             out var peerSubjectPublicKeyInfo
         );
 
+        var sharedSecretSizeBytes = keyAgreement.GetSharedSecretSizeBytes(secretKey);
         using var sharedSecretLease = BufferFactory.Rent(
-            keyAgreement.GetSharedSecretSizeBytes(secretKey),
+            sharedSecretSizeBytes,
             isSensitive: true,
             out Memory<byte> sharedSecret
         );

@@ -198,14 +198,17 @@ internal class DefaultSessionService(
         string? sessionId,
         IReadOnlyList<string> participatingClientIds,
         CancellationToken cancellationToken
-    ) =>
-        openIdContext.Mediator.SendAsync(
-            new OnSessionTerminatedCommand(
-                openIdContext,
-                new SessionTermination(reason, subjectId, sessionId, participatingClientIds)
-            ),
-            cancellationToken
+    )
+    {
+        var termination = new SessionTermination(
+            reason,
+            subjectId,
+            sessionId,
+            participatingClientIds
         );
+        var command = new OnSessionTerminatedCommand(openIdContext, termination);
+        return openIdContext.Mediator.SendAsync(command, cancellationToken);
+    }
 
     // The termination of a session as claimed: the subject and the clients the claimed session lists.
     private static SessionTermination ToTermination(
@@ -242,13 +245,9 @@ internal class DefaultSessionService(
         )
             return false;
 
-        await openIdContext.Mediator.SendAsync(
-            new OnSessionTerminatedCommand(
-                openIdContext,
-                ToTermination(reason, sessionId, claimed)
-            ),
-            cancellationToken
-        );
+        var termination = ToTermination(reason, sessionId, claimed);
+        var command = new OnSessionTerminatedCommand(openIdContext, termination);
+        await openIdContext.Mediator.SendAsync(command, cancellationToken);
 
         return true;
     }
@@ -457,15 +456,13 @@ internal class DefaultSessionService(
         string? cursor = null;
         do
         {
-            var page = await store.GetPageAsync(
-                new GrantFilter
-                {
-                    SubjectId = subjectId,
-                    GrantType = OpenIdConstants.PersistedGrantTypes.Session,
-                },
-                new PageRequest { Cursor = cursor, Limit = EnumerationPageSize },
-                cancellationToken
-            );
+            var grantFilter = new GrantFilter
+            {
+                SubjectId = subjectId,
+                GrantType = OpenIdConstants.PersistedGrantTypes.Session,
+            };
+            var pageRequest = new PageRequest { Cursor = cursor, Limit = EnumerationPageSize };
+            var page = await store.GetPageAsync(grantFilter, pageRequest, cancellationToken);
 
             foreach (var envelope in page.Items)
             {
@@ -494,15 +491,15 @@ internal class DefaultSessionService(
                 if (GetEndReason(payload, envelope.ExpiresWhen, now) is not null)
                     continue;
 
-                results.Add(
-                    new SessionInfo(
-                        sessionId,
-                        envelope.SubjectId,
-                        envelope.CreatedWhen,
-                        GetEnd(payload),
-                        payload
-                    )
+                var sessionEnd = GetEnd(payload);
+                var sessionInfo = new SessionInfo(
+                    sessionId,
+                    envelope.SubjectId,
+                    envelope.CreatedWhen,
+                    sessionEnd,
+                    payload
                 );
+                results.Add(sessionInfo);
             }
 
             cursor = page.NextCursor;
@@ -532,15 +529,13 @@ internal class DefaultSessionService(
         string? cursor = null;
         do
         {
-            var page = await store.GetPageAsync(
-                new GrantFilter
-                {
-                    SubjectId = subjectId,
-                    GrantType = OpenIdConstants.PersistedGrantTypes.Session,
-                },
-                new PageRequest { Cursor = cursor, Limit = EnumerationPageSize },
-                cancellationToken
-            );
+            var grantFilter = new GrantFilter
+            {
+                SubjectId = subjectId,
+                GrantType = OpenIdConstants.PersistedGrantTypes.Session,
+            };
+            var pageRequest = new PageRequest { Cursor = cursor, Limit = EnumerationPageSize };
+            var page = await store.GetPageAsync(grantFilter, pageRequest, cancellationToken);
 
             foreach (var envelope in page.Items)
             {
@@ -607,20 +602,22 @@ internal class DefaultSessionService(
 
         // The grants the subject holds outside its sessions are revoked before the dispatch, so a dispatch that fails
         // leaves none of them active. See ADR-1112.
+        var subjectFilter = new GrantFilter { SubjectId = subjectId };
         await PersistedGrantService.RevokeWhereAsync(
             openIdContext,
-            new GrantFilter { SubjectId = subjectId },
+            subjectFilter,
             now,
             cancellationToken
         );
 
         // A null session id denotes a subject-wide termination (revokes every grant the subject holds).
+        IReadOnlyList<string> distinctClientIds = [.. clientIds.Distinct(StringComparer.Ordinal)];
         await TerminateAsync(
             openIdContext,
             reason,
             subjectId,
             sessionId: null,
-            [.. clientIds.Distinct(StringComparer.Ordinal)],
+            distinctClientIds,
             cancellationToken
         );
 
@@ -669,22 +666,19 @@ internal class DefaultSessionService(
         // The grants the subject holds outside every session are revoked before the dispatches, so a failed dispatch
         // leaves only the retained session's grants active.
         // See ADR-1230.
+        var withoutSessionFilter = new GrantFilter { SubjectId = subjectId, WithoutSession = true };
         await PersistedGrantService.RevokeWhereAsync(
             openIdContext,
-            new GrantFilter { SubjectId = subjectId, WithoutSession = true },
+            withoutSessionFilter,
             now,
             cancellationToken
         );
 
         foreach (var (sessionId, grant) in claimedSessions)
         {
-            await openIdContext.Mediator.SendAsync(
-                new OnSessionTerminatedCommand(
-                    openIdContext,
-                    ToTermination(reason, sessionId, grant)
-                ),
-                cancellationToken
-            );
+            var termination = ToTermination(reason, sessionId, grant);
+            var command = new OnSessionTerminatedCommand(openIdContext, termination);
+            await openIdContext.Mediator.SendAsync(command, cancellationToken);
         }
 
         return claimedSessions.Count;

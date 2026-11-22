@@ -53,22 +53,20 @@ public static class DevelopmentEnvironmentRegistration
 
             // The bootstrap administrator client's secret and authority come from host configuration, so the management
             // API refuses every change to it (ADR-1417).
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    IHostManagedClientPolicy,
-                    BootstrapAdminHostManagedClientPolicy
-                >()
-            );
+            var hostManagedClientPolicy = ServiceDescriptor.Singleton<
+                IHostManagedClientPolicy,
+                BootstrapAdminHostManagedClientPolicy
+            >();
+            serviceCollection.TryAddEnumerable(hostManagedClientPolicy);
 
             // The bootstrap administrator client is seeded into the one tenant its options name, on the same tenant
             // seed fan-out that seeds the system resource servers (ADR-1166); inert unless a bootstrap client is
             // configured, and that configuration must name the tenant.
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    ICommandHandler<SeedTenantCommand>,
-                    BootstrapAdminSeedHandler
-                >()
-            );
+            var bootstrapAdminSeedHandler = ServiceDescriptor.Singleton<
+                ICommandHandler<SeedTenantCommand>,
+                BootstrapAdminSeedHandler
+            >();
+            serviceCollection.TryAddEnumerable(bootstrapAdminSeedHandler);
 
             // The bootstrap administrator credential is sourced from its own top-level section so it can be supplied
             // out of band (for example, environment variables); absent it, the client stays inert (ADR-1044).
@@ -79,12 +77,11 @@ public static class DevelopmentEnvironmentRegistration
                 .AddOptions<BootstrapAdminOptions>()
                 .Configure(options => bootstrapAdminSection.BindStrictly(options))
                 .ValidateOnStart();
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    IValidateOptions<BootstrapAdminOptions>,
-                    BootstrapAdminOptionsValidator
-                >()
-            );
+            var bootstrapAdminOptionsValidator = ServiceDescriptor.Singleton<
+                IValidateOptions<BootstrapAdminOptions>,
+                BootstrapAdminOptionsValidator
+            >();
+            serviceCollection.TryAddEnumerable(bootstrapAdminOptionsValidator);
 
             // Seeds the public SPA clients and the development administrator its section declares, so the frontend
             // surfaces can sign in. Inert unless its section is configured (the reference host's Development overlay

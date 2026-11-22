@@ -60,18 +60,16 @@ internal class DefaultCwtValidator(ICoseSerializer serializer, TimeProvider time
                     "An encrypted CWT is not accepted because no decryption keys were provided."
                 );
 
-            decryption = Serializer.Decrypt(
-                message,
-                new CoseDecryptionParameters
-                {
-                    ValidAlgorithms = parameters.ValidContentEncryptionAlgorithms,
-                    Keys = decryptionKeys,
-                    ValidKeyDistributionAlgorithms = parameters.ValidKeyDistributionAlgorithms,
-                    UnderstoodCriticalHeaders = parameters.UnderstoodCriticalHeaders,
-                    UntaggedMessageType = parameters.UntaggedMessageType,
-                    ClockSkew = parameters.ClockSkew,
-                }
-            );
+            var decryptionParameters = new CoseDecryptionParameters
+            {
+                ValidAlgorithms = parameters.ValidContentEncryptionAlgorithms,
+                Keys = decryptionKeys,
+                ValidKeyDistributionAlgorithms = parameters.ValidKeyDistributionAlgorithms,
+                UnderstoodCriticalHeaders = parameters.UnderstoodCriticalHeaders,
+                UntaggedMessageType = parameters.UntaggedMessageType,
+                ClockSkew = parameters.ClockSkew,
+            };
+            decryption = Serializer.Decrypt(message, decryptionParameters);
             message = decryption.Content;
 
             // The enclosed message must authenticate the issuer: an encryption layer does not.
@@ -102,19 +100,17 @@ internal class DefaultCwtValidator(ICoseSerializer serializer, TimeProvider time
         if (parameters.TokenType is not null)
             understood = [.. understood, new CoseLabel(CoseHeaderLabels.Type)];
 
-        var verified = Serializer.Verify(
-            message,
-            new CoseVerificationParameters
-            {
-                ValidAlgorithms = parameters.ValidAlgorithms,
-                Keys = keys,
-                ValidKeyDistributionAlgorithms = parameters.ValidKeyDistributionAlgorithms,
-                ExternalAad = parameters.ExternalAad,
-                UnderstoodCriticalHeaders = understood,
-                ClockSkew = parameters.ClockSkew,
-                UntaggedMessageType = isEncrypted ? null : parameters.UntaggedMessageType,
-            }
-        );
+        var verificationParameters = new CoseVerificationParameters
+        {
+            ValidAlgorithms = parameters.ValidAlgorithms,
+            Keys = keys,
+            ValidKeyDistributionAlgorithms = parameters.ValidKeyDistributionAlgorithms,
+            ExternalAad = parameters.ExternalAad,
+            UnderstoodCriticalHeaders = understood,
+            ClockSkew = parameters.ClockSkew,
+            UntaggedMessageType = isEncrypted ? null : parameters.UntaggedMessageType,
+        };
+        var verified = Serializer.Verify(message, verificationParameters);
 
         if (
             parameters.TokenType is { } tokenType

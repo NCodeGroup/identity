@@ -82,7 +82,8 @@ internal sealed class ClientCertificateRevocationOptionsValidator(
             }
             else if (!Catalog.TryGet(name, out _))
             {
-                var registered = string.Join(", ", Catalog.SourceNames.Select(n => $"'{n}'"));
+                var registeredNames = Catalog.SourceNames.Select(n => $"'{n}'");
+                var registered = string.Join(", ", registeredNames);
                 failures.Add(
                     $"{property} names '{name}', which is not a registered revocation source; the registered sources are {registered}."
                 );

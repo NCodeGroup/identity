@@ -132,11 +132,8 @@ internal sealed class TeamChainSecretOwnerParentResolver(
     {
         using var _ = AmbientTenantAccessor.BeginUnscoped(UnscopedReason);
 
-        var lease = await TenantCache.TryGetAsync(
-            tenantId,
-            new PropertyBagDictionary(),
-            cancellationToken
-        );
+        var tenantPropertyBag = new PropertyBagDictionary();
+        var lease = await TenantCache.TryGetAsync(tenantId, tenantPropertyBag, cancellationToken);
         if (lease.IsActive)
         {
             string teamId;
@@ -219,11 +216,8 @@ internal sealed class TeamChainSecretOwnerParentResolver(
         CancellationToken cancellationToken
     )
     {
-        var lease = await TeamCache.TryGetAsync(
-            teamId,
-            new PropertyBagDictionary(),
-            cancellationToken
-        );
+        var teamPropertyBag = new PropertyBagDictionary();
+        var lease = await TeamCache.TryGetAsync(teamId, teamPropertyBag, cancellationToken);
         if (!lease.IsActive)
             return null;
 

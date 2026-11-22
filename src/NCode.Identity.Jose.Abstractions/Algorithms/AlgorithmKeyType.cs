@@ -166,7 +166,8 @@ public sealed class AlgorithmKeyType
     {
         ArgumentNullException.ThrowIfNull(secretKey);
 
-        return Accepts(secretKey.GetType())
+        var secretKeyType = secretKey.GetType();
+        return Accepts(secretKeyType)
             && IsLegalSize(secretKey.KeySizeBits)
             && IsLegalCurve((secretKey as AsymmetricSecretKey)?.CurveName, secretKey.KeySizeBits);
     }

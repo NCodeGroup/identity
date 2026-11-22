@@ -29,12 +29,11 @@ public static class DefaultRegistration
         {
             var serviceCollection = builder.ServiceCollection;
 
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    IOpenIdMessageFactory,
-                    DefaultOpenIdMessageFactory<TMessage>
-                >()
-            );
+            var descriptor = ServiceDescriptor.Singleton<
+                IOpenIdMessageFactory,
+                DefaultOpenIdMessageFactory<TMessage>
+            >();
+            serviceCollection.TryAddEnumerable(descriptor);
         }
     }
 }

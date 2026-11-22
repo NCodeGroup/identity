@@ -67,15 +67,18 @@ internal class DefaultTeamValidator(
         string controlPlaneTenantId,
         string teamId,
         CancellationToken cancellationToken
-    ) =>
-        AuthorizeAsync(
+    )
+    {
+        var teamNode = ResourceNode.For(controlPlaneTenantId, ResourceNodeTypes.Team, teamId);
+        return AuthorizeAsync(
             user,
-            ResourceNode.For(controlPlaneTenantId, ResourceNodeTypes.Team, teamId),
+            teamNode,
             Operations.Update,
             "The caller is not authorized to update this team.",
             "Authentication is required to update this team.",
             cancellationToken
         );
+    }
 
     /// <inheritdoc />
     public ValueTask<ManagementError?> AuthorizeDeleteAsync(
@@ -83,15 +86,18 @@ internal class DefaultTeamValidator(
         string controlPlaneTenantId,
         string teamId,
         CancellationToken cancellationToken
-    ) =>
-        AuthorizeAsync(
+    )
+    {
+        var teamNode = ResourceNode.For(controlPlaneTenantId, ResourceNodeTypes.Team, teamId);
+        return AuthorizeAsync(
             user,
-            ResourceNode.For(controlPlaneTenantId, ResourceNodeTypes.Team, teamId),
+            teamNode,
             Operations.Delete,
             "The caller is not authorized to delete this team.",
             "Authentication is required to delete this team.",
             cancellationToken
         );
+    }
 
     /// <inheritdoc />
     public async ValueTask<ManagementError?> ValidateCreateAsync(

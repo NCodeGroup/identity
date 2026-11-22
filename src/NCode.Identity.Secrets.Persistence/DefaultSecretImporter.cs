@@ -45,12 +45,13 @@ internal sealed class DefaultSecretImporter(ISecretKeyTypeCatalog secretKeyTypeC
             );
         }
 
+        var importParameters = new SecretKeyImportParameters
+        {
+            Format = request.Format,
+            KeyMaterial = request.KeyMaterial,
+        };
         var material = descriptor.ImportPublicKeyMaterial(
-            new SecretKeyImportParameters
-            {
-                Format = request.Format,
-                KeyMaterial = request.KeyMaterial,
-            },
+            importParameters,
             static bytes => Base64Url.EncodeToString(bytes)
         );
 

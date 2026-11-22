@@ -95,25 +95,27 @@ internal class ProviderKeySetImporter(ISecretKeyTypeCatalog secretKeyTypeCatalog
             try
             {
                 byte[] keyMaterial = [];
+                var importParameters = new SecretKeyImportParameters
+                {
+                    Format = SecretKeyImportFormats.Jwk,
+                    KeyMaterial = element.GetRawText(),
+                };
                 var importedMaterial = descriptor.ImportPublicKeyMaterial(
-                    new SecretKeyImportParameters
-                    {
-                        Format = SecretKeyImportFormats.Jwk,
-                        KeyMaterial = element.GetRawText(),
-                    },
+                    importParameters,
                     bytes =>
                     {
                         keyMaterial = bytes.ToArray();
                         return string.Empty;
                     }
                 );
+                var keyMetadata = new KeyMetadata
+                {
+                    KeyId = jwk.KeyId,
+                    Use = jwk.PublicKeyUse,
+                    Algorithm = jwk.Algorithm,
+                };
                 secretKey = descriptor.DeserializeKeyMaterial(
-                    new KeyMetadata
-                    {
-                        KeyId = jwk.KeyId,
-                        Use = jwk.PublicKeyUse,
-                        Algorithm = jwk.Algorithm,
-                    },
+                    keyMetadata,
                     importedMaterial.SecretEncoding,
                     keyMaterial
                 );

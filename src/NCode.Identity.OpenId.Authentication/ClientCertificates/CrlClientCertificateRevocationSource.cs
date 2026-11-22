@@ -321,17 +321,15 @@ internal sealed class CrlClientCertificateRevocationSource(
             var elements = chain.ChainElements;
             for (var i = 0; i < elements.Count - 1; i++)
             {
-                var status = await CheckAsync(
-                    new ClientCertificateRevocationContext
-                    {
-                        Certificate = elements[i].Certificate,
-                        Issuer = elements[i + 1].Certificate,
-                        TrustAnchor = context.TrustAnchor,
-                        Intermediates = context.Intermediates,
-                        Depth = context.Depth + 1,
-                    },
-                    cancellationToken
-                );
+                var elementContext = new ClientCertificateRevocationContext
+                {
+                    Certificate = elements[i].Certificate,
+                    Issuer = elements[i + 1].Certificate,
+                    TrustAnchor = context.TrustAnchor,
+                    Intermediates = context.Intermediates,
+                    Depth = context.Depth + 1,
+                };
+                var status = await CheckAsync(elementContext, cancellationToken);
                 if (status != ClientCertificateRevocationStatus.Good)
                     return false;
             }

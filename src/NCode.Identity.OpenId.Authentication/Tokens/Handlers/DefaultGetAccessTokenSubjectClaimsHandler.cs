@@ -39,7 +39,8 @@ internal class DefaultGetAccessTokenSubjectClaimsHandler(
         {
             // A client acting for itself is the token's subject: 'sub' names its principal (RFC 9068 §2.2).
             // See ADR-1466.
-            targetClaims.Add(new Claim(JoseClaimNames.Payload.Sub, openIdClient.PrincipalId));
+            var subjectClaim = new Claim(JoseClaimNames.Payload.Sub, openIdClient.PrincipalId);
+            targetClaims.Add(subjectClaim);
             return ValueTask.CompletedTask;
         }
 

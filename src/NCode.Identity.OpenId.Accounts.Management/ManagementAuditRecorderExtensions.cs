@@ -32,17 +32,17 @@ internal static class ManagementAuditRecorderExtensions
         string localAccountId,
         string changeType,
         JsonElement? resourceValues
-    ) =>
-        recorder.RecordResourceChangeAsync(
-            httpContext,
-            new LocalAccountChangedAuditEvent
-            {
-                EventSource = AuditEventSources.Management,
-                TenantId = tenantId,
-                ResourceId = localAccountId,
-                ChangeType = changeType,
-                ResourceValues = resourceValues,
-                Outcome = AuditOutcome.Success,
-            }
-        );
+    )
+    {
+        var auditEvent = new LocalAccountChangedAuditEvent
+        {
+            EventSource = AuditEventSources.Management,
+            TenantId = tenantId,
+            ResourceId = localAccountId,
+            ChangeType = changeType,
+            ResourceValues = resourceValues,
+            Outcome = AuditOutcome.Success,
+        };
+        return recorder.RecordResourceChangeAsync(httpContext, auditEvent);
+    }
 }

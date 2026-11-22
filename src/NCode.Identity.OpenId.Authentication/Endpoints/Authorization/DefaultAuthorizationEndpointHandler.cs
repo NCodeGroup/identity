@@ -89,8 +89,9 @@ internal class DefaultAuthorizationEndpointHandler(
         var errorFactory = openIdContext.ErrorFactory;
 
         // the following tries its best to not throw for OpenID protocol errors
+        var loadRequestValuesCommand = new LoadRequestValuesCommand(openIdContext);
         var requestValues = await mediator.SendAsync<LoadRequestValuesCommand, IRequestValues>(
-            new LoadRequestValuesCommand(openIdContext),
+            loadRequestValuesCommand,
             cancellationToken
         );
 
@@ -133,13 +134,15 @@ internal class DefaultAuthorizationEndpointHandler(
                 cancellationToken
             )
             : null;
+        var loadAuthorizationRequestCommand = new LoadAuthorizationRequestCommand(
+            openIdContext,
+            openIdClient,
+            requestValues
+        );
         var authorizationRequest = await mediator.SendAsync<
             LoadAuthorizationRequestCommand,
             IAuthorizationRequest
-        >(
-            new LoadAuthorizationRequestCommand(openIdContext, openIdClient, requestValues),
-            cancellationToken
-        );
+        >(loadAuthorizationRequestCommand, cancellationToken);
         // RFC 9101 §6.3: a verified request object's response mode and state apply, delivered to the target already checked.
         var delivery =
             checkedDelivery is null

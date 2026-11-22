@@ -134,7 +134,9 @@ internal class DefaultClaimsSerializer : IClaimsSerializer
     }
 
     /// <inheritdoc />
-    public ClaimsPrincipal DeserializePrincipal(
-        SerializableClaimsPrincipal serializablePrincipal
-    ) => new(serializablePrincipal.Identities.Select(DeserializeIdentity));
+    public ClaimsPrincipal DeserializePrincipal(SerializableClaimsPrincipal serializablePrincipal)
+    {
+        var identities = serializablePrincipal.Identities.Select(DeserializeIdentity);
+        return new ClaimsPrincipal(identities);
+    }
 }

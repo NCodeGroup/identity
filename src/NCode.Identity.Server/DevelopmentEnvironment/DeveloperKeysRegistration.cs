@@ -45,20 +45,21 @@ public static class DeveloperKeysRegistration
 
             // The pruner runs on the tenant seed path ahead of key provisioning, which then replaces what it removed
             // (ADR-1370, ADR-1166, ADR-1169).
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    ICommandHandler<SeedTenantCommand>,
-                    DeveloperSecretPruningSeedHandler
-                >()
-            );
+            var pruningSeedHandler = ServiceDescriptor.Singleton<
+                ICommandHandler<SeedTenantCommand>,
+                DeveloperSecretPruningSeedHandler
+            >();
+            serviceCollection.TryAddEnumerable(pruningSeedHandler);
 
             serviceCollection.TryAddSingleton<DeveloperMasterKeyReset>();
 
             // The platform heal runs through StartingAsync, so it starts before every hosted service's StartAsync,
             // including the platform secret protector warmup, whatever the registration order.
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<IHostedService, DeveloperPlatformMasterKeyPruning>()
-            );
+            var platformMasterKeyPruning = ServiceDescriptor.Singleton<
+                IHostedService,
+                DeveloperPlatformMasterKeyPruning
+            >();
+            serviceCollection.TryAddEnumerable(platformMasterKeyPruning);
 
             return builder;
         }

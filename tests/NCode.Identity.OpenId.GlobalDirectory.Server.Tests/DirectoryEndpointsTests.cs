@@ -17,6 +17,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Moq;
+using NCode.Buffers;
 using NCode.Identity.AspNetCore;
 using NCode.Identity.OpenId.Client;
 using NCode.Identity.OpenId.GlobalDirectory.Server.Entities;
@@ -209,6 +210,17 @@ public class DirectoryEndpointsTests : IAsyncLifetime
         );
 
     #region Authentication Tests
+
+    [Fact]
+    public async Task Request_WithoutAuthorizationAndABodyThatIsNotJson_AnswersUnauthorized()
+    {
+        using var content = new StringContent("{", SecureEncoding.UTF8, "application/json");
+
+        var response = await Client.PostAsync("/directory/v1/tenants/reserve", content);
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        Assert.Contains("Bearer", response.Headers.WwwAuthenticate.ToString());
+    }
 
     [Fact]
     public async Task Request_WithoutAuthorization_AnswersUnauthorized()

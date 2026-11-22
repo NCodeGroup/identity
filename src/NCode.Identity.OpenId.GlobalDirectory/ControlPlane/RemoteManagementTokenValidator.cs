@@ -79,14 +79,23 @@ internal sealed class RemoteManagementTokenValidator(
         var identity = new ClaimsIdentity(AuthenticationType);
 
         if (subject is not null)
-            identity.AddClaim(new Claim(JoseClaimNames.Payload.Sub, subject));
+        {
+            var subjectClaim = new Claim(JoseClaimNames.Payload.Sub, subject);
+            identity.AddClaim(subjectClaim);
+        }
 
         if (clientId is not null)
-            identity.AddClaim(new Claim(JoseClaimNames.Payload.ClientId, clientId));
+        {
+            var clientIdClaim = new Claim(JoseClaimNames.Payload.ClientId, clientId);
+            identity.AddClaim(clientIdClaim);
+        }
 
         var scope = GetString(payload, JoseClaimNames.Payload.Scope);
         if (scope is not null)
-            identity.AddClaim(new Claim(JoseClaimNames.Payload.Scope, scope));
+        {
+            var scopeClaim = new Claim(JoseClaimNames.Payload.Scope, scope);
+            identity.AddClaim(scopeClaim);
+        }
 
         return new ClaimsPrincipal(identity);
     }
@@ -161,9 +170,12 @@ internal sealed class RemoteManagementTokenValidator(
         );
 
         if (result.IsUnavailable)
-            return ManagementTokenValidation.Unavailable(
-                TimeSpan.FromSeconds(GlobalDirectoryProtocol.UnavailableRetryAfterSeconds)
+        {
+            var retryAfter = TimeSpan.FromSeconds(
+                GlobalDirectoryProtocol.UnavailableRetryAfterSeconds
             );
+            return ManagementTokenValidation.Unavailable(retryAfter);
+        }
 
         if (!result.IsValid || result.Payload.ValueKind != JsonValueKind.Object)
             return ManagementTokenValidation.Unauthenticated;

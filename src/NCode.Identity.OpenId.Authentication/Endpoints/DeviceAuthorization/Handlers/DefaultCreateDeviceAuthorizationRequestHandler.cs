@@ -72,13 +72,14 @@ internal class DefaultCreateDeviceAuthorizationRequestHandler(
             },
         };
 
+        var deviceCodeGrantId = PersistedGrantService.CreateGrantId(
+            tenantId,
+            OpenIdConstants.PersistedGrantTypes.DeviceCode,
+            deviceCode
+        );
         await PersistedGrantService.AddAsync(
             openIdContext,
-            PersistedGrantService.CreateGrantId(
-                tenantId,
-                OpenIdConstants.PersistedGrantTypes.DeviceCode,
-                deviceCode
-            ),
+            deviceCodeGrantId,
             deviceCodeGrant,
             createdWhen,
             lifetime,
@@ -95,13 +96,14 @@ internal class DefaultCreateDeviceAuthorizationRequestHandler(
             Payload = new DeviceUserCodeGrant(deviceCode),
         };
 
+        var userCodeGrantId = PersistedGrantService.CreateGrantId(
+            tenantId,
+            OpenIdConstants.PersistedGrantTypes.DeviceUserCode,
+            userCodeNormalized
+        );
         await PersistedGrantService.AddAsync(
             openIdContext,
-            PersistedGrantService.CreateGrantId(
-                tenantId,
-                OpenIdConstants.PersistedGrantTypes.DeviceUserCode,
-                userCodeNormalized
-            ),
+            userCodeGrantId,
             userCodeGrant,
             createdWhen,
             lifetime,
@@ -117,10 +119,11 @@ internal class DefaultCreateDeviceAuthorizationRequestHandler(
         if (string.IsNullOrEmpty(verificationUri))
             throw new InvalidOperationException("Unable to determine the device verification URI.");
 
+        var verificationUriValues = new { user_code = userCodeDisplay };
         var verificationUriComplete = LinkGenerator.GetTenantUriByName(
             openIdContext,
             OpenIdConstants.EndpointNames.DeviceVerification,
-            new { user_code = userCodeDisplay }
+            verificationUriValues
         );
 
         return new DeviceAuthorizationResult

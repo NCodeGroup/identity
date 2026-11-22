@@ -33,7 +33,10 @@ internal static class CborMapWriter
     {
         var entries = new List<(byte[] Label, CoseValue Value)>(map.Count);
         foreach (var (label, value) in map)
-            entries.Add((EncodeLabel(label), value));
+        {
+            var labelBytes = EncodeLabel(label);
+            entries.Add((labelBytes, value));
+        }
 
         entries.Sort(static (left, right) => left.Label.AsSpan().SequenceCompareTo(right.Label));
 

@@ -27,16 +27,17 @@ namespace NCode.Identity.OpenId.Tenants.Keys;
 /// Rolls the keys of every seeded tenant of every enabled team over in the background, once the replica's platform is
 /// materialized and then every <see cref="OpenIdTenantKeyRolloverOptions.Interval"/>: it generates the successor of a
 /// key that nears its retirement, activates a published key when no key signs, retires a key the tenant's settings do
-/// not use, and removes an expired key that the tenant's provisioning generated. One replica runs each pass, under a lease on the shared-state port
-/// that lasts half the interval, and each tenant is changed in its own unit of work under the tenant's optimistic
-/// concurrency, so a pass that overlaps a seed or another pass loses the race for that tenant and leaves it to the
-/// winner; the audit event of each change is published once the unit of work has committed, so a lost race records
-/// nothing. The pass runs team by team under the one platform-wide lease: it judges a team's tenants against that
-/// team's effective settings, skips a disabled team, and logs a team it cannot handle before it goes on to the next.
-/// A tenant that holds no key is left to its first materialization, which seeds it in full. A tenant the
-/// pass changed is announced, so every replica evicts it and serves its keys as they are. The publishing and the
-/// announcement follow a committed change, so each runs on its own bounded token, never the host's stopping token,
-/// and the announcement follows whatever the publishing did.
+/// not use, and removes an expired key that the tenant's provisioning generated. One replica runs each pass, under a
+/// lease on the shared-state port that lasts half the interval, and each tenant is changed in its own unit of work
+/// under the tenant's optimistic concurrency, so a pass that overlaps a seed or another pass loses the race for that
+/// tenant and leaves it to the winner; the audit event of each change is published once the unit of work has committed,
+/// so a lost race records nothing. The pass runs team by team under the one platform-wide lease: it judges a team's
+/// tenants against that team's effective settings, skips a disabled team, and logs a team it cannot handle before it
+/// goes on to the next. A tenant that holds no key is left to its first materialization, which seeds it in full. A cell
+/// never changes the keys of a tenant the global directory places in another cell, because removing one destroys a
+/// remote key that cell uses. A tenant the pass changed is announced, so every replica evicts it and serves its keys as
+/// they are. The publishing and the announcement follow a committed change, so each runs on its own bounded token,
+/// never the host's stopping token, and the announcement follows whatever the publishing did.
 /// </summary>
 // See ADR-1351 (an effect that follows a committed change runs on its own bounded token), ADR-1404 and ADR-1412.
 internal sealed class TenantKeyRolloverService(
@@ -45,6 +46,7 @@ internal sealed class TenantKeyRolloverService(
     ITenantKeyPolicy tenantKeyPolicy,
     ITenantKeyRolloverPlanner planner,
     ITenantKeyRollover rollover,
+    ITenantKeyPlacementGuard placementGuard,
     IEffectiveSettingsResolver effectiveSettingsResolver,
     IStoreManagerFactory storeManagerFactory,
     IAmbientTenantAccessor ambientTenantAccessor,
@@ -71,6 +73,7 @@ internal sealed class TenantKeyRolloverService(
     private ITenantKeyPolicy TenantKeyPolicy { get; } = tenantKeyPolicy;
     private ITenantKeyRolloverPlanner Planner { get; } = planner;
     private ITenantKeyRollover Rollover { get; } = rollover;
+    private ITenantKeyPlacementGuard PlacementGuard { get; } = placementGuard;
     private IEffectiveSettingsResolver EffectiveSettingsResolver { get; } =
         effectiveSettingsResolver;
     private IStoreManagerFactory StoreManagerFactory { get; } = storeManagerFactory;
@@ -311,10 +314,13 @@ internal sealed class TenantKeyRolloverService(
                 await PostCommitWork.RunAsync(
                     TimeProvider,
                     static (state, token) =>
-                        state.Mediator.SendAsync(
-                            new TenantChangedCommand(state.TenantId, SettingsChanged: false),
-                            token
-                        ),
+                    {
+                        var command = new TenantChangedCommand(
+                            state.TenantId,
+                            SettingsChanged: false
+                        );
+                        return state.Mediator.SendAsync(command, token);
+                    },
                     (Mediator: mediator, TenantId: tenantId)
                 );
             }
@@ -372,8 +378,15 @@ internal sealed class TenantKeyRolloverService(
             tenantSettings.Value
         );
 
-        var plan = Planner.Plan(specifications, secrets.Value, settings, TimeProvider.GetUtcNow());
+        var now = TimeProvider.GetUtcNow();
+        var plan = Planner.Plan(specifications, secrets.Value, settings, now);
         if (plan.IsEmpty)
+            return null;
+
+        // A cell never changes the keys of a tenant the global directory places elsewhere, because removing one
+        // destroys a remote key that cell uses (ADR-1514).
+        var mayChangeKeys = await PlacementGuard.MayChangeKeysAsync(tenantId, cancellationToken);
+        if (!mayChangeKeys)
             return null;
 
         var result = await Rollover.ApplyAsync(

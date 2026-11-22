@@ -111,7 +111,8 @@ public static class AuditRecordWriter
 
         foreach (var segment in buffer.AsReadOnlySequence)
         {
-            segment.Span.CopyTo(destination.GetSpan(segment.Length));
+            var span = destination.GetSpan(segment.Length);
+            segment.Span.CopyTo(span);
             destination.Advance(segment.Length);
         }
     }

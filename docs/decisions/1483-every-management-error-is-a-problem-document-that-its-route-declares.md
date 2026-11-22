@@ -52,9 +52,9 @@ that loses a concurrency race with `412`, from one endpoint filter on the API's 
 answers `404` and `409` from the rows it read, and each route declares every problem it answers.**
 
 1. **`ManagementProblems` creates the shared problems.** The public static class `ManagementProblems` in
-   `NCode.Identity.OpenId.Management.Abstractions` creates `AuthenticationRequired()` (`401`) and `ResourceNotFound()`
-   (`404`, "The resource does not exist."). `ManagementEntityTags.GetIfMatchErrorOrDefault` creates the `412` error for
-   an `If-Match` precondition that fails, which a route answers through `ToErrorResult`
+   `NCode.Identity.OpenId.Management.Abstractions` creates `AuthenticationRequired(HttpContext)` (`401`) and
+   `ResourceNotFound()` (`404`, "The resource does not exist."). `ManagementEntityTags.GetIfMatchErrorOrDefault` creates
+   the `412` error for an `If-Match` precondition that fails, which a route answers through `ToErrorResult`
    ([ADR-1513](1513-management-responses-carry-strong-entity-tags-that-preconditions-compare-as-rfc-9110-says.md)).
 2. **One middleware answers every bodyless error under the management prefix.** `ManagementProblemResponseMiddleware`,
    added by `ManagementProblemResponseStartupFilter` (an `IStartupFilter`) as the outermost middleware, answers every
@@ -65,9 +65,11 @@ answers `404` and `409` from the rows it read, and each route declares every pro
    every host, and a host adds nothing.
 3. **The root group converts a thrown binding failure.** `BindingExceptionEndpointConvention` answers a
    `BadHttpRequestException` that `ThrowOnBadRequest` throws with its status and no body, before a host exception
-   handler renders it, and the middleware writes the problem. `ManagementEnvironmentEndpointFilter` returns an
-   `HttpResultException`'s result and stops a request whose binding failed, so a binding failure is answered before
-   authentication.
+   handler renders it, and the middleware writes the problem. `ManagementFailureEndpointFilter` returns an
+   `HttpResultException`'s result and stops a request whose binding failed, and `ManagementCallerGate` runs before
+   binding, so a request without a valid management access token is answered `401` and only an authenticated caller's
+   binding failure is answered `400`, `413` or `415`
+   ([ADR-1520](1520-a-caller-is-authenticated-before-its-request-body-is-read.md)).
 4. **A route answers `404` and `409` from what it read.** A route answers them from the rows it, or a service it calls
    such as `IResourceOwnershipService`, read before the write. It never catches a store exception to answer them and
    never answers them from the return value of a store write. The store's `InvalidOperationException` propagates as

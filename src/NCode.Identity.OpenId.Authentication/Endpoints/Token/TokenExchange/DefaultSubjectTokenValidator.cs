@@ -77,22 +77,20 @@ internal class DefaultSubjectTokenValidator(IIssuedTokenValidator issuedTokenVal
         }
         else
         {
-            return SubjectTokenValidationResult.Fail(
-                errorFactory
-                    .InvalidRequest(
-                        $"The token type '{tokenTypeIdentifier}' is not supported by this authorization server."
-                    )
-                    .WithStatusCode(StatusCodes.Status400BadRequest)
-            );
+            var unsupportedTokenTypeError = errorFactory
+                .InvalidRequest(
+                    $"The token type '{tokenTypeIdentifier}' is not supported by this authorization server."
+                )
+                .WithStatusCode(StatusCodes.Status400BadRequest);
+            return SubjectTokenValidationResult.Fail(unsupportedTokenTypeError);
         }
 
         if (!validateResult.IsValid)
         {
-            return SubjectTokenValidationResult.Fail(
-                errorFactory
-                    .InvalidGrant("The presented token is invalid, expired, or revoked.")
-                    .WithStatusCode(StatusCodes.Status400BadRequest)
-            );
+            var invalidTokenError = errorFactory
+                .InvalidGrant("The presented token is invalid, expired, or revoked.")
+                .WithStatusCode(StatusCodes.Status400BadRequest);
+            return SubjectTokenValidationResult.Fail(invalidTokenError);
         }
 
         var claimsIdentity = await validateResult.GetClaimsIdentityAsync(cancellationToken);

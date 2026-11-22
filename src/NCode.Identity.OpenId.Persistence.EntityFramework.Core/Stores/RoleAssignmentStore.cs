@@ -40,18 +40,17 @@ internal class RoleAssignmentStore(
         CancellationToken cancellationToken
     )
     {
-        return ValueTask.FromResult(
-            new PersistedRoleAssignment
-            {
-                TenantId = entity.Tenant.TenantId,
-                AssignmentId = entity.AssignmentId,
-                PrincipalId = entity.PrincipalId,
-                RoleName = entity.RoleName,
-                ResourceType = entity.ResourceType,
-                ResourceId = entity.ResourceId,
-                ConcurrencyToken = entity.ConcurrencyToken,
-            }
-        );
+        var persistedRoleAssignment = new PersistedRoleAssignment
+        {
+            TenantId = entity.Tenant.TenantId,
+            AssignmentId = entity.AssignmentId,
+            PrincipalId = entity.PrincipalId,
+            RoleName = entity.RoleName,
+            ResourceType = entity.ResourceType,
+            ResourceId = entity.ResourceId,
+            ConcurrencyToken = entity.ConcurrencyToken,
+        };
+        return ValueTask.FromResult(persistedRoleAssignment);
     }
 
     /// <inheritdoc />
@@ -157,13 +156,12 @@ internal class RoleAssignmentStore(
         DbContext.EnsureUnscoped($"{nameof(RoleAssignmentStore)}.{nameof(RemoveByPrincipalAsync)}");
 
         var normalizedPrincipalId = Normalize(principalId);
-        DbContext.RoleAssignments.RemoveRange(
-            await DbContext
-                // Cross-tenant: a principal holds role assignments at the nodes of any tenant.
-                .RoleAssignments.IgnoreQueryFilters()
-                .Where(entity => entity.NormalizedPrincipalId == normalizedPrincipalId)
-                .ToListAsync(cancellationToken)
-        );
+        var roleAssignments = await DbContext
+            // Cross-tenant: a principal holds role assignments at the nodes of any tenant.
+            .RoleAssignments.IgnoreQueryFilters()
+            .Where(entity => entity.NormalizedPrincipalId == normalizedPrincipalId)
+            .ToListAsync(cancellationToken);
+        DbContext.RoleAssignments.RemoveRange(roleAssignments);
     }
 
     /// <inheritdoc />
@@ -215,7 +213,8 @@ internal class RoleAssignmentStore(
         var result = new List<PersistedRoleAssignment>(entities.Count);
         foreach (var entity in entities)
         {
-            result.Add(await MapFromEntityAsync(entity, cancellationToken));
+            var mapped = await MapFromEntityAsync(entity, cancellationToken);
+            result.Add(mapped);
         }
 
         return result;

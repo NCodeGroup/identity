@@ -20,9 +20,15 @@ internal static class BootstrapAdminOptionsExtensions
         /// the development-time convenience surfaces (the OpenAPI example and the Scalar prefill), never for persistence.
         /// </summary>
         /// <returns>The decoded plaintext secret, or <c>null</c> when no secret is configured.</returns>
-        public string? GetPresentableClientSecretOrDefault() =>
-            options.ClientSecret is { Length: > 0 } encoded
-                ? SecureEncoding.UTF8.GetString(StrictBase64Url.Decode(encoded))
-                : null;
+        public string? GetPresentableClientSecretOrDefault()
+        {
+            if (options.ClientSecret is { Length: > 0 } encoded)
+            {
+                var decoded = StrictBase64Url.Decode(encoded);
+                return SecureEncoding.UTF8.GetString(decoded);
+            }
+
+            return null;
+        }
     }
 }

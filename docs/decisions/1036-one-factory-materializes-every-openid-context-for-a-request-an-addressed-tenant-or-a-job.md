@@ -64,8 +64,8 @@ process-wide start-up options.
 | `CreateForTenantAsync` | an explicit tenant id | caller-owned and disposable, never published on the request |
 | `CreateForBackgroundAsync(serviceProvider, tenantId, …)` | an explicit tenant id, outside any request, over an `HttpContext` that carries only that provider's services | caller-owned |
 
-`OpenIdEnvironmentEndpointFilter` on the protocol group and `ManagementEnvironmentEndpointFilter` on the `/api` group
-build the context once per request and publish it as an `IOpenIdContextFeature`. Endpoints and services read it through
+`OpenIdEnvironmentEndpointFilter` on the protocol group and `ManagementCallerGate` on the `/api` group build the context
+once per request and publish it as an `IOpenIdContextFeature`. Endpoints and services read it through
 `HttpContext.GetOpenIdContext()` and never build it themselves, so a new endpoint needs no context plumbing.
 
 ### The request path probes the tenant cache before the store
@@ -141,7 +141,7 @@ runs on the request's context under the route's tenant scope.
   `OpenIdEnvironmentEndpointFilter`, `ITenantResolver`, `ITenantStrategy`, `OpenIdSettingNames`, `OpenIdSettingKeys`);
   `NCode.Identity.OpenId.Core` (`DefaultOpenIdContextFactory`, `DefaultOpenIdTenantFactory`, `OpenIdTenantOptions`,
   `StaticSingleTenantStrategy`, `DynamicByPathTenantStrategy`, `DynamicByHostTenantStrategy`);
-  `NCode.Identity.OpenId.Management` (`ManagementEnvironmentEndpointFilter`).
+  `NCode.Identity.OpenId.Management` (`ManagementCallerGate`).
 - [ADR-1018](1018-tenant-selection-is-shared-and-tenant-bound-rows-are-scoped-at-the-persistence-layer.md): the ambient tenant scope
   the persistence filter reads.
 - [ADR-1411](1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md): the control plane and the per-tenant planes.

@@ -29,9 +29,8 @@ public static class EventLibraryRegistration
             where TEvent : IEvent
             where THandler : class, IEventHandler<TEvent>
         {
-            builder.ServiceCollection.TryAddEnumerable(
-                ServiceDescriptor.Scoped<IEventHandler<TEvent>, THandler>()
-            );
+            var handlerDescriptor = ServiceDescriptor.Scoped<IEventHandler<TEvent>, THandler>();
+            builder.ServiceCollection.TryAddEnumerable(handlerDescriptor);
 
             return builder;
         }

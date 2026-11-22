@@ -20,6 +20,9 @@ namespace NCode.Identity.Jose.Algorithms.KeyManagement;
 // See ADR-1389.
 internal sealed class EccEcdhKeyAgreement : IEcdhKeyAgreement
 {
+    private const string NotOnRecipientCurve =
+        "The ephemeral public key is not on the curve of the recipient's key.";
+
     // RFC 7518 §4.6 names ECDH-ES over the NIST curves, which the curve catalog also seeds (ADR-1068).
     private static EccCurveSpecification[] SupportedCurves { get; } =
     [EccCurveSpecification.P256, EccCurveSpecification.P384, EccCurveSpecification.P521];
@@ -72,12 +75,15 @@ internal sealed class EccEcdhKeyAgreement : IEcdhKeyAgreement
 
         using var recipient = eccSecretKey.ExportECDiffieHellman();
         using var recipientPublicKey = recipient.PublicKey;
-        using var ephemeral = ECDiffieHellman.Create(eccSecretKey.GetECCurve());
+        var curve = eccSecretKey.GetECCurve();
+        using var ephemeral = ECDiffieHellman.Create(curve);
 
-        CopySharedSecret(ephemeral.DeriveRawSecretAgreement(recipientPublicKey), sharedSecret);
+        var rawSecret = ephemeral.DeriveRawSecretAgreement(recipientPublicKey);
+        CopySharedSecret(rawSecret, sharedSecret);
 
         // RFC 7518 §4.6.1.1: only the ephemeral public key leaves this method.
-        ephemeralPublicKeyWriter.Write(ephemeral.ExportSubjectPublicKeyInfo());
+        var ephemeralPublicKey = ephemeral.ExportSubjectPublicKeyInfo();
+        ephemeralPublicKeyWriter.Write(ephemeralPublicKey);
     }
 
     /// <inheritdoc />
@@ -85,31 +91,32 @@ internal sealed class EccEcdhKeyAgreement : IEcdhKeyAgreement
     {
         var eccSecretKey = Validate(recipientKey);
 
-        if (
-            ephemeralPublicKey is not EccSecretKey ephemeralEccSecretKey
-            || !EccCurveSpecification.IsSameNamedCurve(
-                ephemeralEccSecretKey.GetECCurve(),
-                eccSecretKey.GetECCurve()
-            )
-        )
+        if (ephemeralPublicKey is not EccSecretKey ephemeralEccSecretKey)
         {
-            throw new JoseException(
-                "The ephemeral public key is not on the curve of the recipient's key."
-            );
+            throw new JoseException(NotOnRecipientCurve);
+        }
+
+        var ephemeralCurve = ephemeralEccSecretKey.GetECCurve();
+        var recipientCurve = eccSecretKey.GetECCurve();
+        if (!EccCurveSpecification.IsSameNamedCurve(ephemeralCurve, recipientCurve))
+        {
+            throw new JoseException(NotOnRecipientCurve);
         }
 
         using var recipient = eccSecretKey.ExportECDiffieHellman();
         using var ephemeral = ephemeralEccSecretKey.ExportECDiffieHellman();
         using var ephemeralPublic = ephemeral.PublicKey;
 
-        CopySharedSecret(recipient.DeriveRawSecretAgreement(ephemeralPublic), sharedSecret);
+        var rawSecret = recipient.DeriveRawSecretAgreement(ephemeralPublic);
+        CopySharedSecret(rawSecret, sharedSecret);
     }
 
     private EccSecretKey Validate(SecretKey secretKey)
     {
         var eccSecretKey = secretKey.Validate<EccSecretKey>(AlgorithmKeyType.KeyBitSizes);
 
-        if (!IsSupportedCurve(eccSecretKey.GetECCurve()))
+        var curve = eccSecretKey.GetECCurve();
+        if (!IsSupportedCurve(curve))
         {
             // the argument that is invalid is the caller's key, not this helper's parameter
 #pragma warning disable CA2208

@@ -55,14 +55,15 @@ internal class DefaultValidateAuthorizationRequestHandler(
         ValidateRequest(openIdContext, openIdClient, authorizationRequest, delivery);
 
         // Apply any security-profile authorization-request requirements (e.g. FAPI's confidential-client rule).
+        var profileContext = new AuthorizationRequestProfileContext(
+            openIdContext,
+            openIdClient,
+            authorizationRequest,
+            delivery
+        );
         await SecurityProfileCatalog.EvaluateRequirementsAsync(
             openIdClient.Settings,
-            new AuthorizationRequestProfileContext(
-                openIdContext,
-                openIdClient,
-                authorizationRequest,
-                delivery
-            ),
+            profileContext,
             cancellationToken
         );
 
@@ -479,12 +480,15 @@ internal class DefaultValidateAuthorizationRequestHandler(
              */
             var invalidPromptValues = request.PromptTypes.Except(promptValuesSupported).ToList();
             if (invalidPromptValues.Count != 0)
+            {
+                var invalidPromptList = string.Join(", ", invalidPromptValues);
                 throw errorFactory
                     .InvalidRequest(
-                        $"The following prompt values are not supported: {string.Join(", ", invalidPromptValues)}"
+                        $"The following prompt values are not supported: {invalidPromptList}"
                     )
                     .WithStatusCode(StatusCodes.Status400BadRequest)
                     .AsException();
+            }
         }
 
         // response_modes_supported is enforced when the delivery is derived (IAuthorizationResponseDeliveryResolver)
