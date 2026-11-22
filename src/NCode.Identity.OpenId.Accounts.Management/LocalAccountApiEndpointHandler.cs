@@ -341,6 +341,39 @@ internal class LocalAccountApiEndpointHandler(
     }
 
     /// <summary>
+    /// Lists the local accounts of the platform, which are the accounts of the control-plane tenant, one page at a time.
+    /// </summary>
+    /// <response code="200">A page of local accounts.</response>
+    internal virtual async ValueTask<IResult> ListPlatformLocalAccountsAsync(
+        HttpContext httpContext,
+        [FromQuery] string? cursor,
+        [FromQuery] int? limit,
+        CancellationToken cancellationToken
+    )
+    {
+        var tenantId = httpContext.GetOpenIdContext().Tenant.TenantId;
+        using var scope = AmbientTenantAccessor.BeginScope(tenantId);
+        return await ListLocalAccountsAsync(httpContext, tenantId, cursor, limit, cancellationToken);
+    }
+
+    /// <summary>
+    /// Creates a local account of the platform, in the control-plane tenant.
+    /// </summary>
+    /// <response code="201">The created local account.</response>
+    /// <response code="400">The display name is longer than allowed, the claims include the reserved <c>name</c> claim, or the password does not meet the tenant's password policy.</response>
+    /// <response code="409">A local account with the username already exists in the control-plane tenant.</response>
+    internal virtual async ValueTask<IResult> CreatePlatformLocalAccountAsync(
+        HttpContext httpContext,
+        [FromBody] CreateLocalAccountRequest request,
+        CancellationToken cancellationToken
+    )
+    {
+        var tenantId = httpContext.GetOpenIdContext().Tenant.TenantId;
+        using var scope = AmbientTenantAccessor.BeginScope(tenantId);
+        return await CreateLocalAccountAsync(httpContext, tenantId, request, cancellationToken);
+    }
+
+    /// <summary>
     /// Gets a local account of a tenant.
     /// </summary>
     /// <response code="200">The local account.</response>
