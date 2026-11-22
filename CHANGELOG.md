@@ -270,17 +270,20 @@ Until the first stable release, the [Unreleased] section describes the product a
   fixes every finding that holds; the OpenSSF Scorecard workflow, `.github/workflows/scorecard.yml`, which publishes the
   score on each push to `main` and weekly and uploads its findings to code scanning; `CODE_OF_CONDUCT.md`, `ROADMAP.md`,
   `docs/architecture.md`, `docs/assurance-case.md`, `docs/best-practices-badge.md` and
-  `docs/best-practices-criteria.md`, the documents the OpenSSF Best Practices silver level asks for; and a `Copyright`
-  without the build year, so a rebuild in a later year produces the same assemblies and packages. The workflow commands
-  that post to GitHub run through `gh api` REST routes in a session that refuses GitHub's GraphQL API, such as a Claude
-  Code cloud session; `/ship-plan` and `/run-issues` delete agent attribution lines from the pull request title and
-  description they write, and nothing checks commits or pull requests for attribution (project-template ADR-0018). The
-  template's `file_header_template` is the two-line SPDX header
+  `docs/best-practices-criteria.md`, the documents the OpenSSF Best Practices silver level asks for, of which
+  `ROADMAP.md` gives the family's direction for the next twelve months, `docs/architecture.md` its components and design
+  rules, and `docs/assurance-case.md` its security requirements, threat model, the secure design principles it applies
+  and the weaknesses it counters; and a `Copyright` without the build year, so a rebuild in a later year produces the
+  same assemblies and packages. The workflow commands that post to GitHub run through `gh api` REST routes in a session
+  that refuses GitHub's GraphQL API, such as a Claude Code cloud session; `/ship-plan` and `/run-issues` delete agent
+  attribution lines from the pull request title and description they write, and nothing checks commits or pull requests
+  for attribution (project-template ADR-0018). The template's `file_header_template` is the two-line SPDX header
   [ADR-1309](docs/decisions/1309-c-files-carry-a-two-line-spdx-header-that-the-build-checks.md) enforces, and
-  `build/dod.ps1` is this repository's own: the `project_owned_files` answer names it, so template updates leave it
-  alone ([#516](https://github.com/NCodeGroup/identity/issues/516),
+  `build/dod.ps1` and `.vscode/settings.json` are this repository's own: the `project_owned_files` answer names them, so
+  template updates leave them alone ([#516](https://github.com/NCodeGroup/identity/issues/516),
   [#536](https://github.com/NCodeGroup/identity/issues/536), [#542](https://github.com/NCodeGroup/identity/issues/542),
-  [#855](https://github.com/NCodeGroup/identity/issues/855)).
+  [#855](https://github.com/NCodeGroup/identity/issues/855), [#899](https://github.com/NCodeGroup/identity/issues/899),
+  [#900](https://github.com/NCodeGroup/identity/issues/900)).
 
 - **The reference host, its local-dev orchestrator and the shipped library carry distinct names.**
   `NCode.Identity.OpenId.Host` is the deployable reference host, with its companions
@@ -6689,6 +6692,13 @@ Until the first stable release, the [Unreleased] section describes the product a
   such lines from the pull request title and description they write, which the squash merge makes the commit on
   `main`. Nothing checks commits, pushes or pull requests for attribution, so one a tool adds anyway blocks nothing
   ([project-template ADR-0018](docs/decisions/project-template/0018-agent-attribution-is-avoided-not-enforced.md)).
+- **NCode Review approves a pull request whose review leaves no blocker or should-fix finding open.**
+  `.github/workflows/code-review.yml` passes `approve: true`, which OpenSSF Scorecard's Code-Review check counts, and
+  the NCode Review Approver's key, with which NCode Review v1.5.0 and later submit the approval as an app that can
+  write, so it can meet a required approval; a push dismisses the approval
+  ([#898](https://github.com/NCodeGroup/identity/issues/898),
+  [project-template ADR-0022](docs/decisions/project-template/0022-ncode-reviews-approval-gates-the-merge.md),
+  [project-template ADR-0036](docs/decisions/project-template/0036-a-required-approval-is-met-by-ncode-reviews-approver-app.md)).
 - **A master key is bounded in time and destroyed once nothing names it.** An owner's master key rotates every year, the
   values a tenant's key protected, and a platform value that a registered protected-value source reports, are rewrapped
   under the new version without their payloads being touched, a retired key is destroyed only after its grace and when
