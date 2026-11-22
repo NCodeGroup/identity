@@ -4303,7 +4303,7 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
     }
 
     [Fact]
-    public async Task CreateTenantAsync_WhenRemovingTheUnplacedTenantFails_StillReleasesTheReservation()
+    public async Task CreateTenantAsync_WhenRemovingTheUnplacedTenantFails_KeepsTheReservationAndReturnsConflict()
     {
         SetupTeamForCreate();
         SetupDefaultAlias("acme", alias: null);
@@ -4312,7 +4312,6 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
         SetupDefaultIssuer("acme", DerivedIssuer);
         SetupCreateValidation();
         SetupTenantReserved();
-        SetupTenantReleased();
         MockTenantStore
             .Setup(x => x.AddAsync(It.IsAny<PersistedTenant>(), It.IsAny<CancellationToken>()))
             .Returns(ValueTask.CompletedTask)
@@ -4332,7 +4331,51 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
             .ReturnsAsync(ReservationResult.Conflict("The tenant 'acme' is not reserved."))
             .Verifiable();
 
-        await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+        var result = await Handler.CreateTenantAsync(
+            CreateHttpContext(authenticated: true),
+            TeamId,
+            CreateTenantRequest(),
+            CancellationToken.None
+        );
+
+        var problem = Assert.IsType<ProblemHttpResult>(result);
+        Assert.Equal(StatusCodes.Status409Conflict, problem.StatusCode);
+        Assert.Equal("The tenant 'acme' is not reserved.", problem.ProblemDetails.Detail);
+        Assert.Equal(["reserve"], Events);
+        MockTenantDirectory.Verify(
+            x => x.ReleaseAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()),
+            Times.Never()
+        );
+    }
+
+    [Fact]
+    public async Task CreateTenantAsync_WhenReleasingTheReservationFails_RethrowsTheInsertFailure()
+    {
+        SetupTeamForCreate();
+        SetupDefaultAlias("acme", alias: null);
+        SetupValidSettings();
+        SetupStore();
+        SetupDefaultIssuer("acme", DerivedIssuer);
+        SetupCreateValidation();
+        SetupTenantReserved();
+        var releaseToken = CancellationToken.None;
+        MockTenantDirectory
+            .Setup(x => x.ReleaseAsync("acme", It.IsAny<CancellationToken>()))
+            .Callback((string _, CancellationToken token) => releaseToken = token)
+            .ThrowsAsync(new DirectoryUnavailableException("The directory is unreachable."))
+            .Verifiable();
+        MockTenantStore
+            .Setup(x => x.AddAsync(It.IsAny<PersistedTenant>(), It.IsAny<CancellationToken>()))
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable();
+        var failure = new InvalidOperationException("The insert failed.");
+        MockStoreManager
+            .Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()))
+            .Throws(failure)
+            .Verifiable();
+
+        // A DirectoryUnavailableException that replaced the insert failure would be answered 503.
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
             await Handler.CreateTenantAsync(
                 CreateHttpContext(authenticated: true),
                 TeamId,
@@ -4341,7 +4384,8 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
             )
         );
 
-        Assert.Equal(["reserve", "release"], Events);
+        Assert.Same(failure, exception);
+        Assert.True(releaseToken.CanBeCanceled);
     }
 
     [Fact]
@@ -4358,8 +4402,8 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
         SetupCreatePersistence(CreateSeededTenant(DerivedIssuer));
         SetupTenantEnvironment(tenantId: "acme");
 
-        // Strict mocks: no ReleaseAsync setup, so releasing the reservation of a tenant that was placed would fail the
-        // test.
+        // The verification below asserts that no release happens, because a compensation swallows the exception that a
+        // strict mock throws for a call it has no setup for.
         var result = await Handler.CreateTenantAsync(
             CreateHttpContext(authenticated: true),
             TeamId,
@@ -4369,6 +4413,10 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
 
         Assert.IsType<Created<TenantResource>>(result);
         Assert.Equal(["reserve", "add-tenant", "save", "place", "save"], Events);
+        MockTenantDirectory.Verify(
+            x => x.ReleaseAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()),
+            Times.Never()
+        );
     }
 
     [Fact]

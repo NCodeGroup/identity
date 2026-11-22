@@ -28,4 +28,16 @@ internal static class EventIds
     public const int OwnerRootKeyUnavailable = Base + 13;
     public const int AuditPublishFailed = Base + 14;
     public const int RemoteKeyProviderFailed = Base + 15;
+
+    /// <summary>
+    /// Identifies the warning that removing a tenant whose creation failed did not complete, so the global directory
+    /// keeps the tenant's reservation for this cell.
+    /// </summary>
+    public const int TenantCreationRemovalFailed = Base + 16;
+
+    /// <summary>
+    /// Identifies the warning that releasing the global directory's reservation of a tenant whose creation failed did
+    /// not complete, so the identifier stays reserved for this cell.
+    /// </summary>
+    public const int TenantCreationReleaseFailed = Base + 17;
 }

@@ -33,6 +33,7 @@ using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
 using NCode.Identity.OpenId.Settings;
 using NCode.Identity.OpenId.Tenants;
+using NCode.Identity.Persistence;
 using NCode.Identity.Persistence.Stores;
 using NCode.Identity.Registration.AspNetCore;
 using NCode.Identity.Secrets.Persistence;
@@ -140,6 +141,10 @@ internal class TenantApiEndpointHandler(
     private IRemoteSecretDestroyer RemoteSecretDestroyer { get; } = remoteSecretDestroyer;
     private ITenantDirectory TenantDirectory { get; } = tenantDirectory;
     private CellOptions CellOptions { get; } = cellOptions.Value;
+
+    /// <summary>
+    /// Gets the options of the root tenant, which name the platform's own team.
+    /// </summary>
     private RootTenantOptions RootOptions => tenantResolutionOptions.Value.Root;
     private ITenantConfigurationExporter TenantConfigurationExporter { get; } =
         tenantConfigurationExporter;
@@ -934,8 +939,10 @@ internal class TenantApiEndpointHandler(
     /// <summary>
     /// Creates a tenant through the directory as a saga: reserves the tenant's identifier and issuer, inserts the
     /// tenant, then places it in this cell. A creation that fails before the tenant is placed removes the inserted
-    /// tenant, then releases the reservation, so the directory never frees an identifier whose row still exists. A
-    /// tenant of the platform's own team is reserved in no team, because the directory holds no record of that team.
+    /// tenant and then releases the reservation, each on its own bounded token, and keeps the reservation when the
+    /// removal fails, so the directory never frees an identifier whose row still exists; a compensating step that fails
+    /// is logged, and the failure that ended the creation propagates. A tenant of the platform's own team is reserved
+    /// in no team, because the directory holds no record of that team.
     /// </summary>
     /// <param name="tenant">The <see cref="PersistedTenant"/> to create.</param>
     /// <param name="storeManager">The <see cref="IStoreManager"/> that inserts the tenant.</param>
@@ -1011,23 +1018,44 @@ internal class TenantApiEndpointHandler(
         {
             if (!isPlaced)
             {
+                // The compensation runs even when the creation was canceled, each step on its own token bounded as work
+                // that follows a commit, and a step that fails or outlasts its bound is logged, so the failure that
+                // ended the creation surfaces. The reservation is released only once the inserted row is gone, so the
+                // directory never frees an identifier whose row still exists; a reservation kept for a row that a
+                // timed-out removal did remove is reserved again by the next creation of the tenant in this cell.
+                // See ADR-1351 and ADR-1411.
+                var isRemoved = !isInserted;
                 if (isInserted)
                 {
                     try
                     {
-                        await RemoveCreatedTenantAsync(tenant.TenantId, CancellationToken.None);
+                        await PostCommitWork.RunAsync(
+                            TimeProvider,
+                            RemoveCreatedTenantAsync,
+                            tenant.TenantId
+                        );
+                        isRemoved = true;
                     }
-                    finally
+                    catch (Exception exception)
                     {
-                        // The release comes after the removal, so the directory never frees an identifier whose row
-                        // still exists.
-                        await TenantDirectory.ReleaseAsync(tenant.TenantId, CancellationToken.None);
+                        Logger.TenantCreationRemovalFailed(tenant.TenantId, exception);
                     }
                 }
-                else
+
+                if (isRemoved)
                 {
-                    // The release compensates a creation that failed, so it runs even when the request was canceled.
-                    await TenantDirectory.ReleaseAsync(tenant.TenantId, CancellationToken.None);
+                    try
+                    {
+                        await PostCommitWork.RunAsync(
+                            TimeProvider,
+                            TenantDirectory.ReleaseAsync,
+                            tenant.TenantId
+                        );
+                    }
+                    catch (Exception exception)
+                    {
+                        Logger.TenantCreationReleaseFailed(tenant.TenantId, exception);
+                    }
                 }
             }
         }
@@ -1035,8 +1063,13 @@ internal class TenantApiEndpointHandler(
         return null;
     }
 
-    // The removal compensates a creation that failed after its row committed, so it runs on a store manager of its own
-    // even when the request was canceled: the caller passes a token that is never canceled.
+    /// <summary>
+    /// Removes a tenant whose creation failed after its row committed, on a store manager of its own, so the creation's
+    /// unit of work takes no part in it.
+    /// </summary>
+    /// <param name="tenantId">The identifier of the tenant to remove.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to observe.</param>
+    /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation.</returns>
     private async ValueTask RemoveCreatedTenantAsync(
         string tenantId,
         CancellationToken cancellationToken

@@ -153,4 +153,32 @@ internal static partial class Log
         string secretId,
         Exception exception
     );
+
+    /// <summary>
+    /// Logs that removing a tenant whose creation failed did not complete.
+    /// </summary>
+    [LoggerMessage(
+        EventId = EventIds.TenantCreationRemovalFailed,
+        Level = LogLevel.Warning,
+        Message = "Removing the tenant '{TenantId}' after its creation failed did not complete; the global directory keeps its reservation for this cell while its row may remain"
+    )]
+    internal static partial void TenantCreationRemovalFailed(
+        this ILogger logger,
+        string tenantId,
+        Exception exception
+    );
+
+    /// <summary>
+    /// Logs that releasing the global directory's reservation of a tenant whose creation failed did not complete.
+    /// </summary>
+    [LoggerMessage(
+        EventId = EventIds.TenantCreationReleaseFailed,
+        Level = LogLevel.Warning,
+        Message = "Releasing the global directory's reservation of the tenant '{TenantId}' after its creation failed did not complete; the identifier stays reserved for this cell, which reserves it again when it next creates the tenant"
+    )]
+    internal static partial void TenantCreationReleaseFailed(
+        this ILogger logger,
+        string tenantId,
+        Exception exception
+    );
 }
