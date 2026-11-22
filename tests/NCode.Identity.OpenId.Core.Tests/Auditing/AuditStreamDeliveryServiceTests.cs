@@ -53,13 +53,16 @@ public sealed class AuditStreamDeliveryServiceTests : BaseTests
         base.Dispose(disposing);
     }
 
-    private AuditStreamDeliveryService CreateService(AuditRecordOptions options) =>
+    private AuditStreamDeliveryService CreateService(
+        AuditRecordOptions options,
+        TimeProvider? timeProvider = null
+    ) =>
         new(
             MockStoreManagerFactory.Object,
             MockAmbientTenantAccessor.Object,
             MockDeliverer.Object,
             Options.Create(options),
-            TimeProvider,
+            timeProvider ?? TimeProvider,
             Logger
         );
 
@@ -124,6 +127,84 @@ public sealed class AuditStreamDeliveryServiceTests : BaseTests
 
         Assert.NotNull(service.ExecuteTask);
         await service.ExecuteTask.WaitAsync(TimeSpan.FromSeconds(5));
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WhenAPollFails_PollsAgainAtTheNextTick()
+    {
+        var waitTimeout = TimeSpan.FromSeconds(5);
+        var firstPoll = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        var secondPoll = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        var polls = 0;
+        var failure = new InvalidOperationException("unreachable");
+        SetupStores();
+        MockAuditStreamStore
+            .Setup(x =>
+                x.GetDueStatesAsync(
+                    It.IsAny<DateTimeOffset>(),
+                    AuditOptions.StreamsPerPoll,
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .Returns(() =>
+            {
+                if (++polls == 1)
+                {
+                    firstPoll.SetResult();
+                    return ValueTask.FromException<IReadOnlyList<PersistedAuditStreamState>>(
+                        failure
+                    );
+                }
+
+                secondPoll.SetResult();
+                return ValueTask.FromResult<IReadOnlyList<PersistedAuditStreamState>>([]);
+            })
+            .Verifiable(Times.Exactly(2));
+
+        var timerArmed = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        var mockTimeProvider = CreateStrictMock<TimeProvider>();
+        mockTimeProvider
+            .Setup(x =>
+                x.CreateTimer(
+                    It.IsAny<TimerCallback>(),
+                    It.IsAny<object?>(),
+                    AuditOptions.StreamPollInterval,
+                    AuditOptions.StreamPollInterval
+                )
+            )
+            .Returns(
+                (TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period) =>
+                {
+                    var timer = TimeProvider.CreateTimer(callback, state, dueTime, period);
+                    timerArmed.SetResult();
+                    return timer;
+                }
+            )
+            .Verifiable();
+        mockTimeProvider.Setup(x => x.GetUtcNow()).Returns(() => TimeProvider.GetUtcNow());
+        using var service = CreateService(AuditOptions, mockTimeProvider.Object);
+
+        await service.StartAsync(CancellationToken.None);
+        await timerArmed.Task.WaitAsync(waitTimeout);
+        TimeProvider.Advance(AuditOptions.StreamPollInterval);
+        await firstPoll.Task.WaitAsync(waitTimeout);
+        TimeProvider.Advance(AuditOptions.StreamPollInterval);
+        await secondPoll.Task.WaitAsync(waitTimeout);
+        await service.StopAsync(CancellationToken.None);
+
+        Assert.NotNull(service.ExecuteTask);
+        Assert.True(service.ExecuteTask.IsCompletedSuccessfully);
+        var logged = Assert.Single(
+            Logger.Collector.GetSnapshot(),
+            record => record.Id.Id == EventIds.AuditStreamPollFailed
+        );
+        Assert.Same(failure, logged.Exception);
     }
 
     #endregion

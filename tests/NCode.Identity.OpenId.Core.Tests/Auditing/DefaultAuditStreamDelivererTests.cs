@@ -131,6 +131,13 @@ public sealed class DefaultAuditStreamDelivererTests : BaseTests
         public void Enqueue(HttpStatusCode statusCode) =>
             Responses.Enqueue(() => new HttpResponseMessage(statusCode));
 
+        public void Enqueue(HttpStatusCode statusCode, Action onSend) =>
+            Responses.Enqueue(() =>
+            {
+                onSend();
+                return new HttpResponseMessage(statusCode);
+            });
+
         public void EnqueueFailure(Exception exception) => Responses.Enqueue(() => throw exception);
 
         public void EnqueueCancellation(CancellationTokenSource source) =>
@@ -338,14 +345,15 @@ public sealed class DefaultAuditStreamDelivererTests : BaseTests
 
     private AuditRecordStreamRequest CreateRequest(
         DateTimeOffset afterStoredTime,
-        Guid afterEventId
+        Guid afterEventId,
+        DateTimeOffset? readTime = null
     ) =>
         new()
         {
             TenantId = TenantId,
             AfterStoredTime = afterStoredTime,
             AfterEventId = afterEventId,
-            StoredBefore = Now - RecordOptions.StreamSettleDelay,
+            StoredBefore = (readTime ?? Now) - RecordOptions.StreamSettleDelay,
             Limit = RecordOptions.StreamBatchSize,
         };
 
@@ -364,7 +372,8 @@ public sealed class DefaultAuditStreamDelivererTests : BaseTests
     private void SetupPage(
         DateTimeOffset afterStoredTime,
         Guid afterEventId,
-        AuditRecordStreamPage page
+        AuditRecordStreamPage page,
+        DateTimeOffset? readTime = null
     )
     {
         SetupRecordStore();
@@ -372,7 +381,7 @@ public sealed class DefaultAuditStreamDelivererTests : BaseTests
         MockRecordStore
             .Setup(x =>
                 x.GetStreamPageAsync(
-                    CreateRequest(afterStoredTime, afterEventId),
+                    CreateRequest(afterStoredTime, afterEventId, readTime),
                     It.IsAny<CancellationToken>()
                 )
             )
@@ -738,6 +747,100 @@ public sealed class DefaultAuditStreamDelivererTests : BaseTests
         Assert.Equal(second.LastEventId, Stored.PositionEventId);
         Assert.Equal(2, DeliveryCollector.GetMeasurementSnapshot().Count);
         Assert.Equal(3, RecordCollector.GetMeasurementSnapshot().Sum(m => m.Value));
+    }
+
+    [Fact]
+    public async Task DeliverAsync_WhenHalfTheLeaseIsSpent_StopsAfterTheBatchItSent()
+    {
+        var firstStoredTime = Now.AddMinutes(-6);
+        var first = CreatePage(
+            firstStoredTime,
+            CreateRecord(Guid.CreateVersion7()),
+            CreateRecord(Guid.CreateVersion7())
+        );
+        var halfLease = RecordOptions.StreamLeaseDuration / 2;
+        var pastHalf = TimeSpan.FromSeconds(1);
+        SetupScope();
+        SetupStores(updates: 2);
+        SetupProtector();
+        SetupHttpClient();
+        SetupPage(Stored.PositionStoredTime, Guid.Empty, first);
+        Handler.Enqueue(
+            HttpStatusCode.OK,
+            () => TimeProvider.Advance(Stored.LeaseExpiryTime!.Value - Now - halfLease + pastHalf)
+        );
+
+        await Deliverer.DeliverAsync(Copy(Stored), CancellationToken.None);
+
+        Assert.Single(Handler.Requests);
+        Assert.Equal(firstStoredTime, Stored.PositionStoredTime);
+        Assert.Equal(first.LastEventId, Stored.PositionEventId);
+        Assert.Null(Stored.LeaseHolder);
+        Assert.Null(Stored.LeaseExpiryTime);
+        Assert.Equal(Now + halfLease + pastHalf, Stored.NextAttemptTime);
+        Assert.Equal(1, Assert.Single(DeliveryCollector.GetMeasurementSnapshot()).Value);
+    }
+
+    [Fact]
+    public async Task DeliverAsync_WhileHalfTheLeaseRemains_SendsTheNextFullBatch()
+    {
+        var firstStoredTime = Now.AddMinutes(-6);
+        var secondStoredTime = Now.AddMinutes(-5);
+        var first = CreatePage(
+            firstStoredTime,
+            CreateRecord(Guid.CreateVersion7()),
+            CreateRecord(Guid.CreateVersion7())
+        );
+        var second = CreatePage(secondStoredTime, CreateRecord(Guid.CreateVersion7()));
+        var halfLease = RecordOptions.StreamLeaseDuration / 2;
+        var elapsed = halfLease - TimeSpan.FromSeconds(1);
+        SetupScope();
+        SetupStores(updates: 3);
+        SetupProtector();
+        SetupHttpClient();
+        SetupPage(Stored.PositionStoredTime, Guid.Empty, first);
+        SetupPage(
+            firstStoredTime,
+            first.LastEventId.GetValueOrDefault(),
+            second,
+            readTime: Now + elapsed
+        );
+        Handler.Enqueue(HttpStatusCode.OK, () => TimeProvider.Advance(elapsed));
+        Handler.Enqueue(HttpStatusCode.OK);
+
+        await Deliverer.DeliverAsync(Copy(Stored), CancellationToken.None);
+
+        Assert.Equal(2, Handler.Requests.Count);
+        Assert.Equal(secondStoredTime, Stored.PositionStoredTime);
+        Assert.Equal(second.LastEventId, Stored.PositionEventId);
+        Assert.Null(Stored.LeaseHolder);
+    }
+
+    [Fact]
+    public async Task DeliverAsync_WhenTheHandedStateHasNoLeaseExpiry_StopsHalfAFullLeaseFromNow()
+    {
+        var firstStoredTime = Now.AddMinutes(-6);
+        var first = CreatePage(
+            firstStoredTime,
+            CreateRecord(Guid.CreateVersion7()),
+            CreateRecord(Guid.CreateVersion7())
+        );
+        var halfLease = RecordOptions.StreamLeaseDuration / 2;
+        var handed = Copy(Stored);
+        handed.LeaseExpiryTime = null;
+        SetupScope();
+        SetupStores(updates: 2);
+        SetupProtector();
+        SetupHttpClient();
+        SetupPage(Stored.PositionStoredTime, Guid.Empty, first);
+        Handler.Enqueue(HttpStatusCode.OK, () => TimeProvider.Advance(halfLease));
+
+        await Deliverer.DeliverAsync(handed, CancellationToken.None);
+
+        Assert.Single(Handler.Requests);
+        Assert.Equal(firstStoredTime, Stored.PositionStoredTime);
+        Assert.Null(Stored.LeaseHolder);
+        Assert.Null(Stored.LeaseExpiryTime);
     }
 
     [Fact]
