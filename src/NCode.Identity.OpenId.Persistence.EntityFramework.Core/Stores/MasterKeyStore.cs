@@ -241,6 +241,45 @@ internal class MasterKeyStore(
     }
 
     /// <inheritdoc />
+    public async ValueTask<PagedResult<SecretOwner>> GetOwnerPageAsync(
+        PageRequest page,
+        CancellationToken cancellationToken
+    )
+    {
+        var query = DbContext.MasterKeys.AsNoTracking();
+
+        var afterId = CursorProtector.UnprotectKey(nameof(MasterKeyEntity), page.Cursor);
+        if (afterId is not null)
+            query = query.Where(entity => entity.Id > afterId.Value);
+
+        // Only the row identifier and the owner leave the database, never a wrapped key, a key check or a token.
+        var rows = await query
+            .OrderBy(entity => entity.Id)
+            .Take(page.Limit + 1)
+            .Select(entity => new
+            {
+                entity.Id,
+                entity.OwnerType,
+                entity.OwnerId,
+            })
+            .ToListAsync(cancellationToken);
+
+        var hasMore = rows.Count > page.Limit;
+        var count = hasMore ? page.Limit : rows.Count;
+
+        return new PagedResult<SecretOwner>
+        {
+            Items = rows.Take(count)
+                .Select(row => new SecretOwner(row.OwnerType, row.OwnerId))
+                .Distinct()
+                .ToList(),
+            NextCursor = hasMore
+                ? CursorProtector.ProtectKey(nameof(MasterKeyEntity), rows[count - 1].Id)
+                : null,
+        };
+    }
+
+    /// <inheritdoc />
     public async ValueTask<PagedResult<SecretOwner>> GetRetiredOwnerPageAsync(
         PageRequest page,
         CancellationToken cancellationToken
