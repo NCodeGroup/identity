@@ -523,89 +523,62 @@ Decided in
 - Production is **single-datacenter**: a whole-datacenter outage takes the cell down. Several availability zones come
   with AWS ([§11](#11-growth-path-aws)).
 
-## 6. Vendor price sheets (verified 2026-10-18)
+## 5. Vendor prices
+
+The prices of the vendors the platform runs on
+([ADR-1520](decisions/1520-the-hosted-platform-runs-production-on-akamai-lke-in-washington-dc-and-its-lab-on-oci-oke-basic-in-phoenix.md)),
+verified 2026-10-18 unless a row says otherwise. AWS's are in [§11](#11-growth-path-aws), Azure's in
+[§8](#8-devtest-and-conformance-on-azure-visual-studio-credit) and the key management services' in
+[§7](#7-root-key-and-remote-keys-kms).
 
 ### Kubernetes compute, load balancer, bandwidth
 
 | Vendor                          | US locations                                                                | ~2 vCPU / 4 GB shared node                         | Control plane (HA)                 | Load balancer                                                  | Bandwidth                                                       | IaC provider              |
 | ------------------------------- | --------------------------------------------------------------------------- | -------------------------------------------------- | ---------------------------------- | -------------------------------------------------------------- | --------------------------------------------------------------- | ------------------------- |
-| **DigitalOcean** (DOKS)         | **MKC1 Kansas City**, MEM1 Memphis, ATL1, SFO2/3, NYC1-3, RIC1              | $24 Regular; **$32 Premium Intel (MKC1 only option)** | Free (**+$40**)                    | Regional **$12**/node; Network LB **$15** (L4, 50 Mbps/unit)   | 4,000 GiB with that node, **pooled**; **$0.01/GiB** over; inbound free | `digitalocean/digitalocean` |
-| **Vultr** (VKE or k3s)          | Dallas, Chicago, Silicon Valley, LA, Seattle, Atlanta, Miami, NJ           | $24 High Perf (5 TB); $20 Regular (3 TB)           | Free (optional HA, _(verify)_)     | **$10**                                                        | Per plan; **$0.01/GB** over                                     | `vultr/vultr`             |
 | **Akamai / Linode** (LKE)       | Dallas, Chicago, LA, Fremont, Seattle, Atlanta, Miami, Newark, Washington  | **$24** (4 TB)                                     | Free (**+$60**)                    | NodeBalancer **$10**                                           | Per plan, **pooled**; **$0.005/GB** over                        | `linode/linode`           |
-| **Civo** (managed k3s)          | **NYC1 only** (PHX1 no longer listed)                                       | **$21.73** (2 cores / 4 GB)                        | Free (no HA tier published)        | **$10.86** per 10k concurrent requests                         | **Free & unlimited** ingress + egress                           | `civo/civo`               |
-| **Hetzner** (k3s only)          | Ashburn, Hillsboro                                                          | CPX21 3 vCPU / 4 GB **$38.09** (2 TB); CPX11 2 vCPU / 2 GB $21.09 (1 TB) | No managed Kubernetes              | LB11 **$8.49** (1 TB incl.)                                    | Per server; **$1.20/TB** over (US)                              | `hetznercloud/hcloud`     |
-| **Hostinger** (k3s only)        | **Boston only**                                                             | KVM 1 (1 vCPU / 4 GB) $6.49 **with 24-month prepay** (renews $11.99; list $19.49); KVM 2 (2 vCPU / 8 GB) $8.99 prepay (list $24.49) | No managed Kubernetes              | None (DNS round-robin / VIP)                                   | 4–8 TB per VPS                                                  | Vendor provider _(verify maturity)_ |
 | **Oracle OCI** (Always Free / Pay-As-You-Go) | Home region fixed at sign-up (Phoenix, San Jose, Chicago, Ashburn)   | **Always Free and Pay-As-You-Go:** the first 1,500 A1 OCPU-h + 9,000 GB-h a month free (≈ 2 OCPU / 12 GB; the public price list still shows 3,000 + 18,000 _(verify)_) + 2 AMD micro VMs, then $0.01/OCPU-h + $0.0015/GB-h (1 A1 OCPU = 1 vCPU) | OKE Basic **free** (Enhanced $0.10/h) / k3s | **Network LB free**; flexible LB 10 Mbps free (paid $0.0113/h + bandwidth) | **10 TB/month free**, then $0.0085/GB                          | `oracle/oci`              |
 
-Smaller plans for reference: DO Regular 1 GiB $6, 2 GiB $12, 2 vCPU/2 GiB $18 · Vultr Regular 1 GB $5, 2 GB $10 ·
-Vultr High Perf 1 GB $6, 2 GB $12 · Akamai 1 GB $5, 2 GB $12 · Civo 1 GB $5.43, 2 GB $10.86.
+Smaller Akamai plans: 1 GB $5, 2 GB $12.
 
 Notes:
 
-- **Hetzner:** the US site marked several shared plans "currently unavailable"; US pricing roughly tripled vs. EU-era
-  expectations. Not entry-level anymore in the US.
-- **Hostinger:** advertised prices require paying 24 months upfront; month-to-month pricing must be confirmed in the
-  cart. No private-network / LB / Kubernetes products — weakest fit for 100% IaC HA.
-- **OCI:** Always Free instances idle for 7 days (<20% CPU, network, and memory) may be reclaimed — use a
-  Pay-As-You-Go tenancy, which also doubles the A1 allowance (reclamation exemption _(verify)_). "Out of host capacity"
-  is common for A1; A1 is **arm64** (.NET publishes `linux-arm64`; Traefik, Valkey, and CloudNativePG ship arm64
-  images). Block volumes beyond the free 200 GB cost $0.0255/GB-month plus performance units. Managed OCI Database with
-  PostgreSQL ($0.098/OCPU-h + storage) is not entry-level — run Postgres in-cluster on OCI.
+- **OCI:** Always Free instances idle for 7 days (<20% CPU, network, and memory) may be reclaimed — the lab uses a
+  Pay-As-You-Go tenancy, which is exempt from that reclamation _(verify)_. "Out of host capacity" is common for A1; A1
+  is **arm64** (.NET publishes `linux-arm64`; Traefik, Valkey, and CloudNativePG ship arm64 images). Block volumes
+  beyond the free 200 GB cost $0.0255/GB-month plus performance units. Managed OCI Database with PostgreSQL
+  ($0.098/OCPU-h + storage) is not entry-level — run Postgres in-cluster on OCI.
 
 ### PostgreSQL
 
 | Option                          | Smallest single node                              | Smallest HA                                  | Region / latency fit                                   | Notes                                                       |
 | ------------------------------- | ------------------------------------------------- | -------------------------------------------- | ------------------------------------------------------ | ----------------------------------------------------------- |
-| **In-cluster (CloudNativePG)**  | $0 + node RAM/disk                                | $0 (2 instances)                             | Same cluster — best                                    | You own backups (object storage; e.g. Vultr $18/mo for 1 TB), upgrades, failover |
+| **In-cluster (CloudNativePG)**  | $0 + node RAM/disk                                | $0 (2 instances)                             | Same cluster — best                                    | You own backups (object storage), upgrades, failover |
 | **Akamai managed**              | 1 GB **$16**                                      | **3 × 1 GB $37**                             | Same DC as LKE _(verify region list)_                  | Cheapest managed HA found; powered by Aiven; daily backups kept 14 days with point-in-time recovery, restored into a new cluster (backups can't be downloaded) |
-| **Vultr managed**               | 1 GB / 25 GB **$15**                              | 2 GB + 1 replica **$50**                     | Same DC as cluster                                     | High-Perf 1 GB $18                                          |
-| **DigitalOcean managed**        | 1 GiB **$15.15**                                  | 2 GiB + standby **$60.90**                   | Same DC (MKC1: limited plans, Premium Intel _(verify)_) | 1 GiB tier has no standby option                            |
-| **Civo managed**                | 4 GB / 2 cores **$43.45**                         | + 1 node **$76.04**                          | NYC1                                                   | No small tier                                               |
-| **Aiven**                       | **Free** (1 CPU / 1 GB / 1 GB disk); Developer **$5** (8 GB, 20 conns); Hobbyist **$12** | Business from **$180**                       | Free/Developer: **no region choice**; Hobbyist: DO / GCP / OVH region | Free powers off when idle; can colocate with a DO cluster  |
-| **Neon**                        | **Free** (1 GB/project, 100 CU-h/month, ≤ 2 CU)   | Storage multi-AZ by default                  | **AWS us-east-1 / us-east-2 / us-west-2 only**          | Scale-to-zero after 5 min (cold starts); Launch: $0.106/CU-h + $0.35/GB-mo (~$19/mo for an always-on 0.25 CU) |
-| Hetzner / Hostinger             | —                                                 | —                                            | —                                                      | No managed Postgres; self-host                              |
 
-**Mixing vendors:** an identity server issues several queries per request, so a cross-metro database (10–30 ms RTT)
-adds tens to hundreds of milliseconds per token request. Keep Postgres **in the same datacenter** as the cluster.
-Cross-vendor only works when co-located (e.g. Aiven Hobbyist placed in the same DigitalOcean region as a DOKS
-cluster). Neon and Aiven Free/Developer are fine for dev/staging, not for a production cluster outside their region.
+**The database stays in the cluster's datacenter:** an identity server issues several queries per request, so a
+cross-metro database (10–30 ms RTT) adds tens to hundreds of milliseconds per token request. Keep Postgres **in the same
+datacenter** as the cluster.
 
 ### Valkey
 
 | Option                          | Smallest single node               | Smallest HA                          | Notes                                                              |
 | ------------------------------- | ---------------------------------- | ------------------------------------ | ------------------------------------------------------------------ |
 | **In-cluster (self-hosted)**    | **$0**                             | **$0** (primary + replica + Sentinel) | Use the official `valkey/valkey` image or an operator; avoid depending on Bitnami charts/images (free catalog restricted in 2025) |
-| **DigitalOcean managed**        | 1 GiB **$15**                      | Standby node via "additional nodes" _(verify)_ | Same DC as DOKS                                                |
-| **Vultr managed**               | 1 GB **$15**                       | 2 GB + 1 replica **$60**             |                                                                    |
-| **Aiven**                       | **Free** (1 GB, no region choice)  | Business from **$70**                | Hobbyist $19                                                       |
 | **Akamai managed**              | 4 GB dedicated **$59**             | 3-node **$176**                      | Not entry-level; Valkey is in limited availability (Akamai docs, 2026-10-14) — re-verify plans |
 
-**Self-hosting is the recommended default.** Valkey backs the shared-state port that records DPoP nonces and the
-single-use DPoP-proof and client-assertion `jti`s
-([ADR-1164](decisions/1164-replicas-share-expiring-keys-values-and-indexes-through-ports-with-in-process-and-valkey-adapters.md)); losing it on restart only
-reopens a replay window bounded by the proof and assertion lifetimes. Enable AOF persistence if that window matters.
-Valkey also carries the replica broadcast port, so a tenant, team or platform settings change reaches every replica at once
-([ADR-1205](decisions/1205-replicas-announce-changes-to-each-other-through-a-best-effort-broadcast-port.md)); the access-control user needs `PUBLISH`
-and `SUBSCRIBE` as well as the key-set and counter commands, and an outage costs only that promptness, because the
-replicas converge through their polls and the 15-minute tenant cache lifetime.
+**Valkey runs in the cluster**
+([ADR-1520](decisions/1520-the-hosted-platform-runs-production-on-akamai-lke-in-washington-dc-and-its-lab-on-oci-oke-basic-in-phoenix.md)).
+Valkey backs the shared-state port that records DPoP nonces and the single-use DPoP-proof and client-assertion `jti`s
+([ADR-1164](decisions/1164-replicas-share-expiring-keys-values-and-indexes-through-ports-with-in-process-and-valkey-adapters.md));
+losing it on restart only reopens a replay window bounded by the proof and assertion lifetimes. Enable AOF persistence
+if that window matters. Valkey also carries the replica broadcast port, so a tenant, team or platform settings change
+reaches every replica at once
+([ADR-1205](decisions/1205-replicas-announce-changes-to-each-other-through-a-best-effort-broadcast-port.md)); the
+access-control user needs `PUBLISH` and `SUBSCRIBE` as well as the key-set and counter commands, and an outage costs
+only that promptness, because the replicas converge through their polls and the 15-minute tenant cache lifetime.
 Address it with the `valkey` connection string (TLS and an access-control user in production:
 `valkey:6380,ssl=true,user=identity,password=…`); a replica that cannot reach it reports not ready on the `valkey`
 health check and fails those checks closed.
-
-## 7. Cost scenarios (3 nodes × 2 vCPU / 4 GB, one LB)
-
-| Scenario                                                        | Cluster                                    | Postgres                    | Valkey         | **Monthly**                    |
-| --------------------------------------------------------------- | ------------------------------------------ | --------------------------- | -------------- | ------------------------------ |
-| **A. Vultr Dallas, self-managed k3s (HA control plane)**        | 3 × $24 + LB $10 = $82                     | $15 single / $50 HA         | In-cluster $0  | **$97** / **$132** HA DB       |
-| **B. Akamai (any US region), LKE**                              | 3 × $24 + NB $10 = $82 (+$60 HA CP)        | $16 single / **$37 HA**     | In-cluster $0  | **$98** / **$119** HA DB       |
-| **C. DigitalOcean MKC1, DOKS**                                  | 3 × $32 + LB $12 = $108 (+$40 HA CP)       | ~$15.15 single / ~$60.90 HA | In-cluster $0  | **~$123** / **~$169** HA DB    |
-| **D. Civo NYC1, managed k3s**                                   | 3 × $21.73 + LB $10.86 = $76.05            | $43.45                      | In-cluster $0  | **~$120** (free egress)        |
-| **E. Hetzner Ashburn/Hillsboro, k3s**                           | 3 × $38.09 + LB $8.49 = $122.76            | In-cluster $0               | In-cluster $0  | **~$123** (all self-managed)   |
-| **F. OCI Phoenix, all in-cluster** (§2 rank 2)                  | 3 × A1 2 OCPU / 12 GB, 4 OCPU + 24 GB past the free allowance, + free NLB | CloudNativePG in-cluster    | In-cluster $0  | **~$57–60**                    |
-
-These are single-vendor baselines; [§2](#2-summary-and-ranked-recommendations) ranks the mixed-vendor topologies.
-Lowest-cost paid all-in-cluster option (Postgres via CloudNativePG too): Scenario A without managed DB ≈ **$82 + backup
-storage**.
 
 ## 8. Traefik, mTLS, and tenant PKI
 
