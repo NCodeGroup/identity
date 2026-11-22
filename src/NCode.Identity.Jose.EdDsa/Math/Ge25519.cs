@@ -95,8 +95,7 @@ internal struct Ge25519
         var a = Fe25519.Sqr(p._x);
         var b = Fe25519.Sqr(p._y);
         var zSquared = Fe25519.Sqr(p._z);
-        var zSquaredAgain = Fe25519.Sqr(p._z);
-        var c = Fe25519.Add(zSquared, zSquaredAgain);
+        var c = Fe25519.Add(zSquared, zSquared);
         var xySum = Fe25519.Add(p._x, p._y);
         var xySquared = Fe25519.Sqr(xySum);
         var xySquaredMinusA = Fe25519.Sub(xySquared, a);

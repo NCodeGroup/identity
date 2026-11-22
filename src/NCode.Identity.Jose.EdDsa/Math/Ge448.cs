@@ -143,8 +143,7 @@ internal struct Ge448
         var a = Fe448.Sqr(p._x);
         var b = Fe448.Sqr(p._y);
         var zSquared = Fe448.Sqr(p._z);
-        var zSquaredAgain = Fe448.Sqr(p._z);
-        var c = Fe448.Add(zSquared, zSquaredAgain);
+        var c = Fe448.Add(zSquared, zSquared);
         var xySum = Fe448.Add(p._x, p._y);
         var xySquared = Fe448.Sqr(xySum);
         var xySquaredMinusA = Fe448.Sub(xySquared, a);
