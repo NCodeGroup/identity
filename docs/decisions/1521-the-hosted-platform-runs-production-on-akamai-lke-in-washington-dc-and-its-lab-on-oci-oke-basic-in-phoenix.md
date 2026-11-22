@@ -83,7 +83,8 @@ cluster; the lab runs on OCI OKE Basic in Phoenix inside the free allowance; AWS
 - **Always-on Azure** (about $130). The Visual Studio credit forbids always-on use. Rejected.
 - **AWS at launch** (EKS about $200–250, ECS on Fargate about $150–200 across three zones but outside the chart). Over
   the budget. Rejected for launch; it is the growth path.
-- **Free database tiers** (Neon, Aiven). No HA, scale-to-zero or power-off, and no region choice. Rejected.
+- **Free database tiers** (Neon, Aiven). They lack HA and a region choice, and scale to zero or power off when idle.
+  Rejected.
 - **Akamai LKE at other sizes** (3 × Linode 4 GB: $98 with a single-node managed database, $119 with the 3-node one; 3 ×
   2 GB with a single-node database: about $62). The 3-node database is bought from the start, because it is the system
   of record and a 1-node cluster may not grow to 3 nodes in place; with it, 4 GB nodes exceed the budget, and three 2 GB
