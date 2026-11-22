@@ -65,6 +65,12 @@ off until the tenant turns it on.**
    and the email page is a bundle page as the change-password page is. The pages and the mail are worded in every
    shipped locale
    ([ADR-1402](1402-the-interactive-surface-renders-in-the-locale-the-request-prefers-among-the-registered-ui-locales.md)).
+8. **The flows are audited.** The change, the reset request, the reset, the verification and the second factor are
+   audited as `password.change`, `password.reset_request`, `password.reset`, `email.verification` and
+   `subject.second_factor` in the `authentication` category, with the account as the resource and no code, password or
+   address
+   ([ADR-1047](1047-observation-is-a-fault-isolated-event-seam-that-audit-specializes-and-protocol-errors-reach-once.md),
+   [ADR-1283](1283-audit-records-are-cloudtrail-shaped-json-with-an-indexable-envelope.md)).
 
 ## Options considered
 
@@ -88,6 +94,8 @@ off until the tenant turns it on.**
 
 ## References
 
+- [ADR-1047](1047-observation-is-a-fault-isolated-event-seam-that-audit-specializes-and-protocol-errors-reach-once.md)
+  — the event seam that audit specializes.
 - [ADR-1051](1051-a-local-account-is-a-self-issued-connection-behind-one-pluggable-store-seam.md) — the local account
   and its email address.
 - [ADR-1062](1062-the-op-serves-an-opt-in-interactive-sign-in-and-consent-surface-with-a-pluggable-credential-verifier.md)
@@ -104,6 +112,8 @@ off until the tenant turns it on.**
   — the limit on failed attempts that a reset clears.
 - [ADR-1253](1253-a-tenant-brands-its-sign-in-pages-through-settings-and-the-bundle-mounts-over-the-hosts-page.md) — the
   pages' branding and no-JavaScript baseline.
+- [ADR-1283](1283-audit-records-are-cloudtrail-shaped-json-with-an-indexable-envelope.md) — the shape of an audit
+  record.
 - [ADR-1351](1351-work-that-follows-a-committed-change-runs-on-its-own-bounded-token.md) — the bounded token that the
   post-commit effects run on.
 - [ADR-1402](1402-the-interactive-surface-renders-in-the-locale-the-request-prefers-among-the-registered-ui-locales.md)

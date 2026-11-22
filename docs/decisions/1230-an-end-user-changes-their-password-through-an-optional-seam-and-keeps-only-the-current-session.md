@@ -36,7 +36,8 @@ user but the current one and revokes every grant that was issued under no sessio
    verifies the current password through `VerifyCredentialAsync` under the limit on failed attempts
    (`PasswordAttemptGate`), requires the verified account to be the same `LocalAccountId`, and reports
    `CurrentPasswordInvalid` otherwise. It saves the new password in one unit of work. Both passwords are encoded into
-   `SecureMemoryPool` buffers.
+   `SecureMemoryPool` buffers. A change, refused or made, is audited as `password.change`
+   ([ADR-1533](1533-an-end-user-verifies-an-email-address-resets-a-password-and-signs-in-with-a-second-factor-through-one-time-email-codes.md)).
 4. **`GET` and `POST` `InteractiveAuthenticationDefaults.PasswordPath` (`/account/password`) serve the change.** The
    form fields are `current_password`, `new_password` and `confirm_password`. The post redirects back to the page with
    `?error=<code>` or with `?status=changed`. Both methods require an active session and redirect to the login page
@@ -92,6 +93,8 @@ user but the current one and revokes every grant that was issued under no sessio
   password.
 - [ADR-1237](1237-failed-password-attempts-are-limited-per-account-and-a-refusal-costs-what-a-wrong-password-costs.md) — the limit on failed attempts that the
   verification of the current password observes.
+- [ADR-1533](1533-an-end-user-verifies-an-email-address-resets-a-password-and-signs-in-with-a-second-factor-through-one-time-email-codes.md)
+  — the audit record of a password change.
 - [NIST SP 800-63B](https://pages.nist.gov/800-63-3/sp800-63b.html) — a change of an authenticator ends the sessions
   that it authenticated.
 - [OWASP ASVS](https://owasp.org/www-project-application-security-verification-standard/) V3.3.3 — terminate the other

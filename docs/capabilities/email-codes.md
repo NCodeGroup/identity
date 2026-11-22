@@ -147,6 +147,20 @@ never writes a recipient or a body. See [metrics](../metrics.md#ncodeidentitymai
 > [ADR-1532](../decisions/1532-outbound-mail-is-a-port-that-queues-each-message-for-a-replaceable-transport-and-smtp-is-its-adapter.md),
 > `IMailSender`, `IMailTransport`, `MailDeliveryJobHandler`, `SmtpMailTransport`.
 
+## Audit
+
+Each flow is audited in the `authentication` category, with the account as the `local_account` resource and no password,
+code or address: `password.change` records an end user's change of their password, `password.reset_request` the request
+for a reset code, `password.reset` the reset itself, `email.verification` the verification of an address, and
+`subject.second_factor` the second factor at sign-in, whose `details.factor` is `email_code`. Each is a success or a
+failure with an `error.code`, and an unknown username's reset request is a failure with `details.attempted_username` and
+no subject. The code sends for a verification are not audited, and a refused second-factor send is, because it blocks a
+sign-in. Nothing is recorded while a flow's setting is off. See the [audit records](../audit-records.md) for the fields.
+
+> [!TIP]
+> [ADR-1533](../decisions/1533-an-end-user-verifies-an-email-address-resets-a-password-and-signs-in-with-a-second-factor-through-one-time-email-codes.md),
+> `IAuditEventRecorder`, `AuditCredentialFactors`.
+
 ## Limits and roadmap
 
 - **Email is not a second factor at AAL2.** NIST SP 800-63B does not accept email as an out-of-band authenticator, so

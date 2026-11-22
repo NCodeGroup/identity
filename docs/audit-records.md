@@ -178,8 +178,8 @@ The recorder states the actor explicitly for each event, so the actor does not d
 
 ### Resource types
 
-`session`, `tenant`, `tenant.secret`, `master_key`, `root_key` and `remote_key` are shared by the protocol and the management planes (`AuditResourceTypes`).
-The management types are `ManagementResourceTypes`, and the local-account type is `AccountManagementResourceTypes`.
+`session`, `tenant`, `tenant.secret`, `master_key`, `root_key`, `remote_key` and `local_account` are shared by the protocol and the management planes (`AuditResourceTypes`).
+The management types are `ManagementResourceTypes`.
 
 | `resources[].type`       | Entity                                                                                                                                                                 |
 | ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -199,7 +199,7 @@ The management types are `ManagementResourceTypes`, and the local-account type i
 | `initial_access_token`   | An initial access token (RFC 7591) for dynamic client registration.                                                                                                    |
 | `principal`              | An end user's federated principal.                                                                                                                                     |
 | `role_assignment`        | A role a principal holds at a resource node: an owner or an administrator of a team, tenant, client or resource server.                                                |
-| `local_account`          | A local account.                                                                                                                                                       |
+| `local_account`          | A local account, in the protocol and management planes.                                                                                                                |
 | `audit_stream`           | An audit stream of a tenant.                                                                                                                                           |
 
 ## Event catalog
@@ -218,6 +218,11 @@ One row for each event the library publishes. In a cell, `none` means the member
 | `authorization.denied`   | `authorization`  | `openid` | `denied`             | `info`                                  | `end_user`, or `anonymous` with no subject    | none                  | The error code; `access_denied` by default                                                                                                   | none                                                  |
 | `client.authentication`  | `authentication` | `openid` | `failure`            | `warning`                               | `client`                                      | none                  | The error code: `invalid_client` by default, `attempt_limit_reached` at the limit of failed client authentications                           | `authentication_method`                               |
 | `subject.authentication` | `authentication` | `openid` | `success`, `failure` | `info` on success, `warning` on failure | `end_user` on success, `anonymous` on failure | none                  | Failure only: `authentication_failed`, the bearer token error's code, `subject_id_missing`, `invalid_credentials` or `attempt_limit_reached` | `attempted_username`, on a failure that presented one |
+| `password.change`        | `authentication` | `openid` | `success`, `failure` | `info` on success, `warning` on failure | `end_user`                                    | `local_account`       | Failure only: `invalid_current_password` or a password policy code                                                                           | none                                                  |
+| `password.reset_request` | `authentication` | `openid` | `success`, `failure` | `info` on success, `warning` on failure | `end_user`, or `anonymous` with no subject    | `local_account`, when known | Failure only: `account_not_eligible` or `too_many_codes`                                                                               | `attempted_username`, on a failure                    |
+| `password.reset`         | `authentication` | `openid` | `success`, `failure` | `info` on success, `warning` on failure | `end_user`, or `anonymous` with no subject    | `local_account`, when known | Failure only: `invalid_code` or a password policy code                                                                                 | none                                                  |
+| `email.verification`     | `authentication` | `openid` | `success`, `failure` | `info` on success, `warning` on failure | `end_user`                                    | `local_account`       | Failure only: `invalid_code`                                                                                                                 | none                                                  |
+| `subject.second_factor`  | `authentication` | `openid` | `success`, `failure` | `info` on success, `warning` on failure | `end_user`                                    | `local_account`, when known | Failure only: `invalid_code`, `no_email` or `too_many_codes`                                                                           | `factor`                                              |
 | `openid.error`           | `protocol`       | `openid` | `failure`, `denied`  | `warning` on failure, `info` on denied  | `anonymous`                                   | none                  | The OAuth error code; `message` is its description and `status_code` the HTTP status                                                         | none                                                  |
 | `session.created`        | `session`        | `openid` | `success`            | `info`                                  | `end_user`                                    | `session`             | none                                                                                                                                         | none                                                  |
 | `session.terminated`     | `session`        | `openid` | `success`            | `info`                                  | `system`                                      | `session`, when known | none                                                                                                                                         | `termination_reason`                                  |
@@ -239,6 +244,11 @@ Notes on the protocol events:
   failure. A request that presents no credentials is not audited. A failure that presented a user name, such as a
   refused password grant, writes it as `details.attempted_username` and leaves `subject_id` absent, so `subject_id` only
   ever holds a verified subject id.
+- The self-service events, `password.change`, `password.reset_request`, `password.reset`, `email.verification` and
+  `subject.second_factor`, come from the local-account capability's implementations of the interactive seams; none
+  writes a password, a code or an email address. An unknown username's reset request is recorded as a failure with
+  `details.attempted_username` and no subject, as a failed sign-in is, while the page the end user sees is the same. A
+  completed second factor also shows as `otp` and `mfa` in the session's `amr`.
 - `session.terminated` has no `session` resource for a subject-wide termination. `details.termination_reason` is a
   session termination reason or an extension's own name.
 - `userinfo.accessed` is published only when the `audit_userinfo_access` setting is on, for the tenant or for the
