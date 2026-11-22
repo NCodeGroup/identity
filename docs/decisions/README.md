@@ -274,6 +274,7 @@ The records are grouped by area; within an area they are in number order.
 | [1365](./1365-no-url-the-server-publishes-or-compares-takes-its-origin-from-the-requests-host.md) | No URL the server publishes or compares takes its origin from the request's Host | Accepted |
 | [1399](./1399-failed-client-authentications-are-limited-per-remote-address-by-default.md) | Failed client authentications are limited per remote address by default | Accepted |
 | [1400](./1400-client-certificate-revocation-is-checked-by-configured-sources-under-the-clients-revocation-mode.md) | Client certificate revocation is checked by configured sources under the client's revocation mode | Accepted |
+| [1532](./1532-outbound-mail-is-a-port-that-queues-each-message-for-a-replaceable-transport-and-smtp-is-its-adapter.md) | Outbound mail is a port that queues each message for a replaceable transport, and SMTP is its adapter | Accepted |
 
 ### Secrets and keys
 
