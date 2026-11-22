@@ -707,7 +707,9 @@ Design considerations for remote keys:
 
 ## 8. Dev/test and conformance on Azure (Visual Studio credit)
 
-Building it is [#132](https://github.com/NCodeGroup/identity/issues/132).
+Decided in
+[ADR-1521](decisions/1521-the-hosted-platform-runs-production-on-akamai-lke-in-washington-dc-and-its-lab-on-oci-oke-basic-in-phoenix.md);
+building it is [#132](https://github.com/NCodeGroup/identity/issues/132).
 
 The Visual Studio Professional subscription includes a **$50/month Azure credit**. Its offer terms (verified
 2026-10-18) match the intended use — **dev, test, and conformance only**:
