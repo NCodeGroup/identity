@@ -104,6 +104,12 @@ public static class OpenIdSettingNames
     public const string AcrValuesSupported = "acr_values_supported";
 
     /// <summary>
+    /// Contains the name of the <c>admission_capacity_percent</c> setting: the share, in percent, of a replica's
+    /// request capacity that a tenant's protocol requests may fill before the replica sheds them. Unset means 100.
+    /// </summary>
+    public const string AdmissionCapacityPercent = "admission_capacity_percent";
+
+    /// <summary>
     /// Contains the name of the <c>default_acr</c> setting: the baseline <c>acr</c> value the authorization server
     /// asserts for a single-factor authentication event when no stronger authentication context applies. Unset means
     /// no baseline (the <c>acr</c> claim is omitted unless a stronger context — such as multi-factor — is resolved).

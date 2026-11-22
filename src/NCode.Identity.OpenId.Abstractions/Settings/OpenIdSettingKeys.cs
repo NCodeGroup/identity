@@ -102,6 +102,12 @@ public static class OpenIdSettingKeys
         new(OpenIdSettingNames.AcrValuesSupported);
 
     /// <summary>
+    /// Gets the <see cref="SettingKey{TValue}"/> for the 'admission_capacity_percent' setting.
+    /// </summary>
+    public static SettingKey<int> AdmissionCapacityPercent =>
+        new(OpenIdSettingNames.AdmissionCapacityPercent);
+
+    /// <summary>
     /// Gets the <see cref="SettingKey{TValue}"/> for the 'default_acr' setting.
     /// </summary>
     public static SettingKey<string> DefaultAcr => new(OpenIdSettingNames.DefaultAcr);
