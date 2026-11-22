@@ -697,8 +697,9 @@ internal sealed class DefaultOwnerRootKeyManager(
     }
 
     // Counts the master keys under the key the binding names that do not conform to their owner's nearest root key,
-    // whatever the state of the binding. A master key of another owner whose own root key names the same key conforms
-    // and stays, so it never holds the removal.
+    // whatever the state of the binding. It reads only the master keys under the key, by the provider and reference of
+    // the binding. A master key of another owner whose own root key names the same key conforms and stays, so it never
+    // holds the removal.
     private async ValueTask<int> CountWrappedByKeyAsync(
         PersistedOwnerRootKey binding,
         CancellationToken cancellationToken
@@ -712,18 +713,18 @@ internal sealed class DefaultOwnerRootKeyManager(
         do
         {
             await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
+            var pageRequest = new PageRequest { Limit = CountPageSize, Cursor = cursor };
             var page = await storeManager
                 .GetStore<IMasterKeyStore>()
-                .GetPageAsync(
-                    new PageRequest { Limit = CountPageSize, Cursor = cursor },
+                .GetWrappedByKeyPageAsync(
+                    binding.KeyWrapperName,
+                    binding.KeyReference,
+                    pageRequest,
                     cancellationToken
                 );
 
             foreach (var row in page.Items)
             {
-                if (!MasterKeyFactory.IsWrappedByKey(row, binding))
-                    continue;
-
                 if (!nearestRootKeys.TryGetValue(row.Owner, out var nearest))
                 {
                     nearest = await NearestRootKeyResolver.FindNearestAsync(
