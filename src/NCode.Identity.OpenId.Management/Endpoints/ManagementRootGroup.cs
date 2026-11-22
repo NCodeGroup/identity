@@ -3,6 +3,7 @@
 
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.Routing.Patterns;
 using NCode.Identity.AspNetCore;
@@ -27,7 +28,9 @@ namespace NCode.Identity.OpenId.Management.Endpoints;
 /// tenant-plane group opens the route's tenant scope. It declares on every route the <c>409</c> and <c>503</c> problems
 /// that its settings and root-key filters answer. It also describes the problem responses that every route shares in
 /// the OpenAPI document, and answers a thrown request-binding failure with its status. Its endpoints have confidential
-/// bodies, so HTTP logging never writes their request or response bodies.
+/// bodies, so HTTP logging never writes their request or response bodies. It bounds every route's request body at
+/// <see cref="MaxRequestBodyBytes"/>, which a route that needs more, such as the tenant import, raises with a
+/// <see cref="RequestSizeLimitAttribute"/> of its own.
 /// </summary>
 internal sealed class ManagementRootGroup : IEndpointGroup
 {
@@ -35,6 +38,12 @@ internal sealed class ManagementRootGroup : IEndpointGroup
     /// The <see cref="IEndpointGroup.Name"/> of the root management group.
     /// </summary>
     public const string GroupName = "api";
+
+    /// <summary>
+    /// The largest request body, in bytes, that a management route reads unless the route sets a limit of its own. It
+    /// is far above the largest ordinary management document.
+    /// </summary>
+    internal const long MaxRequestBodyBytes = 1024 * 1024;
 
     /// <inheritdoc />
     public string Name => GroupName;
@@ -50,6 +59,7 @@ internal sealed class ManagementRootGroup : IEndpointGroup
         // Every management endpoint's body can carry a credential or personal data, so HTTP logging never writes one
         // (ADR-1503).
         var problemResponseTransformer = new ManagementProblemResponseOperationTransformer();
+        var requestSizeLimit = new RequestSizeLimitAttribute(MaxRequestBodyBytes);
         group
             .AddEndpointGate<RouteGroupBuilder, ManagementCallerGate>()
             .AddEndpointFilter<RouteGroupBuilder, ManagementFailureEndpointFilter>()
@@ -57,6 +67,7 @@ internal sealed class ManagementRootGroup : IEndpointGroup
             .AddEndpointFilter<RouteGroupBuilder, UnreadableSettingsEndpointFilter>()
             .AddEndpointFilter<RouteGroupBuilder, OwnerRootKeyUnavailableEndpointFilter>()
             .WithConfidentialBodies()
+            .WithMetadata(requestSizeLimit)
             .ProducesProblem(StatusCodes.Status409Conflict)
             .ProducesProblem(StatusCodes.Status503ServiceUnavailable)
             .AddOpenApiOperationTransformer(problemResponseTransformer.TransformAsync);
