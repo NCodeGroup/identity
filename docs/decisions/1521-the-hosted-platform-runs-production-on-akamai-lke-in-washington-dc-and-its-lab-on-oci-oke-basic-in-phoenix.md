@@ -125,6 +125,10 @@ cluster; the lab runs on OCI OKE Basic in Phoenix inside the free allowance; AWS
   artifacts and the support tiers.
 - [ADR-1134](1134-the-platform-and-the-host-follow-written-cloud-native-operating-principles.md): the operating
   principles and the accepted single points of failure.
+- [ADR-1164](1164-replicas-share-expiring-keys-values-and-indexes-through-ports-with-in-process-and-valkey-adapters.md):
+  Valkey for the state every replica sees.
+- [ADR-1235](1235-stored-secrets-and-grant-payloads-are-protected-by-a-key-hierarchy-under-an-external-root-key.md): the
+  root key in a key management service.
 - [ADR-1411](1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md):
   cells and the global directory.
 - [ADR-1495](1495-the-hosted-platform-runs-customer-environments-as-tenants-on-production-under-the-ncodeid-net-platform-domain.md):
