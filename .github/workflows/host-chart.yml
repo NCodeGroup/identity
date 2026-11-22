@@ -13,7 +13,9 @@
 # the certificate, and the chosen route verifies it (ADR-1504, ADR-1507). The pods can require the ingress controller's
 # client certificate, and the chart's ingress certificate and its Secret are checked. The cluster job installs the
 # server and the management console in kind behind Traefik and behind an Envoy Gateway, which implements the Gateway's
-# backend client certificate (ADR-1506, ADR-1507).
+# backend client certificate (ADR-1506, ADR-1507). The directory-cluster job installs a control-plane cell that runs the
+# global directory and reaches it as its own machine client, in one release with its setup Job, in kind behind Traefik
+# (issues #918 and #920).
 # The chart serves no API reference unless its values enable it (ADR-1481).
 # The README's GitOps example, the Flux manifests under examples/flux/, must agree with ci/gitops-values.yaml, the chart
 # and the README, and validate against the CRD schemas of the pinned Flux release (issue #784).
@@ -1351,3 +1353,200 @@ jobs:
           kubectl -n "$NAMESPACE" logs --all-containers --tail=200 -l app.kubernetes.io/component=migrations || true
           kubectl -n traefik logs --all-containers --tail=200 -l app.kubernetes.io/name=traefik || true
           kubectl -n envoy-gateway-system logs --all-containers --tail=200 -l app.kubernetes.io/name=envoy || true
+
+  # The control-plane cell that runs the global directory and reaches it as its own machine client must serve from its
+  # first release: the cell creates, judges and keys its control-plane tenant without asking the directory, which
+  # accepts only that tenant's tokens. This job installs that cell with the directory and its setup Job in one release
+  # in a kind cluster, behind Traefik, which routes the directory's host through the directory's ServersTransport
+  # (issues #918 and #920). The cell and the directory each get a Postgres of their own.
+  directory-cluster:
+    name: Install a control-plane cell and its directory in kind behind Traefik
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    env:
+      CHART: charts/ncode-identity-host
+      NAMESPACE: identity
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Nothing in this job pushes, so the token stays out of .git/config, where later steps could read it.
+          persist-credentials: false
+
+      # A third-party action, so it is pinned to a commit; Dependabot moves the pin and its version comment together.
+      - name: Set up Helm
+        uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
+        with:
+          version: v4.3.1
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Build the host image
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: hosts/NCode.Identity.OpenId.Host/Dockerfile
+          platforms: linux/amd64
+          load: true
+          tags: ncode-identity-host:kind
+          cache-from: type=gha,scope=host-image
+
+      - name: Build the directory image
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: hosts/NCode.Identity.OpenId.GlobalDirectory.Host/Dockerfile
+          platforms: linux/amd64
+          load: true
+          tags: ncode-identity-directory:kind
+          cache-from: type=gha,scope=directory-image
+
+      - name: Create the cluster
+        uses: helm/kind-action@ea822c7bf1874f08e5a491df991c228edffc3376 # v1.15.2
+        with:
+          version: v0.33.0
+          node_image: kindest/node:v1.37.0@sha256:a1ed56cfb0e7b93589bdf97c8cd566405a265939e3620fc4f5de89adff580ae5
+          cluster_name: identity
+
+      - name: Load the images into the cluster
+        run: kind load docker-image ncode-identity-host:kind ncode-identity-directory:kind --name identity
+
+      - name: Install cert-manager
+        run: |
+          helm install cert-manager oci://quay.io/jetstack/charts/cert-manager --version v1.21.3 \
+            --namespace cert-manager --create-namespace --set crds.enabled=true --wait --timeout 5m
+
+      - name: Install Traefik
+        run: |
+          helm install traefik traefik --repo https://traefik.github.io/charts --version 42.3.1 \
+            --namespace traefik --create-namespace --set service.spec.type=ClusterIP --wait --timeout 5m
+
+      # The cell's database runs in the release's namespace and the directory's in the namespace directory-db, each from
+      # ci/kind-postgres.yaml, which reads a 'postgres-app' and a 'postgres-runtime' Secret of its own namespace. The
+      # release reads each database from two Secrets shaped like a Postgres operator's `<cluster>-app` Secret: the
+      # runtime role the pods connect as and the schema owner the migration Job connects as, `postgres-runtime` and
+      # `postgres-app` for the cell and `directory-postgres-runtime` and `directory-postgres-app` for the directory,
+      # which name the directory's database by its Service in directory-db. The root key, the setup Job's root
+      # administrator and the cell's directory client key come from Secrets of their own; all are generated here and
+      # never stored.
+      - name: Create the databases and the release's Secrets
+        run: |
+          set -euo pipefail
+          kubectl create namespace "$NAMESPACE"
+          kubectl create namespace directory-db
+          password=$(openssl rand -hex 16)
+          runtime_password=$(openssl rand -hex 16)
+          directory_password=$(openssl rand -hex 16)
+          directory_runtime_password=$(openssl rand -hex 16)
+          kubectl -n "$NAMESPACE" create secret generic postgres-app \
+            --from-literal=host=postgres --from-literal=port=5432 --from-literal=dbname=openiddb \
+            --from-literal=user=postgres --from-literal=password="$password"
+          kubectl -n "$NAMESPACE" create secret generic postgres-runtime \
+            --from-literal=host=postgres --from-literal=port=5432 --from-literal=dbname=openiddb \
+            --from-literal=user=ncode_identity_app --from-literal=password="$runtime_password"
+          kubectl -n directory-db create secret generic postgres-app \
+            --from-literal=host=postgres --from-literal=port=5432 --from-literal=dbname=directorydb \
+            --from-literal=user=postgres --from-literal=password="$directory_password"
+          kubectl -n directory-db create secret generic postgres-runtime \
+            --from-literal=host=postgres --from-literal=port=5432 --from-literal=dbname=directorydb \
+            --from-literal=user=ncode_identity_app --from-literal=password="$directory_runtime_password"
+          kubectl -n "$NAMESPACE" create secret generic directory-postgres-app \
+            --from-literal=host=postgres.directory-db --from-literal=port=5432 --from-literal=dbname=directorydb \
+            --from-literal=user=postgres --from-literal=password="$directory_password"
+          kubectl -n "$NAMESPACE" create secret generic directory-postgres-runtime \
+            --from-literal=host=postgres.directory-db --from-literal=port=5432 --from-literal=dbname=directorydb \
+            --from-literal=user=ncode_identity_app --from-literal=password="$directory_runtime_password"
+          kubectl -n "$NAMESPACE" create secret generic identity-root-key \
+            --from-literal=key="$(head -c 32 /dev/urandom | basenc --base64url -w0 | tr -d '=')"
+          kubectl -n "$NAMESPACE" create secret generic identity-setup-root \
+            --from-literal=userName=root --from-literal=password="$(openssl rand -hex 16)"
+          openssl genpkey -algorithm EC -pkeyopt ec_paramgen_curve:P-256 -out "$RUNNER_TEMP/cell-client.pem"
+          kubectl -n "$NAMESPACE" create secret generic cell-client-key \
+            --from-file=cell-client.pem="$RUNNER_TEMP/cell-client.pem"
+          kubectl -n "$NAMESPACE" apply -f "$CHART/ci/kind-postgres.yaml"
+          kubectl -n directory-db apply -f "$CHART/ci/kind-postgres.yaml"
+          kubectl -n "$NAMESPACE" rollout status deployment/postgres --timeout=3m
+          kubectl -n directory-db rollout status deployment/postgres --timeout=3m
+
+      # The pre-install migration Jobs of the cell and of the directory and the pods' readiness probes over HTTPS prove
+      # that both serve HTTPS. The setup Job is part of the release, so the release waits for it too; the wait for its
+      # completion names it.
+      - name: Install the chart
+        run: |
+          set -euo pipefail
+          helm install release "$CHART" --namespace "$NAMESPACE" --values "$CHART/ci/kind-directory-values.yaml" \
+            --wait --timeout 10m
+          kubectl -n "$NAMESPACE" wait --for=condition=complete job -l app.kubernetes.io/component=setup --timeout=5m
+
+      # route <namespace/service> <host> <path> sends one request with the Host header through a port-forward to the
+      # Service's port 80 and prints the HTTP status code, or 000 when the request fails. expect_route <expected>
+      # <namespace/service> <host> <path> <description> requires the expected status code within 12 attempts five
+      # seconds apart. The cell serves its discovery document and key set, which its control-plane tenant issues without
+      # the directory, and the directory is ready behind its own host.
+      - name: Serve the cell and the directory through Traefik
+        run: |
+          set -euo pipefail
+          route() {
+            local namespace="${1%%/*}"
+            local service="${1#*/}"
+            local host="$2"
+            local path="$3"
+            local code=000
+            local forward
+            kubectl -n "$namespace" port-forward "svc/$service" 8080:80 > /dev/null 2>&1 &
+            forward=$!
+            local attempt
+            for attempt in $(seq 1 30); do
+              if (exec 3<> /dev/tcp/127.0.0.1/8080) 2> /dev/null; then
+                break
+              fi
+              sleep 1
+            done
+            code=$(curl --silent --output /dev/null --write-out '%{http_code}' --max-time 10 \
+              -H "Host: $host" "http://127.0.0.1:8080$path" || true)
+            kill "$forward" 2> /dev/null || true
+            wait "$forward" 2> /dev/null || true
+            printf '%s' "$code"
+          }
+          expect_route() {
+            local expected="$1"
+            local service="$2"
+            local host="$3"
+            local path="$4"
+            local description="$5"
+            local code=000
+            local attempt
+            for attempt in $(seq 1 12); do
+              code=$(route "$service" "$host" "$path")
+              if [ "$code" = "$expected" ]; then
+                return 0
+              fi
+              sleep 5
+            done
+            echo "::error::$description answered $code; expected $expected."
+            exit 1
+          }
+          expect_route 200 traefik/traefik id.example.com /.well-known/openid-configuration \
+            'A request to /.well-known/openid-configuration through Traefik, which proves that the control-plane cell serves its discovery document,'
+          expect_route 200 traefik/traefik id.example.com /oauth2/jwks \
+            'A request to /oauth2/jwks through Traefik, which proves that the control-plane cell holds a signing key for its control-plane tenant,'
+          expect_route 200 traefik/traefik directory.example.com /health/ready \
+            'A request to /health/ready on the directory host through Traefik, which must verify and reach the directory pods,'
+
+      - name: Show the cluster when a step fails
+        if: failure()
+        run: |
+          kubectl get pods -A || true
+          kubectl get certificates -A || true
+          kubectl get ingress -A || true
+          kubectl get serverstransports.traefik.io -A || true
+          kubectl -n "$NAMESPACE" describe pods || true
+          kubectl -n "$NAMESPACE" logs -l app.kubernetes.io/component=server --tail=200 || true
+          kubectl -n "$NAMESPACE" logs -l app.kubernetes.io/component=directory --tail=200 || true
+          kubectl -n "$NAMESPACE" logs --all-containers --tail=200 -l app.kubernetes.io/component=setup || true
+          kubectl -n "$NAMESPACE" logs --all-containers --tail=200 -l app.kubernetes.io/component=migrations || true
+          kubectl -n "$NAMESPACE" logs --all-containers --tail=200 -l app.kubernetes.io/component=directory-migrations || true
+          kubectl -n traefik logs --all-containers --tail=200 -l app.kubernetes.io/name=traefik || true
