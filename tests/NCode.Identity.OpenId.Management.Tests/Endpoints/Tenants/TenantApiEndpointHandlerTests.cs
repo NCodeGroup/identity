@@ -86,6 +86,7 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
             Region = "us",
             Kind = CellKinds.Shared,
         };
+    private TenantResolutionOptions TenantResolutionOptions { get; } = new();
     private Mock<IManagementAuditRecorder> MockManagementAuditRecorder { get; }
     private Mock<IMediator> MockMediator { get; }
     private TenantApiEndpointHandler Handler { get; }
@@ -148,6 +149,7 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
             MockRemoteSecretDestroyer.Object,
             MockTenantDirectory.Object,
             Options.Create(CellOptions),
+            Options.Create(TenantResolutionOptions),
             MockTenantConfigurationExporter.Object,
             MockManagementAuditRecorder.Object,
             NullLogger<TenantApiEndpointHandler>.Instance
@@ -3972,13 +3974,13 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
         return assert => assert(validated);
     }
 
-    private void SetupTenantReserved() =>
+    private void SetupTenantReserved(string? teamId = null) =>
         MockTenantDirectory
             .Setup(x =>
                 x.ReserveAsync(
                     It.Is<TenantReservation>(reservation =>
                         reservation.TenantId == "acme"
-                        && reservation.TeamId == TeamId
+                        && reservation.TeamId == teamId
                         && reservation.Cell == "cell-1"
                     ),
                     It.IsAny<CancellationToken>()
@@ -4016,9 +4018,9 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
 
-    private void SetupCreatePersistence(PersistedTenant seeded)
+    private void SetupCreatePersistence(PersistedTenant seeded, string? reservedTeamId = null)
     {
-        SetupTenantReserved();
+        SetupTenantReserved(reservedTeamId);
         SetupTenantPlaced();
         MockTenantStore
             .Setup(x => x.AddAsync(It.IsAny<PersistedTenant>(), It.IsAny<CancellationToken>()))
@@ -4353,6 +4355,57 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
 
         Assert.IsType<Created<TenantResource>>(result);
         Assert.Equal(["reserve", "add-tenant", "save", "place", "save"], Events);
+    }
+
+    [Fact]
+    public async Task CreateTenantAsync_WhenTheTeamIsThePlatformsOwn_ReservesTheTenantInNoTeam()
+    {
+        SetupTeamForCreate();
+        SetupCreatorAssignment();
+        SetupTenantChangedAudit();
+        SetupDefaultAlias("acme", alias: null);
+        SetupValidSettings();
+        SetupStore();
+        SetupDefaultIssuer("acme", DerivedIssuer);
+        SetupCreateValidation();
+        SetupCreatePersistence(CreateSeededTenant(DerivedIssuer), reservedTeamId: null);
+        SetupTenantEnvironment(tenantId: "acme");
+
+        // Strict mocks: a reservation in any other team matches no setup and fails the test.
+        var result = await Handler.CreateTenantAsync(
+            CreateHttpContext(authenticated: true),
+            TeamId,
+            CreateTenantRequest(),
+            CancellationToken.None
+        );
+
+        Assert.IsType<Created<TenantResource>>(result);
+    }
+
+    [Fact]
+    public async Task CreateTenantAsync_WhenTheTeamIsNotThePlatformsOwn_ReservesTheTenantInItsTeam()
+    {
+        TenantResolutionOptions.Root.TeamId = "another-team";
+        SetupTeamForCreate();
+        SetupCreatorAssignment();
+        SetupTenantChangedAudit();
+        SetupDefaultAlias("acme", alias: null);
+        SetupValidSettings();
+        SetupStore();
+        SetupDefaultIssuer("acme", DerivedIssuer);
+        SetupCreateValidation();
+        SetupCreatePersistence(CreateSeededTenant(DerivedIssuer), reservedTeamId: TeamId);
+        SetupTenantEnvironment(tenantId: "acme");
+
+        // Strict mocks: a reservation in any other team matches no setup and fails the test.
+        var result = await Handler.CreateTenantAsync(
+            CreateHttpContext(authenticated: true),
+            TeamId,
+            CreateTenantRequest(),
+            CancellationToken.None
+        );
+
+        Assert.IsType<Created<TenantResource>>(result);
     }
 
     [Fact]

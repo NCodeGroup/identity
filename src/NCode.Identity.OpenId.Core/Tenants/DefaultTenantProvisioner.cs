@@ -200,16 +200,9 @@ internal sealed class DefaultTenantProvisioner(
             );
         }
 
-        // The platform's own team is a row each cell creates for itself, and the directory holds no record of it, so a
-        // tenant of that team is reserved in no team, as the directory holds the control-plane cell's root tenant; no
-        // team limit applies to it. Every other team is one the control plane published (ADR-1411).
-        var reservedTeamId = string.Equals(
-            tenant.TeamId,
-            RootOptions.TeamId,
-            StringComparison.Ordinal
-        )
-            ? null
-            : tenant.TeamId;
+        // A tenant of the platform's own team is reserved in no team, because the directory holds no record of that
+        // team (ADR-1411).
+        var reservedTeamId = TenantReservationRules.GetTeamId(tenant.TeamId, RootOptions.TeamId);
         var reservation = new TenantReservation
         {
             TenantId = tenant.TenantId,

@@ -110,6 +110,7 @@ internal class TenantApiEndpointHandler(
     IRemoteSecretDestroyer remoteSecretDestroyer,
     ITenantDirectory tenantDirectory,
     IOptions<CellOptions> cellOptions,
+    IOptions<TenantResolutionOptions> tenantResolutionOptions,
     ITenantConfigurationExporter tenantConfigurationExporter,
     IManagementAuditRecorder managementAuditRecorder,
     ILogger<TenantApiEndpointHandler> logger
@@ -139,6 +140,7 @@ internal class TenantApiEndpointHandler(
     private IRemoteSecretDestroyer RemoteSecretDestroyer { get; } = remoteSecretDestroyer;
     private ITenantDirectory TenantDirectory { get; } = tenantDirectory;
     private CellOptions CellOptions { get; } = cellOptions.Value;
+    private RootTenantOptions RootOptions => tenantResolutionOptions.Value.Root;
     private ITenantConfigurationExporter TenantConfigurationExporter { get; } =
         tenantConfigurationExporter;
 
@@ -930,7 +932,8 @@ internal class TenantApiEndpointHandler(
     /// <summary>
     /// Creates a tenant through the directory as a saga: reserves the tenant's identifier and issuer, inserts the
     /// tenant, then places it in this cell. A creation that fails before the tenant is placed removes the inserted
-    /// tenant, then releases the reservation, so the directory never frees an identifier whose row still exists.
+    /// tenant, then releases the reservation, so the directory never frees an identifier whose row still exists. A
+    /// tenant of the platform's own team is reserved in no team, because the directory holds no record of that team.
     /// </summary>
     /// <param name="tenant">The <see cref="PersistedTenant"/> to create.</param>
     /// <param name="storeManager">The <see cref="IStoreManager"/> that inserts the tenant.</param>
@@ -947,11 +950,15 @@ internal class TenantApiEndpointHandler(
         // A tenant without an issuer reserves its identifier alone.
         var issuer = tenant.Issuer ?? string.Empty;
 
+        // A tenant of the platform's own team is reserved in no team, because the directory holds no record of that
+        // team (ADR-1411).
+        var reservedTeamId = TenantReservationRules.GetTeamId(tenant.TeamId, RootOptions.TeamId);
+
         var reservation = new TenantReservation
         {
             TenantId = tenant.TenantId,
             Issuer = issuer,
-            TeamId = tenant.TeamId,
+            TeamId = reservedTeamId,
             Cell = CellOptions.Name,
         };
         var reservationResult = await TenantDirectory.ReserveAsync(reservation, cancellationToken);
