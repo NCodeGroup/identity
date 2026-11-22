@@ -80,8 +80,9 @@ claim confers management authority except the development bootstrap client's `Gl
    server `urn:ncode:management`. `ManagementResourceServerSeedHandler` seeds it on the `SeedTenantCommand` fan-out into
    every tenant that lacks it, with `tenant_settings`, `tenant_secrets`, `encryption_keys`, `clients`, `client_secrets`,
    `resource_servers`, `resource_server_secrets`, `client_grants`, `local_accounts`, `read:grants` and `delete:grants`.
-   Into the root tenant (`TenantPlane.Root`) only, it also seeds `platform_settings`, `platform_encryption_keys`,
-   `teams`, `team_settings` and `tenants`, so a workload tenant never holds them though it shares the audience.
+   Into the control-plane cell's root tenant (`TenantPlane.Root`) only, it also seeds `platform_settings`,
+   `platform_encryption_keys`, `teams`, `team_settings` and `tenants`, so a workload tenant never holds them though it
+   shares the audience.
 
 ## Options considered
 
@@ -96,7 +97,7 @@ claim confers management authority except the development bootstrap client's `Gl
 - **`Owner` as a tenant's administrator.** An owner never creates a tenant's clients or resource servers, so the
   tenant's administration would still need a second role. Rejected.
 - **Two management audiences.** A second audience splits the scopes and the seeding for no gain; scope families the
-  root tenant alone holds are seeded into it alone. Rejected.
+  control-plane cell's root tenant alone holds are seeded into it alone. Rejected.
 - **A role assignment at a node, with the management scopes on one resource server.** One grantable, listable authority
   source, inherited down the chain. Chosen.
 - **Replicate platform and team assignments into every cell.** A cell would answer from a copy that lags the control

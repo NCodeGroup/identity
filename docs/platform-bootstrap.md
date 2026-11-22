@@ -332,10 +332,12 @@ other cell once the directory runs.
    `urn:ncode:directory` (scope `directory`) and `urn:ncode:control-plane` (scope `control-plane`) into its root tenant,
    and every client of that tenant can request them.
 2. **Run the directory.** Deploy the directory host with `directory.enabled=true`, `directory.issuer` set to the
-   control-plane cell's issuer, `directory.controlPlaneCell` set to its name, `directory.allowedHosts`, its own database
-   (the runtime role's connection in `directory.database`, whose role `directory.database.runtimeRole` names, and the
-   schema owner's connection in `directory.migrations.database`, each from a Secret that holds the finished connection
-   string, `existingSecret`, or the connection's parts, `directory.database.parts.existingSecret` and
+   control-plane cell's issuer, `directory.controlPlaneCell` set to its name, `directory.controlPlaneTenantId` set to
+   its root tenant's identifier when the directory runs in a release of another cell (the control-plane cell's own
+   release derives it), `directory.allowedHosts`, its own database (the runtime role's connection in
+   `directory.database`, whose role `directory.database.runtimeRole` names, and the schema owner's connection in
+   `directory.migrations.database`, each from a Secret that holds the finished connection string, `existingSecret`, or
+   the connection's parts, `directory.database.parts.existingSecret` and
    `directory.migrations.database.parts.existingSecret`), its serving certificate (`directory.backendTls`, which the
    chart issues by default) and its route (`directory.ingress` or `directory.httpRoute`), as the chart's
    [The cell](../charts/ncode-identity-host/README.md#the-cell) section lists. The directory accepts bearer tokens of
@@ -369,14 +371,17 @@ other cell once the directory runs.
    `{name}` is the key ring's name, and the key ring signs the client's assertions. The host refuses to start when
    `Directory:ClientId` is not `cell-` followed by `Cell:Name` or `Cell:ManagementUrl` is empty. Values of the chart are
    in its [The cell](../charts/ncode-identity-host/README.md#the-cell) section; its `database` and `migrations.database`
-   values are the cell's own two roles and are never the directory's.
+   values are the cell's own two roles and are never the directory's. Under the `StaticSingle` strategy, give every cell
+   other than the control-plane cell its own `tenantResolution.staticSingle.tenantId`: a tenant identifier is unique
+   across the platform's cells, the cell reserves and places its tenant in the directory when it first creates it, and
+   it does not create a tenant whose identifier another cell holds.
 
-**Verify:** the cell starts and reports ready. A client-credentials token request for the client `cell-{name}`,
-signed with the key ring, at the control-plane cell's root issuer returns a token for the audience
-`urn:ncode:directory` with the scope `directory`. Creating a tenant in the cell reserves its identifier in the directory
-and places it in the cell, and fails with `503` while the directory is unreachable. A tenant that is already created
-keeps serving whether or not the directory is reachable. Once the control-plane cell runs with its client, a team
-created in it reaches the directory, and the other cells mirror it.
+**Verify:** the cell starts and reports ready. A client-credentials token request for the client `cell-{name}`, signed
+with the key ring, at the control-plane cell's root issuer returns a token for the audience `urn:ncode:directory` with
+the scope `directory`. Creating a tenant in the cell reserves its identifier in the directory and places it in the cell,
+and so does the cell's own tenant when the cell first serves it, and fails with `503` while the directory is
+unreachable. A tenant that is already created keeps serving whether or not the directory is reachable. Once the
+control-plane cell runs with its client, a team created in it reaches the directory, and the other cells mirror it.
 
 ## 10. Close out
 
