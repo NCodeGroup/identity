@@ -45,7 +45,8 @@ cluster; the lab runs on OCI OKE Basic in Phoenix inside the free allowance; AWS
    with the HA control plane (+$60 a month) and the cell moves to it: its release is deployed against the same managed
    database and its DNS records point at the new load balancer. HA is never enabled in place, which replaces every node
    irreversibly. Paid cells move to a cluster of their own when free usage shows in paid customers' latency or a
-   contract asks for it; a dedicated cell runs on a dedicated-CPU node pool of that cluster or on a cluster of its own.
+   contract asks for it; a dedicated cell runs on a dedicated-CPU node pool of the cluster that hosts paid cells, or on
+   a cluster of its own.
 3. **The lab.** An OCI Pay-As-You-Go tenancy with home region `us-phoenix-1`; OKE Basic, whose control plane is free; 2
    × Ampere A1 (1 OCPU / 6 GB) in two availability domains, inside the free allowance ($0); the free network load
    balancer; CloudNativePG and Valkey in the cluster; arm64. It takes release candidates, runs the deployment posture
