@@ -18,6 +18,7 @@ function fill(label: RegExp, value: string): void {
 }
 
 function fillAccount(password = 'a long passphrase!', confirmation = password): void {
+  fill(/^Display name/, '  Root Admin  ');
   fill(/^User name/, '  root  ');
   fill(/^Password/, password);
   fill(/^Confirm password/, confirmation);
@@ -33,6 +34,12 @@ describe('RootAccountStep', () => {
 
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(
       'Create the root administrator',
+    );
+    const displayName = screen.getByLabelText(/^Display name/);
+    expect(displayName).toHaveAttribute('autocomplete', 'name');
+    expect(displayName).toBeRequired();
+    expect(displayName).toHaveAccessibleDescription(
+      'The name the management console and your applications show.',
     );
     const userName = screen.getByLabelText(/^User name/);
     expect(userName).toHaveAttribute('autocomplete', 'username');
@@ -72,13 +79,25 @@ describe('RootAccountStep', () => {
     expect(onContinue).not.toHaveBeenCalled();
   });
 
-  it('continues with the trimmed user name and omits a blank email', () => {
+  it('refuses a blank display name without continuing', () => {
+    const { onContinue } = renderStep();
+
+    fillAccount();
+    fill(/^Display name/, '   ');
+    submit();
+
+    expect(screen.getByRole('alert')).toHaveTextContent('The display name is required.');
+    expect(onContinue).not.toHaveBeenCalled();
+  });
+
+  it('continues with the trimmed display name, the trimmed user name and omits a blank email', () => {
     const { onContinue } = renderStep();
 
     fillAccount();
     submit();
 
     expect(onContinue).toHaveBeenCalledExactlyOnceWith({
+      displayName: 'Root Admin',
       userName: 'root',
       password: 'a long passphrase!',
     });
@@ -97,6 +116,7 @@ describe('RootAccountStep', () => {
 
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     expect(onContinue).toHaveBeenCalledExactlyOnceWith({
+      displayName: 'Root Admin',
       userName: 'root',
       email: 'root@example.com',
       password: 'a long passphrase!',
