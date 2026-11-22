@@ -9,6 +9,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using NCode.Identity.AspNetCore;
 using NCode.Identity.OpenId.GlobalDirectory;
+using NCode.Identity.OpenId.Persistence.Tenants;
 using NCode.Identity.Registration.AspNetCore;
 
 namespace NCode.Identity.OpenId.Management.ControlPlane;
@@ -23,15 +24,21 @@ POST control-plane/v1/authority
 /// Provides the endpoint through which the control-plane cell tells the other cells which platform and team roles a
 /// caller holds. It maps nothing unless the cell is the control plane. The route sits beside the management <c>/api</c>
 /// tree, never under it, because the filters of that tree treat a request as a management caller; it is authenticated
-/// by <see cref="ControlPlaneAuthenticationEndpointFilter"/> and its bodies are never logged.
+/// by <see cref="ControlPlaneAuthenticationGate"/> before the route binds its body, it reads the roles inside an
+/// unscoped ambient scope because they are the control plane's own rows, and its bodies are never logged.
 /// </summary>
-// See ADR-1411 and ADR-1466.
+// See ADR-1520, ADR-1411 and ADR-1466.
 internal sealed class ControlPlaneAuthorityEndpointProvider : IEndpointProvider
 {
     /// <summary>
     /// The path of the authority endpoint.
     /// </summary>
     internal const string AuthorityPath = "/control-plane/v1/authority";
+
+    /// <summary>
+    /// The reason that the route gives the unscoped scope it opens.
+    /// </summary>
+    internal const string UnscopedReason = "control-plane authority";
 
     /// <inheritdoc />
     public void Map(IEndpointRouteBuilder endpoints)
@@ -42,7 +49,7 @@ internal sealed class ControlPlaneAuthorityEndpointProvider : IEndpointProvider
 
         endpoints
             .MapPost(AuthorityPath, GetAuthorityAsync)
-            .AddEndpointFilter<ControlPlaneAuthenticationEndpointFilter>()
+            .AddEndpointGate<RouteHandlerBuilder, ControlPlaneAuthenticationGate>()
             .WithConfidentialBodies()
             .ExcludeFromDescription();
     }
@@ -52,14 +59,18 @@ internal sealed class ControlPlaneAuthorityEndpointProvider : IEndpointProvider
     /// </summary>
     /// <param name="request">The <see cref="ControlPlaneAuthorityRequest"/> that names the caller.</param>
     /// <param name="controlPlaneAuthority">The <see cref="IControlPlaneAuthority"/> that answers it.</param>
+    /// <param name="ambientTenantAccessor">The <see cref="IAmbientTenantAccessor"/> that opens the unscoped
+    /// scope.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> of the request.</param>
     /// <returns>The <see cref="ControlPlaneAuthority"/> of the caller.</returns>
     internal static async ValueTask<Ok<ControlPlaneAuthority>> GetAuthorityAsync(
         ControlPlaneAuthorityRequest request,
         IControlPlaneAuthority controlPlaneAuthority,
+        IAmbientTenantAccessor ambientTenantAccessor,
         CancellationToken cancellationToken
     )
     {
+        using var scope = ambientTenantAccessor.BeginUnscoped(UnscopedReason);
         var authority = await controlPlaneAuthority.GetAsync(request, cancellationToken);
         return TypedResults.Ok(authority);
     }

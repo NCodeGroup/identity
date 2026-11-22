@@ -78,7 +78,7 @@ public sealed class ControlPlaneAuthorityEndpointProviderTests : IDisposable
     }
 
     [Fact]
-    public async Task Map_WhenTheCellIsTheControlPlane_TheRouteRunsTheAuthenticationFilterBeforeTheAuthority()
+    public async Task Map_WhenTheCellIsTheControlPlane_TheRouteRunsTheAuthenticationGateBeforeTheAuthority()
     {
         await using var app = CreateApp(isControlPlane: true);
         var endpoint = Assert.Single(MapEndpoints(app));
@@ -122,6 +122,46 @@ public sealed class ControlPlaneAuthorityEndpointProviderTests : IDisposable
         var endpoints = MapEndpoints(app);
 
         Assert.Empty(endpoints);
+    }
+
+    #endregion
+
+    #region GetAuthorityAsync Tests
+
+    [Fact]
+    public async Task GetAuthorityAsync_WhenCalled_ReadsTheAuthorityInAnUnscopedScope()
+    {
+        var request = new ControlPlaneAuthorityRequest
+        {
+            Subject = "subject-1",
+            ClientId = "cell-eu1",
+        };
+        var expected = new ControlPlaneAuthority { PrincipalId = "principal-1" };
+        var isScopeOpen = false;
+        bool? wasScopeOpenWhileReading = null;
+        var mockScope = MockRepository.Create<IDisposable>();
+        mockScope.Setup(x => x.Dispose()).Callback(() => isScopeOpen = false).Verifiable();
+        MockAccessor
+            .Setup(x => x.BeginUnscoped("control-plane authority"))
+            .Callback(() => isScopeOpen = true)
+            .Returns(mockScope.Object)
+            .Verifiable();
+        MockAuthority
+            .Setup(x => x.GetAsync(request, CancellationToken.None))
+            .Callback(() => wasScopeOpenWhileReading = isScopeOpen)
+            .Returns(new ValueTask<ControlPlaneAuthority>(expected))
+            .Verifiable();
+
+        var result = await ControlPlaneAuthorityEndpointProvider.GetAuthorityAsync(
+            request,
+            MockAuthority.Object,
+            MockAccessor.Object,
+            CancellationToken.None
+        );
+
+        Assert.Same(expected, result.Value);
+        Assert.True(wasScopeOpenWhileReading);
+        Assert.False(isScopeOpen);
     }
 
     #endregion
