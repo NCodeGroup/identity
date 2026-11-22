@@ -34,9 +34,9 @@ namespace NCode.Identity.Server.ConformanceEnvironment;
 /// A seeded client's settings come from configuration, so the document is validated against the registered setting
 /// descriptors before it is stored: a value the server cannot honor stops the seeding with an error naming the client,
 /// rather than storing a client that fails every request that loads it. Its key set is imported under the client-key
-/// policy a dynamically registered <c>jwks</c> follows, and a key set the policy refuses stops the seeding the same way.
-/// So does a setting that a client coherence rule refuses. The test user's password must meet the tenant's password
-/// policy, and a refused one stops the seeding with an error naming the test user.
+/// policy a dynamically registered <c>jwks</c> follows, and a key set the policy refuses stops the seeding the same
+/// way. So does a setting that a client coherence rule refuses. The test user's password must meet the tenant's
+/// password policy, and a refused one stops the seeding with an error naming the test user.
 /// </remarks>
 // See ADR-1140.
 internal sealed class ConformanceSeedHandler(
@@ -271,8 +271,8 @@ internal sealed class ConformanceSeedHandler(
         Logger.ConformanceTestUserSeeded(userName, tenantId);
     }
 
-    // Compose the account's display name, which the 'name' claim carries, from whichever name parts are configured so the
-    // suite's EnsureUserInfoContainsName check (a 'profile' scope request) always finds one.
+    // Compose the account's display name, which the 'name' claim carries, from whichever name parts are configured so
+    // the suite's EnsureUserInfoContainsName check (a 'profile' scope request) always finds one.
     private string BuildTestUserDisplayName(string userName)
     {
         var nameParts = new[] { Options.TestUserGivenName, Options.TestUserFamilyName }.Where(part =>

@@ -341,7 +341,8 @@ internal class LocalAccountApiEndpointHandler(
     }
 
     /// <summary>
-    /// Lists the local accounts of the platform, which are the accounts of the control-plane tenant, one page at a time.
+    /// Lists the local accounts of the platform, which are the accounts of the control-plane tenant, one page at a
+    /// time.
     /// </summary>
     /// <response code="200">A page of local accounts.</response>
     internal virtual async ValueTask<IResult> ListPlatformLocalAccountsAsync(

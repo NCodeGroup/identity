@@ -30,9 +30,9 @@ export type UseLocalAccountAdministrationOptions = {
 };
 
 /**
- * Hook: the local-account administration both account pages share — the create/edit form dialog, the
- * password-reset and delete dialogs, the enable/disable toggle, and their error state. An account's
- * own routes address it through its `tenantId`, in the cell the owner names; the platform owner has none.
+ * Hook: the local-account administration both account pages share — the create/edit form dialog, the password-reset and
+ * delete dialogs, the enable/disable toggle, and their error state. An account's own routes address it through its
+ * `tenantId`, in the cell the owner names; the platform owner has none.
  */
 export function useLocalAccountAdministration({
   owner,

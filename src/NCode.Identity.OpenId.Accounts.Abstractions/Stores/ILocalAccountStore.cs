@@ -37,8 +37,8 @@ public interface ILocalAccountStore : IStore
     );
 
     /// <summary>
-    /// Updates the mutable profile and status fields (username, display name, email, email-verified, and enabled) of an existing
-    /// local account. The credential is managed through <see cref="SetPasswordAsync"/> and the claims through
+    /// Updates the mutable profile and status fields (username, display name, email, email-verified, and enabled) of an
+    /// existing local account. The credential is managed through <see cref="SetPasswordAsync"/> and the claims through
     /// <see cref="ReplaceClaimsAsync"/>.
     /// </summary>
     /// <param name="account">The <see cref="PersistedLocalAccount"/> to update.</param>

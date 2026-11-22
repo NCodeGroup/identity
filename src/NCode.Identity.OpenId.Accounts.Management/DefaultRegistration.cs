@@ -26,8 +26,8 @@ public static class DefaultRegistration
     {
         /// <summary>
         /// Registers the local-account management endpoints (nested under the tenant-plane group
-        /// <c>/api/tenants/{tenantId}</c>), the platform routes <c>/api/platform/local-accounts</c> (nested under the root
-        /// group and mapped on the control-plane cell only) and the default <see cref="ILocalAccountValidator"/>.
+        /// <c>/api/tenants/{tenantId}</c>), the platform routes <c>/api/platform/local-accounts</c> (nested under the
+        /// root group and mapped on the control-plane cell only) and the default <see cref="ILocalAccountValidator"/>.
         /// </summary>
         /// <param name="localAccountStore">The local-account store builder — the compile-time proof that a
         /// <c>ILocalAccountStore</c> is registered, so this capability cannot be added without one.</param>
@@ -40,7 +40,8 @@ public static class DefaultRegistration
 
             var serviceCollection = builder.ServiceCollection;
 
-            // The handlers' XML documentation describes their OpenAPI operations only in a project that calls AddOpenApi.
+            // The handlers' XML documentation describes their OpenAPI operations only in a project that calls
+            // AddOpenApi.
             serviceCollection.AddOpenApi();
 
             // Attach the endpoint to the existing tenant-plane group by registering it keyed under the group's name
@@ -51,7 +52,8 @@ public static class DefaultRegistration
             >(ManagementEndpointGroups.Tenant);
             serviceCollection.TryAddEnumerable(endpointDescriptor);
 
-            // The platform routes name no tenant, so the root group serves them; the handler is shared with the tenant routes.
+            // The platform routes name no tenant, so the root group serves them; the handler is shared with the tenant
+            // routes.
             serviceCollection.TryAddSingleton<LocalAccountApiEndpointHandler>();
             var platformEndpointDescriptor = ServiceDescriptor.KeyedSingleton<
                 IEndpointProvider,

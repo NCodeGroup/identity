@@ -44,8 +44,8 @@ export const emptyLocalAccountFormValues: LocalAccountFormValues = {
 
 /**
  * Stateless local-account create/edit form rendered in a dialog. The field state is local because it is intrinsic to
- * the controlled inputs (it reseeds from {@link LocalAccountFormDialogProps.initialValues} each time the dialog
- * opens), so the component still renders in isolation under Storybook/RTL. Only create mode asks for a password. All
+ * the controlled inputs (it reseeds from {@link LocalAccountFormDialogProps.initialValues} each time the dialog opens),
+ * so the component still renders in isolation under Storybook/RTL. Only create mode asks for a password. All
  * persistence and server-error handling lives in the container that wires the mutation.
  */
 export function LocalAccountFormDialog({

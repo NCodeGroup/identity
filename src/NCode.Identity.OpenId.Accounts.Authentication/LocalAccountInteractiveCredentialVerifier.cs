@@ -20,10 +20,10 @@ namespace NCode.Identity.OpenId.Accounts.Authentication;
 /// Provides the local-account implementation of the <see cref="IInteractiveCredentialVerifier"/> seam, backed by the
 /// configured <see cref="ILocalAccountStore"/> — the same credential path the resource-owner password grant uses. It
 /// verifies the submitted username/password and, on success, builds the cookie <see cref="ClaimsPrincipal"/> carrying
-/// the subject, issuer, tenant, and authentication-time claims the authorize flow reads, and the <c>name</c> claim from the account's display name. A host fronting a different
-/// backend (LDAP, an external identity provider, passwordless) registers its own implementation instead. A password for
-/// an account that reached its limit of failed attempts is verified against the store's dummy hash and refused, as a
-/// wrong one is.
+/// the subject, issuer, tenant, and authentication-time claims the authorize flow reads, and the <c>name</c> claim from
+/// the account's display name. A host fronting a different backend (LDAP, an external identity provider, passwordless)
+/// registers its own implementation instead. A password for an account that reached its limit of failed attempts is
+/// verified against the store's dummy hash and refused, as a wrong one is.
 /// </summary>
 internal sealed class LocalAccountInteractiveCredentialVerifier(
     IStoreManagerFactory storeManagerFactory,

@@ -14,8 +14,8 @@ namespace NCode.Identity.OpenId.Management.Endpoints;
 public static class ManagementEndpointGroups
 {
     /// <summary>
-    /// The name of the root management group (<c>/api</c>), whose keyed endpoint providers map control-plane routes such
-    /// as <c>/api/platform/...</c>; it opens no tenant scope.
+    /// The name of the root management group (<c>/api</c>), whose keyed endpoint providers map control-plane routes
+    /// such as <c>/api/platform/...</c>; it opens no tenant scope.
     /// </summary>
     public const string Root = "api";
 

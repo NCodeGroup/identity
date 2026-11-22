@@ -27,9 +27,9 @@ namespace NCode.Identity.OpenId.Accounts.Authentication;
 /// subject-claims handler keeps them out of the ID token and this handler supplies them here. In addition, individual
 /// claims requested via the OIDC <c>claims</c> request parameter's <c>userinfo</c> member (OIDC Core §5.5) are served
 /// from the account store even when the owning scope was not granted. The local account is resolved from the caller's
-/// principal via its one-to-one self-issued connection (<see cref="AccountConstants.SelfIssuer"/>), and only the
-/// claims permitted by the token's granted scopes or explicitly requested are emitted. A host fronting a different
-/// user store registers its own enricher instead. The <c>name</c> claim comes from the account's display name.
+/// principal via its one-to-one self-issued connection (<see cref="AccountConstants.SelfIssuer"/>), and only the claims
+/// permitted by the token's granted scopes or explicitly requested are emitted. A host fronting a different user store
+/// registers its own enricher instead. The <c>name</c> claim comes from the account's display name.
 /// </summary>
 // See ADR-1401, ADR-1051.
 internal sealed class DefaultGetLocalAccountUserInfoClaimsHandler(

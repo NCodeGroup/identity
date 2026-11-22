@@ -13,11 +13,11 @@ namespace NCode.Identity.Server.InstanceSetup;
 
 /// <summary>
 /// The headless <c>setup</c> command of the host: it creates the root administrator of an uninitialized instance from
-/// the <c>Setup:Root:UserName</c>, <c>Setup:Root:DisplayName</c>, <c>Setup:Root:Email</c> and <c>Setup:Root:Password</c>
-/// configuration through the same
-/// <see cref="IInstanceSetupService"/> that the setup wizard uses, and exits without starting the server. The host runs
-/// it once, for example as a Kubernetes Job from its own image, so it needs no setup token: running the image with the
-/// database connection is already full authority over the instance.
+/// the <c>Setup:Root:UserName</c>, <c>Setup:Root:DisplayName</c>, <c>Setup:Root:Email</c> and
+/// <c>Setup:Root:Password</c> configuration through the same <see cref="IInstanceSetupService"/> that the setup wizard
+/// uses, and exits without starting the server. The host runs it once, for example as a Kubernetes Job from its own
+/// image, so it needs no setup token: running the image with the database connection is already full authority over the
+/// instance.
 /// </summary>
 /// <remarks>
 /// The exit code is <c>0</c> when the root administrator is created or the instance is already initialized, so a Job

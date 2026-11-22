@@ -23,10 +23,10 @@ export type UsersPageProps = {
 };
 
 /**
- * Container: browses and administers the local accounts of the platform or of a tenant. A tenant owner is
- * addressed in the cell of the tenant route. Wires the RTK Query account list to the stateless
- * {@link LocalAccountTable}, {@link LocalAccountFormDialog}, {@link LocalAccountPasswordDialog} and
- * {@link ConfirmDialog}; the dialog and error state live in {@link useLocalAccountAdministration}.
+ * Container: browses and administers the local accounts of the platform or of a tenant. A tenant owner is addressed in
+ * the cell of the tenant route. Wires the RTK Query account list to the stateless {@link LocalAccountTable},
+ * {@link LocalAccountFormDialog}, {@link LocalAccountPasswordDialog} and {@link ConfirmDialog}; the dialog and error
+ * state live in {@link useLocalAccountAdministration}.
  */
 export function UsersPage({ owner }: UsersPageProps) {
   const cell = useTenantCell();

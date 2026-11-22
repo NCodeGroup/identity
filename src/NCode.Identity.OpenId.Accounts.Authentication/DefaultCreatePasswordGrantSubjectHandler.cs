@@ -14,8 +14,9 @@ namespace NCode.Identity.OpenId.Accounts.Authentication;
 /// Provides a default implementation of a handler for the <see cref="CreatePasswordGrantSubjectCommand"/> message that
 /// builds the subject from a validated local account: the self-issued connection's subject and issuer claims plus the
 /// account's profile claims. The local account is a self-issued connection, so principal resolution and linking treat
-/// it uniformly with any federated identity. The <c>name</c> claim comes from the account's display name. The principal's metadata bags are not carried here;
-/// they are a principal-level concept resolved fresh at issuance by the subject-claims projection handlers.
+/// it uniformly with any federated identity. The <c>name</c> claim comes from the account's display name. The
+/// principal's metadata bags are not carried here; they are a principal-level concept resolved fresh at issuance by the
+/// subject-claims projection handlers.
 /// </summary>
 // See ADR-1035, ADR-1051, ADR-1055.
 internal class DefaultCreatePasswordGrantSubjectHandler(
