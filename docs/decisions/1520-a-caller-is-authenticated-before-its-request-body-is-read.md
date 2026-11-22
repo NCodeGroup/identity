@@ -43,9 +43,10 @@ parameters. An endpoint filter does only the work that follows binding.**
    is called: `group.AddEndpointGate<RouteGroupBuilder, ManagementCallerGate>()`.
 2. **`ManagementCallerGate` authenticates every management request.** It runs for the `/api` group before a route binds.
    It materializes the control-plane environment, validates the management access token as ADR-1044 decides, answers
-   `ManagementProblems.AuthenticationRequired()` (`401`) to a request without a valid token and `503` while the
-   validator is unavailable, and publishes `HttpContext.User`, `IManagementCallerFeature` and `ManagementActorFeature`.
-   Every management route needs an authenticated caller, so a request without one is answered `401` whatever its body.
+   `ManagementProblems.AuthenticationRequired(HttpContext)` (`401`, with a `WWW-Authenticate` challenge for each of the
+   schemes `Bearer` and `DPoP`) to a request without a valid token and `503` while the validator is unavailable, and
+   publishes `HttpContext.User`, `IManagementCallerFeature` and `ManagementActorFeature`. Every management route needs
+   an authenticated caller, so a request without one is answered `401` whatever its body.
 3. **`ManagementFailureEndpointFilter` keeps the work that follows binding.** It is the outermost endpoint filter. It
    stops a request whose binding failed, answers an `HttpResultException` with its result and answers a
    `DirectoryUnavailableException` with the `503` of `ControlPlaneUnavailableProblem`. A binding failure of an
@@ -55,14 +56,19 @@ parameters. An endpoint filter does only the work that follows binding.**
    MiB plus 64 KiB, so its route adds the gate after the caller gate and a caller without authority is answered `403`,
    or `503` while the control plane that holds the platform roles is unavailable, before the body is read. No other
    route authorizes before binding: each reads the node its route names from its bound parameters and authorizes in its
-   handler. Bounding the body size of those routes is a separate decision.
-5. **`ControlPlaneAuthenticationGate` and `DirectoryAuthenticationGate` authenticate the other two APIs.** The
+   handler.
+5. **Every `/api` route reads a body of at most 1 MiB.** `ManagementRootGroup.MaxRequestBodyBytes` bounds the request
+   body of the `/api` group's routes at 1 MiB, far above the largest ordinary management document. A route that needs
+   more raises its limit with a `RequestSizeLimitAttribute` of its own, as the tenant import does, because an endpoint
+   applies the last request size limit in its metadata and a group's conventions add theirs before a route's. So an
+   authenticated caller without authority makes a cell read at most that much.
+6. **`ControlPlaneAuthenticationGate` and `DirectoryAuthenticationGate` authenticate the other two APIs.** The
    control-plane authority route materializes the control-plane environment, validates the bearer or DPoP access token
    for the control-plane audience, requires its scope and a cell's machine client, and answers `401` or `403`; its
    handler opens the unscoped scope itself. The directory group validates the bearer access token against the directory
    issuer, audience and scope, answers `401`, or `503` while the issuer cannot be reached, and publishes the calling
    client for its routes' handlers.
-6. **An endpoint filter never authenticates.** An endpoint filter runs after binding, so a filter that authenticates
+7. **An endpoint filter never authenticates.** An endpoint filter runs after binding, so a filter that authenticates
    costs a request its body. An authenticated API adds a gate.
 
 ## Options considered
@@ -83,8 +89,8 @@ parameters. An endpoint filter does only the work that follows binding.**
 ## Consequences
 
 - An anonymous request to the management, control-plane authority or directory API costs no more than its headers.
-- An authenticated caller without authority for a route still sends that route its body, up to the route's limit,
-  because the route authorizes in its handler. The tenant import is the exception.
+- An authenticated caller without authority for a route still sends that route its body, up to the route's limit (1 MiB
+  unless the route sets its own), because the route authorizes in its handler. The tenant import is the exception.
 - An anonymous request whose parameters do not bind gets `401`, not `400`.
 - A gate is created for each request from the request's services, so it depends on scoped services as an endpoint filter
   does.
@@ -109,6 +115,7 @@ parameters. An endpoint filter does only the work that follows binding.**
 - `src/NCode.Identity.AspNetCore/EndpointGateConventionBuilderExtensions.cs`
 - `src/NCode.Identity.OpenId.Management/Endpoints/ManagementCallerGate.cs`
 - `src/NCode.Identity.OpenId.Management/Endpoints/ManagementFailureEndpointFilter.cs`
+- `src/NCode.Identity.OpenId.Management/Endpoints/ManagementRootGroup.cs`
 - `src/NCode.Identity.OpenId.Management/Endpoints/Tenants/TenantImportAuthorizationGate.cs`
 - `src/NCode.Identity.OpenId.Management/ControlPlane/ControlPlaneAuthenticationGate.cs`
 - `src/NCode.Identity.OpenId.GlobalDirectory.Server/DirectoryAuthenticationGate.cs`

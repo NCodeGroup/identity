@@ -48,20 +48,22 @@ configuration seeds.**
 2. **The gate runs inside the request environment, because only there are the keys and the issuer known.** The API has
    no pre-routing or ASP.NET Core authentication scheme and no `.RequireAuthorization()`.
 3. **The gate answers `401` before the parameters bind to a request without a valid management access token.** Every
-   route needs an authenticated caller, so the gate answers `ManagementProblems.AuthenticationRequired()` (`401`) to
-   such a request, and it sets `HttpContext.User` to the principal a valid management token authenticates, whatever
-   principal a host scheme, such as a session cookie, set. Every authorizing route reads `HttpContext.User`, so none
-   trusts a foreign principal.
+   route needs an authenticated caller, so the gate answers `ManagementProblems.AuthenticationRequired(HttpContext)`
+   (`401`) to such a request, with one `WWW-Authenticate` challenge per scheme the API accepts, `Bearer` and `DPoP`, the
+   one the request used carrying `error="invalid_token"` (RFC 6750 §3, RFC 9449 §7.1). It sets `HttpContext.User` to the
+   principal a valid management token authenticates, whatever principal a host scheme, such as a session cookie, set.
+   Every authorizing route reads `HttpContext.User`, so none trusts a foreign principal.
 4. **The gate publishes `IManagementCallerFeature` only for an authenticated caller.** The public feature in
    `NCode.Identity.OpenId.Management.Abstractions` carries the caller's `ClaimsPrincipal`, and a capability package's
    route reads its caller there. For every other request the feature is `null`.
-5. **Authentication-only routes fail closed.** `GET /api/capabilities`, `/api/me`, `/api/me/teams` and
-   `/api/me/tenants` read `IManagementCallerFeature`, never `HttpContext.User.Identity.IsAuthenticated`, and answer
-   `ManagementProblems.AuthenticationRequired()` (`401`) when the feature is absent, also when the gate did not run.
-   They have no authority check, so they declare `401` and no `403`
+5. **Authentication-only routes fail closed.** `GET /api/capabilities`, `/api/me`, `/api/me/teams` and `/api/me/tenants`
+   read `IManagementCallerFeature`, never `HttpContext.User.Identity.IsAuthenticated`, and answer
+   `ManagementProblems.AuthenticationRequired(HttpContext)` (`401`) when the feature is absent, also when the gate did
+   not run. They have no authority check, so they declare `401` and no `403`
    ([ADR-1483](1483-every-management-error-is-a-problem-document-that-its-route-declares.md),
-   [ADR-1481](1481-the-composition-layer-serves-the-api-reference-only-where-a-host-enables-it-and-each-management-problem-says-when-it-occurs.md)); an authenticated caller that
-   resolves to no principal gets `200` with a null `principalId`, because the answer describes the caller.
+   [ADR-1481](1481-the-composition-layer-serves-the-api-reference-only-where-a-host-enables-it-and-each-management-problem-says-when-it-occurs.md));
+   an authenticated caller that resolves to no principal gets `200` with a null `principalId`, because the answer
+   describes the caller.
 6. **Every other route authorizes imperatively from `HttpContext.User`.** It uses `IAuthorizationService.AuthorizeAsync`
    and the validators, answers `401` when anonymous and `403` without authority
    ([ADR-1424](1424-a-management-route-authorizes-at-the-node-it-names-before-it-reads-through-replaceable-validators.md)), and decides on

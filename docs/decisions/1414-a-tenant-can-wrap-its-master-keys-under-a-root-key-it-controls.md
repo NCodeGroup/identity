@@ -164,9 +164,11 @@ and the docs say "tenant root key" or "team root key". A team's key is held per 
     change of a team's root key rewraps the master keys of the team, of the owners under it and of any still under its
     key, with the engine of
     [ADR-1408](1408-an-offline-host-command-rewraps-every-master-key-under-the-configured-root-and-recovery-keys.md).
-    The cell's directory change feed also reconciles every mirrored team's key for its region every 15 minutes, so a key
-    that failed its probe or its rotation cooldown is applied once it can be, and it removes the owner root key of a
-    team whose row is gone.
+    The rewrap reads the rows under the team's key through `IMasterKeyStore.GetWrappedByKeyPageAsync` and the rows of
+    the owners under the team, found through `IMasterKeyStore.GetOwnerPageAsync`, never every master key. The cell's
+    directory change feed also reconciles every mirrored team's key for its region every 15 minutes, so a key that
+    failed its probe or its rotation cooldown is applied once it can be, and it removes the owner root key of a team
+    whose row is gone.
     The console shows a team's root keys per region.
 22. **A key stays in the cell's cloud regions.** The AWS and Google Cloud adapters refuse a key reference whose region or
     location is not in `Cell:CloudRegions`, so a key outside them is never used by the cell.
