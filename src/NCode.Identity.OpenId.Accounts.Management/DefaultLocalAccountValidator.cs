@@ -76,20 +76,29 @@ internal class DefaultLocalAccountValidator(IAuthorizationService authorizationS
     /// <inheritdoc />
     public ValueTask<ManagementError?> ValidateCreateAsync(
         string userName,
+        string displayName,
         IStoreManager storeManager,
         CancellationToken cancellationToken
-    ) =>
-        CheckUserNameAvailableAsync(
+    )
+    {
+        if (GetDisplayNameErrorOrDefault(displayName) is { } displayNameError)
+        {
+            return ValueTask.FromResult<ManagementError?>(displayNameError);
+        }
+
+        return CheckUserNameAvailableAsync(
             storeManager,
             userName,
             localAccountId: null,
             cancellationToken
         );
+    }
 
     /// <inheritdoc />
     public ValueTask<ManagementError?> ValidateUpdateAsync(
         string localAccountId,
         string userName,
+        string displayName,
         string concurrencyToken,
         string? ifMatch,
         IStoreManager storeManager,
@@ -108,6 +117,11 @@ internal class DefaultLocalAccountValidator(IAuthorizationService authorizationS
             return ValueTask.FromResult<ManagementError?>(preconditionError);
         }
 
+        if (GetDisplayNameErrorOrDefault(displayName) is { } displayNameError)
+        {
+            return ValueTask.FromResult<ManagementError?>(displayNameError);
+        }
+
         return CheckUserNameAvailableAsync(
             storeManager,
             userName,
@@ -122,6 +136,31 @@ internal class DefaultLocalAccountValidator(IAuthorizationService authorizationS
         IStoreManager storeManager,
         CancellationToken cancellationToken
     ) => ValueTask.FromResult<ManagementError?>(null);
+
+    // The display name is the source of the account's name claim, so it is required and bounded.
+    private static ManagementError? GetDisplayNameErrorOrDefault(string displayName)
+    {
+        if (string.IsNullOrWhiteSpace(displayName))
+        {
+            return new ManagementError
+            {
+                StatusCode = StatusCodes.Status400BadRequest,
+                Detail = "The display name is required.",
+            };
+        }
+
+        if (displayName.Length > AccountMaxLengths.DisplayName)
+        {
+            return new ManagementError
+            {
+                StatusCode = StatusCodes.Status400BadRequest,
+                Detail =
+                    $"The display name must be at most {AccountMaxLengths.DisplayName} characters.",
+            };
+        }
+
+        return null;
+    }
 
     // A username is unique within the tenant; a match against a different account (or any account, on create) conflicts.
     private static async ValueTask<ManagementError?> CheckUserNameAvailableAsync(
