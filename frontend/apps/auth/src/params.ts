@@ -66,6 +66,15 @@ export const SESSIONS_REVOKE_ALL_ACTION = 'sessions/revoke-all';
 /** The self-service change-password page; its form posts to the same path. */
 export const PASSWORD_PATH = 'password';
 
+/** The forgot-password page, where an end-user who is not signed in asks for a reset code; its form posts to it. */
+export const PASSWORD_FORGOT_PATH = 'password/forgot';
+
+/**
+ * The reset-password page, where an end-user presents the reset code and chooses a new password; its form posts to
+ * it.
+ */
+export const PASSWORD_RESET_PATH = 'password/reset';
+
 /** The path that renders the consent page (every other path renders login). */
 export const CONSENT_PATH = 'consent';
 
@@ -129,6 +138,19 @@ export function isPasswordPath(pathname: string, baseUri: string = document.base
   return isSurfacePath(pathname, PASSWORD_PATH, baseUri);
 }
 
+/** True when the given path should render the forgot-password page. */
+export function isPasswordForgotPath(
+  pathname: string,
+  baseUri: string = document.baseURI,
+): boolean {
+  return isSurfacePath(pathname, PASSWORD_FORGOT_PATH, baseUri);
+}
+
+/** True when the given path should render the reset-password page. */
+export function isPasswordResetPath(pathname: string, baseUri: string = document.baseURI): boolean {
+  return isSurfacePath(pathname, PASSWORD_RESET_PATH, baseUri);
+}
+
 /** True when the given path should render the logout confirmation page. */
 export function isLogoutConfirmPath(pathname: string, baseUri: string = document.baseURI): boolean {
   return isSurfacePath(pathname, LOGOUT_CONFIRM_PATH, baseUri);
@@ -171,5 +193,31 @@ export function describePasswordError(error: string | null, messages: Messages):
       return messages.passwordErrors.passwordBlocklisted;
     default:
       return messages.passwordErrors.fallback;
+  }
+}
+
+/** Maps an email-code error code of the reset and sign-in-code pages to the page's message for it. */
+export function describeEmailCodeError(error: string | null, messages: Messages): string | null {
+  switch (error) {
+    case null:
+      return null;
+    case 'invalid_code':
+      return messages.emailCodeErrors.invalidCode;
+    case 'too_many_codes':
+      return messages.emailCodeErrors.tooManyCodes;
+    case 'password_mismatch':
+      return messages.emailCodeErrors.passwordMismatch;
+    case 'no_email':
+      return messages.emailCodeErrors.noEmail;
+    case 'already_verified':
+      return messages.emailCodeErrors.alreadyVerified;
+    case 'invalid_request':
+      return messages.loginErrors.invalidRequest;
+    case 'password_too_short':
+    case 'password_too_long':
+    case 'password_blocklisted':
+      return describePasswordError(error, messages);
+    default:
+      return messages.emailCodeErrors.fallback;
   }
 }

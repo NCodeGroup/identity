@@ -43,6 +43,7 @@ export function App({
         errorMessage: describeLoginError(getQueryParam(search, 'error'), messages),
         errorCode: getQueryParam(search, 'error'),
         status: getQueryParam(search, 'status'),
+        flow: getQueryParam(search, 'flow'),
         serverPage,
         messages,
         ...(branding ? { branding } : {}),
