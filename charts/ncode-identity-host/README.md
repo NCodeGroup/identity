@@ -170,7 +170,11 @@ it, and the chart renders them as the `Cell` section the host binds:
   management and setup (`Cell__IsControlPlane`);
 - `cell.controlPlaneIssuer`, the issuer of the control-plane cell (`Cell__ControlPlane__Issuer`), required when
   `cell.isControlPlane` is `false` because the cell accepts platform and team management tokens from it, and when
-  `directory.url` is set because the cell asks it for the token it presents to the directory.
+  `directory.url` is set because the cell asks it for the token it presents to the directory;
+- `tenantResolution.staticSingle.tenantId` and `displayName`, the cell's own tenant under the `StaticSingle` strategy
+  (`StaticSingle:TenantId` and `StaticSingle:DisplayName`). A cell that is not the control plane must name its tenant,
+  because a tenant identifier is unique across the platform's cells and the cell reserves and places its tenant in the
+  directory when it first creates it.
 
 A cell reaches the platform's directory through the `directory` values, rendered as the `Directory` section
 (`Directory__Url`, `Directory__ClientId`, `Directory__KeyRing`) when `directory.url` is set, and then
@@ -290,6 +294,7 @@ Rendering fails, before anything is applied, when:
 - `setup.token.existingSecret` is set and `setup.token.key` is empty, or `setup.job.enabled` is `true` and
   `setup.job.existingSecret`, `setup.job.userNameKey` or `setup.job.passwordKey` is empty;
 - the `StaticSingle` strategy has no `https` issuer;
+- a `StaticSingle` cell that is not the control plane has no `tenantResolution.staticSingle.tenantId`;
 - `secretProtection.rootKeyProvider` is empty, in any environment, because the host does not start without one;
 - `secretProtection.rootKeyProvider` is `ephemeral`, in any environment, which would leave no root key outside the pod;
 - `secretProtection.rootKeyProvider` is `local`, in any environment, and `secretProtection.local.keySecret` is empty;

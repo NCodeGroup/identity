@@ -359,6 +359,9 @@ applied. Rendered for its side effect only.
 {{- if and (eq .Values.tenantResolution.strategyCode "StaticSingle") (not .Values.tenantResolution.staticSingle.issuer) }}
 {{- fail "tenantResolution.staticSingle.issuer must be the public issuer URL." }}
 {{- end }}
+{{- if and (eq .Values.tenantResolution.strategyCode "StaticSingle") (not .Values.cell.isControlPlane) (not .Values.tenantResolution.staticSingle.tenantId) }}
+{{- fail "tenantResolution.staticSingle.tenantId must name the cell's tenant when cell.isControlPlane is false: a tenant identifier is unique across the platform's cells." }}
+{{- end }}
 {{- if and .Values.apiReference.pageEnabled (not .Values.apiReference.documentEnabled) }}
 {{- fail "apiReference.pageEnabled requires apiReference.documentEnabled: the page renders the OpenAPI document the host serves." }}
 {{- end }}
@@ -743,6 +746,14 @@ same configuration the pods it rewraps keys for read.
   value: {{ .Values.tenantResolution.strategyCode | quote }}
 {{- with .Values.tenantResolution.staticSingle.issuer }}
 - name: OpenId__TenantResolution__StaticSingle__Issuer
+  value: {{ . | quote }}
+{{- end }}
+{{- with .Values.tenantResolution.staticSingle.tenantId }}
+- name: OpenId__TenantResolution__StaticSingle__TenantId
+  value: {{ . | quote }}
+{{- end }}
+{{- with .Values.tenantResolution.staticSingle.displayName }}
+- name: OpenId__TenantResolution__StaticSingle__DisplayName
   value: {{ . | quote }}
 {{- end }}
 {{- range $index, $network := .Values.forwardedHeaders.knownNetworks }}

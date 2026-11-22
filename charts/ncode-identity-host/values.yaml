@@ -214,6 +214,12 @@ tenantResolution:
   staticSingle:
     # The public issuer URL, for example https://id.example.com. Required by the StaticSingle strategy.
     issuer: ""
+    # The identifier of the cell's own tenant (StaticSingle:TenantId), `default` when empty. A tenant identifier is
+    # unique across the platform's cells, so a cell that is not the control plane names its own; the cell reserves it
+    # in the directory when it first creates the tenant.
+    tenantId: ""
+    # The display name the cell's own tenant is created with (StaticSingle:DisplayName), `Default Tenant` when empty.
+    displayName: ""
 
 # The proxies whose X-Forwarded-* headers the host trusts (ForwardedHeaders). Set knownNetworks to the pod CIDR when the
 # ingress controller runs in the cluster.
