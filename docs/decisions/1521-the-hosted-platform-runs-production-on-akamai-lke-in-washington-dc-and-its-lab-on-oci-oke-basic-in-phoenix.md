@@ -14,7 +14,7 @@ published chart and images
 ([ADR-1133](1133-the-hosted-platform-runs-only-the-published-artifacts-it-offers-self-hosters.md)), under the operating
 principles ([ADR-1134](1134-the-platform-and-the-host-follow-written-cloud-native-operating-principles.md)). Forces:
 
-- **The must-haves.** Kubernetes on at least three nodes; Traefik behind one L4 load balancer that passes TLS through,
+- **The must-haves.** Kubernetes, on at least three nodes in production; Traefik behind one L4 load balancer that passes TLS through,
   so mutual TLS reaches the proxy; PostgreSQL as the system of record; Valkey for shared state
   ([ADR-1164](1164-replicas-share-expiring-keys-values-and-indexes-through-ports-with-in-process-and-valkey-adapters.md));
   a root key in a key management service
