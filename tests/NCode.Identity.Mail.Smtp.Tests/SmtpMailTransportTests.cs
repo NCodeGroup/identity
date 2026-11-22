@@ -214,24 +214,59 @@ public class SmtpMailTransportTests : BaseTests
     }
 
     [Fact]
-    public async Task DeliverAsync_WhenTheServerRefuses_Throws()
+    public async Task DeliverAsync_WhenTheServerRejectsTheRecipient_ThrowsWithoutTheAddressOrTheReply()
     {
         SetupConnection(SecureSocketOptions.StartTls);
+        const string reply = "<user@example.org>: Recipient address rejected";
         var refusal = new SmtpCommandException(
-            SmtpErrorCode.MessageNotAccepted,
+            SmtpErrorCode.RecipientNotAccepted,
             SmtpStatusCode.MailboxUnavailable,
-            "The mailbox is unavailable."
+            new MailboxAddress(string.Empty, "user@example.org"),
+            reply
         );
         ClientMock
             .Setup(x => x.SendAsync(It.IsAny<ISendRequest>(), CancellationToken.None))
             .ThrowsAsync(refusal)
             .Verifiable();
 
-        var actual = await Assert.ThrowsAsync<SmtpCommandException>(async () =>
+        var actual = await Assert.ThrowsAsync<SmtpDeliveryException>(async () =>
             await Transport.DeliverAsync(Message, CancellationToken.None)
         );
 
-        Assert.Same(refusal, actual);
+        Assert.Equal(SmtpStatusCode.MailboxUnavailable, actual.StatusCode);
+        Assert.Equal("The SMTP server refused the message with status 550.", actual.Message);
+        Assert.Null(actual.InnerException);
+        var text = actual.ToString();
+        Assert.DoesNotContain("user@example.org", actual.Message);
+        Assert.DoesNotContain("user@example.org", text);
+        Assert.DoesNotContain("Recipient address rejected", actual.Message);
+        Assert.DoesNotContain("Recipient address rejected", text);
+    }
+
+    [Fact]
+    public async Task DeliverAsync_WhenTheConnectionFails_PropagatesTheException()
+    {
+        ClientFactoryMock.Setup(x => x.Create()).Returns(ClientMock.Object).Verifiable();
+        ClientMock.SetupSet(x => x.Timeout = 30_000).Verifiable();
+        var failure = new IOException("The connection was reset.");
+        ClientMock
+            .Setup(x =>
+                x.ConnectAsync(
+                    "smtp.example.com",
+                    587,
+                    SecureSocketOptions.StartTls,
+                    CancellationToken.None
+                )
+            )
+            .ThrowsAsync(failure)
+            .Verifiable();
+        ClientMock.Setup(x => x.Dispose()).Verifiable();
+
+        var actual = await Assert.ThrowsAsync<IOException>(async () =>
+            await Transport.DeliverAsync(Message, CancellationToken.None)
+        );
+
+        Assert.Same(failure, actual);
     }
 
     #endregion

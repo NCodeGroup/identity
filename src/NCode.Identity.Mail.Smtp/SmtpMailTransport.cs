@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using MailKit;
+using MailKit.Net.Smtp;
 using MailKit.Security;
 using Microsoft.Extensions.Options;
 using MimeKit;
@@ -12,7 +13,9 @@ namespace NCode.Identity.Mail.Smtp;
 
 /// <summary>
 /// Provides the <see cref="IMailTransport"/> that submits each message to the configured SMTP server. A server that
-/// refuses the message, or cannot be reached, makes the delivery throw so that it is retried.
+/// refuses the message makes the delivery throw a <see cref="SmtpDeliveryException"/> that carries the numeric status
+/// and not the server's reply text, which can echo the recipient's address; a server that cannot be reached makes the
+/// delivery throw the connection's own exception. Either way the delivery is retried.
 /// </summary>
 // See ADR-1532.
 internal sealed class SmtpMailTransport(
@@ -79,15 +82,23 @@ internal sealed class SmtpMailTransport(
         client.Timeout = (int)options.Timeout.TotalMilliseconds;
 
         var socketOptions = ToSocketOptions(options.Tls);
-        await client.ConnectAsync(options.Host, options.Port, socketOptions, cancellationToken);
-
-        if (!string.IsNullOrEmpty(options.UserName))
+        try
         {
-            var password = options.Password ?? string.Empty;
-            await client.AuthenticateAsync(options.UserName, password, cancellationToken);
-        }
+            await client.ConnectAsync(options.Host, options.Port, socketOptions, cancellationToken);
 
-        await client.SendAsync(mimeMessage, cancellationToken);
-        await client.DisconnectAsync(true, cancellationToken);
+            if (!string.IsNullOrEmpty(options.UserName))
+            {
+                var password = options.Password ?? string.Empty;
+                await client.AuthenticateAsync(options.UserName, password, cancellationToken);
+            }
+
+            await client.SendAsync(mimeMessage, cancellationToken);
+            await client.DisconnectAsync(true, cancellationToken);
+        }
+        catch (SmtpCommandException exception)
+        {
+            // The reply text of the server can echo the recipient's address, so only its status leaves this method.
+            throw new SmtpDeliveryException(exception.StatusCode);
+        }
     }
 }
