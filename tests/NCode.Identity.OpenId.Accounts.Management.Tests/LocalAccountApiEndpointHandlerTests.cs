@@ -477,9 +477,11 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
 
     private void SetupControlPlaneScope()
     {
+        var mockScope = MockRepository.Create<IDisposable>();
+        mockScope.Setup(x => x.Dispose()).Verifiable();
         MockAmbientTenantAccessor
             .Setup(x => x.BeginScope(ControlPlaneTenantId))
-            .Returns(Mock.Of<IDisposable>())
+            .Returns(mockScope.Object)
             .Verifiable();
     }
 
@@ -819,6 +821,10 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
 
         var problem = Assert.IsType<ProblemHttpResult>(result);
         Assert.Equal(StatusCodes.Status400BadRequest, problem.StatusCode);
+        Assert.Equal(
+            "The 'name' claim is the account's display name; set displayName instead.",
+            problem.ProblemDetails.Detail
+        );
     }
 
     #endregion
@@ -1280,6 +1286,7 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
 
         var problem = Assert.IsType<ProblemHttpResult>(result);
         Assert.Equal(StatusCodes.Status400BadRequest, problem.StatusCode);
+        Assert.Equal("The JSON Patch document could not be applied.", problem.ProblemDetails.Detail);
     }
 
     #endregion
