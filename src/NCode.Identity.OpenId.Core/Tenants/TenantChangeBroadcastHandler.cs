@@ -52,13 +52,13 @@ internal sealed class TenantChangeBroadcastHandler(
         // the tenant.
         SecretProtectorProvider.Evict(SecretOwner.ForTenant(message));
 
-        return TenantCache.RemoveAsync(message, PropertyBagFactory.Create(), cancellationToken);
+        return TenantCache.RemoveAsync(message, new PropertyBagDictionary(), cancellationToken);
     }
 
     /// <inheritdoc />
     public async ValueTask HandleMissedMessagesAsync(CancellationToken cancellationToken)
     {
-        var propertyBag = PropertyBagFactory.Create();
+        var propertyBag = new PropertyBagDictionary();
 
         var staleTenantIds = await GetStaleTenantIdsAsync(propertyBag, cancellationToken);
         if (staleTenantIds is null)

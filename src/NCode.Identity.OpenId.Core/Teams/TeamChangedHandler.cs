@@ -60,7 +60,7 @@ internal sealed class TeamChangedHandler(
 
     private async ValueTask EvictAsync(string teamId, CancellationToken cancellationToken)
     {
-        var propertyBag = PropertyBagFactory.Create();
+        var propertyBag = new PropertyBagDictionary();
         await TeamCache.RemoveAsync(teamId, propertyBag, cancellationToken);
         await TenantCache.RemoveTeamAsync(teamId, propertyBag, cancellationToken);
     }
