@@ -235,6 +235,32 @@ public sealed class DefaultRegistrationTests : IDisposable
     }
 
     [Fact]
+    public async Task AddInteractiveAuthentication_WhenTheHostNamesNoDefaultScheme_DefaultsToTheSessionCookie()
+    {
+        using var serviceProvider = BuildCookieServiceProvider();
+        var schemeProvider = serviceProvider.GetRequiredService<IAuthenticationSchemeProvider>();
+
+        var challengeScheme = await schemeProvider.GetDefaultChallengeSchemeAsync();
+        var authenticateScheme = await schemeProvider.GetDefaultAuthenticateSchemeAsync();
+
+        Assert.Equal(InteractiveAuthenticationDefaults.CookieSchemeName, challengeScheme?.Name);
+        Assert.Equal(InteractiveAuthenticationDefaults.CookieSchemeName, authenticateScheme?.Name);
+    }
+
+    [Fact]
+    public void AddInteractiveAuthentication_WhenTheHostNamesADefaultScheme_KeepsIt()
+    {
+        const string hostScheme = "host-scheme";
+        using var serviceProvider = BuildCookieServiceProvider(configureServices: services =>
+            services.Configure<AuthenticationOptions>(options => options.DefaultScheme = hostScheme)
+        );
+
+        var options = serviceProvider.GetRequiredService<IOptions<AuthenticationOptions>>().Value;
+
+        Assert.Equal(hostScheme, options.DefaultScheme);
+    }
+
+    [Fact]
     public void AddInteractiveAuthentication_ConfiguresAHostOnlyAntiforgeryCookie()
     {
         using var serviceProvider = BuildCookieServiceProvider();
@@ -624,7 +650,10 @@ public sealed class DefaultRegistrationTests : IDisposable
 
     #endregion
 
-    private ServiceProvider BuildCookieServiceProvider(RoutePattern? tenantRoute = null)
+    private ServiceProvider BuildCookieServiceProvider(
+        RoutePattern? tenantRoute = null,
+        Action<IServiceCollection>? configureServices = null
+    )
     {
         var configuration = new ConfigurationBuilder().Build();
         var hostEnvironment = MockRepository.Create<IHostEnvironment>();
@@ -637,6 +666,7 @@ public sealed class DefaultRegistrationTests : IDisposable
         var serviceCollection = new ServiceCollection();
         serviceCollection.AddLogging().AddRouting();
         serviceCollection.AddSingleton(tenantResolver.Object);
+        configureServices?.Invoke(serviceCollection);
         serviceCollection
             .NewBuilder<OpenIdAuthenticationLibrary>()
             .AddInteractiveAuthentication(configuration, hostEnvironment.Object);

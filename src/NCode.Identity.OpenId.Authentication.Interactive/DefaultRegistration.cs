@@ -367,8 +367,12 @@ public static class DefaultRegistration
                 antiforgery.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
             });
 
-            // Register the cookie as a NAMED scheme only; it must not become the host's default authenticate scheme,
-            // which the bearer-oriented subject-authentication seam (userinfo/introspection) resolves by default.
+            // The session cookie is the host's default scheme only when the host names none; the pending sign-in
+            // scheme is never a default. Two registered schemes leave no implicit default, so the post-configuration
+            // names the session scheme and a host's own default keeps its place.
+            serviceCollection.PostConfigure<AuthenticationOptions>(options =>
+                options.DefaultScheme ??= InteractiveAuthenticationDefaults.CookieSchemeName
+            );
             serviceCollection
                 .AddAuthentication()
                 .AddCookie(
