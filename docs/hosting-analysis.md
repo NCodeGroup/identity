@@ -857,9 +857,10 @@ the stacks and components is [#87](https://github.com/NCodeGroup/identity/issues
   ([ADR-1526](decisions/1526-the-platforms-cluster-secrets-reach-each-cluster-from-aws-parameter-store-through-external-secrets-operator.md)).
 - **Alerting:** Grafana Cloud alerts on token-endpoint error rate and p95 latency, shed requests
   (`ncode.identity.admission.shed`), certificate expiry, database connections and replication lag, and node/disk
-  pressure; on-call via Grafana IRM's free tier; a public status page (`status.ncodeid.com`, UptimeRobot free). Each
-  cluster keeps its metrics within 1,500 active series and each cell within 2,000, on Grafana Cloud Free while only
-  the developer plan runs and on Pro from the first paid plan
+  pressure; on-call via Grafana IRM's free tier, paging as the [incident-response runbook](incident-response.md) says; a
+  public status page (`status.ncodeid.com`, UptimeRobot free). Each cluster keeps its metrics within 1,500 active series
+  and each cell within 2,000, on Grafana Cloud Free while only the developer plan runs and on Pro from the first paid
+  plan
   ([ADR-1525](decisions/1525-each-cluster-and-cell-keeps-its-metrics-within-a-series-budget-on-grafana-cloud-free-then-pro.md)).
 - **Audit events**
   ([ADR-1047](decisions/1047-observation-is-a-fault-isolated-event-seam-that-audit-specializes-and-protocol-errors-reach-once.md))
@@ -896,7 +897,7 @@ whose Amazon SES also sends the platform's mail, listed per region in
 need a regional cell
 ([ADR-1411](decisions/1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md));
 an SLA no higher than a single-datacenter platform supports (~99.9%), until cells run across availability zones
-([§11](#11-growth-path-aws)); an incident-response runbook ([#913](https://github.com/NCodeGroup/identity/issues/913)).
+([§11](#11-growth-path-aws)); the [incident-response runbook](incident-response.md).
 
 **Outbound email:** verification, password reset and email MFA send through Amazon SES in the cell's AWS region
 (`us-east-1` for production), over SMTP from `mail.ncodeid.net`, with Easy DKIM, a custom MAIL FROM domain so SPF aligns
