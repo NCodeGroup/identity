@@ -149,6 +149,7 @@ The records are grouped by area; within an area they are in number order.
 | [1528](./1528-the-hosted-platform-sends-its-mail-through-amazon-ses-in-each-cells-region-from-mail-ncodeid-net.md) | The hosted platform sends its mail through Amazon SES in each cell's region from mail.ncodeid.net | Accepted |
 | [1529](./1529-the-hosted-platforms-terms-dpa-and-privacy-policy-are-public-documents-built-on-common-papers-standard-terms.md) | The hosted platform's terms, DPA and privacy policy are public documents built on Common Paper's standard terms | Accepted |
 | [1530](./1530-cells-on-aws-run-on-eks-from-the-published-chart-across-three-zones-with-spot-above-an-on-demand-floor.md) | Cells on AWS run on EKS from the published chart, across three zones, with spot above an on-demand floor | Accepted |
+| [1531](./1531-the-clusters-that-host-paid-cells-are-standard-lke-clusters-with-the-ha-control-plane-and-at-most-15-cells.md) | The clusters that host paid cells are standard LKE clusters with the HA control plane and at most 15 cells | Accepted |
 
 ### Settings
 
