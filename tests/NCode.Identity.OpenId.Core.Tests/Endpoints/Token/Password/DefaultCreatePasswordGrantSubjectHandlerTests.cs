@@ -38,10 +38,8 @@ public class DefaultCreatePasswordGrantSubjectHandlerTests : BaseTests
             .Returns(() => ValueTask.FromResult(ResolvedAcr))
             .Verifiable();
 
-        Handler = new DefaultCreatePasswordGrantSubjectHandler(
-            MockResolver.Object,
-            TimeProvider.System
-        );
+        var factory = new LocalAccountSubjectFactory(MockResolver.Object, TimeProvider.System);
+        Handler = new DefaultCreatePasswordGrantSubjectHandler(factory);
     }
 
     #region Scaffolding
@@ -108,7 +106,9 @@ public class DefaultCreatePasswordGrantSubjectHandlerTests : BaseTests
 
         var principal = await Handler.HandleAsync(command, CancellationToken.None);
 
-        Assert.Equal("Display Name", principal.FindFirstValue(JoseClaimNames.Payload.Name));
+        var name = principal.FindFirstValue(JoseClaimNames.Payload.Name);
+
+        Assert.Equal("Display Name", name);
     }
 
     [Fact]

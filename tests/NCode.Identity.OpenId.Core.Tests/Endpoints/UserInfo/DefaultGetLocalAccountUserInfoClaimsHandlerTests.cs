@@ -300,7 +300,7 @@ public class DefaultGetLocalAccountUserInfoClaimsHandlerTests : BaseTests
 
         await Handler.HandleAsync(command, CancellationToken.None);
 
-        Assert.False(claims.ContainsKey(JoseClaimNames.Payload.Name));
+        Assert.DoesNotContain(JoseClaimNames.Payload.Name, claims.Keys);
     }
 
     [Fact]
@@ -329,7 +329,7 @@ public class DefaultGetLocalAccountUserInfoClaimsHandlerTests : BaseTests
 
         await Handler.HandleAsync(command, CancellationToken.None);
 
-        Assert.False(claims.ContainsKey(JoseClaimNames.Payload.Name));
+        Assert.DoesNotContain(JoseClaimNames.Payload.Name, claims.Keys);
         Assert.Equal("user@localhost", claims[JoseClaimNames.Payload.Email]);
         Assert.Equal(false, claims[JoseClaimNames.Payload.EmailVerified]);
     }
