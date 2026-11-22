@@ -104,9 +104,9 @@ directory:
   controlPlaneCell: ""
   # The identifier of the control-plane cell's root tenant (DirectoryServer:ControlPlaneTenantId), which the directory
   # holds for that cell so no other cell reserves it. Empty takes it from this release when its cell is the
-  # control-plane cell (cell.isControlPlane is true and cell.name is controlPlaneCell):
-  # tenantResolution.staticSingle.tenantId, or `default`, under StaticSingle, and otherwise the value of an extraEnv
-  # entry named OpenId__TenantResolution__Root__TenantId, or `root`. Required when enabled in a release of another cell.
+  # control-plane cell (cell.isControlPlane is true and cell.name is controlPlaneCell) and tenantResolution.strategyCode
+  # is StaticSingle: tenantResolution.staticSingle.tenantId, or `default`. Required when enabled otherwise, because
+  # another strategy's root tenant is named by settings the chart does not read, such as extraEnv.
   controlPlaneTenantId: ""
   # The host names the directory answers to (AllowedHosts), such as the host of url. The probes send the first. Required
   # when enabled; '*' is refused.

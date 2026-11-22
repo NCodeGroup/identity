@@ -211,9 +211,8 @@ and pre-upgrade Job that applies its migrations, and requires:
   (`DirectoryServer__ControlPlaneCell`);
 - `directory.controlPlaneTenantId`, the identifier of the control-plane cell's root tenant, which the directory holds
   for that cell so no other cell reserves it (`DirectoryServer__ControlPlaneTenantId`). In the control-plane cell's own
-  release the chart takes it from `tenantResolution.staticSingle.tenantId` (`default` when empty) under `StaticSingle`,
-  and otherwise from an `extraEnv` entry named `OpenId__TenantResolution__Root__TenantId` (`root` when there is none),
-  so a release of another cell names it;
+  release under `StaticSingle` the chart takes it from `tenantResolution.staticSingle.tenantId` (`default` when empty);
+  a release of another cell, or under another strategy, whose root-tenant settings the chart does not read, names it;
 - `directory.allowedHosts`, the host names the directory answers to, such as the host of `directory.url`; `*` is
   refused;
 - `directory.database`, the runtime role's connection to a database of its own, never the cell's, which only the
@@ -336,8 +335,8 @@ Rendering fails, before anything is applied, when:
   `directory.backendTls`, `directory.ingress`, `directory.httpRoute`, `directory.serviceAccount`, `directory.image` or
   `directory.extra*`) is set and `directory.enabled` is `false`, because the chart then runs no directory host;
 - `directory.enabled` is `true` and the control-plane cell's root tenant is unknown: `directory.controlPlaneTenantId` is
-  empty and the release's cell is not `directory.controlPlaneCell` with `cell.isControlPlane`, or `extraEnv` sets
-  `OpenId__TenantResolution__Root__TenantId` without a `value`;
+  empty and the release's cell is not `directory.controlPlaneCell` with `cell.isControlPlane`, or
+  `tenantResolution.strategyCode` is not `StaticSingle`;
 - a key management service is used, as `secretProtection.rootKeyProvider`, in `secretProtection.ownerRootKeys.providers`
   or enabled under `secretProtection.remoteKeyProviders`, and its workload credentials are half set: only one of
   `secretProtection.azureKeyVault.workloadIdentity.tenantId` and `clientId` is set, or

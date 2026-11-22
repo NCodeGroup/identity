@@ -1270,25 +1270,15 @@ The directory's container image: the digest when one is set, else the tag, which
 {{/*
 The identifier of the control-plane cell's root tenant, which the directory holds for that cell:
 directory.controlPlaneTenantId when set. Else, in the release of the control-plane cell (cell.isControlPlane is true and
-cell.name is directory.controlPlaneCell), the tenant the release serves: tenantResolution.staticSingle.tenantId, or
-`default`, under StaticSingle, and otherwise the value of an extraEnv entry named
-OpenId__TenantResolution__Root__TenantId, or `root`. An entry with valueFrom gives an empty identifier. Else empty.
+cell.name is directory.controlPlaneCell) under StaticSingle, the tenant the release serves:
+tenantResolution.staticSingle.tenantId, or `default`. Else empty, which the directory's validation refuses: another
+strategy's root tenant is named by settings the chart does not read, such as extraEnv, extraEnvFrom or a ConfigMap.
 */}}
 {{- define "identity-host.directory.controlPlaneTenantId" -}}
 {{- if .Values.directory.controlPlaneTenantId }}
 {{- .Values.directory.controlPlaneTenantId }}
-{{- else if and .Values.cell.isControlPlane (eq .Values.cell.name .Values.directory.controlPlaneCell) }}
-{{- if eq .Values.tenantResolution.strategyCode "StaticSingle" }}
+{{- else if and .Values.cell.isControlPlane (eq .Values.cell.name .Values.directory.controlPlaneCell) (eq .Values.tenantResolution.strategyCode "StaticSingle") }}
 {{- .Values.tenantResolution.staticSingle.tenantId | default "default" }}
-{{- else }}
-{{- $rootTenantId := "root" }}
-{{- range .Values.extraEnv }}
-{{- if eq .name "OpenId__TenantResolution__Root__TenantId" }}
-{{- $rootTenantId = .value | default "" }}
-{{- end }}
-{{- end }}
-{{- $rootTenantId }}
-{{- end }}
 {{- end }}
 {{- end }}
 
@@ -1339,7 +1329,7 @@ Refuses a directory the host would refuse, before anything is applied. Rendered 
 {{- end }}
 {{- $controlPlaneTenantId := include "identity-host.directory.controlPlaneTenantId" . }}
 {{- if not $controlPlaneTenantId }}
-{{- fail "directory.controlPlaneTenantId must name the control-plane cell's root tenant when directory.enabled is true and this release's cell is not directory.controlPlaneCell, or when extraEnv sets OpenId__TenantResolution__Root__TenantId without a value: the directory holds that tenant for the control-plane cell." }}
+{{- fail "directory.controlPlaneTenantId must name the control-plane cell's root tenant when directory.enabled is true and this release's cell is not directory.controlPlaneCell, or tenantResolution.strategyCode is not StaticSingle: the directory holds that tenant for the control-plane cell, and the chart reads no other strategy's settings." }}
 {{- end }}
 {{- if not (regexMatch "^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$" $controlPlaneTenantId) }}
 {{- fail "the control-plane cell's root tenant, which directory.controlPlaneTenantId names or the release's tenant resolution gives, must be 1 to 63 lowercase letters, digits or hyphens that start and end with a letter or digit." }}
