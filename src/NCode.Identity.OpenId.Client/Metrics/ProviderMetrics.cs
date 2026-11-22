@@ -57,13 +57,19 @@ internal sealed class ProviderMetrics
     /// </summary>
     /// <param name="errorType">The bounded failure: the response's status code, <c>timeout</c>, or the
     /// <see cref="HttpRequestError"/> in snake case.</param>
-    public void Retried(string errorType) =>
-        Retries.Add(1, new KeyValuePair<string, object?>(ErrorTypeAttribute, errorType));
+    public void Retried(string errorType)
+    {
+        var errorTypeTag = new KeyValuePair<string, object?>(ErrorTypeAttribute, errorType);
+        Retries.Add(1, errorTypeTag);
+    }
 
     /// <summary>
     /// Records that an attempt, or a whole call, of the client timed out.
     /// </summary>
     /// <param name="scope">The bounded scope: <c>attempt</c> or <c>total</c>.</param>
-    public void TimedOut(string scope) =>
-        Timeouts.Add(1, new KeyValuePair<string, object?>(TimeoutScopeAttribute, scope));
+    public void TimedOut(string scope)
+    {
+        var scopeTag = new KeyValuePair<string, object?>(TimeoutScopeAttribute, scope);
+        Timeouts.Add(1, scopeTag);
+    }
 }

@@ -46,9 +46,10 @@ internal class ClientSecretBasicClientAuthenticator(IClientKeyRingProvider keyRi
             out Span<byte> bytes
         );
 
+        var base64Credentials = Convert.ToBase64String(bytes);
         context.Request.Headers.Authorization = new AuthenticationHeaderValue(
             "Basic",
-            Convert.ToBase64String(bytes)
+            base64Credentials
         );
         return ValueTask.CompletedTask;
     }

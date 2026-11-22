@@ -58,14 +58,19 @@ internal sealed class ClientKeyRingLoader(
                 foreach (var configuredPath in pemFiles)
                 {
                     var path = Path.GetFullPath(configuredPath, Environment.ContentRootPath);
-                    keys.Add(ClientPemKeyReader.Read(KeyFactory, name, path));
+                    var pemKey = ClientPemKeyReader.Read(KeyFactory, name, path);
+                    keys.Add(pemKey);
                 }
 
                 foreach (var id in remoteKeys.Keys.Order(StringComparer.Ordinal))
                 {
-                    keys.Add(
-                        await RemoteKeyReader.ReadAsync(name, id, remoteKeys[id], cancellationToken)
+                    var remoteKey = await RemoteKeyReader.ReadAsync(
+                        name,
+                        id,
+                        remoteKeys[id],
+                        cancellationToken
                     );
+                    keys.Add(remoteKey);
                 }
             }
             catch
@@ -78,7 +83,8 @@ internal sealed class ClientKeyRingLoader(
                 throw;
             }
 
-            KeyRings.Add(name, CollectionFactory.CreateStatic(keys));
+            var keyRingCollection = CollectionFactory.CreateStatic(keys);
+            KeyRings.Add(name, keyRingCollection);
         }
     }
 

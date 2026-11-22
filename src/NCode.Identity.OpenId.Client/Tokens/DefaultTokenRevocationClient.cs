@@ -46,20 +46,22 @@ internal class DefaultTokenRevocationClient(
         };
 
         if (!string.IsNullOrEmpty(request.TokenTypeHint))
-            parameters.Add(
-                new KeyValuePair<string, string>(
-                    OpenIdProtocol.Parameters.TokenTypeHint,
-                    request.TokenTypeHint
-                )
+        {
+            var tokenTypeHintParameter = new KeyValuePair<string, string>(
+                OpenIdProtocol.Parameters.TokenTypeHint,
+                request.TokenTypeHint
             );
+            parameters.Add(tokenTypeHintParameter);
+        }
 
+        var revocationProviderEndpoint = new ProviderEndpoint(
+            OpenIdProtocol.MetadataNames.RevocationEndpoint,
+            revocationEndpoint
+        );
         var response = await Sender.PostFormAsync(
             registration,
             metadata,
-            new ProviderEndpoint(
-                OpenIdProtocol.MetadataNames.RevocationEndpoint,
-                revocationEndpoint
-            ),
+            revocationProviderEndpoint,
             parameters,
             cancellationToken
         );

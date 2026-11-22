@@ -51,21 +51,33 @@ internal class DefaultTokenClient(
         request.AddGrantParameters(parameters);
 
         if (!string.IsNullOrEmpty(request.Scope))
-            parameters.Add(
-                new KeyValuePair<string, string>(OpenIdProtocol.Parameters.Scope, request.Scope)
+        {
+            var scopeParameter = new KeyValuePair<string, string>(
+                OpenIdProtocol.Parameters.Scope,
+                request.Scope
             );
+            parameters.Add(scopeParameter);
+        }
 
         foreach (var resource in request.Resources)
-            parameters.Add(
-                new KeyValuePair<string, string>(OpenIdProtocol.Parameters.Resource, resource)
+        {
+            var resourceParameter = new KeyValuePair<string, string>(
+                OpenIdProtocol.Parameters.Resource,
+                resource
             );
+            parameters.Add(resourceParameter);
+        }
 
         var dpopKey = DPoPKeyResolver.Resolve(registration, metadata, request.DPoPJwkThumbprint);
 
+        var tokenProviderEndpoint = new ProviderEndpoint(
+            OpenIdProtocol.MetadataNames.TokenEndpoint,
+            tokenEndpoint
+        );
         var response = await Sender.PostFormAsync(
             registration,
             metadata,
-            new ProviderEndpoint(OpenIdProtocol.MetadataNames.TokenEndpoint, tokenEndpoint),
+            tokenProviderEndpoint,
             parameters,
             includeClientId: false,
             dpopKey,

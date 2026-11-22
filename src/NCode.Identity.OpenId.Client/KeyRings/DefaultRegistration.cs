@@ -75,18 +75,16 @@ public static class DefaultRegistration
                     options.RegisteredInCode.UnionWith(registeredInCode);
                 })
                 .ValidateOnStart();
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    IValidateOptions<ClientKeyRingsOptions>,
-                    ClientKeyRingsOptionsValidator
-                >()
-            );
+            var optionsValidator = ServiceDescriptor.Singleton<
+                IValidateOptions<ClientKeyRingsOptions>,
+                ClientKeyRingsOptionsValidator
+            >();
+            serviceCollection.TryAddEnumerable(optionsValidator);
 
             serviceCollection.TryAddSingleton<ClientKeyRings>();
             serviceCollection.TryAddSingleton<ClientRemoteKeyReader>();
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<IHostedService, ClientKeyRingLoader>()
-            );
+            var keyRingLoader = ServiceDescriptor.Singleton<IHostedService, ClientKeyRingLoader>();
+            serviceCollection.TryAddEnumerable(keyRingLoader);
 
             foreach (var name in names)
             {

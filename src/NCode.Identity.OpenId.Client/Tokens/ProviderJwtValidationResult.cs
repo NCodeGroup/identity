@@ -56,14 +56,14 @@ internal readonly struct ProviderJwtValidationResult
     /// <summary>
     /// Creates the result of a valid token.
     /// </summary>
-    public static ProviderJwtValidationResult Success(JwtValidationResult result) =>
-        new(
-            result,
-            result.DecodedJwt
-                ?? throw new ArgumentException("The JWT validation failed.", nameof(result)),
-            null,
-            null
-        );
+    public static ProviderJwtValidationResult Success(JwtValidationResult result)
+    {
+        var decodedJwt = result.DecodedJwt;
+        if (decodedJwt is null)
+            throw new ArgumentException("The JWT validation failed.", nameof(result));
+
+        return new ProviderJwtValidationResult(result, decodedJwt, null, null);
+    }
 
     /// <summary>
     /// Creates the result of an invalid token.

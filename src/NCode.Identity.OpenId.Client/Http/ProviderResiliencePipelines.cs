@@ -86,18 +86,22 @@ internal sealed class ProviderResiliencePipelines(
     /// <returns>The error type.</returns>
     // NCode.Identity.OpenId.Authentication's GuardedResiliencePipelines.GetErrorType maps outcomes the same way; this
     // package cannot reference it (ADR-1285), so the two copies are kept in step, and both test suites pin the values.
-    internal static string GetErrorType(Outcome<HttpResponseMessage> outcome) =>
-        outcome switch
+    internal static string GetErrorType(Outcome<HttpResponseMessage> outcome)
+    {
+        if (outcome is { Result: { } response })
+            return ((int)response.StatusCode).ToString(CultureInfo.InvariantCulture);
+
+        if (outcome is { Exception: TimeoutRejectedException })
+            return ProviderMetrics.TimeoutErrorType;
+
+        if (outcome is { Exception: HttpRequestException exception })
         {
-            { Result: { } response } => ((int)response.StatusCode).ToString(
-                CultureInfo.InvariantCulture
-            ),
-            { Exception: TimeoutRejectedException } => ProviderMetrics.TimeoutErrorType,
-            { Exception: HttpRequestException exception } => ToSnakeCase(
-                exception.HttpRequestError.ToString()
-            ),
-            _ => ProviderMetrics.OtherErrorType,
-        };
+            var requestError = exception.HttpRequestError.ToString();
+            return ToSnakeCase(requestError);
+        }
+
+        return ProviderMetrics.OtherErrorType;
+    }
 
     private static string ToSnakeCase(string name)
     {
@@ -109,7 +113,8 @@ internal sealed class ProviderResiliencePipelines(
             {
                 if (index > 0)
                     builder.Append('_');
-                builder.Append(char.ToLowerInvariant(character));
+                var lowerCharacter = char.ToLowerInvariant(character);
+                builder.Append(lowerCharacter);
             }
             else
             {
@@ -151,27 +156,26 @@ internal sealed class ProviderResiliencePipelines(
 
         if (maxRetryAttempts > 0)
         {
-            builder.AddRetry(
-                new RetryStrategyOptions<HttpResponseMessage>
+            var retryOptions = new RetryStrategyOptions<HttpResponseMessage>
+            {
+                MaxRetryAttempts = maxRetryAttempts,
+                Delay = options.RetryDelay,
+                BackoffType = DelayBackoffType.Exponential,
+                UseJitter = true,
+                ShouldHandle = static args =>
                 {
-                    MaxRetryAttempts = maxRetryAttempts,
-                    Delay = options.RetryDelay,
-                    BackoffType = DelayBackoffType.Exponential,
-                    UseJitter = true,
-                    ShouldHandle = static args =>
-                    {
-                        var isTransient = IsTransient(args.Outcome);
-                        return ValueTask.FromResult(isTransient);
-                    },
-                    OnRetry = args =>
-                    {
-                        var errorType = GetErrorType(args.Outcome);
-                        metrics.Retried(errorType);
-                        args.Outcome.Result?.Dispose();
-                        return ValueTask.CompletedTask;
-                    },
-                }
-            );
+                    var isTransient = IsTransient(args.Outcome);
+                    return ValueTask.FromResult(isTransient);
+                },
+                OnRetry = args =>
+                {
+                    var errorType = GetErrorType(args.Outcome);
+                    metrics.Retried(errorType);
+                    args.Outcome.Result?.Dispose();
+                    return ValueTask.CompletedTask;
+                },
+            };
+            builder.AddRetry(retryOptions);
             var attemptTimeout = CreateTimeout(
                 options.AttemptTimeout,
                 ProviderMetrics.AttemptTimeoutScope,

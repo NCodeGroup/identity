@@ -64,13 +64,10 @@ internal class DefaultProviderMetadataResolver(
         CancellationToken cancellationToken
     )
     {
-        using var request = new HttpRequestMessage(
-            HttpMethod.Get,
-            authority.TrimEnd('/') + OpenIdProtocol.WellKnownPaths.OpenIdConfiguration
-        );
-        request.Headers.Accept.Add(
-            new MediaTypeWithQualityHeaderValue(OpenIdProtocol.MediaTypes.Json)
-        );
+        var requestUri = authority.TrimEnd('/') + OpenIdProtocol.WellKnownPaths.OpenIdConfiguration;
+        using var request = new HttpRequestMessage(HttpMethod.Get, requestUri);
+        var acceptHeader = new MediaTypeWithQualityHeaderValue(OpenIdProtocol.MediaTypes.Json);
+        request.Headers.Accept.Add(acceptHeader);
 
         ProviderHttpResponse response;
         try

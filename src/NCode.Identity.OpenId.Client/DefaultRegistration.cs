@@ -55,12 +55,11 @@ public static class DefaultRegistration
             serviceCollection.TryAddSingleton(TimeProvider.System);
 
             serviceCollection.AddOptions<OpenIdClientOptions>().ValidateOnStart();
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    IValidateOptions<OpenIdClientOptions>,
-                    OpenIdClientOptionsValidator
-                >()
-            );
+            var optionsValidator = ServiceDescriptor.Singleton<
+                IValidateOptions<OpenIdClientOptions>,
+                OpenIdClientOptionsValidator
+            >();
+            serviceCollection.TryAddEnumerable(optionsValidator);
 
             // The pipelines count their retries and timeouts on the package's meter (ADR-1197).
             serviceCollection.AddMetrics();
@@ -79,12 +78,11 @@ public static class DefaultRegistration
                 .AddHttpMessageHandler<ProviderResilienceHandler>();
 
             serviceCollection.TryAddSingleton<ClientCertificateProvider>();
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    IConfigureOptions<HttpClientFactoryOptions>,
-                    MutualTlsHttpClientOptionsSetup
-                >()
-            );
+            var mutualTlsSetup = ServiceDescriptor.Singleton<
+                IConfigureOptions<HttpClientFactoryOptions>,
+                MutualTlsHttpClientOptionsSetup
+            >();
+            serviceCollection.TryAddEnumerable(mutualTlsSetup);
 
             serviceCollection.TryAddSingleton<ProviderHttpClient>();
             serviceCollection.TryAddSingleton<ProviderKeySetImporter>();
@@ -123,27 +121,32 @@ public static class DefaultRegistration
                 DefaultIssuerAccessTokenValidator
             >();
 
+            var clientSecretBasicAuthenticator = ServiceDescriptor.Singleton<
+                IClientAuthenticator,
+                ClientSecretBasicClientAuthenticator
+            >();
+            var clientSecretPostAuthenticator = ServiceDescriptor.Singleton<
+                IClientAuthenticator,
+                ClientSecretPostClientAuthenticator
+            >();
+            var privateKeyJwtAuthenticator = ServiceDescriptor.Singleton<
+                IClientAuthenticator,
+                PrivateKeyJwtClientAuthenticator
+            >();
+            var tlsClientAuthAuthenticator = ServiceDescriptor.Singleton<
+                IClientAuthenticator,
+                TlsClientAuthClientAuthenticator
+            >();
+            var selfSignedTlsClientAuthAuthenticator = ServiceDescriptor.Singleton<
+                IClientAuthenticator,
+                SelfSignedTlsClientAuthClientAuthenticator
+            >();
             serviceCollection.TryAddEnumerable([
-                ServiceDescriptor.Singleton<
-                    IClientAuthenticator,
-                    ClientSecretBasicClientAuthenticator
-                >(),
-                ServiceDescriptor.Singleton<
-                    IClientAuthenticator,
-                    ClientSecretPostClientAuthenticator
-                >(),
-                ServiceDescriptor.Singleton<
-                    IClientAuthenticator,
-                    PrivateKeyJwtClientAuthenticator
-                >(),
-                ServiceDescriptor.Singleton<
-                    IClientAuthenticator,
-                    TlsClientAuthClientAuthenticator
-                >(),
-                ServiceDescriptor.Singleton<
-                    IClientAuthenticator,
-                    SelfSignedTlsClientAuthClientAuthenticator
-                >(),
+                clientSecretBasicAuthenticator,
+                clientSecretPostAuthenticator,
+                privateKeyJwtAuthenticator,
+                tlsClientAuthAuthenticator,
+                selfSignedTlsClientAuthAuthenticator,
             ]);
 
             return newBuilder;

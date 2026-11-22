@@ -84,8 +84,10 @@ internal class DPoPKeyResolver(
         if (jwkThumbprint is not null)
         {
             keys = keys.Where(key =>
-                    string.Equals(ComputeThumbprint(key), jwkThumbprint, StringComparison.Ordinal)
-                )
+                {
+                    var keyThumbprint = ComputeThumbprint(key);
+                    return string.Equals(keyThumbprint, jwkThumbprint, StringComparison.Ordinal);
+                })
                 .ToList();
             if (keys.Count == 0)
                 throw new InvalidOperationException(
@@ -104,10 +106,11 @@ internal class DPoPKeyResolver(
             );
         }
 
+        var preferredAlgorithms = BuildPreferredAlgorithms(supported);
         if (
             !CredentialSelector.TryGetSigningCredentials(
                 AlgorithmCollectionProvider.Collection,
-                BuildPreferredAlgorithms(supported),
+                preferredAlgorithms,
                 keys,
                 out var credentials
             )

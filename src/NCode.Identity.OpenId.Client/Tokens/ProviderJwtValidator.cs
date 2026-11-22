@@ -150,17 +150,21 @@ internal class ProviderJwtValidator(
                 $"The 'iss' header of the encrypted {profile.TokenName} does not match the issuer."
             );
 
-        if (
-            result.DecodedJwt.Header.TryGetProperty(JoseClaimNames.Header.Typ, out var typ)
-            && (
-                typ.ValueKind != JsonValueKind.String
-                || !JoseTokenTypes.AreSame(typ.GetString(), profile.TokenType)
-            )
-        )
-            return ProviderJwtValidationResult.Fail(
-                TokenValidationFailureCodes.InvalidTokenType,
-                $"The 'typ' header of the {profile.TokenName} is not {profile.TokenType}."
-            );
+        if (result.DecodedJwt.Header.TryGetProperty(JoseClaimNames.Header.Typ, out var typ))
+        {
+            if (typ.ValueKind != JsonValueKind.String)
+                return ProviderJwtValidationResult.Fail(
+                    TokenValidationFailureCodes.InvalidTokenType,
+                    $"The 'typ' header of the {profile.TokenName} is not {profile.TokenType}."
+                );
+
+            var typValue = typ.GetString();
+            if (!JoseTokenTypes.AreSame(typValue, profile.TokenType))
+                return ProviderJwtValidationResult.Fail(
+                    TokenValidationFailureCodes.InvalidTokenType,
+                    $"The 'typ' header of the {profile.TokenName} is not {profile.TokenType}."
+                );
+        }
 
         return ProviderJwtValidationResult.Success(result);
     }

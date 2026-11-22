@@ -56,9 +56,11 @@ internal sealed class ClientRemoteKeyReader(
             };
 
             var resolution = RemoteKeyResolver.Resolve(selector);
+            var boundResolution = resolution.Bind(options.KeyId ?? string.Empty);
+            var keyMetadata = new KeyMetadata { KeyId = keyId };
             key = await RemoteKeyResolver.ReadKeyAsync(
-                resolution.Bind(options.KeyId ?? string.Empty),
-                new KeyMetadata { KeyId = keyId },
+                boundResolution,
+                keyMetadata,
                 cancellationToken
             );
 

@@ -29,9 +29,11 @@ public static class ClientAuthenticatorRegistration
         {
             ArgumentNullException.ThrowIfNull(builder);
 
-            builder.ServiceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<IClientAuthenticator, TAuthenticator>()
-            );
+            var authenticatorDescriptor = ServiceDescriptor.Singleton<
+                IClientAuthenticator,
+                TAuthenticator
+            >();
+            builder.ServiceCollection.TryAddEnumerable(authenticatorDescriptor);
             return builder;
         }
     }
