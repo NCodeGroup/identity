@@ -163,6 +163,62 @@ public sealed class DefaultDirectoryStoreReserveTests : DefaultDirectoryStoreTes
     }
 
     [Fact]
+    public async Task ReserveAsync_WhenAnotherCellReservesTheControlPlaneTenantId_Conflicts()
+    {
+        var result = await ReserveAsync(ControlPlaneTenantId, FreeIssuer);
+
+        Assert.False(result.IsReserved);
+        Assert.Contains("already has the identifier", result.ConflictDetail);
+        var record = await ReadTenantAsync(ControlPlaneTenantId);
+        Assert.NotNull(record);
+        Assert.Equal(TenantRecord.StatePlaced, record.State);
+        Assert.Equal(ControlPlaneCell, record.Cell);
+        Assert.Equal(ControlPlaneIssuer, record.Issuer);
+        Assert.Null(record.NormalizedTeamId);
+    }
+
+    [Fact]
+    public async Task ReserveAsync_WhenATenantReservesTheControlPlaneIssuer_Conflicts()
+    {
+        var result = await ReserveAsync(TenantId, ControlPlaneIssuer);
+
+        Assert.False(result.IsReserved);
+        Assert.Contains("already has the issuer", result.ConflictDetail);
+    }
+
+    [Fact]
+    public async Task ReserveAsync_WhenTenantsAreReservedInTurn_HoldsTheControlPlaneTenantOnce()
+    {
+        var first = await ReserveAsync(TenantId, Issuer);
+        var second = await ReserveAsync(OtherTenantId, OtherIssuer);
+
+        Assert.True(first.IsReserved);
+        Assert.True(second.IsReserved);
+        var record = await ReadTenantAsync(ControlPlaneTenantId);
+        Assert.NotNull(record);
+        Assert.Equal(TenantRecord.StatePlaced, record.State);
+    }
+
+    [Fact]
+    public async Task ReserveAsync_WhenAnotherCellHoldsTheConfiguredControlPlaneTenantId_Throws()
+    {
+        await ReserveAndPlaceAsync(TenantId, Issuer);
+        var tenants = CreateTenantDirectory(TenantId);
+        var reservation = new TenantReservation
+        {
+            TenantId = OtherTenantId,
+            Issuer = OtherIssuer,
+            Cell = CellName,
+        };
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await tenants.ReserveAsync(reservation, CancellationToken.None)
+        );
+
+        Assert.Contains("DirectoryServer:ControlPlaneTenantId", exception.Message);
+    }
+
+    [Fact]
     public async Task ReserveAsync_WhenTheTeamIsBelowItsLimit_ReservesTheTenant()
     {
         await PublishTeamAsync("team-1", maxTenants: 2);

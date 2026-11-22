@@ -700,5 +700,32 @@ public sealed class DefaultDirectoryStoreTenantTests : DefaultDirectoryStoreTest
         Assert.Null(record.Issuer);
     }
 
+    [Fact]
+    public async Task ChangeIssuerAsync_WhenTheControlPlaneCellChangesItsRootTenantsIssuer_ChangesIt()
+    {
+        var result = await WriterChangeIssuerAsync(
+            ControlPlaneCell,
+            ControlPlaneTenantId,
+            ControlPlaneIssuer,
+            FreeIssuer
+        );
+
+        Assert.Equal(DirectoryTenantWriteOutcome.Done, result.Outcome);
+        var record = await ReadTenantAsync(ControlPlaneTenantId);
+        Assert.NotNull(record);
+        Assert.Equal(FreeIssuer, record.Issuer);
+    }
+
+    [Fact]
+    public async Task ChangeIssuerAsync_WhenATenantTakesTheControlPlaneIssuer_Conflicts()
+    {
+        await ReserveAndPlaceAsync(TenantId, Issuer);
+
+        var result = await ChangeIssuerAsync(TenantId, Issuer, ControlPlaneIssuer);
+
+        Assert.False(result.IsReserved);
+        Assert.Contains("already has the issuer", result.ConflictDetail);
+    }
+
     #endregion
 }

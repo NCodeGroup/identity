@@ -29,6 +29,8 @@ public abstract class DefaultDirectoryStoreTestBase : IDisposable
     protected const string OtherIssuer = "https://op.example/tenant-2";
     protected const string FreeIssuer = "https://op.example/tenant-3";
     protected const string ControlPlaneCell = "control";
+    protected const string ControlPlaneTenantId = "root";
+    protected const string ControlPlaneIssuer = "https://op.example/root";
 
     private SqliteConnection Connection { get; }
     private ServiceProvider Provider { get; }
@@ -37,6 +39,14 @@ public abstract class DefaultDirectoryStoreTestBase : IDisposable
 
     protected FakeTimeProvider TimeProvider { get; } =
         new(new DateTimeOffset(2026, 1, 2, 3, 4, 5, TimeSpan.Zero));
+
+    private static DirectoryServerOptions CreateOptions(string controlPlaneTenantId) =>
+        new()
+        {
+            Issuer = ControlPlaneIssuer,
+            ControlPlaneCell = ControlPlaneCell,
+            ControlPlaneTenantId = controlPlaneTenantId,
+        };
 
     protected DefaultDirectoryStoreTestBase()
     {
@@ -57,16 +67,20 @@ public abstract class DefaultDirectoryStoreTestBase : IDisposable
             dbContext.Database.EnsureCreated();
         }
 
-        Store = new DefaultDirectoryStore(
+        Store = CreateStore(ControlPlaneTenantId);
+    }
+
+    private DefaultDirectoryStore CreateStore(string controlPlaneTenantId) =>
+        new(
             DbContextFactory,
-            Microsoft.Extensions.Options.Options.Create(
-                new DirectoryServerOptions { ControlPlaneCell = ControlPlaneCell }
-            ),
+            Microsoft.Extensions.Options.Options.Create(CreateOptions(controlPlaneTenantId)),
             Provider.GetRequiredService<IPersistedPayloadSerializer>(),
             Provider.GetRequiredService<ISurrogateKeyGenerator>(),
             TimeProvider
         );
-    }
+
+    protected ITenantDirectory CreateTenantDirectory(string controlPlaneTenantId) =>
+        CreateStore(controlPlaneTenantId);
 
     protected ITenantDirectory Tenants => Store;
 
