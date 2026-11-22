@@ -5069,9 +5069,8 @@ Until the first stable release, the [Unreleased] section describes the product a
 - **Every Microsoft.Extensions, ASP.NET Core and EF Core package is on the target framework's release band.** The family
   resolves them, the Npgsql EF Core provider and the .NET release's System packages at major version 10, one patch,
   10.0.15, so a host runs them from one release beside the ASP.NET Core 10 shared framework and its servicing. The build
-  refuses a project that resolves one at another major, naming each package, unless `RuntimeBandExceptions` lists it
-  beside the issue that tracks the dependency holding it there, as it lists the dependency-injection pair that
-  NCode.PropertyBag holds at 11.0.0; Dependabot proposes no major update of them, because the band moves with the target
+  refuses a project that resolves one at another major, naming each package, and exempts none, so a dependency release
+  that lifts one is not taken; Dependabot proposes no major update of them, because the band moves with the target
   framework ([#895](https://github.com/NCodeGroup/identity/issues/895),
   [ADR-1519](docs/decisions/1519-every-microsoft-extensions-aspnet-core-and-ef-core-package-is-on-the-target-frameworks-release-band.md)).
 

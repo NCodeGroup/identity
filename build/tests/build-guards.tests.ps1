@@ -95,9 +95,6 @@ try {
     Assert-Passes 'a package outside the band may be of another major' $target 'src' @($net10, '<ItemGroup><ReferencePath Include="x.dll" NuGetPackageId="NCode.PropertyBag" NuGetPackageVersion="11.0.0" /></ItemGroup>')
     Assert-Passes 'a reference that is no package passes' $target 'src' @($net10, '<ItemGroup><ReferencePath Include="x.dll" /></ItemGroup>')
     Assert-Passes 'a project that is not .NETCoreApp passes' $target 'src' @('<PropertyGroup><TargetFrameworkIdentifier>.NETStandard</TargetFrameworkIdentifier><TargetFrameworkVersion>v2.0</TargetFrameworkVersion></PropertyGroup>', $diAbstractions11)
-    $exceptions = '<PropertyGroup><RuntimeBandExceptions>Microsoft.Extensions.DependencyInjection;Microsoft.Extensions.DependencyInjection.Abstractions</RuntimeBandExceptions></PropertyGroup>'
-    Assert-Passes 'a listed exception may be off the band' $target 'src' @($net10, $exceptions, $diAbstractions11)
-    Assert-Refuses 'a package the exceptions do not list is refused' $target 'src' @($net10, $exceptions, $diAbstractions11, $systemTextJson11) 'ADR-1519'
 
     $notPackable = '<PropertyGroup><IsPackable>false</IsPackable></PropertyGroup>'
     $target = 'RequirePackingFollowsFolder'
