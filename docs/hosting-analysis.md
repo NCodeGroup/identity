@@ -272,8 +272,7 @@ environments and rulesets. Revoke the bootstrap token afterwards.
 **Everything else is OpenTofu** (official `cloudflare/cloudflare` provider) from GitHub Actions in the public
 `NCodeGroup/identity-platform` repository, with zone-scoped tokens read from SSM — one for OpenTofu, a separate
 DNS-edit-only token for certificate issuance: DNS records (`cloudflare_dns_record`), zone settings
-(`cloudflare_zone_setting`), Email Routing, and notification policies. Records that track cluster IPs can alternatively
-be owned by external-dns in-cluster.
+(`cloudflare_zone_setting`), Email Routing, and notification policies.
 
 **Certificates:** cert-manager with the Cloudflare DNS-01 solver issues Let's Encrypt certificates (wildcards included)
 into Kubernetes Secrets that Traefik serves. Traefik's built-in ACME client keeps state per instance and doesn't share
