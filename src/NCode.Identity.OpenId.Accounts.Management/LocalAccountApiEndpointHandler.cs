@@ -361,6 +361,7 @@ internal class LocalAccountApiEndpointHandler(
     /// </summary>
     /// <response code="201">The created local account.</response>
     /// <response code="400">The display name is longer than allowed, the claims include the reserved <c>name</c> claim, or the password does not meet the tenant's password policy.</response>
+    /// <response code="404">The control-plane tenant does not exist.</response>
     /// <response code="409">A local account with the username already exists in the control-plane tenant.</response>
     internal virtual async ValueTask<IResult> CreatePlatformLocalAccountAsync(
         HttpContext httpContext,
