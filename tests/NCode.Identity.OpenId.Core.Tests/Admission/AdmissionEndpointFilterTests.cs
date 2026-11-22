@@ -137,7 +137,7 @@ public sealed class AdmissionEndpointFilterTests : BaseTests
     public async Task InvokeAsync_WhenTheEndpointIsNotMetered_RunsTheEndpointWithoutTheGate()
     {
         // The filter never reads the context of an unmetered request.
-        HttpContext.Features.Set(CreateLooseMock<IOpenIdContextFeature>().Object);
+        HttpContext.Features.Set(CreateStrictMock<IOpenIdContextFeature>().Object);
         var mockMetered = CreateStrictMock<IOpenIdEndpointMeteredMetadata>();
         mockMetered.Setup(x => x.IsMetered).Returns(false).Verifiable();
         var metadata = new EndpointMetadataCollection(mockMetered.Object);
