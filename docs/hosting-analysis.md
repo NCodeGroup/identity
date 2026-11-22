@@ -1285,7 +1285,9 @@ Everything else on this page is decided in the record its section names.
 2. **The fleet model** — the cell inventory, the cell module, the release channels and the version-skew rule, where
    fleet telemetry lives, and operator access, recorded before the fleet is built
    ([#845](https://github.com/NCodeGroup/identity/issues/845)).
-3. **A dedicated cell's capacity rating** — it needs a load test on dedicated-CPU nodes ([§3](#3-compute-sizing),
+3. **A shared cell's priority by plan, each cell's telemetry budget and a dedicated cell's capacity rating** — under
+   load nothing sheds free traffic before paid traffic, each cell adds series toward Grafana Cloud's free 10k active
+   series, and a capacity rating needs a load test on dedicated-CPU nodes ([§3](#3-compute-sizing),
    [Gaps for dedicated cells](#gaps-for-dedicated-cells)).
 4. **The launch work** — what [§10](#10-pre-launch-considerations) lists under Operations, Security hardening, Business
    and legal, and Outbound email, among them the restore drill's RPO and RTO targets, audit-event retention and customer
