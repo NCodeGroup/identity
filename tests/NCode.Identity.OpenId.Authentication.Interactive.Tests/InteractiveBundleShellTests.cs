@@ -148,7 +148,9 @@ public class InteractiveBundleShellTests
             returnUrl: "/",
             antiforgeryFieldName: "__RequestVerificationToken",
             antiforgeryToken: "t",
-            errorMessage: null
+            errorMessage: null,
+            statusMessage: null,
+            forgotPasswordHref: null
         );
         var html = writer.WrittenSpan.ToString();
 

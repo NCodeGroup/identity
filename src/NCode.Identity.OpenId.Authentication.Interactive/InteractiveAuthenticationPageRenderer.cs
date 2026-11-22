@@ -70,8 +70,8 @@ internal static class InteractiveAuthenticationPageRenderer
         string antiforgeryFieldName,
         string antiforgeryToken,
         string? errorMessage,
-        string? statusMessage = null,
-        string? forgotPasswordHref = null
+        string? statusMessage,
+        string? forgotPasswordHref
     )
     {
         var locale = frame.Locale;
