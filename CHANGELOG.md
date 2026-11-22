@@ -2380,17 +2380,20 @@ Until the first stable release, the [Unreleased] section describes the product a
   scopes.** Scopes are composed as `{verb}:{family}` (for example `read:clients`, `update:tenant_settings`,
   `update:team_settings`, `create:resource_servers`, `delete:grants`). The control-plane families
   (`platform_settings`, `platform_encryption_keys`, `teams`, `team_settings`, `tenants`) are seeded only into the root
-  (control-plane) tenant, whose
-  identifier is `TenantResolutionOptions.Root.TenantId`, bound from `TenantResolution:Root:TenantId` (default `"root"`);
-  the tenant-plane families (a tenant's own settings and secrets, its clients, client secrets, resource servers,
-  resource-server secrets, client grants and grants) are seeded into every tenant. A `SystemResourceServerDescriptor`
-  declares a `Plane` (`SystemResourceServerPlane.Tenant`, the default, or `Control`), and the plane-aware system-resource-server seeder merges every provider that contributes to
-  one audience into one resource server per tenant, seeding `Control`-plane families only into the root tenant. The
-  static single-tenant strategy provisions the root tenant lazily alongside its workload tenant, so a single-tenant
-  deployment has its control plane with no extra configuration. See
+  (control-plane) tenant, which the tenant strategy names (`ITenantStrategy.GetControlPlaneTenantId()`):
+  `TenantResolution:Root:TenantId` (default `"root"`) under the host and path strategies, and the configured tenant
+  under the static single-tenant strategy; the tenant-plane families (a tenant's own settings and secrets, its clients,
+  client secrets, resource servers, resource-server secrets, client grants and grants) are seeded into every tenant. A
+  `SystemResourceServerDescriptor` declares a `Plane` (`SystemResourceServerPlane.Tenant`, the default, or `Control`),
+  and the plane-aware system-resource-server seeder merges every provider that contributes to one audience into one
+  resource server per tenant, seeding `Control`-plane families only into the root tenant. Under the static
+  single-tenant strategy the one tenant it serves is the root tenant, so a single-tenant deployment has its control
+  plane, and in the control-plane cell the `urn:ncode:directory` and `urn:ncode:control-plane` resource servers, in the
+  tenant that issues its tokens, with no extra configuration. See
   [ADR-1417](docs/decisions/1417-management-authority-is-a-role-assignment-at-a-node-of-the-platform-team-and-tenant-hierarchy.md),
-  [ADR-1411](docs/decisions/1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md) and
-  [ADR-1166](docs/decisions/1166-a-tenant-is-created-and-seeded-through-one-provisioning-pipeline-under-every-strategy.md).
+  [ADR-1411](docs/decisions/1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md),
+  [ADR-1166](docs/decisions/1166-a-tenant-is-created-and-seeded-through-one-provisioning-pipeline-under-every-strategy.md)
+  and [#919](https://github.com/NCodeGroup/identity/issues/919).
 
 - **Resource ownership is data-driven.** Persisted `(principal, role, resource-node)` role assignments
   (`PersistedRoleAssignment` / `IRoleAssignmentStore`) back an additive `OwnershipHandler` that grants a principal every
@@ -3751,8 +3754,9 @@ Until the first stable release, the [Unreleased] section describes the product a
   [ADR-1518](docs/decisions/1518-a-long-lived-openid-object-owns-a-concurrent-property-bag-and-an-operation-layers-a-child-over-its-owners.md)).
 
 - **The control-plane tenant is named from configuration and served from the tenant cache.** `ITenantStrategy` and
-  `ITenantResolver` expose `GetControlPlaneTenantId()`, and `CreateControlPlaneTenantAsync` probes the tenant cache with
-  that identifier first, reading the store only on a miss
+  `ITenantResolver` expose `GetControlPlaneTenantId()` and `GetControlPlaneTenantDisplayName()`, which name the root
+  tenant and the display name it is created with, and `CreateControlPlaneTenantAsync` probes the tenant cache with that
+  identifier first, reading the store only on a miss
   ([ADR-1191](docs/decisions/1191-a-management-request-is-authenticated-by-the-control-plane-tenant-and-scoped-by-its-routes-tenant.md)).
 
 - **A tenant's issuer is a first-class tenant property, and a tenant created without one is given the issuer its tenant
@@ -3797,16 +3801,20 @@ Until the first stable release, the [Unreleased] section describes the product a
   strategy's default issuer, judged like any other write, and `SeedAsync(tenantId)` seeds it and returns the tenant row
   its seed committed; `ITenantStrategy` and `ITenantResolver` expose `GetDefaultIssuerAsync`, which a custom strategy
   implements. Under the host and path strategies the root (control-plane) tenant, configured under
-  `TenantResolution:Root` (`TenantId`, `DisplayName`, `Issuer`, `TeamId`, `TeamDisplayName`), is created when the first
-  request reaches its address, so a multi-tenant deployment boots from configuration alone: the bootstrap administrator,
-  named into the root tenant, obtains the first management token there. A tenant created through the management API is
-  seeded before the response, so its OpenID and management resource servers exist before its first request, and every
-  tenant is seeded again when it is next materialized, so every seed contributor a deployment registers reaches existing
-  tenants under every strategy. A tenant is materialized, and a created tenant answered, from the row its seed
-  committed, so it carries the concurrency tokens its own seed wrote, and a replica that revalidates its cached tenants
-  after a missed announcement keeps it. The Aspire conformance instance serves its own `conformance` tenant
+  `TenantResolution:Root` (`TenantId`, default `root`, `DisplayName`, `Issuer`, `MtlsEndpointAliasAuthority`, `TeamId`,
+  `TeamDisplayName`), is created when the first request reaches its address, so a multi-tenant deployment boots from
+  configuration alone: the bootstrap administrator, named into the root tenant, obtains the first management token
+  there. Under the static single-tenant strategy its own tenant is the root tenant, and the strategy refuses
+  `Root:TenantId`, `Root:DisplayName`, `Root:Issuer` and `Root:MtlsEndpointAliasAuthority` when the host starts. A
+  tenant created through the management API is seeded before the response, so its OpenID and management resource
+  servers exist before its first request, and every tenant is seeded again when it is next materialized, so every seed
+  contributor a deployment registers reaches existing tenants under every strategy. A tenant is materialized, and a
+  created tenant answered, from the row its seed committed, so it carries the concurrency tokens its own seed wrote,
+  and a replica that revalidates its cached tenants after a missed announcement keeps it. The Aspire conformance
+  instance serves its own `conformance` tenant
   ([ADR-1166](docs/decisions/1166-a-tenant-is-created-and-seeded-through-one-provisioning-pipeline-under-every-strategy.md),
-  [#619](https://github.com/NCodeGroup/identity/issues/619)).
+  [#619](https://github.com/NCodeGroup/identity/issues/619),
+  [#919](https://github.com/NCodeGroup/identity/issues/919)).
 
 - **Concurrent seeds of one tenant converge.** When two replicas, or two requests that miss the tenant cache together,
   seed the same tenant, a seed whose commit fails runs once more in a fresh unit of work; seed contributors are
@@ -3814,8 +3822,9 @@ Until the first stable release, the [Unreleased] section describes the product a
   servers ([ADR-1169](docs/decisions/1169-every-tenant-is-provisioned-with-a-persisted-key-for-each-configured-algorithm-it-uses.md)).
 
 - **A tenant the deployment requires cannot be deleted.** `DELETE /api/tenants/{tenantId}` answers `409 Conflict` for
-  the root tenant or the static single-tenant strategy's tenant, because a deleted tenant identifier is never reissued.
-  `ITenantStrategy` and `ITenantResolver` expose `IsRequiredTenant`, so a custom strategy names the tenants it requires
+  the root tenant, which the static single-tenant strategy's tenant is under that strategy, because a deleted tenant
+  identifier is never reissued. `ITenantStrategy` and `ITenantResolver` expose `IsRequiredTenant`, so a custom strategy
+  names the tenants it requires
   ([ADR-1160](docs/decisions/1160-a-tenant-is-named-by-its-creator-validated-by-its-strategy-and-never-reissued.md)).
 
 - **Tenants declare their environment.** The tenant settings `environment_type`, `environment_name` and
@@ -4342,8 +4351,11 @@ Until the first stable release, the [Unreleased] section describes the product a
   `5xx`, or a call that outlasts `DirectoryClientOptions.RequestTimeout`, its response body included. Creating a tenant
   reserves its identifier (a team's `max_tenants` is enforced there), saves the tenant and places it, releasing the
   reservation on failure; serving a tenant's requests never calls the directory, because the cell's own tenant row is
-  authoritative
-  ([ADR-1411](docs/decisions/1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md)).
+  authoritative; the control-plane cell creates its root tenant, judges its address and changes its keys without asking
+  the directory, which accepts only the tokens that tenant issues, so a control-plane cell serves from a release that
+  carries its directory client from the first release
+  ([ADR-1411](docs/decisions/1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md),
+  [#918](https://github.com/NCodeGroup/identity/issues/918)).
 
 - **A directory host serves the global directory.** `NCode.Identity.OpenId.GlobalDirectory.Server` maps the endpoints
   under `/directory/v1/` (tenants, retired issuers, teams, the platform document, cells and the change feed) over its
@@ -4467,9 +4479,9 @@ Until the first stable release, the [Unreleased] section describes the product a
   the `cell.name` and `cell.region` resource attributes tag every pod's OpenTelemetry signals; `directory.url`,
   `directory.clientId`, `directory.keyRing` and `directory.keys` point a cell at the platform's directory; and
   `directory.enabled` runs the directory host with its own database, `directory.database` (the runtime role's
-  connection, which only the directory's Deployment receives, and the role's name), `directory.migrations.database` (the
-  schema owner's connection, which only the migration Job receives), `directory.tls` and pre-install migration Job,
-  which migrates as the owner and grants the runtime role data access to the directory's tables
+  connection, which only the directory's Deployment receives, and the role's name), `directory.migrations.database`
+  (the schema owner's connection, which only the migration Job receives), `directory.backendTls` and pre-install
+  migration Job, which migrates as the owner and grants the runtime role data access to the directory's tables
   (`DirectoryMigration:RuntimeRole`). `directory.database` and `directory.migrations.database` each take a Secret that
   holds the finished connection string (`ConnectionStrings:directory`) or the connection's parts (`DirectoryDatabase`),
   never both, the keys of a CloudNativePG `<cluster>-app` Secret by default, and an empty key of the owner's falls back
@@ -4484,6 +4496,20 @@ Until the first stable release, the [Unreleased] section describes the product a
   within 63 characters. `ci/cell-values.yaml` is a cell that is not the control plane, `ci/directory-values.yaml` a
   control-plane cell that runs the directory and reaches it as its own machine client, and the `Host chart` workflow
   lints and renders both.
+
+- **The host chart routes to the directory host over HTTPS it verifies.** `directory.ingress` renders an `Ingress` for
+  every host in `directory.allowedHosts`, which `ingress.controller: traefik` pairs with a `ServersTransport` and the
+  Service's `service.serversscheme` and `service.serverstransport` annotations, and `directory.httpRoute` renders an
+  `HTTPRoute` for those hosts and a `BackendTLSPolicy` that verifies the directory's pods against
+  `directory.backendTls.caConfigMap`, else `backendTls.caConfigMap`. The directory serves
+  `directory.backendTls.existingSecret`, or else a certificate the chart's cert-manager `Certificate` issues from
+  `backendTls.certManager`'s issuer for the directory Service's DNS names, and requires the ingress controller's client
+  certificate when `backendTls.clientCertificate.required` is true; the controller verifies it against
+  `directory.backendTls.ingressSecret`, else `backendTls.ingressSecret`, else `<release>-ingress`. The `Host chart`
+  workflow installs `ci/kind-directory-values.yaml`, a control-plane cell that runs the directory and carries its
+  directory client and setup Job in one release, in kind behind Traefik
+  ([#920](https://github.com/NCodeGroup/identity/issues/920),
+  [ADR-1507](docs/decisions/1507-the-host-chart-routes-to-its-https-only-pods-through-gateway-api-a-traefik-ingress-or-the-operators-own-ingress.md)).
 
 - **A tenant's data carries the cell that wrote it.** `Cell:Name` is stamped on audit records and usage rows, it is the
   tag of the keys a remote key provider creates, and it prefixes every Valkey key, so a cell's records, keys and
@@ -6183,16 +6209,17 @@ Until the first stable release, the [Unreleased] section describes the product a
   issue [#296](https://github.com/NCodeGroup/identity/issues/296)).
 
 - **The management API authenticates every caller against the control-plane tenant and takes its data scope from the
-  route.** Whatever host or path it is reached on (a collection route such as `POST /api/teams/{teamId}/tenants` under `DynamicByPath`,
-  a `/api/tenants/{tenantId}/…` route, or any host under `DynamicByHost`), the caller's token is
-  validated with the control-plane tenant (the root tenant, or a static strategy's own tenant). `ITenantStrategy` and
-  `ITenantResolver` expose `ResolveControlPlaneTenantAsync`, `IOpenIdTenantFactory` exposes
+  route.** Whatever host or path it is reached on (a collection route such as `POST /api/teams/{teamId}/tenants` under
+  `DynamicByPath`, a `/api/tenants/{tenantId}/…` route, or any host under `DynamicByHost`), the caller's token is
+  validated with the control-plane tenant (the root tenant, which a static strategy's own tenant is).
+  `ITenantStrategy` and `ITenantResolver` expose `ResolveControlPlaneTenantAsync`, `IOpenIdTenantFactory` exposes
   `CreateControlPlaneTenantAsync`, and `IOpenIdContextFactory` exposes `CreateForControlPlaneAsync`
   ([ADR-1191](docs/decisions/1191-a-management-request-is-authenticated-by-the-control-plane-tenant-and-scoped-by-its-routes-tenant.md)). The route's
   `{tenantId}` only scopes the data: it sets the ambient tenant scope, so a central-admin caller administers a tenant by
   id while the persistence-layer query filter confines the read fail-closed
   ([ADR-1018](docs/decisions/1018-tenant-selection-is-shared-and-tenant-bound-rows-are-scoped-at-the-persistence-layer.md)); a control-plane route without
-  `{tenantId}` uses the resolved tenant, which has no effect on the unscoped platform, team and tenant rows those routes act on
+  `{tenantId}` uses the resolved tenant, which has no effect on the unscoped platform, team and tenant rows those routes
+  act on
   ([ADR-1191](docs/decisions/1191-a-management-request-is-authenticated-by-the-control-plane-tenant-and-scoped-by-its-routes-tenant.md)).
 
 - **The bootstrap administrator's `ClientSecret` is supplied Base64Url-encoded and kept off the GC heap.** The seed
