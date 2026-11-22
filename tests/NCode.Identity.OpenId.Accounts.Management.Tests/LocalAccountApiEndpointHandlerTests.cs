@@ -20,12 +20,14 @@ using NCode.Identity.OpenId.Authentication.Subject;
 using NCode.Identity.OpenId.Contexts;
 using NCode.Identity.OpenId.Management;
 using NCode.Identity.OpenId.Management.Auditing;
+using NCode.Identity.OpenId.Management.Authorization;
 using NCode.Identity.OpenId.Management.Contracts;
 using NCode.Identity.OpenId.Management.Endpoints;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
 using NCode.Identity.OpenId.Persistence.Tenants;
 using NCode.Identity.OpenId.Settings;
+using NCode.Identity.OpenId.Tenants;
 using NCode.Identity.Persistence.Stores;
 using NCode.Identity.Settings;
 using NCode.Mediator;
@@ -36,6 +38,7 @@ namespace NCode.Identity.OpenId.Accounts.Management;
 public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
 {
     private const string TenantId = "tenant-1";
+    private const string ControlPlaneTenantId = "control-plane";
     private const string TeamId = "team-1";
     private const string LocalAccountId = "account-1";
     private const string UserName = "alice";
@@ -455,6 +458,27 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
             User = new ClaimsPrincipal(new ClaimsIdentity(authenticationType: "test")),
             RequestServices = serviceCollection.BuildServiceProvider(),
         };
+    }
+
+    private HttpContext CreateControlPlaneHttpContext()
+    {
+        var httpContext = CreateHttpContext();
+        var mockTenant = MockRepository.Create<OpenIdTenant>();
+        mockTenant.Setup(x => x.TenantId).Returns(ControlPlaneTenantId).Verifiable();
+        var mockContext = MockRepository.Create<OpenIdContext>();
+        mockContext.Setup(x => x.Tenant).Returns(mockTenant.Object).Verifiable();
+        var mockFeature = MockRepository.Create<IOpenIdContextFeature>();
+        mockFeature.Setup(x => x.OpenIdContext).Returns(mockContext.Object).Verifiable();
+        httpContext.Features.Set(mockFeature.Object);
+        return httpContext;
+    }
+
+    private void SetupControlPlaneScope()
+    {
+        MockAmbientTenantAccessor
+            .Setup(x => x.BeginScope(ControlPlaneTenantId))
+            .Returns(Mock.Of<IDisposable>())
+            .Verifiable();
     }
 
     #endregion
@@ -1270,6 +1294,94 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
                 CancellationToken.None
             )
         );
+    }
+
+    #endregion
+
+    #region Platform Tests
+
+    [Fact]
+    public async Task ListPlatformLocalAccountsAsync_ListsTheControlPlaneTenantsAccounts()
+    {
+        SetupControlPlaneScope();
+        string? authorizedResource = null;
+        MockAuthorizationService
+            .Setup(x =>
+                x.AuthorizeAsync(
+                    It.IsAny<ClaimsPrincipal>(),
+                    It.IsAny<object?>(),
+                    It.IsAny<IEnumerable<IAuthorizationRequirement>>()
+                )
+            )
+            .Callback(
+                (ClaimsPrincipal _, object? resource, IEnumerable<IAuthorizationRequirement> _) =>
+                    authorizedResource = (resource as TenantScopeResource)?.TenantId
+            )
+            .ReturnsAsync(AuthorizationResult.Success())
+            .Verifiable();
+        MockStoreManagerFactory
+            .Setup(x => x.CreateAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(MockStoreManager.Object)
+            .Verifiable();
+        MockStoreManager.Setup(x => x.DisposeAsync()).Returns(ValueTask.CompletedTask).Verifiable();
+        MockStoreManager
+            .Setup(x => x.GetStore<ILocalAccountStore>())
+            .Returns(MockLocalAccountStore.Object)
+            .Verifiable();
+        MockLocalAccountStore
+            .Setup(x => x.GetPageAsync(It.IsAny<PageRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(
+                new PagedResult<PersistedLocalAccount> { Items = [], NextCursor = null }
+            )
+            .Verifiable();
+        MockStoreManager
+            .Setup(x => x.GetStore<IFederatedIdentityStore>())
+            .Returns(MockFederatedIdentityStore.Object);
+        MockFederatedIdentityStore
+            .Setup(x =>
+                x.GetByIssuerSubjectsAsync(
+                    AccountConstants.SelfIssuer,
+                    It.IsAny<IReadOnlyCollection<string>>(),
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync((IReadOnlyList<PersistedFederatedIdentity>)[]);
+
+        var result = await Handler.ListPlatformLocalAccountsAsync(
+            CreateControlPlaneHttpContext(),
+            cursor: null,
+            limit: null,
+            CancellationToken.None
+        );
+
+        Assert.IsType<JsonHttpResult<CollectionResource<LocalAccountResource>>>(result);
+        Assert.Equal(ControlPlaneTenantId, authorizedResource);
+    }
+
+    [Fact]
+    public async Task CreatePlatformLocalAccountAsync_CreatesInTheControlPlaneTenant()
+    {
+        SetupControlPlaneScope();
+        MockLocalAccountValidator
+            .Setup(x =>
+                x.AuthorizeCreateAsync(
+                    It.IsAny<ClaimsPrincipal>(),
+                    ControlPlaneTenantId,
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync(CreateForbiddenError())
+            .Verifiable();
+
+        // The validator is asked about the control-plane tenant, and the strict mocks admit nothing else.
+        var result = await Handler.CreatePlatformLocalAccountAsync(
+            CreateControlPlaneHttpContext(),
+            new CreateLocalAccountRequest { UserName = UserName, Password = Password },
+            CancellationToken.None
+        );
+
+        var problem = Assert.IsType<ProblemHttpResult>(result);
+        Assert.Equal(StatusCodes.Status403Forbidden, problem.StatusCode);
     }
 
     #endregion
