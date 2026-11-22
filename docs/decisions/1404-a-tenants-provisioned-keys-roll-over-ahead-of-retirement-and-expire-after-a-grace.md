@@ -116,6 +116,12 @@ makes to a tenant's key on its own is an audit event.**
    committed and the tenant must materialize. The audit event is the one record of a change: the rollover logs only its
    mechanics (a lost race, a failed tenant, a failed pass and a failed publish), and the audit pipeline writes the log
    entry of each event it publishes.
+8. **A cell changes only the keys of a tenant it holds.** Before the seed or the pass applies a plan that changes keys,
+   `ITenantKeyPlacementGuard` asks the global directory where the tenant is placed. A tenant placed in another cell, or
+   one whose placement cannot be read, keeps its keys, so a cell that still holds a moved tenant's copy never destroys a
+   remote key the target cell uses
+   ([ADR-1514](1514-a-tenant-moves-between-cells-of-one-region-through-an-encrypted-export-and-import.md)). A plan that
+   changes nothing reads no placement.
 
 ## Options considered
 

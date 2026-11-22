@@ -163,7 +163,8 @@ tenant in the cell it moved to once the move completes.
   disabled, so the cost is accepted.
 - A failure after the import and before the release leaves the tenant in both cells with the directory naming the
   target. The release at the source finishes it, and nothing serves the source's copy, because the tenant stays
-  disabled there.
+  disabled there. Neither the source's key rollover nor its seed changes the copy's keys while the directory places the
+  tenant in the target, because `ITenantKeyPlacementGuard` refuses the change.
 - A tenant moves only while its package is at most 64 MiB, its local accounts included, and a proxy in front of the
   target cell admits a request body of 64 MiB plus 64 KiB. A larger tenant cannot move.
 - An import whose move the directory does not confirm can end with the target holding the tenant while the directory

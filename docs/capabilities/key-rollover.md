@@ -139,6 +139,11 @@ the announcement that follow a commit run on their own bounded token, so a stopp
 the committed change in place. A tenant the pass changed is announced, so every replica evicts it and serves its keys
 as they are.
 
+A cell changes only the keys of a tenant it holds. Before the seed or the pass applies a plan that changes keys,
+`ITenantKeyPlacementGuard` asks the global directory where the tenant is placed. A tenant placed in another cell, or one
+whose placement cannot be read, keeps its keys, so a cell that still holds a moved tenant's copy never destroys a remote
+key the target cell uses. A plan that changes nothing reads no placement.
+
 > [!TIP]
 > [ADR-1404](../decisions/1404-a-tenants-provisioned-keys-roll-over-ahead-of-retirement-and-expire-after-a-grace.md),
 > [ADR-1412](../decisions/1412-a-settings-change-reaches-every-replica-at-once-and-is-reconciled-per-team-against-what-changed.md),
