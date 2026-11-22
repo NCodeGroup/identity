@@ -22,9 +22,10 @@ public interface ITenantProvisioner
     /// <see cref="ITenantResolver.ValidateTenantAsync"/> like any other tenant written. It does not seed the tenant.
     /// Unless the tenant is the control-plane cell's root tenant, whose tokens the directory accepts, a tenant a
     /// strategy serves (one with an issuer) is reserved through the global directory before it is inserted and placed
-    /// in this cell after, and the tenant is removed and its reservation released when the placement fails; a tenant of
-    /// the platform's own team is reserved in no team; a tenant without an issuer is created in this cell alone. A
-    /// directory that cannot be reached fails the creation.
+    /// in this cell after, and when the creation fails after the reservation, the inserted tenant is removed and then
+    /// the reservation released, which stays held while the tenant's row remains; a tenant of the platform's own team
+    /// is reserved in no team; a tenant without an issuer is created in this cell alone. A directory that cannot be
+    /// reached fails the creation.
     /// </summary>
     /// <param name="teamId">The identifier of the team the tenant belongs to; the team is created when it does not exist.</param>
     /// <param name="tenantId">The identifier of the tenant to create.</param>

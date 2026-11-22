@@ -50,9 +50,17 @@ internal sealed class DefaultTenantProvisioner(
     private IStoreManagerFactory StoreManagerFactory { get; } = storeManagerFactory;
     private IAmbientTenantAccessor AmbientTenantAccessor { get; } = ambientTenantAccessor;
     private ITenantResolver TenantResolver { get; } = tenantResolver;
+
+    /// <summary>
+    /// Gets the options of the cell that the host runs.
+    /// </summary>
     private CellOptions CellOptions { get; } = cellOptionsAccessor.Value;
     private IMediator Mediator { get; } = mediator;
     private ITeamProvisioner TeamProvisioner { get; } = teamProvisioner;
+
+    /// <summary>
+    /// Gets the global directory that reserves and places a tenant this provisioner creates.
+    /// </summary>
     private ITenantDirectory TenantDirectory { get; } = tenantDirectory;
     private TimeProvider TimeProvider { get; } = timeProvider;
     private ILogger<DefaultTenantProvisioner> Logger { get; } = logger;
@@ -190,7 +198,9 @@ internal sealed class DefaultTenantProvisioner(
     /// <summary>
     /// Creates a tenant through the directory as a saga: reserves the tenant's identifier and issuer, inserts the
     /// tenant, then places it in this cell. A creation that fails before the tenant is placed removes the inserted
-    /// tenant, then releases the reservation, so the directory never frees an identifier whose row still exists.
+    /// tenant and then releases the reservation, each on its own bounded token, and keeps the reservation when the
+    /// removal fails, so the directory never frees an identifier whose row still exists; a compensating step that fails
+    /// is logged, and the failure that ended the creation propagates.
     /// </summary>
     private async ValueTask<PersistedTenant> ReserveInsertAndPlaceAsync(
         PersistedTenant tenant,
@@ -264,29 +274,56 @@ internal sealed class DefaultTenantProvisioner(
         {
             if (!isSettled)
             {
-                // The compensation runs even when the request was canceled, and the release comes after the removal,
-                // so the directory never frees an identifier whose row still exists.
+                // The compensation runs even when the creation was canceled, each step on its own token bounded as work
+                // that follows a commit, and a step that fails or outlasts its bound is logged, so the failure that
+                // ended the creation surfaces. The reservation is released only once the inserted row is gone, so the
+                // directory never frees an identifier whose row still exists; a reservation kept for a row that a
+                // timed-out removal did remove is reserved again by the next creation of the tenant in this cell.
+                // See ADR-1351 and ADR-1411.
+                var isRemoved = !isInserted;
                 if (isInserted)
                 {
                     try
                     {
-                        await RemoveCreatedTenantAsync(tenant.TenantId, CancellationToken.None);
+                        await PostCommitWork.RunAsync(
+                            TimeProvider,
+                            RemoveCreatedTenantAsync,
+                            tenant.TenantId
+                        );
+                        isRemoved = true;
                     }
-                    finally
+                    catch (Exception exception)
                     {
-                        await TenantDirectory.ReleaseAsync(tenant.TenantId, CancellationToken.None);
+                        Logger.TenantCreationRemovalFailed(tenant.TenantId, exception);
                     }
                 }
-                else
+
+                if (isRemoved)
                 {
-                    await TenantDirectory.ReleaseAsync(tenant.TenantId, CancellationToken.None);
+                    try
+                    {
+                        await PostCommitWork.RunAsync(
+                            TimeProvider,
+                            TenantDirectory.ReleaseAsync,
+                            tenant.TenantId
+                        );
+                    }
+                    catch (Exception exception)
+                    {
+                        Logger.TenantCreationReleaseFailed(tenant.TenantId, exception);
+                    }
                 }
             }
         }
     }
 
-    // The removal compensates a creation that failed after its row committed, so it runs on a store manager of its own
-    // even when the request was canceled: the caller passes a token that is never canceled.
+    /// <summary>
+    /// Removes a tenant whose creation failed after its row committed, on a store manager of its own, so the creation's
+    /// unit of work takes no part in it.
+    /// </summary>
+    /// <param name="tenantId">The identifier of the tenant to remove.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to observe.</param>
+    /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation.</returns>
     private async ValueTask RemoveCreatedTenantAsync(
         string tenantId,
         CancellationToken cancellationToken
