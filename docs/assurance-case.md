@@ -111,26 +111,69 @@ holds.
 
 ## Secure Design Principles Applied
 
-[//]: # "Maintainers: say how the design applies economy of mechanism, fail-safe defaults, complete mediation, least
-privilege and open design."
-
-Not written yet.
+- **Economy of mechanism**: one seam per concern
+  ([ADR-1001](decisions/1001-behavior-is-a-service-a-strategy-collection-or-a-mediator-seam-chosen-by-one-ladder.md)):
+  one validator for the tokens the server issued
+  ([ADR-1167](decisions/1167-the-server-validates-the-tokens-it-issued-under-one-policy.md)), one outbound client
+  ([ADR-1315](decisions/1315-calls-to-caller-supplied-urls-share-one-guarded-bounded-client-and-one-single-flight-helper.md)),
+  one session-termination seam
+  ([ADR-1112](decisions/1112-every-end-of-a-session-runs-one-termination-seam-once-revoking-the-grants-issued-under-it.md)),
+  one key policy
+  ([ADR-1161](decisions/1161-every-owners-public-keys-have-one-source-and-are-imported-under-one-key-policy.md)).
+- **Fail-safe defaults**: a secure settings baseline that only an operator widens
+  ([ADR-1010](decisions/1010-settings-merge-as-ceilings-and-floors-unset-lists-restrict-nothing-and-a-secure-baseline-supplies-defaults.md)),
+  tenant scoping and revocation checks that fail closed, a host that stops on a key it can't decrypt
+  ([ADR-1247](decisions/1247-the-platform-master-key-protects-the-data-protection-ring-and-an-unreadable-key-stops-the-host.md))
+  or on development settings
+  ([ADR-1370](decisions/1370-a-host-runs-the-deployment-posture-unless-configured-for-local-development-and-always-names-its-root-key-provider.md)).
+- **Complete mediation**: every management route authorizes at its node before it reads
+  ([ADR-1424](decisions/1424-a-management-route-authorizes-at-the-node-it-names-before-it-reads-through-replaceable-validators.md)),
+  and every grant that issues tokens validates its subject
+  ([ADR-1225](decisions/1225-every-grant-that-issues-tokens-for-a-subject-validates-it.md)).
+- **Least privilege**: the runtime database role can't bypass row-level security
+  ([ADR-1018](decisions/1018-tenant-selection-is-shared-and-tenant-bound-rows-are-scoped-at-the-persistence-layer.md)),
+  resource servers own their scopes
+  ([ADR-1026](decisions/1026-resource-servers-own-scopes-settings-and-keys-and-decide-a-clients-scopes-and-token-audiences.md)),
+  and the images run as non-root
+  ([ADR-1248](decisions/1248-the-host-console-and-directory-images-are-chiseled-non-root-multi-arch-digest-pinned-and-log-one-line-json.md)).
+- **Open design**: the code and the decision records are public
+  ([ADR-1502](decisions/1502-code-a-self-hoster-could-use-is-public-and-identity-holds-the-products-and-platforms-decisions.md)),
+  and the security rests on keys, not on secrecy.
 
 ## Common Weaknesses Countered
 
-[//]: # "Maintainers: list the CWE ids the design counters, each with the requirement that counters it."
-
-Not written yet.
+- CWE-287 and CWE-294, improper authentication and capture-replay: R3, R4.
+- CWE-347 and CWE-757, unverified signature and algorithm downgrade: R2.
+- CWE-601, open redirect: R1.
+- CWE-639 and CWE-863, authorization bypass through a user-controlled key and incorrect authorization: R5, R7.
+- CWE-918, server-side request forgery: R8.
+- CWE-311 and CWE-226, missing encryption and sensitive data left in reused memory: R6.
+- CWE-307 and CWE-208, excessive authentication attempts and timing discrepancy: R12.
+- CWE-319, cleartext transmission: R9.
+- CWE-79 and CWE-1021, cross-site scripting and UI framing: R9.
+- CWE-352, cross-site request forgery: R10.
+- CWE-20 and CWE-400, improper input validation and uncontrolled resource consumption: R11.
+- CWE-532, sensitive information in logs: HTTP logging writes a body only for an endpoint that opts in, never a
+  credential
+  ([ADR-1503](decisions/1503-http-logging-writes-a-body-only-for-an-endpoint-that-opts-in-and-never-for-one-that-carries-credentials.md)).
+- CWE-798, hard-coded credentials: R9.
 
 ## Evidence
-
-[//]: # "Maintainers: add the tests and the coverage the project keeps."
 
 - **Gate:** `./build/dod.ps1` builds in Release with warnings as errors
   ([project-template ADR-0100](decisions/project-template/0100-warnings-are-errors-in-every-project.md)), runs the
   analyzers and the banned-API list in `build/BannedSymbols.txt`
   ([project-template ADR-0102](decisions/project-template/0102-disallowed-apis-are-banned-at-build-time.md)), and runs
   the tests; CI runs the commands on every pull request.
+- **Tests:** each project's `.Tests` project of unit and integration tests runs in `./build/dod.ps1`, a full run
+  collects coverage of hand-written code
+  ([ADR-1143](decisions/1143-ci-presents-test-results-and-hand-written-code-coverage-through-job-summaries-annotations-and-codecov.md)),
+  and the `End-to-end` check runs the BFF and the built pages in real browsers
+  ([ADR-1430](decisions/1430-end-to-end-suites-run-the-bff-and-the-hosts-built-pages-in-real-browsers-in-their-own-gate.md)).
+- **Analyzers:** `NCID0004` reports an unexplained `IgnoreQueryFilters()`
+  ([ADR-1018](decisions/1018-tenant-selection-is-shared-and-tenant-bound-rows-are-scoped-at-the-persistence-layer.md))
+  and `NCID0005` a `Guid` on a public contract
+  ([ADR-1517](decisions/1517-internal-surrogate-keys-are-uuidv7-minted-in-process-behind-one-seam-and-never-reach-a-caller.md)).
 - **Static analysis:** with CodeQL's default setup configured and analyzing at least one language, the repository
   ruleset blocks a pull request that adds a CodeQL alert at warning level or above, or a security alert of any severity
   ([project-template ADR-0005](decisions/project-template/0005-the-default-branch-accepts-changes-only-through-pull-requests.md),
@@ -139,6 +182,8 @@ Not written yet.
   resolved, and the ruleset refuses force pushes and deletion
   ([project-template ADR-0005](decisions/project-template/0005-the-default-branch-accepts-changes-only-through-pull-requests.md),
   [project-template ADR-0014](decisions/project-template/0014-every-pull-request-discussion-is-remediated-and-replied-to-before-it-merges.md)).
+  NCode Review reviews each pull request, posts its findings as review threads resolved before the merge, and approves a
+  review that leaves no blocker or should-fix finding open.
 - **Dependencies:** pinned, and moved by reviewed updates
   ([project-template ADR-0008](decisions/project-template/0008-external-inputs-are-pinned-and-kept-current.md)) that
   wait three days for a new version
@@ -146,6 +191,8 @@ Not written yet.
   proposes the updates. Central package management keeps one version of each package
   ([project-template ADR-0101](decisions/project-template/0101-central-package-management.md)).
 - **Response:** [SECURITY.md](../SECURITY.md) defines private reporting, coordinated disclosure and credit.
+- **Conformance:** the OpenID Foundation conformance suite runs through the spec-coverage harness, and certification is
+  in progress ([#124](https://github.com/NCodeGroup/identity/issues/124)).
 
 ## Security Reviews
 
