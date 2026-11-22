@@ -52,6 +52,11 @@ internal sealed class DefaultLocalAccountEmailCodes(
 
     private static TimeSpan SendsWindow { get; } = TimeSpan.FromHours(1);
 
+    // The lifetime of a decoy's counter and flow. A decoy flow refuses every code, an expired flow refuses a code with
+    // the same invalid_code, and no response reads the decoy counter, so a minute is unobservable. It keeps a flood of
+    // distinct usernames from filling shared state for an hour.
+    internal static TimeSpan DecoyLifetime { get; } = TimeSpan.FromMinutes(1);
+
     private IExpiringValueSet ValueSet { get; } = valueSet;
     private IExpiringCounterSet CounterSet { get; } = counterSet;
     private IMailSender MailSender { get; } = mailSender;
@@ -140,7 +145,6 @@ internal sealed class DefaultLocalAccountEmailCodes(
     )
     {
         var tenant = openIdContext.Tenant;
-        var settings = tenant.SettingsProvider.Collection;
         var now = TimeProvider.GetUtcNow();
 
         // The decoy does the remote work of a send, so a request that mails nothing takes as long as one that does,
@@ -155,10 +159,8 @@ internal sealed class DefaultLocalAccountEmailCodes(
             purpose,
             identifierHash
         );
-        await CounterSet.IncrementAsync(sendsKey, now + SendsWindow, cancellationToken);
-
-        var lifetime = settings.GetValue(OpenIdSettingKeys.EmailCodeLifetime);
-        var expiresWhen = now + lifetime;
+        var expiresWhen = now + DecoyLifetime;
+        await CounterSet.IncrementAsync(sendsKey, expiresWhen, cancellationToken);
 
         var flowId = CryptoService.GenerateUrlSafeKey();
 

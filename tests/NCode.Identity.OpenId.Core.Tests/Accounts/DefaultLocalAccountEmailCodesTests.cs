@@ -248,27 +248,16 @@ public partial class DefaultLocalAccountEmailCodesTests : BaseTests
             Convert.ToHexString(SHA256.HashData(SecureEncoding.UTF8.GetBytes(loweredIdentifier)))
         );
 
-    private Mock<IReadOnlySettingCollection> CreateDecoySettings()
-    {
-        var mockSettings = CreateStrictMock<IReadOnlySettingCollection>();
-        mockSettings
-            .Setup(x => x.GetValue(OpenIdSettingKeys.EmailCodeLifetime))
-            .Returns(Lifetime)
-            .Verifiable();
-        return mockSettings;
-    }
+    private static DateTimeOffset DecoyExpiry { get; } =
+        Now + DefaultLocalAccountEmailCodes.DecoyLifetime;
 
     [Fact]
     public async Task SendDecoyAsync_Always_StoresAFlowNoCodeVerifiesAndSendsNoMail()
     {
-        var mockContext = CreateContext(CreateDecoySettings());
+        var mockContext = CreateContext(mockSettings: null);
         MockCounterSet
             .Setup(x =>
-                x.IncrementAsync(
-                    DecoyKeyFor("user"),
-                    Now + TimeSpan.FromHours(1),
-                    It.IsAny<CancellationToken>()
-                )
+                x.IncrementAsync(DecoyKeyFor("user"), DecoyExpiry, It.IsAny<CancellationToken>())
             )
             .ReturnsAsync(1)
             .Verifiable();
@@ -283,7 +272,7 @@ public partial class DefaultLocalAccountEmailCodesTests : BaseTests
                 x.TryAddAsync(
                     FlowKey,
                     It.IsAny<ReadOnlyMemory<byte>>(),
-                    Now + Lifetime,
+                    DecoyExpiry,
                     It.IsAny<CancellationToken>()
                 )
             )
@@ -304,7 +293,7 @@ public partial class DefaultLocalAccountEmailCodesTests : BaseTests
         Assert.NotNull(storedBytes);
         var state = Deserialize(storedBytes);
         Assert.Equal(0, state.FailedAttempts);
-        Assert.Equal(Now + Lifetime, state.ExpiresWhen);
+        Assert.Equal(DecoyExpiry, state.ExpiresWhen);
         for (var number = 0; number < 1_000; ++number)
         {
             var code = number.ToString("D6", CultureInfo.InvariantCulture);
@@ -317,16 +306,10 @@ public partial class DefaultLocalAccountEmailCodesTests : BaseTests
     [Fact]
     public async Task SendDecoyAsync_Always_CountsUnderAKeyOfItsOwn()
     {
-        var mockContext = CreateContext(CreateDecoySettings());
+        var mockContext = CreateContext(mockSettings: null);
         var decoyKey = DecoyKeyFor("user");
         MockCounterSet
-            .Setup(x =>
-                x.IncrementAsync(
-                    decoyKey,
-                    Now + TimeSpan.FromHours(1),
-                    It.IsAny<CancellationToken>()
-                )
-            )
+            .Setup(x => x.IncrementAsync(decoyKey, DecoyExpiry, It.IsAny<CancellationToken>()))
             .ReturnsAsync(1)
             .Verifiable();
         MockCryptoService
@@ -338,7 +321,7 @@ public partial class DefaultLocalAccountEmailCodesTests : BaseTests
                 x.TryAddAsync(
                     FlowKey,
                     It.IsAny<ReadOnlyMemory<byte>>(),
-                    Now + Lifetime,
+                    DecoyExpiry,
                     It.IsAny<CancellationToken>()
                 )
             )
@@ -363,14 +346,67 @@ public partial class DefaultLocalAccountEmailCodesTests : BaseTests
             Times.Never
         );
         MockCounterSet.Verify(
-            x =>
-                x.IncrementAsync(
-                    decoyKey,
-                    Now + TimeSpan.FromHours(1),
-                    It.IsAny<CancellationToken>()
-                ),
+            x => x.IncrementAsync(decoyKey, DecoyExpiry, It.IsAny<CancellationToken>()),
             Times.Once
         );
+    }
+
+    [Fact]
+    public async Task SendDecoyAsync_Always_ExpiresItsEntriesWithinAMinute()
+    {
+        var mockContext = CreateContext(mockSettings: null);
+        DateTimeOffset? counterExpiry = null;
+        MockCounterSet
+            .Setup(x =>
+                x.IncrementAsync(
+                    DecoyKeyFor("user"),
+                    It.IsAny<DateTimeOffset>(),
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .Callback<string, DateTimeOffset, CancellationToken>(
+                (_, expiresWhen, _) => counterExpiry = expiresWhen
+            )
+            .ReturnsAsync(1)
+            .Verifiable();
+        MockCryptoService
+            .Setup(x => x.GenerateKey(32, BinaryEncodings.Base64Url))
+            .Returns(FlowId)
+            .Verifiable();
+
+        DateTimeOffset? valueExpiry = null;
+        byte[]? storedBytes = null;
+        MockValueSet
+            .Setup(x =>
+                x.TryAddAsync(
+                    FlowKey,
+                    It.IsAny<ReadOnlyMemory<byte>>(),
+                    It.IsAny<DateTimeOffset>(),
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .Callback<string, ReadOnlyMemory<byte>, DateTimeOffset, CancellationToken>(
+                (_, value, expiresWhen, _) =>
+                {
+                    storedBytes = value.ToArray();
+                    valueExpiry = expiresWhen;
+                }
+            )
+            .ReturnsAsync(true)
+            .Verifiable();
+
+        await EmailCodes.SendDecoyAsync(
+            mockContext.Object,
+            Purpose,
+            "user",
+            CancellationToken.None
+        );
+
+        var latest = Now + TimeSpan.FromMinutes(1);
+        Assert.Equal(latest, counterExpiry);
+        Assert.Equal(latest, valueExpiry);
+        Assert.NotNull(storedBytes);
+        Assert.Equal(latest, Deserialize(storedBytes).ExpiresWhen);
     }
 
     #endregion

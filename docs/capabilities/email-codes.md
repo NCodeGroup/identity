@@ -103,10 +103,11 @@ address, reset the password or pass the second factor.
 
 `password_reset_enabled` (`Replace`, off by default) adds a "Forgot your password?" link to the login page. The form
 asks for the username, and the next page is the same for every username, so a page never says whether an account exists.
-A code goes only to an enabled account's verified address. The reset page takes the code and the new password, the
-password policy judges the password before the code is spent, and a right code sets the password, ends the account's
-sessions, revokes its grants and clears its failed password attempts. The end user returns to the login page. Both pages
-have the no-JavaScript baseline the login page has.
+A code goes only to an enabled account's verified address. Any other username gets a decoy flow that refuses every code,
+and the decoy's entries in shared state expire within a minute, so a flood of names cannot fill it. The reset page takes
+the code and the new password, the password policy judges the password before the code is spent, and a right code sets
+the password, ends the account's sessions, revokes its grants and clears its failed password attempts. The end user
+returns to the login page. Both pages have the no-JavaScript baseline the login page has.
 
 > [!TIP]
 > [ADR-1533](../decisions/1533-an-end-user-verifies-an-email-address-resets-a-password-and-signs-in-with-a-second-factor-through-one-time-email-codes.md),
