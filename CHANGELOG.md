@@ -42,29 +42,30 @@ Until the first stable release, the [Unreleased] section describes the product a
   per-response CSP nonce, and the wizard asks for the setup token, reads it from the URL fragment (`#token=`, beside the
   optional `consoleUrl` and `consoleClientId`) and strips them from the address bar, checks the token through
   `POST /setup/api/token` before it moves on, so a wrong token keeps the operator on the token step, then creates the
-  root administrator (`DisplayName`, `UserName`, optional `Email`, `Password`) through `POST /setup/api/root`. The done page lists the
-  instance's addresses as links with copy buttons (the management console, the issuer, the discovery document, the
-  management API and the API reference when it is served, all computed from the control-plane tenant's issuer), shows
-  the root user and the tenant, and lists the remaining configuration with a link to `docs/first-deployed-instance.md`,
-  naming the setup token Secret only when the token was configured. The root administrator is a local account in the
-  control-plane tenant holding `GlobalAdmin` at the platform node; the account, its identity, that role assignment and
-  the initialized mark of the `InstanceSetup` row are saved together, so one setup creates one root.
-  `NCode.Identity.OpenId.Setup.Abstractions` holds `SetupOptions` (the `Setup` section: `Token`, at least 32 characters
-  or unset to have the host generate one; `GeneratedTokenLifetime`, 1 hour by default and between 1 minute and 24 hours;
-  `BundleRootPath`, `/app/setup` in the host image; and `Root` with `UserName`, `DisplayName` (the username when unset), `Email` and `Password`, where `UserName`
-  and `Password` are set both or neither), the wire contracts, whose unknown members round-trip, `IInstanceSetupService`
-  and `ISetupTokenService`; `NCode.Identity.OpenId.Setup` implements them over the abstractions and registers through
-  `AddInstanceSetup` on the management library builder. The root password is at least 15 characters and satisfies the
-  control-plane tenant's password policy. Setup can also register the management console's confidential client, which
-  authenticates with `private_key_jwt`: the wizard's optional console step and the `Setup:ManagementConsole` section
-  (`ClientId`, `mgmt-console` by default; `BaseUrl`, the console's `https` origin; `Jwks`) give it a requested stable
-  `client_id` and its public JWK Set, which setup imports by value and never fetches, and the client is saved with the
-  root administrator. The `Setup:Wizard:ManagementConsole` section (`BaseUrl`, an `https` origin without a path;
-  `ClientId`, `mgmt-console` by default) only hints the console and registers nothing: `POST /setup/api/token` answers a
-  valid token with that hint, so the console step opens with registration checked, the client ID and console URL filled
-  and the console's public JWK Set fetched by the browser from `<console>/bff/jwks`, and a hint from the deployment wins
-  over the fragment's `consoleUrl` and `consoleClientId`. The set passes through the wizard's public-key check, which
-  refuses private members, and a "Fetch from the console" button repeats the fetch; a fetch that fails (the console is
+  root administrator (`DisplayName`, `UserName`, optional `Email`, `Password`) through `POST /setup/api/root`. The done
+  page lists the instance's addresses as links with copy buttons (the management console, the issuer, the discovery
+  document, the management API and the API reference when it is served, all computed from the control-plane tenant's
+  issuer), shows the root user and the tenant, and lists the remaining configuration with a link to
+  `docs/first-deployed-instance.md`, naming the setup token Secret only when the token was configured. The root
+  administrator is a local account in the control-plane tenant holding `GlobalAdmin` at the platform node; the account,
+  its identity, that role assignment and the initialized mark of the `InstanceSetup` row are saved together, so one
+  setup creates one root. `NCode.Identity.OpenId.Setup.Abstractions` holds `SetupOptions` (the `Setup` section: `Token`,
+  at least 32 characters or unset to have the host generate one; `GeneratedTokenLifetime`, 1 hour by default and between
+  1 minute and 24 hours; `BundleRootPath`, `/app/setup` in the host image; and `Root` with `UserName`, `DisplayName`
+  (the username when unset), `Email` and `Password`, where `UserName` and `Password` are set both or neither), the wire
+  contracts, whose unknown members round-trip, `IInstanceSetupService` and `ISetupTokenService`;
+  `NCode.Identity.OpenId.Setup` implements them over the abstractions and registers through `AddInstanceSetup` on the
+  management library builder. The root password is at least 15 characters and satisfies the control-plane tenant's
+  password policy. Setup can also register the management console's confidential client, which authenticates with
+  `private_key_jwt`: the wizard's optional console step and the `Setup:ManagementConsole` section (`ClientId`,
+  `mgmt-console` by default; `BaseUrl`, the console's `https` origin; `Jwks`) give it a requested stable `client_id` and
+  its public JWK Set, which setup imports by value and never fetches, and the client is saved with the root
+  administrator. The `Setup:Wizard:ManagementConsole` section (`BaseUrl`, an `https` origin without a path; `ClientId`,
+  `mgmt-console` by default) only hints the console and registers nothing: `POST /setup/api/token` answers a valid token
+  with that hint, so the console step opens with registration checked, the client ID and console URL filled and the
+  console's public JWK Set fetched by the browser from `<console>/bff/jwks`, and a hint from the deployment wins over
+  the fragment's `consoleUrl` and `consoleClientId`. The set passes through the wizard's public-key check, which refuses
+  private members, and a "Fetch from the console" button repeats the fetch; a fetch that fails (the console is
   unreachable or the browser refuses its origin, the console answers an HTTP status, or the set is invalid) says why and
   leaves the field for pasting. The host chart passes the hint as `Setup__Wizard__ManagementConsole__BaseUrl` and
   `Setup__Wizard__ManagementConsole__ClientId` when `managementConsole.enabled` is true, and then refuses to render with
@@ -2662,10 +2663,10 @@ Until the first stable release, the [Unreleased] section describes the product a
   [#289](https://github.com/NCodeGroup/identity/issues/289)).
 
 - **Local-account management is an opt-in capability of the management API.** The `local-accounts` resource family under
-  `/api/tenants/{tenantId}/local-accounts` lets a tenant or global administrator create, list, get, update (a JSON
-  Patch of `displayName`, `userName`, `email` and `emailVerified`), delete, disable and enable a local account, reset
-  its credential, manage its profile claims, and read and set its server-owned metadata. On the control-plane cell,
-  `GET` and `POST /api/platform/local-accounts` list and create the control-plane tenant's accounts, where the root
+  `/api/tenants/{tenantId}/local-accounts` lets a tenant or global administrator create, list, get, update (a JSON Patch
+  of `displayName`, `userName`, `email` and `emailVerified`), delete, disable and enable a local account, reset its
+  credential, manage its profile claims, and read and set its server-owned metadata. On the control-plane cell, `GET`
+  and `POST /api/platform/local-accounts` list and create the control-plane tenant's accounts, where the root
   administrator lives. Creating an account provisions its owning `FederatedPrincipal` and its one-to-one self-issued
   `FederatedIdentity` in the same unit of work, so principal-level metadata (`ProfileMetadata` / `SystemMetadata`) has a
   target from the moment the account exists; `LocalAccountResource.principalId` carries that principal's identifier in

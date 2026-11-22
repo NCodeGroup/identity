@@ -179,10 +179,10 @@ one. Browse to `https://<host>/setup/#token=<token>`: the fragment never reaches
 client IP address, and answers 404 for good once the instance is initialized.
 
 The `setup` command runs the same setup with no browser and no token, so a Job can run it on every release. It reads
-`Setup__Root__UserName`, `Setup__Root__Email`, `Setup__Root__Password` and the optional `Setup__Root__DisplayName`
-(the account's `name` claim, which defaults to the user name; the wizard's root step asks for it as a required Display
-name, and the chart reads it from the setup Secret's `setup.job.displayNameKey`), and exits `0` when it creates the root or the
-instance is already initialized, `2` for a usage error and `1` when the creation fails:
+`Setup__Root__UserName`, `Setup__Root__Email`, `Setup__Root__Password` and the optional `Setup__Root__DisplayName` (the
+account's `name` claim, which defaults to the user name; the wizard's root step asks for it as a required Display name,
+and the chart reads it from the setup Secret's `setup.job.displayNameKey`), and exits `0` when it creates the root or
+the instance is already initialized, `2` for a usage error and `1` when the creation fails:
 
 ```sh
 dotnet NCode.Identity.OpenId.Host.dll setup
