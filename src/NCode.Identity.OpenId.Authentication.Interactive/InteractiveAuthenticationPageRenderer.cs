@@ -59,13 +59,19 @@ internal static class InteractiveAuthenticationPageRenderer
     /// <param name="antiforgeryFieldName">The name of the form field that carries the antiforgery token.</param>
     /// <param name="antiforgeryToken">The antiforgery token the form carries.</param>
     /// <param name="errorMessage">The message shown above the form, or <see langword="null"/> for none.</param>
+    /// <param name="statusMessage">The message shown above the form as a status, or <see langword="null"/> for
+    /// none.</param>
+    /// <param name="forgotPasswordHref">The address of the forgot-password page the form links to, or
+    /// <see langword="null"/> for no link.</param>
     public static void RenderLoginPage(
         IBufferWriter<char> writer,
         InteractivePageFrame frame,
         string returnUrl,
         string antiforgeryFieldName,
         string antiforgeryToken,
-        string? errorMessage
+        string? errorMessage,
+        string? statusMessage = null,
+        string? forgotPasswordHref = null
     )
     {
         var locale = frame.Locale;
@@ -79,6 +85,12 @@ internal static class InteractiveAuthenticationPageRenderer
         {
             Write(writer, "<p id=\"error\" role=\"alert\" class=\"auth-error\">");
             WriteEncoded(writer, errorMessage);
+            Write(writer, "</p>");
+        }
+        if (!string.IsNullOrEmpty(statusMessage))
+        {
+            Write(writer, "<p id=\"status\" role=\"status\" class=\"auth-status\">");
+            WriteEncoded(writer, statusMessage);
             Write(writer, "</p>");
         }
         WriteHiddenFields(writer, returnUrl, antiforgeryFieldName, antiforgeryToken, locale);
@@ -98,6 +110,183 @@ internal static class InteractiveAuthenticationPageRenderer
                 + "<button id=\"login\" name=\"login\" value=\"login\" type=\"submit\">"
         );
         WriteEncoded(writer, messages.SignInButton);
+        Write(writer, "</button>");
+        if (!string.IsNullOrEmpty(forgotPasswordHref))
+        {
+            Write(writer, "<p><a id=\"forgot-password-link\" href=\"");
+            WriteEncoded(writer, forgotPasswordHref);
+            Write(writer, "\">");
+            WriteEncoded(writer, messages.ForgotPasswordLink);
+            Write(writer, "</a></p>");
+        }
+        Write(writer, "</form></main>");
+        WriteTail(writer, frame);
+    }
+
+    /// <summary>
+    /// Renders the forgot-password page: a native form POST to the forgot-password endpoint carrying <c>username</c>,
+    /// the return URL, and the antiforgery token, with the stable <c>username</c> / <c>send-code</c> ids.
+    /// </summary>
+    /// <param name="writer">The buffer the page is written to.</param>
+    /// <param name="frame">The document the page is written into.</param>
+    /// <param name="returnUrl">The URL the form carries so the end-user returns to it once signed in.</param>
+    /// <param name="antiforgeryFieldName">The name of the form field that carries the antiforgery token.</param>
+    /// <param name="antiforgeryToken">The antiforgery token the form carries.</param>
+    /// <param name="errorMessage">The message shown above the form, or <see langword="null"/> for none.</param>
+    public static void RenderForgotPasswordPage(
+        IBufferWriter<char> writer,
+        InteractivePageFrame frame,
+        string returnUrl,
+        string antiforgeryFieldName,
+        string antiforgeryToken,
+        string? errorMessage
+    )
+    {
+        var locale = frame.Locale;
+        var messages = locale.Messages;
+        WriteHead(writer, frame, messages.ForgotPasswordTitle);
+        Write(
+            writer,
+            "<main class=\"auth-card\"><form method=\"post\" action=\"password/forgot\"><h1>"
+        );
+        WriteEncoded(writer, messages.ForgotPasswordTitle);
+        Write(writer, "</h1>");
+        WriteError(writer, errorMessage);
+        WriteHiddenFields(writer, returnUrl, antiforgeryFieldName, antiforgeryToken, locale);
+        Write(writer, "<p>");
+        WriteEncoded(writer, messages.ForgotPasswordPrompt);
+        Write(writer, "</p><p><label for=\"username\">");
+        WriteEncoded(writer, messages.UsernameLabel);
+        Write(
+            writer,
+            "</label><br />"
+                + "<input id=\"username\" name=\"username\" type=\"text\" autocomplete=\"username\" autofocus required /></p>"
+                + "<button id=\"send-code\" type=\"submit\">"
+        );
+        WriteEncoded(writer, messages.SendCodeButton);
+        Write(writer, "</button></form></main>");
+        WriteTail(writer, frame);
+    }
+
+    /// <summary>
+    /// Renders the reset-password page: a native form POST to the reset-password endpoint carrying the flow handle,
+    /// <c>code</c>, <c>new_password</c>, <c>confirm_password</c>, the return URL, and the antiforgery token, with the
+    /// stable <c>code</c> / <c>new_password</c> / <c>confirm_password</c> / <c>reset-password</c> ids.
+    /// </summary>
+    /// <param name="writer">The buffer the page is written to.</param>
+    /// <param name="frame">The document the page is written into.</param>
+    /// <param name="returnUrl">The URL the form carries so the end-user returns to it once signed in.</param>
+    /// <param name="flowId">The handle of the reset flow the form carries.</param>
+    /// <param name="antiforgeryFieldName">The name of the form field that carries the antiforgery token.</param>
+    /// <param name="antiforgeryToken">The antiforgery token the form carries.</param>
+    /// <param name="errorMessage">The message shown above the form, or <see langword="null"/> for none.</param>
+    public static void RenderResetPasswordPage(
+        IBufferWriter<char> writer,
+        InteractivePageFrame frame,
+        string returnUrl,
+        string flowId,
+        string antiforgeryFieldName,
+        string antiforgeryToken,
+        string? errorMessage
+    )
+    {
+        var locale = frame.Locale;
+        var messages = locale.Messages;
+        WriteHead(writer, frame, messages.ResetPasswordTitle);
+        Write(
+            writer,
+            "<main class=\"auth-card\"><form method=\"post\" action=\"password/reset\"><h1>"
+        );
+        WriteEncoded(writer, messages.ResetPasswordTitle);
+        Write(writer, "</h1>");
+        WriteError(writer, errorMessage);
+        WriteHiddenFields(writer, returnUrl, antiforgeryFieldName, antiforgeryToken, locale);
+        Write(writer, "<input type=\"hidden\" name=\"flow\" value=\"");
+        WriteEncoded(writer, flowId);
+        Write(writer, "\" /><p>");
+        WriteEncoded(writer, messages.ResetPasswordPrompt);
+        Write(writer, "</p><p><label for=\"code\">");
+        WriteEncoded(writer, messages.CodeLabel);
+        Write(
+            writer,
+            "</label><br />"
+                + "<input id=\"code\" name=\"code\" type=\"text\" inputmode=\"numeric\" autocomplete=\"one-time-code\" pattern=\"[0-9]{6}\" maxlength=\"6\" autofocus required /></p>"
+                + "<p><label for=\"new_password\">"
+        );
+        WriteEncoded(writer, messages.NewPasswordLabel);
+        Write(
+            writer,
+            "</label><br />"
+                + "<input id=\"new_password\" name=\"new_password\" type=\"password\" autocomplete=\"new-password\" required /></p>"
+                + "<p><label for=\"confirm_password\">"
+        );
+        WriteEncoded(writer, messages.ConfirmPasswordLabel);
+        Write(
+            writer,
+            "</label><br />"
+                + "<input id=\"confirm_password\" name=\"confirm_password\" type=\"password\" autocomplete=\"new-password\" required /></p>"
+                + "<button id=\"reset-password\" type=\"submit\">"
+        );
+        WriteEncoded(writer, messages.ResetPasswordButton);
+        Write(writer, "</button></form></main>");
+        WriteTail(writer, frame);
+    }
+
+    /// <summary>
+    /// Renders the sign-in code page: a native form POST to the sign-in code endpoint carrying <c>code</c> and the
+    /// antiforgery token, with the stable <c>code</c> / <c>verify</c> / <c>resend</c> ids.
+    /// </summary>
+    /// <param name="writer">The buffer the page is written to.</param>
+    /// <param name="frame">The document the page is written into.</param>
+    /// <param name="antiforgeryFieldName">The name of the form field that carries the antiforgery token.</param>
+    /// <param name="antiforgeryToken">The antiforgery token the form carries.</param>
+    /// <param name="errorMessage">The message shown above the form, or <see langword="null"/> for none.</param>
+    /// <param name="statusMessage">The message shown above the form as a status, or <see langword="null"/> for
+    /// none.</param>
+    public static void RenderSignInCodePage(
+        IBufferWriter<char> writer,
+        InteractivePageFrame frame,
+        string antiforgeryFieldName,
+        string antiforgeryToken,
+        string? errorMessage,
+        string? statusMessage
+    )
+    {
+        var locale = frame.Locale;
+        var messages = locale.Messages;
+        WriteHead(writer, frame, messages.SignInCodeTitle);
+        Write(writer, "<main class=\"auth-card\"><form method=\"post\" action=\"login/code\"><h1>");
+        WriteEncoded(writer, messages.SignInCodeTitle);
+        Write(writer, "</h1>");
+        WriteError(writer, errorMessage);
+        if (!string.IsNullOrEmpty(statusMessage))
+        {
+            Write(writer, "<p id=\"status\" role=\"status\" class=\"auth-status\">");
+            WriteEncoded(writer, statusMessage);
+            Write(writer, "</p>");
+        }
+        Write(writer, "<input type=\"hidden\" name=\"");
+        WriteEncoded(writer, antiforgeryFieldName);
+        Write(writer, "\" value=\"");
+        WriteEncoded(writer, antiforgeryToken);
+        Write(writer, "\" /><input type=\"hidden\" name=\"" + UiLocalesFieldName + "\" value=\"");
+        WriteEncoded(writer, locale.LanguageTag);
+        Write(writer, "\" /><p>");
+        WriteEncoded(writer, messages.SignInCodePrompt);
+        Write(writer, "</p><p><label for=\"code\">");
+        WriteEncoded(writer, messages.CodeLabel);
+        Write(
+            writer,
+            "</label><br />"
+                + "<input id=\"code\" name=\"code\" type=\"text\" inputmode=\"numeric\" autocomplete=\"one-time-code\" pattern=\"[0-9]{6}\" maxlength=\"6\" autofocus required /></p>"
+                + "<button id=\"verify\" name=\"action\" value=\"verify\" type=\"submit\">"
+        );
+        WriteEncoded(writer, messages.VerifyCodeButton);
+        Write(
+            writer,
+            "</button><button id=\"resend\" name=\"action\" value=\"resend\" type=\"submit\" formnovalidate>"
+        );
+        WriteEncoded(writer, messages.ResendCodeButton);
         Write(writer, "</button></form></main>");
         WriteTail(writer, frame);
     }
@@ -262,6 +451,18 @@ internal static class InteractiveAuthenticationPageRenderer
 
         WriteHead(writer, frame, title: string.Empty);
         WriteTail(writer, frame);
+    }
+
+    private static void WriteError(IBufferWriter<char> writer, string? errorMessage)
+    {
+        if (string.IsNullOrEmpty(errorMessage))
+        {
+            return;
+        }
+
+        Write(writer, "<p id=\"error\" role=\"alert\" class=\"auth-error\">");
+        WriteEncoded(writer, errorMessage);
+        Write(writer, "</p>");
     }
 
     // The sentence is written around its placeholder, every part encoded, so a format without the placeholder is

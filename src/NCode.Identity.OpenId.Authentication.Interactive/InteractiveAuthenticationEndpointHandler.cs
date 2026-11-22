@@ -160,7 +160,9 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
             returnUrl,
             tokens.FormFieldName,
             tokens.RequestToken ?? string.Empty,
-            loginError
+            loginError,
+            statusMessage: null,
+            forgotPasswordHref: null
         );
         return new InteractiveHtmlResult(html, security.Policy);
     }
