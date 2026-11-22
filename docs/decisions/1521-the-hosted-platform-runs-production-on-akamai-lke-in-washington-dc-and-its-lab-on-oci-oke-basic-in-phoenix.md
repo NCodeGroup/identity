@@ -65,7 +65,8 @@ cluster; the lab runs on OCI OKE Basic in Phoenix inside the free allowance; AWS
    (ADR-1495); GitHub holds source, CI and images (ADR-1133).
 6. **Growth path.** A cell moves to AWS when a customer needs several availability zones, PrivateLink, Marketplace
    billing or a higher SLA, and the paid shared cell moves when the paid plans need it. Its shape, EKS or ECS on
-   Fargate, is decided when the first cell is placed there; ECS runs outside the chart, so it needs its own record.
+   Fargate, is decided when the first cell is placed there ([#914](https://github.com/NCodeGroup/identity/issues/914));
+   ECS runs outside the chart, so it needs its own record.
 
 ## Options considered
 
@@ -145,7 +146,7 @@ cluster; the lab runs on OCI OKE Basic in Phoenix inside the free allowance; AWS
   the environment model and the platform's domains.
 - Issues [#87](https://github.com/NCodeGroup/identity/issues/87),
   [#132](https://github.com/NCodeGroup/identity/issues/132), [#177](https://github.com/NCodeGroup/identity/issues/177),
-  [#845](https://github.com/NCodeGroup/identity/issues/845) and
-  [#859](https://github.com/NCodeGroup/identity/issues/859).
+  [#845](https://github.com/NCodeGroup/identity/issues/845), [#859](https://github.com/NCodeGroup/identity/issues/859)
+  and [#914](https://github.com/NCodeGroup/identity/issues/914).
 - Akamai: [HA control plane](https://techdocs.akamai.com/cloud-computing/docs/high-availability-ha-control-plane-on-lke)
   page.
