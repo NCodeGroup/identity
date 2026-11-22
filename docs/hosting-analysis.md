@@ -850,8 +850,10 @@ the stacks and components is [#87](https://github.com/NCodeGroup/identity/issues
   ([ADR-1132](decisions/1132-platform-infrastructure-code-is-public-on-github-and-its-state-and-backups-live-in-aws.md)).
   A restore drill before launch and quarterly; written RPO / RTO targets
   ([#845](https://github.com/NCodeGroup/identity/issues/845)).
-- **Cluster secrets** never sit in Git as plaintext: SOPS + age (free) or External Secrets Operator syncing from the key
-  vault ([#909](https://github.com/NCodeGroup/identity/issues/909)).
+- **Cluster secrets** never sit in Git, plain or encrypted: each cluster's External Secrets Operator reads them from AWS
+  Systems Manager Parameter Store, in the cell's AWS region under a KMS key of the cell's own, through web identity
+  federation, and OpenTofu writes a secret it generates there without keeping it in state
+  ([ADR-1526](decisions/1526-the-platforms-cluster-secrets-reach-each-cluster-from-aws-parameter-store-through-external-secrets-operator.md)).
 - **Alerting:** Grafana Cloud alerts on token-endpoint error rate and p95 latency, shed requests
   (`ncode.identity.admission.shed`), certificate expiry, database connections and replication lag, and node/disk
   pressure; on-call via Grafana IRM's free tier; a public status page (`status.ncodeid.com`, UptimeRobot free). Each
