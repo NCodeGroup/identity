@@ -1,0 +1,6 @@
+#nullable enable
+NCode.Identity.Mail.DefaultRegistration
+NCode.Identity.Mail.DefaultRegistration.extension(Microsoft.Extensions.DependencyInjection.IServiceCollection!)
+NCode.Identity.Mail.DefaultRegistration.extension(Microsoft.Extensions.DependencyInjection.IServiceCollection!).AddMailServices() -> NCode.Identity.Registration.IServiceBuilder<NCode.Identity.Mail.MailLibrary>!
+NCode.Identity.Mail.MailMetrics
+const NCode.Identity.Mail.MailMetrics.MeterName = "NCode.Identity.Mail" -> string!
