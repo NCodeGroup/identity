@@ -32,14 +32,6 @@ public abstract class DefaultDirectoryStoreTestBase : IDisposable
     protected const string ControlPlaneTenantId = "root";
     protected const string ControlPlaneIssuer = "https://op.example/root";
 
-    private SqliteConnection Connection { get; }
-    private ServiceProvider Provider { get; }
-    private IDbContextFactory<DirectoryDbContext> DbContextFactory { get; }
-    private DefaultDirectoryStore Store { get; }
-
-    protected FakeTimeProvider TimeProvider { get; } =
-        new(new DateTimeOffset(2026, 1, 2, 3, 4, 5, TimeSpan.Zero));
-
     private static DirectoryServerOptions CreateOptions(string controlPlaneTenantId) =>
         new()
         {
@@ -47,6 +39,14 @@ public abstract class DefaultDirectoryStoreTestBase : IDisposable
             ControlPlaneCell = ControlPlaneCell,
             ControlPlaneTenantId = controlPlaneTenantId,
         };
+
+    private SqliteConnection Connection { get; }
+    private ServiceProvider Provider { get; }
+    private IDbContextFactory<DirectoryDbContext> DbContextFactory { get; }
+    private DefaultDirectoryStore Store { get; }
+
+    protected FakeTimeProvider TimeProvider { get; } =
+        new(new DateTimeOffset(2026, 1, 2, 3, 4, 5, TimeSpan.Zero));
 
     protected DefaultDirectoryStoreTestBase()
     {

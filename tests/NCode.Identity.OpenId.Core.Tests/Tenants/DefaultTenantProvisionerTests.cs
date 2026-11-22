@@ -744,6 +744,134 @@ public sealed class DefaultTenantProvisionerTests : IDisposable
     }
 
     [Fact]
+    public async Task EnsureCreatedAsync_WhenTheInsertLosesToAConcurrentCreatorAfterTheReservation_ReturnsItAndReleasesNothing()
+    {
+        var provisioner = CreateWorkloadCellProvisioner();
+        SetupTeam();
+        var concurrent = CreateTenant(WorkloadTenantId, WorkloadIssuer);
+        SetupStoreManager();
+        SetupGetTenant(WorkloadTenantId, null, concurrent);
+        SetupDefaultAddress(WorkloadIssuer);
+        MockTenantDirectory
+            .Setup(x =>
+                x.ReserveAsync(It.IsAny<TenantReservation>(), It.IsAny<CancellationToken>())
+            )
+            .ReturnsAsync(ReservationResult.Reserved())
+            .Verifiable();
+        MockTenantStore
+            .Setup(x => x.AddAsync(It.IsAny<PersistedTenant>(), It.IsAny<CancellationToken>()))
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable();
+        MockStoreManager
+            .Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("duplicate key"))
+            .Verifiable();
+
+        var result = await provisioner.EnsureCreatedAsync(
+            TeamId,
+            WorkloadTenantId,
+            "Acme",
+            CancellationToken.None
+        );
+
+        Assert.Same(concurrent, result);
+    }
+
+    [Fact]
+    public async Task EnsureCreatedAsync_WhenTheInsertFailsAfterTheReservation_ReleasesTheReservationAndRethrows()
+    {
+        var provisioner = CreateWorkloadCellProvisioner();
+        SetupTeam();
+        SetupStoreManager();
+        SetupGetTenant(WorkloadTenantId, (PersistedTenant?)null);
+        SetupDefaultAddress(WorkloadIssuer);
+        MockTenantDirectory
+            .Setup(x =>
+                x.ReserveAsync(It.IsAny<TenantReservation>(), It.IsAny<CancellationToken>())
+            )
+            .ReturnsAsync(ReservationResult.Reserved())
+            .Verifiable();
+        MockTenantStore
+            .Setup(x => x.AddAsync(It.IsAny<PersistedTenant>(), It.IsAny<CancellationToken>()))
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable();
+        var failure = new InvalidOperationException("database unavailable");
+        MockStoreManager
+            .Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()))
+            .ThrowsAsync(failure)
+            .Verifiable();
+        MockTenantDirectory
+            .Setup(x => x.ReleaseAsync(WorkloadTenantId, It.IsAny<CancellationToken>()))
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable();
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await provisioner.EnsureCreatedAsync(
+                TeamId,
+                WorkloadTenantId,
+                "Acme",
+                CancellationToken.None
+            )
+        );
+
+        Assert.Same(failure, exception);
+    }
+
+    [Fact]
+    public async Task EnsureCreatedAsync_WhenTheRemovalFailsAfterAPlacementRefusal_StillReleasesTheReservation()
+    {
+        var provisioner = CreateWorkloadCellProvisioner();
+        SetupTeam();
+        SetupStoreManager();
+        SetupGetTenant(WorkloadTenantId, (PersistedTenant?)null);
+        SetupDefaultAddress(WorkloadIssuer);
+
+        var calls = new List<string>();
+        MockTenantDirectory
+            .Setup(x =>
+                x.ReserveAsync(It.IsAny<TenantReservation>(), It.IsAny<CancellationToken>())
+            )
+            .ReturnsAsync(ReservationResult.Reserved())
+            .Verifiable();
+        MockTenantStore
+            .Setup(x => x.AddAsync(It.IsAny<PersistedTenant>(), It.IsAny<CancellationToken>()))
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable();
+        MockStoreManager
+            .Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()))
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable();
+        MockTenantDirectory
+            .Setup(x =>
+                x.PlaceAsync(It.IsAny<TenantPlacementRequest>(), It.IsAny<CancellationToken>())
+            )
+            .ReturnsAsync(ReservationResult.Conflict("the cell is full"))
+            .Verifiable();
+        var removalFailure = new InvalidOperationException("removal unavailable");
+        MockTenantStore
+            .Setup(x => x.RemoveFromCellAsync(WorkloadTenantId, It.IsAny<CancellationToken>()))
+            .ThrowsAsync(removalFailure)
+            .Verifiable();
+        MockTenantDirectory
+            .Setup(x => x.ReleaseAsync(WorkloadTenantId, It.IsAny<CancellationToken>()))
+            .Callback((string _, CancellationToken _) => calls.Add("release"))
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable();
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await provisioner.EnsureCreatedAsync(
+                TeamId,
+                WorkloadTenantId,
+                "Acme",
+                CancellationToken.None
+            )
+        );
+
+        Assert.Same(removalFailure, exception);
+        Assert.Equal(["release"], calls);
+    }
+
+    [Fact]
     public async Task EnsureCreatedAsync_WhenTheDirectoryCannotBeReached_ThrowsWithoutWriting()
     {
         var provisioner = CreateWorkloadCellProvisioner();

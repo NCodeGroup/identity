@@ -4,6 +4,7 @@
 using System.Collections.Immutable;
 using System.Text.Json;
 using NCode.Identity.OpenId.GlobalDirectory.Server.Entities;
+using NCode.Identity.OpenId.GlobalDirectory.Server.Stores;
 using Xunit;
 
 namespace NCode.Identity.OpenId.GlobalDirectory.Server;
@@ -216,6 +217,58 @@ public sealed class DefaultDirectoryStoreReserveTests : DefaultDirectoryStoreTes
         );
 
         Assert.Contains("DirectoryServer:ControlPlaneTenantId", exception.Message);
+    }
+
+    [Fact]
+    public async Task ReserveAsync_WhenAnotherTenantHoldsTheControlPlaneIssuer_Throws()
+    {
+        var holder = await CreateTenantDirectory("other-root")
+            .ReserveAsync(
+                new TenantReservation
+                {
+                    TenantId = TenantId,
+                    Issuer = FreeIssuer,
+                    Cell = CellName,
+                },
+                CancellationToken.None
+            );
+        Assert.True(holder.IsReserved);
+        var reservation = new TenantReservation
+        {
+            TenantId = OtherTenantId,
+            Issuer = OtherIssuer,
+            Cell = CellName,
+        };
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await Tenants.ReserveAsync(reservation, CancellationToken.None)
+        );
+
+        Assert.Contains("DirectoryServer:Issuer", exception.Message);
+    }
+
+    [Fact]
+    public async Task ReserveAsync_WhenTheControlPlaneTenantIsRetired_Throws()
+    {
+        Assert.True((await ReserveAsync(TenantId, Issuer)).IsReserved);
+        var retirement = await TenantWriter.RetireAsync(
+            new TenantRetirement { TenantId = ControlPlaneTenantId },
+            ControlPlaneCell,
+            CancellationToken.None
+        );
+        Assert.Equal(DirectoryTenantWriteOutcome.Done, retirement.Outcome);
+        var reservation = new TenantReservation
+        {
+            TenantId = OtherTenantId,
+            Issuer = OtherIssuer,
+            Cell = CellName,
+        };
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await Tenants.ReserveAsync(reservation, CancellationToken.None)
+        );
+
+        Assert.Contains("retired or held by another cell", exception.Message);
     }
 
     [Fact]
