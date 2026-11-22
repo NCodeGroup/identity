@@ -75,8 +75,9 @@ a principle by number.
 - The in-process `IJobDispatcher` loses in-flight jobs when a replica is replaced
   ([#25](https://github.com/NCodeGroup/identity/issues/25)), so a durable adapter is a prerequisite before the platform
   offers CIBA push or back-channel logout.
-- The accepted single points of failure are one region and a non-HA managed control plane
-  ([hosting analysis §2](../hosting-analysis.md#2-summary-and-ranked-recommendations)).
+- The accepted single points of failure are a cell's one datacenter and the developer-plan cluster's single-replica
+  control plane
+  ([ADR-1520](1520-the-hosted-platform-runs-production-on-akamai-lke-in-washington-dc-and-its-lab-on-oci-oke-basic-in-phoenix.md)).
 - A reviewer cites a principle by number instead of re-arguing it.
 - A cell is the unit of release, restore and failure, so an incident, a bad release or a restore touches one cell and
   one region's tenants.
@@ -86,7 +87,7 @@ a principle by number.
 ## References
 
 - [The Twelve-Factor App](https://12factor.net/).
-- [Hosting analysis](../hosting-analysis.md): §5 HA, §11 delivery, §13 pre-launch considerations.
+- [Hosting analysis](../hosting-analysis.md): §4 HA, §9 delivery, §10 pre-launch considerations.
 - [ADR-1411](1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md),
   [ADR-1495](1495-the-hosted-platform-runs-customer-environments-as-tenants-on-production-under-the-ncodeid-net-platform-domain.md),
   [ADR-1132](1132-platform-infrastructure-code-is-public-on-github-and-its-state-and-backups-live-in-aws.md),
