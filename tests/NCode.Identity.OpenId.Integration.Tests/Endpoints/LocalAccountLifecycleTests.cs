@@ -796,13 +796,11 @@ public class LocalAccountLifecycleTests
     }
 
     [Fact]
-    public async Task Create_WithADisplayName_ReturnsItAndUserInfoNamesIt()
+    public async Task Create_WithADisplayName_ReturnsTheDisplayName()
     {
         const string userName = "named-user";
         const string password = "named-user-password";
         const string displayName = "Grace Hopper";
-        const string clientId = "it-lifecycle-userinfo";
-        const string clientSecret = "lifecycle-userinfo-client-secret";
         using var factory = new BootstrapAdminApplicationFactory();
         using var administrator = await factory.CreateAdministratorClientAsync(
             CancellationToken.None
@@ -822,9 +820,25 @@ public class LocalAccountLifecycleTests
 
         var createBody = await create.Content.ReadAsStringAsync();
         Assert.True(create.StatusCode == HttpStatusCode.Created, createBody);
-        Assert.Equal(
+        var createdDocument = JsonElement.Parse(createBody);
+        var createdDisplayName = createdDocument.GetProperty("displayName").GetString();
+        Assert.Equal(displayName, createdDisplayName);
+    }
+
+    [Fact]
+    public async Task UserInfo_ForAnAccountWithADisplayName_ReturnsItAsName()
+    {
+        const string userName = "named-user";
+        const string password = "named-user-password";
+        const string displayName = "Grace Hopper";
+        const string clientId = "it-lifecycle-userinfo";
+        const string clientSecret = "lifecycle-userinfo-client-secret";
+        using var factory = new BootstrapAdminApplicationFactory();
+        await factory.SeedLocalAccountWithDisplayNameAsync(
+            userName,
             displayName,
-            JsonElement.Parse(createBody).GetProperty("displayName").GetString()
+            password,
+            CancellationToken.None
         );
 
         await factory.SeedConfidentialClientAsync(
@@ -847,9 +861,11 @@ public class LocalAccountLifecycleTests
             },
             CancellationToken.None
         );
-        Assert.True(statusCode == HttpStatusCode.OK, tokenBody.ToString());
+        var tokenText = tokenBody.ToString();
+        Assert.True(statusCode == HttpStatusCode.OK, tokenText);
         var accessToken = tokenBody.GetProperty("access_token").GetString();
-        Assert.False(string.IsNullOrEmpty(accessToken), tokenBody.ToString());
+        var accessTokenMissing = string.IsNullOrEmpty(accessToken);
+        Assert.False(accessTokenMissing, tokenText);
 
         using var request = new HttpRequestMessage(HttpMethod.Get, "/oauth2/userinfo");
         request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue(
@@ -860,7 +876,9 @@ public class LocalAccountLifecycleTests
 
         var userInfoBody = await userInfoResponse.Content.ReadAsStringAsync();
         Assert.True(userInfoResponse.StatusCode == HttpStatusCode.OK, userInfoBody);
-        Assert.Equal(displayName, JsonElement.Parse(userInfoBody).GetProperty("name").GetString());
+        var userInfoDocument = JsonElement.Parse(userInfoBody);
+        var userInfoName = userInfoDocument.GetProperty("name").GetString();
+        Assert.Equal(displayName, userInfoName);
     }
 
     [Fact]
@@ -899,7 +917,9 @@ public class LocalAccountLifecycleTests
         using var after = await administrator.GetAsync(accountPath);
         var afterBody = await after.Content.ReadAsStringAsync();
         Assert.True(after.StatusCode == HttpStatusCode.OK, afterBody);
-        Assert.Equal("Ada", JsonElement.Parse(afterBody).GetProperty("displayName").GetString());
+        var afterDocument = JsonElement.Parse(afterBody);
+        var afterDisplayName = afterDocument.GetProperty("displayName").GetString();
+        Assert.Equal("Ada", afterDisplayName);
     }
 
     [Fact]
@@ -954,20 +974,21 @@ public class LocalAccountLifecycleTests
         );
         var createBody = await create.Content.ReadAsStringAsync();
         Assert.True(create.StatusCode == HttpStatusCode.Created, createBody);
-        var localAccountId = JsonElement
-            .Parse(createBody)
-            .GetProperty("localAccountId")
-            .GetString();
+        var createdDocument = JsonElement.Parse(createBody);
+        var localAccountId = createdDocument.GetProperty("localAccountId").GetString();
 
         using var list = await administrator.GetAsync("/api/platform/local-accounts");
 
         var listBody = await list.Content.ReadAsStringAsync();
         Assert.True(list.StatusCode == HttpStatusCode.OK, listBody);
+        var listedDocument = JsonElement.Parse(listBody);
+        var listedItems = listedDocument.GetProperty("items").EnumerateArray();
         var listed = Assert.Single(
-            JsonElement.Parse(listBody).GetProperty("items").EnumerateArray(),
+            listedItems,
             item => item.GetProperty("localAccountId").GetString() == localAccountId
         );
-        Assert.Equal("Platform User", listed.GetProperty("displayName").GetString());
+        var listedDisplayName = listed.GetProperty("displayName").GetString();
+        Assert.Equal("Platform User", listedDisplayName);
     }
 
     [Fact]
