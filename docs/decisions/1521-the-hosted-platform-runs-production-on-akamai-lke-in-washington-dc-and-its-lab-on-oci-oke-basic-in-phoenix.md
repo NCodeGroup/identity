@@ -120,6 +120,8 @@ cluster; the lab runs on OCI OKE Basic in Phoenix inside the free allowance; AWS
 
 - [Hosting analysis](../hosting-analysis.md): the sizing, the capacity, the chosen vendors' prices and the AWS growth
   path.
+- [ADR-1071](1071-the-aspire-apphost-runs-the-local-stack-in-health-gated-order-after-checking-the-frontend-toolchain.md):
+  the Aspire stack of daily development.
 - [ADR-1132](1132-platform-infrastructure-code-is-public-on-github-and-its-state-and-backups-live-in-aws.md): the
   infrastructure code, state and backups.
 - [ADR-1133](1133-the-hosted-platform-runs-only-the-published-artifacts-it-offers-self-hosters.md): the published
@@ -130,6 +132,10 @@ cluster; the lab runs on OCI OKE Basic in Phoenix inside the free allowance; AWS
   Valkey for the state every replica sees.
 - [ADR-1235](1235-stored-secrets-and-grant-payloads-are-protected-by-a-key-hierarchy-under-an-external-root-key.md): the
   root key in a key management service.
+- [ADR-1248](1248-the-host-console-and-directory-images-are-chiseled-non-root-multi-arch-digest-pinned-and-log-one-line-json.md):
+  the multi-arch images that the arm64 lab and the amd64 production run.
+- [ADR-1370](1370-a-host-runs-the-deployment-posture-unless-configured-for-local-development-and-always-names-its-root-key-provider.md):
+  the deployment posture and the `local` root-key provider of daily development.
 - [ADR-1411](1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md):
   cells and the global directory.
 - [ADR-1495](1495-the-hosted-platform-runs-customer-environments-as-tenants-on-production-under-the-ncodeid-net-platform-domain.md):
