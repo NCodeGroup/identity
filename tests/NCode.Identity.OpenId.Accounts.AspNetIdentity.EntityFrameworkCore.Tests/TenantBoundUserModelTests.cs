@@ -40,6 +40,20 @@ public sealed class TenantBoundUserModelTests
     }
 
     [Fact]
+    public void HasTenantLookupLengths_WhenCalled_SizesTheDisplayNameColumnAndRequiresIt()
+    {
+        using var dbContext = new TenantBoundIdentityDbContext(
+            CreateOptions<TenantBoundIdentityDbContext>()
+        );
+
+        Assert.Equal(
+            AccountMaxLengths.DisplayName,
+            GetMaxLength(dbContext, nameof(TestTenantUser.DisplayName))
+        );
+        Assert.False(IsNullable(dbContext, nameof(TestTenantUser.DisplayName)));
+    }
+
+    [Fact]
     public void HasTenantLookupLengths_WhenTheBuilderIsNull_Throws()
     {
         EntityTypeBuilder<TestTenantUser> builder = null!;
@@ -99,6 +113,16 @@ public sealed class TenantBoundUserModelTests
         Assert.NotNull(property);
 
         return property.GetMaxLength();
+    }
+
+    private static bool IsNullable(DbContext dbContext, string propertyName)
+    {
+        var userType = dbContext.Model.FindEntityType(typeof(TestTenantUser));
+        Assert.NotNull(userType);
+        var property = userType.FindProperty(propertyName);
+        Assert.NotNull(property);
+
+        return property.IsNullable;
     }
 
     private sealed class TenantBoundIdentityDbContext(DbContextOptions options)
