@@ -31,18 +31,20 @@ internal readonly record struct InteractivePageSecurity(string Nonce, HtmlPageSe
         ContentSecurityPolicySources.AddOrigin(imageSources, logoUri);
         ContentSecurityPolicySources.AddOrigin(imageSources, branding?.FaviconUri);
 
+        var scriptNonceSource = ContentSecurityPolicySources.Nonce(nonce);
+        var styleNonceSource = ContentSecurityPolicySources.Nonce(nonce);
         var policy = new HtmlPageSecurityPolicy
         {
             Directives =
             [
                 new ContentSecurityPolicyDirective(
                     ContentSecurityPolicyDirectives.ScriptSrc,
-                    ContentSecurityPolicySources.Nonce(nonce),
+                    scriptNonceSource,
                     ContentSecurityPolicySources.StrictDynamic
                 ),
                 new ContentSecurityPolicyDirective(
                     ContentSecurityPolicyDirectives.StyleSrc,
-                    ContentSecurityPolicySources.Nonce(nonce)
+                    styleNonceSource
                 ),
                 new ContentSecurityPolicyDirective(
                     ContentSecurityPolicyDirectives.FontSrc,

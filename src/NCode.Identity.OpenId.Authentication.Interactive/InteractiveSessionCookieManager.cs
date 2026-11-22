@@ -22,8 +22,11 @@ internal sealed class InteractiveSessionCookieManager(InteractiveSurfacePaths su
     private ChunkingCookieManager Inner { get; } = new();
 
     /// <inheritdoc />
-    public string? GetRequestCookie(HttpContext context, string key) =>
-        Inner.GetRequestCookie(context, GetTenantCookieName(context, key));
+    public string? GetRequestCookie(HttpContext context, string key)
+    {
+        var cookieName = GetTenantCookieName(context, key);
+        return Inner.GetRequestCookie(context, cookieName);
+    }
 
     /// <inheritdoc />
     public void AppendResponseCookie(
@@ -31,17 +34,20 @@ internal sealed class InteractiveSessionCookieManager(InteractiveSurfacePaths su
         string key,
         string? value,
         CookieOptions options
-    ) =>
-        Inner.AppendResponseCookie(
-            context,
-            GetTenantCookieName(context, key),
-            value,
-            ToHostOnly(options)
-        );
+    )
+    {
+        var cookieName = GetTenantCookieName(context, key);
+        var hostOnlyOptions = ToHostOnly(options);
+        Inner.AppendResponseCookie(context, cookieName, value, hostOnlyOptions);
+    }
 
     /// <inheritdoc />
-    public void DeleteCookie(HttpContext context, string key, CookieOptions options) =>
-        Inner.DeleteCookie(context, GetTenantCookieName(context, key), ToHostOnly(options));
+    public void DeleteCookie(HttpContext context, string key, CookieOptions options)
+    {
+        var cookieName = GetTenantCookieName(context, key);
+        var hostOnlyOptions = ToHostOnly(options);
+        Inner.DeleteCookie(context, cookieName, hostOnlyOptions);
+    }
 
     private string GetTenantCookieName(HttpContext context, string key)
     {
@@ -51,7 +57,8 @@ internal sealed class InteractiveSessionCookieManager(InteractiveSurfacePaths su
             return key;
         }
 
-        var hash = SHA256.HashData(SecureEncoding.UTF8.GetBytes(tenantPath.Value));
+        var tenantPathBytes = SecureEncoding.UTF8.GetBytes(tenantPath.Value);
+        var hash = SHA256.HashData(tenantPathBytes);
         return $"{key}.{Base64Url.EncodeToString(hash)}";
     }
 

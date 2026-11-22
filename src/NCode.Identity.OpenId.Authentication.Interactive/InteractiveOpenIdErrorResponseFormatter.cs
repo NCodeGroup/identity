@@ -56,9 +56,11 @@ internal sealed class InteractiveOpenIdErrorResponseFormatter(
 
         using var html = InteractiveHtmlResult.CreateBuffer();
         // The page is served at the protocol endpoint, so its base points the bundle's assets at the surface.
+        var bundleIndex = await Bundle.TryReadIndexAsync(cancellationToken);
+        var surfaceBase = SurfacePaths.GetSurfaceBase(context.HttpContext);
         var frame = new InteractivePageFrame(
-            await Bundle.TryReadIndexAsync(cancellationToken),
-            SurfacePaths.GetSurfaceBase(context.HttpContext),
+            bundleIndex,
+            surfaceBase,
             branding,
             security.Nonce,
             locale

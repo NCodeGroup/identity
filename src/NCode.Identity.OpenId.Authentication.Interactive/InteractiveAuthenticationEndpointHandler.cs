@@ -151,13 +151,16 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
             httpContext.RequestAborted
         );
         var html = InteractiveHtmlResult.CreateBuffer();
+        var returnUrl = query["ReturnUrl"].ToString();
+        var errorQueryValue = query[ErrorQueryName].ToString();
+        var loginError = DescribeLoginError(errorQueryValue, frame.Locale.Messages);
         InteractiveAuthenticationPageRenderer.RenderLoginPage(
             html,
             frame,
-            query["ReturnUrl"].ToString(),
+            returnUrl,
             tokens.FormFieldName,
             tokens.RequestToken ?? string.Empty,
-            DescribeLoginError(query[ErrorQueryName].ToString(), frame.Locale.Messages)
+            loginError
         );
         return new InteractiveHtmlResult(html, security.Policy);
     }
@@ -272,7 +275,8 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
             return TypedResults.Unauthorized();
         }
 
-        return TypedResults.Json(BuildMeResponse(principal, subjectId));
+        var meResponse = BuildMeResponse(principal, subjectId);
+        return TypedResults.Json(meResponse);
     }
 
     // Projects the authenticated cookie principal into the account page's view model.
@@ -293,14 +297,9 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
             ? parsedAuthTime.ToUnixTimeSeconds()
             : null;
 
-        return new AccountMeResponse(
-            subjectId,
-            name,
-            authTime,
-            amr,
-            principal.FindFirst(JoseClaimNames.Payload.Idp)?.Value,
-            principal.FindFirst(JoseClaimNames.Payload.Sid)?.Value
-        );
+        var idp = principal.FindFirst(JoseClaimNames.Payload.Idp)?.Value;
+        var sid = principal.FindFirst(JoseClaimNames.Payload.Sid)?.Value;
+        return new AccountMeResponse(subjectId, name, authTime, amr, idp, sid);
     }
 
     /// <summary>
@@ -324,9 +323,13 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
 
         if (string.IsNullOrEmpty(username) || string.IsNullOrEmpty(password))
         {
-            return TypedResults.Redirect(
-                BuildLoginRedirect(httpContext, safeReturnUrl, "invalid_request", languageTag)
+            var invalidRequestRedirect = BuildLoginRedirect(
+                httpContext,
+                safeReturnUrl,
+                "invalid_request",
+                languageTag
             );
+            return TypedResults.Redirect(invalidRequestRedirect);
         }
 
         var openIdContext = httpContext.GetOpenIdContext();
@@ -338,9 +341,13 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
         );
         if (principal is null)
         {
-            return TypedResults.Redirect(
-                BuildLoginRedirect(httpContext, safeReturnUrl, "invalid_credentials", languageTag)
+            var invalidCredentialsRedirect = BuildLoginRedirect(
+                httpContext,
+                safeReturnUrl,
+                "invalid_credentials",
+                languageTag
             );
+            return TypedResults.Redirect(invalidCredentialsRedirect);
         }
 
         // Resolve the verified credential to the stable, server-owned principal id and normalize the cookie subject to
@@ -407,14 +414,13 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
             return refusal.HttpResult;
         }
 
-        return TypedResults.Redirect(
-            BuildLoginRedirect(
-                httpContext,
-                safeReturnUrl,
-                OpenIdProtocol.ErrorCodes.AccessDenied,
-                languageTag
-            )
+        var loginRedirect = BuildLoginRedirect(
+            httpContext,
+            safeReturnUrl,
+            OpenIdProtocol.ErrorCodes.AccessDenied,
+            languageTag
         );
+        return TypedResults.Redirect(loginRedirect);
     }
 
     private static async ValueTask<OperationDisposition<IOpenIdError>> ValidateStandingAsync(
@@ -426,19 +432,20 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
         var mediator = openIdContext.Mediator;
         var operationDisposition = new OperationDisposition<IOpenIdError>();
 
-        await mediator.SendAsync(
-            new ValidateSubjectStandingCommand(
-                openIdContext,
-                new SubjectAuthentication(
-                    InteractiveAuthenticationDefaults.CookieSchemeName,
-                    new AuthenticationProperties(),
-                    principal,
-                    openIdContext.GetSubjectId(principal) ?? string.Empty
-                ),
-                operationDisposition
-            ),
-            cancellationToken
+        var authenticationProperties = new AuthenticationProperties();
+        var subjectId = openIdContext.GetSubjectId(principal) ?? string.Empty;
+        var subjectAuthentication = new SubjectAuthentication(
+            InteractiveAuthenticationDefaults.CookieSchemeName,
+            authenticationProperties,
+            principal,
+            subjectId
         );
+        var command = new ValidateSubjectStandingCommand(
+            openIdContext,
+            subjectAuthentication,
+            operationDisposition
+        );
+        await mediator.SendAsync(command, cancellationToken);
 
         return operationDisposition;
     }
@@ -496,7 +503,8 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
         };
 
         var sessionId = await SessionService.CreateAsync(openIdContext, request, cancellationToken);
-        identity.AddClaim(new Claim(JoseClaimNames.Payload.Sid, sessionId));
+        var sidClaim = new Claim(JoseClaimNames.Payload.Sid, sessionId);
+        identity.AddClaim(sidClaim);
     }
 
     /// <summary>
@@ -574,19 +582,15 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
             return TypedResults.NotFound();
         }
 
-        return TypedResults.Json(
-            new ConsentDetailsResponse(
-                value.ClientId,
-                value.ClientName,
-                value
-                    .Scopes.Select(scope => new ConsentScopeResponse(
-                        scope.Value,
-                        scope.Description,
-                        scope.IsGranted
-                    ))
-                    .ToList()
-            )
-        );
+        var scopes = value
+            .Scopes.Select(scope => new ConsentScopeResponse(
+                scope.Value,
+                scope.Description,
+                scope.IsGranted
+            ))
+            .ToList();
+        var consentDetails = new ConsentDetailsResponse(value.ClientId, value.ClientName, scopes);
+        return TypedResults.Json(consentDetails);
     }
 
     /// <summary>
@@ -613,12 +617,13 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
             // A denial answers the parked authorization request with `access_denied` (OpenID Connect Core 1.0
             // §3.1.2.6).
             // See ADR-1229.
+            var accessDenied = openIdContext.ErrorFactory.AccessDenied(
+                "The end user denied the authorization request."
+            );
             var refusal = await ContinueRefusalService.RefuseAsync(
                 openIdContext,
                 safeReturnUrl,
-                openIdContext.ErrorFactory.AccessDenied(
-                    "The end user denied the authorization request."
-                ),
+                accessDenied,
                 httpContext.RequestAborted
             );
             return refusal.HasHttpResult ? refusal.HttpResult : TypedResults.Redirect("/");
@@ -630,17 +635,25 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
         );
         if (!authenticateResult.Succeeded)
         {
-            return TypedResults.Redirect(
-                BuildLoginRedirect(httpContext, safeReturnUrl, "invalid_request", languageTag)
+            var invalidRequestRedirect = BuildLoginRedirect(
+                httpContext,
+                safeReturnUrl,
+                "invalid_request",
+                languageTag
             );
+            return TypedResults.Redirect(invalidRequestRedirect);
         }
 
         var subjectId = openIdContext.GetSubjectId(authenticateResult.Principal);
         if (string.IsNullOrEmpty(subjectId) || string.IsNullOrEmpty(returnUrl))
         {
-            return TypedResults.Redirect(
-                BuildLoginRedirect(httpContext, safeReturnUrl, "invalid_request", languageTag)
+            var invalidRequestRedirect = BuildLoginRedirect(
+                httpContext,
+                safeReturnUrl,
+                "invalid_request",
+                languageTag
             );
+            return TypedResults.Redirect(invalidRequestRedirect);
         }
 
         var pending = await ConsentService.ResolvePendingConsentAsync(
@@ -683,30 +696,34 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
 
         // No id_token_hint is supplied: this is a first-party sign-out, so the pipeline resolves the session from the
         // OP login cookie. The end_session_endpoint remains the entry point for RP-initiated logout.
+        var loadCommand = new LoadEndSessionRequestCommand(openIdContext);
         var request = await mediator.SendAsync<LoadEndSessionRequestCommand, IEndSessionRequest>(
-            new LoadEndSessionRequestCommand(openIdContext),
+            loadCommand,
             httpContext.RequestAborted
         );
 
+        var resolveCommand = new ResolveEndSessionSubjectCommand(openIdContext, request);
         var subject = await mediator.SendAsync<ResolveEndSessionSubjectCommand, EndSessionSubject>(
-            new ResolveEndSessionSubjectCommand(openIdContext, request),
+            resolveCommand,
             httpContext.RequestAborted
         );
 
+        var endSessionCommand = new EndSessionCommand(openIdContext, request, subject);
         await mediator.SendAsync<EndSessionCommand, EndSessionDisposition>(
-            new EndSessionCommand(openIdContext, request, subject),
+            endSessionCommand,
             httpContext.RequestAborted
         );
 
-        var safeReturnUrl = ResolveSafeReturnUrl(
-            httpContext,
-            string.IsNullOrEmpty(returnUrl)
-                ? SurfacePaths.GetSurfacePath(
-                    httpContext,
-                    InteractiveAuthenticationDefaults.LoginPath
-                )
-                : returnUrl
-        );
+        var requestedReturnUrl = returnUrl;
+        if (string.IsNullOrEmpty(returnUrl))
+        {
+            requestedReturnUrl = SurfacePaths.GetSurfacePath(
+                httpContext,
+                InteractiveAuthenticationDefaults.LoginPath
+            );
+        }
+
+        var safeReturnUrl = ResolveSafeReturnUrl(httpContext, requestedReturnUrl);
         return TypedResults.Redirect(safeReturnUrl);
     }
 
@@ -781,9 +798,8 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
             httpContext,
             InteractiveAuthenticationDefaults.AccountPath
         );
-        return TypedResults.Redirect(
-            InteractiveLocaleSelector.AppendUiLocalesQuery(accountPath, languageTag)
-        );
+        var location = InteractiveLocaleSelector.AppendUiLocalesQuery(accountPath, languageTag);
+        return TypedResults.Redirect(location);
     }
 
     /// <summary>
@@ -833,22 +849,21 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
             httpContext.RequestAborted
         );
 
-        return TypedResults.Json(
-            new AuthorizedApplicationsResponse(
-                applications
-                    .Select(app => new AuthorizedApplicationResponse(
-                        app.ClientId,
-                        app.ClientName,
-                        app.Scopes.Select(scope => new ConsentScopeResponse(
-                                scope.Value,
-                                scope.Description,
-                                scope.IsGranted
-                            ))
-                            .ToList()
+        var applicationResponses = applications
+            .Select(app =>
+            {
+                var scopes = app
+                    .Scopes.Select(scope => new ConsentScopeResponse(
+                        scope.Value,
+                        scope.Description,
+                        scope.IsGranted
                     ))
-                    .ToList()
-            )
-        );
+                    .ToList();
+                return new AuthorizedApplicationResponse(app.ClientId, app.ClientName, scopes);
+            })
+            .ToList();
+        var applicationsResponse = new AuthorizedApplicationsResponse(applicationResponses);
+        return TypedResults.Json(applicationsResponse);
     }
 
     /// <summary>
@@ -881,12 +896,11 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
             );
         }
 
-        return TypedResults.Redirect(
-            SurfacePaths.GetSurfacePath(
-                httpContext,
-                InteractiveAuthenticationDefaults.ApplicationsPath
-            )
+        var applicationsPath = SurfacePaths.GetSurfacePath(
+            httpContext,
+            InteractiveAuthenticationDefaults.ApplicationsPath
         );
+        return TypedResults.Redirect(applicationsPath);
     }
 
     /// <summary>
@@ -938,23 +952,31 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
             httpContext.RequestAborted
         );
 
-        return TypedResults.Json(
-            new SessionsResponse(
-                sessions.Select(session => ToSummary(session, currentSessionId)).ToList()
-            )
-        );
+        var sessionSummaries = sessions
+            .Select(session => ToSummary(session, currentSessionId))
+            .ToList();
+        var sessionsResponse = new SessionsResponse(sessionSummaries);
+        return TypedResults.Json(sessionsResponse);
     }
 
     // Projects a session into the active-sessions page's view model, marking the request's own session.
     private static SessionSummaryResponse ToSummary(SessionInfo session, string? currentSessionId)
     {
         var grant = session.Grant;
+        var isCurrent = string.Equals(
+            session.SessionId,
+            currentSessionId,
+            StringComparison.Ordinal
+        );
+        var createdAt = session.CreatedWhen.ToUnixTimeSeconds();
+        var lastActivityAt = grant.LastActivityWhen.ToUnixTimeSeconds();
+        var expiresAt = session.ExpiresWhen.ToUnixTimeSeconds();
         return new SessionSummaryResponse(
             session.SessionId,
-            string.Equals(session.SessionId, currentSessionId, StringComparison.Ordinal),
-            session.CreatedWhen.ToUnixTimeSeconds(),
-            grant.LastActivityWhen.ToUnixTimeSeconds(),
-            session.ExpiresWhen.ToUnixTimeSeconds(),
+            isCurrent,
+            createdAt,
+            lastActivityAt,
+            expiresAt,
             grant.AuthenticationMethods ?? [],
             grant.IdentityProvider,
             grant.UserAgent,
@@ -1018,9 +1040,11 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
             }
         }
 
-        return TypedResults.Redirect(
-            SurfacePaths.GetSurfacePath(httpContext, InteractiveAuthenticationDefaults.SessionsPath)
+        var sessionsPath = SurfacePaths.GetSurfacePath(
+            httpContext,
+            InteractiveAuthenticationDefaults.SessionsPath
         );
+        return TypedResults.Redirect(sessionsPath);
     }
 
     /// <summary>
@@ -1048,12 +1072,11 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
         var subjectId = openIdContext.GetSubjectId(principal);
         if (string.IsNullOrEmpty(subjectId))
         {
-            return TypedResults.Redirect(
-                SurfacePaths.GetSurfacePath(
-                    httpContext,
-                    InteractiveAuthenticationDefaults.SessionsPath
-                )
+            var sessionsPath = SurfacePaths.GetSurfacePath(
+                httpContext,
+                InteractiveAuthenticationDefaults.SessionsPath
             );
+            return TypedResults.Redirect(sessionsPath);
         }
 
         var currentSessionId = principal.FindFirst(JoseClaimNames.Payload.Sid)?.Value;
@@ -1072,12 +1095,11 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
                 httpContext.RequestAborted
             );
 
-            return TypedResults.Redirect(
-                SurfacePaths.GetSurfacePath(
-                    httpContext,
-                    InteractiveAuthenticationDefaults.SessionsPath
-                )
+            var sessionsPath = SurfacePaths.GetSurfacePath(
+                httpContext,
+                InteractiveAuthenticationDefaults.SessionsPath
             );
+            return TypedResults.Redirect(sessionsPath);
         }
 
         await SessionService.RevokeAllAsync(
@@ -1089,9 +1111,11 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
 
         // A full sign-out revokes the request's own session too, so clear the login cookie and return to the login page.
         await httpContext.SignOutAsync(InteractiveAuthenticationDefaults.CookieSchemeName);
-        return TypedResults.Redirect(
-            SurfacePaths.GetSurfacePath(httpContext, InteractiveAuthenticationDefaults.LoginPath)
+        var loginPath = SurfacePaths.GetSurfacePath(
+            httpContext,
+            InteractiveAuthenticationDefaults.LoginPath
         );
+        return TypedResults.Redirect(loginPath);
     }
 
     /// <summary>
@@ -1210,14 +1234,18 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
         // The cookie serves the surface only while the session it names is active, so the cookie of an ended, revoked,
         // or blocked end user's session serves nothing.
         var sessionId = authenticateResult.Principal.FindFirst(JoseClaimNames.Payload.Sid)?.Value;
-        if (
-            string.IsNullOrEmpty(sessionId)
-            || !await SessionService.ValidateAndTouchAsync(
-                httpContext.GetOpenIdContext(),
+        var isSessionActive = false;
+        if (!string.IsNullOrEmpty(sessionId))
+        {
+            var sessionOpenIdContext = httpContext.GetOpenIdContext();
+            isSessionActive = await SessionService.ValidateAndTouchAsync(
+                sessionOpenIdContext,
                 sessionId,
                 cancellationToken
-            )
-        )
+            );
+        }
+
+        if (!isSessionActive)
         {
             await httpContext.SignOutAsync(InteractiveAuthenticationDefaults.CookieSchemeName);
             return AuthenticateResult.NoResult();
@@ -1242,10 +1270,8 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
         var branding = ReadBranding(httpContext);
         var security = InteractivePageSecurity.Create(branding);
         var html = InteractiveHtmlResult.CreateBuffer();
-        InteractiveAuthenticationPageRenderer.RenderBundlePage(
-            html,
-            CreatePageFrame(httpContext, shell, branding, security)
-        );
+        var frame = CreatePageFrame(httpContext, shell, branding, security);
+        InteractiveAuthenticationPageRenderer.RenderBundlePage(html, frame);
         return new InteractiveHtmlResult(html, security.Policy);
     }
 
@@ -1256,41 +1282,37 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
         InteractiveBranding branding,
         InteractivePageSecurity security,
         CancellationToken cancellationToken
-    ) =>
-        CreatePageFrame(
-            httpContext,
-            await Bundle.TryReadIndexAsync(cancellationToken),
-            branding,
-            security
-        );
+    )
+    {
+        var shell = await Bundle.TryReadIndexAsync(cancellationToken);
+        return CreatePageFrame(httpContext, shell, branding, security);
+    }
 
     private InteractivePageFrame CreatePageFrame(
         HttpContext httpContext,
         InteractiveBundleShell? shell,
         InteractiveBranding branding,
         InteractivePageSecurity security
-    ) =>
-        new(
-            shell,
-            SurfacePaths.GetSurfaceBase(httpContext),
-            branding,
-            security.Nonce,
-            SelectLocale(httpContext)
-        );
+    )
+    {
+        var surfaceBase = SurfacePaths.GetSurfaceBase(httpContext);
+        var locale = SelectLocale(httpContext);
+        return new InteractivePageFrame(shell, surfaceBase, branding, security.Nonce, locale);
+    }
 
     // The tenant the request resolved is the one whose page the bundle themes itself for (ADR-1253).
-    private InteractiveBranding ReadBranding(HttpContext httpContext) =>
-        InteractiveBranding.FromSettings(
-            httpContext.GetOpenIdContext().Tenant.SettingsProvider.Collection,
-            TenantEnvironmentCatalog
-        );
+    private InteractiveBranding ReadBranding(HttpContext httpContext)
+    {
+        var settings = httpContext.GetOpenIdContext().Tenant.SettingsProvider.Collection;
+        return InteractiveBranding.FromSettings(settings, TenantEnvironmentCatalog);
+    }
 
     // The page renders in the locale the request prefers among those the tenant supports (ADR-1402).
-    private InteractiveLocale SelectLocale(HttpContext httpContext) =>
-        LocaleSelector.Select(
-            httpContext,
-            httpContext.GetOpenIdContext().Tenant.SettingsProvider.Collection
-        );
+    private InteractiveLocale SelectLocale(HttpContext httpContext)
+    {
+        var settings = httpContext.GetOpenIdContext().Tenant.SettingsProvider.Collection;
+        return LocaleSelector.Select(httpContext, settings);
+    }
 
     // Mirrors the apps/auth describeLoginError mapping so the no-JS login form shows the same messages.
     private static string? DescribeLoginError(string? error, InteractiveMessages messages) =>
@@ -1310,16 +1332,17 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
         {
             // A JavaScript-readable cookie (not the HttpOnly antiforgery cookie) so the single-page form can echo the
             // request token back as a hidden field, which the antiforgery middleware then validates on POST.
+            var cookieOptions = new CookieOptions
+            {
+                HttpOnly = false,
+                Path = "/",
+                SameSite = SameSiteMode.Strict,
+                Secure = true,
+            };
             httpContext.Response.Cookies.Append(
                 InteractiveAuthenticationDefaults.AntiforgeryTokenCookieName,
                 requestToken,
-                new CookieOptions
-                {
-                    HttpOnly = false,
-                    Path = "/",
-                    SameSite = SameSiteMode.Strict,
-                    Secure = true,
-                }
+                cookieOptions
             );
         }
 
@@ -1345,16 +1368,11 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
         var languageTag = LocaleSelector.GetCarriedLanguageTag(
             httpContext.Request.Query[InteractiveAuthenticationPageRenderer.UiLocalesFieldName]
         );
-        var returnUrl = InteractiveLocaleSelector.AppendUiLocalesQuery(
-            SurfacePaths.GetSurfacePath(httpContext, returnSurfacePath),
-            languageTag
-        );
-        return TypedResults.Redirect(
-            InteractiveLocaleSelector.AppendUiLocalesQuery(
-                BuildLoginUrl(httpContext, returnUrl),
-                languageTag
-            )
-        );
+        var returnPath = SurfacePaths.GetSurfacePath(httpContext, returnSurfacePath);
+        var returnUrl = InteractiveLocaleSelector.AppendUiLocalesQuery(returnPath, languageTag);
+        var loginUrl = BuildLoginUrl(httpContext, returnUrl);
+        var location = InteractiveLocaleSelector.AppendUiLocalesQuery(loginUrl, languageTag);
+        return TypedResults.Redirect(location);
     }
 
     // A page the surface redirects back to renders in the locale the form carried.
@@ -1363,22 +1381,27 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
         string returnUrl,
         string error,
         string? languageTag
-    ) =>
-        InteractiveLocaleSelector.AppendUiLocalesQuery(
-            BuildLoginUrl(httpContext, returnUrl)
-                + $"&{ErrorQueryName}={Uri.EscapeDataString(error)}",
-            languageTag
-        );
+    )
+    {
+        var loginUrl = BuildLoginUrl(httpContext, returnUrl);
+        var escapedError = Uri.EscapeDataString(error);
+        var urlWithError = loginUrl + $"&{ErrorQueryName}={escapedError}";
+        return InteractiveLocaleSelector.AppendUiLocalesQuery(urlWithError, languageTag);
+    }
 
     private RedirectHttpResult RedirectToPasswordPage(
         HttpContext httpContext,
         string queryName,
         string queryValue
-    ) =>
-        TypedResults.Redirect(
-            $"{SurfacePaths.GetSurfacePath(httpContext, InteractiveAuthenticationDefaults.PasswordPath)}"
-                + $"?{queryName}={Uri.EscapeDataString(queryValue)}"
+    )
+    {
+        var passwordPath = SurfacePaths.GetSurfacePath(
+            httpContext,
+            InteractiveAuthenticationDefaults.PasswordPath
         );
+        var escapedValue = Uri.EscapeDataString(queryValue);
+        return TypedResults.Redirect($"{passwordPath}" + $"?{queryName}={escapedValue}");
+    }
 
     // Guards against an open redirect: a local URL as LocalUrl defines it, or an absolute URL that targets this
     // same origin (the OP's own continue endpoint), is honored; anything else falls back to the application root.

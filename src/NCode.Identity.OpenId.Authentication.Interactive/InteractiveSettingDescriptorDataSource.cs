@@ -33,43 +33,46 @@ internal partial class InteractiveSettingDescriptorDataSource(INullChangeToken n
         {
             // branding_display_name: the name the surface shows in place of the product's. Not advertised. Override
             // (Replace): a child fully replaces the parent value.
+            var displayNameRule = SettingRules.Must<string>(
+                "at most 100 characters with no control characters",
+                value => value.Length <= 100 && !value.Any(char.IsControl)
+            );
             yield return BrandingDescriptor(
                 InteractiveSettingNames.BrandingDisplayName,
-                SettingRules.Must<string>(
-                    "at most 100 characters with no control characters",
-                    value => value.Length <= 100 && !value.Any(char.IsControl)
-                )
+                displayNameRule
             );
 
             // branding_logo_uri: the logo the surface shows, fetched by the end-user's browser, so it must be served
             // over TLS like the page that shows it.
-            yield return BrandingDescriptor(
-                InteractiveSettingNames.BrandingLogoUri,
-                AbsoluteHttpsUri()
-            );
+            var logoUriRule = AbsoluteHttpsUri();
+            yield return BrandingDescriptor(InteractiveSettingNames.BrandingLogoUri, logoUriRule);
 
             // branding_favicon_uri: the icon the browser shows in the tab, fetched by the end-user's browser, so it must
             // be served over TLS like the page that shows it.
+            var faviconUriRule = AbsoluteHttpsUri();
             yield return BrandingDescriptor(
                 InteractiveSettingNames.BrandingFaviconUri,
-                AbsoluteHttpsUri()
+                faviconUriRule
             );
 
             // branding_primary_color / branding_secondary_color: the theme's palette colors. Hexadecimal only, the one
             // notation every theme engine reads the same way.
+            var primaryColorRule = HexColor();
             yield return BrandingDescriptor(
                 InteractiveSettingNames.BrandingPrimaryColor,
-                HexColor()
+                primaryColorRule
             );
+            var secondaryColorRule = HexColor();
             yield return BrandingDescriptor(
                 InteractiveSettingNames.BrandingSecondaryColor,
-                HexColor()
+                secondaryColorRule
             );
 
             // branding_color_mode: the theme's color mode.
+            var colorModeRule = SettingRules.OneOf(LightColorMode, DarkColorMode);
             yield return BrandingDescriptor(
                 InteractiveSettingNames.BrandingColorMode,
-                SettingRules.OneOf(LightColorMode, DarkColorMode)
+                colorModeRule
             );
         }
     }

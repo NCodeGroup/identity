@@ -50,9 +50,13 @@ internal sealed class InteractiveSurfacePaths(
 
         var binder = TenantRouteBinderOrNull ??= TemplateBinderFactory.Create(tenantRoute);
         var tenantPath = binder.BindValues(values)?.TrimEnd('/');
-        return string.IsNullOrEmpty(tenantPath)
-            ? request.PathBase
-            : request.PathBase.Add(new PathString(tenantPath));
+        if (string.IsNullOrEmpty(tenantPath))
+        {
+            return request.PathBase;
+        }
+
+        var tenantPathValue = new PathString(tenantPath);
+        return request.PathBase.Add(tenantPathValue);
     }
 
     /// <summary>
@@ -62,8 +66,12 @@ internal sealed class InteractiveSurfacePaths(
     /// <param name="httpContext">The <see cref="HttpContext"/> of the request.</param>
     /// <param name="surfacePath">The surface path, relative to the tenant.</param>
     /// <returns>The surface path beneath the request's tenant path.</returns>
-    public string GetSurfacePath(HttpContext httpContext, string surfacePath) =>
-        GetTenantPath(httpContext).Add(new PathString(surfacePath)).ToString();
+    public string GetSurfacePath(HttpContext httpContext, string surfacePath)
+    {
+        var tenantPath = GetTenantPath(httpContext);
+        var surfacePathValue = new PathString(surfacePath);
+        return tenantPath.Add(surfacePathValue).ToString();
+    }
 
     /// <summary>
     /// Gets the base of the interactive surface as the request's tenant serves it (for example <c>/acme/account/</c>):

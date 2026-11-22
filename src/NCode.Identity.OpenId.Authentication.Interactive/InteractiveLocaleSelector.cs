@@ -36,10 +36,16 @@ internal sealed class InteractiveLocaleSelector
     /// <param name="url">The URL of a page of the surface.</param>
     /// <param name="languageTags">The preferred language tags, most preferred first, or <see langword="null"/>.</param>
     /// <returns>The URL with the query appended, or <paramref name="url"/> when there is no tag to carry.</returns>
-    public static string AppendUiLocalesQuery(string url, IReadOnlyList<string>? languageTags) =>
-        languageTags is null || languageTags.Count == 0
-            ? url
-            : AppendUiLocalesQuery(url, string.Join(PreferenceSeparator, languageTags));
+    public static string AppendUiLocalesQuery(string url, IReadOnlyList<string>? languageTags)
+    {
+        if (languageTags is null || languageTags.Count == 0)
+        {
+            return url;
+        }
+
+        var joinedLanguageTags = string.Join(PreferenceSeparator, languageTags);
+        return AppendUiLocalesQuery(url, joinedLanguageTags);
+    }
 
     /// <summary>
     /// Appends the <c>ui_locales</c> query that carries <paramref name="languageTag"/> to <paramref name="url"/>,
@@ -81,7 +87,8 @@ internal sealed class InteractiveLocaleSelector
                 var languageTag = span[range].Trim();
                 if (!languageTag.IsEmpty)
                 {
-                    preferences.Add(languageTag.ToString());
+                    var preference = languageTag.ToString();
+                    preferences.Add(preference);
                 }
             }
         }
@@ -117,7 +124,8 @@ internal sealed class InteractiveLocaleSelector
 
         foreach (var header in ordered)
         {
-            preferences.Add(header.Value.ToString());
+            var preference = header.Value.ToString();
+            preferences.Add(preference);
         }
 
         return preferences;
@@ -140,7 +148,8 @@ internal sealed class InteractiveLocaleSelector
         );
         if (failures.Count > 0)
         {
-            throw new InvalidOperationException(string.Join(PreferenceSeparator, failures));
+            var message = string.Join(PreferenceSeparator, failures);
+            throw new InvalidOperationException(message);
         }
 
         UiLocaleCatalog = uiLocaleCatalog;

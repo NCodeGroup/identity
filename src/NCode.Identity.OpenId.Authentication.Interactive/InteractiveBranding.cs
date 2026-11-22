@@ -55,20 +55,34 @@ internal sealed record InteractiveBranding(
     )
     {
         var type = tenantEnvironmentCatalog.GetEffectiveType(settings);
-        var environment = type.IsProduction
-            ? null
-            : new InteractiveEnvironment(
-                type.TypeName,
-                NullIfEmpty(settings.GetValue(OpenIdSettingKeys.EnvironmentName))
-            );
+        InteractiveEnvironment? environment = null;
+        if (!type.IsProduction)
+        {
+            var environmentNameValue = settings.GetValue(OpenIdSettingKeys.EnvironmentName);
+            var environmentName = NullIfEmpty(environmentNameValue);
+            environment = new InteractiveEnvironment(type.TypeName, environmentName);
+        }
+
+        var displayNameValue = settings.GetValue(InteractiveSettingKeys.BrandingDisplayName);
+        var displayName = NullIfEmpty(displayNameValue);
+        var logoUriValue = settings.GetValue(InteractiveSettingKeys.BrandingLogoUri);
+        var logoUri = NullIfEmpty(logoUriValue);
+        var faviconUriValue = settings.GetValue(InteractiveSettingKeys.BrandingFaviconUri);
+        var faviconUri = NullIfEmpty(faviconUriValue);
+        var primaryColorValue = settings.GetValue(InteractiveSettingKeys.BrandingPrimaryColor);
+        var primaryColor = NullIfEmpty(primaryColorValue);
+        var secondaryColorValue = settings.GetValue(InteractiveSettingKeys.BrandingSecondaryColor);
+        var secondaryColor = NullIfEmpty(secondaryColorValue);
+        var colorModeValue = settings.GetValue(InteractiveSettingKeys.BrandingColorMode);
+        var colorMode = NullIfEmpty(colorModeValue);
 
         return new InteractiveBranding(
-            NullIfEmpty(settings.GetValue(InteractiveSettingKeys.BrandingDisplayName)),
-            NullIfEmpty(settings.GetValue(InteractiveSettingKeys.BrandingLogoUri)),
-            NullIfEmpty(settings.GetValue(InteractiveSettingKeys.BrandingFaviconUri)),
-            NullIfEmpty(settings.GetValue(InteractiveSettingKeys.BrandingPrimaryColor)),
-            NullIfEmpty(settings.GetValue(InteractiveSettingKeys.BrandingSecondaryColor)),
-            NullIfEmpty(settings.GetValue(InteractiveSettingKeys.BrandingColorMode)),
+            displayName,
+            logoUri,
+            faviconUri,
+            primaryColor,
+            secondaryColor,
+            colorMode,
             environment
         );
     }

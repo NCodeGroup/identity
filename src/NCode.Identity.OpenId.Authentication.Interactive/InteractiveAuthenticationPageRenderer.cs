@@ -282,12 +282,13 @@ internal static class InteractiveAuthenticationPageRenderer
             return;
         }
 
-        WriteEncoded(writer, consentPromptFormat.AsSpan(0, placeholderIndex));
+        var beforePlaceholder = consentPromptFormat.AsSpan(0, placeholderIndex);
+        WriteEncoded(writer, beforePlaceholder);
         WriteEncoded(writer, appName);
-        WriteEncoded(
-            writer,
-            consentPromptFormat.AsSpan(placeholderIndex + ConsentPromptPlaceholder.Length)
+        var afterPlaceholder = consentPromptFormat.AsSpan(
+            placeholderIndex + ConsentPromptPlaceholder.Length
         );
+        WriteEncoded(writer, afterPlaceholder);
     }
 
     private static void WriteHiddenFields(
@@ -372,7 +373,8 @@ internal static class InteractiveAuthenticationPageRenderer
     private static void WriteBranding(IBufferWriter<char> writer, InteractiveBranding branding)
     {
         Write(writer, BrandingStart);
-        Write(writer, JsonSerializer.Serialize(branding, JsonSerializerOptions.Web));
+        var brandingJson = JsonSerializer.Serialize(branding, JsonSerializerOptions.Web);
+        Write(writer, brandingJson);
         Write(writer, BrandingEnd);
     }
 
@@ -440,9 +442,10 @@ internal static class InteractiveAuthenticationPageRenderer
         var sizeHint = value.Length;
         while (true)
         {
+            var buffer = writer.GetSpan(sizeHint);
             var status = encoder.Encode(
                 value,
-                writer.GetSpan(sizeHint),
+                buffer,
                 out var consumed,
                 out var written,
                 isFinalBlock: true
