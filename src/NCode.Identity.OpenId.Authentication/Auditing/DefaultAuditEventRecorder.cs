@@ -434,4 +434,276 @@ internal class DefaultAuditEventRecorder(IEventPublisher eventPublisher, TimePro
 
         return EventPublisher.PublishAsync(auditEvent, cancellationToken);
     }
+
+    /// <inheritdoc />
+    public ValueTask RecordPasswordChangedAsync(
+        OpenIdContext openIdContext,
+        string subjectId,
+        string localAccountId,
+        CancellationToken cancellationToken
+    )
+    {
+        var now = TimeProvider.GetUtcNow();
+        var auditEvent = new PasswordChangeAuditEvent
+        {
+            EventId = Guid.CreateVersion7(now),
+            EventTime = now,
+            EventSource = AuditEventSources.OpenId,
+            TenantId = openIdContext.Tenant.TenantId,
+            TenantEnvironmentType = GetTenantEnvironmentType(openIdContext),
+            SubjectId = subjectId,
+            Actor = AuditActor.EndUser(subjectId),
+            Request = CreateRequest(openIdContext),
+            Outcome = AuditOutcome.Success,
+            LocalAccountId = localAccountId,
+        };
+
+        return EventPublisher.PublishAsync(auditEvent, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public ValueTask RecordPasswordChangeFailedAsync(
+        OpenIdContext openIdContext,
+        string subjectId,
+        string localAccountId,
+        string errorCode,
+        CancellationToken cancellationToken
+    )
+    {
+        var now = TimeProvider.GetUtcNow();
+        var auditEvent = new PasswordChangeAuditEvent
+        {
+            EventId = Guid.CreateVersion7(now),
+            EventTime = now,
+            EventSource = AuditEventSources.OpenId,
+            TenantId = openIdContext.Tenant.TenantId,
+            TenantEnvironmentType = GetTenantEnvironmentType(openIdContext),
+            SubjectId = subjectId,
+            Actor = AuditActor.EndUser(subjectId),
+            Request = CreateRequest(openIdContext),
+            Outcome = AuditOutcome.Failure,
+            Error = new AuditError(errorCode),
+            LocalAccountId = localAccountId,
+        };
+
+        return EventPublisher.PublishAsync(auditEvent, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public ValueTask RecordPasswordResetRequestedAsync(
+        OpenIdContext openIdContext,
+        string? subjectId,
+        string localAccountId,
+        CancellationToken cancellationToken
+    )
+    {
+        var now = TimeProvider.GetUtcNow();
+        var auditEvent = new PasswordResetRequestAuditEvent
+        {
+            EventId = Guid.CreateVersion7(now),
+            EventTime = now,
+            EventSource = AuditEventSources.OpenId,
+            TenantId = openIdContext.Tenant.TenantId,
+            TenantEnvironmentType = GetTenantEnvironmentType(openIdContext),
+            SubjectId = subjectId,
+            Actor = subjectId is null ? AuditActor.Anonymous : AuditActor.EndUser(subjectId),
+            Request = CreateRequest(openIdContext),
+            Outcome = AuditOutcome.Success,
+            LocalAccountId = localAccountId,
+        };
+
+        return EventPublisher.PublishAsync(auditEvent, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public ValueTask RecordPasswordResetRequestFailedAsync(
+        OpenIdContext openIdContext,
+        string errorCode,
+        string attemptedUsername,
+        CancellationToken cancellationToken
+    )
+    {
+        var now = TimeProvider.GetUtcNow();
+        var auditEvent = new PasswordResetRequestAuditEvent
+        {
+            EventId = Guid.CreateVersion7(now),
+            EventTime = now,
+            EventSource = AuditEventSources.OpenId,
+            TenantId = openIdContext.Tenant.TenantId,
+            TenantEnvironmentType = GetTenantEnvironmentType(openIdContext),
+            Actor = AuditActor.Anonymous,
+            Request = CreateRequest(openIdContext),
+            Outcome = AuditOutcome.Failure,
+            Error = new AuditError(errorCode),
+            AttemptedUsername = attemptedUsername,
+        };
+
+        return EventPublisher.PublishAsync(auditEvent, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public ValueTask RecordPasswordResetAsync(
+        OpenIdContext openIdContext,
+        string? subjectId,
+        string localAccountId,
+        CancellationToken cancellationToken
+    )
+    {
+        var now = TimeProvider.GetUtcNow();
+        var auditEvent = new PasswordResetAuditEvent
+        {
+            EventId = Guid.CreateVersion7(now),
+            EventTime = now,
+            EventSource = AuditEventSources.OpenId,
+            TenantId = openIdContext.Tenant.TenantId,
+            TenantEnvironmentType = GetTenantEnvironmentType(openIdContext),
+            SubjectId = subjectId,
+            Actor = subjectId is null ? AuditActor.Anonymous : AuditActor.EndUser(subjectId),
+            Request = CreateRequest(openIdContext),
+            Outcome = AuditOutcome.Success,
+            LocalAccountId = localAccountId,
+        };
+
+        return EventPublisher.PublishAsync(auditEvent, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public ValueTask RecordPasswordResetFailedAsync(
+        OpenIdContext openIdContext,
+        string? subjectId,
+        string? localAccountId,
+        string errorCode,
+        CancellationToken cancellationToken
+    )
+    {
+        var now = TimeProvider.GetUtcNow();
+        var auditEvent = new PasswordResetAuditEvent
+        {
+            EventId = Guid.CreateVersion7(now),
+            EventTime = now,
+            EventSource = AuditEventSources.OpenId,
+            TenantId = openIdContext.Tenant.TenantId,
+            TenantEnvironmentType = GetTenantEnvironmentType(openIdContext),
+            SubjectId = subjectId,
+            Actor = subjectId is null ? AuditActor.Anonymous : AuditActor.EndUser(subjectId),
+            Request = CreateRequest(openIdContext),
+            Outcome = AuditOutcome.Failure,
+            Error = new AuditError(errorCode),
+            LocalAccountId = localAccountId,
+        };
+
+        return EventPublisher.PublishAsync(auditEvent, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public ValueTask RecordEmailVerifiedAsync(
+        OpenIdContext openIdContext,
+        string subjectId,
+        string localAccountId,
+        CancellationToken cancellationToken
+    )
+    {
+        var now = TimeProvider.GetUtcNow();
+        var auditEvent = new EmailVerificationAuditEvent
+        {
+            EventId = Guid.CreateVersion7(now),
+            EventTime = now,
+            EventSource = AuditEventSources.OpenId,
+            TenantId = openIdContext.Tenant.TenantId,
+            TenantEnvironmentType = GetTenantEnvironmentType(openIdContext),
+            SubjectId = subjectId,
+            Actor = AuditActor.EndUser(subjectId),
+            Request = CreateRequest(openIdContext),
+            Outcome = AuditOutcome.Success,
+            LocalAccountId = localAccountId,
+        };
+
+        return EventPublisher.PublishAsync(auditEvent, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public ValueTask RecordEmailVerificationFailedAsync(
+        OpenIdContext openIdContext,
+        string subjectId,
+        string localAccountId,
+        string errorCode,
+        CancellationToken cancellationToken
+    )
+    {
+        var now = TimeProvider.GetUtcNow();
+        var auditEvent = new EmailVerificationAuditEvent
+        {
+            EventId = Guid.CreateVersion7(now),
+            EventTime = now,
+            EventSource = AuditEventSources.OpenId,
+            TenantId = openIdContext.Tenant.TenantId,
+            TenantEnvironmentType = GetTenantEnvironmentType(openIdContext),
+            SubjectId = subjectId,
+            Actor = AuditActor.EndUser(subjectId),
+            Request = CreateRequest(openIdContext),
+            Outcome = AuditOutcome.Failure,
+            Error = new AuditError(errorCode),
+            LocalAccountId = localAccountId,
+        };
+
+        return EventPublisher.PublishAsync(auditEvent, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public ValueTask RecordSecondFactorVerifiedAsync(
+        OpenIdContext openIdContext,
+        string subjectId,
+        string? localAccountId,
+        string factor,
+        CancellationToken cancellationToken
+    )
+    {
+        var now = TimeProvider.GetUtcNow();
+        var auditEvent = new SecondFactorAuditEvent
+        {
+            EventId = Guid.CreateVersion7(now),
+            EventTime = now,
+            EventSource = AuditEventSources.OpenId,
+            TenantId = openIdContext.Tenant.TenantId,
+            TenantEnvironmentType = GetTenantEnvironmentType(openIdContext),
+            SubjectId = subjectId,
+            Actor = AuditActor.EndUser(subjectId),
+            Request = CreateRequest(openIdContext),
+            Outcome = AuditOutcome.Success,
+            LocalAccountId = localAccountId,
+            Factor = factor,
+        };
+
+        return EventPublisher.PublishAsync(auditEvent, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public ValueTask RecordSecondFactorFailedAsync(
+        OpenIdContext openIdContext,
+        string subjectId,
+        string? localAccountId,
+        string factor,
+        string errorCode,
+        CancellationToken cancellationToken
+    )
+    {
+        var now = TimeProvider.GetUtcNow();
+        var auditEvent = new SecondFactorAuditEvent
+        {
+            EventId = Guid.CreateVersion7(now),
+            EventTime = now,
+            EventSource = AuditEventSources.OpenId,
+            TenantId = openIdContext.Tenant.TenantId,
+            TenantEnvironmentType = GetTenantEnvironmentType(openIdContext),
+            SubjectId = subjectId,
+            Actor = AuditActor.EndUser(subjectId),
+            Request = CreateRequest(openIdContext),
+            Outcome = AuditOutcome.Failure,
+            Error = new AuditError(errorCode),
+            LocalAccountId = localAccountId,
+            Factor = factor,
+        };
+
+        return EventPublisher.PublishAsync(auditEvent, cancellationToken);
+    }
 }

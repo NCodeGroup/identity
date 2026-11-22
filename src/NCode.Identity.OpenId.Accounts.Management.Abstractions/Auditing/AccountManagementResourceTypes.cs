@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using JetBrains.Annotations;
+using NCode.Identity.Events.Audit;
 
 namespace NCode.Identity.OpenId.Accounts.Management.Auditing;
 
@@ -14,5 +15,5 @@ public static class AccountManagementResourceTypes
     /// <summary>
     /// A local account.
     /// </summary>
-    public const string LocalAccount = "local_account";
+    public const string LocalAccount = AuditResourceTypes.LocalAccount;
 }

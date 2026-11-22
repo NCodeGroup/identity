@@ -311,4 +311,219 @@ public interface IAuditEventRecorder
         string errorCode,
         CancellationToken cancellationToken
     );
+
+    /// <summary>
+    /// Records that an end user changed the password of their account on the self-service surface.
+    /// </summary>
+    /// <param name="openIdContext">The <see cref="OpenIdContext"/> associated with the current request.</param>
+    /// <param name="subjectId">The identifier of the signed-in subject who changed the password.</param>
+    /// <param name="localAccountId">The identifier of the local account whose password changed.</param>
+    /// <param name="cancellationToken">
+    /// The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.
+    /// </param>
+    /// <returns>
+    /// A <see cref="ValueTask"/> that represents the asynchronous operation.
+    /// </returns>
+    // See ADR-1533.
+    ValueTask RecordPasswordChangedAsync(
+        OpenIdContext openIdContext,
+        string subjectId,
+        string localAccountId,
+        CancellationToken cancellationToken
+    );
+
+    /// <summary>
+    /// Records that an end user's attempt to change the password of their account was refused.
+    /// </summary>
+    /// <param name="openIdContext">The <see cref="OpenIdContext"/> associated with the current request.</param>
+    /// <param name="subjectId">The identifier of the signed-in subject who attempted the change.</param>
+    /// <param name="localAccountId">The identifier of the local account whose password was to change.</param>
+    /// <param name="errorCode">The machine-readable error code the change was refused with.</param>
+    /// <param name="cancellationToken">
+    /// The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.
+    /// </param>
+    /// <returns>
+    /// A <see cref="ValueTask"/> that represents the asynchronous operation.
+    /// </returns>
+    // See ADR-1533.
+    ValueTask RecordPasswordChangeFailedAsync(
+        OpenIdContext openIdContext,
+        string subjectId,
+        string localAccountId,
+        string errorCode,
+        CancellationToken cancellationToken
+    );
+
+    /// <summary>
+    /// Records that a password reset code was sent to an account's verified address.
+    /// </summary>
+    /// <param name="openIdContext">The <see cref="OpenIdContext"/> associated with the current request.</param>
+    /// <param name="subjectId">The identifier of the subject behind the account, if known.</param>
+    /// <param name="localAccountId">The identifier of the local account the code was sent for.</param>
+    /// <param name="cancellationToken">
+    /// The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.
+    /// </param>
+    /// <returns>
+    /// A <see cref="ValueTask"/> that represents the asynchronous operation.
+    /// </returns>
+    // See ADR-1533.
+    ValueTask RecordPasswordResetRequestedAsync(
+        OpenIdContext openIdContext,
+        string? subjectId,
+        string localAccountId,
+        CancellationToken cancellationToken
+    );
+
+    /// <summary>
+    /// Records that a request for a password reset code was refused, such as for an unknown user name.
+    /// </summary>
+    /// <param name="openIdContext">The <see cref="OpenIdContext"/> associated with the current request.</param>
+    /// <param name="errorCode">The machine-readable error code the request was refused with.</param>
+    /// <param name="attemptedUsername">The unverified user name the request presented. It is recorded as
+    /// <c>details.attempted_username</c>, never as the subject id.</param>
+    /// <param name="cancellationToken">
+    /// The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.
+    /// </param>
+    /// <returns>
+    /// A <see cref="ValueTask"/> that represents the asynchronous operation.
+    /// </returns>
+    // See ADR-1533.
+    ValueTask RecordPasswordResetRequestFailedAsync(
+        OpenIdContext openIdContext,
+        string errorCode,
+        string attemptedUsername,
+        CancellationToken cancellationToken
+    );
+
+    /// <summary>
+    /// Records that an end user reset a forgotten password with a code.
+    /// </summary>
+    /// <param name="openIdContext">The <see cref="OpenIdContext"/> associated with the current request.</param>
+    /// <param name="subjectId">The identifier of the subject behind the account, if known.</param>
+    /// <param name="localAccountId">The identifier of the local account whose password was reset.</param>
+    /// <param name="cancellationToken">
+    /// The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.
+    /// </param>
+    /// <returns>
+    /// A <see cref="ValueTask"/> that represents the asynchronous operation.
+    /// </returns>
+    // See ADR-1533.
+    ValueTask RecordPasswordResetAsync(
+        OpenIdContext openIdContext,
+        string? subjectId,
+        string localAccountId,
+        CancellationToken cancellationToken
+    );
+
+    /// <summary>
+    /// Records that an attempt to reset a forgotten password with a code was refused.
+    /// </summary>
+    /// <param name="openIdContext">The <see cref="OpenIdContext"/> associated with the current request.</param>
+    /// <param name="subjectId">The identifier of the subject behind the account, if known.</param>
+    /// <param name="localAccountId">The identifier of the local account the code names, if any.</param>
+    /// <param name="errorCode">The machine-readable error code the reset was refused with.</param>
+    /// <param name="cancellationToken">
+    /// The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.
+    /// </param>
+    /// <returns>
+    /// A <see cref="ValueTask"/> that represents the asynchronous operation.
+    /// </returns>
+    // See ADR-1533.
+    ValueTask RecordPasswordResetFailedAsync(
+        OpenIdContext openIdContext,
+        string? subjectId,
+        string? localAccountId,
+        string errorCode,
+        CancellationToken cancellationToken
+    );
+
+    /// <summary>
+    /// Records that an end user verified their account's email address with a code.
+    /// </summary>
+    /// <param name="openIdContext">The <see cref="OpenIdContext"/> associated with the current request.</param>
+    /// <param name="subjectId">The identifier of the signed-in subject who verified the address.</param>
+    /// <param name="localAccountId">The identifier of the local account whose address was verified.</param>
+    /// <param name="cancellationToken">
+    /// The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.
+    /// </param>
+    /// <returns>
+    /// A <see cref="ValueTask"/> that represents the asynchronous operation.
+    /// </returns>
+    // See ADR-1533.
+    ValueTask RecordEmailVerifiedAsync(
+        OpenIdContext openIdContext,
+        string subjectId,
+        string localAccountId,
+        CancellationToken cancellationToken
+    );
+
+    /// <summary>
+    /// Records that an end user's attempt to verify their account's email address with a code was refused.
+    /// </summary>
+    /// <param name="openIdContext">The <see cref="OpenIdContext"/> associated with the current request.</param>
+    /// <param name="subjectId">The identifier of the signed-in subject who attempted the verification.</param>
+    /// <param name="localAccountId">The identifier of the local account whose address was to be verified.</param>
+    /// <param name="errorCode">The machine-readable error code the verification was refused with.</param>
+    /// <param name="cancellationToken">
+    /// The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.
+    /// </param>
+    /// <returns>
+    /// A <see cref="ValueTask"/> that represents the asynchronous operation.
+    /// </returns>
+    // See ADR-1533.
+    ValueTask RecordEmailVerificationFailedAsync(
+        OpenIdContext openIdContext,
+        string subjectId,
+        string localAccountId,
+        string errorCode,
+        CancellationToken cancellationToken
+    );
+
+    /// <summary>
+    /// Records that an end user completed a second factor at sign-in.
+    /// </summary>
+    /// <param name="openIdContext">The <see cref="OpenIdContext"/> associated with the current request.</param>
+    /// <param name="subjectId">The identifier of the subject who completed the second factor.</param>
+    /// <param name="localAccountId">The identifier of the local account the factor was proved for, if any.</param>
+    /// <param name="factor">The second factor: one of <see cref="AuditCredentialFactors"/> or an extension's own
+    /// name.</param>
+    /// <param name="cancellationToken">
+    /// The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.
+    /// </param>
+    /// <returns>
+    /// A <see cref="ValueTask"/> that represents the asynchronous operation.
+    /// </returns>
+    // See ADR-1533.
+    ValueTask RecordSecondFactorVerifiedAsync(
+        OpenIdContext openIdContext,
+        string subjectId,
+        string? localAccountId,
+        string factor,
+        CancellationToken cancellationToken
+    );
+
+    /// <summary>
+    /// Records that an end user failed a second factor at sign-in, or that sending its code was refused.
+    /// </summary>
+    /// <param name="openIdContext">The <see cref="OpenIdContext"/> associated with the current request.</param>
+    /// <param name="subjectId">The identifier of the subject who attempted the second factor.</param>
+    /// <param name="localAccountId">The identifier of the local account the factor was attempted for, if any.</param>
+    /// <param name="factor">The second factor: one of <see cref="AuditCredentialFactors"/> or an extension's own
+    /// name.</param>
+    /// <param name="errorCode">The machine-readable error code the factor was refused with.</param>
+    /// <param name="cancellationToken">
+    /// The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.
+    /// </param>
+    /// <returns>
+    /// A <see cref="ValueTask"/> that represents the asynchronous operation.
+    /// </returns>
+    // See ADR-1533.
+    ValueTask RecordSecondFactorFailedAsync(
+        OpenIdContext openIdContext,
+        string subjectId,
+        string? localAccountId,
+        string factor,
+        string errorCode,
+        CancellationToken cancellationToken
+    );
 }
