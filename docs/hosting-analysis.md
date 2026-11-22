@@ -59,10 +59,9 @@ Production serves customers, not the operator, so its region is chosen on four t
    the US population and network weight lean east, and a central region (Chicago) minimizes the worst case across
    both coasts.
 4. **Its relation to the platform's other pieces.** Backups and OpenTofu state stay in AWS `us-west-2`, a different
-   geography from either eastern region. Remote signing ([§9](#9-root-key-and-remote-keys--kms-adr-1235)) is on the
-   request path, so its keys belong in the region nearest the cluster. And the growth path is AWS
-   ([§15](#15-growth-path-aws)), whose largest region is `us-east-1`, so an eastern Akamai region keeps latency the same
-   when cells later move there.
+   geography from either eastern region. Remote signing ([§7](#7-root-key-and-remote-keys-kms)) is on the request path,
+   so its keys belong in the region nearest the cluster. And the growth path is AWS ([§11](#11-growth-path-aws)), whose
+   largest region is `us-east-1`, so an eastern Akamai region keeps latency the same when cells later move there.
 
 Chicago (`us-ord`) is the equal-cost, equal-capability alternative. Dallas is nearer Denver, but it is one of Akamai's
 older regions, without VPCs, Premium plans, Premium NodeBalancers or LKE Enterprise. Only the lab sits near Denver,
@@ -140,8 +139,8 @@ non-production developer plan; paid plans, and the availability they need, are p
    inbound calls from external parties. It runs one deployment, with a CloudNativePG database and Valkey, in about 4–6
    GB. Its memory use keeps it above the 20% that Oracle's idle-instance rule looks for, so it is not reclaimed as idle.
    Rehearsals that need three or more nodes — node loss, zone spread, load tests — run on the Azure Visual Studio credit
-   ([§10](#10-devtest-and-conformance-on-azure-visual-studio-credit), $0). The Kubernetes layer (Traefik, chart, app)
-   is identical to production; only the cluster, load balancer and database modules differ. Publish multi-arch (amd64 +
+   ([§8](#8-devtest-and-conformance-on-azure-visual-studio-credit), $0). The Kubernetes layer (Traefik, chart, app) is
+   identical to production; only the cluster, load balancer and database modules differ. Publish multi-arch (amd64 +
    arm64) images.
 2. **The developer plan — production, ~$95/month.** Production in Washington, DC without the HA control plane: LKE with
    4 × 2 GB nodes ($48), a NodeBalancer ($10) and the 3-node 1 GB managed PostgreSQL ($37). Free developer tenants are
@@ -150,10 +149,10 @@ non-production developer plan; paid plans, and the availability they need, are p
    start, because it is the system of record and a 1-node cluster may not grow to 3 nodes in place _(verify)_.
 3. **Before the first paid plan — +$60/month.** Create a new LKE cluster with the HA control plane (+$60) and the same
    four nodes, and move the cell onto it: the managed database stays where it is, the release is deployed on the new
-   cluster, and DNS is pointed at its load balancer, so no tenant changes
-   ([§16](#which-cluster-each-cell-uses)). This avoids enabling HA in place, which replaces every node irreversibly.
+   cluster, and DNS is pointed at its load balancer, so no tenant changes ([§12](#which-cluster-each-cell-uses)). This
+   avoids enabling HA in place, which replaces every node irreversibly.
 4. **As the paid plans grow — AWS:** place new cells, then the paid cells, on AWS for multiple availability zones and
-   the enterprise features the cheaper vendors lack ([§15](#15-growth-path-aws)).
+   the enterprise features the cheaper vendors lack ([§11](#11-growth-path-aws)).
 
 Every release goes through the same steps: the conformance suite in CI against each build (the self-hosted OpenID
 Foundation suite in Docker on a GitHub-hosted runner, [#124](https://github.com/NCodeGroup/identity/issues/124), $0),
@@ -196,7 +195,7 @@ third lab node adds ~$7.30. Watch Grafana Cloud's free 10k active series across 
 | Uptime alerts (alternative)                    | UptimeRobot Free                              | 50 monitors, 5-minute interval (positioned for hobby / non-profit use)                                                   |
 | Signing keys on OCI (production-capable)       | OCI Vault                                     | Software keys free; first 20 HSM key versions free, then $0.5334/version/month                                           |
 | Root key (ADR-1235)                            | AWS KMS (the platform's account)              | $1 per key per month (plus $1 for each of the first two yearly rotations) and $0.03 per 10,000 requests, 20,000 requests per month free _(verify)_ |
-| Key Vault experiments, ephemeral conformance   | Azure via the Visual Studio credit            | $50/month, dev/test only ([§10](#10-devtest-and-conformance-on-azure-visual-studio-credit))                               |
+| Key Vault experiments, ephemeral conformance   | Azure via the Visual Studio credit            | $50/month, dev/test only ([§8](#8-devtest-and-conformance-on-azure-visual-studio-credit))                               |
 | Inbound email (`security@`, vendor accounts)   | Cloudflare Email Routing                      | Free; receive-and-forward only (sending needs Workers Paid)                                                              |
 | Outbound email, when needed                    | OCI Email Delivery                            | 3,000 emails/month                                                                                                       |
 
@@ -446,7 +445,8 @@ No production load data exists yet, so these are **planning estimates**; confirm
   With one node lost, about 4–4.5 GB is left for workloads, which need about 4 GB
   ([Capacity of the launch cluster](#capacity-of-the-launch-cluster)).
 - **CPU is not the constraint.** A token issuance is a few DB round-trips plus one or two signatures (ES256 ≪ 1 ms,
-  PS256 ~1 ms), so 2 shared vCPUs serve far more than entry-level traffic. DB latency dominates request time (§6).
+  PS256 ~1 ms), so 2 shared vCPUs serve far more than entry-level traffic. DB latency dominates request time
+  ([§5](#postgresql)).
 - **Postgres:** 1 vCPU / 1–2 GB / 10–25 GB disk is ample initially. Cap the Npgsql pool (`Maximum Pool Size`) per
   replica so `replicas × pool` stays under the managed plan's connection limit (or use the vendor's PgBouncer pool).
 - **Valkey:** 256 MB–1 GB is plenty.
@@ -461,9 +461,9 @@ No production load data exists yet, so these are **planning estimates**; confirm
   in-process job dispatcher does not coordinate across nodes (issue [#25](https://github.com/NCodeGroup/identity/issues/25)).
 
 **Measure before buying:** run the host (`NCode.Identity.OpenId.Host`) with `dotnet-counters` attached, drive the token
-endpoint with k6 (`client_credentials` and authorization-code flows), and record working set and CPU-ms per request;
-set requests/limits from those numbers. Run it once on dedicated-CPU nodes as well, to rate the capacity a dedicated
-cell commits to ([§16](#16-shared-and-dedicated-cells)).
+endpoint with k6 (`client_credentials` and authorization-code flows), and record working set and CPU-ms per request; set
+requests/limits from those numbers. Run it once on dedicated-CPU nodes as well, to rate the capacity a dedicated cell
+commits to ([§12](#12-shared-and-dedicated-cells)).
 
 ### Capacity of the launch cluster
 
@@ -731,7 +731,7 @@ Prices — West Central US, Linux, pay-as-you-go, from the public Azure Retail P
 | Standard public IPv4                       | $3.65             | $0.005    |
 | PostgreSQL Flexible Server B1ms            | $14.89 + $0.14/GB-mo storage | ~$0.020 |
 | Internet egress                            | First 100 GB/mo free, then ~$0.08–$0.09/GB | — |
-| Key Vault                                  | See [§9](#9-root-key-and-remote-keys--kms-adr-1235) | — |
+| Key Vault                                  | See [§7](#7-root-key-and-remote-keys-kms) | — |
 
 VM prices exclude the OS managed disk (a few dollars per month, _(verify)_).
 
@@ -752,7 +752,7 @@ VM prices exclude the OS managed disk (a few dollars per month, _(verify)_).
   ([ADR-1495](decisions/1495-the-hosted-platform-runs-customer-environments-as-tenants-on-production-under-the-ncodeid-net-platform-domain.md)).
 - The **production-shaped path**: L4 LB → Traefik → forwarded client certificate ([#82](https://github.com/NCodeGroup/identity/issues/82) / [#83](https://github.com/NCodeGroup/identity/issues/83)), multiple replicas
   sharing Valkey, Postgres over the network — including the mTLS/FAPI plans.
-- k6 **load tests** that produce the real sizing numbers for [§4](#4-compute-sizing).
+- k6 **load tests** that produce the real sizing numbers for [§3](#3-compute-sizing).
 - **Remote signing** against Key Vault
   ([ADR-1471](decisions/1471-a-tenants-signing-and-encryption-keys-can-be-held-in-a-key-management-service.md)),
   including latency measurement.
@@ -866,8 +866,9 @@ the stacks and components is [#87](https://github.com/NCodeGroup/identity/issues
 **Business and legal (before onboarding customers):** privacy policy, terms, a DPA and subprocessor list (Akamai,
 Cloudflare, Grafana Labs and AWS, listed per region in [#859](https://github.com/NCodeGroup/identity/issues/859)); data
 residency is US-only (one US region) — EU customers need a regional cell
-([ADR-1411](decisions/1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md)); an SLA no higher than a
-single-datacenter platform supports (~99.9%), until cells run across availability zones ([§15](#15-growth-path-aws)); an incident-response runbook.
+([ADR-1411](decisions/1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md));
+an SLA no higher than a single-datacenter platform supports (~99.9%), until cells run across availability zones
+([§11](#11-growth-path-aws)); an incident-response runbook.
 
 **Outbound email (future):** verification, password reset, and email MFA need a sending provider — OCI Email Delivery
 (3,000 emails/month free) or Cloudflare Email Sending (Workers Paid, $5/month; its SMTP endpoint also lets the owner
@@ -1117,11 +1118,11 @@ A customer who needs a dedicated database gets a dedicated cell.
 ### Why a shared cell can't guarantee capacity
 
 Inside one cell, every tenant shares the same process threads, the password-hashing gate
-([§4](#capacity-of-the-launch-cluster)), the tenant cache, the database connection pool and the node CPU. The
-per-tenant rate limits and quotas are **ceilings, not reservations**: they stop one tenant from taking too much, but
-they set nothing aside for anyone. Shared-vCPU nodes can also be slowed by other customers of the cloud vendor on the
-same physical host (CPU steal). So guaranteed capacity exists only where nothing in the request path is shared and the
-CPU is dedicated.
+([§3](#capacity-of-the-launch-cluster)), the tenant cache, the database connection pool and the node CPU. The per-tenant
+rate limits and quotas are **ceilings, not reservations**: they stop one tenant from taking too much, but they set
+nothing aside for anyone. Shared-vCPU nodes can also be slowed by other customers of the cloud vendor on the same
+physical host (CPU steal). So guaranteed capacity exists only where nothing in the request path is shared and the CPU is
+dedicated.
 
 ### Kinds of cells and where they run
 
@@ -1226,7 +1227,7 @@ It isolates the customer's **backend services and compute**, but not the **clust
 | Kubernetes control plane: API server, etcd, scheduler | ❌ | If it fails, running pods keep serving, but deploys and scaling pause for every cell |
 | Cluster add-ons: the CNI, kube-proxy, CoreDNS, cert-manager, Flux, monitoring agents | ❌ | The CNI and kube-proxy run on every node. CoreDNS matters most: the cell's pods resolve their Valkey through it; a node-local DNS cache on the dedicated pool reduces that dependency. |
 | Kubernetes version and upgrade timing | ❌ | Cluster-wide. Node pools can be recycled one at a time, but not held back. |
-| Cluster network | ❌ | Needs default-deny NetworkPolicies between cell namespaces ([§13](#13-pre-launch-considerations)) |
+| Cluster network | ❌ | Needs default-deny NetworkPolicies between cell namespaces ([§10](#10-pre-launch-considerations)) |
 | Datacenter and cloud account | ❌ | The same failure domain and vendor account |
 | Cluster-wide mistakes or a compromise: an admission policy, the CNI, the Flux configuration, a cluster-admin credential | ❌ | The real shared blast radius |
 
@@ -1258,7 +1259,7 @@ sovereignty and bank exit plans ask for a regional, sovereign or dedicated cell 
 |---|---|
 | A dedicated cell's tenants need DNS records that take precedence over the wildcard | [#755](https://github.com/NCodeGroup/identity/issues/755) |
 | A shared cell has no priority by plan: under load, nothing sheds free traffic before paid traffic | Not tracked |
-| No capacity rating for a dedicated cell, because there is no load-test data on dedicated-CPU nodes | Not tracked ([§4](#4-compute-sizing)) |
+| No capacity rating for a dedicated cell, because there is no load-test data on dedicated-CPU nodes | Not tracked ([§3](#3-compute-sizing)) |
 | Telemetry per cell can outgrow Grafana Cloud's free 10k active series | Not tracked |
 | Infrastructure automation that stamps out one cell, with its node pool, database and DNS, and manages the fleet | [#845](https://github.com/NCodeGroup/identity/issues/845) |
 
