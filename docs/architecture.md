@@ -68,7 +68,7 @@ flowchart LR
   [ADR-1148](decisions/1148-a-scope-selects-security-profiles-that-accumulate-down-the-cascade-as-ceilings-defaults-and-requirements.md)).
 - Tenant-bound rows are scoped at the persistence layer
   ([ADR-1018](decisions/1018-tenant-selection-is-shared-and-tenant-bound-rows-are-scoped-at-the-persistence-layer.md)),
-  whose Entity Framework framework domain slices plug into
+  an Entity Framework persistence framework that domain slices plug into
   ([ADR-1052](decisions/1052-entity-framework-persistence-is-a-reusable-framework-that-domain-slices-plug-into.md)).
 - Stored secrets live under a key hierarchy with an external root key
   ([ADR-1235](decisions/1235-stored-secrets-and-grant-payloads-are-protected-by-a-key-hierarchy-under-an-external-root-key.md)).
