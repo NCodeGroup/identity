@@ -28,8 +28,9 @@ public static class DefaultRegistration
         /// Registers the reusable Entity Framework persistence framework (the surrogate key generator, the page cursor
         /// protector, and the store-manager/unit-of-work plumbing) into the provided <see cref="IServiceCollection"/>.
         /// Make sure to also register the Entity Framework <see cref="DbContext"/> itself and the schema slices whose
-        /// stores you need. The host registers ASP.NET Core Data Protection, whose key ring protects the page cursors
-        /// (a server does through its secret protection).
+        /// stores you need. The page cursor protector protects under the host's Data Protection key ring, which the
+        /// OpenID core library registers and a server persists; a composition that only builds the contexts, such as a
+        /// migration worker, registers no key ring.
         /// </summary>
         /// <typeparam name="TDbContext">The type of the <see cref="DbContext"/> to use.</typeparam>
         /// <returns>The <see cref="IServiceBuilder{T}"/> proving the store-manager framework is registered.</returns>

@@ -42,8 +42,6 @@ public static class DefaultRegistration
         /// This method registers the following services:
         /// </para>
         /// <list type="bullet">
-        /// <item><description>Data protection services via <c>AddDataProtection()</c>.</description></item>
-        /// <item><description><see cref="IDataProtectorFactory{T}"/> - Factory for creating data protectors.</description></item>
         /// <item><description><see cref="IDataProtectorFactory{T}"/> for <see cref="SecretKey"/> - Uses
         /// <see cref="DefaultSecretKeyDataProtectorFactory"/> with ephemeral, process-local keys.</description></item>
         /// <item><description><see cref="ISecretKeyCollectionProvider"/> - Provides access to collections of secret keys.</description></item>
@@ -54,6 +52,11 @@ public static class DefaultRegistration
         /// <item><description><see cref="IRemoteKeyProviderCatalog"/> - Lookup over the registered remote key providers.</description></item>
         /// <item><description><see cref="IRemoteKeyResolver"/> - Resolves the provider and the row of a remote key and reads its public half.</description></item>
         /// </list>
+        /// <para>
+        /// The library registers no host Data Protection key ring: it protects key material in memory under its own
+        /// ephemeral provider, so a host that composes only the secrets library and the libraries built on it starts
+        /// without one. A library that protects data under the host's key ring registers Data Protection itself.
+        /// </para>
         /// <para>
         /// Services are registered using <c>TryAddSingleton</c> semantics where applicable,
         /// meaning existing registrations will not be overwritten.
@@ -69,8 +72,8 @@ public static class DefaultRegistration
             // without the host having registered it first; AddLogging is idempotent.
             serviceCollection.AddLogging();
 
-            serviceCollection.AddDataProtection();
-            serviceCollection.AddDataProtectorFactory();
+            // Key material is protected in memory under the library's own ephemeral provider, so the library
+            // registers no host Data Protection key ring (ADR-1069).
             serviceCollection.AddDataProtectorFactory<
                 SecretKey,
                 DefaultSecretKeyDataProtectorFactory

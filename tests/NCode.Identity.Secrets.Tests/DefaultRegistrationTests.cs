@@ -1,7 +1,12 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.DataProtection.KeyManagement;
 using Microsoft.Extensions.DependencyInjection;
+using NCode.Extensions.DataProtection;
+using NCode.Identity.Secrets.KeyMaterial;
+using NCode.Identity.Secrets.Keys;
 using NCode.Identity.Secrets.KeyTypes;
 using NCode.Identity.Secrets.RemoteKeys;
 
@@ -22,6 +27,32 @@ public sealed class DefaultRegistrationTests : BaseTests
         var catalog = serviceProvider.GetRequiredService<ISecretKeyTypeCatalog>();
 
         Assert.True(catalog.TryGet(SecretKeyTypes.Ecc, out _));
+    }
+
+    [Fact]
+    public void AddSecretsLibrary_Always_RegistersNoHostDataProtection()
+    {
+        var serviceCollection = new ServiceCollection();
+
+        serviceCollection.AddSecretsLibrary();
+
+        Assert.DoesNotContain(
+            serviceCollection,
+            x => x.ServiceType == typeof(IDataProtectionProvider)
+        );
+        Assert.DoesNotContain(serviceCollection, x => x.ServiceType == typeof(IKeyManager));
+    }
+
+    [Fact]
+    public async Task AddSecretsLibrary_WhenTheHostRegistersNoDataProtection_ResolvesTheSecretKeyProtectorFactory()
+    {
+        var serviceCollection = new ServiceCollection();
+        serviceCollection.AddSecretsLibrary();
+        await using var serviceProvider = serviceCollection.BuildServiceProvider();
+
+        var factory = serviceProvider.GetRequiredService<IDataProtectorFactory<SecretKey>>();
+
+        Assert.IsType<DefaultSecretKeyDataProtectorFactory>(factory);
     }
 
     // See ADR-1471.

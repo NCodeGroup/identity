@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using System.Net;
+using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.DataProtection.KeyManagement;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.Extensions.DependencyInjection;
@@ -48,6 +50,23 @@ public sealed class DirectoryHostTests
 
         Assert.False(options.AddServerHeader);
         Assert.False(response.Headers.Contains("Server"));
+    }
+
+    #endregion
+
+    #region Services Tests
+
+    [Fact]
+    public async Task Services_WhenTheHostStarts_RegistersNoDataProtection()
+    {
+        // The directory protects nothing that outlives the pod, so it carries no Data Protection key ring
+        // (issue #920).
+        await using var factory = new DirectoryHostFactory();
+
+        var services = factory.Services;
+
+        Assert.Null(services.GetService<IDataProtectionProvider>());
+        Assert.Null(services.GetService<IKeyManager>());
     }
 
     #endregion
