@@ -115,7 +115,8 @@ internal class DefaultSecretSerializer(
         {
             foreach (var persistedSecret in persistedSecrets)
             {
-                verifiers.Add(DeserializeVerifierCore(protector, persistedSecret));
+                var deserializedVerifier = DeserializeVerifierCore(protector, persistedSecret);
+                verifiers.Add(deserializedVerifier);
             }
         }
         // A caller receives no verifier when one cannot be read, so the ones read are disposed here.
@@ -188,9 +189,12 @@ internal class DefaultSecretSerializer(
 
         foreach (var persistedSecret in persistedSecrets)
         {
-            secretKeys.Add(
-                DeserializeSecretCore(protector, persistedSecret, readStoredPublicKey: false)
+            var secretKey = DeserializeSecretCore(
+                protector,
+                persistedSecret,
+                readStoredPublicKey: false
             );
+            secretKeys.Add(secretKey);
         }
 
         return secretKeys;
@@ -410,10 +414,9 @@ internal class DefaultSecretSerializer(
             );
         }
 
-        protector.Unprotect(
-            encodedValue,
-            SecretProtectionContext.ForPersistedSecret(persistedSecret.SecretId),
-            ref destination
+        var protectionContext = SecretProtectionContext.ForPersistedSecret(
+            persistedSecret.SecretId
         );
+        protector.Unprotect(encodedValue, protectionContext, ref destination);
     }
 }

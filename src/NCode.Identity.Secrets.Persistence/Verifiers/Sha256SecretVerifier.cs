@@ -34,8 +34,9 @@ internal sealed class Sha256SecretVerifier(KeyMetadata metadata, Secret<byte> di
     {
         // One hash costs no more than the request that carries it, so the verification neither waits nor is bounded.
         cancellationToken.ThrowIfCancellationRequested();
+        var verified = Verify(secret.Span);
         return ValueTask.FromResult(
-            Verify(secret.Span) ? SecretVerificationResult.Success : SecretVerificationResult.Failed
+            verified ? SecretVerificationResult.Success : SecretVerificationResult.Failed
         );
     }
 

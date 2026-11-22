@@ -71,11 +71,9 @@ internal sealed class DefaultMasterKeyManager(
     {
         var (rows, rootKey) = await ListWithRootKeyAsync(owner, cancellationToken);
 
-        return new MasterKeyStatus(
-            owner,
-            [.. rows.Select(MasterKeyInfo.From)],
-            Recovery.IsConfigured
-        )
+        var infos = rows.Select(MasterKeyInfo.From);
+
+        return new MasterKeyStatus(owner, [.. infos], Recovery.IsConfigured)
         {
             RootKey = rootKey is null ? null : OwnerRootKeyInfo.From(rootKey),
         };
@@ -168,11 +166,9 @@ internal sealed class DefaultMasterKeyManager(
 
             ProtectorProvider.Evict(owner);
 
-            var rotation = new MasterKeyRotation(
-                owner,
-                MasterKeyInfo.From(successor),
-                active is null ? null : MasterKeyInfo.From(active)
-            );
+            var successorInfo = MasterKeyInfo.From(successor);
+            var activeInfo = active is null ? null : MasterKeyInfo.From(active);
+            var rotation = new MasterKeyRotation(owner, successorInfo, activeInfo);
 
             Logger.MasterKeyRotated(owner, successor.KeyId, successor.Version);
             await NotifyAsync(owner, (observer, token) => observer.RotatedAsync(rotation, token));
@@ -199,8 +195,9 @@ internal sealed class DefaultMasterKeyManager(
         {
             await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
             var store = storeManager.GetStore<IMasterKeyStore>();
+            var normalizedOwner = owner.Normalize();
             var current = (
-                await store.FindByKeyIdsAsync(owner.Normalize(), [retired.KeyId], cancellationToken)
+                await store.FindByKeyIdsAsync(normalizedOwner, [retired.KeyId], cancellationToken)
             ).SingleOrDefault();
             if (current is null)
                 return;
@@ -290,9 +287,12 @@ internal sealed class DefaultMasterKeyManager(
         var referenced = new HashSet<Guid>();
         foreach (var source in Sources)
         {
-            referenced.UnionWith(
-                await source.FindReferencedAsync(owner, candidateIds, cancellationToken)
+            var sourceReferenced = await source.FindReferencedAsync(
+                owner,
+                candidateIds,
+                cancellationToken
             );
+            referenced.UnionWith(sourceReferenced);
         }
 
         var destroyed = new List<MasterKeyInfo>();
@@ -315,7 +315,8 @@ internal sealed class DefaultMasterKeyManager(
                 await storeManager.SaveChangesAsync(cancellationToken);
 
                 Logger.MasterKeyDestroyed(owner, row.KeyId, row.Version);
-                destroyed.Add(MasterKeyInfo.From(row));
+                var destroyedInfo = MasterKeyInfo.From(row);
+                destroyed.Add(destroyedInfo);
             }
         }
         finally
@@ -351,9 +352,9 @@ internal sealed class DefaultMasterKeyManager(
     )
     {
         await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
-        return await storeManager
-            .GetStore<IMasterKeyStore>()
-            .ListAsync(owner.Normalize(), cancellationToken);
+        var store = storeManager.GetStore<IMasterKeyStore>();
+        var key = owner.Normalize();
+        return await store.ListAsync(key, cancellationToken);
     }
 
     // Reads the master keys of the owner and the root key that wraps them, the owner's own or the nearest ancestor's,
@@ -366,8 +367,9 @@ internal sealed class DefaultMasterKeyManager(
         var key = owner.Normalize();
         await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
         var rows = await storeManager.GetStore<IMasterKeyStore>().ListAsync(key, cancellationToken);
+        var ownerRootKeyStore = storeManager.GetStore<IOwnerRootKeyStore>();
         var rootKey = await NearestRootKeyResolver.FindNearestAsync(
-            storeManager.GetStore<IOwnerRootKeyStore>(),
+            ownerRootKeyStore,
             key,
             cancellationToken
         );

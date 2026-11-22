@@ -57,7 +57,8 @@ internal static class SecretVerifierFormat
         var prefixLength = name.Length + 2;
         var prefix = destination.GetSpan(prefixLength);
         prefix[0] = Separator;
-        SecureEncoding.ASCII.GetBytes(name, prefix.Slice(1, name.Length));
+        var nameDestination = prefix.Slice(1, name.Length);
+        SecureEncoding.ASCII.GetBytes(name, nameDestination);
         prefix[name.Length + 1] = Separator;
         destination.Advance(prefixLength);
 
@@ -101,7 +102,8 @@ internal static class SecretVerifierFormat
             return false;
         }
 
-        return catalog.TryGet(SecureEncoding.ASCII.GetString(schemeName), out var scheme)
+        var schemeNameText = SecureEncoding.ASCII.GetString(schemeName);
+        return catalog.TryGet(schemeNameText, out var scheme)
             && scheme.TryReadParameters(metadata, rest[(schemeEnd + 1)..], out verifier);
     }
 
@@ -133,8 +135,9 @@ internal static class SecretVerifierFormat
             return false;
         }
 
+        var decodedLength = StrictBase64Url.GetDecodedLength(text.Length);
         using var lease = BufferFactory.Rent(
-            StrictBase64Url.GetDecodedLength(text.Length),
+            decodedLength,
             isSensitive: true,
             out Span<byte> decoded
         );
@@ -156,7 +159,8 @@ internal static class SecretVerifierFormat
     public static void WriteBase64Url(ReadOnlySpan<byte> value, IBufferWriter<byte> destination)
     {
         var length = Base64Url.GetEncodedLength(value.Length);
-        var written = Base64Url.EncodeToUtf8(value, destination.GetSpan(length));
+        var span = destination.GetSpan(length);
+        var written = Base64Url.EncodeToUtf8(value, span);
         destination.Advance(written);
     }
 

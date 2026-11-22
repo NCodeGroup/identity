@@ -39,8 +39,9 @@ internal sealed class OwnerRootKeyOptionsValidator : IValidateOptions<SecretProt
             && TimerPeriod.IsValid(rootKeys.ValidationInterval);
         if (!validationIntervalIsValid)
         {
+            var validationIntervalKey = Key(nameof(OwnerRootKeyOptions.ValidationInterval));
             failures.Add(
-                $"{Key(nameof(OwnerRootKeyOptions.ValidationInterval))} must be between {MinimumValidationInterval} and {MaximumValidationInterval}; it is {rootKeys.ValidationInterval}."
+                $"{validationIntervalKey} must be between {MinimumValidationInterval} and {MaximumValidationInterval}; it is {rootKeys.ValidationInterval}."
             );
         }
 
@@ -50,8 +51,10 @@ internal sealed class OwnerRootKeyOptionsValidator : IValidateOptions<SecretProt
             || !TimerPeriod.IsValid(rootKeys.RetryInterval)
         )
         {
+            var retryIntervalKey = Key(nameof(OwnerRootKeyOptions.RetryInterval));
+            var validationIntervalKey = Key(nameof(OwnerRootKeyOptions.ValidationInterval));
             failures.Add(
-                $"{Key(nameof(OwnerRootKeyOptions.RetryInterval))} must be between {MinimumRetryInterval} and {Key(nameof(OwnerRootKeyOptions.ValidationInterval))} ({rootKeys.ValidationInterval}); it is {rootKeys.RetryInterval}."
+                $"{retryIntervalKey} must be between {MinimumRetryInterval} and {validationIntervalKey} ({rootKeys.ValidationInterval}); it is {rootKeys.RetryInterval}."
             );
         }
 

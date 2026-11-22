@@ -70,9 +70,10 @@ internal sealed class Pbkdf2SecretVerifier(
         Span<byte> computed = stackalloc byte[DerivedKey.Length];
         try
         {
+            var saltBytes = Salt.Reveal();
             Rfc2898DeriveBytes.Pbkdf2(
                 secret,
-                Salt.Reveal(),
+                saltBytes,
                 computed,
                 Iterations,
                 HashAlgorithmName.SHA256

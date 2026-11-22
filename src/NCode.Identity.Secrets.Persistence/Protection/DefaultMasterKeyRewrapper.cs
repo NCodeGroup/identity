@@ -77,10 +77,14 @@ internal sealed class DefaultMasterKeyRewrapper(
             var rows = await ListAsync(owner, rootKeys, cancellationToken);
             foreach (var row in rows)
             {
-                total = Add(
-                    total,
-                    await ProcessAsync(row, request, unwrapper, rootKeys, cancellationToken)
+                var processed = await ProcessAsync(
+                    row,
+                    request,
+                    unwrapper,
+                    rootKeys,
+                    cancellationToken
                 );
+                total = Add(total, processed);
             }
         }
         else
@@ -103,10 +107,14 @@ internal sealed class DefaultMasterKeyRewrapper(
                 var page = await GetPageAsync(cursor, scope, rootKeys, inherits, cancellationToken);
                 foreach (var row in page.Items)
                 {
-                    total = Add(
-                        total,
-                        await ProcessAsync(row, request, unwrapper, rootKeys, cancellationToken)
+                    var processed = await ProcessAsync(
+                        row,
+                        request,
+                        unwrapper,
+                        rootKeys,
+                        cancellationToken
                     );
+                    total = Add(total, processed);
                 }
 
                 cursor = page.NextCursor;
@@ -142,9 +150,9 @@ internal sealed class DefaultMasterKeyRewrapper(
     )
     {
         await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
-        var rows = await storeManager
-            .GetStore<IMasterKeyStore>()
-            .ListAsync(owner.Normalize(), cancellationToken);
+        var store = storeManager.GetStore<IMasterKeyStore>();
+        var normalizedOwner = owner.Normalize();
+        var rows = await store.ListAsync(normalizedOwner, cancellationToken);
 
         await ReadRootKeysAsync(storeManager, rows, rootKeys, cancellationToken);
         return rows;
@@ -162,9 +170,9 @@ internal sealed class DefaultMasterKeyRewrapper(
     )
     {
         await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
-        var page = await storeManager
-            .GetStore<IMasterKeyStore>()
-            .GetPageAsync(new PageRequest { Limit = PageSize, Cursor = cursor }, cancellationToken);
+        var store = storeManager.GetStore<IMasterKeyStore>();
+        var pageRequest = new PageRequest { Limit = PageSize, Cursor = cursor };
+        var page = await store.GetPageAsync(pageRequest, cancellationToken);
 
         if (scope is not { } owner)
         {
@@ -217,11 +225,16 @@ internal sealed class DefaultMasterKeyRewrapper(
         if (inherits.TryGetValue(candidate, out var known))
             return known;
 
-        var result =
-            SecretOwnerComparer.Instance.Equals(candidate, owner)
-            || (
-                await ParentResolver.GetAncestorsAsync(candidate.Normalize(), cancellationToken)
-            ).Contains(owner, SecretOwnerComparer.Instance);
+        var result = SecretOwnerComparer.Instance.Equals(candidate, owner);
+        if (!result)
+        {
+            var normalizedCandidate = candidate.Normalize();
+            var ancestors = await ParentResolver.GetAncestorsAsync(
+                normalizedCandidate,
+                cancellationToken
+            );
+            result = ancestors.Contains(owner, SecretOwnerComparer.Instance);
+        }
 
         inherits[candidate] = result;
         return result;
@@ -239,8 +252,9 @@ internal sealed class DefaultMasterKeyRewrapper(
             if (rootKeys.ContainsKey(owner))
                 continue;
 
+            var ownerRootKeyStore = storeManager.GetStore<IOwnerRootKeyStore>();
             rootKeys[owner] = await NearestRootKeyResolver.FindNearestAsync(
-                storeManager.GetStore<IOwnerRootKeyStore>(),
+                ownerRootKeyStore,
                 owner,
                 cancellationToken
             );
@@ -403,12 +417,13 @@ internal sealed class DefaultMasterKeyRewrapper(
     )
     {
         await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
-        var rows = await storeManager
-            .GetStore<IMasterKeyStore>()
-            .FindByKeyIdsAsync(row.Owner.Normalize(), [row.KeyId], cancellationToken);
+        var store = storeManager.GetStore<IMasterKeyStore>();
+        var normalizedOwner = row.Owner.Normalize();
+        var rows = await store.FindByKeyIdsAsync(normalizedOwner, [row.KeyId], cancellationToken);
 
+        var ownerRootKeyStore = storeManager.GetStore<IOwnerRootKeyStore>();
         var rootKey = await NearestRootKeyResolver.FindNearestAsync(
-            storeManager.GetStore<IOwnerRootKeyStore>(),
+            ownerRootKeyStore,
             row.Owner,
             cancellationToken
         );

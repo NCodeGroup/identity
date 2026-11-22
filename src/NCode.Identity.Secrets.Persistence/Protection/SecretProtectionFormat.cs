@@ -456,7 +456,8 @@ internal static class SecretProtectionFormat
 
         var offset = WriteLabel(destination, label);
 
-        WriteMasterKeyId(masterKeyId, destination.Slice(offset, KeyIdSizeBytes));
+        var masterKeyIdDestination = destination.Slice(offset, KeyIdSizeBytes);
+        WriteMasterKeyId(masterKeyId, masterKeyIdDestination);
         offset += KeyIdSizeBytes;
 
         offset += WriteLowerInvariantLengthPrefixed(destination[offset..], owner.OwnerType);

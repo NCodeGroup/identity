@@ -299,19 +299,23 @@ internal class MasterKeyFactory(
                 && row.RootKeyAccessIdentity is null
                 && row.RootKeyAccessBinding is null;
 
-        return IsUnderKey(row, rootKey)
-            && string.Equals(
+        if (!IsUnderKey(row, rootKey))
+            return false;
+
+        if (
+            !string.Equals(
                 row.RootKeyAccessIdentity,
                 rootKey.AccessIdentity,
                 StringComparison.Ordinal
             )
-            && string.Equals(
-                row.RootKeyAccessBinding,
-                OwnerRootKeyAccess.For(rootKey.Owner, rootKey.AccessIdentity)?.Binding,
-                StringComparison.Ordinal
-            )
-            && row.RecoveryKeyId is null
-            && row.RecoveryWrappedKey is null;
+        )
+            return false;
+
+        var access = OwnerRootKeyAccess.For(rootKey.Owner, rootKey.AccessIdentity);
+        if (!string.Equals(row.RootKeyAccessBinding, access?.Binding, StringComparison.Ordinal))
+            return false;
+
+        return row.RecoveryKeyId is null && row.RecoveryWrappedKey is null;
     }
 
     /// <summary>
@@ -392,8 +396,9 @@ internal class MasterKeyFactory(
         {
             var referenced = Catalog.GetReferenced(ownerRoot.KeyWrapperName);
             var access = OwnerRootKeyAccess.For(ownerRoot.Owner, ownerRoot.AccessIdentity);
+            var referencedKey = new ReferencedKey(ownerRoot.KeyReference, access);
             var wrappedUnderOwnerRoot = await referenced.WrapAsync(
-                new ReferencedKey(ownerRoot.KeyReference, access),
+                referencedKey,
                 material,
                 context,
                 cancellationToken

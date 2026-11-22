@@ -110,43 +110,45 @@ public static class DefaultRegistration
                 ISecretVerifierSchemeCatalog,
                 DefaultSecretVerifierSchemeCatalog
             >();
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<ISecretVerifierScheme, Sha256SecretVerifierScheme>()
-            );
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<ISecretVerifierScheme, Pbkdf2SecretVerifierScheme>()
-            );
+            var sha256SecretVerifierScheme = ServiceDescriptor.Singleton<
+                ISecretVerifierScheme,
+                Sha256SecretVerifierScheme
+            >();
+            serviceCollection.TryAddEnumerable(sha256SecretVerifierScheme);
+            var pbkdf2SecretVerifierScheme = ServiceDescriptor.Singleton<
+                ISecretVerifierScheme,
+                Pbkdf2SecretVerifierScheme
+            >();
+            serviceCollection.TryAddEnumerable(pbkdf2SecretVerifierScheme);
             serviceCollection.TryAddSingleton<
                 ISecretVerificationGate,
                 DefaultSecretVerificationGate
             >();
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    IValidateOptions<SharedSecretVerifierOptions>,
-                    SharedSecretVerifierOptionsValidator
-                >()
-            );
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    IValidateOptions<Pbkdf2SecretVerifierOptions>,
-                    Pbkdf2SecretVerifierOptionsValidator
-                >()
-            );
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    IValidateOptions<SecretVerificationGateOptions>,
-                    SecretVerificationGateOptionsValidator
-                >()
-            );
+            var sharedSecretVerifierOptionsValidator = ServiceDescriptor.Singleton<
+                IValidateOptions<SharedSecretVerifierOptions>,
+                SharedSecretVerifierOptionsValidator
+            >();
+            serviceCollection.TryAddEnumerable(sharedSecretVerifierOptionsValidator);
+            var pbkdf2SecretVerifierOptionsValidator = ServiceDescriptor.Singleton<
+                IValidateOptions<Pbkdf2SecretVerifierOptions>,
+                Pbkdf2SecretVerifierOptionsValidator
+            >();
+            serviceCollection.TryAddEnumerable(pbkdf2SecretVerifierOptionsValidator);
+            var secretVerificationGateOptionsValidator = ServiceDescriptor.Singleton<
+                IValidateOptions<SecretVerificationGateOptions>,
+                SecretVerificationGateOptionsValidator
+            >();
+            serviceCollection.TryAddEnumerable(secretVerificationGateOptionsValidator);
 
             // Secret protection
             serviceCollection.TryAddSingleton(TimeProvider.System);
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<IKeyWrapper, EphemeralKeyWrapper>()
-            );
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<IKeyWrapper, LocalKeyWrapper>()
-            );
+            var ephemeralKeyWrapper = ServiceDescriptor.Singleton<
+                IKeyWrapper,
+                EphemeralKeyWrapper
+            >();
+            serviceCollection.TryAddEnumerable(ephemeralKeyWrapper);
+            var localKeyWrapper = ServiceDescriptor.Singleton<IKeyWrapper, LocalKeyWrapper>();
+            serviceCollection.TryAddEnumerable(localKeyWrapper);
             serviceCollection.TryAddSingleton<IKeyWrapperCatalog, DefaultKeyWrapperCatalog>();
             serviceCollection.TryAddSingleton<IRecoveryKeyWrapper, RecoveryKeyWrapper>();
             serviceCollection.TryAddSingleton<MasterKeyFactory>();
@@ -163,27 +165,26 @@ public static class DefaultRegistration
                 INearestOwnerRootKeyResolver,
                 DefaultNearestOwnerRootKeyResolver
             >();
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<IOwnerRootKeyPolicy, PlatformOwnerRootKeyPolicy>()
-            );
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    IValidateOptions<SecretProtectionOptions>,
-                    MasterKeyOptionsValidator
-                >()
-            );
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    IValidateOptions<SecretProtectionOptions>,
-                    RemoteKeyOptionsValidator
-                >()
-            );
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    IValidateOptions<SecretProtectionOptions>,
-                    OwnerRootKeyOptionsValidator
-                >()
-            );
+            var platformOwnerRootKeyPolicy = ServiceDescriptor.Singleton<
+                IOwnerRootKeyPolicy,
+                PlatformOwnerRootKeyPolicy
+            >();
+            serviceCollection.TryAddEnumerable(platformOwnerRootKeyPolicy);
+            var masterKeyOptionsValidator = ServiceDescriptor.Singleton<
+                IValidateOptions<SecretProtectionOptions>,
+                MasterKeyOptionsValidator
+            >();
+            serviceCollection.TryAddEnumerable(masterKeyOptionsValidator);
+            var remoteKeyOptionsValidator = ServiceDescriptor.Singleton<
+                IValidateOptions<SecretProtectionOptions>,
+                RemoteKeyOptionsValidator
+            >();
+            serviceCollection.TryAddEnumerable(remoteKeyOptionsValidator);
+            var ownerRootKeyOptionsValidator = ServiceDescriptor.Singleton<
+                IValidateOptions<SecretProtectionOptions>,
+                OwnerRootKeyOptionsValidator
+            >();
+            serviceCollection.TryAddEnumerable(ownerRootKeyOptionsValidator);
             serviceCollection.AddOptions<SecretProtectionOptions>();
             serviceCollection.AddOptions<LocalKeyWrapperOptions>();
             serviceCollection.AddOptions<SharedSecretVerifierOptions>().ValidateOnStart();

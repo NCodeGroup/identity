@@ -36,7 +36,11 @@ internal class EphemeralKeyWrapper : IKeyWrapper, IDisposable
         KeyId = string.Create(
             AesGcmKeyWrap.FingerprintLength,
             RootKey,
-            static (chars, key) => AesGcmKeyWrap.ComputeFingerprint(key.Reveal(), chars)
+            static (chars, key) =>
+            {
+                var keyBytes = key.Reveal();
+                AesGcmKeyWrap.ComputeFingerprint(keyBytes, chars);
+            }
         );
     }
 
@@ -57,18 +61,15 @@ internal class EphemeralKeyWrapper : IKeyWrapper, IDisposable
         CancellationToken cancellationToken
     )
     {
+        var wrappedLength = AesGcmKeyWrap.GetWrappedLength(key.Length);
         var ciphertext = string.Create(
-            AesGcmKeyWrap.GetWrappedLength(key.Length),
+            wrappedLength,
             (RootKey: RootKey, Key: key, Context: context),
             static (chars, state) =>
             {
                 var writer = chars.GetFixedBufferWriter();
-                AesGcmKeyWrap.Wrap(
-                    state.RootKey.Reveal(),
-                    state.Key.Span,
-                    state.Context.Span,
-                    ref writer
-                );
+                var rootKeyBytes = state.RootKey.Reveal();
+                AesGcmKeyWrap.Wrap(rootKeyBytes, state.Key.Span, state.Context.Span, ref writer);
             }
         );
 
@@ -106,12 +107,8 @@ internal class EphemeralKeyWrapper : IKeyWrapper, IDisposable
             );
         }
 
-        AesGcmKeyWrap.Unwrap(
-            RootKey.Reveal(),
-            wrappedKey.Ciphertext,
-            context.Span,
-            ref destination
-        );
+        var rootKeyBytes = RootKey.Reveal();
+        AesGcmKeyWrap.Unwrap(rootKeyBytes, wrappedKey.Ciphertext, context.Span, ref destination);
         return ValueTask.CompletedTask;
     }
 

@@ -88,7 +88,8 @@ internal static class AesGcmKeyWrap
         using var aes = new AesGcm(rootKey, SecretProtectionFormat.TagSizeBytes);
         aes.Encrypt(nonce, key, ciphertext, tag, context);
 
-        var chars = destination.GetSpan(GetWrappedLength(key.Length));
+        var wrappedLength = GetWrappedLength(key.Length);
+        var chars = destination.GetSpan(wrappedLength);
         if (!Base64Url.TryEncodeToChars(wrapped, chars, out var charsWritten))
         {
             throw new InvalidOperationException(

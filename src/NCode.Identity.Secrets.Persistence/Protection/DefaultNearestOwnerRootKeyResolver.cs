@@ -38,7 +38,8 @@ internal sealed class DefaultNearestOwnerRootKeyResolver(ISecretOwnerParentResol
         var ancestors = await ParentResolver.GetAncestorsAsync(key, cancellationToken);
         foreach (var ancestor in ancestors)
         {
-            var row = await store.FindAsync(ancestor.Normalize(), cancellationToken);
+            var normalizedAncestor = ancestor.Normalize();
+            var row = await store.FindAsync(normalizedAncestor, cancellationToken);
             if (MasterKeyFactory.IsOwnerRooted(row))
                 return row;
         }

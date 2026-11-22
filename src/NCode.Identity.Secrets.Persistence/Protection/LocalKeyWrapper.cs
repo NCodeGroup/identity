@@ -73,9 +73,11 @@ internal class LocalKeyWrapper(IOptions<LocalKeyWrapperOptions> options) : IKeyW
     {
         var (currentKey, currentKeyId, _) = Keys.Value;
 
+        var wrappedLength = AesGcmKeyWrap.GetWrappedLength(key.Length);
+        var currentKeyMemory = currentKey.RevealMemory();
         var ciphertext = string.Create(
-            AesGcmKeyWrap.GetWrappedLength(key.Length),
-            (RootKey: currentKey.RevealMemory(), Key: key, Context: context),
+            wrappedLength,
+            (RootKey: currentKeyMemory, Key: key, Context: context),
             static (chars, state) =>
             {
                 var writer = chars.GetFixedBufferWriter();
@@ -128,12 +130,8 @@ internal class LocalKeyWrapper(IOptions<LocalKeyWrapperOptions> options) : IKeyW
             );
         }
 
-        AesGcmKeyWrap.Unwrap(
-            rootKey.Reveal(),
-            wrappedKey.Ciphertext,
-            context.Span,
-            ref destination
-        );
+        var rootKeyBytes = rootKey.Reveal();
+        AesGcmKeyWrap.Unwrap(rootKeyBytes, wrappedKey.Ciphertext, context.Span, ref destination);
         return ValueTask.CompletedTask;
     }
 
@@ -160,7 +158,8 @@ internal class LocalKeyWrapper(IOptions<LocalKeyWrapperOptions> options) : IKeyW
         try
         {
             var currentKey = LoadCurrentKey(options);
-            var currentKeyId = ComputeFingerprint(currentKey.RevealMemory());
+            var currentKeyMemory = currentKey.RevealMemory();
+            var currentKeyId = ComputeFingerprint(currentKeyMemory);
             keysById.Add(currentKeyId, currentKey);
 
             foreach (var path in options.PreviousKeyPaths)
@@ -169,7 +168,8 @@ internal class LocalKeyWrapper(IOptions<LocalKeyWrapperOptions> options) : IKeyW
                     path,
                     nameof(LocalKeyWrapperOptions.PreviousKeyPaths)
                 );
-                var previousKeyId = ComputeFingerprint(previousKey.RevealMemory());
+                var previousKeyMemory = previousKey.RevealMemory();
+                var previousKeyId = ComputeFingerprint(previousKeyMemory);
                 if (!keysById.TryAdd(previousKeyId, previousKey))
                 {
                     previousKey.Dispose();
