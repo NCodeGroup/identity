@@ -36,6 +36,25 @@ internal interface ILocalAccountEmailCodes
     );
 
     /// <summary>
+    /// Starts a decoy flow that does the remote work of <see cref="SendAsync"/> except composing and queuing mail, so a
+    /// request that mails nothing costs the shared stores what a request that mails costs. It increments a sends
+    /// counter keyed by the purpose and a hash of <paramref name="identifier"/>, never an account's counter, and it
+    /// stores a flow whose code hash is that of random bytes, so no code verifies.
+    /// </summary>
+    /// <param name="openIdContext">The <see cref="OpenIdContext"/> of the tenant the request belongs to.</param>
+    /// <param name="purpose">The purpose of the code, one of the <see cref="EmailCodePurposes"/>.</param>
+    /// <param name="identifier">The value the request named, such as a username, which is hashed into the counter's
+    /// key.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <returns>The handle of the decoy flow, which looks like the handle of a real flow.</returns>
+    ValueTask<string> SendDecoyAsync(
+        OpenIdContext openIdContext,
+        string purpose,
+        string identifier,
+        CancellationToken cancellationToken
+    );
+
+    /// <summary>
     /// Checks a code against a flow, counting a wrong code against the flow and ending the flow at the fifth. A right
     /// code keeps the flow, so the caller spends it with <see cref="ConsumeAsync"/> after its other checks pass.
     /// </summary>

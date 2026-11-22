@@ -72,15 +72,18 @@ internal sealed class LocalAccountInteractivePasswordResetter(
                 .GetStore<ILocalAccountStore>()
                 .GetByUserNameOrDefaultAsync(userName, cancellationToken);
 
+            // The principal is read for every request, by a random identifier when no account was found, so the
+            // answer's timing says nothing about the account. See ADR-1533.
+            var principalSubject = account?.LocalAccountId ?? CryptoService.GenerateUrlSafeKey();
+            var principal = await storeManager
+                .GetStore<IFederatedIdentityStore>()
+                .GetByIssuerSubjectAsync(
+                    AccountConstants.SelfIssuer,
+                    principalSubject,
+                    cancellationToken
+                );
             if (IsEligible(account))
             {
-                var principal = await storeManager
-                    .GetStore<IFederatedIdentityStore>()
-                    .GetByIssuerSubjectAsync(
-                        AccountConstants.SelfIssuer,
-                        account.LocalAccountId,
-                        cancellationToken
-                    );
                 principalId = principal?.PrincipalId;
             }
         }
@@ -88,13 +91,19 @@ internal sealed class LocalAccountInteractivePasswordResetter(
         // The end user's request is audited as the password grant's authentication is (ADR-1533).
         if (!IsEligible(account))
         {
+            var decoyFlowId = await EmailCodes.SendDecoyAsync(
+                openIdContext,
+                EmailCodePurposes.ResetPassword,
+                userName,
+                cancellationToken
+            );
             await AuditEventRecorder.RecordPasswordResetRequestFailedAsync(
                 openIdContext,
                 AccountNotEligible,
                 userName,
                 cancellationToken
             );
-            return CryptoService.GenerateUrlSafeKey();
+            return decoyFlowId;
         }
 
         var flowId = await EmailCodes.SendAsync(
@@ -106,13 +115,19 @@ internal sealed class LocalAccountInteractivePasswordResetter(
         );
         if (flowId is null)
         {
+            var decoyFlowId = await EmailCodes.SendDecoyAsync(
+                openIdContext,
+                EmailCodePurposes.ResetPassword,
+                userName,
+                cancellationToken
+            );
             await AuditEventRecorder.RecordPasswordResetRequestFailedAsync(
                 openIdContext,
                 InteractiveEmailCodeErrors.TooManyCodes,
                 userName,
                 cancellationToken
             );
-            return CryptoService.GenerateUrlSafeKey();
+            return decoyFlowId;
         }
 
         await AuditEventRecorder.RecordPasswordResetRequestedAsync(

@@ -33,6 +33,7 @@ public class LocalAccountInteractivePasswordResetterTests : BaseTests
     private const string Email = "user@example.com";
     private const string FlowId = "flow-1";
     private const string HandleOfNoFlow = "handle-of-no-flow";
+    private const string DecoyFlowId = "decoy-flow-1";
     private const string Code = "123456";
     private const string NewPassword = "new";
 
@@ -145,6 +146,37 @@ public class LocalAccountInteractivePasswordResetterTests : BaseTests
             .ReturnsAsync(SelfIssuedIdentity())
             .Verifiable();
     }
+
+    private void SetupNoPrincipalForRandomIdentifier()
+    {
+        MockStoreManager
+            .Setup(x => x.GetStore<IFederatedIdentityStore>())
+            .Returns(MockFederatedIdentityStore.Object)
+            .Verifiable();
+        MockFederatedIdentityStore
+            .Setup(x =>
+                x.GetByIssuerSubjectAsync(
+                    AccountConstants.SelfIssuer,
+                    HandleOfNoFlow,
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync((PersistedFederatedIdentity?)null)
+            .Verifiable();
+    }
+
+    private void SetupDecoy(Mock<OpenIdContext> mockContext) =>
+        MockEmailCodes
+            .Setup(x =>
+                x.SendDecoyAsync(
+                    mockContext.Object,
+                    EmailCodePurposes.ResetPassword,
+                    UserName,
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync(DecoyFlowId)
+            .Verifiable();
 
     private void SetupRequested(Mock<OpenIdContext> mockContext) =>
         MockAuditEventRecorder
@@ -342,13 +374,15 @@ public class LocalAccountInteractivePasswordResetterTests : BaseTests
     }
 
     [Fact]
-    public async Task SendResetCodeAsync_ForAnUnknownUserName_ReturnsAHandleAndSendsNothing()
+    public async Task SendResetCodeAsync_ForAnUnknownUserName_ReadsAPrincipalAndSendsADecoy()
     {
         var mockContext = CreateContext(isResetEnabled: true);
         SetupStoreManager();
         SetupLookupByUserName(account: null);
-        SetupRequestFailed(mockContext, "account_not_eligible");
         SetupHandle();
+        SetupNoPrincipalForRandomIdentifier();
+        SetupDecoy(mockContext);
+        SetupRequestFailed(mockContext, "account_not_eligible");
 
         var flowId = await Resetter.SendResetCodeAsync(
             mockContext.Object,
@@ -357,7 +391,16 @@ public class LocalAccountInteractivePasswordResetterTests : BaseTests
             CancellationToken.None
         );
 
-        Assert.Equal(HandleOfNoFlow, flowId);
+        Assert.Equal(DecoyFlowId, flowId);
+        MockFederatedIdentityStore.Verify(
+            x =>
+                x.GetByIssuerSubjectAsync(
+                    AccountConstants.SelfIssuer,
+                    HandleOfNoFlow,
+                    It.IsAny<CancellationToken>()
+                ),
+            Times.Once
+        );
     }
 
     [Fact]
@@ -366,8 +409,10 @@ public class LocalAccountInteractivePasswordResetterTests : BaseTests
         var mockContext = CreateContext(isResetEnabled: true);
         SetupStoreManager();
         SetupLookupByUserName(account: null);
-        SetupRequestFailed(mockContext, "account_not_eligible");
         SetupHandle();
+        SetupNoPrincipalForRandomIdentifier();
+        SetupDecoy(mockContext);
+        SetupRequestFailed(mockContext, "account_not_eligible");
 
         await Resetter.SendResetCodeAsync(
             mockContext.Object,
@@ -390,13 +435,14 @@ public class LocalAccountInteractivePasswordResetterTests : BaseTests
     }
 
     [Fact]
-    public async Task SendResetCodeAsync_ForAnUnverifiedAddress_ReturnsAHandleAndSendsNothing()
+    public async Task SendResetCodeAsync_ForAnIneligibleUserName_SendsADecoyAndNoMail()
     {
         var mockContext = CreateContext(isResetEnabled: true);
         SetupStoreManager();
         SetupLookupByUserName(Account(emailVerified: false));
+        SetupFederatedIdentity();
+        SetupDecoy(mockContext);
         SetupRequestFailed(mockContext, "account_not_eligible");
-        SetupHandle();
 
         var flowId = await Resetter.SendResetCodeAsync(
             mockContext.Object,
@@ -405,7 +451,18 @@ public class LocalAccountInteractivePasswordResetterTests : BaseTests
             CancellationToken.None
         );
 
-        Assert.Equal(HandleOfNoFlow, flowId);
+        Assert.Equal(DecoyFlowId, flowId);
+        MockEmailCodes.Verify(
+            x =>
+                x.SendAsync(
+                    It.IsAny<OpenIdContext>(),
+                    It.IsAny<string>(),
+                    It.IsAny<PersistedLocalAccount>(),
+                    It.IsAny<InteractiveLocale>(),
+                    It.IsAny<CancellationToken>()
+                ),
+            Times.Never
+        );
     }
 
     [Fact]
@@ -428,8 +485,8 @@ public class LocalAccountInteractivePasswordResetterTests : BaseTests
             )
             .ReturnsAsync((string?)null)
             .Verifiable();
+        SetupDecoy(mockContext);
         SetupRequestFailed(mockContext, InteractiveEmailCodeErrors.TooManyCodes);
-        SetupHandle();
 
         var flowId = await Resetter.SendResetCodeAsync(
             mockContext.Object,
@@ -438,7 +495,7 @@ public class LocalAccountInteractivePasswordResetterTests : BaseTests
             CancellationToken.None
         );
 
-        Assert.Equal(HandleOfNoFlow, flowId);
+        Assert.Equal(DecoyFlowId, flowId);
         MockAuditEventRecorder.Verify(
             x =>
                 x.RecordPasswordResetRequestFailedAsync(

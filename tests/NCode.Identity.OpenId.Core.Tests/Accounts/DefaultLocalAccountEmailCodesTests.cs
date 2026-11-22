@@ -1,10 +1,13 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using System.Globalization;
+using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Time.Testing;
 using Moq;
+using NCode.Buffers;
 using NCode.Identity.Cryptography;
 using NCode.Identity.Mail;
 using NCode.Identity.OpenId.Accounts.Authentication.EmailCodes;
@@ -229,6 +232,143 @@ public partial class DefaultLocalAccountEmailCodesTests : BaseTests
         );
 
         Assert.Null(flowId);
+    }
+
+    #endregion
+
+    #region SendDecoyAsync Tests
+
+    private static string DecoyKeyFor(string loweredIdentifier) =>
+        ExpiringKeys.Create(
+            DefaultLocalAccountEmailCodes.DecoySendsKeyPurpose,
+            TenantId,
+            Purpose,
+            Convert.ToHexString(SHA256.HashData(SecureEncoding.UTF8.GetBytes(loweredIdentifier)))
+        );
+
+    private Mock<IReadOnlySettingCollection> CreateDecoySettings()
+    {
+        var mockSettings = CreateStrictMock<IReadOnlySettingCollection>();
+        mockSettings
+            .Setup(x => x.GetValue(OpenIdSettingKeys.EmailCodeLifetime))
+            .Returns(Lifetime)
+            .Verifiable();
+        return mockSettings;
+    }
+
+    [Fact]
+    public async Task SendDecoyAsync_Always_StoresAFlowNoCodeVerifiesAndSendsNoMail()
+    {
+        var mockContext = CreateContext(CreateDecoySettings());
+        MockCounterSet
+            .Setup(x =>
+                x.IncrementAsync(
+                    DecoyKeyFor("user"),
+                    Now + TimeSpan.FromHours(1),
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync(1)
+            .Verifiable();
+        MockCryptoService
+            .Setup(x => x.GenerateKey(32, BinaryEncodings.Base64Url))
+            .Returns(FlowId)
+            .Verifiable();
+
+        byte[]? storedBytes = null;
+        MockValueSet
+            .Setup(x =>
+                x.TryAddAsync(
+                    FlowKey,
+                    It.IsAny<ReadOnlyMemory<byte>>(),
+                    Now + Lifetime,
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .Callback<string, ReadOnlyMemory<byte>, DateTimeOffset, CancellationToken>(
+                (_, value, _, _) => storedBytes = value.ToArray()
+            )
+            .ReturnsAsync(true)
+            .Verifiable();
+
+        var flowId = await EmailCodes.SendDecoyAsync(
+            mockContext.Object,
+            Purpose,
+            "User",
+            CancellationToken.None
+        );
+
+        Assert.Equal(FlowId, flowId);
+        Assert.NotNull(storedBytes);
+        var state = Deserialize(storedBytes);
+        Assert.Equal(0, state.FailedAttempts);
+        Assert.Equal(Now + Lifetime, state.ExpiresWhen);
+        for (var number = 0; number < 1_000; ++number)
+        {
+            var code = number.ToString("D6", CultureInfo.InvariantCulture);
+            Assert.NotEqual(DefaultLocalAccountEmailCodes.HashCode(FlowId, code), state.CodeHash);
+        }
+
+        MockMailSender.VerifyNoOtherCalls();
+    }
+
+    [Fact]
+    public async Task SendDecoyAsync_Always_CountsUnderAKeyOfItsOwn()
+    {
+        var mockContext = CreateContext(CreateDecoySettings());
+        var decoyKey = DecoyKeyFor("user");
+        MockCounterSet
+            .Setup(x =>
+                x.IncrementAsync(
+                    decoyKey,
+                    Now + TimeSpan.FromHours(1),
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync(1)
+            .Verifiable();
+        MockCryptoService
+            .Setup(x => x.GenerateKey(32, BinaryEncodings.Base64Url))
+            .Returns(FlowId)
+            .Verifiable();
+        MockValueSet
+            .Setup(x =>
+                x.TryAddAsync(
+                    FlowKey,
+                    It.IsAny<ReadOnlyMemory<byte>>(),
+                    Now + Lifetime,
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync(true)
+            .Verifiable();
+
+        await EmailCodes.SendDecoyAsync(
+            mockContext.Object,
+            Purpose,
+            "USER",
+            CancellationToken.None
+        );
+
+        Assert.NotEqual(SendsKey, decoyKey);
+        MockCounterSet.Verify(
+            x =>
+                x.IncrementAsync(
+                    SendsKey,
+                    It.IsAny<DateTimeOffset>(),
+                    It.IsAny<CancellationToken>()
+                ),
+            Times.Never
+        );
+        MockCounterSet.Verify(
+            x =>
+                x.IncrementAsync(
+                    decoyKey,
+                    Now + TimeSpan.FromHours(1),
+                    It.IsAny<CancellationToken>()
+                ),
+            Times.Once
+        );
     }
 
     #endregion

@@ -45,6 +45,11 @@ internal sealed class DefaultLocalAccountEmailCodes(
     /// </summary>
     internal const string SendsKeyPurpose = "email-code-sends";
 
+    /// <summary>
+    /// The purpose of the key of the counter of the decoy flows started for an identifier.
+    /// </summary>
+    internal const string DecoySendsKeyPurpose = "email-code-decoy-sends";
+
     private static TimeSpan SendsWindow { get; } = TimeSpan.FromHours(1);
 
     private IExpiringValueSet ValueSet { get; } = valueSet;
@@ -121,6 +126,59 @@ internal sealed class DefaultLocalAccountEmailCodes(
             fromDisplayName
         );
         await MailSender.SendAsync(message, cancellationToken);
+
+        return flowId;
+    }
+
+    /// <inheritdoc />
+    public async ValueTask<string> SendDecoyAsync(
+        OpenIdContext openIdContext,
+        string purpose,
+        string identifier,
+        CancellationToken cancellationToken
+    )
+    {
+        var tenant = openIdContext.Tenant;
+        var settings = tenant.SettingsProvider.Collection;
+        var now = TimeProvider.GetUtcNow();
+
+        // The decoy does the remote work of a send, so a request that mails nothing takes as long as one that does,
+        // and it counts under a key of its own, so it never touches a real account's counter. See ADR-1533.
+        var loweredIdentifier = identifier.ToLowerInvariant();
+        var identifierBytes = SecureEncoding.UTF8.GetBytes(loweredIdentifier);
+        var identifierDigest = SHA256.HashData(identifierBytes);
+        var identifierHash = Convert.ToHexString(identifierDigest);
+        var sendsKey = ExpiringKeys.Create(
+            DecoySendsKeyPurpose,
+            tenant.TenantId,
+            purpose,
+            identifierHash
+        );
+        await CounterSet.IncrementAsync(sendsKey, now + SendsWindow, cancellationToken);
+
+        var lifetime = settings.GetValue(OpenIdSettingKeys.EmailCodeLifetime);
+        var expiresWhen = now + lifetime;
+
+        var flowId = CryptoService.GenerateUrlSafeKey();
+
+        // The code hash is that of random bytes, so no code verifies.
+        using var randomOwner = BufferFactory.RentRandom(
+            SHA256.HashSizeInBytes,
+            isSensitive: false,
+            out Span<byte> randomBytes
+        );
+        var codeHash = SHA256.HashData(randomBytes);
+        var state = new EmailCodeState(identifierHash, codeHash, FailedAttempts: 0, expiresWhen);
+        var flowKey = CreateFlowKey(tenant.TenantId, purpose, flowId);
+        var stateBytes = JsonSerializer.SerializeToUtf8Bytes(
+            state,
+            EmailCodeJsonContext.Default.EmailCodeState
+        );
+        var added = await ValueSet.TryAddAsync(flowKey, stateBytes, expiresWhen, cancellationToken);
+        if (!added)
+        {
+            throw new InvalidOperationException("An email code flow with the same handle exists.");
+        }
 
         return flowId;
     }
