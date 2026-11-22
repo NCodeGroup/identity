@@ -1138,7 +1138,7 @@ From the least to the most isolated; infrastructure costs are Akamai list prices
 | Cell | Customers | Placement | What it can promise | Infrastructure |
 |---|---|---|---|---|
 | **Shared cell** | Many, free and entry plans | A shared node pool | Best effort; limits and quotas protect against noisy neighbors | Part of the production cluster |
-| **Paid-only shared cell** | Many, paid plans only | Its own node pool; cluster B from stage 2 | Headroom, not a reservation: run at ≤50% utilization, with no free tenants able to load it | ~$75–110/mo (a 3-node pool and its own 3-node PostgreSQL) |
+| **Paid-only shared cell** | Many, paid plans only | Its own node pool; cluster B once the paying base grows | Headroom, not a reservation: run at ≤50% utilization, with no free tenants able to load it | ~$75–110/mo (a 3-node pool and its own 3-node PostgreSQL) |
 | **Dedicated cell on a shared cluster** | One | Its own dedicated-CPU node pool on the paid cells' cluster | Committed throughput at a stated p95 latency; 99.9% availability | ~$150–250/mo (3 dedicated-CPU nodes, a 3-node PostgreSQL, its own NodeBalancer, KMS and backups) |
 | **Dedicated cluster** | One | Its own cluster, optionally in its own datacenter or region | As above, plus its own maintenance windows and region | ~$220–350/mo (the above plus an HA control plane) |
 | **Sovereign cell** | One | A separate cloud account, possibly the customer's, possibly a separate operator | Contractual | The customer's account |
@@ -1148,19 +1148,19 @@ customers use.
 
 ### Which cluster each cell uses
 
-Which clusters exist depends on the stage of the platform:
+Which clusters exist depends on how far the platform has grown ([Stages](#stages)):
 
-| Stage | Cluster A | Cluster B | Dedicated clusters (E1, E2, …) |
+| When | Cluster A | Cluster B | Dedicated clusters (E1, E2, …) |
 |---|---|---|---|
-| **0. Developer plan only** — one cluster without the HA control plane | The shared cell, holding only free, non-production tenants | — | — |
-| **1. First paid plans** — a new cluster created with the HA control plane, onto which the shared cell moves | Every cell: the `shared` pool, the `paid` pool and one `ded-<customer>` pool per dedicated cell | — | One per customer that needs its own cluster |
-| **2. The paying base grows** — split by trust | The shared cell only | The paid-only shared cell and every dedicated cell, created with the HA control plane | Unchanged |
-| **3. More regions or more cells** | One cluster A per region | One cluster B per region; B1, B2, … as each reaches its cap on cells ([below](#the-cluster-that-hosts-paid-cells)) | Unchanged, each in its customer's region |
+| **The developer plan** — one cluster without the HA control plane | The shared cell, holding only free, non-production tenants | — | — |
+| **The first paid plans** — a new cluster created with the HA control plane, onto which the shared cell moves | Every cell: the `shared` pool, the `paid` pool and one `ded-<customer>` pool per dedicated cell | — | One per customer that needs its own cluster |
+| **The paying base grows** — split by trust | The shared cell only | The paid-only shared cell and every dedicated cell, created with the HA control plane | Unchanged |
+| **More regions or more cells** | One cluster A per region | One cluster B per region; B1, B2, … as each reaches its cap on cells ([below](#the-cluster-that-hosts-paid-cells)) | Unchanged, each in its customer's region |
 
-Why split at stage 2 rather than at launch:
+Why split once the paying base grows, rather than at launch:
 
-- **At stage 1, one cluster is cheapest.** A second cluster adds another HA control plane, NodeBalancer and add-ons, and
-  doubles the clusters to upgrade.
+- **With the first paid plans, one cluster is cheapest.** A second cluster adds another HA control plane, NodeBalancer
+  and add-ons, and doubles the clusters to upgrade.
 - **The split separates free and paying customers at the cluster level.** Free usage then can't reach the paid cells
   through anything the cluster shares: ingress, CoreDNS, the control plane or a cluster-wide mistake.
 - **It gives upgrades an order:** the lab, then cluster A, then cluster B, then each dedicated cluster in its own
