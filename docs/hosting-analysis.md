@@ -893,22 +893,22 @@ the provider's SPF include and DKIM keys, and keep DMARC at `p=reject`.
 8. **When to place cells on AWS, and in which shape** (EKS with spot above an on-demand floor, or ECS on Fargate) —
    see [§15](#15-growth-path-aws).
 
-## 15. Growth path: AWS
+## 11. Growth path: AWS
 
-AWS is not the starting point, because it costs more at the entry size, but it is where the platform grows once revenue
-pays for it. The platform already runs in AWS: its OpenTofu state, its backups and the deployment's KMS root key live in
-a dedicated AWS account ([ADR-1132](decisions/1132-platform-infrastructure-code-is-public-on-github-and-its-state-and-backups-live-in-aws.md),
+Which cells move to AWS, when, and in which shape is open ([§13](#13-open-decisions)); this section informs it. AWS is
+not the starting point, because it costs more at the entry size, but it is where the platform grows once revenue pays
+for it. The platform already runs in AWS: its OpenTofu state, its backups and the deployment's KMS root key live in a
+dedicated AWS account ([ADR-1132](decisions/1132-platform-infrastructure-code-is-public-on-github-and-its-state-and-backups-live-in-aws.md),
 [ADR-1235](decisions/1235-stored-secrets-and-grant-payloads-are-protected-by-a-key-hierarchy-under-an-external-root-key.md)).
 
 ### What AWS adds
 
 - **Several availability zones in one region.** A cell spread over three zones survives the loss of a datacenter, the
-  one failure every option in [§2](#2-summary-and-ranked-recommendations) accepts ([§5](#5-what-ha-means-and-what-it-costs)).
-  It is what makes an SLA above ~99.9% credible.
+  one failure production accepts ([§4](#4-what-ha-means-and-what-it-costs)). It is what makes an SLA above ~99.9%
+  credible.
 - **Managed services across zones:** RDS for PostgreSQL Multi-AZ, or Aurora, with point-in-time recovery and
   cross-region replicas; ElastiCache for Valkey; Network Load Balancers in every zone.
-- **Keys in the same account and region.** The root key, remote signing keys (issue
-  [#165](https://github.com/NCodeGroup/identity/issues/165)) and the KMS keys tenants hold
+- **Keys in the same account and region.** The root key, remote signing keys and the KMS keys tenants hold
   ([ADR-1414](decisions/1414-a-tenant-can-wrap-its-master-keys-under-a-root-key-it-controls.md),
   [ADR-1471](decisions/1471-a-tenants-signing-and-encryption-keys-can-be-held-in-a-key-management-service.md)) are reached
   through EKS Pod Identity, with no public service-account issuer to publish (issue
@@ -923,7 +923,7 @@ a dedicated AWS account ([ADR-1132](decisions/1132-platform-infrastructure-code-
 
 ### What it costs
 
-An option 1 equivalent in `us-east-1`, on-demand list prices from third-party 2026 summaries _(verify every line on
+An equivalent of production in `us-east-1`, on-demand list prices from third-party 2026 summaries _(verify every line on
 the AWS pricing pages)_:
 
 | Item                                                        | Monthly          |
@@ -1040,10 +1040,9 @@ Application Load Balancer with ACM certificates, beside RDS Multi-AZ and ElastiC
 With a 1-year Compute Savings Plan on the two regular Fargate tasks and a Database Savings Plan or Reserved Instance on
 RDS and ElastiCache, the total is about **$130–175**.
 
-That is about the price of Akamai rank 1 with its HA control plane ($155) — less with commitments — but across three
-availability zones, which
-none of the options in [§2](#2-summary-and-ranked-recommendations) has. ECS clusters cost nothing, so every cell, a
-dedicated one included, gets a cluster of its own, with no shared control plane between cells.
+That is about the price of production with its HA control plane ($155), less with commitments, but across three
+availability zones, which production's single datacenter lacks. ECS clusters cost nothing, so every cell, a dedicated
+one included, gets a cluster of its own, with no shared control plane between cells.
 
 What ECS asks in return:
 
@@ -1068,35 +1067,36 @@ At the entry size; "committed" uses 1-year, no-upfront Savings Plans or reservat
 
 | Shape | On demand | Committed | Availability zones | Uses the published chart | Operations |
 |---|---|---|---|---|---|
-| Akamai rank 1 with its HA control plane (for comparison) | ~$155 | ~$155 | 1 | ✓ | Low |
+| Production on Akamai with its HA control plane (for comparison) | ~$155 | ~$155 | 1 | ✓ | Low |
 | EKS, on-demand EC2 | ~$200–250 | ~$180–225 | 3 | ✓ | Medium: nodes, add-ons, VPC |
 | EKS, on-demand floor plus spot (Karpenter) | ~$185–235 | ~$165–210 | 3 | ✓ | Medium, plus interruption handling |
 | **ECS on Fargate plus Fargate Spot, RDS Multi-AZ, ElastiCache Serverless** | **~$150–200** | **~$130–175** | **3** | ✗ (OpenTofu task definitions) | **Lowest: no nodes or control plane** |
 | Any of the above with Aurora Serverless v2 in place of RDS | +$40–90 | +$30–75 | 3 | — | — |
 | Lambda | — | — | — | ✗ | Not a fit |
 
-**Assessment.** Spot on its own doesn't make AWS a cheap start: at this size the fixed costs dominate, and spot is
-only safe as headroom above an on-demand floor. Savings Plans take another 15–25% off the total once usage is steady,
-but no plan discounts the EKS fee, load balancers or traffic. ECS on Fargate, with Fargate Spot above a committed base,
-is the one AWS shape that matches or undercuts Akamai's price while adding three availability zones. It is a credible
-alternative for launch, traded against a second deployment shape outside the chart. Kubernetes on EKS — committed floor,
-spot headroom — remains the shape that fits the published chart and the cell model for dedicated clusters as the
+**Assessment.** Spot on its own doesn't make AWS a cheap start: at this size the fixed costs dominate, and spot is only
+safe as headroom above an on-demand floor. Savings Plans take another 15–25% off the total once usage is steady, but no
+plan discounts the EKS fee, load balancers or traffic. ECS on Fargate, with Fargate Spot above a committed base, is the
+one AWS shape that matches or undercuts Akamai's price while adding three availability zones. It is the cheapest way to
+run a cell across three zones, traded against a second deployment shape outside the chart. Kubernetes on EKS — committed
+floor, spot headroom — remains the shape that fits the published chart and the cell model for dedicated clusters as the
 platform grows, and at larger sizes, where worker nodes dominate the bill, commitments and spot together cut compute by
 roughly half or more.
 
 ### When and how to move
 
-Under the cell architecture ([ADR-1411](decisions/1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md)) a vendor is a placement choice
-per cell, made in `NCodeGroup/identity-platform` with a `stacks/aws` stack beside `stacks/akamai`
-([§11](#11-iac-and-delivery)); the published chart and images run unchanged
+Under the cell architecture
+([ADR-1411](decisions/1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md))
+a vendor is a placement choice per cell, made in `NCodeGroup/identity-platform` with a `stacks/aws` stack beside
+`stacks/akamai` ([§9](#9-iac-and-delivery)); the published chart and images run unchanged
 ([ADR-1133](decisions/1133-the-hosted-platform-runs-only-the-published-artifacts-it-offers-self-hosters.md)). So the
 move is gradual:
 
-1. **Launch on Akamai**, in Washington, DC; AWS keeps the state, backups and root key. The alternative is to launch on
-   ECS on Fargate in `us-east-1` for about the same money and three availability zones, once an ADR accepts a
-   deployment shape outside the chart ([AWS starting points compared](#aws-starting-points-compared)).
+1. **Production starts on Akamai**, in Washington, DC
+   ([ADR-1520](decisions/1520-the-hosted-platform-runs-production-on-akamai-lke-in-washington-dc-and-its-lab-on-oci-oke-basic-in-phoenix.md));
+   AWS keeps the state, backups and root key.
 2. **Place the first cells on AWS when a customer needs it:** a dedicated cluster or a dedicated cell that asks for AWS,
-   several availability zones, PrivateLink or Marketplace billing ([§16](#16-shared-and-dedicated-cells)).
+   several availability zones, PrivateLink or Marketplace billing ([§12](#12-shared-and-dedicated-cells)).
 3. **Move the paid shared cell to AWS** when the paid plans need several availability zones or a higher SLA is sold,
    and its cost is affordable.
 4. **Keep the free and cheapest plans on the cheapest vendor** for as long as it serves them well.
