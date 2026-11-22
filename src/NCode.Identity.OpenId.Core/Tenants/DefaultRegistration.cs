@@ -78,6 +78,10 @@ internal static class DefaultRegistration
                 DefaultTenantKeyRolloverPlanner
             >();
             serviceCollection.TryAddSingleton<ITenantKeyRollover, DefaultTenantKeyRollover>();
+            serviceCollection.TryAddSingleton<
+                ITenantKeyPlacementGuard,
+                DefaultTenantKeyPlacementGuard
+            >();
             serviceCollection.TryAddEnumerable(
                 ServiceDescriptor.Singleton<
                     ICommandHandler<SeedTenantCommand>,
