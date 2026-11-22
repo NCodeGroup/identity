@@ -13,6 +13,9 @@ const NCode.Identity.OpenId.Authentication.Sessions.SessionTerminationReasons.Pa
 const NCode.Identity.OpenId.Authentication.Sessions.SessionTerminationReasons.PasswordReset = "password_reset" -> string!
 const NCode.Identity.OpenId.Authentication.Sessions.SessionTerminationReasons.UserBlocked = "user_blocked" -> string!
 const NCode.Identity.OpenId.Authentication.Sessions.SessionTerminationReasons.UserInitiated = "user_initiated" -> string!
+NCode.Identity.OpenId.Authentication.Admission.IRequestAdmissionGate
+NCode.Identity.OpenId.Authentication.Admission.IRequestAdmissionGate.Exit() -> void
+NCode.Identity.OpenId.Authentication.Admission.IRequestAdmissionGate.TryEnter(int capacityPercent) -> bool
 NCode.Identity.OpenId.Authentication.ClientCertificates.ClientCertificateHeaderFormats
 const NCode.Identity.OpenId.Authentication.ClientCertificates.ClientCertificateHeaderFormats.Base64Der = "Base64Der" -> string!
 const NCode.Identity.OpenId.Authentication.ClientCertificates.ClientCertificateHeaderFormats.EnvoyXfcc = "EnvoyXfcc" -> string!
