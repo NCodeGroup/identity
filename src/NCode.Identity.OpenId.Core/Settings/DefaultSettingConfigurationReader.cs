@@ -98,7 +98,8 @@ internal class DefaultSettingConfigurationReader(
                 continue;
             }
 
-            settings.Add(descriptor.Create(value));
+            var createdSetting = descriptor.Create(value);
+            settings.Add(createdSetting);
         }
     }
 

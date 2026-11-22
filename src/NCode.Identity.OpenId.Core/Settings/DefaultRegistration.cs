@@ -32,25 +32,25 @@ internal static class DefaultRegistration
         {
             var serviceCollection = builder.ServiceCollection;
 
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    ICollectionDataSource<SettingDescriptor>,
-                    DefaultSettingDescriptorDataSource
-                >()
-            );
+            var defaultSettingDescriptorDataSource = ServiceDescriptor.Singleton<
+                ICollectionDataSource<SettingDescriptor>,
+                DefaultSettingDescriptorDataSource
+            >();
+            serviceCollection.TryAddEnumerable(defaultSettingDescriptorDataSource);
 
             // The scopes of the settings cascade are registered data, so an extension adds a scope for an entity of its
             // own beneath the scope it inherits from (ADR-1149, ADR-1150).
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    ICollectionDataSource<SettingScopeDescriptor>,
-                    DefaultSettingScopeDataSource
-                >()
-            );
+            var defaultSettingScopeDataSource = ServiceDescriptor.Singleton<
+                ICollectionDataSource<SettingScopeDescriptor>,
+                DefaultSettingScopeDataSource
+            >();
+            serviceCollection.TryAddEnumerable(defaultSettingScopeDataSource);
 
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<IDefaultSettingsProvider, DefaultSettingsProvider>()
-            );
+            var defaultSettingsProvider = ServiceDescriptor.Singleton<
+                IDefaultSettingsProvider,
+                DefaultSettingsProvider
+            >();
+            serviceCollection.TryAddEnumerable(defaultSettingsProvider);
 
             // The platform's configured settings are a closed vocabulary typed by the descriptor catalog; a configured
             // setting that cannot be honored stops the host when it starts (ADR-1137, ADR-1139).
@@ -59,12 +59,11 @@ internal static class DefaultRegistration
                 DefaultSettingConfigurationReader
             >();
             serviceCollection.AddOptions<OpenIdOptions>().ValidateOnStart();
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    IValidateOptions<OpenIdOptions>,
-                    PlatformSettingsOptionsValidator
-                >()
-            );
+            var platformSettingsOptionsValidator = ServiceDescriptor.Singleton<
+                IValidateOptions<OpenIdOptions>,
+                PlatformSettingsOptionsValidator
+            >();
+            serviceCollection.TryAddEnumerable(platformSettingsOptionsValidator);
 
             // The security-profile catalog resolves the registered profiles (a strategy collection contributed by the
             // slices that define them) into their ceiling settings and request-time requirements.
@@ -72,30 +71,34 @@ internal static class DefaultRegistration
                 ISecurityProfileCatalog,
                 DefaultSecurityProfileCatalog
             >();
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<ISecurityProfile, ProductionSecurityProfile>()
-            );
+            var productionSecurityProfile = ServiceDescriptor.Singleton<
+                ISecurityProfile,
+                ProductionSecurityProfile
+            >();
+            serviceCollection.TryAddEnumerable(productionSecurityProfile);
 
             // Each built-in type is its own class: TryAddEnumerable keeps one registration per implementation type
             // (ADR-1289).
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    ITenantEnvironmentType,
-                    DevelopmentTenantEnvironmentType
-                >()
-            );
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<ITenantEnvironmentType, TestingTenantEnvironmentType>()
-            );
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<ITenantEnvironmentType, StagingTenantEnvironmentType>()
-            );
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    ITenantEnvironmentType,
-                    ProductionTenantEnvironmentType
-                >()
-            );
+            var developmentEnvironmentType = ServiceDescriptor.Singleton<
+                ITenantEnvironmentType,
+                DevelopmentTenantEnvironmentType
+            >();
+            serviceCollection.TryAddEnumerable(developmentEnvironmentType);
+            var testingEnvironmentType = ServiceDescriptor.Singleton<
+                ITenantEnvironmentType,
+                TestingTenantEnvironmentType
+            >();
+            serviceCollection.TryAddEnumerable(testingEnvironmentType);
+            var stagingEnvironmentType = ServiceDescriptor.Singleton<
+                ITenantEnvironmentType,
+                StagingTenantEnvironmentType
+            >();
+            serviceCollection.TryAddEnumerable(stagingEnvironmentType);
+            var productionEnvironmentType = ServiceDescriptor.Singleton<
+                ITenantEnvironmentType,
+                ProductionTenantEnvironmentType
+            >();
+            serviceCollection.TryAddEnumerable(productionEnvironmentType);
 
             // The UI locale catalog resolves the locales the end-user interface registers, which is the domain of the
             // ui_locales_supported and default_ui_locale settings; it reads only data, so the descriptors consult it
@@ -108,21 +111,19 @@ internal static class DefaultRegistration
                 ITenantEnvironmentCatalog,
                 DefaultTenantEnvironmentCatalog
             >();
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    ICollectionDataSource<SettingDescriptor>,
-                    TenantEnvironmentSettingDescriptorDataSource
-                >()
-            );
+            var tenantEnvironmentSettingDescriptorDataSource = ServiceDescriptor.Singleton<
+                ICollectionDataSource<SettingDescriptor>,
+                TenantEnvironmentSettingDescriptorDataSource
+            >();
+            serviceCollection.TryAddEnumerable(tenantEnvironmentSettingDescriptorDataSource);
 
             // The setting that names the remote key provider holding a tenant's keys is contributed beside it; its
             // domain is the providers the remote key provider catalog registers.
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    ICollectionDataSource<SettingDescriptor>,
-                    TenantKeyProviderSettingDescriptorDataSource
-                >()
-            );
+            var tenantKeyProviderSettingDescriptorDataSource = ServiceDescriptor.Singleton<
+                ICollectionDataSource<SettingDescriptor>,
+                TenantKeyProviderSettingDescriptorDataSource
+            >();
+            serviceCollection.TryAddEnumerable(tenantKeyProviderSettingDescriptorDataSource);
 
             // The effective-settings resolver is the one place that resolves a scope's effective settings outside the
             // live providers; a host can replace it (ADR-1204).
@@ -133,18 +134,26 @@ internal static class DefaultRegistration
 
             // Each built-in kind is its own class: TryAddEnumerable keeps one registration per implementation type
             // (ADR-1203).
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<IRedirectUriKind, HttpsRedirectUriKind>()
-            );
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<IRedirectUriKind, LoopbackRedirectUriKind>()
-            );
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<IRedirectUriKind, HttpRedirectUriKind>()
-            );
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<IRedirectUriKind, PrivateUseRedirectUriKind>()
-            );
+            var httpsRedirectUriKind = ServiceDescriptor.Singleton<
+                IRedirectUriKind,
+                HttpsRedirectUriKind
+            >();
+            serviceCollection.TryAddEnumerable(httpsRedirectUriKind);
+            var loopbackRedirectUriKind = ServiceDescriptor.Singleton<
+                IRedirectUriKind,
+                LoopbackRedirectUriKind
+            >();
+            serviceCollection.TryAddEnumerable(loopbackRedirectUriKind);
+            var httpRedirectUriKind = ServiceDescriptor.Singleton<
+                IRedirectUriKind,
+                HttpRedirectUriKind
+            >();
+            serviceCollection.TryAddEnumerable(httpRedirectUriKind);
+            var privateUseRedirectUriKind = ServiceDescriptor.Singleton<
+                IRedirectUriKind,
+                PrivateUseRedirectUriKind
+            >();
+            serviceCollection.TryAddEnumerable(privateUseRedirectUriKind);
 
             // The redirect URI kind catalog resolves the registered kinds by name and judges a redirect URI against the
             // redirect_uri_kinds_supported setting.

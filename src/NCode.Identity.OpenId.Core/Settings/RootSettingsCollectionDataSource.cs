@@ -87,9 +87,11 @@ internal class RootSettingsCollectionDataSource : IDisposableCollectionDataSourc
 
         if (ConfigurationSection is { } configurationSection)
         {
-            changeTokenRegistrations.Add(
-                ChangeToken.OnChange(configurationSection.GetReloadToken, HandleChange)
+            var reloadRegistration = ChangeToken.OnChange(
+                configurationSection.GetReloadToken,
+                HandleChange
             );
+            changeTokenRegistrations.Add(reloadRegistration);
         }
 
         ChangeTokenRegistrations = changeTokenRegistrations;
@@ -242,10 +244,8 @@ internal class RootSettingsCollectionDataSource : IDisposableCollectionDataSourc
 
         baselineSettings.TryGetValue(OpenIdSettingKeys.GrantTypesSupported, out var baseline);
 
-        baselineSettings.Set(
-            OpenIdSettingKeys.GrantTypesSupported,
-            SettingMerge.Union(baseline ?? [], enabled)
-        );
+        var supportedGrantTypes = SettingMerge.Union(baseline ?? [], enabled);
+        baselineSettings.Set(OpenIdSettingKeys.GrantTypesSupported, supportedGrantTypes);
     }
 
     private void LoadDefaultSettingsProviders(ISettingCollection settings)
@@ -262,7 +262,8 @@ internal class RootSettingsCollectionDataSource : IDisposableCollectionDataSourc
         {
             if (descriptor.HasDefault)
             {
-                settings.Set(descriptor.CreateDefault());
+                var defaultSetting = descriptor.CreateDefault();
+                settings.Set(defaultSetting);
             }
         }
     }

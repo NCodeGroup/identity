@@ -38,24 +38,24 @@ internal static class DefaultRegistration
             >();
 
             // The settings that govern a team are contributed as descriptors.
-            builder.ServiceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    ICollectionDataSource<SettingDescriptor>,
-                    TeamSettingDescriptorDataSource
-                >()
-            );
+            var teamSettingDescriptorDataSource = ServiceDescriptor.Singleton<
+                ICollectionDataSource<SettingDescriptor>,
+                TeamSettingDescriptorDataSource
+            >();
+            builder.ServiceCollection.TryAddEnumerable(teamSettingDescriptorDataSource);
 
             // A team change evicts the team and its tenants from this replica's caches and announces the change, and the
             // announcement evicts them from every other replica's (ADR-1411).
-            builder.ServiceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    ICommandHandler<TeamChangedCommand>,
-                    TeamChangedHandler
-                >()
-            );
-            builder.ServiceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<IReplicaBroadcastHandler, TeamChangeBroadcastHandler>()
-            );
+            var teamChangedHandler = ServiceDescriptor.Singleton<
+                ICommandHandler<TeamChangedCommand>,
+                TeamChangedHandler
+            >();
+            builder.ServiceCollection.TryAddEnumerable(teamChangedHandler);
+            var teamChangeBroadcastHandler = ServiceDescriptor.Singleton<
+                IReplicaBroadcastHandler,
+                TeamChangeBroadcastHandler
+            >();
+            builder.ServiceCollection.TryAddEnumerable(teamChangeBroadcastHandler);
 
             // One replica reconciles each change to a team's effective settings in the background (ADR-1412).
             builder.ServiceCollection.TryAddSingleton<TeamSettingsReconciliationQueue>();

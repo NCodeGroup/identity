@@ -28,9 +28,10 @@ internal static class SettingsSnapshot
         foreach (var setting in settings)
         {
             var value = setting.GetValue();
+            var valueType = value.GetType();
             values[setting.Descriptor.Name] = JsonSerializer.SerializeToElement(
                 value,
-                value.GetType(),
+                valueType,
                 jsonOptions
             );
         }

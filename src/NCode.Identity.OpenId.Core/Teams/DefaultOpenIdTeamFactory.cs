@@ -67,8 +67,9 @@ internal class DefaultOpenIdTeamFactory(
             persistedTeam.Settings.Value
         );
 
+        var refreshState = new RefreshSettingsState(parentSettingsProvider, persistedTeam);
         var periodicPollingSource = CollectionDataSourceFactory.CreatePeriodicPolling(
-            new RefreshSettingsState(parentSettingsProvider, persistedTeam),
+            refreshState,
             initialSettings,
             OptionsAccessor.Value.Team.SettingsPeriodicRefreshInterval,
             RefreshSettingsAsync
@@ -84,15 +85,19 @@ internal class DefaultOpenIdTeamFactory(
 
         await using var settingsReference = provider.AsSharedReference();
 
+        var teamPath = TeamPaths.Format([.. persistedTeam.AncestorTeamIds, persistedTeam.TeamId]);
+        var parentReference = parentTeam.IsActive ? parentTeam.AddReference() : default;
+        var teamPropertyBag = parentPropertyBag.Clone();
+
         OpenIdTeam team = new DefaultOpenIdTeam(
             persistedTeam.TeamId,
             persistedTeam.ConcurrencyToken,
             persistedTeam.DisplayName,
             persistedTeam.IsDisabled || (parentTeam.IsActive && parentTeam.Value.IsDisabled),
-            TeamPaths.Format([.. persistedTeam.AncestorTeamIds, persistedTeam.TeamId]),
+            teamPath,
             settingsReference,
-            parentTeam.IsActive ? parentTeam.AddReference() : default,
-            parentPropertyBag.Clone()
+            parentReference,
+            teamPropertyBag
         );
 
         return team.AsSharedReference();

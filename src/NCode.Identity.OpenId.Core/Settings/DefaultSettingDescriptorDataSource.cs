@@ -162,11 +162,13 @@ internal class DefaultSettingDescriptorDataSource(
             // x5t#S256 for mutual TLS). A required sender constraint is met only by a binding every targeted resource
             // server verifies. Ceiling (Intersect): a child narrows the parent's set; unset = every method (ADR-1010).
             // Scopes: a resource server's bound on the tokens issued for it, combined at issuance (ADR-1158).
+            var accessTokenConfirmationMethodsSupportedItemRule =
+                OpenIdSettingRules.ConfirmationMethod();
             yield return new SettingDescriptor<IReadOnlyCollection<string>>
             {
                 Name = OpenIdSettingNames.AccessTokenConfirmationMethodsSupported,
                 AppliesTo = ResourceServers,
-                Rule = SettingRules.Each(OpenIdSettingRules.ConfirmationMethod()),
+                Rule = SettingRules.Each(accessTokenConfirmationMethodsSupportedItemRule),
 
                 IsDiscoverable = IsNonStdDiscoverable,
                 OnMerge = Intersect,
@@ -268,11 +270,12 @@ internal class DefaultSettingDescriptorDataSource(
 
             // acr_values_supported: Authentication Context Class Reference values the server honors.
             // Ceiling (Intersect): a child narrows the parent's set; unset = unrestricted (ADR-1010).
+            var acrValuesSupportedItemRule = OpenIdSettingRules.Token();
             yield return new SettingDescriptor<IReadOnlyCollection<string>>
             {
                 Name = OpenIdSettingNames.AcrValuesSupported,
                 AppliesTo = TenantsAndClients,
-                Rule = SettingRules.Each(OpenIdSettingRules.Token()),
+                Rule = SettingRules.Each(acrValuesSupportedItemRule),
 
                 IsDiscoverable = IsStdDiscoverable,
                 OnMerge = Intersect,
@@ -320,11 +323,12 @@ internal class DefaultSettingDescriptorDataSource(
 
             // allowed_identity_providers: identity providers a client may use; unset permits any.
             // Ceiling (Intersect): a child narrows the parent's set; a set (or narrowed-to-empty) list denies all others (fail-closed).
+            var allowedIdentityProvidersItemRule = SettingRules.NonEmpty();
             yield return new SettingDescriptor<IReadOnlyCollection<string>>
             {
                 Name = OpenIdSettingNames.AllowedIdentityProviders,
                 AppliesTo = Clients,
-                Rule = SettingRules.Each(SettingRules.NonEmpty()),
+                Rule = SettingRules.Each(allowedIdentityProvidersItemRule),
 
                 IsDiscoverable = IsNonStdDiscoverable,
                 OnMerge = Intersect,
@@ -390,11 +394,12 @@ internal class DefaultSettingDescriptorDataSource(
 
             // claims_locales_supported: BCP47 locales for which the server can return localized claim values.
             // Ceiling (Intersect): a child narrows the parent's set; unset = unrestricted (ADR-1010).
+            var claimsLocalesSupportedItemRule = OpenIdSettingRules.Token();
             yield return new SettingDescriptor<IReadOnlyCollection<string>>
             {
                 Name = OpenIdSettingNames.ClaimsLocalesSupported,
                 AppliesTo = TenantsAndClients,
-                Rule = SettingRules.Each(OpenIdSettingRules.Token()),
+                Rule = SettingRules.Each(claimsLocalesSupportedItemRule),
 
                 IsDiscoverable = IsStdDiscoverable,
                 OnMerge = Intersect,
@@ -414,11 +419,12 @@ internal class DefaultSettingDescriptorDataSource(
 
             // claims_supported: claim names the OP may return (advertised in discovery; default supplied by the baseline provider).
             // Override (Replace). Enforced as an allow-list only when claims_supported_is_strict is true.
+            var claimsSupportedItemRule = OpenIdSettingRules.Token();
             yield return new SettingDescriptor<IReadOnlyCollection<string>>
             {
                 Name = OpenIdSettingNames.ClaimsSupported,
                 AppliesTo = TenantsAndClients,
-                Rule = SettingRules.Each(OpenIdSettingRules.Token()),
+                Rule = SettingRules.Each(claimsSupportedItemRule),
 
                 IsDiscoverable = IsStdDiscoverable,
                 OnMerge = Replace,
@@ -438,11 +444,12 @@ internal class DefaultSettingDescriptorDataSource(
 
             // claim_types_supported: OIDC claim types the server can emit (default "normal"; aggregated/distributed are not implemented).
             // Ceiling (Intersect): advisory discovery only (no runtime consumer); reflects a fixed capability.
+            var claimTypesSupportedItemRule = OpenIdSettingRules.ClaimType();
             yield return new SettingDescriptor<IReadOnlyCollection<string>>
             {
                 Name = OpenIdSettingNames.ClaimTypesSupported,
                 AppliesTo = Tenants,
-                Rule = SettingRules.Each(OpenIdSettingRules.ClaimType()),
+                Rule = SettingRules.Each(claimTypesSupportedItemRule),
                 Default = [OpenIdProtocol.ClaimTypes.Normal],
 
                 IsDiscoverable = IsStdDiscoverable,
@@ -545,11 +552,12 @@ internal class DefaultSettingDescriptorDataSource(
             // Core §4 requires an https URL; empty (the default) means the client registered none, which a ping or
             // push client is rejected for. Override (Replace): each client specifies its own endpoint. Bound to the
             // environment: promotion never copies it.
+            var clientNotificationEndpointValueRule = OpenIdSettingRules.HttpsUri();
             yield return new SettingDescriptor<string>
             {
                 Name = OpenIdSettingNames.ClientNotificationEndpoint,
                 AppliesTo = Clients,
-                Rule = SettingRules.EmptyOr(OpenIdSettingRules.HttpsUri()),
+                Rule = SettingRules.EmptyOr(clientNotificationEndpointValueRule),
                 Default = string.Empty,
 
                 IsDiscoverable = IsNonStdDiscoverable,
@@ -559,11 +567,13 @@ internal class DefaultSettingDescriptorDataSource(
 
             // backchannel_token_delivery_modes_supported: CIBA delivery modes the server supports.
             // Ceiling (Intersect): a child narrows the parent's set; unset = unrestricted (ADR-1010).
+            var backchannelTokenDeliveryModesSupportedItemRule =
+                OpenIdSettingRules.BackchannelTokenDeliveryMode();
             yield return new SettingDescriptor<IReadOnlyCollection<string>>
             {
                 Name = OpenIdSettingNames.BackchannelTokenDeliveryModesSupported,
                 AppliesTo = TenantsAndClients,
-                Rule = SettingRules.Each(OpenIdSettingRules.BackchannelTokenDeliveryMode()),
+                Rule = SettingRules.Each(backchannelTokenDeliveryModesSupportedItemRule),
 
                 IsDiscoverable = IsStdDiscoverable,
                 OnMerge = Intersect,
@@ -624,11 +634,12 @@ internal class DefaultSettingDescriptorDataSource(
 
             // display_values_supported: OIDC "display" parameter values the server supports.
             // Ceiling (Intersect): a child narrows the parent's set; unset = unrestricted (ADR-1010).
+            var displayValuesSupportedItemRule = OpenIdSettingRules.DisplayValue();
             yield return new SettingDescriptor<IReadOnlyCollection<string>>
             {
                 Name = OpenIdSettingNames.DisplayValuesSupported,
                 AppliesTo = TenantsAndClients,
-                Rule = SettingRules.Each(OpenIdSettingRules.DisplayValue()),
+                Rule = SettingRules.Each(displayValuesSupportedItemRule),
 
                 IsDiscoverable = IsStdDiscoverable,
                 OnMerge = Intersect,
@@ -637,11 +648,12 @@ internal class DefaultSettingDescriptorDataSource(
             // grant_types_enabled: grants the host adds to the baseline grant_types_supported without restating it; a
             // configured grant_types_supported stays the whole list (ADR-1044). Platform scope, not advertised.
             // Floor (Union): the enabled grants accumulate.
+            var grantTypesEnabledItemRule = OpenIdSettingRules.GrantType();
             yield return new SettingDescriptor<IReadOnlyCollection<string>>
             {
                 Name = OpenIdSettingNames.GrantTypesEnabled,
                 AppliesTo = PlatformOnly,
-                Rule = SettingRules.Each(OpenIdSettingRules.GrantType()),
+                Rule = SettingRules.Each(grantTypesEnabledItemRule),
 
                 IsDiscoverable = IsNonStdDiscoverable,
                 OnMerge = Union,
@@ -649,11 +661,12 @@ internal class DefaultSettingDescriptorDataSource(
 
             // grant_types_supported: OAuth grant types the server permits (default supplied by the baseline provider).
             // Ceiling (Intersect): a child narrows the parent's set; capability is enforced by grant handlers (ADR-1010/1026).
+            var grantTypesSupportedItemRule = OpenIdSettingRules.GrantType();
             yield return new SettingDescriptor<IReadOnlyCollection<string>>
             {
                 Name = OpenIdSettingNames.GrantTypesSupported,
                 AppliesTo = TenantsAndClients,
-                Rule = SettingRules.Each(OpenIdSettingRules.GrantType()),
+                Rule = SettingRules.Each(grantTypesSupportedItemRule),
 
                 IsDiscoverable = IsStdDiscoverable,
                 OnMerge = Intersect,
@@ -792,11 +805,12 @@ internal class DefaultSettingDescriptorDataSource(
 
             // prompt_values_supported: OIDC "prompt" values the server supports (default supplied by the baseline provider).
             // Ceiling (Intersect): a child narrows the parent's set; unset = unrestricted (ADR-1010).
+            var promptValuesSupportedItemRule = OpenIdSettingRules.PromptValue();
             yield return new SettingDescriptor<IReadOnlyCollection<string>>
             {
                 Name = OpenIdSettingNames.PromptValuesSupported,
                 AppliesTo = TenantsAndClients,
-                Rule = SettingRules.Each(OpenIdSettingRules.PromptValue()),
+                Rule = SettingRules.Each(promptValuesSupportedItemRule),
 
                 IsDiscoverable = IsStdDiscoverable,
                 OnMerge = Intersect,
@@ -805,11 +819,12 @@ internal class DefaultSettingDescriptorDataSource(
             // redirect_uris: the registered redirect URIs for a client.
             // Override (Replace): each scope specifies its own set (per-client registration, not a cascade ceiling).
             // Bound to the environment: promotion never copies it.
+            var redirectUrisItemRule = OpenIdSettingRules.RedirectUri();
             yield return new SettingDescriptor<IReadOnlyCollection<string>>
             {
                 Name = OpenIdSettingNames.RedirectUris,
                 AppliesTo = Clients,
-                Rule = SettingRules.Each(OpenIdSettingRules.RedirectUri()),
+                Rule = SettingRules.Each(redirectUrisItemRule),
 
                 IsDiscoverable = IsNonStdDiscoverable,
                 IsEnvironmentBound = true,
@@ -832,11 +847,12 @@ internal class DefaultSettingDescriptorDataSource(
             // post_logout_redirect_uris: the registered post-logout redirect URIs for a client (RP-Initiated Logout).
             // Override (Replace): each client specifies its own set (per-client registration, not a cascade ceiling).
             // Bound to the environment: promotion never copies it.
+            var postLogoutRedirectUrisItemRule = OpenIdSettingRules.RedirectUri();
             yield return new SettingDescriptor<IReadOnlyCollection<string>>
             {
                 Name = OpenIdSettingNames.PostLogoutRedirectUris,
                 AppliesTo = Clients,
-                Rule = SettingRules.Each(OpenIdSettingRules.RedirectUri()),
+                Rule = SettingRules.Each(postLogoutRedirectUrisItemRule),
 
                 IsDiscoverable = IsNonStdDiscoverable,
                 IsEnvironmentBound = true,
@@ -960,11 +976,16 @@ internal class DefaultSettingDescriptorDataSource(
             // SP 800-63B's AAL1 reauthentication of at least once per 30 days; the maximum is Auth0's). Not advertised
             // (leaking session policy aids attackers). Override (Replace): a tenant fully replaces the value.
             // (ADR-1220)
+            var sessionAbsoluteLifetimeMinimum = TimeSpan.FromSeconds(1);
+            var sessionAbsoluteLifetimeMaximum = TimeSpan.FromDays(365);
             yield return new SettingDescriptor<TimeSpan>
             {
                 Name = OpenIdSettingNames.SessionAbsoluteLifetime,
                 AppliesTo = Tenants,
-                Rule = SettingRules.Between(TimeSpan.FromSeconds(1), TimeSpan.FromDays(365)),
+                Rule = SettingRules.Between(
+                    sessionAbsoluteLifetimeMinimum,
+                    sessionAbsoluteLifetimeMaximum
+                ),
                 Default = TimeSpan.FromDays(30),
 
                 IsDiscoverable = IsNonStdDiscoverable,
@@ -975,11 +996,13 @@ internal class DefaultSettingDescriptorDataSource(
             // authorize request that resolves the session renews it. Between one second and 100 days; default 3 days
             // (Auth0's inactivity default; the maximum is Auth0's enterprise maximum). Not advertised. Override
             // (Replace): a tenant fully replaces the value. (ADR-1220)
+            var sessionIdleTimeoutMinimum = TimeSpan.FromSeconds(1);
+            var sessionIdleTimeoutMaximum = TimeSpan.FromDays(100);
             yield return new SettingDescriptor<TimeSpan>
             {
                 Name = OpenIdSettingNames.SessionIdleTimeout,
                 AppliesTo = Tenants,
-                Rule = SettingRules.Between(TimeSpan.FromSeconds(1), TimeSpan.FromDays(100)),
+                Rule = SettingRules.Between(sessionIdleTimeoutMinimum, sessionIdleTimeoutMaximum),
                 Default = TimeSpan.FromDays(3),
 
                 IsDiscoverable = IsNonStdDiscoverable,
@@ -1004,11 +1027,13 @@ internal class DefaultSettingDescriptorDataSource(
             // retires and its successor takes over. Between one hour and ten years; default 90 days, the quarterly
             // cadence of the major providers' automatic rollover. Not advertised. Ceiling (Min): a parent bounds how
             // long a tenant's keys stay in use. (ADR-1404)
+            var tenantKeyLifetimeMinimum = TimeSpan.FromHours(1);
+            var tenantKeyLifetimeMaximum = TimeSpan.FromDays(3650);
             yield return new SettingDescriptor<TimeSpan>
             {
                 Name = OpenIdSettingNames.TenantKeyLifetime,
                 AppliesTo = Tenants,
-                Rule = SettingRules.Between(TimeSpan.FromHours(1), TimeSpan.FromDays(3650)),
+                Rule = SettingRules.Between(tenantKeyLifetimeMinimum, tenantKeyLifetimeMaximum),
                 Default = TimeSpan.FromDays(90),
 
                 IsDiscoverable = IsNonStdDiscoverable,
@@ -1019,11 +1044,12 @@ internal class DefaultSettingDescriptorDataSource(
             // encrypt, so a verifier that caches the JSON Web Key Set holds the key before the first token it signs
             // (OpenID Connect Core 1.0 §10.1.1). Up to a year; default two days. Not advertised. Floor (Max): a
             // parent's delay is the least a tenant publishes ahead. (ADR-1404)
+            var tenantKeyActivationDelayMaximum = TimeSpan.FromDays(365);
             yield return new SettingDescriptor<TimeSpan>
             {
                 Name = OpenIdSettingNames.TenantKeyActivationDelay,
                 AppliesTo = Tenants,
-                Rule = SettingRules.Between(TimeSpan.Zero, TimeSpan.FromDays(365)),
+                Rule = SettingRules.Between(TimeSpan.Zero, tenantKeyActivationDelayMaximum),
                 Default = TimeSpan.FromDays(2),
 
                 IsDiscoverable = IsNonStdDiscoverable,
@@ -1034,11 +1060,12 @@ internal class DefaultSettingDescriptorDataSource(
             // rollover raises it to the longest lifetime of the tokens the tenant protects with its keys plus the
             // clock skew, so no token outlives its key. Up to a year; default seven days. Not advertised. Floor
             // (Max): a parent's grace is the least a tenant keeps a retired key. (ADR-1404)
+            var tenantKeyRetirementGraceMaximum = TimeSpan.FromDays(365);
             yield return new SettingDescriptor<TimeSpan>
             {
                 Name = OpenIdSettingNames.TenantKeyRetirementGrace,
                 AppliesTo = Tenants,
-                Rule = SettingRules.Between(TimeSpan.Zero, TimeSpan.FromDays(365)),
+                Rule = SettingRules.Between(TimeSpan.Zero, tenantKeyRetirementGraceMaximum),
                 Default = TimeSpan.FromDays(7),
 
                 IsDiscoverable = IsNonStdDiscoverable,
@@ -1303,11 +1330,12 @@ internal class DefaultSettingDescriptorDataSource(
             // request_uri host must appear in this list; unset = no host allow-list, though the always-on private/
             // loopback/link-local address block in DefaultOutboundHttpForgeryGuard still applies. Not advertised.
             // Ceiling (Intersect): a child narrows the parent's set.
+            var requestUriAllowedHostsItemRule = OpenIdSettingRules.HostName();
             yield return new SettingDescriptor<IReadOnlyCollection<string>>
             {
                 Name = OpenIdSettingNames.RequestUriAllowedHosts,
                 AppliesTo = Clients,
-                Rule = SettingRules.Each(OpenIdSettingRules.HostName()),
+                Rule = SettingRules.Each(requestUriAllowedHostsItemRule),
 
                 IsDiscoverable = IsNonStdDiscoverable,
                 OnMerge = Intersect,
@@ -1519,11 +1547,12 @@ internal class DefaultSettingDescriptorDataSource(
             // certificate, so tls_client_auth fails closed until a tenant or client configures its PKI. Not
             // advertised. Override (Replace): a client pins its own PKI in place of the tenant's. Bound to the
             // environment: promotion never copies it.
+            var tlsClientAuthTrustAnchorsItemRule = OpenIdSettingRules.CaCertificatePem();
             yield return new SettingDescriptor<IReadOnlyCollection<string>>
             {
                 Name = OpenIdSettingNames.TlsClientAuthTrustAnchors,
                 AppliesTo = TenantsAndClients,
-                Rule = SettingRules.Each(OpenIdSettingRules.CaCertificatePem()),
+                Rule = SettingRules.Each(tlsClientAuthTrustAnchorsItemRule),
                 Default = [],
 
                 IsDiscoverable = IsNonStdDiscoverable,
@@ -1551,11 +1580,12 @@ internal class DefaultSettingDescriptorDataSource(
             // a PKI-validated tls_client_auth client must present (RFC 8705 §2.1.2); exactly one is configured per
             // client. Not advertised. Override (Replace): a child fully replaces the parent value. Bound to the
             // environment: promotion never copies it.
+            var tlsClientAuthSubjectDnValueRule = OpenIdSettingRules.DistinguishedName();
             yield return new SettingDescriptor<string>
             {
                 Name = OpenIdSettingNames.TlsClientAuthSubjectDn,
                 AppliesTo = Clients,
-                Rule = SettingRules.EmptyOr(OpenIdSettingRules.DistinguishedName()),
+                Rule = SettingRules.EmptyOr(tlsClientAuthSubjectDnValueRule),
                 Default = string.Empty,
 
                 IsDiscoverable = IsNonStdDiscoverable,
@@ -1563,11 +1593,12 @@ internal class DefaultSettingDescriptorDataSource(
                 OnMerge = Replace,
             };
 
+            var tlsClientAuthSanDnsValueRule = OpenIdSettingRules.DnsName();
             yield return new SettingDescriptor<string>
             {
                 Name = OpenIdSettingNames.TlsClientAuthSanDns,
                 AppliesTo = Clients,
-                Rule = SettingRules.EmptyOr(OpenIdSettingRules.DnsName()),
+                Rule = SettingRules.EmptyOr(tlsClientAuthSanDnsValueRule),
                 Default = string.Empty,
 
                 IsDiscoverable = IsNonStdDiscoverable,
@@ -1575,11 +1606,12 @@ internal class DefaultSettingDescriptorDataSource(
                 OnMerge = Replace,
             };
 
+            var tlsClientAuthSanUriValueRule = OpenIdSettingRules.AbsoluteUri();
             yield return new SettingDescriptor<string>
             {
                 Name = OpenIdSettingNames.TlsClientAuthSanUri,
                 AppliesTo = Clients,
-                Rule = SettingRules.EmptyOr(OpenIdSettingRules.AbsoluteUri()),
+                Rule = SettingRules.EmptyOr(tlsClientAuthSanUriValueRule),
                 Default = string.Empty,
 
                 IsDiscoverable = IsNonStdDiscoverable,
@@ -1587,11 +1619,12 @@ internal class DefaultSettingDescriptorDataSource(
                 OnMerge = Replace,
             };
 
+            var tlsClientAuthSanIpValueRule = OpenIdSettingRules.IpAddress();
             yield return new SettingDescriptor<string>
             {
                 Name = OpenIdSettingNames.TlsClientAuthSanIp,
                 AppliesTo = Clients,
-                Rule = SettingRules.EmptyOr(OpenIdSettingRules.IpAddress()),
+                Rule = SettingRules.EmptyOr(tlsClientAuthSanIpValueRule),
                 Default = string.Empty,
 
                 IsDiscoverable = IsNonStdDiscoverable,
@@ -1599,11 +1632,12 @@ internal class DefaultSettingDescriptorDataSource(
                 OnMerge = Replace,
             };
 
+            var tlsClientAuthSanEmailValueRule = OpenIdSettingRules.EmailAddress();
             yield return new SettingDescriptor<string>
             {
                 Name = OpenIdSettingNames.TlsClientAuthSanEmail,
                 AppliesTo = Clients,
-                Rule = SettingRules.EmptyOr(OpenIdSettingRules.EmailAddress()),
+                Rule = SettingRules.EmptyOr(tlsClientAuthSanEmailValueRule),
                 Default = string.Empty,
 
                 IsDiscoverable = IsNonStdDiscoverable,
@@ -1613,11 +1647,12 @@ internal class DefaultSettingDescriptorDataSource(
 
             // response_modes_supported: OAuth response modes the server supports (default supplied by the baseline provider).
             // Ceiling (Intersect): a child narrows the parent's set; unset = unrestricted (ADR-1010).
+            var responseModesSupportedItemRule = OpenIdSettingRules.ResponseMode();
             yield return new SettingDescriptor<IReadOnlyCollection<string>>
             {
                 Name = OpenIdSettingNames.ResponseModesSupported,
                 AppliesTo = TenantsAndClients,
-                Rule = SettingRules.Each(OpenIdSettingRules.ResponseMode()),
+                Rule = SettingRules.Each(responseModesSupportedItemRule),
 
                 IsDiscoverable = IsStdDiscoverable,
                 OnMerge = Intersect,
@@ -1626,11 +1661,12 @@ internal class DefaultSettingDescriptorDataSource(
             // response_types_supported: the whole response_type values the server accepts, in canonical form (default
             // supplied by the baseline provider). Ceiling (Intersect): a child narrows the parent's set; discovery
             // advertises the values as they are, and the authorization endpoint accepts exactly them (ADR-1141).
+            var responseTypesSupportedItemRule = OpenIdSettingRules.ResponseType();
             yield return new SettingDescriptor<IReadOnlyCollection<string>>
             {
                 Name = OpenIdSettingNames.ResponseTypesSupported,
                 AppliesTo = TenantsAndClients,
-                Rule = SettingRules.Each(OpenIdSettingRules.ResponseType()),
+                Rule = SettingRules.Each(responseTypesSupportedItemRule),
 
                 IsDiscoverable = IsStdDiscoverable,
                 OnMerge = Intersect,
@@ -1880,11 +1916,12 @@ internal class DefaultSettingDescriptorDataSource(
                 OnMerge = Replace,
             };
 
+            var contactsItemRule = SettingRules.NonEmpty();
             yield return new SettingDescriptor<IReadOnlyCollection<string>>
             {
                 Name = OpenIdSettingNames.Contacts,
                 AppliesTo = Clients,
-                Rule = SettingRules.Each(SettingRules.NonEmpty()),
+                Rule = SettingRules.Each(contactsItemRule),
 
                 IsDiscoverable = IsNonStdDiscoverable,
                 OnMerge = Replace,
@@ -1911,11 +1948,12 @@ internal class DefaultSettingDescriptorDataSource(
             // jwks_uri_allowed_hosts: SSRF allow-list for the runtime client jwks_uri fetch. When set, the jwks_uri
             // host must appear in this list; unset = no host allow-list, though the always-on private/loopback/
             // link-local address block still applies. Not advertised. Ceiling (Intersect): a child narrows the parent.
+            var jwksUriAllowedHostsItemRule = OpenIdSettingRules.HostName();
             yield return new SettingDescriptor<IReadOnlyCollection<string>>
             {
                 Name = OpenIdSettingNames.JwksUriAllowedHosts,
                 AppliesTo = Clients,
-                Rule = SettingRules.Each(OpenIdSettingRules.HostName()),
+                Rule = SettingRules.Each(jwksUriAllowedHostsItemRule),
 
                 IsDiscoverable = IsNonStdDiscoverable,
                 OnMerge = Intersect,
@@ -1966,11 +2004,12 @@ internal class DefaultSettingDescriptorDataSource(
             // fetch (OpenID Connect Core 1.0 §8.1). When set, the sector_identifier_uri host must appear in this list;
             // unset = no host allow-list (ADR-1010), though the always-on private/loopback/link-local address block
             // still applies. Not advertised. Ceiling (Intersect): a child narrows the parent's set.
+            var sectorIdentifierUriAllowedHostsItemRule = OpenIdSettingRules.HostName();
             yield return new SettingDescriptor<IReadOnlyCollection<string>>
             {
                 Name = OpenIdSettingNames.SectorIdentifierUriAllowedHosts,
                 AppliesTo = Tenants,
-                Rule = SettingRules.Each(OpenIdSettingRules.HostName()),
+                Rule = SettingRules.Each(sectorIdentifierUriAllowedHostsItemRule),
 
                 IsDiscoverable = IsNonStdDiscoverable,
                 OnMerge = Intersect,
@@ -2038,11 +2077,12 @@ internal class DefaultSettingDescriptorDataSource(
 
             // subject_types_supported: subject identifier types the server supports (public, pairwise). Both are
             // implemented (issue #47), so both are advertised by default. Ceiling (Intersect): a child narrows the parent's set.
+            var subjectTypesSupportedItemRule = OpenIdSettingRules.SubjectType();
             yield return new SettingDescriptor<IReadOnlyCollection<string>>
             {
                 Name = OpenIdSettingNames.SubjectTypesSupported,
                 AppliesTo = Tenants,
-                Rule = SettingRules.Each(OpenIdSettingRules.SubjectType()),
+                Rule = SettingRules.Each(subjectTypesSupportedItemRule),
                 Default =
                 [
                     OpenIdProtocol.SubjectTypes.Public,
@@ -2069,11 +2109,12 @@ internal class DefaultSettingDescriptorDataSource(
             // ui_locales_supported: the registered UI locales a request's ui_locales may select, so discovery advertises
             // only locales the end-user interface renders (ADR-1402).
             // Ceiling (Intersect): a child narrows the parent's set; unset = unrestricted (ADR-1010).
+            var uiLocalesSupportedItemRule = UiLocale();
             yield return new SettingDescriptor<IReadOnlyCollection<string>>
             {
                 Name = OpenIdSettingNames.UiLocalesSupported,
                 AppliesTo = Tenants,
-                Rule = SettingRules.Each(UiLocale()),
+                Rule = SettingRules.Each(uiLocalesSupportedItemRule),
 
                 IsDiscoverable = IsStdDiscoverable,
                 OnMerge = Intersect,
@@ -2083,11 +2124,12 @@ internal class DefaultSettingDescriptorDataSource(
             // another; empty, or a value the effective ui_locales_supported leaves out, renders in the first registered
             // locale that ceiling lists (ADR-1402). Not advertised.
             // Override (Replace): a child fully replaces the parent value.
+            var defaultUiLocaleValueRule = UiLocale();
             yield return new SettingDescriptor<string>
             {
                 Name = OpenIdSettingNames.DefaultUiLocale,
                 AppliesTo = Tenants,
-                Rule = SettingRules.EmptyOr(UiLocale()),
+                Rule = SettingRules.EmptyOr(defaultUiLocaleValueRule),
                 Default = string.Empty,
 
                 IsDiscoverable = IsNonStdDiscoverable,
@@ -2277,11 +2319,16 @@ internal class DefaultSettingDescriptorDataSource(
             };
 
             // authorization_response_lifetime: lifetime of a JARM response JWT; JARM §2.1 recommends at most 10 minutes. Ceiling (Min).
+            var authorizationResponseLifetimeMinimum = TimeSpan.FromSeconds(1);
+            var authorizationResponseLifetimeMaximum = TimeSpan.FromMinutes(10);
             yield return new SettingDescriptor<TimeSpan>
             {
                 Name = OpenIdSettingNames.AuthorizationResponseLifetime,
                 AppliesTo = Clients,
-                Rule = SettingRules.Between(TimeSpan.FromSeconds(1), TimeSpan.FromMinutes(10)),
+                Rule = SettingRules.Between(
+                    authorizationResponseLifetimeMinimum,
+                    authorizationResponseLifetimeMaximum
+                ),
                 Default = TimeSpan.FromMinutes(5),
 
                 IsDiscoverable = IsNonStdDiscoverable,
@@ -2363,25 +2410,37 @@ internal class DefaultSettingDescriptorDataSource(
     /// Gets the rule for <c>security_profiles</c>: a list whose every value names a registered
     /// <see cref="ISecurityProfile"/>; the empty list selects no profile.
     /// </summary>
-    private SettingRule<IReadOnlyCollection<string>> SecurityProfiles() =>
-        SecurityProfileNames.IsEmpty
-            ? SettingRules.Must<IReadOnlyCollection<string>>(
+    private SettingRule<IReadOnlyCollection<string>> SecurityProfiles()
+    {
+        if (SecurityProfileNames.IsEmpty)
+        {
+            return SettingRules.Must<IReadOnlyCollection<string>>(
                 "empty, because no security profile is registered",
                 value => value.Count == 0
-            )
-            : SettingRules.Each(SettingRules.OneOf(SecurityProfileNames));
+            );
+        }
+
+        var securityProfileRule = SettingRules.OneOf(SecurityProfileNames);
+        return SettingRules.Each(securityProfileRule);
+    }
 
     /// <summary>
     /// Gets the rule for <c>redirect_uri_kinds_supported</c>: a list whose every value names a registered
     /// <see cref="IRedirectUriKind"/>; the empty list permits no redirect URI.
     /// </summary>
-    private SettingRule<IReadOnlyCollection<string>> RegisteredRedirectUriKinds() =>
-        RedirectUriKindNames.IsEmpty
-            ? SettingRules.Must<IReadOnlyCollection<string>>(
+    private SettingRule<IReadOnlyCollection<string>> RegisteredRedirectUriKinds()
+    {
+        if (RedirectUriKindNames.IsEmpty)
+        {
+            return SettingRules.Must<IReadOnlyCollection<string>>(
                 "empty, because no redirect URI kind is registered",
                 value => value.Count == 0
-            )
-            : SettingRules.Each(SettingRules.OneOf(RedirectUriKindNames));
+            );
+        }
+
+        var redirectUriKindRule = SettingRules.OneOf(RedirectUriKindNames);
+        return SettingRules.Each(redirectUriKindRule);
+    }
 
     /// <summary>
     /// Gets the rule for a locale the end-user interface renders: the value names a registered UI locale.
@@ -2396,13 +2455,14 @@ internal class DefaultSettingDescriptorDataSource(
     /// Gets the rule for a list of signature algorithms a client or the server may choose from, symmetric ones
     /// included: every value names a registered signature algorithm.
     /// </summary>
-    private SettingRule<IReadOnlyCollection<string>> SignatureAlgorithms() =>
-        SettingRules.Each(
-            SelectableAlgorithm(
-                AlgorithmType.DigitalSignature,
-                "a registered signature algorithm such as 'ES256'"
-            )
+    private SettingRule<IReadOnlyCollection<string>> SignatureAlgorithms()
+    {
+        var signatureAlgorithmRule = SelectableAlgorithm(
+            AlgorithmType.DigitalSignature,
+            "a registered signature algorithm such as 'ES256'"
         );
+        return SettingRules.Each(signatureAlgorithmRule);
+    }
 
     /// <summary>
     /// Gets the rule for an algorithm that signs a token crossing a trust boundary (an ID token, a UserInfo response, an
@@ -2420,19 +2480,23 @@ internal class DefaultSettingDescriptorDataSource(
     /// Gets the rule for a list of algorithms that sign a token crossing a trust boundary: every value satisfies
     /// <see cref="AsymmetricSignatureAlgorithm"/>.
     /// </summary>
-    private SettingRule<IReadOnlyCollection<string>> AsymmetricSignatureAlgorithms() =>
-        SettingRules.Each(AsymmetricSignatureAlgorithm());
+    private SettingRule<IReadOnlyCollection<string>> AsymmetricSignatureAlgorithms()
+    {
+        var asymmetricSignatureAlgorithmRule = AsymmetricSignatureAlgorithm();
+        return SettingRules.Each(asymmetricSignatureAlgorithmRule);
+    }
 
     /// <summary>
     /// Gets the rule for a list of key management (<c>alg</c>) algorithms for encryption.
     /// </summary>
-    private SettingRule<IReadOnlyCollection<string>> KeyManagementAlgorithms() =>
-        SettingRules.Each(
-            SelectableAlgorithm(
-                AlgorithmType.KeyManagement,
-                "a registered key management algorithm such as 'RSA-OAEP-256'"
-            )
+    private SettingRule<IReadOnlyCollection<string>> KeyManagementAlgorithms()
+    {
+        var keyManagementAlgorithmRule = SelectableAlgorithm(
+            AlgorithmType.KeyManagement,
+            "a registered key management algorithm such as 'RSA-OAEP-256'"
         );
+        return SettingRules.Each(keyManagementAlgorithmRule);
+    }
 
     /// <summary>
     /// Gets the rule for a key management (<c>alg</c>) algorithm that encrypts to a party by its public key (a response
@@ -2451,8 +2515,11 @@ internal class DefaultSettingDescriptorDataSource(
     /// Gets the rule for a list of key management algorithms that encrypt to a party by its public key: every value
     /// satisfies <see cref="AsymmetricKeyManagementAlgorithm"/>.
     /// </summary>
-    private SettingRule<IReadOnlyCollection<string>> AsymmetricKeyManagementAlgorithms() =>
-        SettingRules.Each(AsymmetricKeyManagementAlgorithm());
+    private SettingRule<IReadOnlyCollection<string>> AsymmetricKeyManagementAlgorithms()
+    {
+        var asymmetricKeyManagementAlgorithmRule = AsymmetricKeyManagementAlgorithm();
+        return SettingRules.Each(asymmetricKeyManagementAlgorithmRule);
+    }
 
     /// <summary>
     /// Gets the rule for a content encryption (<c>enc</c>) algorithm.
@@ -2466,8 +2533,11 @@ internal class DefaultSettingDescriptorDataSource(
     /// <summary>
     /// Gets the rule for a list of content encryption (<c>enc</c>) algorithms.
     /// </summary>
-    private SettingRule<IReadOnlyCollection<string>> ContentEncryptionAlgorithms() =>
-        SettingRules.Each(ContentEncryptionAlgorithm());
+    private SettingRule<IReadOnlyCollection<string>> ContentEncryptionAlgorithms()
+    {
+        var contentEncryptionAlgorithmRule = ContentEncryptionAlgorithm();
+        return SettingRules.Each(contentEncryptionAlgorithmRule);
+    }
 
     // The rule consults the algorithm collection each time it validates, so it follows the registered algorithms as
     // they change.

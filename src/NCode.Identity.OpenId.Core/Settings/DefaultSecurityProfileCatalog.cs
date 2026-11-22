@@ -146,11 +146,15 @@ internal sealed class DefaultSecurityProfileCatalog(
         JsonElement settingsJson,
         string scopeName,
         JsonSerializerOptions jsonOptions
-    ) =>
-        Expand(
-            SettingSerializer.DeserializeSettings(settingsJson, scopeName, jsonOptions),
-            scopeName
+    )
+    {
+        var scopeSettings = SettingSerializer.DeserializeSettings(
+            settingsJson,
+            scopeName,
+            jsonOptions
         );
+        return Expand(scopeSettings, scopeName);
+    }
 
     // The scope's own settings replace the baseline's, as the platform's configuration replaces a descriptor default.
     private IReadOnlySettingCollection Layer(
