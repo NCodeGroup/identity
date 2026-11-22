@@ -4,6 +4,7 @@
 using System.Security.Claims;
 using Microsoft.Extensions.Time.Testing;
 using Moq;
+using NCode.Identity.Jose;
 using NCode.Identity.OpenId.Accounts.Authentication;
 using NCode.Identity.OpenId.Accounts.DataContracts;
 using NCode.Identity.OpenId.Accounts.Stores;
@@ -117,6 +118,7 @@ public class LocalAccountInteractiveCredentialVerifierTests : BaseTests
             TenantId = TenantId,
             LocalAccountId = LocalAccountId,
             UserName = UserName,
+            DisplayName = "Display Name",
             Email = null,
             EmailVerified = false,
             IsEnabled = true,
@@ -280,6 +282,7 @@ public class LocalAccountInteractiveCredentialVerifierTests : BaseTests
 
         Assert.NotNull(principal);
         Assert.Equal(LocalAccountId, principal.FindFirstValue("sub"));
+        Assert.Equal("Display Name", principal.FindFirstValue(JoseClaimNames.Payload.Name));
     }
 
     #endregion

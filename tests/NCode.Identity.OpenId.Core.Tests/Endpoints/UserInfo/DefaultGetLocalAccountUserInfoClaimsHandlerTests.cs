@@ -117,6 +117,7 @@ public class DefaultGetLocalAccountUserInfoClaimsHandlerTests : BaseTests
             TenantId = TenantId,
             LocalAccountId = LocalAccountId,
             UserName = "user",
+            DisplayName = "Display Name",
             Email = email,
             EmailVerified = emailVerified,
             IsEnabled = true,
@@ -258,10 +259,48 @@ public class DefaultGetLocalAccountUserInfoClaimsHandlerTests : BaseTests
 
         await Handler.HandleAsync(command, CancellationToken.None);
 
-        Assert.Equal("Test User", claims[JoseClaimNames.Payload.Name]);
+        Assert.Equal("Display Name", claims[JoseClaimNames.Payload.Name]);
         Assert.Equal("Test", claims[JoseClaimNames.Payload.GivenName]);
         Assert.Equal("user@localhost", claims[JoseClaimNames.Payload.Email]);
         Assert.Equal(true, claims[JoseClaimNames.Payload.EmailVerified]);
+    }
+
+    [Fact]
+    public async Task HandleAsync_WithProfileScope_ReturnsTheDisplayNameAsName()
+    {
+        SetupStoreManager();
+        SetupIdentities(SelfIssuedIdentity());
+        SetupAccount(Account("user@localhost", emailVerified: true));
+
+        var claims = new Dictionary<string, object>();
+        var command = CreateCommand(
+            claims,
+            OpenIdProtocol.ScopeTypes.OpenId,
+            OpenIdProtocol.ScopeTypes.Profile
+        );
+
+        await Handler.HandleAsync(command, CancellationToken.None);
+
+        Assert.Equal("Display Name", claims[JoseClaimNames.Payload.Name]);
+    }
+
+    [Fact]
+    public async Task HandleAsync_WithoutProfileScope_OmitsName()
+    {
+        SetupStoreManager();
+        SetupIdentities(SelfIssuedIdentity());
+        SetupAccount(Account("user@localhost", emailVerified: true));
+
+        var claims = new Dictionary<string, object>();
+        var command = CreateCommand(
+            claims,
+            OpenIdProtocol.ScopeTypes.OpenId,
+            OpenIdProtocol.ScopeTypes.Email
+        );
+
+        await Handler.HandleAsync(command, CancellationToken.None);
+
+        Assert.False(claims.ContainsKey(JoseClaimNames.Payload.Name));
     }
 
     [Fact]
@@ -358,7 +397,7 @@ public class DefaultGetLocalAccountUserInfoClaimsHandlerTests : BaseTests
 
         await Handler.HandleAsync(command, CancellationToken.None);
 
-        Assert.Equal("Test User", claims[JoseClaimNames.Payload.Name]);
+        Assert.Equal("Display Name", claims[JoseClaimNames.Payload.Name]);
     }
 
     [Fact]

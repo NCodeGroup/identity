@@ -77,6 +77,7 @@ public class DefaultCreatePasswordGrantSubjectHandlerTests : BaseTests
             TenantId = string.Empty,
             LocalAccountId = "account-1",
             UserName = "user-1",
+            DisplayName = "Display Name",
             Email = null,
             EmailVerified = false,
             IsEnabled = true,
@@ -98,6 +99,16 @@ public class DefaultCreatePasswordGrantSubjectHandlerTests : BaseTests
         Assert.Equal("account-1", principal.FindFirstValue("sub"));
         Assert.Equal(AccountConstants.SelfIssuer, principal.FindFirstValue("iss"));
         Assert.Equal("admin", principal.FindFirstValue("role"));
+    }
+
+    [Fact]
+    public async Task HandleAsync_StampsTheDisplayNameAsName()
+    {
+        var command = CreateCommand(CreateAccount());
+
+        var principal = await Handler.HandleAsync(command, CancellationToken.None);
+
+        Assert.Equal("Display Name", principal.FindFirstValue(JoseClaimNames.Payload.Name));
     }
 
     [Fact]
