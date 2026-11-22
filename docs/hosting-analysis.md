@@ -434,19 +434,19 @@ No production load data exists yet, so these are **planning estimates**; confirm
 | Component                                    | Replicas                     | CPU request | Memory request / limit |
 | -------------------------------------------- | ---------------------------- | ----------- | ---------------------- |
 | Identity server (ASP.NET Core, .NET 10)      | 2–3                          | 100–250m    | 256 Mi / 512 Mi        |
-| Traefik                                      | 3 (DaemonSet)                | 50m         | 64 Mi / 128 Mi         |
+| Traefik                                      | One per node (DaemonSet)     | 50m         | 64 Mi / 128 Mi         |
 | Valkey (in-cluster, primary + replica)       | 2 (+3 Sentinel if HA)        | 50m         | 128 Mi / 256 Mi        |
 | cert-manager                                 | 1                            | 10m         | 64 Mi                  |
 | CloudNativePG (the lab)                      | 2                            | 250m        | 1 Gi / 1 Gi            |
 
-- **Size for N-1:** after one node fails, the remaining two must still fit every pod.
+- **Size for N-1:** after one node fails, the remaining nodes must still fit every pod.
 - **Production: 4 × Linode 2 GB** (1 shared vCPU and 2 GB each,
   [ADR-1520](decisions/1520-the-hosted-platform-runs-production-on-akamai-lke-in-washington-dc-and-its-lab-on-oci-oke-basic-in-phoenix.md)).
   With one node lost, about 4–4.5 GB is left for workloads, which need about 4 GB
   ([Capacity of the launch cluster](#capacity-of-the-launch-cluster)).
 - **CPU is not the constraint.** A token issuance is a few DB round-trips plus one or two signatures (ES256 ≪ 1 ms,
-  PS256 ~1 ms), so 2 shared vCPUs serve far more than entry-level traffic. DB latency dominates request time
-  ([§5](#postgresql)).
+  PS256 ~1 ms), so production's four shared vCPUs serve far more than entry-level traffic. DB latency dominates request
+  time ([§5](#postgresql)).
 - **Postgres:** 1 vCPU / 1–2 GB / 10–25 GB disk is ample initially. Cap the Npgsql pool (`Maximum Pool Size`) per
   replica so `replicas × pool` stays under the managed plan's connection limit (or use the vendor's PgBouncer pool).
 - **Valkey:** 256 MB–1 GB is plenty.
