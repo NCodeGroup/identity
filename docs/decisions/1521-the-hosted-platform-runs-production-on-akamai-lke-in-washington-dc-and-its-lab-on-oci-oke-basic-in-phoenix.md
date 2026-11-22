@@ -55,10 +55,10 @@ cluster; the lab runs on OCI OKE Basic in Phoenix inside the free allowance; AWS
    or a LAN-only homelab cluster, never under `ncodeid.net`, and may set `LocalDevelopment:Enabled` with the `local`
    root-key provider
    ([ADR-1370](1370-a-host-runs-the-deployment-posture-unless-configured-for-local-development-and-always-names-its-root-key-provider.md)).
-   Runs that need a public OP or three or more nodes (the OpenID Foundation's hosted suite, load tests, topology
-   rehearsals, Key Vault experiments) run on Azure through the Visual Studio credit, created and destroyed per run
-   ([#132](https://github.com/NCodeGroup/identity/issues/132)). Certification runs against production's `conformance`
-   tenant (ADR-1495).
+   Runs that need a public OP, three or more nodes or an Azure service (the OpenID Foundation's hosted suite, load
+   tests, topology rehearsals, Key Vault experiments) run on Azure through the Visual Studio credit, created and
+   destroyed per run ([#132](https://github.com/NCodeGroup/identity/issues/132)). Certification runs against
+   production's `conformance` tenant (ADR-1495).
 5. **Shared foundations.** AWS `us-west-2` holds state, backups and vendor tokens (ADR-1132); Cloudflare hosts DNS
    (ADR-1495); GitHub holds source, CI and images (ADR-1133).
 6. **Growth path.** A cell moves to AWS when a customer needs several availability zones, PrivateLink, Marketplace
