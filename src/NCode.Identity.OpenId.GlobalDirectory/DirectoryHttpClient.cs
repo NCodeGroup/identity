@@ -59,19 +59,20 @@ internal sealed class DirectoryHttpClient(
         string path,
         object? body,
         CancellationToken cancellationToken
-    ) =>
-        SendAsync(
-            new CellApiRequest(
-                method,
-                new Uri(BaseUri, DirectoryClientDefaults.ApiPrefix + path),
-                GlobalDirectoryProtocol.DirectoryAudience,
-                GlobalDirectoryProtocol.DirectoryScope
-            )
-            {
-                Body = body,
-            },
-            cancellationToken
-        );
+    )
+    {
+        var uri = new Uri(BaseUri, DirectoryClientDefaults.ApiPrefix + path);
+        var cellRequest = new CellApiRequest(
+            method,
+            uri,
+            GlobalDirectoryProtocol.DirectoryAudience,
+            GlobalDirectoryProtocol.DirectoryScope
+        )
+        {
+            Body = body,
+        };
+        return SendAsync(cellRequest, cancellationToken);
+    }
 
     /// <summary>
     /// Sends a request to the directory service or to the control plane.
@@ -99,14 +100,17 @@ internal sealed class DirectoryHttpClient(
 
         using var request = new HttpRequestMessage(method, uri);
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
-        request.Headers.Accept.Add(
-            new MediaTypeWithQualityHeaderValue(MediaTypeNames.Application.Json)
-        );
+        var acceptJson = new MediaTypeWithQualityHeaderValue(MediaTypeNames.Application.Json);
+        request.Headers.Accept.Add(acceptJson);
         if (cellRequest.Body is { } body)
         {
-            var content = new ByteArrayContent(
-                JsonSerializer.SerializeToUtf8Bytes(body, body.GetType(), DirectoryJson.Options)
+            var bodyType = body.GetType();
+            var bodyBytes = JsonSerializer.SerializeToUtf8Bytes(
+                body,
+                bodyType,
+                DirectoryJson.Options
             );
+            var content = new ByteArrayContent(bodyBytes);
             content.Headers.ContentType = new MediaTypeHeaderValue(MediaTypeNames.Application.Json);
             request.Content = content;
         }
@@ -171,7 +175,8 @@ internal sealed class DirectoryHttpClient(
                 $"{DirectoryClientOptions.SectionName}:{nameof(DirectoryClientOptions.Url)} is not set."
             );
 
-        return new Uri(url.EndsWith('/') ? url : url + '/', UriKind.Absolute);
+        var endsWithSlash = url.EndsWith('/');
+        return new Uri(endsWithSlash ? url : url + '/', UriKind.Absolute);
     }
 
     /// <summary>

@@ -69,12 +69,11 @@ public static class DefaultRegistration
                 .AddOptions<DirectoryClientOptions>()
                 .Configure(options => section.BindStrictly(options))
                 .ValidateOnStart();
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    IValidateOptions<DirectoryClientOptions>,
-                    DirectoryClientOptionsValidator
-                >()
-            );
+            var optionsValidator = ServiceDescriptor.Singleton<
+                IValidateOptions<DirectoryClientOptions>,
+                DirectoryClientOptionsValidator
+            >();
+            serviceCollection.TryAddEnumerable(optionsValidator);
 
             serviceCollection.TryAddSingleton(TimeProvider.System);
             serviceCollection.TryAddSingleton<ICellTokenSource, DefaultCellTokenSource>();
@@ -82,18 +81,20 @@ public static class DefaultRegistration
 
             // The local adapters are registered with TryAdd, so Replace makes the remote adapters win whichever
             // registration runs first.
-            serviceCollection.Replace(
-                ServiceDescriptor.Singleton<ITenantDirectory, RemoteTenantDirectory>()
-            );
-            serviceCollection.Replace(
-                ServiceDescriptor.Singleton<ITeamDirectory, RemoteTeamDirectory>()
-            );
-            serviceCollection.Replace(
-                ServiceDescriptor.Singleton<IPlatformDirectory, RemotePlatformDirectory>()
-            );
-            serviceCollection.Replace(
-                ServiceDescriptor.Singleton<ICellDirectory, RemoteCellDirectory>()
-            );
+            var tenantDirectory = ServiceDescriptor.Singleton<
+                ITenantDirectory,
+                RemoteTenantDirectory
+            >();
+            serviceCollection.Replace(tenantDirectory);
+            var teamDirectory = ServiceDescriptor.Singleton<ITeamDirectory, RemoteTeamDirectory>();
+            serviceCollection.Replace(teamDirectory);
+            var platformDirectory = ServiceDescriptor.Singleton<
+                IPlatformDirectory,
+                RemotePlatformDirectory
+            >();
+            serviceCollection.Replace(platformDirectory);
+            var cellDirectory = ServiceDescriptor.Singleton<ICellDirectory, RemoteCellDirectory>();
+            serviceCollection.Replace(cellDirectory);
 
             // Every cell registers the remote management adapters under the key that Management's registration looks
             // up. Management chooses between the local and the remote adapter from the cell's options at resolution, so
@@ -109,17 +110,23 @@ public static class DefaultRegistration
             >(ControlPlaneServiceKeys.Remote);
 
             // The start check refuses an unusable control-plane issuer before the cell registers with the directory.
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<IHostedService, DirectoryClientStartupCheck>()
-            );
+            var startupCheck = ServiceDescriptor.Singleton<
+                IHostedService,
+                DirectoryClientStartupCheck
+            >();
+            serviceCollection.TryAddEnumerable(startupCheck);
 
             // The cell announces itself to the directory when the host starts, then follows its change feed.
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<IHostedService, CellRegistrationService>()
-            );
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<IHostedService, DirectoryChangeFeedService>()
-            );
+            var registrationService = ServiceDescriptor.Singleton<
+                IHostedService,
+                CellRegistrationService
+            >();
+            serviceCollection.TryAddEnumerable(registrationService);
+            var changeFeedService = ServiceDescriptor.Singleton<
+                IHostedService,
+                DirectoryChangeFeedService
+            >();
+            serviceCollection.TryAddEnumerable(changeFeedService);
 
             return builder;
         }

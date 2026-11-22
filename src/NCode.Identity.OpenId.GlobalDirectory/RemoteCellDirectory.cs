@@ -24,9 +24,10 @@ internal sealed class RemoteCellDirectory(DirectoryHttpClient client) : ICellDir
     {
         ArgumentNullException.ThrowIfNull(descriptor);
 
+        var segment = DirectoryHttpClient.Segment(descriptor.Name);
         var response = await Client.SendAsync(
             HttpMethod.Put,
-            $"{Prefix}/{DirectoryHttpClient.Segment(descriptor.Name)}",
+            $"{Prefix}/{segment}",
             descriptor,
             cancellationToken
         );
@@ -58,9 +59,10 @@ internal sealed class RemoteCellDirectory(DirectoryHttpClient client) : ICellDir
     {
         ArgumentException.ThrowIfNullOrEmpty(name);
 
+        var segment = DirectoryHttpClient.Segment(name);
         var response = await Client.SendAsync(
             HttpMethod.Get,
-            $"{Prefix}/{DirectoryHttpClient.Segment(name)}",
+            $"{Prefix}/{segment}",
             body: null,
             cancellationToken
         );

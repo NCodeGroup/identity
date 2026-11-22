@@ -26,17 +26,19 @@ internal sealed class RemoteTeamDirectory(DirectoryHttpClient client) : ITeamDir
     {
         ArgumentException.ThrowIfNullOrEmpty(teamId);
 
+        var segment = DirectoryHttpClient.Segment(teamId);
         var response = await Client.SendAsync(
             HttpMethod.Post,
-            $"{Prefix}{DirectoryHttpClient.Segment(teamId)}/reserve",
+            $"{Prefix}{segment}/reserve",
             body: null,
             cancellationToken
         );
 
         if (response.IsConflict)
-            return ReservationResult.Conflict(
-                response.ReadProblemDetail("The directory refused to reserve a team.")
-            );
+        {
+            var detail = response.ReadProblemDetail("The directory refused to reserve a team.");
+            return ReservationResult.Conflict(detail);
+        }
 
         response.EnsureSuccess("reserve a team");
         return ReservationResult.Reserved();
@@ -47,9 +49,10 @@ internal sealed class RemoteTeamDirectory(DirectoryHttpClient client) : ITeamDir
     {
         ArgumentNullException.ThrowIfNull(document);
 
+        var segment = DirectoryHttpClient.Segment(document.TeamId);
         var response = await Client.SendAsync(
             HttpMethod.Put,
-            $"{Prefix}{DirectoryHttpClient.Segment(document.TeamId)}/document",
+            $"{Prefix}{segment}/document",
             document,
             cancellationToken
         );
@@ -62,9 +65,10 @@ internal sealed class RemoteTeamDirectory(DirectoryHttpClient client) : ITeamDir
     {
         ArgumentException.ThrowIfNullOrEmpty(teamId);
 
+        var segment = DirectoryHttpClient.Segment(teamId);
         var response = await Client.SendAsync(
             HttpMethod.Post,
-            $"{Prefix}{DirectoryHttpClient.Segment(teamId)}/release",
+            $"{Prefix}{segment}/release",
             body: null,
             cancellationToken
         );
@@ -77,9 +81,10 @@ internal sealed class RemoteTeamDirectory(DirectoryHttpClient client) : ITeamDir
     {
         ArgumentException.ThrowIfNullOrEmpty(teamId);
 
+        var segment = DirectoryHttpClient.Segment(teamId);
         var response = await Client.SendAsync(
             HttpMethod.Post,
-            $"{Prefix}{DirectoryHttpClient.Segment(teamId)}/retire",
+            $"{Prefix}{segment}/retire",
             body: null,
             cancellationToken
         );
@@ -95,9 +100,10 @@ internal sealed class RemoteTeamDirectory(DirectoryHttpClient client) : ITeamDir
     {
         ArgumentException.ThrowIfNullOrEmpty(teamId);
 
+        var segment = DirectoryHttpClient.Segment(teamId);
         var response = await Client.SendAsync(
             HttpMethod.Get,
-            $"{Prefix}{DirectoryHttpClient.Segment(teamId)}/retired",
+            $"{Prefix}{segment}/retired",
             body: null,
             cancellationToken
         );
@@ -117,9 +123,10 @@ internal sealed class RemoteTeamDirectory(DirectoryHttpClient client) : ITeamDir
     {
         ArgumentException.ThrowIfNullOrEmpty(teamId);
 
+        var segment = DirectoryHttpClient.Segment(teamId);
         var response = await Client.SendAsync(
             HttpMethod.Get,
-            $"{Prefix}{DirectoryHttpClient.Segment(teamId)}/document",
+            $"{Prefix}{segment}/document",
             body: null,
             cancellationToken
         );
@@ -138,12 +145,8 @@ internal sealed class RemoteTeamDirectory(DirectoryHttpClient client) : ITeamDir
         CancellationToken cancellationToken
     )
     {
-        var response = await Client.SendAsync(
-            HttpMethod.Get,
-            FormattableString.Invariant($"{Prefix}changes?after={after}&limit={limit}"),
-            body: null,
-            cancellationToken
-        );
+        var path = FormattableString.Invariant($"{Prefix}changes?after={after}&limit={limit}");
+        var response = await Client.SendAsync(HttpMethod.Get, path, body: null, cancellationToken);
 
         response.EnsureSuccess("list the team changes");
         return response.Read<List<DirectoryChange>>();

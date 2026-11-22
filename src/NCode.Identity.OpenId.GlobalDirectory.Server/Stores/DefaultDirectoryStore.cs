@@ -212,21 +212,20 @@ internal sealed class DefaultDirectoryStore(
                 }
 
                 var now = TimeProvider.GetUtcNow();
-                dbContext.Tenants.Add(
-                    new TenantRecord
-                    {
-                        Id = KeyGenerator.CreateKey(),
-                        TenantId = tenantId,
-                        NormalizedTenantId = normalizedTenantId,
-                        Issuer = reservation.Issuer,
-                        NormalizedIssuer = normalizedIssuer,
-                        NormalizedTeamId = normalizedTeamId,
-                        Cell = reservation.Cell,
-                        State = TenantRecord.StateReserved,
-                        CreatedWhen = now,
-                        ModifiedWhen = now,
-                    }
-                );
+                var reservedTenant = new TenantRecord
+                {
+                    Id = KeyGenerator.CreateKey(),
+                    TenantId = tenantId,
+                    NormalizedTenantId = normalizedTenantId,
+                    Issuer = reservation.Issuer,
+                    NormalizedIssuer = normalizedIssuer,
+                    NormalizedTeamId = normalizedTeamId,
+                    Cell = reservation.Cell,
+                    State = TenantRecord.StateReserved,
+                    CreatedWhen = now,
+                    ModifiedWhen = now,
+                };
+                dbContext.Tenants.Add(reservedTenant);
                 await dbContext.SaveChangesAsync(cancellationToken);
                 await transaction.CommitAsync(cancellationToken);
 
@@ -273,14 +272,22 @@ internal sealed class DefaultDirectoryStore(
                     );
                 }
 
-                if (
-                    !string.Equals(tenant.Cell, placement.Cell, StringComparison.Ordinal)
-                    || !string.Equals(
+                var isReservedElsewhere = !string.Equals(
+                    tenant.Cell,
+                    placement.Cell,
+                    StringComparison.Ordinal
+                );
+                if (!isReservedElsewhere)
+                {
+                    var normalizedPlacementIssuer = Normalize(placement.Issuer);
+                    isReservedElsewhere = !string.Equals(
                         tenant.NormalizedIssuer,
-                        Normalize(placement.Issuer),
+                        normalizedPlacementIssuer,
                         StringComparison.Ordinal
-                    )
-                )
+                    );
+                }
+
+                if (isReservedElsewhere)
                 {
                     return ReservationResult.Conflict(
                         $"The tenant '{tenantId}' is reserved for another cell or issuer."
@@ -569,17 +576,16 @@ internal sealed class DefaultDirectoryStore(
                 );
                 if (offer is null)
                 {
-                    dbContext.TenantMoveOffers.Add(
-                        new TenantMoveOfferRecord
-                        {
-                            Id = KeyGenerator.CreateKey(),
-                            NormalizedTenantId = normalizedTenantId,
-                            FromCell = fromCell,
-                            ToCell = toCell,
-                            CreatedWhen = now,
-                            ExpiresWhen = now.AddHours(MoveOfferLifetimeHours),
-                        }
-                    );
+                    var newOffer = new TenantMoveOfferRecord
+                    {
+                        Id = KeyGenerator.CreateKey(),
+                        NormalizedTenantId = normalizedTenantId,
+                        FromCell = fromCell,
+                        ToCell = toCell,
+                        CreatedWhen = now,
+                        ExpiresWhen = now.AddHours(MoveOfferLifetimeHours),
+                    };
+                    dbContext.TenantMoveOffers.Add(newOffer);
                 }
                 else
                 {
@@ -655,17 +661,16 @@ internal sealed class DefaultDirectoryStore(
                 {
                     // A tenant with no record holds no issuer the directory knows, so the retirement names it.
                     issuer = retirement.Issuer;
-                    dbContext.Tenants.Add(
-                        new TenantRecord
-                        {
-                            Id = KeyGenerator.CreateKey(),
-                            TenantId = tenantId,
-                            NormalizedTenantId = normalizedTenantId,
-                            State = TenantRecord.StateRetired,
-                            CreatedWhen = now,
-                            ModifiedWhen = now,
-                        }
-                    );
+                    var retiredTenant = new TenantRecord
+                    {
+                        Id = KeyGenerator.CreateKey(),
+                        TenantId = tenantId,
+                        NormalizedTenantId = normalizedTenantId,
+                        State = TenantRecord.StateRetired,
+                        CreatedWhen = now,
+                        ModifiedWhen = now,
+                    };
+                    dbContext.Tenants.Add(retiredTenant);
                 }
                 else if (tenant.State == TenantRecord.StateRetired)
                 {
@@ -917,9 +922,10 @@ internal sealed class DefaultDirectoryStore(
     {
         await using var dbContext = await DbContextFactory.CreateDbContextAsync(cancellationToken);
 
+        var normalizedIssuer = Normalize(issuer);
         return await GetRetiredIssuerHolderCoreAsync(
             dbContext,
-            Normalize(issuer),
+            normalizedIssuer,
             cancellationToken
         );
     }
@@ -941,9 +947,10 @@ internal sealed class DefaultDirectoryStore(
         CancellationToken cancellationToken
     )
     {
+        var normalizedIssuer = Normalize(issuer);
         var formerHolder = await GetRetiredIssuerHolderCoreAsync(
             dbContext,
-            Normalize(issuer),
+            normalizedIssuer,
             cancellationToken
         );
         return
@@ -1001,15 +1008,14 @@ internal sealed class DefaultDirectoryStore(
             return;
         }
 
-        dbContext.RetiredIssuers.Add(
-            new RetiredIssuerRecord
-            {
-                Id = KeyGenerator.CreateKey(),
-                Issuer = issuer,
-                NormalizedIssuer = normalizedIssuer,
-                TenantId = tenantId,
-            }
-        );
+        var retiredIssuer = new RetiredIssuerRecord
+        {
+            Id = KeyGenerator.CreateKey(),
+            Issuer = issuer,
+            NormalizedIssuer = normalizedIssuer,
+            TenantId = tenantId,
+        };
+        dbContext.RetiredIssuers.Add(retiredIssuer);
     }
 
     /// <summary>
@@ -1388,21 +1394,20 @@ internal sealed class DefaultDirectoryStore(
                     );
                 }
 
-                dbContext.Teams.Add(
-                    new TeamRecord
-                    {
-                        Id = KeyGenerator.CreateKey(),
-                        TeamId = teamId,
-                        NormalizedTeamId = normalizedTeamId,
-                        NormalizedPath = await GetTeamPathAsync(
-                            dbContext,
-                            normalizedTeamId,
-                            null,
-                            cancellationToken
-                        ),
-                        State = TeamRecord.StateReserved,
-                    }
-                );
+                var reservedTeam = new TeamRecord
+                {
+                    Id = KeyGenerator.CreateKey(),
+                    TeamId = teamId,
+                    NormalizedTeamId = normalizedTeamId,
+                    NormalizedPath = await GetTeamPathAsync(
+                        dbContext,
+                        normalizedTeamId,
+                        null,
+                        cancellationToken
+                    ),
+                    State = TeamRecord.StateReserved,
+                };
+                dbContext.Teams.Add(reservedTeam);
                 await dbContext.SaveChangesAsync(cancellationToken);
                 await transaction.CommitAsync(cancellationToken);
 
@@ -1483,7 +1488,8 @@ internal sealed class DefaultDirectoryStore(
                 // A path deeper than the directory stores is refused before anything is written.
                 if (GetTeamDepth(teamPath) > DirectoryLimits.MaxTeamDepth)
                 {
-                    return DirectoryTeamWriteResult.Refused(GetTeamTooDeepDetail(document.TeamId));
+                    var tooDeepDetail = GetTeamTooDeepDetail(document.TeamId);
+                    return DirectoryTeamWriteResult.Refused(tooDeepDetail);
                 }
 
                 // The directory assigns the sequence, so the stored document carries none: it is read back from the
@@ -1539,7 +1545,8 @@ internal sealed class DefaultDirectoryStore(
                 {
                     // Returning before the commit rolls the transaction back, so the change record, the sequence
                     // and the team row are discarded, and no child is re-pathed.
-                    return DirectoryTeamWriteResult.Refused(GetTeamTooDeepDetail(tooDeepTeamId));
+                    var tooDeepChildDetail = GetTeamTooDeepDetail(tooDeepTeamId);
+                    return DirectoryTeamWriteResult.Refused(tooDeepChildDetail);
                 }
 
                 // The re-pathed rows are saved before the subtree query reads their new paths.
@@ -1691,10 +1698,8 @@ internal sealed class DefaultDirectoryStore(
             return null;
         }
 
-        var document = PayloadSerializer.Deserialize<TeamDocument>(
-            JsonElement.Parse(documentJson),
-            JsonOptions
-        );
+        var documentElement = JsonElement.Parse(documentJson);
+        var document = PayloadSerializer.Deserialize<TeamDocument>(documentElement, JsonOptions);
         return document with { Sequence = team.Sequence };
     }
 
@@ -1710,11 +1715,12 @@ internal sealed class DefaultDirectoryStore(
     {
         await using var dbContext = await DbContextFactory.CreateDbContextAsync(cancellationToken);
 
+        var take = Math.Max(limit, 0);
         var records = await dbContext
             .Changes.AsNoTracking()
             .Where(entity => entity.Sequence > after)
             .OrderBy(entity => entity.Sequence)
-            .Take(Math.Max(limit, 0))
+            .Take(take)
             .ToListAsync(cancellationToken);
 
         var changes = new List<DirectoryChange>(records.Count);
@@ -1733,35 +1739,32 @@ internal sealed class DefaultDirectoryStore(
 
             if (record.TeamId is null)
             {
-                changes.Add(
-                    new DirectoryChange
-                    {
-                        Sequence = record.Sequence,
-                        Platform = ReadPlatformDocument(record.DocumentJson, record.Sequence),
-                    }
-                );
+                var platformChange = new DirectoryChange
+                {
+                    Sequence = record.Sequence,
+                    Platform = ReadPlatformDocument(record.DocumentJson, record.Sequence),
+                };
+                changes.Add(platformChange);
                 continue;
             }
 
-            var document = record.DocumentJson is null
-                ? null
-                : PayloadSerializer.Deserialize<TeamDocument>(
-                    JsonElement.Parse(record.DocumentJson),
+            TeamDocument? document = null;
+            if (record.DocumentJson is not null)
+            {
+                var documentElement = JsonElement.Parse(record.DocumentJson);
+                document = PayloadSerializer.Deserialize<TeamDocument>(
+                    documentElement,
                     JsonOptions
                 );
-            changes.Add(
-                new DirectoryChange
-                {
-                    Sequence = record.Sequence,
-                    TeamId = record.TeamId,
-                    Document = document is null
-                        ? null
-                        : document with
-                        {
-                            Sequence = record.Sequence,
-                        },
-                }
-            );
+            }
+
+            var teamChange = new DirectoryChange
+            {
+                Sequence = record.Sequence,
+                TeamId = record.TeamId,
+                Document = document is null ? null : document with { Sequence = record.Sequence },
+            };
+            changes.Add(teamChange);
         }
 
         return changes;
@@ -1795,16 +1798,15 @@ internal sealed class DefaultDirectoryStore(
                 );
                 if (cell is null)
                 {
-                    dbContext.Cells.Add(
-                        new CellRecord
-                        {
-                            Name = descriptor.Name,
-                            Region = descriptor.Region,
-                            Kind = descriptor.Kind,
-                            ManagementUrl = descriptor.ManagementUrl,
-                            IsControlPlane = descriptor.IsControlPlane,
-                        }
-                    );
+                    var newCell = new CellRecord
+                    {
+                        Name = descriptor.Name,
+                        Region = descriptor.Region,
+                        Kind = descriptor.Kind,
+                        ManagementUrl = descriptor.ManagementUrl,
+                        IsControlPlane = descriptor.IsControlPlane,
+                    };
+                    dbContext.Cells.Add(newCell);
                 }
                 else
                 {
@@ -1912,13 +1914,12 @@ internal sealed class DefaultDirectoryStore(
                 );
                 if (platform is null)
                 {
-                    dbContext.Platforms.Add(
-                        new PlatformRecord
-                        {
-                            DocumentJson = documentJson,
-                            Sequence = change.Sequence,
-                        }
-                    );
+                    var newPlatform = new PlatformRecord
+                    {
+                        DocumentJson = documentJson,
+                        Sequence = change.Sequence,
+                    };
+                    dbContext.Platforms.Add(newPlatform);
                 }
                 else
                 {
@@ -1973,8 +1974,9 @@ internal sealed class DefaultDirectoryStore(
             return null;
         }
 
+        var documentElement = JsonElement.Parse(documentJson);
         var document = PayloadSerializer.Deserialize<PlatformDocument>(
-            JsonElement.Parse(documentJson),
+            documentElement,
             JsonOptions
         );
         return document with { Sequence = sequence };
