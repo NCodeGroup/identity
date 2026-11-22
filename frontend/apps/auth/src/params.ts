@@ -70,8 +70,7 @@ export const PASSWORD_PATH = 'password';
 export const PASSWORD_FORGOT_PATH = 'password/forgot';
 
 /**
- * The reset-password page, where an end-user presents the reset code and chooses a new password; its form posts to
- * it.
+ * The reset-password page, where an end-user presents the reset code and chooses a new password; its form posts to it.
  */
 export const PASSWORD_RESET_PATH = 'password/reset';
 

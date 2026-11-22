@@ -27,9 +27,9 @@ export type ResetPasswordPageProps = {
 
 /**
  * The reset-password page, where an end-user who is not signed in presents the code from the email and chooses a new
- * password. It submits as a native HTML form POST to the same path, carrying the antiforgery token, the return URL
- * and the flow handle; the server redirects to the login page, or back with an error code that keeps the flow. The
- * stable element ids (`code`, `new_password`, `confirm_password`, `reset-password`) are the automation contract.
+ * password. It submits as a native HTML form POST to the same path, carrying the antiforgery token, the return URL and
+ * the flow handle; the server redirects to the login page, or back with an error code that keeps the flow. The stable
+ * element ids (`code`, `new_password`, `confirm_password`, `reset-password`) are the automation contract.
  */
 export function ResetPasswordPage({
   antiforgeryToken,

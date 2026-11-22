@@ -53,9 +53,9 @@ async function fetchEmail(): Promise<AccountEmail | null> {
 
 /**
  * The self-service email page, where the signed-in end-user verifies the account's email address. It loads the address
- * and shows whether it is verified. An unverified address offers a form that mails a code; once the host has mailed
- * one and redirected back with its flow handle, the page offers a form that presents the code. Both forms are native
- * HTML form POSTs carrying the antiforgery token, so the server runs the full verification seam and redirects.
+ * and shows whether it is verified. An unverified address offers a form that mails a code; once the host has mailed one
+ * and redirected back with its flow handle, the page offers a form that presents the code. Both forms are native HTML
+ * form POSTs carrying the antiforgery token, so the server runs the full verification seam and redirects.
  */
 export function EmailPage({
   antiforgeryToken,
