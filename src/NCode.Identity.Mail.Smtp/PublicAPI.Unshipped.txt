@@ -1,0 +1,27 @@
+#nullable enable
+const NCode.Identity.Mail.Smtp.Options.SmtpMailTransportOptions.SectionName = "Mail:Smtp" -> string!
+NCode.Identity.Mail.Smtp.DefaultRegistration
+NCode.Identity.Mail.Smtp.DefaultRegistration.extension(NCode.Identity.Registration.IServiceBuilder<NCode.Identity.Mail.MailLibrary>!)
+NCode.Identity.Mail.Smtp.DefaultRegistration.extension(NCode.Identity.Registration.IServiceBuilder<NCode.Identity.Mail.MailLibrary>!).AddSmtpMailTransport(Microsoft.Extensions.Configuration.IConfiguration! configuration) -> NCode.Identity.Registration.IServiceBuilder<NCode.Identity.Mail.MailLibrary>!
+NCode.Identity.Mail.Smtp.Options.SmtpMailTransportOptions
+NCode.Identity.Mail.Smtp.Options.SmtpMailTransportOptions.From.get -> string!
+NCode.Identity.Mail.Smtp.Options.SmtpMailTransportOptions.From.set -> void
+NCode.Identity.Mail.Smtp.Options.SmtpMailTransportOptions.FromName.get -> string?
+NCode.Identity.Mail.Smtp.Options.SmtpMailTransportOptions.FromName.set -> void
+NCode.Identity.Mail.Smtp.Options.SmtpMailTransportOptions.Host.get -> string!
+NCode.Identity.Mail.Smtp.Options.SmtpMailTransportOptions.Host.set -> void
+NCode.Identity.Mail.Smtp.Options.SmtpMailTransportOptions.Password.get -> string?
+NCode.Identity.Mail.Smtp.Options.SmtpMailTransportOptions.Password.set -> void
+NCode.Identity.Mail.Smtp.Options.SmtpMailTransportOptions.Port.get -> int
+NCode.Identity.Mail.Smtp.Options.SmtpMailTransportOptions.Port.set -> void
+NCode.Identity.Mail.Smtp.Options.SmtpMailTransportOptions.SmtpMailTransportOptions() -> void
+NCode.Identity.Mail.Smtp.Options.SmtpMailTransportOptions.Timeout.get -> System.TimeSpan
+NCode.Identity.Mail.Smtp.Options.SmtpMailTransportOptions.Timeout.set -> void
+NCode.Identity.Mail.Smtp.Options.SmtpMailTransportOptions.Tls.get -> NCode.Identity.Mail.Smtp.SmtpTls
+NCode.Identity.Mail.Smtp.Options.SmtpMailTransportOptions.Tls.set -> void
+NCode.Identity.Mail.Smtp.Options.SmtpMailTransportOptions.UserName.get -> string?
+NCode.Identity.Mail.Smtp.Options.SmtpMailTransportOptions.UserName.set -> void
+NCode.Identity.Mail.Smtp.SmtpTls
+NCode.Identity.Mail.Smtp.SmtpTls.ImplicitTls = 1 -> NCode.Identity.Mail.Smtp.SmtpTls
+NCode.Identity.Mail.Smtp.SmtpTls.None = 2 -> NCode.Identity.Mail.Smtp.SmtpTls
+NCode.Identity.Mail.Smtp.SmtpTls.StartTls = 0 -> NCode.Identity.Mail.Smtp.SmtpTls

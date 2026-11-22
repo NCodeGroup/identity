@@ -133,6 +133,11 @@
     <PackageVersion Include="StackExchange.Redis" Version="3.4.5" />
   </ItemGroup>
 
+  <!-- Outbound mail (NCode.Identity.Mail.Smtp only). MailKit submits mail over SMTP with STARTTLS or implicit TLS (ADR-1532). -->
+  <ItemGroup>
+    <PackageVersion Include="MailKit" Version="5.0.0" />
+  </ItemGroup>
+
   <!-- Root key provider (NCode.Identity.Secrets.AwsKms only). AWSSDK.SecurityToken is loaded by the AWS SDK
        at runtime to exchange a web identity token for credentials. -->
   <ItemGroup>
