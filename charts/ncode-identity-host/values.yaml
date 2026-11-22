@@ -93,8 +93,8 @@ directory:
     #    curve: P-256
   # Runs the directory host as its own Deployment, with a Service and a pre-install and pre-upgrade Job that applies its
   # migrations. The directory keeps its single-use state in process, so it runs one replica. The issuer, controlPlaneCell,
-  # allowedHosts, database, migrations.database, backendTls, ingress, httpRoute, serviceAccount, image and extra* values
-  # are refused while enabled is false.
+  # controlPlaneTenantId, allowedHosts, database, migrations.database, backendTls, ingress, httpRoute, serviceAccount,
+  # image and extra* values are refused while enabled is false.
   enabled: false
   # The issuer of the control-plane cell (DirectoryServer:Issuer), whose bearer tokens the directory accepts. Required
   # when enabled. An `https` URL, or an `http` URL on a loopback host, with no user information, query or fragment.
@@ -102,6 +102,12 @@ directory:
   # The name of the control-plane cell (DirectoryServer:ControlPlaneCell), the only cell that writes the platform and the
   # teams. Required when enabled.
   controlPlaneCell: ""
+  # The identifier of the control-plane cell's root tenant (DirectoryServer:ControlPlaneTenantId), which the directory
+  # holds for that cell so no other cell reserves it. Empty takes it from this release when its cell is the
+  # control-plane cell (cell.isControlPlane is true and cell.name is controlPlaneCell):
+  # tenantResolution.staticSingle.tenantId, or `default`, under StaticSingle, and otherwise the value of an extraEnv
+  # entry named OpenId__TenantResolution__Root__TenantId, or `root`. Required when enabled in a release of another cell.
+  controlPlaneTenantId: ""
   # The host names the directory answers to (AllowedHosts), such as the host of url. The probes send the first. Required
   # when enabled; '*' is refused.
   allowedHosts: []

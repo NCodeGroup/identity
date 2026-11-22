@@ -835,6 +835,12 @@ jobs:
           refuse --set directory.issuer=https://user@id.example.com
           refuse --set directory.issuer=http://id.example.com
           refuse --set directory.controlPlaneCell=
+          # The directory holds the control-plane cell's root tenant, which a release of another cell, or a root
+          # tenant of the control-plane cell that no value gives, leaves unnamed.
+          refuse --set directory.controlPlaneCell=other-cell
+          refuse --set directory.controlPlaneTenantId=Root
+          refuse --set tenantResolution.strategyCode=DynamicByPath \
+            --set-json 'extraEnv=[{"name":"OpenId__TenantResolution__Root__TenantId","valueFrom":{"secretKeyRef":{"name":"root","key":"tenant-id"}}}]'
           refuse --set directory.database.existingSecret=
           # A directory connection is one form: a connection string or the parts of an operator's Secret (ADR-1509).
           refuse --set directory.database.parts.existingSecret=directory-app
@@ -892,8 +898,16 @@ jobs:
           }
           deployment="$(render templates/directory-deployment.yaml)"
           expect "$deployment" 'type: Recreate' 'DirectoryServer__Issuer' 'DirectoryServer__ControlPlaneCell' \
+            'DirectoryServer__ControlPlaneTenantId' \
             'name: ConnectionStrings__directory$' 'name: directory-database$' 'secretName: directory-tls' \
             'automountServiceAccountToken: false'
+          # The directory holds the control-plane cell's root tenant, which that cell's release names.
+          tenant() { render templates/directory-deployment.yaml "$@" | grep -A1 'name: DirectoryServer__ControlPlaneTenantId'; }
+          expect "$(tenant)" 'value: "default"'
+          expect "$(tenant --set tenantResolution.staticSingle.tenantId=acme)" 'value: "acme"'
+          expect "$(tenant --set tenantResolution.strategyCode=DynamicByPath)" 'value: "root"'
+          expect "$(tenant --set directory.controlPlaneCell=other-cell --set directory.controlPlaneTenantId=cp-root)" \
+            'value: "cp-root"'
           # The Deployment carries the runtime role's connection and never the owner's, and not the role's name.
           reject "$deployment" 'directory-database-owner' 'DirectoryMigration__RuntimeRole'
           job="$(render templates/directory-migration-job.yaml \

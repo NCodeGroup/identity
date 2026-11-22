@@ -335,8 +335,8 @@ applied. Rendered for its side effect only.
 {{- include "identity-host.serviceUrlValidate" (dict "path" "cell.controlPlaneIssuer" "value" .Values.cell.controlPlaneIssuer "httpsOnly" false) }}
 {{- end }}
 {{- $directory := .Values.directory }}
-{{- if and (not $directory.enabled) (or $directory.issuer $directory.controlPlaneCell $directory.allowedHosts $directory.database.runtimeRole $directory.database.existingSecret $directory.database.parts.existingSecret $directory.migrations.database.existingSecret $directory.migrations.database.parts.existingSecret $directory.backendTls.existingSecret $directory.backendTls.ingressSecret $directory.backendTls.caConfigMap $directory.ingress.enabled $directory.httpRoute.enabled $directory.extraEnv $directory.extraEnvFrom $directory.extraVolumes $directory.extraVolumeMounts $directory.serviceAccount.name $directory.serviceAccount.annotations $directory.image.tag $directory.image.digest) }}
-{{- fail "directory.issuer, directory.controlPlaneCell, directory.allowedHosts, directory.database, directory.migrations.database, directory.backendTls, directory.ingress, directory.httpRoute, directory.serviceAccount, directory.image and directory.extra* configure the directory host, which runs only when directory.enabled is true: set directory.enabled, or clear them." }}
+{{- if and (not $directory.enabled) (or $directory.issuer $directory.controlPlaneCell $directory.controlPlaneTenantId $directory.allowedHosts $directory.database.runtimeRole $directory.database.existingSecret $directory.database.parts.existingSecret $directory.migrations.database.existingSecret $directory.migrations.database.parts.existingSecret $directory.backendTls.existingSecret $directory.backendTls.ingressSecret $directory.backendTls.caConfigMap $directory.ingress.enabled $directory.httpRoute.enabled $directory.extraEnv $directory.extraEnvFrom $directory.extraVolumes $directory.extraVolumeMounts $directory.serviceAccount.name $directory.serviceAccount.annotations $directory.image.tag $directory.image.digest) }}
+{{- fail "directory.issuer, directory.controlPlaneCell, directory.controlPlaneTenantId, directory.allowedHosts, directory.database, directory.migrations.database, directory.backendTls, directory.ingress, directory.httpRoute, directory.serviceAccount, directory.image and directory.extra* configure the directory host, which runs only when directory.enabled is true: set directory.enabled, or clear them." }}
 {{- end }}
 {{- if and .Values.directory.url .Values.directory.keyRing }}
 {{- $directoryKeys := .Values.directory.keys }}
@@ -1268,6 +1268,31 @@ The directory's container image: the digest when one is set, else the tag, which
 {{- end }}
 
 {{/*
+The identifier of the control-plane cell's root tenant, which the directory holds for that cell:
+directory.controlPlaneTenantId when set. Else, in the release of the control-plane cell (cell.isControlPlane is true and
+cell.name is directory.controlPlaneCell), the tenant the release serves: tenantResolution.staticSingle.tenantId, or
+`default`, under StaticSingle, and otherwise the value of an extraEnv entry named
+OpenId__TenantResolution__Root__TenantId, or `root`. An entry with valueFrom gives an empty identifier. Else empty.
+*/}}
+{{- define "identity-host.directory.controlPlaneTenantId" -}}
+{{- if .Values.directory.controlPlaneTenantId }}
+{{- .Values.directory.controlPlaneTenantId }}
+{{- else if and .Values.cell.isControlPlane (eq .Values.cell.name .Values.directory.controlPlaneCell) }}
+{{- if eq .Values.tenantResolution.strategyCode "StaticSingle" }}
+{{- .Values.tenantResolution.staticSingle.tenantId | default "default" }}
+{{- else }}
+{{- $rootTenantId := "root" }}
+{{- range .Values.extraEnv }}
+{{- if eq .name "OpenId__TenantResolution__Root__TenantId" }}
+{{- $rootTenantId = .value | default "" }}
+{{- end }}
+{{- end }}
+{{- $rootTenantId }}
+{{- end }}
+{{- end }}
+{{- end }}
+
+{{/*
 The environment of the directory's Deployment container, which holds the runtime role's connection: the finished
 connection string (ConnectionStrings:directory) or the parts of a Postgres operator's Secret (DirectoryDatabase), as the
 OP's pods read theirs (ADR-1509). The migration Job sets its own environment and never receives that connection.
@@ -1282,6 +1307,8 @@ OP's pods read theirs (ADR-1509). The migration Job sets its own environment and
   value: {{ $directory.issuer | quote }}
 - name: DirectoryServer__ControlPlaneCell
   value: {{ $directory.controlPlaneCell | quote }}
+- name: DirectoryServer__ControlPlaneTenantId
+  value: {{ include "identity-host.directory.controlPlaneTenantId" . | quote }}
 {{ include "identity-host.backendTls.env" . | trim }}
 {{ include "identity-host.databaseEnv" (dict "scope" $directory.database "defaults" $directory.database "connectionStringName" "directory" "sectionName" "DirectoryDatabase") | trim }}
 {{ include "identity-host.telemetryEnv" . | trim }}
@@ -1309,6 +1336,13 @@ Refuses a directory the host would refuse, before anything is applied. Rendered 
 {{- end }}
 {{- if not $directory.controlPlaneCell }}
 {{- fail "directory.controlPlaneCell must name the control-plane cell when directory.enabled is true: the directory takes platform and team writes only from it." }}
+{{- end }}
+{{- $controlPlaneTenantId := include "identity-host.directory.controlPlaneTenantId" . }}
+{{- if not $controlPlaneTenantId }}
+{{- fail "directory.controlPlaneTenantId must name the control-plane cell's root tenant when directory.enabled is true and this release's cell is not directory.controlPlaneCell, or when extraEnv sets OpenId__TenantResolution__Root__TenantId without a value: the directory holds that tenant for the control-plane cell." }}
+{{- end }}
+{{- if not (regexMatch "^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$" $controlPlaneTenantId) }}
+{{- fail "the control-plane cell's root tenant, which directory.controlPlaneTenantId names or the release's tenant resolution gives, must be 1 to 63 lowercase letters, digits or hyphens that start and end with a letter or digit." }}
 {{- end }}
 {{- include "identity-host.databaseValidate" (dict "path" "directory.database" "scope" $directory.database "defaults" $directory.database "required" true "connectionStringName" "directory") }}
 {{- if not $directory.database.runtimeRole }}
