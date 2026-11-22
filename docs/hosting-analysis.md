@@ -865,8 +865,10 @@ the stacks and components is [#87](https://github.com/NCodeGroup/identity/issues
 - **Audit events**
   ([ADR-1047](decisions/1047-observation-is-a-fault-isolated-event-seam-that-audit-specializes-and-protocol-errors-reach-once.md))
   contain personal data: each cell's audit store keeps them 90 days, its logs for the Grafana Cloud plan's log retention
-  and its encrypted backups up to 13 months, and a customer exports its tenants' records through the management API
-  ([ADR-1527](decisions/1527-the-hosted-platform-keeps-audit-records-for-90-days-and-a-customer-exports-them-through-the-management-api.md)).
+  and its encrypted backups up to 13 months, and a customer exports its tenants' records through the management API or
+  streams them to its own endpoints
+  ([ADR-1527](decisions/1527-the-hosted-platform-keeps-audit-records-for-90-days-and-a-customer-exports-them-through-the-management-api.md),
+  [ADR-1534](decisions/1534-a-tenants-audit-records-stream-to-its-endpoints-read-forward-from-the-audit-store-and-signed-as-standard-webhooks.md)).
 - **Cost guardrails:** billing alerts on every vendor, an Azure budget alert, and bandwidth-overage alerts.
 
 **Security hardening:**

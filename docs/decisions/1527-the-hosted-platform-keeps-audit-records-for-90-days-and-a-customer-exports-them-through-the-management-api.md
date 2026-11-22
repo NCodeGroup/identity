@@ -44,7 +44,9 @@ the management API.**
 5. **No erasure per data subject.** Records expire with the retention, because an audit trail a subject could erase
    stops being one. A deleted tenant's records stay until they expire
    ([ADR-1303](1303-audit-records-are-kept-in-an-indexed-store-that-each-replica-writes-in-batches.md)).
-6. **No stream.** The hosted platform pushes no stream of records to a customer; the lookup is the export.
+6. **Streams.** A customer can also have its tenants' records pushed to its own endpoints as they are stored
+   ([ADR-1534](1534-a-tenants-audit-records-stream-to-its-endpoints-read-forward-from-the-audit-store-and-signed-as-standard-webhooks.md));
+   the lookup and the streams are the export.
 
 ## Options considered
 
@@ -53,11 +55,9 @@ the management API.**
 - **30 days.** Rejected: shorter than many investigations; CloudTrail's event history is 90 days.
 - **A year.** Rejected: it holds more personal data than the operator needs, and customers that want more keep their
   export.
-- **A push stream.** Rejected: it is a delivery pipeline with retries and durability that the in-process dispatcher
-  lacks ([#25](https://github.com/NCodeGroup/identity/issues/25)).
 - **Erasure per subject.** Rejected, as point 5 explains.
 - **Chosen:** 90 days in the store for every plan, the logs' and the backups' retentions stated, and the management
-  API's lookup as the export.
+  API's lookup and audit streams as the export.
 
 ## Consequences
 
@@ -78,6 +78,8 @@ the management API.**
   the platform's regions.
 - [ADR-1525](1525-each-cluster-and-cell-keeps-its-metrics-within-a-series-budget-on-grafana-cloud-free-then-pro.md): the
   log retention of the Grafana Cloud plans.
+- [ADR-1534](1534-a-tenants-audit-records-stream-to-its-endpoints-read-forward-from-the-audit-store-and-signed-as-standard-webhooks.md):
+  audit streams.
 - [Audit records](../audit-records.md): how to read and operate them.
 - Issues [#25](https://github.com/NCodeGroup/identity/issues/25) and
   [#910](https://github.com/NCodeGroup/identity/issues/910).

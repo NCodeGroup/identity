@@ -200,6 +200,7 @@ The management types are `ManagementResourceTypes`, and the local-account type i
 | `principal`              | An end user's federated principal.                                                                                                                                     |
 | `role_assignment`        | A role a principal holds at a resource node: an owner or an administrator of a team, tenant, client or resource server.                                                |
 | `local_account`          | A local account.                                                                                                                                                       |
+| `audit_stream`           | An audit stream of a tenant.                                                                                                                                           |
 
 ## Event catalog
 
@@ -408,6 +409,7 @@ promotion's report. An export and a release are recorded in the source cell and 
 | `principal`                         | none                                                                           |
 | `role_assignment`                   | the node the role is held at (`team`, `tenant`, `client` or `resource_server`) |
 | `local_account`                     | none                                                                           |
+| `audit_stream`                      | none                                                                           |
 
 For example, `client.secret.created` lists the secret first and its client second. An initial access token is recorded as
 `initial_access_token.created`; the record never carries the token itself. A role a principal is granted or revoked is
@@ -563,6 +565,100 @@ To keep a longer history, page `GET api/tenants/{tenantId}/audit-records?startTi
 client authorized for the tenant, passing each page's `continuationToken` back as `cursor` until a page has none. Run it
 on a schedule with each window overlapping the last one, and drop the records whose `eventId` you already hold. Each
 item carries the envelope and the whole `record`.
+
+## Streaming a tenant's records
+
+A tenant's administrator can have the tenant's records pushed to its own endpoints as they are stored, so a SIEM holds
+the history without polling the lookup
+([ADR-1534](decisions/1534-a-tenants-audit-records-stream-to-its-endpoints-read-forward-from-the-audit-store-and-signed-as-standard-webhooks.md)).
+A stream carries every record of its tenant, as the lookup does; the receiver filters.
+
+**Creating a stream.** As a client authorized for the tenant, `POST api/tenants/{tenantId}/audit-streams` with a
+`displayName` and an `endpoint`, an absolute `https` URL of at most 1,000 characters without user information or a
+fragment. The `201` response holds the `auditStream` and its `signingSecret`, which is `whsec_` followed by the base64
+of 32 random bytes. The secret is shown once, in that response: the server keeps it protected under the tenant's master
+key and reports only its `secretId` afterwards. A stream starts at its creation and carries no record stored before it.
+A tenant has at most `max_audit_streams` streams, a limit between 0 and 10 that is 2 by default and merges with `Min`,
+and creating a stream past it is a `409`. `GET api/tenants/{tenantId}/audit-streams` lists the streams, and `GET`,
+`PATCH` (with `If-Match`) and `DELETE` on `api/tenants/{tenantId}/audit-streams/{streamId}` read, change and remove one.
+Each change is recorded as an `audit_stream` change.
+
+**A delivery.** The server calls the endpoint through the guarded outbound client, which refuses a private or loopback
+address and follows no redirect. A delivery is a `POST` with `Content-Type: application/json` that carries up to
+`StreamBatchSize` records, oldest stored first, each in the shape of the lookup's items:
+
+```json
+{
+  "type": "audit_records",
+  "timestamp": "2026-11-22T20:00:00Z",
+  "data": {
+    "tenantId": "<tenant id>",
+    "records": [
+      {
+        "eventId": "<event id>",
+        "eventTime": "2026-11-22T19:58:41Z",
+        "eventName": "token.issued",
+        "eventCategory": "token",
+        "outcome": "success",
+        "severity": "info",
+        "actorType": "client",
+        "resources": [{ "type": "client", "id": "<client id>" }],
+        "record": { "...": "the whole record" }
+      }
+    ]
+  }
+}
+```
+
+A delivery carries three headers, as the Standard Webhooks specification names them:
+
+| Header              | Value                                                                                                         |
+| ------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `webhook-id`        | The `eventId` of the batch's first record                                                                     |
+| `webhook-timestamp` | The time of the send in Unix seconds                                                                          |
+| `webhook-signature` | One `v1,` entry for each secret that has not expired, each the base64 HMAC-SHA256, separated by single spaces |
+
+**Verifying the signature.** Any Standard Webhooks library verifies a delivery from the secret and the three headers. By
+hand:
+
+1. Reject the delivery when `webhook-timestamp` is more than five minutes from the receiver's clock.
+2. Join `webhook-id`, a dot, `webhook-timestamp`, a dot and the request body exactly as received, never re-serialized.
+3. Compute the HMAC-SHA256 of that content keyed by the secret's bytes, which are the base64 decoding of what follows
+   `whsec_`, and encode it as base64.
+4. Accept the delivery when the result equals, compared in constant time, what follows `v1,` in any one of the
+   space-separated signatures.
+
+**Answering.** A receiver answers `2xx` within the guarded client's attempt timeout
+(`OpenId:OutboundHttp:AttemptTimeout`, 10 seconds by default) and keeps no other contract: the server reads the status
+and never the body. The server saves a stream's position only after a `2xx`, so a replica that stops sends the last
+batch again. A delivery is therefore at least once, and a receiver deduplicates by `eventId`.
+
+**Retries and status.** Any other status, a refused connection or a timeout keeps the position, and the stream attempts
+again after `StreamRetryDelay`, which doubles with each failure in a row up to `StreamMaxRetryDelay`. The stream's
+`delivery` member reports `lastDeliveryTime`, `lastFailureTime`, `lastError` (`http_<status>`, `request_failed`,
+`timeout` or `no_signing_secret`), `consecutiveFailures` and `nextAttemptTime`. A stream that is disabled delivers
+nothing and resumes from its position when it is enabled. A stream that falls behind by more than the retention loses
+the records the prune removes.
+
+**Rotating the secret.** `POST api/tenants/{tenantId}/audit-streams/{streamId}/signing-secrets` returns a new secret in
+a `201` response, shown once as `signingSecret`. The previous secrets keep signing for 24 hours beside it, so a receiver
+adds the new secret, then drops the old one once the day has passed.
+
+**Operating it.** Every replica claims the streams that are due under a lease in the audit store's database, so one
+replica sends a stream at a time and its order holds. The options are keys of `OpenId:AuditRecords`:
+
+| Option                | Default    | Meaning                                                                          |
+| --------------------- | ---------- | -------------------------------------------------------------------------------- |
+| `StreamPollInterval`  | 5 seconds  | How often each replica looks for streams that are due                            |
+| `StreamSettleDelay`   | 1 minute   | How long a stored record waits before a stream reads it, as replicas commit late |
+| `StreamBatchSize`     | 100        | The most records one delivery carries, at most 1,000                             |
+| `StreamLeaseDuration` | 2 minutes  | How long a replica holds a stream it delivers                                    |
+| `StreamRetryDelay`    | 10 seconds | The delay after a stream's first failed delivery                                 |
+| `StreamMaxRetryDelay` | 1 hour     | The longest delay between attempts after failures                                |
+| `StreamsPerPoll`      | 16         | The most due streams a replica delivers in one poll                              |
+
+`ncode.identity.audit_stream.deliveries` and `ncode.identity.audit_stream.records` count the batches and the records
+sent ([metrics](metrics.md)).
 
 ## Incident runbook
 

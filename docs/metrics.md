@@ -82,6 +82,21 @@ a replica sheds because its in-flight requests fill the share of its capacity th
 | ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `ncode.identity.tenant.environment_type` | The tenant's registered environment type, such as `production` or `development` (a bounded value, never the tenant's free-form `environment_name`) |
 
+### `ncode.identity.audit_stream.deliveries`
+
+Counter, unit `{request}`, meter `NCode.Identity.OpenId.Authentication`. Recorded once for each batch of audit records
+the server posts to an audit stream's endpoint
+([ADR-1534](decisions/1534-a-tenants-audit-records-stream-to-its-endpoints-read-forward-from-the-audit-store-and-signed-as-standard-webhooks.md)).
+
+| Attribute                            | Values                                                                                                                 |
+| ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------- |
+| `ncode.identity.audit_stream.result` | `delivered` (the endpoint answered `2xx`), `failed` (another status, a failed request, a timeout or no signing secret) |
+
+### `ncode.identity.audit_stream.records`
+
+Counter, unit `{record}`, meter `NCode.Identity.OpenId.Authentication`. Recorded for each audit record an audit stream's
+endpoint accepts, when the batch that carries it is delivered. It has no attributes.
+
 ### `ncode.identity.events.published`
 
 Counter, unit `{event}`, meter `NCode.Identity.Events`. Recorded once for each event published through the event seam
