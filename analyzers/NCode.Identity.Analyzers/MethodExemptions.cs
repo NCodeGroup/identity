@@ -163,13 +163,15 @@ internal static class MethodExemptions
 
             foreach (var member in contract.GetMembers(method.Name))
             {
-                if (
-                    member is IMethodSymbol contractMethod
-                    && SymbolEqualityComparer.Default.Equals(
-                        method.ContainingType.FindImplementationForInterfaceMember(contractMethod),
-                        method
-                    )
-                )
+                if (member is not IMethodSymbol contractMethod)
+                {
+                    continue;
+                }
+
+                var implementation = method.ContainingType.FindImplementationForInterfaceMember(
+                    contractMethod
+                );
+                if (SymbolEqualityComparer.Default.Equals(implementation, method))
                 {
                     return true;
                 }

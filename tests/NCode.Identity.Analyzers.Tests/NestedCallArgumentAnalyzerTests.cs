@@ -2,7 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using System.Collections.Immutable;
+using System.Text;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.Diagnostics;
 using Xunit;
 
 namespace NCode.Identity.Analyzers;
@@ -265,6 +268,105 @@ public class NestedCallArgumentAnalyzerTests
             ["Make(x)"],
             CancellationToken.None
         );
+    }
+
+    [Fact]
+    public async Task Initialize_TheAnalyzerProjectsSources_ReportsNothing()
+    {
+        var cancellationToken = CancellationToken.None;
+
+        var sourceDirectory = Path.Combine(AppContext.BaseDirectory, "AnalyzerSources");
+        var sourcePaths = Directory.GetFiles(sourceDirectory, "*.cs");
+        Assert.NotEmpty(sourcePaths);
+
+        var parseOptions = new CSharpParseOptions(LanguageVersion.Latest);
+        var strictUtf8 = new UTF8Encoding(
+            encoderShouldEmitUTF8Identifier: false,
+            throwOnInvalidBytes: true
+        );
+        var trees = new List<SyntaxTree>();
+        foreach (var sourcePath in sourcePaths)
+        {
+            var text = await File.ReadAllTextAsync(sourcePath, strictUtf8, cancellationToken);
+            var tree = CSharpSyntaxTree.ParseText(
+                text,
+                parseOptions,
+                sourcePath,
+                cancellationToken: cancellationToken
+            );
+            trees.Add(tree);
+        }
+
+        const string implicitUsings = """
+            global using global::System;
+            global using global::System.Collections.Generic;
+            global using global::System.IO;
+            global using global::System.Linq;
+            global using global::System.Net.Http;
+            global using global::System.Threading;
+            global using global::System.Threading.Tasks;
+            """;
+        var implicitUsingsTree = CSharpSyntaxTree.ParseText(
+            implicitUsings,
+            parseOptions,
+            cancellationToken: cancellationToken
+        );
+        trees.Add(implicitUsingsTree);
+
+        var trustedAssemblies = AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES") as string;
+        var paths = (trustedAssemblies ?? string.Empty)
+            .Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries)
+            .Where(path =>
+                !string.Equals(
+                    Path.GetFileName(path),
+                    "NCode.Identity.Analyzers.dll",
+                    StringComparison.OrdinalIgnoreCase
+                )
+            )
+            .ToList();
+        var analyzerAssemblyPath = typeof(DiagnosticAnalyzer).Assembly.Location;
+        var syntaxAssemblyPath = typeof(CSharpSyntaxTree).Assembly.Location;
+        foreach (var assemblyPath in new[] { analyzerAssemblyPath, syntaxAssemblyPath })
+        {
+            var present = paths.Contains(assemblyPath, StringComparer.OrdinalIgnoreCase);
+            if (!present)
+            {
+                paths.Add(assemblyPath);
+            }
+        }
+
+        var references = paths
+            .Select(path => (MetadataReference)MetadataReference.CreateFromFile(path))
+            .ToArray();
+        var compilationOptions = new CSharpCompilationOptions(
+            OutputKind.DynamicallyLinkedLibrary,
+            nullableContextOptions: NullableContextOptions.Enable
+        );
+        var compilation = CSharpCompilation.Create(
+            "NCode.Identity.Analyzers",
+            trees,
+            references,
+            compilationOptions
+        );
+
+        var compileErrors = compilation
+            .GetDiagnostics(cancellationToken)
+            .Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
+            .Select(diagnostic => diagnostic.ToString())
+            .ToArray();
+        Assert.Empty(compileErrors);
+
+        var analyzer = new NestedCallArgumentAnalyzer();
+        var withAnalyzers = compilation.WithAnalyzers([analyzer]);
+        var diagnostics = await withAnalyzers.GetAnalyzerDiagnosticsAsync(cancellationToken);
+
+        var reports = diagnostics
+            .OrderBy(diagnostic => diagnostic.Location.GetLineSpan().Path, StringComparer.Ordinal)
+            .ThenBy(diagnostic => diagnostic.Location.SourceSpan.Start)
+            .Select(diagnostic => diagnostic.ToString())
+            .ToArray();
+        var message = string.Join(Environment.NewLine, reports);
+        Assert.True(reports.Length == 0, message);
     }
 
     #endregion

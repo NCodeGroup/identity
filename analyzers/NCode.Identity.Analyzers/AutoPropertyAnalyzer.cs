@@ -92,9 +92,8 @@ public sealed class AutoPropertyAnalyzer : DiagnosticAnalyzer
                     continue;
                 }
 
-                endContext.ReportDiagnostic(
-                    Diagnostic.Create(Rule, field.Locations[0], field.Name)
-                );
+                var diagnostic = Diagnostic.Create(Rule, field.Locations[0], field.Name);
+                endContext.ReportDiagnostic(diagnostic);
             }
         });
     }

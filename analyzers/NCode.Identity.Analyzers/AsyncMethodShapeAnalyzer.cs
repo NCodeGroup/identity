@@ -134,23 +134,26 @@ public sealed class AsyncMethodShapeAnalyzer : DiagnosticAnalyzer
 
                 if (candidate.Value.ReturnsTask)
                 {
-                    endContext.ReportDiagnostic(
-                        Diagnostic.Create(
-                            TaskReturnRule,
-                            method.Locations[0],
-                            method.Name,
-                            method.ReturnType.ToDisplayString(
-                                SymbolDisplayFormat.MinimallyQualifiedFormat
-                            )
-                        )
+                    var returnTypeDisplay = method.ReturnType.ToDisplayString(
+                        SymbolDisplayFormat.MinimallyQualifiedFormat
                     );
+                    var taskReturnDiagnostic = Diagnostic.Create(
+                        TaskReturnRule,
+                        method.Locations[0],
+                        method.Name,
+                        returnTypeDisplay
+                    );
+                    endContext.ReportDiagnostic(taskReturnDiagnostic);
                 }
 
                 if (candidate.Value.LacksTrailingToken)
                 {
-                    endContext.ReportDiagnostic(
-                        Diagnostic.Create(CancellationTokenRule, method.Locations[0], method.Name)
+                    var cancellationTokenDiagnostic = Diagnostic.Create(
+                        CancellationTokenRule,
+                        method.Locations[0],
+                        method.Name
                     );
+                    endContext.ReportDiagnostic(cancellationTokenDiagnostic);
                 }
             }
         });
