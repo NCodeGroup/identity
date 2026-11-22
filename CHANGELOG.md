@@ -4345,17 +4345,18 @@ Until the first stable release, the [Unreleased] section describes the product a
   valid remote-key tag. A cell that sets `Directory:Url` refuses to start unless `Directory:ClientId` is
   `cell-{Cell:Name}` and `Cell:ManagementUrl` is set, because the directory knows a cell by that machine client and the
   cell registers its management URL with it. `NCode.Identity.OpenId.GlobalDirectory.Abstractions` holds the ports
-  `ITenantDirectory` (reserve, place with a `TenantPlacementRequest` of the tenant, its issuer and its cell, release,
-  retire, change an issuer, find a placement, whose region is the one its cell registered, move between cells of one
-  region), `ITeamDirectory` (reserve, release, publish, retire, get, list changes after a sequence),
+  `ITenantDirectory` (reserve, place with a `TenantPlacementRequest` of the tenant, its issuer when it has one, and its
+  cell, release, retire, change an issuer, find a placement, whose region is the one its cell registered, move between
+  cells of one region), `ITeamDirectory` (reserve, release, publish, retire, get, list changes after a sequence),
   `IPlatformDirectory` and `ICellDirectory`, their records and `DirectoryUnavailableException`. A cell runs on its own
   with the local adapters over its own database and no extra service, and `Directory:Url` selects the remote adapters of
   `NCode.Identity.OpenId.GlobalDirectory`, which fail closed with `503` and `Retry-After` on a transport failure, a
   `5xx`, or a call that outlasts `DirectoryClientOptions.RequestTimeout`, its response body included. Creating a tenant
-  reserves its identifier (a team's `max_tenants` is enforced there), saves the tenant and places it, releasing the
-  reservation on failure; a tenant a cell creates on demand that a strategy serves at an address, a static strategy's
-  own tenant or the root tenant of a cell that is not the control plane when it has an issuer, is reserved and placed
-  the same way, in no team when it belongs to the platform's own team, and a tenant without an issuer is created in its
+  reserves its identifier and, when it has one, its issuer, in its team (a team's `max_tenants` is enforced there) or in
+  no team when it belongs to the platform's own team, which the directory holds no record of, saves the tenant and
+  places it, releasing the reservation on failure; a tenant a cell creates on demand that a strategy serves at an
+  address, a static strategy's own tenant or the root tenant of a cell that is not the control plane when it has an
+  issuer, is reserved and placed the same way, and a tenant it creates on demand without an issuer is created in its
   cell alone; serving a tenant's requests never calls the directory, because the cell's own tenant row is authoritative;
   the control-plane cell creates its root tenant without reserving or placing it, which the directory holds from its own
   configuration, judges its address and changes its keys without asking the directory, which accepts only the tokens
@@ -4398,11 +4399,12 @@ Until the first stable release, the [Unreleased] section describes the product a
   published, and a move of a tenant already placed in the target cell each succeed again. A placement's region is the
   region its cell registered, and the retired-issuer lookup is `GET /directory/v1/retired-issuers?issuer=`, beside the
   tenant routes, so `GET /directory/v1/tenants/{tenantId}` reads the placement of a tenant of any valid identifier,
-  `retired-issuers` included. The directory refuses a tenant or team identifier that the cells' identifier rule refuses
-  (1 to 63 lowercase letters, digits or hyphens that start and end with a letter or digit, a host label); a tenant
-  issuer that is not an absolute `https` URL (or `http` on a loopback host) with no user information, query or fragment;
-  a team document that lacks its settings or its root keys, or a platform document that lacks its settings; a team or
-  platform document whose settings are not a JSON object; a team or platform document whose JSON exceeds 64 KiB (`422`,
+  `retired-issuers` included. A tenant without an issuer is reserved, placed and retired by its identifier alone. The
+  directory refuses a tenant or team identifier that the cells' identifier rule refuses (1 to 63 lowercase letters,
+  digits or hyphens that start and end with a letter or digit, a host label); a tenant issuer that is not an absolute
+  `https` URL (or `http` on a loopback host) with no user information, query or fragment; a team document that lacks its
+  settings or its root keys, or a platform document that lacks its settings; a team or platform document whose settings
+  are not a JSON object; a team or platform document whose JSON exceeds 64 KiB (`422`,
   `DirectoryLimits.MaxDocumentBytes`); and a team document that would nest a team deeper than eight levels, the bound of
   a cell's team tree. A stored team or platform document whose settings are missing or not a JSON object, `null`
   included, fails the tenant-limit check, which refuses the reservation, and a cell's remote directory adapter fails

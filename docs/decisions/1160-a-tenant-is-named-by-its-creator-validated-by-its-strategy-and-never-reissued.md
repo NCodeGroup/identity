@@ -111,18 +111,19 @@ a retired identifier or issuer is never reissued.**
    ([ADR-1411](1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md)).
    The directory service checks the issuer a reservation, a placement or a retirement names, and the one an issuer
    change takes, by the service-URL rule of decision 5 and the same 1000-character bound, and answers `400` to any
-   other; the host-name bound is the serving cell's own, so the directory refuses no issuer that a cell accepts.
-10. **Creation reserves, then inserts, then places.** Creating a tenant reserves its identifier (`max_tenants` is
-    enforced at the reservation), inserts the tenant in its cell and then places it; a failure releases the reservation.
-    Creation fails closed with `503` when the directory is unreachable. Serving a tenant's requests never calls the
-    directory, because the cell's own tenant row is authoritative for serving. A tenant a cell creates on demand that a
-    strategy serves at an address (one with an issuer), a static strategy's own tenant or the root tenant of a cell that
-    is not the control plane when `TenantResolution:Root:Issuer` gives it one, is created the same way when the cell
-    first creates it, and a tenant of the platform's own team is reserved in no team; a tenant without an issuer has no
-    address on the platform and is created in its cell alone; only the control-plane cell's root tenant is created
-    without the directory, which accepts only the tokens that tenant issues, and the directory holds that tenant's
-    identifier and issuer from its own configuration (`DirectoryServer:ControlPlaneTenantId`), so no other cell reserves
-    either.
+   other; the host-name bound is the serving cell's own, so the directory refuses no issuer that a cell accepts. A
+   tenant without an issuer is reserved, placed and retired by its identifier alone.
+10. **Creation reserves, then inserts, then places.** Creating a tenant reserves its identifier and, when it has one,
+    its issuer (`max_tenants` is enforced at the reservation), inserts the tenant in its cell and then places it; a
+    failure releases the reservation. Creation fails closed with `503` when the directory is unreachable. Serving a
+    tenant's requests never calls the directory, because the cell's own tenant row is authoritative for serving. A
+    tenant a cell creates on demand that a strategy serves at an address (one with an issuer), a static strategy's own
+    tenant or the root tenant of a cell that is not the control plane when `TenantResolution:Root:Issuer` gives it one,
+    is created the same way when the cell first creates it, and a tenant of the platform's own team is reserved in no
+    team; a tenant a cell creates on demand without an issuer has no address on the platform and is created in its cell
+    alone; only the control-plane cell's root tenant is created without the directory, which accepts only the tokens
+    that tenant issues, and the directory holds that tenant's identifier and issuer from its own configuration
+    (`DirectoryServer:ControlPlaneTenantId`), so no other cell reserves either.
 11. **One cell keeps its own tombstones.** The local adapter, the default, keeps the retired identifiers in the cell's
     own tables: `RetiredTenants` holds a deleted tenant's identifier and `RetiredIssuers` an issuer a tenant gave up,
     with the identifier of the tenant that held it; each has a unique normalized column. `RetiredTeams` retires a
