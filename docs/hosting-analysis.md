@@ -178,7 +178,7 @@ pipeline runs, with the test user's password kept as a secret.
 | Domains (prepaid for ten years at registration) | $0 |
 | **Total** | **~$98–99** |
 
-**Where the budget goes.** The ~$12 that a third lab node would cost buys production's fourth node instead. On
+**Where the budget goes.** The budget buys production's fourth node (~$12) rather than a third lab node (~$7.30). On
 3 × 2 GB nodes, losing a node — or LKE recycling one during a Kubernetes upgrade — leaves about 4 GB for about 4 GB of
 pods, so some pods wait unscheduled until the node returns; a fourth node gives production that N-1 headroom, which
 matters more on the platform developers use than in the lab. With three production nodes the total is ~$86–87, and a
