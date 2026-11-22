@@ -178,7 +178,7 @@ pipeline runs, with the test user's password kept as a secret.
 | AWS KMS root keys, one per deployment (2 × $1, plus $1 for each of a key's first two yearly rotations) | ~$2–3 |
 | AWS S3 for OpenTofu state and backups | ~$1 |
 | GitHub, Cloudflare DNS, Let's Encrypt, Grafana Cloud Free and the Azure credit | $0 |
-| Amazon SES for the platform's mail, at $0.10 per 1,000 emails _(verify)_ | ~$0–1 |
+| Amazon SES for the platform's mail, at $0.10 per 1,000 emails _(verify)_ | ~$0 |
 | Domains (prepaid for ten years at registration) | $0 |
 | **Total** | **~$98–99** |
 
