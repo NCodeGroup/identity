@@ -158,11 +158,12 @@ public sealed class OkpSecretKeyTypeDescriptor(
                 {
                     var publicKey = new byte[curve.PublicKeySize];
                     curve.GeneratePublicKey(seed, publicKey);
+                    var protectedSeed = ProtectSeed(seed);
                     return new DefaultOkpSecretKey(
                         DataProtector,
                         metadata,
                         curve,
-                        ProtectSeed(seed),
+                        protectedSeed,
                         publicKey
                     );
                 }
@@ -362,7 +363,8 @@ public sealed class OkpSecretKeyTypeDescriptor(
         }
 
         var der = new byte[fields.DecodedDataLength];
-        if (!Convert.TryFromBase64Chars(keyMaterial.AsSpan()[fields.Base64Data], der, out _))
+        var base64Data = keyMaterial.AsSpan()[fields.Base64Data];
+        if (!Convert.TryFromBase64Chars(base64Data, der, out _))
         {
             throw new ArgumentException("The supplied PEM material is not valid base64.");
         }

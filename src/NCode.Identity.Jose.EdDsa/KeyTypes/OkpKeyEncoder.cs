@@ -80,7 +80,8 @@ internal static class OkpKeyEncoder
         publicKey = null;
         try
         {
-            var reader = new AsnReader(spki.ToArray(), AsnEncodingRules.DER);
+            var spkiBytes = spki.ToArray();
+            var reader = new AsnReader(spkiBytes, AsnEncodingRules.DER);
             var sequence = reader.ReadSequence();
             var algorithm = sequence.ReadSequence();
             var oid = algorithm.ReadObjectIdentifier();
@@ -118,7 +119,8 @@ internal static class OkpKeyEncoder
         seed = null;
         try
         {
-            var reader = new AsnReader(pkcs8.ToArray(), AsnEncodingRules.DER);
+            var pkcs8Bytes = pkcs8.ToArray();
+            var reader = new AsnReader(pkcs8Bytes, AsnEncodingRules.DER);
             var sequence = reader.ReadSequence();
             _ = sequence.ReadInteger(); // version
             var algorithm = sequence.ReadSequence();

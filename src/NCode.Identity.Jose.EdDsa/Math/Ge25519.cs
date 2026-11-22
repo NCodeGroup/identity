@@ -45,7 +45,10 @@ internal struct Ge25519
 
     private static Ge25519 ComputeBase()
     {
-        var y = Fe25519.Mul(Fe25519.FromUInt64(4), Fe25519.Invert(Fe25519.FromUInt64(5)));
+        var four = Fe25519.FromUInt64(4);
+        var five = Fe25519.FromUInt64(5);
+        var fiveInverse = Fe25519.Invert(five);
+        var y = Fe25519.Mul(four, fiveInverse);
         if (!TryRecoverX(y, 0, out var x))
         {
             throw new InvalidOperationException("Failed to derive the Ed25519 base point.");
@@ -63,10 +66,16 @@ internal struct Ge25519
     [MethodImpl(Opt)]
     public static Ge25519 Add(in Ge25519 p, in Ge25519 q)
     {
-        var a = Fe25519.Mul(Fe25519.Sub(p._y, p._x), Fe25519.Sub(q._y, q._x));
-        var b = Fe25519.Mul(Fe25519.Add(p._y, p._x), Fe25519.Add(q._y, q._x));
-        var c = Fe25519.Mul(Fe25519.Mul(p._t, D2), q._t);
-        var d = Fe25519.Mul(Fe25519.Add(p._z, p._z), q._z);
+        var yDifference = Fe25519.Sub(p._y, p._x);
+        var qYDifference = Fe25519.Sub(q._y, q._x);
+        var a = Fe25519.Mul(yDifference, qYDifference);
+        var ySum = Fe25519.Add(p._y, p._x);
+        var qYSum = Fe25519.Add(q._y, q._x);
+        var b = Fe25519.Mul(ySum, qYSum);
+        var pT = Fe25519.Mul(p._t, D2);
+        var c = Fe25519.Mul(pT, q._t);
+        var zSum = Fe25519.Add(p._z, p._z);
+        var d = Fe25519.Mul(zSum, q._z);
         var e = Fe25519.Sub(b, a);
         var f = Fe25519.Sub(d, c);
         var g = Fe25519.Add(d, c);
@@ -85,11 +94,17 @@ internal struct Ge25519
     {
         var a = Fe25519.Sqr(p._x);
         var b = Fe25519.Sqr(p._y);
-        var c = Fe25519.Add(Fe25519.Sqr(p._z), Fe25519.Sqr(p._z));
-        var e = Fe25519.Sub(Fe25519.Sub(Fe25519.Sqr(Fe25519.Add(p._x, p._y)), a), b);
+        var zSquared = Fe25519.Sqr(p._z);
+        var zSquaredAgain = Fe25519.Sqr(p._z);
+        var c = Fe25519.Add(zSquared, zSquaredAgain);
+        var xySum = Fe25519.Add(p._x, p._y);
+        var xySquared = Fe25519.Sqr(xySum);
+        var xySquaredMinusA = Fe25519.Sub(xySquared, a);
+        var e = Fe25519.Sub(xySquaredMinusA, b);
         var g = Fe25519.Sub(b, a);
         var f = Fe25519.Sub(g, c);
-        var h = Fe25519.Neg(Fe25519.Add(a, b));
+        var abSum = Fe25519.Add(a, b);
+        var h = Fe25519.Neg(abSum);
         return new Ge25519
         {
             _x = Fe25519.Mul(e, f),
@@ -184,15 +199,20 @@ internal struct Ge25519
     {
         var y2 = Fe25519.Sqr(y);
         var u = Fe25519.Sub(y2, Fe25519.One);
-        var v = Fe25519.Add(Fe25519.Mul(D, y2), Fe25519.One);
+        var dY2 = Fe25519.Mul(D, y2);
+        var v = Fe25519.Add(dY2, Fe25519.One);
 
         var v2 = Fe25519.Sqr(v);
         var v3 = Fe25519.Mul(v2, v);
-        var v7 = Fe25519.Mul(Fe25519.Sqr(v3), v);
-        var pow = Fe25519.PowPMinus5Div8(Fe25519.Mul(u, v7));
-        var candidate = Fe25519.Mul(Fe25519.Mul(u, v3), pow);
+        var v3Squared = Fe25519.Sqr(v3);
+        var v7 = Fe25519.Mul(v3Squared, v);
+        var uv7 = Fe25519.Mul(u, v7);
+        var pow = Fe25519.PowPMinus5Div8(uv7);
+        var uv3 = Fe25519.Mul(u, v3);
+        var candidate = Fe25519.Mul(uv3, pow);
 
-        var vxx = Fe25519.Mul(v, Fe25519.Sqr(candidate));
+        var candidateSquared = Fe25519.Sqr(candidate);
+        var vxx = Fe25519.Mul(v, candidateSquared);
         if (Fe25519.Sub(vxx, u).IsNonZero() == 0)
         {
             // vxx == u: candidate is already a root.

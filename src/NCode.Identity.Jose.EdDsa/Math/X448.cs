@@ -172,16 +172,22 @@ internal static class X448
                 var d = Fe448.Sub(x3, z3);
                 var da = Fe448.Mul(d, a);
                 var cb = Fe448.Mul(c, b);
-                x3 = Fe448.Sqr(Fe448.Add(da, cb));
-                z3 = Fe448.Mul(x1, Fe448.Sqr(Fe448.Sub(da, cb)));
+                var daPlusCb = Fe448.Add(da, cb);
+                x3 = Fe448.Sqr(daPlusCb);
+                var daMinusCb = Fe448.Sub(da, cb);
+                var daMinusCbSquared = Fe448.Sqr(daMinusCb);
+                z3 = Fe448.Mul(x1, daMinusCbSquared);
                 x2 = Fe448.Mul(aa, bb);
-                z2 = Fe448.Mul(e, Fe448.Add(aa, Fe448.Mul(a24, e)));
+                var scaledE = Fe448.Mul(a24, e);
+                var aaPlusScaledE = Fe448.Add(aa, scaledE);
+                z2 = Fe448.Mul(e, aaPlusScaledE);
             }
 
             Fe448.CSwap(ref x2, ref x3, swap);
             Fe448.CSwap(ref z2, ref z3, swap);
 
-            Fe448.Mul(x2, Fe448.Invert(z2)).ToBytes(output);
+            var z2Inverse = Fe448.Invert(z2);
+            Fe448.Mul(x2, z2Inverse).ToBytes(output);
         }
         finally
         {

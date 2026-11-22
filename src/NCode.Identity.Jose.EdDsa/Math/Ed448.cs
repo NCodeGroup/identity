@@ -91,7 +91,8 @@ internal static class Ed448
             Sc448.Reduce(kHash, k);
 
             rPoint.CopyTo(signature[..SeedSize]);
-            Sc448.MulAdd(k, s, r, signature.Slice(SeedSize, SeedSize));
+            var signatureS = signature.Slice(SeedSize, SeedSize);
+            Sc448.MulAdd(k, s, r, signatureS);
         }
         finally
         {
@@ -111,12 +112,13 @@ internal static class Ed448
         ReadOnlySpan<byte> signature
     )
     {
-        if (
-            signature.Length != SignatureSize
-            || publicKey.Length != PublicKeySize
-            || !Sc448.IsCanonical(signature.Slice(SeedSize, SeedSize))
-            || !Ge448.TryFromBytes(publicKey, out var a)
-        )
+        if (signature.Length != SignatureSize || publicKey.Length != PublicKeySize)
+        {
+            return false;
+        }
+
+        var encodedS = signature.Slice(SeedSize, SeedSize);
+        if (!Sc448.IsCanonical(encodedS) || !Ge448.TryFromBytes(publicKey, out var a))
         {
             return false;
         }
@@ -136,9 +138,11 @@ internal static class Ed448
         Span<byte> k = stackalloc byte[SeedSize];
         Sc448.Reduce(kHash, k);
 
-        var sB = Ge448.ScalarMultBase(signature.Slice(SeedSize, SeedSize));
+        var baseScalar = signature.Slice(SeedSize, SeedSize);
+        var sB = Ge448.ScalarMultBase(baseScalar);
         var kA = Ge448.ScalarMult(k, a);
-        var check = Ge448.Add(sB, Ge448.Neg(kA));
+        var negKA = Ge448.Neg(kA);
+        var check = Ge448.Add(sB, negKA);
 
         Span<byte> checkBytes = stackalloc byte[PublicKeySize];
         check.ToBytes(checkBytes);
