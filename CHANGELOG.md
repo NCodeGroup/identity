@@ -6781,8 +6781,11 @@ Until the first stable release, the [Unreleased] section describes the product a
   and its tenants cannot lift, a verified password leads to a code page instead of a session; the right code adds `otp`
   and `mfa` to `amr`, an account without an address is refused, and the resource-owner password grant is refused before
   any password is verified. A completed or failed second factor is audited as `subject.second_factor`. Codes are kept
-  only as hashes in shared state, bound to the flow that asked for them, used once, and never logged; a forgot-password
-  request answers the same whether or not an account exists; `Mail:Smtp:Tls=None` is refused outside local development
+  only as hashes in shared state, bound to the flow that asked for them and to the address they were mailed to, spent
+  with one atomic take after every check and before their effect, and never logged; a forgot-password request answers
+  the same and does the same remote work whether or not an account exists; a failed SMTP delivery reports the server's
+  numeric status, never its reply text or the recipient; a decoy request's entries expire within a minute;
+  `Mail:Smtp:Tls=None` is refused outside local development
   ([ADR-1533](docs/decisions/1533-an-end-user-verifies-an-email-address-resets-a-password-and-signs-in-with-a-second-factor-through-one-time-email-codes.md),
   [ADR-1532](docs/decisions/1532-outbound-mail-is-a-port-that-queues-each-message-for-a-replaceable-transport-and-smtp-is-its-adapter.md),
   [#911](https://github.com/NCodeGroup/identity/issues/911)).
