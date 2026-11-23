@@ -482,6 +482,55 @@ public class DefaultMimeMessageFactoryTests : BaseTests
     }
 
     [Fact]
+    public async Task CreateAsync_WhenTheMimeMessageIsDisposed_LeavesTheContentStreamOpen()
+    {
+        var bodyStream = new MemoryStream(SecureEncoding.UTF8.GetBytes("plain body"));
+        using var message = new MailMessage
+        {
+            Subject = "Hello",
+            To = [.. ToRecipients],
+            TextBody = new StreamMailContent(bodyStream, "text/plain", "utf-8"),
+        };
+
+        var mimeMessage = await CreateAsync(message);
+        mimeMessage.Dispose();
+
+        Assert.True(bodyStream.CanRead);
+    }
+
+    [Fact]
+    public async Task CreateAsync_WithANonSeekableContent_CreatesAgainOnceTheFirstMessageIsDisposed()
+    {
+        var compressed = new MemoryStream();
+        using (
+            var deflate = new DeflateStream(compressed, CompressionMode.Compress, leaveOpen: true)
+        )
+        {
+            var original = SecureEncoding.UTF8.GetBytes("a body from a stream that does not seek");
+            deflate.Write(original);
+        }
+
+        compressed.Position = 0;
+        var source = new DeflateStream(compressed, CompressionMode.Decompress);
+        using var message = new MailMessage
+        {
+            Subject = "Hello",
+            MessageId = "same-message@example.com",
+            To = [.. ToRecipients],
+            TextBody = new StreamMailContent(source, "text/plain", "utf-8"),
+        };
+
+        var firstMessage = await CreateAsync(message);
+        var first = Write(firstMessage);
+        firstMessage.Dispose();
+
+        using var secondMessage = await CreateAsync(message);
+        var second = Write(secondMessage);
+
+        Assert.Equal(first, second);
+    }
+
+    [Fact]
     public async Task CreateAsync_WithBcc_HidesItWhenWritten()
     {
         using var message = new MailMessage
