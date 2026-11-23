@@ -212,9 +212,12 @@ apiReference:
 admission:
   concurrencyLimit: null
 
-# Outbound mail (Mail:Smtp): the SMTP server the host submits its mail to, such as Amazon SES's endpoint in the
-# cell's region. Unset sends no mail. from is required with host; existingSecret names a Secret holding the keys
-# username and password. tls is StartTls (port 587) or ImplicitTls (port 465).
+# Outbound mail: the host sends through one transport, SMTP (Mail:Smtp) or Amazon SES (Mail:AmazonSes); setting both is
+# refused, and neither sends no mail. smtp submits to the SMTP server named by host; from is required with host;
+# existingSecret names a Secret holding the keys username and password; tls is StartTls (port 587) or ImplicitTls (port
+# 465). amazonSes sends through the Amazon SES v2 API in region, with the pod's AWS identity (aws.webIdentity); from is
+# required with region and must be an identity SES verifies; fromIdentityArn, configurationSetName and tags are
+# optional.
 mail:
   smtp:
     host: ""
@@ -223,6 +226,13 @@ mail:
     from: ""
     fromName: ""
     existingSecret: ""
+  amazonSes:
+    region: ""
+    from: ""
+    fromName: ""
+    fromIdentityArn: ""
+    configurationSetName: ""
+    tags: {}
 
 # The Postgres database (ConnectionStrings:openiddb) the pods read, as the runtime role. It also persists the Data
 # Protection key ring. Required: name either existingSecret, a Secret holding the finished Npgsql connection string, or

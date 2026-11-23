@@ -147,7 +147,10 @@ jobs:
           refuse --set tenantResolution.staticSingle.issuer=
           refuse --set tenantResolution.staticSingle.issuer=http://id.example.com
           refuse --set unknownSetting=true
-          # The setup Job reads the root administrator from a Secret, and a setup token Secret needs the key to read.
+          # A host sends mail through one transport, and the Amazon SES settings need its region (ADR-1532).
+          refuse --set mail.smtp.host=smtp.example.com --set mail.smtp.from=a@example.com --set mail.amazonSes.region=us-east-1 --set mail.amazonSes.from=a@example.com
+          refuse --set mail.amazonSes.from=a@example.com
+          refuse --set mail.amazonSes.region=US-EAST --set mail.amazonSes.from=a@example.com          # The setup Job reads the root administrator from a Secret, and a setup token Secret needs the key to read.
           refuse --set setup.job.enabled=true
           refuse --set setup.token.existingSecret=s --set setup.token.key=
           # Setup runs in the control-plane cell only. The same release renders as the control-plane cell, so the

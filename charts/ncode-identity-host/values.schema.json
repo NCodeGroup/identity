@@ -672,6 +672,75 @@
               }
             }
           }
+        },
+        "amazonSes": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "region": {
+              "type": "string",
+              "pattern": "^([a-z]{2}(-[a-z]+)+-\\d+)?$"
+            },
+            "from": {
+              "type": "string"
+            },
+            "fromName": {
+              "type": "string"
+            },
+            "fromIdentityArn": {
+              "type": "string",
+              "pattern": "^(arn:aws[a-z-]*:ses:[a-z0-9-]+:\\d{12}:identity/\\S+)?$"
+            },
+            "configurationSetName": {
+              "type": "string",
+              "pattern": "^([A-Za-z0-9_-]{1,64})?$"
+            },
+            "tags": {
+              "type": "object",
+              "maxProperties": 50,
+              "propertyNames": {
+                "pattern": "^[A-Za-z0-9_.@-]{1,256}$"
+              },
+              "additionalProperties": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9_.@-]{1,256}$"
+              }
+            }
+          },
+          "if": {
+            "properties": {
+              "region": {
+                "minLength": 1
+              }
+            },
+            "required": ["region"]
+          },
+          "then": {
+            "properties": {
+              "from": {
+                "minLength": 3
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "from": {
+                "maxLength": 0
+              },
+              "fromName": {
+                "maxLength": 0
+              },
+              "fromIdentityArn": {
+                "maxLength": 0
+              },
+              "configurationSetName": {
+                "maxLength": 0
+              },
+              "tags": {
+                "maxProperties": 0
+              }
+            }
+          }
         }
       }
     },

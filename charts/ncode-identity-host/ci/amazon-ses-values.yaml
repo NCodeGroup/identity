@@ -1,0 +1,32 @@
+# A production release that sends mail through Amazon SES, reached through the same web identity federation as AWS KMS.
+cell:
+  name: ci-amazon-ses
+  region: ci
+  isControlPlane: true
+allowedHosts:
+  - id.example.com
+tenantResolution:
+  staticSingle:
+    issuer: https://id.example.com
+database:
+  existingSecret: identity-database
+  runtimeRole: ncode_identity_app
+migrations:
+  database:
+    existingSecret: identity-database-owner
+aws:
+  webIdentity:
+    roleArn: arn:aws:iam::111122223333:role/ncode-identity-root-key
+mail:
+  amazonSes:
+    region: us-east-1
+    from: no-reply@mail.example.com
+    configurationSetName: ncode-identity
+    tags:
+      cell: ci
+secretProtection:
+  rootKeyProvider: aws-kms
+  awsKms:
+    keyArn: arn:aws:kms:us-west-2:111122223333:alias/ncode-identity-root
+  recovery:
+    publicKeyConfigMap: identity-recovery-key
