@@ -17,7 +17,7 @@ internal static partial class Log
         Level = LogLevel.Warning,
         Message = "A mail message could not be delivered on attempt {Attempt} of {MaxAttempts}."
     )]
-    public static partial void MailDeliveryFailed(
+    internal static partial void MailDeliveryFailed(
         this ILogger logger,
         Exception exception,
         int attempt,

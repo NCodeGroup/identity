@@ -10,8 +10,9 @@ namespace NCode.Identity.Mail;
 /// <see cref="IMeterFactory"/> so each service provider has its own; the mail job records through its methods and never
 /// touches the meter directly.
 /// </summary>
+/// <param name="meterFactory">The factory that creates the <see cref="MailMetrics.MeterName"/> meter.</param>
 // See ADR-1532.
-internal sealed class MailDeliveryMetrics
+internal sealed class MailDeliveryMetrics(IMeterFactory meterFactory)
 {
     internal const string MessagesName = "ncode.identity.mail.messages";
 
@@ -21,23 +22,14 @@ internal sealed class MailDeliveryMetrics
 
     internal const string FailedResult = "failed";
 
-    private Counter<long> Messages { get; }
-
-    /// <summary>
-    /// Initializes a new instance of the <see cref="MailDeliveryMetrics"/> class, which creates the meter and its
-    /// counter of delivered and failed messages.
-    /// </summary>
-    /// <param name="meterFactory">The factory that creates the <see cref="MailMetrics.MeterName"/> meter.</param>
-    public MailDeliveryMetrics(IMeterFactory meterFactory)
-    {
-        var meter = meterFactory.Create(MailMetrics.MeterName);
-
-        Messages = meter.CreateCounter<long>(
-            MessagesName,
-            unit: "{message}",
-            description: "The number of mail messages a transport delivered or failed to deliver, by result."
-        );
-    }
+    private Counter<long> Messages { get; } =
+        meterFactory
+            .Create(MailMetrics.MeterName)
+            .CreateCounter<long>(
+                MessagesName,
+                unit: "{message}",
+                description: "The number of mail messages a transport delivered or failed to deliver, by result."
+            );
 
     /// <summary>
     /// Counts a message that the transport delivered.
