@@ -20,6 +20,7 @@ using NCode.Identity.OpenId.Contexts;
 using NCode.Identity.OpenId.GlobalDirectory;
 using NCode.Identity.OpenId.Management.Auditing;
 using NCode.Identity.OpenId.Management.Authorization;
+using NCode.Identity.OpenId.Management.ControlPlane;
 using NCode.Identity.OpenId.Management.Contracts;
 using NCode.Identity.OpenId.Management.Contracts.EncryptionKeys;
 using NCode.Identity.OpenId.Management.Contracts.Secrets;
@@ -108,6 +109,7 @@ internal class TenantApiEndpointHandler(
     ITenantEnvironmentCatalog tenantEnvironmentCatalog,
     ITenantClientCoherenceChecker tenantClientCoherenceChecker,
     IResourceOwnershipService resourceOwnershipService,
+    IControlPlanePrincipalDirectory controlPlanePrincipalDirectory,
     IRemoteSecretDestroyer remoteSecretDestroyer,
     ITenantDirectory tenantDirectory,
     IOptions<CellOptions> cellOptions,
@@ -156,6 +158,10 @@ internal class TenantApiEndpointHandler(
     /// <inheritdoc />
     protected override IResourceOwnershipService ResourceOwnershipService { get; } =
         resourceOwnershipService;
+
+    /// <inheritdoc />
+    protected override IControlPlanePrincipalDirectory ControlPlanePrincipalDirectory { get; } =
+        controlPlanePrincipalDirectory;
     private ILogger<TenantApiEndpointHandler> Logger { get; } = logger;
 
     /// <summary>

@@ -18,6 +18,7 @@ using NCode.Identity.OpenId.Contexts;
 using NCode.Identity.OpenId.GlobalDirectory;
 using NCode.Identity.OpenId.Management.Auditing;
 using NCode.Identity.OpenId.Management.Authorization;
+using NCode.Identity.OpenId.Management.ControlPlane;
 using NCode.Identity.OpenId.Management.Contracts;
 using NCode.Identity.OpenId.Management.Contracts.Clients;
 using NCode.Identity.OpenId.Management.Contracts.Secrets;
@@ -84,6 +85,7 @@ internal class ClientApiEndpointHandler(
     IClientCoherenceReporter clientCoherenceReporter,
     IClientSecretIssuer clientSecretIssuer,
     IResourceOwnershipService resourceOwnershipService,
+    IControlPlanePrincipalDirectory controlPlanePrincipalDirectory,
     IManagementAuditRecorder managementAuditRecorder,
     IHostManagedClientChecker hostManagedClientChecker,
     IClientKeySourceChecker clientKeySourceChecker,
@@ -194,6 +196,10 @@ internal class ClientApiEndpointHandler(
     /// <inheritdoc />
     protected override IResourceOwnershipService ResourceOwnershipService { get; } =
         resourceOwnershipService;
+
+    /// <inheritdoc />
+    protected override IControlPlanePrincipalDirectory ControlPlanePrincipalDirectory { get; } =
+        controlPlanePrincipalDirectory;
     private ILogger<ClientApiEndpointHandler> Logger { get; } = logger;
     private IAmbientTenantAccessor AmbientTenantAccessor { get; } = ambientTenantAccessor;
 

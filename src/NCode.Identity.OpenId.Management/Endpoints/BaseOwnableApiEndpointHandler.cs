@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Http.HttpResults;
 using NCode.Identity.Events.Audit;
 using NCode.Identity.OpenId.Management.Auditing;
 using NCode.Identity.OpenId.Management.Authorization;
+using NCode.Identity.OpenId.Management.ControlPlane;
 using NCode.Identity.OpenId.Management.Contracts;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.Persistence.Stores;
@@ -30,6 +31,11 @@ internal abstract class BaseOwnableApiEndpointHandler : BaseApiEndpointHandler
     /// Gets the service used to read and mutate resource ownership.
     /// </summary>
     protected abstract IResourceOwnershipService ResourceOwnershipService { get; }
+
+    /// <summary>
+    /// Gets the directory that names the holders of a role list and resolves a grant's username.
+    /// </summary>
+    protected abstract IControlPlanePrincipalDirectory ControlPlanePrincipalDirectory { get; }
 
     /// <summary>
     /// Gets the recorder used to write management audit events.
