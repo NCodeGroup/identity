@@ -15,7 +15,7 @@
 
 |     | Promise                                                                                                                                                                                                              |
 | --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | A code is six digits from a cryptographic random generator, kept in shared state only as a SHA-256 hash bound to its flow, valid for 10 minutes by default, used once, and ended by the fifth wrong guess. Each guess is counted before it is judged, so racing guesses gain nothing. |
+| 1   | A code is six digits from a cryptographic random generator, kept in shared state only as a SHA-256 hash bound to its flow, valid for 10 minutes by default, used once, and ended by the fifth guess, each counted before it is judged, so racing guesses gain nothing. |
 | 2   | An account receives at most five codes an hour for one purpose by default, so a guesser gets at most 25 tries an hour at a space of a million.                                                                         |
 | 3   | A password reset is off by default. The same page answers every username, a code goes only to an enabled account's verified address, the password policy judges the new password before the code is spent, and a reset ends the account's sessions. |
 | 4   | An email verification is off by default. The account page sends a code to the account's address and marks the address verified when the code comes back.                                                              |
@@ -48,7 +48,7 @@ sequenceDiagram
     User->>Page: The code and a new password
     Page->>Seam: Reset the password
     Seam->>Seam: Judge the new password with the policy
-    Seam->>State: Spend the code, at most five wrong guesses
+    Seam->>State: Spend the code, at most five guesses
     Seam-->>User: Password set, sessions ended, back to the login page
 ```
 

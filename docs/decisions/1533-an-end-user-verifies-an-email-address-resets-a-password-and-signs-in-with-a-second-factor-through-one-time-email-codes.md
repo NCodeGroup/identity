@@ -32,11 +32,11 @@ off until the tenant turns it on.**
 
 1. **The code is six digits, hashed, short-lived and used once.** It is six decimal digits from a cryptographic random
    generator, kept in shared state only as a SHA-256 hash bound to the flow's handle, for `email_code_lifetime` (10
-   minutes by default, 1 minute to 1 hour, a narrower scope may only shorten it). Five wrong guesses end the flow, and a
-   code is used once: a flow is spent by one atomic take after every check has passed and before its effect, so two
-   requests that present the right code at once never both run the effect. An account receives at most
-   `email_code_sends_per_hour` codes for one purpose (5 by default, 1 to 20, a narrower scope may only lower it), so an
-   attacker gets at most 25 guesses an hour at a space of a million.
+   minutes by default, 1 minute to 1 hour, a narrower scope may only shorten it). Five guesses end the flow, each
+   counted before it is judged, and a code is used once: a flow is spent by one atomic take after every check has
+   passed and before its effect, so two requests that present the right code at once never both run the effect. An
+   account receives at most `email_code_sends_per_hour` codes for one purpose (5 by default, 1 to 20, a narrower scope
+   may only lower it), so an attacker gets at most 25 guesses an hour at a space of a million.
 2. **A 256-bit flow handle names the flow.** The handle is random and rides on the page that started the flow, so the
    code alone opens nothing. A code is also bound to the address it was mailed to and authorizes nothing once the
    account's address differs, so an administrator who changes the address while a code is outstanding leaves the old

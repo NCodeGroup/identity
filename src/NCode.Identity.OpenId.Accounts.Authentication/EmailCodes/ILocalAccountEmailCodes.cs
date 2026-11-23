@@ -10,7 +10,7 @@ namespace NCode.Identity.OpenId.Accounts.Authentication.EmailCodes;
 /// <summary>
 /// Sends one-time codes to a local account's email address and checks the codes that come back, for every purpose in
 /// <see cref="EmailCodePurposes"/>. A flow is named by a handle that is unguessable and bound to one account; the code
-/// is kept only as a hash, and a flow ends after too many wrong codes or when it is spent, so a code is used once.
+/// is kept only as a hash, and a flow ends after five guesses or when it is spent, so a code is used once.
 /// </summary>
 // See ADR-1533.
 internal interface ILocalAccountEmailCodes
@@ -70,8 +70,9 @@ internal interface ILocalAccountEmailCodes
     );
 
     /// <summary>
-    /// Checks a code against a flow, counting a wrong code against the flow and ending the flow at the fifth. A right
-    /// code keeps the flow, so the caller spends it with <see cref="ConsumeAsync"/> after its other checks pass.
+    /// Checks a code against a flow, counting the guess before it is judged and ending the flow at the fifth, so a flow
+    /// judges at most five guesses however many race. A right code keeps the flow, so the caller spends it with
+    /// <see cref="ConsumeAsync"/> after its other checks pass.
     /// </summary>
     /// <param name="openIdContext">The <see cref="OpenIdContext"/> of the tenant the flow belongs to.</param>
     /// <param name="purpose">The purpose of the code, one of the <see cref="EmailCodePurposes"/>.</param>
