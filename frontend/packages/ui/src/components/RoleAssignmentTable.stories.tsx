@@ -22,6 +22,12 @@ const assignments = [
     displayName: 'Build bot',
     principalType: 'client',
   },
+  {
+    assignmentId: 'a-4',
+    principalId: 'frank',
+    displayName: 'Frank',
+    principalType: 'federated_user',
+  },
   { assignmentId: 'a-3', principalId: 'unknown-1', displayName: null, principalType: null },
 ];
 

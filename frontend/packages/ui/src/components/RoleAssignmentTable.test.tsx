@@ -66,4 +66,22 @@ describe('RoleAssignmentTable', () => {
     expect(screen.getByTestId('owners-row-ghost')).toHaveTextContent(/^ghost$/);
     expect(screen.getByRole('button', { name: 'Revoke Alice' })).toBeInTheDocument();
   });
+
+  it('captions a federated user', () => {
+    render(
+      <RoleAssignmentTable
+        label="Owners"
+        testIdPrefix="owners"
+        assignments={[
+          {
+            assignmentId: 'a-4',
+            principalId: 'f-1',
+            displayName: 'Frank',
+            principalType: 'federated_user',
+          },
+        ]}
+      />,
+    );
+    expect(screen.getByTestId('owners-row-f-1')).toHaveTextContent('Federated user · f-1');
+  });
 });

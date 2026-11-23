@@ -26,6 +26,8 @@ function describeHolder(assignment: RoleAssignmentRow): string {
       return `User · ${assignment.principalId}`;
     case 'client':
       return `Machine client · ${assignment.principalId}`;
+    case 'federated_user':
+      return `Federated user · ${assignment.principalId}`;
     case null:
       return assignment.principalId;
     default:
