@@ -369,6 +369,35 @@ public class InteractiveSignInCodeTests
     }
 
     [Fact]
+    public async Task PostSignInCode_WithoutTheAntiforgeryToken_IsRefusedAndCreatesNoSession()
+    {
+        var transport = new CapturingMailTransport();
+        using var factory = new HostApplicationFactory();
+        await SeedSecondFactorRequiredAsync(factory, CancellationToken.None);
+        await factory.SeedLocalAccountAsync(
+            UserName,
+            Password,
+            Email,
+            emailVerified: true,
+            CancellationToken.None
+        );
+        using var host = factory.WithWebHostBuilder(UseTransport(transport));
+        var client = CreateClient(host);
+        var (_, pendingCookie, _) = await SubmitPasswordAsync(client, CancellationToken.None);
+        var code = await ReadMailedCodeAsync(transport, CancellationToken.None);
+        using var request = new HttpRequestMessage(HttpMethod.Post, LoginCodePath);
+        request.Headers.Add("Cookie", $"{PendingCookieName}={pendingCookie}");
+        request.Content = new FormUrlEncodedContent(
+            new Dictionary<string, string> { ["code"] = code, ["action"] = "verify" }
+        );
+
+        using var response = await client.SendAsync(request, CancellationToken.None);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Null(ReadCookie(response, InteractiveLogin.SessionCookieName));
+    }
+
+    [Fact]
     public async Task PostLoginCode_WithoutAPendingSignIn_RedirectsToTheLoginPage()
     {
         var transport = new CapturingMailTransport();

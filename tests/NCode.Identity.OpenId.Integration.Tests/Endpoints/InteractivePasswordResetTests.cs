@@ -288,9 +288,114 @@ public class InteractivePasswordResetTests
         Assert.Equal(OtherEmail, message.To);
     }
 
+    [Fact]
+    public async Task PostForgotPassword_WithoutTheAntiforgeryToken_IsRefusedAndMailsNothing()
+    {
+        var transport = new CapturingMailTransport();
+        using var factory = new HostApplicationFactory();
+        await SeedResetEnabledAsync(factory, CancellationToken.None);
+        await factory.SeedLocalAccountAsync(
+            UserName,
+            Password,
+            Email,
+            emailVerified: true,
+            CancellationToken.None
+        );
+        await factory.SeedLocalAccountAsync(
+            OtherUserName,
+            Password,
+            OtherEmail,
+            emailVerified: true,
+            CancellationToken.None
+        );
+        using var host = factory.WithWebHostBuilder(UseTransport(transport));
+        var client = CreateClient(host);
+        using var request = new HttpRequestMessage(HttpMethod.Post, ForgotPath);
+        request.Content = new FormUrlEncodedContent(
+            new Dictionary<string, string> { ["username"] = UserName }
+        );
+
+        using var response = await client.SendAsync(request, CancellationToken.None);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+
+        // The mail of another account follows the refused post, so a mail the refused one sent would have arrived
+        // first.
+        await RequestAndReadCodeAsync(
+            client,
+            transport,
+            OtherUserName,
+            OtherEmail,
+            CancellationToken.None
+        );
+        var message = Assert.Single(transport.Delivered);
+        Assert.Equal(OtherEmail, message.To);
+    }
+
     #endregion
 
     #region Reset Password Tests
+
+    [Fact]
+    public async Task PostResetPassword_WithoutTheAntiforgeryToken_IsRefusedAndChangesNothing()
+    {
+        var transport = new CapturingMailTransport();
+        using var factory = new HostApplicationFactory();
+        await SeedResetEnabledAsync(factory, CancellationToken.None);
+        await factory.SeedLocalAccountAsync(
+            UserName,
+            Password,
+            Email,
+            emailVerified: true,
+            CancellationToken.None
+        );
+        using var host = factory.WithWebHostBuilder(UseTransport(transport));
+        var client = CreateClient(host);
+        var (flowId, code) = await RequestAndReadCodeAsync(
+            client,
+            transport,
+            UserName,
+            Email,
+            CancellationToken.None
+        );
+        using var request = new HttpRequestMessage(HttpMethod.Post, ResetPath);
+        request.Content = new FormUrlEncodedContent(
+            new Dictionary<string, string>
+            {
+                ["flow"] = flowId,
+                ["code"] = code,
+                ["new_password"] = NewPassword,
+                ["confirm_password"] = NewPassword,
+                ["ReturnUrl"] = ReturnUrl,
+            }
+        );
+
+        using var response = await client.SendAsync(request, CancellationToken.None);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+
+        // The password is unchanged.
+        using var oldPasswordResponse = await InteractiveLogin.SubmitLoginAsync(
+            client,
+            UserName,
+            Password,
+            ReturnUrl,
+            CancellationToken.None
+        );
+        Assert.NotNull(InteractiveLogin.ReadSessionCookie(oldPasswordResponse));
+
+        // The flow still verifies, so the refused post did not use the code.
+        var location = await SubmitResetAsync(
+            client,
+            flowId,
+            code,
+            NewPassword,
+            NewPassword,
+            CancellationToken.None
+        );
+        Assert.Equal(LoginPath, location.AbsolutePath);
+        Assert.Equal("password_reset", HttpUtility.ParseQueryString(location.Query)["status"]);
+    }
 
     [Fact]
     public async Task PostResetPassword_WithTheMailedCode_ChangesThePasswordAndEndsTheSessions()

@@ -256,6 +256,46 @@ public class InteractiveEmailVerificationTests
         Assert.True(await IsEmailVerifiedAsync(factory, localAccountId, CancellationToken.None));
     }
 
+    [Fact]
+    public async Task PostEmailVerify_WithoutTheAntiforgeryToken_IsRefusedAndVerifiesNothing()
+    {
+        var transport = new CapturingMailTransport();
+        using var factory = new HostApplicationFactory();
+        await SeedVerificationEnabledAsync(factory, CancellationToken.None);
+        var localAccountId = await factory.SeedLocalAccountAsync(
+            UserName,
+            Password,
+            Email,
+            emailVerified: false,
+            CancellationToken.None
+        );
+        using var host = factory.WithWebHostBuilder(UseTransport(transport));
+        var client = CreateClient(host);
+        var sessionCookie = await InteractiveLogin.SignInAsync(
+            client,
+            UserName,
+            Password,
+            CancellationToken.None
+        );
+        var flowId = await RequestCodeAsync(client, sessionCookie, CancellationToken.None);
+        var message = await transport.WaitForMessageToAsync(
+            Email,
+            MailTimeout,
+            CancellationToken.None
+        );
+        var code = CapturingMailTransport.ReadCode(message);
+        using var request = new HttpRequestMessage(HttpMethod.Post, EmailVerifyPath);
+        request.Headers.Add("Cookie", $"{InteractiveLogin.SessionCookieName}={sessionCookie}");
+        request.Content = new FormUrlEncodedContent(
+            new Dictionary<string, string> { ["flow"] = flowId, ["code"] = code }
+        );
+
+        using var response = await client.SendAsync(request, CancellationToken.None);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.False(await IsEmailVerifiedAsync(factory, localAccountId, CancellationToken.None));
+    }
+
     #endregion
 
     #region Send Tests
