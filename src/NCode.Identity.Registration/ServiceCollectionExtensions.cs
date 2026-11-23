@@ -100,5 +100,24 @@ public static class ServiceCollectionExtensions
         {
             return new ServiceBuilder<TNewMarker>(serviceCollection);
         }
+
+        /// <summary>
+        /// Gets a <see cref="IServiceBuilder{TMarker}"/> over this <see cref="IServiceCollection"/> for a marker that
+        /// several registrations share, such as each named store of one capability. The marker is registered once, by
+        /// the first call.
+        /// </summary>
+        /// <typeparam name="TMarker">The type that discriminates the service builder.</typeparam>
+        /// <returns>The <see cref="IServiceBuilder{TMarker}"/> instance.</returns>
+        [PublicAPI]
+        public IServiceBuilder<TMarker> GetOrAddBuilder<TMarker>()
+            where TMarker : IRegistrationMarker<TMarker>, new()
+        {
+            if (serviceCollection.IsRegistered<TMarker>())
+            {
+                return new ServiceBuilder<TMarker>(serviceCollection, registerMarker: false);
+            }
+
+            return serviceCollection.NewBuilder<TMarker>();
+        }
     }
 }

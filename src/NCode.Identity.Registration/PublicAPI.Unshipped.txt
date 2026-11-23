@@ -19,3 +19,4 @@ NCode.Identity.Registration.StrictConfigurationBindingExtensions
 NCode.Identity.Registration.StrictConfigurationBindingExtensions.extension(Microsoft.Extensions.Configuration.IConfigurationSection!)
 NCode.Identity.Registration.StrictConfigurationBindingExtensions.extension(Microsoft.Extensions.Configuration.IConfigurationSection!).BindStrictly(object! instance) -> void
 NCode.Identity.Registration.ServiceCollectionExtensions.extension(Microsoft.Extensions.DependencyInjection.IServiceCollection!).TryAddEnumerableInstance<TService>(TService! instance) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+NCode.Identity.Registration.ServiceCollectionExtensions.extension(Microsoft.Extensions.DependencyInjection.IServiceCollection!).GetOrAddBuilder<TMarker>() -> NCode.Identity.Registration.IServiceBuilder<TMarker>!

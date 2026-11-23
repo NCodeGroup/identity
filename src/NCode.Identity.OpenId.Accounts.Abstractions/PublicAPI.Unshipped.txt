@@ -121,3 +121,24 @@ NCode.Identity.OpenId.Accounts.Stores.LocalAccountVerificationResult.AccountKey.
 NCode.Identity.OpenId.Accounts.SubjectMetadataExtensions
 NCode.Identity.OpenId.Accounts.SubjectMetadataExtensions.extension(System.Security.Claims.ClaimsPrincipal!)
 NCode.Identity.OpenId.Accounts.SubjectMetadataExtensions.extension(System.Security.Claims.ClaimsPrincipal!).TryGetMetadata(string! claimType, out System.Text.Json.JsonElement metadata) -> bool
+NCode.Identity.OpenId.Accounts.Stores.LocalAccountStoreCatalog
+NCode.Identity.OpenId.Accounts.Stores.LocalAccountStoreCatalog.Contains(string! name) -> bool
+NCode.Identity.OpenId.Accounts.Stores.LocalAccountStoreCatalog.GetStore(NCode.Identity.Persistence.Stores.IStoreManager! storeManager, NCode.Identity.OpenId.Persistence.DataContracts.PersistedConnection! connection) -> NCode.Identity.OpenId.Accounts.Stores.ILocalAccountStore!
+NCode.Identity.OpenId.Accounts.Stores.LocalAccountStoreCatalog.GetTransferStore(NCode.Identity.Persistence.Stores.IStoreManager! storeManager, NCode.Identity.OpenId.Persistence.DataContracts.PersistedConnection! connection) -> NCode.Identity.OpenId.Accounts.Stores.ILocalAccountTransferStore!
+NCode.Identity.OpenId.Accounts.Stores.LocalAccountStoreCatalog.LocalAccountStoreCatalog(System.Collections.Generic.IEnumerable<NCode.Identity.OpenId.Accounts.Stores.LocalAccountStoreRegistration!>! registrations) -> void
+NCode.Identity.OpenId.Accounts.Stores.LocalAccountStoreRegistration
+NCode.Identity.OpenId.Accounts.Stores.LocalAccountStoreRegistration.CreateStore.get -> System.Func<NCode.Identity.Persistence.Stores.IStoreManager!, NCode.Identity.OpenId.Accounts.Stores.ILocalAccountStore!>!
+NCode.Identity.OpenId.Accounts.Stores.LocalAccountStoreRegistration.CreateStore.init -> void
+NCode.Identity.OpenId.Accounts.Stores.LocalAccountStoreRegistration.CreateTransferStore.get -> System.Func<NCode.Identity.Persistence.Stores.IStoreManager!, NCode.Identity.OpenId.Accounts.Stores.ILocalAccountTransferStore!>!
+NCode.Identity.OpenId.Accounts.Stores.LocalAccountStoreRegistration.CreateTransferStore.init -> void
+NCode.Identity.OpenId.Accounts.Stores.LocalAccountStoreRegistration.LocalAccountStoreRegistration() -> void
+NCode.Identity.OpenId.Accounts.Stores.LocalAccountStoreRegistration.Name.get -> string!
+NCode.Identity.OpenId.Accounts.Stores.LocalAccountStoreRegistration.Name.init -> void
+NCode.Identity.OpenId.Accounts.Stores.LocalAccountStoreRegistrationExtensions
+NCode.Identity.OpenId.Accounts.Stores.LocalAccountStoreRegistrationExtensions.extension(Microsoft.Extensions.DependencyInjection.IServiceCollection!)
+NCode.Identity.OpenId.Accounts.Stores.LocalAccountStoreRegistrationExtensions.extension(Microsoft.Extensions.DependencyInjection.IServiceCollection!).AddLocalAccountStore(System.Func<System.IServiceProvider!, NCode.Identity.OpenId.Accounts.Stores.LocalAccountStoreRegistration!>! factory) -> NCode.Identity.Registration.IServiceBuilder<NCode.Identity.OpenId.Accounts.LocalAccountLibrary>!
+NCode.Identity.OpenId.Accounts.Stores.LocalConnectionStrategy
+NCode.Identity.OpenId.Accounts.Stores.LocalConnectionStrategy.LocalConnectionStrategy(NCode.Identity.OpenId.Accounts.Stores.LocalAccountStoreCatalog! catalog) -> void
+NCode.Identity.OpenId.Accounts.Stores.LocalConnectionStrategy.Name.get -> string!
+NCode.Identity.OpenId.Accounts.Stores.LocalConnectionStrategy.SignInMethod.get -> string!
+NCode.Identity.OpenId.Accounts.Stores.LocalConnectionStrategy.ValidateOptions(System.Text.Json.JsonElement options) -> string?

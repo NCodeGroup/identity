@@ -55,9 +55,16 @@ public class ServiceBuilder<TMarker> : IServiceBuilder<TMarker>
     /// </summary>
     /// <param name="serviceCollection">The <see cref="IServiceCollection"/> that is used to configure services.</param>
     public ServiceBuilder(IServiceCollection serviceCollection)
+        : this(serviceCollection, registerMarker: true) { }
+
+    internal ServiceBuilder(IServiceCollection serviceCollection, bool registerMarker)
     {
         ServiceCollection = serviceCollection;
-        serviceCollection.AddRegistrationMarker<TMarker>();
+
+        if (registerMarker)
+        {
+            serviceCollection.AddRegistrationMarker<TMarker>();
+        }
     }
 
     /// <inheritdoc/>
