@@ -129,15 +129,21 @@ public sealed class DirectoryMigrateCommandTests
     }
 
     [Fact]
-    public async Task RunAsync_WhenTheRuntimeRoleIsNotConfigured_ThrowsNamingTheKeyAndNeverMigrates()
+    public async Task RunAsync_WhenTheRuntimeRoleIsNotConfigured_ReturnsOneAndLogsTheKey()
     {
-        await using var services = new ServiceCollection().BuildServiceProvider();
+        await using var services = new ServiceCollection().AddFakeLogging().BuildServiceProvider();
         var configuration = CreateConfiguration();
 
-        var exception = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
-            await DirectoryMigrateCommand.RunAsync(services, configuration, CancellationToken.None)
+        var exitCode = await DirectoryMigrateCommand.RunAsync(
+            services,
+            configuration,
+            CancellationToken.None
         );
 
+        Assert.Equal(1, exitCode);
+        var record = Assert.Single(services.GetFakeLogCollector().GetSnapshot());
+        Assert.Equal(Logging.EventIds.DirectoryMigrateCommandFailed, record.Id.Id);
+        var exception = Assert.IsType<InvalidOperationException>(record.Exception);
         Assert.Contains(RuntimeRoleKey, exception.Message, StringComparison.Ordinal);
     }
 
