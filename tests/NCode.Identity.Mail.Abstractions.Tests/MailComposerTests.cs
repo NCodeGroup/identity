@@ -47,8 +47,15 @@ public class MailComposerTests : BaseTests
     [Fact]
     public async Task ComposeAsync_WithAModelOfAnotherType_Throws()
     {
-        await Assert.ThrowsAsync<ArgumentException>(async () =>
+        var exception = await Assert.ThrowsAsync<ArgumentException>(async () =>
             await Composer.ComposeAsync(42, CancellationToken.None)
+        );
+
+        Assert.Equal("model", exception.ParamName);
+        Assert.StartsWith(
+            "The composer composes models of type 'System.String', not 'System.Int32'.",
+            exception.Message,
+            StringComparison.Ordinal
         );
     }
 
