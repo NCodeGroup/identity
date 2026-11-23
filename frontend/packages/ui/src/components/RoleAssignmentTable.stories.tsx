@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
+import { PRINCIPAL_TYPES } from '@ncodegroup/identity-api';
 import { RoleAssignmentTable } from './RoleAssignmentTable.js';
 
 const meta: Meta<typeof RoleAssignmentTable> = {
@@ -14,19 +15,19 @@ const assignments = [
     assignmentId: 'a-1',
     principalId: 'alice',
     displayName: 'Alice',
-    principalType: 'local_account',
+    principalType: PRINCIPAL_TYPES.localAccount,
   },
   {
     assignmentId: 'a-2',
     principalId: 'build-bot',
     displayName: 'Build bot',
-    principalType: 'client',
+    principalType: PRINCIPAL_TYPES.client,
   },
   {
     assignmentId: 'a-4',
     principalId: 'frank',
     displayName: 'Frank',
-    principalType: 'federated_user',
+    principalType: PRINCIPAL_TYPES.federatedUser,
   },
   { assignmentId: 'a-3', principalId: 'unknown-1', displayName: null, principalType: null },
 ];

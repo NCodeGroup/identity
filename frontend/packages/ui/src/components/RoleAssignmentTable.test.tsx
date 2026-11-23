@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { PRINCIPAL_TYPES } from '@ncodegroup/identity-api';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { RoleAssignmentTable, type RoleAssignmentRow } from './RoleAssignmentTable.js';
 
@@ -46,13 +47,13 @@ describe('RoleAssignmentTable', () => {
             assignmentId: 'a-1',
             principalId: 'u-1',
             displayName: 'Alice',
-            principalType: 'local_account',
+            principalType: PRINCIPAL_TYPES.localAccount,
           },
           {
             assignmentId: 'a-2',
             principalId: 'c-1',
             displayName: 'Build bot',
-            principalType: 'client',
+            principalType: PRINCIPAL_TYPES.client,
           },
           { assignmentId: 'a-3', principalId: 'ghost', displayName: null, principalType: null },
         ]}
@@ -77,7 +78,7 @@ describe('RoleAssignmentTable', () => {
             assignmentId: 'a-4',
             principalId: 'f-1',
             displayName: 'Frank',
-            principalType: 'federated_user',
+            principalType: PRINCIPAL_TYPES.federatedUser,
           },
         ]}
       />,

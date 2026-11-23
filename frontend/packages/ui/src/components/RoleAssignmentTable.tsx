@@ -1,3 +1,4 @@
+import { PRINCIPAL_TYPES } from '@ncodegroup/identity-api';
 import IconButton from '@mui/material/IconButton';
 import Table from '@mui/material/Table';
 import TableBody from '@mui/material/TableBody';
@@ -22,11 +23,11 @@ export type RoleAssignmentRow = {
  */
 function describeHolder(assignment: RoleAssignmentRow): string {
   switch (assignment.principalType) {
-    case 'local_account':
+    case PRINCIPAL_TYPES.localAccount:
       return `User · ${assignment.principalId}`;
-    case 'client':
+    case PRINCIPAL_TYPES.client:
       return `Machine client · ${assignment.principalId}`;
-    case 'federated_user':
+    case PRINCIPAL_TYPES.federatedUser:
       return `Federated user · ${assignment.principalId}`;
     case null:
       return assignment.principalId;

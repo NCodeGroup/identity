@@ -2,7 +2,7 @@ import { describe, expect, it, beforeEach, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { Provider } from 'react-redux';
 import { createAppStore } from '@ncodegroup/identity-store';
-import type { RoleList } from '@ncodegroup/identity-api';
+import { PRINCIPAL_TYPES, type RoleList } from '@ncodegroup/identity-api';
 import type { BffRuntimeConfig } from '@ncodegroup/identity-config';
 import { RoleAssignmentsManager } from './RoleAssignmentsManager.js';
 import { OwnerAccessTab } from './OwnerAccessTab.js';
@@ -140,7 +140,7 @@ describe('RoleAssignmentsManager', () => {
               ...assignment('alice'),
               principal: {
                 principalId: 'alice',
-                principalType: 'local_account',
+                principalType: PRINCIPAL_TYPES.localAccount,
                 displayName: 'Alice Doe',
                 userName: 'alice',
               },
