@@ -181,6 +181,29 @@ public sealed class DefaultDirectoryStoreMoveTests : DefaultDirectoryStoreTestBa
         Assert.Null(await ReadMoveOfferAsync(TenantId));
     }
 
+    [Fact]
+    public async Task OfferMoveAsync_WhenTheTenantIsTheControlPlaneTenant_ConflictsAndRecordsNoOffer()
+    {
+        await RegisterCellAsync(ControlPlaneCell, CellRegion);
+        await RegisterCellAsync(TargetCellName, CellRegion);
+        await ReserveAndPlaceAsync(TenantId, Issuer);
+
+        var result = await Tenants.OfferMoveAsync(
+            ControlPlaneTenantId,
+            ControlPlaneCell,
+            TargetCellName,
+            CancellationToken.None
+        );
+
+        Assert.False(result.IsOffered);
+        Assert.Equal(
+            $"The tenant '{ControlPlaneTenantId}' is the control-plane cell's root tenant, which DirectoryServer:ControlPlaneTenantId names, and it never leaves that cell.",
+            result.ConflictDetail
+        );
+        Assert.Null(await ReadMoveOfferAsync(ControlPlaneTenantId));
+        Assert.Equal(ControlPlaneCell, (await ReadTenantAsync(ControlPlaneTenantId))?.Cell);
+    }
+
     #endregion
 
     #region MoveAsync Tests
@@ -389,6 +412,28 @@ public sealed class DefaultDirectoryStoreMoveTests : DefaultDirectoryStoreTestBa
             result.ConflictDetail
         );
         Assert.Equal(CellName, (await ReadTenantAsync(TenantId))?.Cell);
+    }
+
+    [Fact]
+    public async Task MoveAsync_WhenTheTenantIsTheControlPlaneTenant_ConflictsAndKeepsThePlacement()
+    {
+        await RegisterCellAsync(ControlPlaneCell, CellRegion);
+        await RegisterCellAsync(TargetCellName, CellRegion);
+        await ReserveAndPlaceAsync(TenantId, Issuer);
+
+        var result = await Tenants.MoveAsync(
+            ControlPlaneTenantId,
+            ControlPlaneCell,
+            TargetCellName,
+            CancellationToken.None
+        );
+
+        Assert.False(result.IsMoved);
+        Assert.Equal(
+            $"The tenant '{ControlPlaneTenantId}' is the control-plane cell's root tenant, which DirectoryServer:ControlPlaneTenantId names, and it never leaves that cell.",
+            result.ConflictDetail
+        );
+        Assert.Equal(ControlPlaneCell, (await ReadTenantAsync(ControlPlaneTenantId))?.Cell);
     }
 
     [Fact]

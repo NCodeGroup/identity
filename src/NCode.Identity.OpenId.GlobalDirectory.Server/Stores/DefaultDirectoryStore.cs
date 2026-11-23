@@ -23,8 +23,8 @@ namespace NCode.Identity.OpenId.GlobalDirectory.Server.Stores;
 /// <c>max_tenants</c> setting, and each team document carries its parent team's identifier, so the directory knows the
 /// lineage and the subtree of every team without any other source. The control-plane cell's root tenant, which
 /// <see cref="DirectoryServerOptions.ControlPlaneTenantId"/> names, is held from configuration, placed in that cell,
-/// before every reservation and issuer change; every other tenant, the root tenant of every other cell included, is
-/// reserved and placed by its cell.
+/// before every reservation and issuer change, and is never offered to or moved into another cell; every other tenant,
+/// the root tenant of every other cell included, is reserved and placed by its cell.
 /// </remarks>
 // See ADR-1160.
 // See ADR-1411.
@@ -213,6 +213,30 @@ internal sealed class DefaultDirectoryStore(
             },
             cancellationToken
         );
+    }
+
+    /// <summary>
+    /// Gets the detail that refuses an offer or a move of the control-plane cell's root tenant, which
+    /// <see cref="DirectoryServerOptions.ControlPlaneTenantId"/> names: the directory places that tenant in the
+    /// control-plane cell from its own configuration and accepts only the tokens it issues, so it never leaves that
+    /// cell.
+    /// </summary>
+    /// <param name="tenantId">The identifier of the tenant to offer or move.</param>
+    /// <returns>
+    /// The detail of the refusal, or <c>null</c> when the tenant is not the control-plane cell's root tenant.
+    /// </returns>
+    private string? GetControlPlaneTenantMoveDetailOrDefault(string tenantId)
+    {
+        var normalizedTenantId = Normalize(tenantId);
+        var controlPlaneTenantId = ServerOptions.Value.ControlPlaneTenantId;
+        var normalizedControlPlaneTenantId = Normalize(controlPlaneTenantId);
+        return string.Equals(
+            normalizedTenantId,
+            normalizedControlPlaneTenantId,
+            StringComparison.Ordinal
+        )
+            ? $"The tenant '{tenantId}' is the control-plane cell's root tenant, which {ControlPlaneTenantIdKey} names, and it never leaves that cell."
+            : null;
     }
 
     #region ITenantDirectory
@@ -515,6 +539,12 @@ internal sealed class DefaultDirectoryStore(
         CancellationToken cancellationToken
     )
     {
+        var controlPlaneDetail = GetControlPlaneTenantMoveDetailOrDefault(tenantId);
+        if (controlPlaneDetail is not null)
+        {
+            return MoveResult.Conflict(controlPlaneDetail);
+        }
+
         await using var dbContext = await DbContextFactory.CreateDbContextAsync(cancellationToken);
         var executionStrategy = dbContext.Database.CreateExecutionStrategy();
         return await executionStrategy.ExecuteAsync(
@@ -630,6 +660,12 @@ internal sealed class DefaultDirectoryStore(
         CancellationToken cancellationToken
     )
     {
+        var controlPlaneDetail = GetControlPlaneTenantMoveDetailOrDefault(tenantId);
+        if (controlPlaneDetail is not null)
+        {
+            return MoveOfferResult.Conflict(controlPlaneDetail);
+        }
+
         await using var dbContext = await DbContextFactory.CreateDbContextAsync(cancellationToken);
         var executionStrategy = dbContext.Database.CreateExecutionStrategy();
         return await executionStrategy.ExecuteAsync(

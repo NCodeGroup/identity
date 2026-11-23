@@ -78,8 +78,9 @@ public interface ITenantDirectory
     /// <summary>
     /// Records that the cell holding a tenant offers the tenant to another cell of the same region, until the offer
     /// expires. A tenant has at most one offer, and offering again sets it to the new target cell and expiry. The offer
-    /// is refused when the tenant is not placed in the source cell, when the cells are the same, when either cell is
-    /// not registered, or when the cells are in different regions.
+    /// is refused for the control-plane cell's root tenant, which the directory holds in that cell from its own
+    /// configuration, and when the tenant is not placed in the source cell, when the cells are the same, when either
+    /// cell is not registered, or when the cells are in different regions.
     /// </summary>
     /// <param name="tenantId">The identifier of the tenant.</param>
     /// <param name="fromCell">The name of the cell that holds the tenant and offers it.</param>
@@ -95,10 +96,11 @@ public interface ITenantDirectory
 
     /// <summary>
     /// Moves a placed tenant from one cell to another cell of the same region. The move consumes the source cell's
-    /// unexpired offer of the tenant to the target cell, and is refused without one. The move is also refused when the
-    /// tenant is not placed in the source cell, when either cell is not registered, or when the cells are in different
-    /// regions. Moving a tenant that is already placed in the target cell succeeds, so a move that runs again after it
-    /// took effect is not refused.
+    /// unexpired offer of the tenant to the target cell, and is refused without one. The move is also refused for the
+    /// control-plane cell's root tenant, which the directory holds in that cell from its own configuration, and when
+    /// the tenant is not placed in the source cell, when either cell is not registered, or when the cells are in
+    /// different regions. Moving a tenant that is already placed in the target cell succeeds, so a move that runs again
+    /// after it took effect is not refused.
     /// </summary>
     /// <param name="tenantId">The identifier of the tenant.</param>
     /// <param name="fromCell">The name of the cell that holds the tenant.</param>

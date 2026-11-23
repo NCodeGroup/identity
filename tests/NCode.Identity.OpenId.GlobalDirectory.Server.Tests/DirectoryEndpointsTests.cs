@@ -1380,6 +1380,22 @@ public class DirectoryEndpointsTests : IAsyncLifetime
         );
     }
 
+    private async ValueTask AssertControlPlaneTenantStaysInTheControlPlaneCellAsync(
+        CancellationToken cancellationToken = default
+    )
+    {
+        var services = (App ?? throw new InvalidOperationException()).Services;
+        var tenants = services.GetRequiredService<ITenantDirectory>();
+
+        var placement = await tenants.GetPlacementOrDefaultAsync(
+            ControlPlaneTenantId,
+            cancellationToken
+        );
+
+        Assert.NotNull(placement);
+        Assert.Equal(ControlPlaneCell, placement.Cell);
+    }
+
     private async ValueTask OfferMoveAsync(
         string fromCell,
         string toCell,
@@ -1440,6 +1456,25 @@ public class DirectoryEndpointsTests : IAsyncLifetime
             await ReadProblemDetailAsync(response)
         );
         Assert.Equal("a", await GetPlacedCellAsync());
+    }
+
+    [Fact]
+    public async Task MoveTenant_WhenTheTenantIsTheControlPlaneTenant_AnswersConflictWithTheDetail()
+    {
+        await SeedPlacedTenantAsync("region-a");
+        Authenticate(clientId: "cell-b");
+
+        var response = await Client.PostAsync(
+            $"/directory/v1/tenants/{ControlPlaneTenantId}/move?fromCell={ControlPlaneCell}&toCell=b",
+            content: null
+        );
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        Assert.Equal(
+            $"The tenant '{ControlPlaneTenantId}' is the control-plane cell's root tenant, which DirectoryServer:ControlPlaneTenantId names, and it never leaves that cell.",
+            await ReadProblemDetailAsync(response)
+        );
+        await AssertControlPlaneTenantStaysInTheControlPlaneCellAsync();
     }
 
     [Fact]
@@ -1631,6 +1666,26 @@ public class DirectoryEndpointsTests : IAsyncLifetime
             "The cells 'a' and 'b' are in different regions, and a tenant moves only within its region.",
             await ReadProblemDetailAsync(response)
         );
+    }
+
+    [Fact]
+    public async Task OfferMove_WhenTheTenantIsTheControlPlaneTenant_AnswersConflictWithTheDetail()
+    {
+        await SeedPlacedTenantAsync("region-a");
+        AuthenticateAsControlPlane();
+
+        var response = await Client.PostAsJsonAsync(
+            $"/directory/v1/tenants/{ControlPlaneTenantId}/move-offers",
+            new TenantMoveOfferRequest { ToCell = "b" },
+            WebOptions
+        );
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        Assert.Equal(
+            $"The tenant '{ControlPlaneTenantId}' is the control-plane cell's root tenant, which DirectoryServer:ControlPlaneTenantId names, and it never leaves that cell.",
+            await ReadProblemDetailAsync(response)
+        );
+        await AssertControlPlaneTenantStaysInTheControlPlaneCellAsync();
     }
 
     #endregion
