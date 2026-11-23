@@ -5,6 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 using NCode.Identity.OpenId.Accounts.Management.Transfers;
 using NCode.Identity.OpenId.Management;
 using NCode.Identity.OpenId.Management.Endpoints;
+using NCode.Identity.OpenId.Management.Principals;
 using NCode.Identity.OpenId.Management.Transfers;
 using NCode.Identity.Registration;
 using NCode.Identity.Registration.AspNetCore;
@@ -49,6 +50,23 @@ public sealed class DefaultRegistrationTests
                 && Equals(x.ServiceKey, ManagementEndpointGroups.Root)
                 && x.KeyedImplementationType == typeof(PlatformLocalAccountEndpointProvider)
         );
+        Assert.Equal(ServiceLifetime.Singleton, descriptor.Lifetime);
+    }
+
+    [Fact]
+    public void AddLocalAccountManagement_Always_RegistersTheLocalAccountPrincipalDescriberAsASingleton()
+    {
+        var serviceCollection = new ServiceCollection();
+        var builder = new ServiceBuilder<OpenIdManagementLibrary>(serviceCollection);
+        var localAccountStore = new ServiceBuilder<LocalAccountLibrary>(serviceCollection);
+
+        builder.AddLocalAccountManagement(localAccountStore);
+
+        var descriptor = Assert.Single(
+            serviceCollection,
+            x => x.ServiceType == typeof(IPrincipalDescriber)
+        );
+        Assert.Equal(typeof(LocalAccountPrincipalDescriber), descriptor.ImplementationType);
         Assert.Equal(ServiceLifetime.Singleton, descriptor.Lifetime);
     }
 
