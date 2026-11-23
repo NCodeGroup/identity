@@ -77,6 +77,28 @@ internal sealed class DefaultAuditStreamDeliverer(
     /// </summary>
     private static TimeSpan LeaseReleaseTimeout { get; } = TimeSpan.FromSeconds(10);
 
+    /// <summary>
+    /// Clears the lease holder and the lease expiry of a delivery state.
+    /// </summary>
+    /// <param name="state">The state whose lease is cleared.</param>
+    private static void ReleaseLease(PersistedAuditStreamState state)
+    {
+        state.LeaseHolder = null;
+        state.LeaseExpiryTime = null;
+    }
+
+    /// <summary>
+    /// Determines whether the lease holder of the current state is the one that this replica claimed.
+    /// </summary>
+    /// <param name="current">The state as it is stored now.</param>
+    /// <param name="handed">The state as this replica claimed it.</param>
+    /// <returns><see langword="true"/> when both name the same lease holder; otherwise
+    /// <see langword="false"/>.</returns>
+    private static bool HoldsLease(
+        PersistedAuditStreamState current,
+        PersistedAuditStreamState handed
+    ) => string.Equals(current.LeaseHolder, handed.LeaseHolder, StringComparison.Ordinal);
+
     private IStoreManagerFactory StoreManagerFactory { get; } = storeManagerFactory;
 
     private IAmbientTenantAccessor AmbientTenantAccessor { get; } = ambientTenantAccessor;
@@ -580,26 +602,4 @@ internal sealed class DefaultAuditStreamDeliverer(
 
         return delay < Options.StreamMaxRetryDelay ? delay : Options.StreamMaxRetryDelay;
     }
-
-    /// <summary>
-    /// Clears the lease holder and the lease expiry of a delivery state.
-    /// </summary>
-    /// <param name="state">The state whose lease is cleared.</param>
-    private static void ReleaseLease(PersistedAuditStreamState state)
-    {
-        state.LeaseHolder = null;
-        state.LeaseExpiryTime = null;
-    }
-
-    /// <summary>
-    /// Determines whether the lease holder of the current state is the one that this replica claimed.
-    /// </summary>
-    /// <param name="current">The state as it is stored now.</param>
-    /// <param name="handed">The state as this replica claimed it.</param>
-    /// <returns><see langword="true"/> when both name the same lease holder; otherwise
-    /// <see langword="false"/>.</returns>
-    private static bool HoldsLease(
-        PersistedAuditStreamState current,
-        PersistedAuditStreamState handed
-    ) => string.Equals(current.LeaseHolder, handed.LeaseHolder, StringComparison.Ordinal);
 }

@@ -157,8 +157,7 @@ internal sealed class AuditStreamDeliveryService(
         }
         catch (StoreConcurrencyException)
         {
-            // Another replica took the stream first, as the store's token check or the save
-            // found.
+            // Another replica took the stream first, as the store's token check or the save found.
             return false;
         }
 

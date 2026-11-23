@@ -18,8 +18,6 @@ internal sealed class AuditRecordOptionsValidator(IOptions<OutboundHttpOptions> 
 
     private const int MaxStreamsPerPoll = 1000;
 
-    private IOptions<OutboundHttpOptions> OutboundHttp { get; } = outboundHttpOptions;
-
     private static TimeSpan OneSecond { get; } = TimeSpan.FromSeconds(1);
 
     private static TimeSpan ThirtySeconds { get; } = TimeSpan.FromSeconds(30);
@@ -29,6 +27,35 @@ internal sealed class AuditRecordOptionsValidator(IOptions<OutboundHttpOptions> 
     private static TimeSpan OneHour { get; } = TimeSpan.FromHours(1);
 
     private static TimeSpan OneDay { get; } = TimeSpan.FromDays(1);
+
+    /// <summary>
+    /// Adds a failure to the list when a value lies outside an inclusive range.
+    /// </summary>
+    /// <typeparam name="T">The type of the value, which must be comparable with itself.</typeparam>
+    /// <param name="failures">The failures to add to.</param>
+    /// <param name="propertyName">The name of the option that holds the value.</param>
+    /// <param name="value">The value to check.</param>
+    /// <param name="minValue">The least value that is accepted.</param>
+    /// <param name="maxValue">The greatest value that is accepted.</param>
+    // See ADR-1534.
+    private static void AddRangeFailure<T>(
+        List<string> failures,
+        string propertyName,
+        T value,
+        T minValue,
+        T maxValue
+    )
+        where T : IComparable<T>
+    {
+        if (value.CompareTo(minValue) >= 0 && value.CompareTo(maxValue) <= 0)
+            return;
+
+        failures.Add(
+            $"{nameof(AuditRecordOptions)}.{propertyName} ('{AuditRecordOptions.SectionName}:{propertyName}') must be between {minValue} and {maxValue}; it is {value}."
+        );
+    }
+
+    private IOptions<OutboundHttpOptions> OutboundHttp { get; } = outboundHttpOptions;
 
     /// <inheritdoc />
     public ValidateOptionsResult Validate(string? name, AuditRecordOptions options)
@@ -132,32 +159,5 @@ internal sealed class AuditRecordOptionsValidator(IOptions<OutboundHttpOptions> 
         return failures.Count == 0
             ? ValidateOptionsResult.Success
             : ValidateOptionsResult.Fail(failures);
-    }
-
-    /// <summary>
-    /// Adds a failure to the list when a value lies outside an inclusive range.
-    /// </summary>
-    /// <typeparam name="T">The type of the value, which must be comparable with itself.</typeparam>
-    /// <param name="failures">The failures to add to.</param>
-    /// <param name="propertyName">The name of the option that holds the value.</param>
-    /// <param name="value">The value to check.</param>
-    /// <param name="minValue">The least value that is accepted.</param>
-    /// <param name="maxValue">The greatest value that is accepted.</param>
-    // See ADR-1534.
-    private static void AddRangeFailure<T>(
-        List<string> failures,
-        string propertyName,
-        T value,
-        T minValue,
-        T maxValue
-    )
-        where T : IComparable<T>
-    {
-        if (value.CompareTo(minValue) >= 0 && value.CompareTo(maxValue) <= 0)
-            return;
-
-        failures.Add(
-            $"{nameof(AuditRecordOptions)}.{propertyName} ('{AuditRecordOptions.SectionName}:{propertyName}') must be between {minValue} and {maxValue}; it is {value}."
-        );
     }
 }
