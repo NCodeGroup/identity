@@ -78,7 +78,15 @@ async function settle(store: AppStore): Promise<void> {
 }
 
 type ManagementTag = {
-  readonly type: 'Tenant' | 'Team' | 'Client' | 'ResourceServer' | 'Grant' | 'Secret' | 'Settings';
+  readonly type:
+    | 'Tenant'
+    | 'Team'
+    | 'Client'
+    | 'Connection'
+    | 'ResourceServer'
+    | 'Grant'
+    | 'Secret'
+    | 'Settings';
   readonly id: string;
 };
 
@@ -3574,6 +3582,7 @@ describe('managementApi role assignment requests', () => {
 describe('managementApi local accounts', () => {
   const account = {
     tenantId: 'acme',
+    connectionId: 'c-1',
     localAccountId: 'la/1',
     principalId: null,
     userName: 'ada',
@@ -3583,7 +3592,7 @@ describe('managementApi local accounts', () => {
     isEnabled: true,
     concurrencyToken: 'c1',
   };
-  const itemPath = '/api/tenants/acme/local-accounts/la%2F1';
+  const itemPath = '/api/tenants/acme/connections/c-1/local-accounts/la%2F1';
   const newAccount = { userName: 'ada', password: 'pw' };
   const fields = { displayName: 'Ada', userName: 'ada', email: null, emailVerified: false };
 
@@ -3618,10 +3627,16 @@ describe('managementApi local accounts', () => {
     const store = createStore();
 
     await store.dispatch(
-      managementApi.endpoints.listLocalAccounts.initiate({ kind: 'tenant', tenantId: 'a/b' }),
+      managementApi.endpoints.listLocalAccounts.initiate({
+        kind: 'tenant',
+        tenantId: 'a/b',
+        connectionId: 'c/1',
+      }),
     );
 
-    expect(captured[0]?.url).toBe('https://api.test/api/tenants/a%2Fb/local-accounts');
+    expect(captured[0]?.url).toBe(
+      'https://api.test/api/tenants/a%2Fb/connections/c%2F1/local-accounts',
+    );
   });
 
   it("listLocalAccounts GETs a tenant's collection in its cell", async () => {
@@ -3632,11 +3647,14 @@ describe('managementApi local accounts', () => {
       managementApi.endpoints.listLocalAccounts.initiate({
         kind: 'tenant',
         tenantId: 'acme',
+        connectionId: 'c-1',
         cell: 'eu-1',
       }),
     );
 
-    expect(captured[0]?.url).toBe('https://api.test/cells/eu-1/api/tenants/acme/local-accounts');
+    expect(captured[0]?.url).toBe(
+      'https://api.test/cells/eu-1/api/tenants/acme/connections/c-1/local-accounts',
+    );
   });
 
   it('createLocalAccount POSTs the body to the platform, tenant and cell collections', async () => {
@@ -3651,13 +3669,13 @@ describe('managementApi local accounts', () => {
     );
     await store.dispatch(
       managementApi.endpoints.createLocalAccount.initiate({
-        owner: { kind: 'tenant', tenantId: 'acme' },
+        owner: { kind: 'tenant', tenantId: 'acme', connectionId: 'c-1' },
         body: newAccount,
       }),
     );
     await store.dispatch(
       managementApi.endpoints.createLocalAccount.initiate({
-        owner: { kind: 'tenant', tenantId: 'acme', cell: 'eu-1' },
+        owner: { kind: 'tenant', tenantId: 'acme', connectionId: 'c-1', cell: 'eu-1' },
         body: newAccount,
       }),
     );
@@ -3665,8 +3683,8 @@ describe('managementApi local accounts', () => {
     expect(captured.map((c) => c.method)).toEqual(['POST', 'POST', 'POST']);
     expect(captured.map((c) => c.url)).toEqual([
       'https://api.test/api/platform/local-accounts',
-      'https://api.test/api/tenants/acme/local-accounts',
-      'https://api.test/cells/eu-1/api/tenants/acme/local-accounts',
+      'https://api.test/api/tenants/acme/connections/c-1/local-accounts',
+      'https://api.test/cells/eu-1/api/tenants/acme/connections/c-1/local-accounts',
     ]);
     expect(JSON.parse(captured[0]?.body ?? '{}')).toEqual(newAccount);
     expect(captured[0]?.antiforgery).toBe('1');
@@ -3679,15 +3697,23 @@ describe('managementApi local accounts', () => {
     const store = createStore();
     await store.dispatch(managementApi.endpoints.listLocalAccounts.initiate({ kind: 'platform' }));
     await store.dispatch(
-      managementApi.endpoints.listLocalAccounts.initiate({ kind: 'tenant', tenantId: 'acme' }),
+      managementApi.endpoints.listLocalAccounts.initiate({
+        kind: 'tenant',
+        tenantId: 'acme',
+        connectionId: 'c-1',
+      }),
     );
     await store.dispatch(
-      managementApi.endpoints.listLocalAccounts.initiate({ kind: 'tenant', tenantId: 'other' }),
+      managementApi.endpoints.listLocalAccounts.initiate({
+        kind: 'tenant',
+        tenantId: 'other',
+        connectionId: 'c-1',
+      }),
     );
 
     await store.dispatch(
       managementApi.endpoints.createLocalAccount.initiate({
-        owner: { kind: 'tenant', tenantId: 'acme' },
+        owner: { kind: 'tenant', tenantId: 'acme', connectionId: 'c-1' },
         body: newAccount,
       }),
     );
@@ -3700,8 +3726,8 @@ describe('managementApi local accounts', () => {
     );
     await settle(store);
 
-    expect(fetches.count('GET', '/api/tenants/acme/local-accounts')).toBe(2);
-    expect(fetches.count('GET', '/api/tenants/other/local-accounts')).toBe(1);
+    expect(fetches.count('GET', '/api/tenants/acme/connections/c-1/local-accounts')).toBe(2);
+    expect(fetches.count('GET', '/api/tenants/other/connections/c-1/local-accounts')).toBe(1);
     expect(fetches.count('GET', '/api/platform/local-accounts')).toBe(2);
   });
 
@@ -3712,6 +3738,7 @@ describe('managementApi local accounts', () => {
     await store.dispatch(
       managementApi.endpoints.updateLocalAccount.initiate({
         tenantId: 'acme',
+        connectionId: 'c-1',
         localAccountId: 'la/1',
         concurrencyToken: 'c1',
         fields,
@@ -3721,6 +3748,7 @@ describe('managementApi local accounts', () => {
     await store.dispatch(
       managementApi.endpoints.updateLocalAccount.initiate({
         tenantId: 'acme',
+        connectionId: 'c-1',
         localAccountId: 'la/1',
         concurrencyToken: 'c2',
         fields,
@@ -3748,6 +3776,7 @@ describe('managementApi local accounts', () => {
     await store.dispatch(
       managementApi.endpoints.deleteLocalAccount.initiate({
         tenantId: 'acme',
+        connectionId: 'c-1',
         localAccountId: 'la/1',
         cell: undefined,
       }),
@@ -3755,6 +3784,7 @@ describe('managementApi local accounts', () => {
     await store.dispatch(
       managementApi.endpoints.deleteLocalAccount.initiate({
         tenantId: 'acme',
+        connectionId: 'c-1',
         localAccountId: 'la/1',
         cell: 'eu-1',
       }),
@@ -3770,7 +3800,7 @@ describe('managementApi local accounts', () => {
   it('enableLocalAccount and disableLocalAccount POST to their routes', async () => {
     const captured = mockFetch(new Response(null, { status: 204 }));
     const store = createStore();
-    const args = { tenantId: 'acme', localAccountId: 'la/1', cell: 'eu-1' };
+    const args = { tenantId: 'acme', connectionId: 'c-1', localAccountId: 'la/1', cell: 'eu-1' };
 
     await store.dispatch(managementApi.endpoints.enableLocalAccount.initiate(args));
     await store.dispatch(managementApi.endpoints.disableLocalAccount.initiate(args));
@@ -3790,6 +3820,7 @@ describe('managementApi local accounts', () => {
     await store.dispatch(
       managementApi.endpoints.resetLocalAccountPassword.initiate({
         tenantId: 'acme',
+        connectionId: 'c-1',
         localAccountId: 'la/1',
         body,
         cell: undefined,
@@ -3798,6 +3829,7 @@ describe('managementApi local accounts', () => {
     await store.dispatch(
       managementApi.endpoints.resetLocalAccountPassword.initiate({
         tenantId: 'acme',
+        connectionId: 'c-1',
         localAccountId: 'la/1',
         body,
         cell: 'eu-1',
@@ -3810,7 +3842,12 @@ describe('managementApi local accounts', () => {
     expect(JSON.parse(captured[0]?.body ?? '{}')).toEqual(body);
   });
 
-  const accountArgs = { tenantId: 'acme', localAccountId: 'la/1', cell: undefined };
+  const accountArgs = {
+    tenantId: 'acme',
+    connectionId: 'c-1',
+    localAccountId: 'la/1',
+    cell: undefined,
+  };
   const mutationActions: readonly (readonly [string, () => unknown])[] = [
     [
       'updateLocalAccount',
@@ -3848,7 +3885,11 @@ describe('managementApi local accounts', () => {
       });
       const store = createStore();
       await store.dispatch(
-        managementApi.endpoints.listLocalAccounts.initiate({ kind: 'tenant', tenantId: 'acme' }),
+        managementApi.endpoints.listLocalAccounts.initiate({
+          kind: 'tenant',
+          tenantId: 'acme',
+          connectionId: 'c-1',
+        }),
       );
       await store.dispatch(
         managementApi.endpoints.listLocalAccounts.initiate({ kind: 'platform' }),
@@ -3857,8 +3898,260 @@ describe('managementApi local accounts', () => {
       await (store.dispatch as (a: unknown) => Promise<unknown>)(action());
       await settle(store);
 
-      expect(fetches.count('GET', '/api/tenants/acme/local-accounts')).toBe(2);
+      expect(fetches.count('GET', '/api/tenants/acme/connections/c-1/local-accounts')).toBe(2);
       expect(fetches.count('GET', '/api/platform/local-accounts')).toBe(1);
     },
   );
+});
+
+describe('managementApi connections', () => {
+  const connection = {
+    tenantId: 'acme',
+    connectionId: 'c/1',
+    concurrencyToken: 'k1',
+    name: 'local',
+    displayName: 'Username and password',
+    strategy: 'local',
+    isEnabled: true,
+    options: { store: 'default' },
+  };
+  const itemPath = '/api/tenants/acme/connections/c%2F1';
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  it('listConnections GETs the tenant collection, in its cell when given', async () => {
+    const captured = mockFetch(jsonResponse({ items: [connection] }));
+    const store = createStore();
+
+    await store.dispatch(
+      managementApi.endpoints.listConnections.initiate({ tenantId: 'acme', cell: undefined }),
+    );
+    await store.dispatch(
+      managementApi.endpoints.listConnections.initiate({ tenantId: 'acme', cell: 'eu-1' }),
+    );
+
+    expect(captured.map((c) => c.url)).toEqual([
+      'https://api.test/api/tenants/acme/connections',
+      'https://api.test/cells/eu-1/api/tenants/acme/connections',
+    ]);
+  });
+
+  it('getConnection GETs one connection by encoded id', async () => {
+    const captured = mockFetch(jsonResponse(connection));
+    const store = createStore();
+
+    await store.dispatch(
+      managementApi.endpoints.getConnection.initiate({
+        tenantId: 'acme',
+        connectionId: 'c/1',
+        cell: undefined,
+      }),
+    );
+
+    expect(captured[0]?.url).toBe(`https://api.test${itemPath}`);
+  });
+
+  it('createConnection POSTs the body under the tenant path', async () => {
+    const captured = mockFetch(jsonResponse(connection, 201));
+    const store = createStore();
+    const body = {
+      name: 'staff',
+      displayName: 'Staff',
+      strategy: 'local',
+      options: { store: 'default' },
+    };
+
+    await store.dispatch(
+      managementApi.endpoints.createConnection.initiate({
+        tenantId: 'acme',
+        body,
+        cell: undefined,
+      }),
+    );
+
+    expect(captured[0]?.url).toBe('https://api.test/api/tenants/acme/connections');
+    expect(captured[0]?.method).toBe('POST');
+    expect(JSON.parse(captured[0]?.body ?? '{}')).toEqual(body);
+  });
+
+  it('updateConnection PATCHes a replace patch with If-Match', async () => {
+    const captured = mockFetch(new Response(null, { status: 204 }));
+    const store = createStore();
+
+    await store.dispatch(
+      managementApi.endpoints.updateConnection.initiate({
+        tenantId: 'acme',
+        connectionId: 'c/1',
+        concurrencyToken: 'k1',
+        fields: { displayName: 'Staff', isEnabled: false, options: { store: 'other' } },
+        cell: undefined,
+      }),
+    );
+
+    expect(captured[0]?.url).toBe(`https://api.test${itemPath}`);
+    expect(captured[0]?.method).toBe('PATCH');
+    expect(captured[0]?.ifMatch).toBe('k1');
+    expect(JSON.parse(captured[0]?.body ?? '[]')).toEqual([
+      { op: 'replace', path: '/displayName', value: 'Staff' },
+      { op: 'replace', path: '/isEnabled', value: false },
+      { op: 'replace', path: '/options', value: { store: 'other' } },
+    ]);
+  });
+
+  it('deleteConnection DELETEs the connection', async () => {
+    const captured = mockFetch(new Response(null, { status: 204 }));
+    const store = createStore();
+
+    await store.dispatch(
+      managementApi.endpoints.deleteConnection.initiate({
+        tenantId: 'acme',
+        connectionId: 'c/1',
+        cell: undefined,
+      }),
+    );
+
+    expect(captured[0]?.url).toBe(`https://api.test${itemPath}`);
+    expect(captured[0]?.method).toBe('DELETE');
+  });
+
+  it('getConnectionSettings GETs the settings document of the connection', async () => {
+    const captured = mockFetch(
+      jsonResponse({
+        tenantId: 'acme',
+        connectionId: 'c/1',
+        concurrencyToken: 's1',
+        settings: {},
+      }),
+    );
+    const store = createStore();
+
+    await store.dispatch(
+      managementApi.endpoints.getConnectionSettings.initiate({
+        tenantId: 'acme',
+        connectionId: 'c/1',
+        cell: 'eu-1',
+      }),
+    );
+
+    expect(captured[0]?.url).toBe(`https://api.test/cells/eu-1${itemPath}/settings`);
+  });
+
+  it('updateConnectionSettings PATCHes a diff with If-Match', async () => {
+    const captured = mockFetch(new Response(null, { status: 204 }));
+    const store = createStore();
+
+    await store.dispatch(
+      managementApi.endpoints.updateConnectionSettings.initiate({
+        tenantId: 'acme',
+        connectionId: 'c/1',
+        concurrencyToken: 's1',
+        original: {},
+        desired: { password_min_length: 12 },
+        cell: undefined,
+      }),
+    );
+
+    expect(captured[0]?.url).toBe(`https://api.test${itemPath}/settings`);
+    expect(captured[0]?.method).toBe('PATCH');
+    expect(captured[0]?.ifMatch).toBe('s1');
+    expect(JSON.parse(captured[0]?.body ?? '[]')).toEqual([
+      { op: 'add', path: '/password_min_length', value: 12 },
+    ]);
+  });
+
+  it('createConnection refetches the tenant connection list and no other', async () => {
+    const fetches = routeFetch((method) =>
+      method === 'GET' ? jsonResponse({ items: [connection] }) : jsonResponse(connection, 201),
+    );
+    const store = createStore();
+    await store.dispatch(
+      managementApi.endpoints.listConnections.initiate({ tenantId: 'acme', cell: undefined }),
+    );
+    await store.dispatch(
+      managementApi.endpoints.listConnections.initiate({ tenantId: 'other', cell: undefined }),
+    );
+
+    await store.dispatch(
+      managementApi.endpoints.createConnection.initiate({
+        tenantId: 'acme',
+        body: { name: 'staff', displayName: 'Staff', strategy: 'local' },
+        cell: undefined,
+      }),
+    );
+    await settle(store);
+
+    expect(fetches.count('GET', '/api/tenants/acme/connections')).toBe(2);
+    expect(fetches.count('GET', '/api/tenants/other/connections')).toBe(1);
+  });
+
+  it('updateConnection and deleteConnection refetch the list and the item', async () => {
+    const fetches = routeFetch((method) =>
+      method === 'GET'
+        ? jsonResponse({ items: [connection] })
+        : new Response(null, { status: 204 }),
+    );
+    const store = createStore();
+    await store.dispatch(
+      managementApi.endpoints.listConnections.initiate({ tenantId: 'acme', cell: undefined }),
+    );
+    await store.dispatch(
+      managementApi.endpoints.getConnection.initiate({
+        tenantId: 'acme',
+        connectionId: 'c/1',
+        cell: undefined,
+      }),
+    );
+
+    await store.dispatch(
+      managementApi.endpoints.updateConnection.initiate({
+        tenantId: 'acme',
+        connectionId: 'c/1',
+        concurrencyToken: 'k1',
+        fields: { displayName: 'Staff', isEnabled: true, options: {} },
+        cell: undefined,
+      }),
+    );
+    await settle(store);
+
+    expect(fetches.count('GET', '/api/tenants/acme/connections')).toBe(2);
+    expect(fetches.count('GET', itemPath)).toBe(2);
+  });
+
+  it('updateConnectionSettings refetches the connection settings', async () => {
+    const fetches = routeFetch((method) =>
+      method === 'GET'
+        ? jsonResponse({
+            tenantId: 'acme',
+            connectionId: 'c/1',
+            concurrencyToken: 's',
+            settings: {},
+          })
+        : new Response(null, { status: 204 }),
+    );
+    const store = createStore();
+    await store.dispatch(
+      managementApi.endpoints.getConnectionSettings.initiate({
+        tenantId: 'acme',
+        connectionId: 'c/1',
+        cell: undefined,
+      }),
+    );
+
+    await store.dispatch(
+      managementApi.endpoints.updateConnectionSettings.initiate({
+        tenantId: 'acme',
+        connectionId: 'c/1',
+        concurrencyToken: 's',
+        original: {},
+        desired: { a: 1 },
+        cell: undefined,
+      }),
+    );
+    await settle(store);
+
+    expect(fetches.count('GET', `${itemPath}/settings`)).toBe(2);
+  });
 });

@@ -20,9 +20,12 @@ import {
   type ClientOwner,
   type ClientResource,
   type CollectionResource,
+  type ConnectionResource,
+  type ConnectionSettingsResource,
   type CreatedInitialAccessTokenResource,
   type CreatedSecretResource,
   type CreateClientRequest,
+  type CreateConnectionRequest,
   type CreateInitialAccessTokenRequest,
   type CreateLocalAccountRequest,
   type CreateRemoteSecretRequest,
@@ -74,6 +77,7 @@ import {
   type TenantTransferKeyResource,
   type TenantUsageResource,
   type UpdateClientFields,
+  type UpdateConnectionFields,
   type UpdateLocalAccountFields,
   type UpdateResourceServerFields,
   type UpdateScopeRequest,
@@ -163,31 +167,72 @@ const teamTag = (teamId: string, id: string): string => scopeTagId(teamScope(tea
 const tenantTag = (tenantId: string, id: string): string =>
   scopeTagId({ kind: 'tenant', tenantId }, id);
 
-/** The owner of a local-account list: the platform, or a tenant in the cell that holds it. */
+/**
+ * The owner of a local-account list: the platform (which uses the platform tenant's default connection), or a local
+ * connection of a tenant in the cell that holds it.
+ */
 export type LocalAccountOwner =
   | { readonly kind: 'platform' }
-  | { readonly kind: 'tenant'; readonly tenantId: string; readonly cell?: string | undefined };
+  | {
+      readonly kind: 'tenant';
+      readonly tenantId: string;
+      readonly connectionId: string;
+      readonly cell?: string | undefined;
+    };
 
 /** The local-accounts collection of `owner`, addressed to the owner's cell when it is a tenant in one. */
 const localAccountsPath = (owner: LocalAccountOwner): CellFetchArgs =>
   owner.kind === 'platform'
     ? { url: 'api/platform/local-accounts' }
-    : inCell(owner.cell, `api/tenants/${encodeURIComponent(owner.tenantId)}/local-accounts`);
+    : inCell(
+        owner.cell,
+        `api/tenants/${encodeURIComponent(owner.tenantId)}/connections/${encodeURIComponent(
+          owner.connectionId,
+        )}/local-accounts`,
+      );
 
 /** The cache-tag id of the list of local accounts that `owner` holds. */
 const localAccountListTag = (owner: LocalAccountOwner): string =>
-  owner.kind === 'platform' ? platformTag(LIST_TAG) : tenantTag(owner.tenantId, LIST_TAG);
+  owner.kind === 'platform'
+    ? platformTag(LIST_TAG)
+    : tenantTag(owner.tenantId, `${owner.connectionId}:${LIST_TAG}`);
+
+/** The route of one tenant local account in its connection. */
+const localAccountRoute = (
+  {
+    tenantId,
+    connectionId,
+    localAccountId,
+  }: { tenantId: string; connectionId: string; localAccountId: string },
+  suffix: string,
+): string =>
+  `api/tenants/${encodeURIComponent(tenantId)}/connections/${encodeURIComponent(
+    connectionId,
+  )}/local-accounts/${encodeURIComponent(localAccountId)}${suffix}`;
+
+/** The arguments that name one tenant local account in its connection and cell. */
+type LocalAccountArgs = WithCell<{
+  tenantId: string;
+  connectionId: string;
+  localAccountId: string;
+}>;
 
 /** The route of one tenant local account, addressed to the cell that holds the tenant. */
 const localAccountItem = (
-  { tenantId, localAccountId, cell }: WithCell<{ tenantId: string; localAccountId: string }>,
+  args: LocalAccountArgs,
   suffix: string,
   method: 'DELETE' | 'POST',
-): CellFetchArgs =>
-  inCell(cell, {
-    url: `api/tenants/${encodeURIComponent(tenantId)}/local-accounts/${encodeURIComponent(localAccountId)}${suffix}`,
-    method,
-  });
+): CellFetchArgs => inCell(args.cell, { url: localAccountRoute(args, suffix), method });
+
+/** The route of a connection, or of the connections collection, in a tenant. */
+const connectionsPath = (tenantId: string, connectionId?: string, suffix = ''): string =>
+  `api/tenants/${encodeURIComponent(tenantId)}/connections${
+    connectionId === undefined ? '' : `/${encodeURIComponent(connectionId)}`
+  }${suffix}`;
+
+/** The cache-tag id of the settings document of a connection. */
+const connectionSettingsTag = (tenantId: string, connectionId: string): string =>
+  tenantTag(tenantId, `connection-settings:${connectionId}`);
 
 // The caller's own access spans scopes, so each mutation that can change where it holds a role invalidates it.
 const callerTag = 'me';
@@ -207,6 +252,7 @@ export const managementApi = createApi({
     'Team',
     'Client',
     'LocalAccount',
+    'Connection',
     'ResourceServer',
     'Grant',
     'Secret',
@@ -672,46 +718,35 @@ export const managementApi = createApi({
     }),
     updateLocalAccount: build.mutation<
       void,
-      WithCell<{
-        tenantId: string;
-        localAccountId: string;
+      LocalAccountArgs & {
         concurrencyToken: string;
         fields: UpdateLocalAccountFields;
-      }>
+      }
     >({
-      query: ({ tenantId, localAccountId, concurrencyToken, fields, cell }) =>
-        inCell(cell, {
-          url: `api/tenants/${encodeURIComponent(tenantId)}/local-accounts/${encodeURIComponent(localAccountId)}`,
+      query: (args) =>
+        inCell(args.cell, {
+          url: localAccountRoute(args, ''),
           method: 'PATCH',
-          body: replacePatch({ ...fields }),
-          headers: { 'If-Match': concurrencyToken },
+          body: replacePatch({ ...args.fields }),
+          headers: { 'If-Match': args.concurrencyToken },
         }),
       invalidatesTags: (_result, _error, { tenantId, localAccountId }) => [
         { type: 'LocalAccount', id: tenantTag(tenantId, localAccountId) },
       ],
     }),
-    deleteLocalAccount: build.mutation<
-      void,
-      WithCell<{ tenantId: string; localAccountId: string }>
-    >({
+    deleteLocalAccount: build.mutation<void, LocalAccountArgs>({
       query: (args) => localAccountItem(args, '', 'DELETE'),
       invalidatesTags: (_result, _error, { tenantId, localAccountId }) => [
         { type: 'LocalAccount', id: tenantTag(tenantId, localAccountId) },
       ],
     }),
-    enableLocalAccount: build.mutation<
-      void,
-      WithCell<{ tenantId: string; localAccountId: string }>
-    >({
+    enableLocalAccount: build.mutation<void, LocalAccountArgs>({
       query: (args) => localAccountItem(args, '/enable', 'POST'),
       invalidatesTags: (_result, _error, { tenantId, localAccountId }) => [
         { type: 'LocalAccount', id: tenantTag(tenantId, localAccountId) },
       ],
     }),
-    disableLocalAccount: build.mutation<
-      void,
-      WithCell<{ tenantId: string; localAccountId: string }>
-    >({
+    disableLocalAccount: build.mutation<void, LocalAccountArgs>({
       query: (args) => localAccountItem(args, '/disable', 'POST'),
       invalidatesTags: (_result, _error, { tenantId, localAccountId }) => [
         { type: 'LocalAccount', id: tenantTag(tenantId, localAccountId) },
@@ -719,16 +754,110 @@ export const managementApi = createApi({
     }),
     resetLocalAccountPassword: build.mutation<
       void,
-      WithCell<{ tenantId: string; localAccountId: string; body: ResetLocalAccountPasswordRequest }>
+      LocalAccountArgs & { body: ResetLocalAccountPasswordRequest }
     >({
-      query: ({ tenantId, localAccountId, body, cell }) =>
-        inCell(cell, {
-          url: `api/tenants/${encodeURIComponent(tenantId)}/local-accounts/${encodeURIComponent(localAccountId)}/password`,
+      query: (args) =>
+        inCell(args.cell, {
+          url: localAccountRoute(args, '/password'),
           method: 'POST',
-          body,
+          body: args.body,
         }),
       invalidatesTags: (_result, _error, { tenantId, localAccountId }) => [
         { type: 'LocalAccount', id: tenantTag(tenantId, localAccountId) },
+      ],
+    }),
+    listConnections: build.query<
+      CollectionResource<ConnectionResource>,
+      WithCell<{ tenantId: string }>
+    >({
+      query: ({ tenantId, cell }) => inCell(cell, connectionsPath(tenantId)),
+      providesTags: (result, _error, { tenantId }) => [
+        { type: 'Connection' as const, id: tenantTag(tenantId, LIST_TAG) },
+        ...(result?.items ?? []).map((c) => ({
+          type: 'Connection' as const,
+          id: tenantTag(tenantId, c.connectionId),
+        })),
+      ],
+    }),
+    getConnection: build.query<
+      ConnectionResource,
+      WithCell<{ tenantId: string; connectionId: string }>
+    >({
+      query: ({ tenantId, connectionId, cell }) =>
+        inCell(cell, connectionsPath(tenantId, connectionId)),
+      providesTags: (_result, _error, { tenantId, connectionId }) => [
+        { type: 'Connection' as const, id: tenantTag(tenantId, connectionId) },
+      ],
+    }),
+    createConnection: build.mutation<
+      ConnectionResource,
+      WithCell<{ tenantId: string; body: CreateConnectionRequest }>
+    >({
+      query: ({ tenantId, body, cell }) =>
+        inCell(cell, { url: connectionsPath(tenantId), method: 'POST', body }),
+      invalidatesTags: (_result, _error, { tenantId }) => [
+        { type: 'Connection', id: tenantTag(tenantId, LIST_TAG) },
+      ],
+    }),
+    updateConnection: build.mutation<
+      void,
+      WithCell<{
+        tenantId: string;
+        connectionId: string;
+        concurrencyToken: string;
+        fields: UpdateConnectionFields;
+      }>
+    >({
+      query: ({ tenantId, connectionId, concurrencyToken, fields, cell }) =>
+        inCell(cell, {
+          url: connectionsPath(tenantId, connectionId),
+          method: 'PATCH',
+          body: replacePatch({ ...fields }),
+          headers: { 'If-Match': concurrencyToken },
+        }),
+      invalidatesTags: (_result, _error, { tenantId, connectionId }) => [
+        { type: 'Connection', id: tenantTag(tenantId, LIST_TAG) },
+        { type: 'Connection', id: tenantTag(tenantId, connectionId) },
+      ],
+    }),
+    deleteConnection: build.mutation<void, WithCell<{ tenantId: string; connectionId: string }>>({
+      query: ({ tenantId, connectionId, cell }) =>
+        inCell(cell, { url: connectionsPath(tenantId, connectionId), method: 'DELETE' }),
+      invalidatesTags: (_result, _error, { tenantId, connectionId }) => [
+        { type: 'Connection', id: tenantTag(tenantId, LIST_TAG) },
+        { type: 'Connection', id: tenantTag(tenantId, connectionId) },
+      ],
+    }),
+    getConnectionSettings: build.query<
+      ConnectionSettingsResource,
+      WithCell<{ tenantId: string; connectionId: string }>
+    >({
+      query: ({ tenantId, connectionId, cell }) =>
+        inCell(cell, connectionsPath(tenantId, connectionId, '/settings')),
+      providesTags: (_result, _error, { tenantId, connectionId }) => [
+        { type: 'Settings' as const, id: connectionSettingsTag(tenantId, connectionId) },
+      ],
+    }),
+    // Connection settings are an opaque object, so updates are a top-level add/remove/replace diff.
+    updateConnectionSettings: build.mutation<
+      void,
+      WithCell<{
+        tenantId: string;
+        connectionId: string;
+        concurrencyToken: string;
+        original: Readonly<Record<string, unknown>>;
+        desired: Readonly<Record<string, unknown>>;
+      }>
+    >({
+      query: ({ tenantId, connectionId, concurrencyToken, original, desired, cell }) =>
+        inCell(cell, {
+          url: connectionsPath(tenantId, connectionId, '/settings'),
+          method: 'PATCH',
+          body: diffPatch(original, desired),
+          headers: { 'If-Match': concurrencyToken },
+        }),
+      invalidatesTags: (_result, _error, { tenantId, connectionId }) => [
+        { type: 'Settings', id: connectionSettingsTag(tenantId, connectionId) },
       ],
     }),
     listResourceServers: build.query<
