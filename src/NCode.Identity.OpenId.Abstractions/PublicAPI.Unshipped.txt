@@ -549,7 +549,7 @@ NCode.Identity.OpenId.PrincipalResolution.IClientPrincipalResolver
 NCode.Identity.OpenId.PrincipalResolution.IClientPrincipalResolver.GetActingClientOrDefaultAsync(NCode.Identity.OpenId.Contexts.OpenIdContext! openIdContext, System.Security.Claims.ClaimsPrincipal! user, NCode.Identity.Persistence.Stores.IStoreManager! storeManager, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.Persistence.DataContracts.PersistedClient?>
 NCode.Identity.OpenId.PrincipalResolution.IClientPrincipalResolver.GetActingClientOrDefaultAsync(NCode.Identity.OpenId.Contexts.OpenIdContext! openIdContext, System.Security.Claims.ClaimsPrincipal! user, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.Persistence.DataContracts.PersistedClient?>
 NCode.Identity.OpenId.PrincipalResolution.IFederatedIdentityLinkingPolicy
-NCode.Identity.OpenId.PrincipalResolution.IFederatedIdentityLinkingPolicy.ResolveLinkAsync(NCode.Identity.OpenId.Contexts.OpenIdContext! openIdContext, System.Security.Claims.ClaimsPrincipal! user, NCode.Identity.Persistence.Stores.IStoreManager! storeManager, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.PrincipalResolution.FederatedIdentityLinkDecision!>
+NCode.Identity.OpenId.PrincipalResolution.IFederatedIdentityLinkingPolicy.ResolveLinkAsync(NCode.Identity.OpenId.Contexts.OpenIdContext! openIdContext, NCode.Identity.OpenId.Connections.ResolvedConnection! connection, System.Security.Claims.ClaimsPrincipal! user, NCode.Identity.Persistence.Stores.IStoreManager! storeManager, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.PrincipalResolution.FederatedIdentityLinkDecision!>
 NCode.Identity.OpenId.PrincipalResolution.IPrincipalResolver
 NCode.Identity.OpenId.PrincipalResolution.IPrincipalResolver.ResolvePrincipalIdAsync(NCode.Identity.OpenId.Contexts.OpenIdContext! openIdContext, System.Security.Claims.ClaimsPrincipal! user, NCode.Identity.Persistence.Stores.IStoreManager! storeManager, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<string!>
 NCode.Identity.OpenId.PrincipalResolution.IPrincipalResolver.ResolvePrincipalIdAsync(NCode.Identity.OpenId.Contexts.OpenIdContext! openIdContext, System.Security.Claims.ClaimsPrincipal! user, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<string!>
@@ -859,7 +859,6 @@ static NCode.Identity.OpenId.Settings.OpenIdSettingKeys.UserInfoSigningAlgValues
 virtual NCode.Identity.OpenId.Contexts.OpenIdContext.ErrorFactory.get -> NCode.Identity.OpenId.Errors.IOpenIdErrorFactory!
 virtual NCode.Identity.OpenId.Contexts.OpenIdContext.GetSubjectId(System.Security.Claims.ClaimsPrincipal! subject) -> string?
 virtual NCode.Identity.OpenId.Contexts.OpenIdContext.NormalizeSubjectId(System.Security.Claims.ClaimsPrincipal! subject, string! subjectId) -> System.Security.Claims.ClaimsPrincipal!
-const NCode.Identity.OpenId.Settings.OpenIdSettingNames.PrincipalIssuerClaim = "principal_issuer_claim" -> string!
 const NCode.Identity.OpenId.Settings.OpenIdSettingNames.SubjectClaimTypes = "subject_claim_types" -> string!
 const NCode.Identity.OpenId.Settings.OpenIdSettingNames.FederatedIdentityJoinClaim = "federated_identity_join_claim" -> string!
 const NCode.Identity.OpenId.Settings.OpenIdSettingNames.FederatedIdentityVerifiedClaim = "federated_identity_verified_claim" -> string!
@@ -882,7 +881,6 @@ static NCode.Identity.OpenId.Settings.OpenIdSettingKeys.BackchannelUserCodeParam
 static NCode.Identity.OpenId.Settings.OpenIdSettingKeys.CibaRequestLifetime.get -> NCode.Identity.Settings.SettingKey<System.TimeSpan>
 static NCode.Identity.OpenId.Settings.OpenIdSettingKeys.CibaPollingInterval.get -> NCode.Identity.Settings.SettingKey<System.TimeSpan>
 const NCode.Identity.OpenId.Settings.OpenIdSettingNames.FederatedIdentityExplicitOnly = "federated_identity_explicit_only" -> string!
-static NCode.Identity.OpenId.Settings.OpenIdSettingKeys.PrincipalIssuerClaim.get -> NCode.Identity.Settings.SettingKey<string!>
 static NCode.Identity.OpenId.Settings.OpenIdSettingKeys.SubjectClaimTypes.get -> NCode.Identity.Settings.SettingKey<System.Collections.Generic.IReadOnlyCollection<string!>!>
 static NCode.Identity.OpenId.Settings.OpenIdSettingKeys.FederatedIdentityJoinClaim.get -> NCode.Identity.Settings.SettingKey<string!>
 static NCode.Identity.OpenId.Settings.OpenIdSettingKeys.FederatedIdentityVerifiedClaim.get -> NCode.Identity.Settings.SettingKey<string!>

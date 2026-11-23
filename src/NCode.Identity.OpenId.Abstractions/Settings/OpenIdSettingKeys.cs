@@ -19,12 +19,6 @@ public static class OpenIdSettingKeys
         new(OpenIdSettingNames.SubjectClaimTypes);
 
     /// <summary>
-    /// Gets the <see cref="SettingKey{TValue}"/> for the 'principal_issuer_claim' setting.
-    /// </summary>
-    public static SettingKey<string> PrincipalIssuerClaim =>
-        new(OpenIdSettingNames.PrincipalIssuerClaim);
-
-    /// <summary>
     /// Gets the <see cref="SettingKey{TValue}"/> for the 'federated_identity_join_claim' setting.
     /// </summary>
     public static SettingKey<string> FederatedIdentityJoinClaim =>

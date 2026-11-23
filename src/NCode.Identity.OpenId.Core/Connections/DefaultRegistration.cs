@@ -1,6 +1,7 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using NCode.Identity.Registration;
 
@@ -28,6 +29,11 @@ internal static class DefaultRegistration
                 DefaultConnectionStrategyCatalog
             >();
             serviceCollection.TryAddSingleton<IConnectionResolver, DefaultConnectionResolver>();
+            var dependentSource = ServiceDescriptor.Singleton<
+                IConnectionDependentSource,
+                FederatedIdentityConnectionDependentSource
+            >();
+            serviceCollection.TryAddEnumerable(dependentSource);
 
             return builder;
         }

@@ -18,12 +18,6 @@ public static class OpenIdSettingNames
     public const string SubjectClaimTypes = "subject_claim_types";
 
     /// <summary>
-    /// Contains the name of the <c>principal_issuer_claim</c> setting (the claim carrying the upstream issuer used to
-    /// resolve an external connection identity).
-    /// </summary>
-    public const string PrincipalIssuerClaim = "principal_issuer_claim";
-
-    /// <summary>
     /// Contains the name of the <c>federated_identity_join_claim</c> setting (the claim whose value deterministically
     /// links identities, such as an email address).
     /// </summary>

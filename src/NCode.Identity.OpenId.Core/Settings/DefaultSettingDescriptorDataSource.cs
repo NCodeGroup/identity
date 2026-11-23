@@ -98,19 +98,6 @@ internal class DefaultSettingDescriptorDataSource(
                 OnMerge = Replace,
             };
 
-            // principal_issuer_claim: claim identifying the upstream issuer of a federated principal (default "iss"). (ADR-1035)
-            // Override (Replace): a child fully replaces the parent value.
-            yield return new SettingDescriptor<string>
-            {
-                Name = OpenIdSettingNames.PrincipalIssuerClaim,
-                AppliesTo = Tenants,
-                Rule = OpenIdSettingRules.Token(),
-                Default = "iss",
-
-                IsDiscoverable = IsNonStdDiscoverable,
-                OnMerge = Replace,
-            };
-
             // federated_identity_join_claim: claim used to auto-link a federated identity to an existing principal (default "email"). (ADR-1035)
             // Override (Replace): a child fully replaces the parent value.
             yield return new SettingDescriptor<string>

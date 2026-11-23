@@ -3,6 +3,7 @@
 
 using System.Security.Claims;
 using JetBrains.Annotations;
+using NCode.Identity.OpenId.Connections;
 using NCode.Identity.OpenId.Contexts;
 using NCode.Identity.Persistence.Stores;
 
@@ -19,7 +20,8 @@ public interface IFederatedIdentityLinkingPolicy
     /// <summary>
     /// Decides how a new (not-yet-persisted) authenticated identity is linked.
     /// </summary>
-    /// <param name="openIdContext">The <see cref="OpenIdContext"/> for the current request, whose tenant settings
+    /// <param name="openIdContext">The <see cref="OpenIdContext"/> for the current request.</param>
+    /// <param name="connection">The <see cref="ResolvedConnection"/> the identity signs in through, whose settings
     /// configure the linking behavior.</param>
     /// <param name="user">The authenticated caller whose new connection identity is being provisioned.</param>
     /// <param name="storeManager">The <see cref="IStoreManager"/> whose unit of work the decision participates in.</param>
@@ -28,6 +30,7 @@ public interface IFederatedIdentityLinkingPolicy
     /// decision.</returns>
     ValueTask<FederatedIdentityLinkDecision> ResolveLinkAsync(
         OpenIdContext openIdContext,
+        ResolvedConnection connection,
         ClaimsPrincipal user,
         IStoreManager storeManager,
         CancellationToken cancellationToken

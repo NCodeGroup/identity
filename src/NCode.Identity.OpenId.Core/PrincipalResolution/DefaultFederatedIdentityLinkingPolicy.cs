@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using System.Security.Claims;
+using NCode.Identity.OpenId.Connections;
 using NCode.Identity.OpenId.Contexts;
 using NCode.Identity.OpenId.Persistence.Stores;
 using NCode.Identity.OpenId.Settings;
@@ -13,19 +14,20 @@ namespace NCode.Identity.OpenId.PrincipalResolution;
 /// Provides the default implementation of <see cref="IFederatedIdentityLinkingPolicy"/>: a new identity whose verified
 /// join key (an email address) matches an existing identity is attached to that identity's principal; otherwise a new
 /// principal is provisioned. Two already-established principals are never merged automatically. The join/verified claim
-/// names and linking knobs are per-tenant settings on the shared request environment.
+/// names and linking knobs are settings of the connection the identity signs in through.
 /// </summary>
 internal class DefaultFederatedIdentityLinkingPolicy : IFederatedIdentityLinkingPolicy
 {
     /// <inheritdoc />
     public async ValueTask<FederatedIdentityLinkDecision> ResolveLinkAsync(
         OpenIdContext openIdContext,
+        ResolvedConnection connection,
         ClaimsPrincipal user,
         IStoreManager storeManager,
         CancellationToken cancellationToken
     )
     {
-        var settings = openIdContext.Tenant.SettingsProvider.Collection;
+        var settings = connection.Settings;
 
         var joinClaim = settings.GetValue(OpenIdSettingKeys.FederatedIdentityJoinClaim);
         var joinKey = user.FindFirstValue(joinClaim);
