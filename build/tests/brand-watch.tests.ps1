@@ -282,7 +282,7 @@ try {
     Write-Host "$testCount brand-watch checks passed."
 }
 finally {
-    Remove-Item Function:\global:gh -ErrorAction SilentlyContinue
+    Remove-Item -Path Function:\gh -ErrorAction SilentlyContinue
     $variables = 'BrandWatchCalls', 'BrandWatchBodies', 'BrandWatchReleases', 'BrandWatchIssues', 'BrandWatchLabels'
     foreach ($variable in $variables + 'BrandWatchUrl' + 'BrandWatchFailRelease') {
         Remove-Variable -Name $variable -Scope Global -ErrorAction SilentlyContinue
