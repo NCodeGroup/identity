@@ -111,7 +111,11 @@ internal sealed class DefaultPostCommitSecurityEffects(
     }
 
     /// <inheritdoc />
-    public async ValueTask ResetPasswordAttemptsAsync(string tenantId, string userName)
+    public async ValueTask ResetPasswordAttemptsAsync(
+        string tenantId,
+        string connectionId,
+        string accountKey
+    )
     {
         try
         {
@@ -121,14 +125,16 @@ internal sealed class DefaultPostCommitSecurityEffects(
                 {
                     await state.PasswordAttemptLimiter.ResetAsync(
                         state.TenantId,
-                        state.UserName,
+                        state.ConnectionId,
+                        state.AccountKey,
                         cancellationToken
                     );
                 },
                 (
                     PasswordAttemptLimiter: PasswordAttemptLimiter,
                     TenantId: tenantId,
-                    UserName: userName
+                    ConnectionId: connectionId,
+                    AccountKey: accountKey
                 )
             );
         }

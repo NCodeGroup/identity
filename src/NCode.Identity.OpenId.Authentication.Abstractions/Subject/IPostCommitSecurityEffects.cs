@@ -47,11 +47,14 @@ public interface IPostCommitSecurityEffects
     );
 
     /// <summary>
-    /// Clears the failed password attempts of the account that the user name names through
+    /// Clears the failed password attempts of the account that the account key names through
     /// <c>IPasswordAttemptLimiter.ResetAsync</c>.
     /// </summary>
     /// <param name="tenantId">The identifier of the tenant that the account belongs to.</param>
-    /// <param name="userName">The user name of the account.</param>
+    /// <param name="connectionId">The identifier of the connection that the account belongs to.</param>
+    /// <param name="accountKey">
+    /// The account key: the account's identifier, or the submitted identifier when no account matches.
+    /// </param>
     /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation.</returns>
-    ValueTask ResetPasswordAttemptsAsync(string tenantId, string userName);
+    ValueTask ResetPasswordAttemptsAsync(string tenantId, string connectionId, string accountKey);
 }
