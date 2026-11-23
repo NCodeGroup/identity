@@ -129,6 +129,7 @@ public sealed class LocalAccountStoreCatalogTests
             Name = "local",
             Strategy = strategy,
             DisplayName = "Local",
+            IsSystem = false,
             IsEnabled = true,
             Options = JsonSerializer.Deserialize<JsonElement>(optionsJson),
             Settings = new PersistedConnectionSettings

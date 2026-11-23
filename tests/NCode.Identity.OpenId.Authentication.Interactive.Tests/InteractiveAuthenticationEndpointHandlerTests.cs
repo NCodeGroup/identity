@@ -949,6 +949,7 @@ public sealed class InteractiveAuthenticationEndpointHandlerTests : IDisposable
                 Name = "local",
                 Strategy = "local",
                 DisplayName = "Username and password",
+                IsSystem = false,
                 IsEnabled = true,
                 Options = JsonSerializer.SerializeToElement(new { store = "default" }),
                 Settings = new PersistedConnectionSettings

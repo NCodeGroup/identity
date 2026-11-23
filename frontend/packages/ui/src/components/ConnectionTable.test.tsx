@@ -8,6 +8,7 @@ const connections: ConnectionRow[] = [
     name: 'local',
     displayName: 'Local accounts',
     strategy: 'local',
+    isSystem: true,
     isEnabled: true,
   },
   {
@@ -15,6 +16,7 @@ const connections: ConnectionRow[] = [
     name: 'staff',
     displayName: 'Staff',
     strategy: 'local',
+    isSystem: false,
     isEnabled: false,
   },
 ];
@@ -53,5 +55,13 @@ describe('ConnectionTable', () => {
     expect(onSelect).toHaveBeenCalledWith('cn-staff');
     expect(onEdit).toHaveBeenCalledWith('cn-staff');
     expect(onDelete).toHaveBeenCalledWith('cn-staff');
+  });
+
+  it('marks a system connection and offers no delete control for it', () => {
+    render(<ConnectionTable connections={connections} onEdit={vi.fn()} onDelete={vi.fn()} />);
+    expect(screen.getByTestId('connection-row-cn-local')).toHaveTextContent('System');
+    expect(screen.getByTestId('connection-row-cn-staff')).not.toHaveTextContent('System');
+    expect(screen.queryByTestId('connection-delete-cn-local')).not.toBeInTheDocument();
+    expect(screen.getByTestId('connection-delete-cn-staff')).toBeInTheDocument();
   });
 });

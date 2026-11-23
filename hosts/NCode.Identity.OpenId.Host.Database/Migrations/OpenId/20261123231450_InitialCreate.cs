@@ -358,6 +358,7 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                     NormalizedName = table.Column<string>(type: "character varying(128)", unicode: false, maxLength: 128, nullable: false),
                     Strategy = table.Column<string>(type: "character varying(64)", unicode: false, maxLength: 64, nullable: false),
                     DisplayName = table.Column<string>(type: "character varying(300)", maxLength: 300, nullable: false),
+                    IsSystem = table.Column<bool>(type: "boolean", nullable: false),
                     IsEnabled = table.Column<bool>(type: "boolean", nullable: false),
                     OptionsJson = table.Column<string>(type: "text", nullable: false),
                     SettingsJson = table.Column<string>(type: "text", nullable: false),

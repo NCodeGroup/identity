@@ -332,6 +332,7 @@ public sealed class DefaultInstanceSetupServiceTests : IDisposable
             Name = ConnectionDefaults.Name,
             Strategy = ConnectionStrategyNames.Local,
             DisplayName = "Username and password",
+            IsSystem = false,
             IsEnabled = true,
             Options = JsonSerializer.SerializeToElement(
                 new LocalConnectionOptions { Store = LocalAccountStoreNames.Default }

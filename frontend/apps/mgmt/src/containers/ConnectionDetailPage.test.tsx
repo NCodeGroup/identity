@@ -20,6 +20,7 @@ const connection: ConnectionResource = {
   name: 'local',
   displayName: 'Username and password',
   strategy: 'local',
+  isSystem: false,
   isEnabled: true,
   options: { store: 'default' },
 };

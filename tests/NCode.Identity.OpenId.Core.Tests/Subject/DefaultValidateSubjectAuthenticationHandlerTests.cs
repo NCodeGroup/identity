@@ -220,6 +220,7 @@ public class DefaultValidateSubjectAuthenticationHandlerTests : BaseTests
                 Name = name,
                 Strategy = ConnectionStrategyNames.Local,
                 DisplayName = name,
+                IsSystem = false,
                 IsEnabled = isEnabled,
                 Options = JsonElements.EmptyObject,
                 Settings = new PersistedConnectionSettings

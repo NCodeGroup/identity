@@ -220,6 +220,7 @@ public sealed class ConnectionApiEndpointHandlerTests : IDisposable
             Name = "corp",
             Strategy = ConnectionStrategyNames.Local,
             DisplayName = displayName,
+            IsSystem = false,
             IsEnabled = isEnabled,
             Options = JsonSerializer.SerializeToElement(new { store = "default" }),
             Settings = new PersistedConnectionSettings
@@ -673,6 +674,42 @@ public sealed class ConnectionApiEndpointHandlerTests : IDisposable
 
         var problem = Assert.IsType<ProblemHttpResult>(result);
         Assert.Equal(StatusCodes.Status404NotFound, problem.StatusCode);
+    }
+
+    [Fact]
+    public async Task DeleteAsync_WhenTheConnectionIsASystemConnection_ReturnsConflict()
+    {
+        SetupAuthorization(AuthorizationResult.Success());
+        SetupStore();
+        var connection = CreateConnection();
+        var systemConnection = new PersistedConnection
+        {
+            TenantId = connection.TenantId,
+            ConnectionId = connection.ConnectionId,
+            ConcurrencyToken = connection.ConcurrencyToken,
+            Name = connection.Name,
+            Strategy = connection.Strategy,
+            DisplayName = connection.DisplayName,
+            IsSystem = true,
+            IsEnabled = connection.IsEnabled,
+            Options = connection.Options,
+            Settings = connection.Settings,
+        };
+        SetupGetConnection(systemConnection);
+
+        var result = await Handler.DeleteAsync(
+            CreateHttpContext(),
+            TenantId,
+            ConnectionId,
+            CancellationToken.None
+        );
+
+        var problem = Assert.IsType<ProblemHttpResult>(result);
+        Assert.Equal(StatusCodes.Status409Conflict, problem.StatusCode);
+        Assert.Equal(
+            "A reserved system connection cannot be deleted.",
+            problem.ProblemDetails.Detail
+        );
     }
 
     [Fact]

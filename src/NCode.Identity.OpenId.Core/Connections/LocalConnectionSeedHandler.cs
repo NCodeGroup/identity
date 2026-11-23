@@ -54,6 +54,7 @@ internal sealed class LocalConnectionSeedHandler(ICryptoService cryptoService)
             Name = ConnectionDefaults.Name,
             Strategy = ConnectionStrategyNames.Local,
             DisplayName = "Username and password",
+            IsSystem = true,
             IsEnabled = true,
             Options = JsonSerializer.SerializeToElement(options),
             Settings = new PersistedConnectionSettings

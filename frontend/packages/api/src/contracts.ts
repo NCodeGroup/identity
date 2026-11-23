@@ -396,8 +396,8 @@ export type ResetLocalAccountPasswordRequest = {
 
 /**
  * Mirror of `ConnectionResource`: a tenant-scoped, named sign-in resource of a registered strategy. `name` and
- * `strategy` are immutable; `options` is the strategy's JSON object (a `local` connection names its account store as
- * `{ "store": "<name>" }`).
+ * `strategy` are immutable; `isSystem` marks a reserved connection that cannot be deleted; `options` is the strategy's
+ * JSON object (a `local` connection names its account store as `{ "store": "<name>" }`).
  */
 export type ConnectionResource = {
   readonly tenantId: string;
@@ -406,6 +406,7 @@ export type ConnectionResource = {
   readonly name: string;
   readonly displayName: string;
   readonly strategy: string;
+  readonly isSystem: boolean;
   readonly isEnabled: boolean;
   readonly options: Readonly<Record<string, unknown>>;
 };

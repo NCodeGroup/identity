@@ -1511,6 +1511,8 @@ NCode.Identity.OpenId.Management.Contracts.Connections.ConnectionResource.Connec
 NCode.Identity.OpenId.Management.Contracts.Connections.ConnectionResource.ConnectionId.init -> void
 NCode.Identity.OpenId.Management.Contracts.Connections.ConnectionResource.DisplayName.get -> string!
 NCode.Identity.OpenId.Management.Contracts.Connections.ConnectionResource.DisplayName.init -> void
+NCode.Identity.OpenId.Management.Contracts.Connections.ConnectionResource.IsSystem.get -> bool
+NCode.Identity.OpenId.Management.Contracts.Connections.ConnectionResource.IsSystem.init -> void
 NCode.Identity.OpenId.Management.Contracts.Connections.ConnectionResource.IsEnabled.get -> bool
 NCode.Identity.OpenId.Management.Contracts.Connections.ConnectionResource.IsEnabled.init -> void
 NCode.Identity.OpenId.Management.Contracts.Connections.ConnectionResource.Name.get -> string!

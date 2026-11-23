@@ -177,6 +177,7 @@ internal class ConnectionApiEndpointHandler(
             Name = connection.Name,
             DisplayName = connection.DisplayName,
             Strategy = connection.Strategy,
+            IsSystem = connection.IsSystem,
             IsEnabled = connection.IsEnabled,
             Options = connection.Options,
         };
@@ -268,6 +269,7 @@ internal class ConnectionApiEndpointHandler(
             Name = request.Name,
             Strategy = request.Strategy,
             DisplayName = request.DisplayName,
+            IsSystem = false,
             IsEnabled = request.IsEnabled,
             Options = request.Options ?? JsonElements.EmptyObject,
             Settings = new PersistedConnectionSettings
@@ -487,7 +489,8 @@ internal class ConnectionApiEndpointHandler(
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
     /// <response code="204">The connection was deleted.</response>
     /// <response code="404">The connection does not exist.</response>
-    /// <response code="409">The connection still holds identities or local accounts.</response>
+    /// <response code="409">The connection is a reserved system connection, or still holds identities or local
+    /// accounts.</response>
     [EndpointName("api/connections/delete")]
     internal virtual async ValueTask<IResult> DeleteAsync(
         HttpContext httpContext,
@@ -515,6 +518,14 @@ internal class ConnectionApiEndpointHandler(
         if (connection is null)
         {
             return ManagementProblems.ResourceNotFound();
+        }
+
+        if (connection.IsSystem)
+        {
+            return TypedResults.Problem(
+                detail: "A reserved system connection cannot be deleted.",
+                statusCode: StatusCodes.Status409Conflict
+            );
         }
 
         foreach (var source in DependentSources)

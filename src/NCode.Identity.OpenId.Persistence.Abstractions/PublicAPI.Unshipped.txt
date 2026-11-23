@@ -736,6 +736,8 @@ NCode.Identity.OpenId.Persistence.DataContracts.ISupportPersistedConnectionResou
 NCode.Identity.OpenId.Persistence.DataContracts.PersistedConnection
 NCode.Identity.OpenId.Persistence.DataContracts.PersistedConnection.DisplayName.get -> string!
 NCode.Identity.OpenId.Persistence.DataContracts.PersistedConnection.DisplayName.set -> void
+NCode.Identity.OpenId.Persistence.DataContracts.PersistedConnection.IsSystem.get -> bool
+NCode.Identity.OpenId.Persistence.DataContracts.PersistedConnection.IsSystem.init -> void
 NCode.Identity.OpenId.Persistence.DataContracts.PersistedConnection.IsEnabled.get -> bool
 NCode.Identity.OpenId.Persistence.DataContracts.PersistedConnection.IsEnabled.set -> void
 NCode.Identity.OpenId.Persistence.DataContracts.PersistedConnection.Name.get -> string!

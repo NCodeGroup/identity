@@ -71,6 +71,7 @@ public sealed class LocalConnectionSeedHandlerTests
         Assert.Equal("local", captured.Name);
         Assert.Equal("local", captured.Strategy);
         Assert.Equal("Username and password", captured.DisplayName);
+        Assert.True(captured.IsSystem);
         Assert.True(captured.IsEnabled);
         Assert.Equal("""{"store":"default"}""", captured.Options.GetRawText());
         Assert.Equal(TenantId, captured.Settings.TenantId);
@@ -93,6 +94,7 @@ public sealed class LocalConnectionSeedHandlerTests
             Name = "local",
             Strategy = "local",
             DisplayName = "Username and password",
+            IsSystem = false,
             IsEnabled = true,
             Options = JsonElements.EmptyObject,
             Settings = new PersistedConnectionSettings

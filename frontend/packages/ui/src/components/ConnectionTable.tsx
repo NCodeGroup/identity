@@ -16,6 +16,7 @@ export type ConnectionRow = {
   readonly name: string;
   readonly displayName: string;
   readonly strategy: string;
+  readonly isSystem: boolean;
   readonly isEnabled: boolean;
 };
 
@@ -29,7 +30,8 @@ export type ConnectionTableProps = {
 /**
  * Stateless connection table. Receives rows and callbacks as props; holds no state and does no fetching, so it renders
  * directly in Storybook and under RTL. Selecting a row opens that connection. The row-level edit and delete controls
- * appear only when their callbacks are supplied (and stop propagation so they never trigger selection).
+ * appear only when their callbacks are supplied (and stop propagation so they never trigger selection); a system
+ * connection has no delete control.
  */
 export function ConnectionTable({ connections, onSelect, onEdit, onDelete }: ConnectionTableProps) {
   const showActions = Boolean(onEdit || onDelete);
@@ -57,7 +59,12 @@ export function ConnectionTable({ connections, onSelect, onEdit, onDelete }: Con
               : {})}
             data-testid={`connection-row-${connection.connectionId}`}
           >
-            <TableCell>{connection.name}</TableCell>
+            <TableCell>
+              <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+                <span>{connection.name}</span>
+                {connection.isSystem && <Chip size="small" variant="outlined" label="System" />}
+              </Stack>
+            </TableCell>
             <TableCell>{connection.displayName}</TableCell>
             <TableCell>{connection.strategy}</TableCell>
             <TableCell>
@@ -85,7 +92,7 @@ export function ConnectionTable({ connections, onSelect, onEdit, onDelete }: Con
                       </IconButton>
                     </Tooltip>
                   )}
-                  {onDelete && (
+                  {onDelete && !connection.isSystem && (
                     <Tooltip title="Delete connection">
                       <IconButton
                         size="small"

@@ -754,6 +754,8 @@ NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.ConnectionEntity
 NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.ConnectionEntity.DisplayName.set -> void
 NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.ConnectionEntity.Id.get -> System.Guid
 NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.ConnectionEntity.Id.init -> void
+NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.ConnectionEntity.IsSystem.get -> bool
+NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.ConnectionEntity.IsSystem.init -> void
 NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.ConnectionEntity.IsEnabled.get -> bool
 NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.ConnectionEntity.IsEnabled.set -> void
 NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.ConnectionEntity.Name.get -> string!

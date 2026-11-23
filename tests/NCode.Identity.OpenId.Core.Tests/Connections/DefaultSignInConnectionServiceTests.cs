@@ -77,6 +77,7 @@ public class DefaultSignInConnectionServiceTests : BaseTests
                 Name = name,
                 Strategy = "local",
                 DisplayName = name,
+                IsSystem = false,
                 IsEnabled = true,
                 Options = JsonElements.EmptyObject,
                 Settings = new PersistedConnectionSettings

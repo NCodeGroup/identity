@@ -100,6 +100,7 @@ public class DefaultConnectionResolverTests : BaseTests
             Name = name,
             Strategy = strategy,
             DisplayName = name,
+            IsSystem = false,
             IsEnabled = isEnabled,
             Options = JsonElements.EmptyObject,
             Settings = new PersistedConnectionSettings

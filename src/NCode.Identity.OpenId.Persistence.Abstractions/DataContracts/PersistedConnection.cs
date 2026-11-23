@@ -42,6 +42,11 @@ public sealed class PersistedConnection : BasePersistedConnectionResource
     public required string DisplayName { get; set; }
 
     /// <summary>
+    /// Gets a value indicating whether this connection is a reserved, system-owned connection that cannot be deleted.
+    /// </summary>
+    public required bool IsSystem { get; init; }
+
+    /// <summary>
     /// Gets or sets a value indicating whether this connection is enabled.
     /// </summary>
     public required bool IsEnabled { get; set; }

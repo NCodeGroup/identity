@@ -15,6 +15,7 @@ const connections = [
     name: 'local',
     displayName: 'Local accounts',
     strategy: 'local',
+    isSystem: true,
     isEnabled: true,
   },
   {
@@ -22,6 +23,7 @@ const connections = [
     name: 'staff',
     displayName: 'Staff',
     strategy: 'local',
+    isSystem: false,
     isEnabled: false,
   },
 ];

@@ -54,6 +54,7 @@ public sealed class DefaultConnectionValidatorTests : IDisposable
             Name = name,
             Strategy = strategy,
             DisplayName = displayName,
+            IsSystem = false,
             IsEnabled = true,
             Options = options ?? JsonSerializer.SerializeToElement(new { store = "default" }),
             Settings = new PersistedConnectionSettings

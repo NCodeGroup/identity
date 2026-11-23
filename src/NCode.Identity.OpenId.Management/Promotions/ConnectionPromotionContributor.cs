@@ -147,6 +147,7 @@ internal class ConnectionPromotionContributor(
             Name = source.Name,
             Strategy = source.Strategy,
             DisplayName = source.DisplayName,
+            IsSystem = false,
             IsEnabled = source.IsEnabled,
             Options = source.Options,
             Settings = new PersistedConnectionSettings
@@ -226,6 +227,7 @@ internal class ConnectionPromotionContributor(
             Name = connection.Name,
             DisplayName = connection.DisplayName,
             Strategy = connection.Strategy,
+            IsSystem = connection.IsSystem,
             IsEnabled = connection.IsEnabled,
             Options = connection.Options,
         };

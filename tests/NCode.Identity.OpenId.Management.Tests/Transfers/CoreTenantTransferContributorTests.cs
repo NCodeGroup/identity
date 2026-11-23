@@ -140,6 +140,7 @@ public sealed class CoreTenantTransferContributorTests : IDisposable
             Name = "local",
             Strategy = "local",
             DisplayName = "Username and password",
+            IsSystem = false,
             IsEnabled = true,
             ConcurrencyToken = "connection-concurrency-token",
             Options = Json("""{"store":"default"}"""),

@@ -61,6 +61,7 @@ public sealed class DefaultPrincipalResolverTests : BaseTests
                 Name = connectionId,
                 Strategy = ConnectionStrategyNames.Local,
                 DisplayName = connectionId,
+                IsSystem = false,
                 IsEnabled = isEnabled,
                 Options = JsonElements.EmptyObject,
                 Settings = new PersistedConnectionSettings

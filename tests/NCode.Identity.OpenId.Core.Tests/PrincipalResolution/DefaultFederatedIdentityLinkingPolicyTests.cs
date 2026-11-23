@@ -68,6 +68,7 @@ public sealed class DefaultFederatedIdentityLinkingPolicyTests : BaseTests
                 Name = "upstream",
                 Strategy = ConnectionStrategyNames.Local,
                 DisplayName = "Upstream",
+                IsSystem = false,
                 IsEnabled = true,
                 Options = JsonElements.EmptyObject,
                 Settings = new PersistedConnectionSettings

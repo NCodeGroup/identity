@@ -62,15 +62,16 @@ The vocabulary (`IConnectionStrategy`, `IConnectionStrategyCatalog`, `IConnectio
 `DefaultConnectionResolver` and the seed of the `local` connection) lives in `NCode.Identity.OpenId.Core`, and its
 management API in `NCode.Identity.OpenId.Management`.
 
-| Member         | Meaning                                                                                                                                                                                                                        |
-| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `ConnectionId` | Opaque, server-minted with `ICryptoService.GenerateResourceId()` ([ADR-1014](1014-management-resources-carry-opaque-server-identifiers-and-list-one-keyset-page-at-a-time.md)), never reissued                                 |
-| `Name`         | Operator-chosen and immutable: 1 to 128 ASCII letters, digits, `-` and `_`, starting with a letter or digit, unique per tenant and compared case-insensitively; what clients, requests and the sign-in page name               |
-| `Strategy`     | A registered strategy name, immutable: `local`, and [#64](https://github.com/NCodeGroup/identity/issues/64)'s `oidc`, `saml` and `wsfed`                                                                                        |
-| `DisplayName`  | What the sign-in picker shows                                                                                                                                                                                                  |
-| `IsEnabled`    | A disabled connection signs no one in and its identities fail subject validation, as a disabled account does ([ADR-1229](1229-a-blocked-disabled-or-deleted-end-user-loses-its-sessions-and-is-refused-with-access-denied.md)) |
-| `Options`      | The strategy's own JSON object, validated by its strategy and stored as a JSON document like a settings document: it is the operator's document, not a server-typed payload                                                    |
-| `Settings`     | A settings document at the `connection` scope (see 5), a sub-resource with its own concurrency token                                                                                                                           |
+| Member         | Meaning                                                                                                                                                                                                                           |
+| -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ConnectionId` | Opaque, server-minted with `ICryptoService.GenerateResourceId()` ([ADR-1014](1014-management-resources-carry-opaque-server-identifiers-and-list-one-keyset-page-at-a-time.md)), never reissued                                    |
+| `Name`         | Operator-chosen and immutable: 1 to 128 ASCII letters, digits, `-` and `_`, starting with a letter or digit, unique per tenant and compared case-insensitively; what clients, requests and the sign-in page name                  |
+| `Strategy`     | A registered strategy name, immutable: `local`, and [#64](https://github.com/NCodeGroup/identity/issues/64)'s `oidc`, `saml` and `wsfed`                                                                                          |
+| `DisplayName`  | What the sign-in picker shows                                                                                                                                                                                                     |
+| `IsSystem`     | Set only by the server: the seeded `local` connection is a reserved system connection that cannot be deleted, as a reserved resource server cannot; a connection created through the API or promoted to another tenant is not one |
+| `IsEnabled`    | A disabled connection signs no one in and its identities fail subject validation, as a disabled account does ([ADR-1229](1229-a-blocked-disabled-or-deleted-end-user-loses-its-sessions-and-is-refused-with-access-denied.md))    |
+| `Options`      | The strategy's own JSON object, validated by its strategy and stored as a JSON document like a settings document: it is the operator's document, not a server-typed payload                                                       |
+| `Settings`     | A settings document at the `connection` scope (see 5), a sub-resource with its own concurrency token                                                                                                                              |
 
 A strategy is an `IConnectionStrategy` registered with `TryAddEnumerable`, one class per strategy, and indexed by
 `IConnectionStrategyCatalog`, which rejects a duplicate name, as the tenant environment types are
@@ -84,7 +85,9 @@ whose options name that scheme, so every sign-in comes through a connection.
 
 Every tenant is created with an enabled `local` connection, displayed as "Username and password", whose options are
 `{"store":"default"}` and whose settings are empty. `LocalConnectionSeedHandler` creates it as a `SeedTenantCommand`
-handler of priority High and is idempotent. Every client accepts it by default.
+handler of priority High and is idempotent. Every client accepts it by default. It is a system connection: deleting it
+answers `409`, so an operator turns sign-in through it off by disabling it, and its display name and settings can still
+change. A tenant transfer carries the flag; a promotion never changes a target connection's flag.
 
 The management API serves `/tenants/{tenantId}/connections` (list, create), `/{connectionId}` (get, patch, delete),
 `/{connectionId}/settings` (get, patch), `/{connectionId}/settings/limits` and `/{connectionId}/effective-settings`,
@@ -215,15 +218,15 @@ local-accounts section's records by connection id.
 
 ## Options considered
 
-| Force                                                                | A. One namespace per tenant | B. Local databases only                           | C. Connections keyed by issuer  | D. Connections keyed by connection |
-| -------------------------------------------------------------------- | --------------------------- | ------------------------------------------------- | ------------------------------- | ---------------------------------- |
-| Groups with their own policy                                         | Only as separate tenants    | Yes                                               | Yes                             | Yes                                |
-| Several backends in a tenant                                         | No                          | Yes                                               | Yes                             | Yes                                |
-| Enablement per client                                                | No                          | A second allow-list beside the connections'       | Yes                             | Yes                                |
-| Two connections to one upstream issuer                               | n/a                         | n/a                                               | Merge, or need a made-up issuer | Separate                           |
-| [#64](https://github.com/NCodeGroup/identity/issues/64) builds on it | Needs its own model         | Needs its own model                               | Yes                             | Yes                                |
-| Connection read from an upstream claim                               | n/a                         | n/a                                               | The issuer claim chooses it     | Never                              |
-| Configuration for a one-group tenant                                 | None                        | None, with a default                              | None, with a default            | None, with a default               |
+| Force                                                                | A. One namespace per tenant | B. Local databases only                     | C. Connections keyed by issuer  | D. Connections keyed by connection |
+| -------------------------------------------------------------------- | --------------------------- | ------------------------------------------- | ------------------------------- | ---------------------------------- |
+| Groups with their own policy                                         | Only as separate tenants    | Yes                                         | Yes                             | Yes                                |
+| Several backends in a tenant                                         | No                          | Yes                                         | Yes                             | Yes                                |
+| Enablement per client                                                | No                          | A second allow-list beside the connections' | Yes                             | Yes                                |
+| Two connections to one upstream issuer                               | n/a                         | n/a                                         | Merge, or need a made-up issuer | Separate                           |
+| [#64](https://github.com/NCodeGroup/identity/issues/64) builds on it | Needs its own model         | Needs its own model                         | Yes                             | Yes                                |
+| Connection read from an upstream claim                               | n/a                         | n/a                                         | The issuer claim chooses it     | Never                              |
+| Configuration for a one-group tenant                                 | None                        | None, with a default                        | None, with a default            | None, with a default               |
 
 - **A. Keep one namespace per tenant.** Rejected. A second tenant does separate two groups, but it duplicates every
   client, resource server, role and key the groups share, gives no per-client choice, and leaves

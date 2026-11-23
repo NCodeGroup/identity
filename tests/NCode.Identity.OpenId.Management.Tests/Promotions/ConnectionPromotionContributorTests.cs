@@ -131,7 +131,8 @@ public sealed class ConnectionPromotionContributorTests : IDisposable
         string displayName = "Corporate",
         bool isEnabled = true,
         string optionsJson = """{"store":"default"}""",
-        string settingsJson = "{}"
+        string settingsJson = "{}",
+        bool isSystem = false
     ) =>
         new()
         {
@@ -141,6 +142,7 @@ public sealed class ConnectionPromotionContributorTests : IDisposable
             Name = name,
             Strategy = strategy,
             DisplayName = displayName,
+            IsSystem = isSystem,
             IsEnabled = isEnabled,
             Options = JsonElement.Parse(optionsJson),
             Settings = new PersistedConnectionSettings
@@ -485,6 +487,7 @@ public sealed class ConnectionPromotionContributorTests : IDisposable
         Assert.Equal("Corp", added.Name);
         Assert.Equal(StrategyName, added.Strategy);
         Assert.Equal("Corporate", added.DisplayName);
+        Assert.False(added.IsSystem);
         Assert.False(added.IsEnabled);
         Assert.Equal("""{"store":"default"}""", added.Options.GetRawText());
         Assert.Equal(TargetTenantId, added.Settings.TenantId);
@@ -509,7 +512,7 @@ public sealed class ConnectionPromotionContributorTests : IDisposable
             isEnabled: false,
             settingsJson: """{"a":1}"""
         );
-        var target = CreateTarget(displayName: "Old", settingsJson: """{"a":0}""");
+        var target = CreateTarget(displayName: "Old", settingsJson: """{"a":0}""", isSystem: true);
         var promoted = CreatePromotedSettings("""{"a":1}""");
         SourceDocument.Connections.Add(source);
         SetupTarget("Corp", target);
@@ -521,6 +524,7 @@ public sealed class ConnectionPromotionContributorTests : IDisposable
                 x.UpdateAsync(
                     It.Is<PersistedConnection>(item =>
                         ReferenceEquals(item, target)
+                        && item.IsSystem
                         && item.DisplayName == "New"
                         && !item.IsEnabled
                     ),

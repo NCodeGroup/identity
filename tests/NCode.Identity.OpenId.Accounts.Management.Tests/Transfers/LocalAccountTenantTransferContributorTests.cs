@@ -109,6 +109,7 @@ public sealed class LocalAccountTenantTransferContributorTests : IDisposable
             Name = connectionId,
             Strategy = strategy,
             DisplayName = "Username and password",
+            IsSystem = false,
             IsEnabled = true,
             Options = JsonSerializer.SerializeToElement(new { store = "default" }),
             Settings = new PersistedConnectionSettings

@@ -52,6 +52,7 @@ public sealed class LocalAccountConnectionDependentSourceTests : IDisposable
             Name = "local",
             Strategy = strategy,
             DisplayName = "Username and password",
+            IsSystem = false,
             IsEnabled = true,
             Options = JsonSerializer.SerializeToElement(new { store = "default" }),
             Settings = new PersistedConnectionSettings

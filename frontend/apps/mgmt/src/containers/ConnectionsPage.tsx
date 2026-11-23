@@ -177,6 +177,7 @@ export function ConnectionsPage({ tenantId }: ConnectionsPageProps) {
             name: c.name,
             displayName: c.displayName,
             strategy: c.strategy,
+            isSystem: c.isSystem,
             isEnabled: c.isEnabled,
           }))}
           onSelect={setSelectedId}

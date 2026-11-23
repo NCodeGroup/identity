@@ -80,6 +80,11 @@ public sealed class ConnectionEntity : ISupportTenantEntity, ISupportConcurrency
     public required string DisplayName { get; set; }
 
     /// <summary>
+    /// Gets a value indicating whether this connection is a reserved, system-owned connection that cannot be deleted.
+    /// </summary>
+    public required bool IsSystem { get; init; }
+
+    /// <summary>
     /// Gets or sets a value indicating whether this connection signs users in.
     /// </summary>
     public required bool IsEnabled { get; set; }

@@ -660,6 +660,9 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                     b.Property<bool>("IsEnabled")
                         .HasColumnType("boolean");
 
+                    b.Property<bool>("IsSystem")
+                        .HasColumnType("boolean");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(128)

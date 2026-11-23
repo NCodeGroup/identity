@@ -52,7 +52,8 @@ public sealed class ConnectionStoreTests : IDisposable
 
     private static PersistedConnection CreateConnection(
         string connectionId = ConnectionId,
-        string name = "Local"
+        string name = "Local",
+        bool isSystem = false
     ) =>
         new()
         {
@@ -61,6 +62,7 @@ public sealed class ConnectionStoreTests : IDisposable
             Name = name,
             Strategy = "local",
             DisplayName = "Username and password",
+            IsSystem = isSystem,
             IsEnabled = true,
             Options = JsonSerializer.SerializeToElement(new { store = "default" }),
             Settings = new PersistedConnectionSettings
@@ -112,6 +114,18 @@ public sealed class ConnectionStoreTests : IDisposable
         Assert.Equal("default", reloaded.Options.GetProperty("store").GetString());
         Assert.False(string.IsNullOrEmpty(reloaded.ConcurrencyToken));
         Assert.False(string.IsNullOrEmpty(reloaded.Settings.ConcurrencyToken));
+    }
+
+    [Fact]
+    public async Task AddAsync_RoundtripsTheSystemFlag()
+    {
+        await SeedTenantAsync(CancellationToken.None);
+        await AddAndSaveAsync(CreateConnection(isSystem: true), CancellationToken.None);
+
+        var reloaded = await Store.GetOrDefaultAsync(ConnectionId, CancellationToken.None);
+
+        Assert.NotNull(reloaded);
+        Assert.True(reloaded.IsSystem);
     }
 
     [Fact]

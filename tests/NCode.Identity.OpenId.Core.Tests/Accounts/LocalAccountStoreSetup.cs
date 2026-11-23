@@ -41,6 +41,7 @@ internal static class LocalAccountStoreSetup
                 Name = name,
                 Strategy = strategy,
                 DisplayName = name,
+                IsSystem = false,
                 IsEnabled = true,
                 Options = JsonSerializer.SerializeToElement(options),
                 Settings = new PersistedConnectionSettings

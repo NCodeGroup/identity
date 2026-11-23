@@ -94,6 +94,7 @@ public sealed class FederatedIdentityStoreTests : IDisposable
                 Name = name,
                 Strategy = "local",
                 DisplayName = name,
+                IsSystem = false,
                 IsEnabled = true,
                 Options = JsonSerializer.SerializeToElement(new { store = "default" }),
                 Settings = new PersistedConnectionSettings

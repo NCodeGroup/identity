@@ -65,6 +65,7 @@ public sealed class DefaultPasswordAttemptLimiterTests : BaseTests
                 Name = "local",
                 Strategy = ConnectionStrategyNames.Local,
                 DisplayName = "Local",
+                IsSystem = false,
                 IsEnabled = true,
                 Options = JsonElements.EmptyObject,
                 Settings = new PersistedConnectionSettings

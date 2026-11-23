@@ -169,6 +169,7 @@ public sealed class DefaultTenantConfigurationExporterTests : IDisposable
             Name = name,
             Strategy = "local",
             DisplayName = $"Display of {name}",
+            IsSystem = false,
             IsEnabled = false,
             Options = Json("""{"store":"default"}"""),
             Settings = new PersistedConnectionSettings

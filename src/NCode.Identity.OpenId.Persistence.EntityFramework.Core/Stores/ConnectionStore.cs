@@ -49,6 +49,7 @@ internal sealed class ConnectionStore(
             Name = entity.Name,
             Strategy = entity.Strategy,
             DisplayName = entity.DisplayName,
+            IsSystem = entity.IsSystem,
             IsEnabled = entity.IsEnabled,
             Options = entity.OptionsJson,
             Settings = new PersistedConnectionSettings
@@ -166,6 +167,7 @@ internal sealed class ConnectionStore(
             NormalizedName = Normalize(persistedConnection.Name),
             Strategy = persistedConnection.Strategy,
             DisplayName = persistedConnection.DisplayName,
+            IsSystem = persistedConnection.IsSystem,
             IsEnabled = persistedConnection.IsEnabled,
             OptionsJson = persistedConnection.Options,
             SettingsJson = persistedConnection.Settings.Value,

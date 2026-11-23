@@ -45,6 +45,11 @@ public sealed class ConnectionResource
     public required string Strategy { get; init; }
 
     /// <summary>
+    /// Gets a value indicating whether this connection is a reserved, system-owned connection that cannot be deleted.
+    /// </summary>
+    public required bool IsSystem { get; init; }
+
+    /// <summary>
     /// Gets a value indicating whether this connection is enabled.
     /// </summary>
     public required bool IsEnabled { get; init; }

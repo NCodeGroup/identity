@@ -149,6 +149,7 @@ internal static class TestOpenIdDbContextSetup
             NormalizedName = name.ToLowerInvariant(),
             Strategy = "local",
             DisplayName = name,
+            IsSystem = false,
             IsEnabled = true,
             OptionsJson = JsonElement.Parse("""{"store":"default"}"""),
             SettingsJson = JsonSerializer.SerializeToElement(new Dictionary<string, object>()),
