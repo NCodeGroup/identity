@@ -24,9 +24,9 @@ type ClaimRow = { readonly id: number; readonly type: string; readonly value: st
 const reservedNameMessage = 'The display name is the name claim; edit it with the user.';
 
 /**
- * Stateless profile claims editor. The rows are intrinsic to the control and reseed when
- * {@link LocalAccountClaimsEditorProps.claims} changes after a save; persistence lives in the
- * container, and {@link LocalAccountClaimsEditorProps.onSave} receives the trimmed rows.
+ * Presentational profile claims editor that keeps its own row state. The rows are intrinsic to the control and reseed
+ * when {@link LocalAccountClaimsEditorProps.claims} changes after a save; persistence lives in the container, and
+ * {@link LocalAccountClaimsEditorProps.onSave} receives the trimmed rows.
  */
 export function LocalAccountClaimsEditor({
   claims,

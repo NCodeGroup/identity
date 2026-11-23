@@ -8,8 +8,8 @@ namespace NCode.Identity.OpenId.Management.ControlPlane;
 
 /// <summary>
 /// Describes the control-plane principals that a query names by identifier or username. The control plane holds the
-/// principals, so a cell reads them from its own store when it is the control plane, and from the control plane
-/// through a remote adapter otherwise.
+/// principals, so a cell reads them from its own store when it is the control plane, and from the control plane through
+/// a remote adapter otherwise.
 /// </summary>
 [PublicAPI]
 public interface IControlPlanePrincipalDirectory

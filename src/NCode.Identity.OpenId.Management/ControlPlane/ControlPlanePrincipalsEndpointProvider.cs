@@ -22,9 +22,9 @@ POST control-plane/v1/principals
 
 /// <summary>
 /// Provides the endpoint through which the control-plane cell describes its principals to the other cells. It maps
-/// nothing unless the cell is the control plane. The route sits beside the management <c>/api</c> tree, never under
-/// it, is authenticated by <see cref="ControlPlaneAuthenticationGate"/> before the route binds its body, and its
-/// bodies are never logged.
+/// nothing unless the cell is the control plane. The route sits beside the management <c>/api</c> tree, never under it,
+/// is authenticated by <see cref="ControlPlaneAuthenticationGate"/> before the route binds its body, and its bodies are
+/// never logged.
 /// </summary>
 // See ADR-1411 and ADR-1465.
 internal sealed class ControlPlanePrincipalsEndpointProvider : IEndpointProvider

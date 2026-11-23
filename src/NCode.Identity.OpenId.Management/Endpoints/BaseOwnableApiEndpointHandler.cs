@@ -113,8 +113,8 @@ internal abstract class BaseOwnableApiEndpointHandler : BaseApiEndpointHandler
     /// The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.
     /// </param>
     /// <returns>
-    /// A <see cref="ValueTask{TResult}"/> whose result maps each described principal's identifier to its summary;
-    /// a principal no describer knows has no entry.
+    /// A <see cref="ValueTask{TResult}"/> whose result maps each described principal's identifier to its summary; a
+    /// principal no describer knows has no entry.
     /// </returns>
     private async ValueTask<IReadOnlyDictionary<string, PrincipalSummaryResource>> DescribeAsync(
         List<string> principalIds,
@@ -167,9 +167,10 @@ internal abstract class BaseOwnableApiEndpointHandler : BaseApiEndpointHandler
     }
 
     /// <summary>
-    /// Processes an HTTP <c>GET</c> for the principals that hold one role at a resource node: authorizes the caller
-    /// to read the node, then returns the assignments of the role, each with the control plane's summary of its
-    /// holder, and whether the caller may grant and revoke the role there. Responds <c>404</c> when the resource does not exist.
+    /// Processes an HTTP <c>GET</c> for the principals that hold one role at a resource node: authorizes the caller to
+    /// read the node, then returns the assignments of the role, each with the control plane's summary of its holder,
+    /// and whether the caller may grant and revoke the role there. Responds <c>404</c> when the resource does not
+    /// exist.
     /// </summary>
     /// <param name="httpContext">The <see cref="HttpContext"/> of the request.</param>
     /// <param name="roleList">The <see cref="RoleList"/> that describes the role whose assignments are listed.</param>
@@ -246,10 +247,10 @@ internal abstract class BaseOwnableApiEndpointHandler : BaseApiEndpointHandler
     /// <summary>
     /// Processes an HTTP <c>POST</c> that grants a principal one role at a resource node: authorizes the caller to
     /// perform the operation at the node, then adds the assignment and records the grant. The request names the
-    /// principal by identifier or by the username of a control-plane local account. Responds <c>403</c> when the
-    /// caller lacks the operation, <c>400</c> when the request names no principal, both, or a username no principal
-    /// has, <c>404</c> when the resource does not exist, <c>409</c> when the principal is a client that cannot hold the role at the node, <c>200</c>
-    /// when the principal already holds the role, and <c>201</c> when the role is granted.
+    /// principal by identifier or by the username of a control-plane local account. Responds <c>403</c> when the caller
+    /// lacks the operation, <c>400</c> when the request names no principal, both, or a username no principal has,
+    /// <c>404</c> when the resource does not exist, <c>409</c> when the principal is a client that cannot hold the role
+    /// at the node, <c>200</c> when the principal already holds the role, and <c>201</c> when the role is granted.
     /// </summary>
     /// <param name="httpContext">The <see cref="HttpContext"/> of the request.</param>
     /// <param name="roleList">The <see cref="RoleList"/> that describes the role to grant.</param>
@@ -284,6 +285,7 @@ internal abstract class BaseOwnableApiEndpointHandler : BaseApiEndpointHandler
 
         var requestedPrincipalId = request.PrincipalId;
         var requestedUserName = request.UserName;
+        var requestedPrincipalKey = requestedPrincipalId ?? string.Empty;
         if (string.IsNullOrEmpty(requestedPrincipalId) == string.IsNullOrEmpty(requestedUserName))
         {
             return TypedResults.Problem(
@@ -319,14 +321,11 @@ internal abstract class BaseOwnableApiEndpointHandler : BaseApiEndpointHandler
         }
         else
         {
-            var described = await DescribeAsync(
-                [requestedPrincipalId ?? string.Empty],
-                cancellationToken
-            );
-            summary = described.GetValueOrDefault(requestedPrincipalId ?? string.Empty);
+            var described = await DescribeAsync([requestedPrincipalKey], cancellationToken);
+            summary = described.GetValueOrDefault(requestedPrincipalKey);
         }
 
-        var principalId = summary?.PrincipalId ?? requestedPrincipalId ?? string.Empty;
+        var principalId = summary?.PrincipalId ?? requestedPrincipalKey;
         var grant = await ResourceOwnershipService.AddAssignmentAsync(
             storeManager,
             node.TenantId,

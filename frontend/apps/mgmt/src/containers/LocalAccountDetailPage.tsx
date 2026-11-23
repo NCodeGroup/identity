@@ -30,10 +30,9 @@ export type LocalAccountDetailPageProps = {
 type LocalAccountSurface = 'claims' | 'metadata';
 
 /**
- * Container: drills into a single local account to edit its profile claims and, when it has an owning principal,
- * its metadata. The parent supplies the account and owns the drill-in selection. Both surfaces save with the
- * concurrency token of the document they loaded, so a concurrent change surfaces as a failed save. Owns only tab and
- * error state.
+ * Container: drills into a single local account to edit its profile claims and, when it has an owning principal, its
+ * metadata. The parent supplies the account and owns the drill-in selection. Both surfaces save with the concurrency
+ * token of the document they loaded, so a concurrent change surfaces as a failed save. Owns only tab and error state.
  */
 export function LocalAccountDetailPage({ account, cell, onBack }: LocalAccountDetailPageProps) {
   const [surface, setSurface] = useState<LocalAccountSurface>('claims');

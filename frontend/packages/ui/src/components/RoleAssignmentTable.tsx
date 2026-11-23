@@ -16,10 +16,11 @@ export type RoleAssignmentRow = {
   readonly principalType: string | null;
 };
 
+/**
+ * Describes a holder that has a display name: its principal type and identifier, or the identifier alone when the type
+ * is unknown.
+ */
 function describeHolder(assignment: RoleAssignmentRow): string {
-  if (assignment.displayName === null) {
-    return assignment.principalId;
-  }
   switch (assignment.principalType) {
     case 'local_account':
       return `User · ${assignment.principalId}`;

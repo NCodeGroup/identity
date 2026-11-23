@@ -10,8 +10,8 @@ export type LoadMoreButtonProps = {
 };
 
 /**
- * Stateless control below a paged list that fetches the next page. It renders nothing once every page is loaded
- * and is disabled, with a progress indicator, while a page is loading.
+ * Stateless control below a paged list that fetches the next page. It renders nothing once every page is loaded and is
+ * disabled, with a progress indicator, while a page is loading.
  */
 export function LoadMoreButton({
   hasMore,
