@@ -3437,13 +3437,15 @@ Until the first stable release, the [Unreleased] section describes the product a
 - **The server sends mail through a queued port and opt-in SMTP and Amazon SES transports.** `IMailSender` queues a
   serializable model through the job dispatcher and refuses a model that no registered `IMailComposer` handles; at each
   delivery attempt the model's composer builds the `MailMessage`, whose bodies and attachments are `MailContent` streams
-  it owns, and a registered `IMailTransport` delivers it, retrying a failed delivery. `NCode.Identity.Mail.Mime` builds
-  the MIME form that both transports send. `NCode.Identity.Mail.Smtp`'s `AddSmtpMailTransport` delivers over SMTP with
-  STARTTLS or implicit TLS from the `Mail:Smtp` section, which the host chart sets as `mail.smtp`, and
-  `NCode.Identity.Mail.AmazonSes`'s `AddAmazonSesMailTransport` sends through the Amazon SES v2 API from the
-  `Mail:AmazonSes` section, which the host chart sets as `mail.amazonSes`, as the pod's AWS role that the chart's
-  `aws.webIdentity` gives to AWS KMS and Amazon SES alike. A host configures one transport, and the local stack sends to
-  Mailpit; `ncode.identity.mail.messages` counts deliveries
+  it owns, and a registered `IMailTransport` delivers it, retrying a failed delivery. `NCode.Identity.Mail.Mime`'s
+  `IMimeMessageFactory`, which each transport registers through `AddMimeMailTransport` and takes by constructor
+  injection, builds the MIME form that both transports send and dates a message by the host's `TimeProvider`.
+  `NCode.Identity.Mail.Smtp`'s `AddSmtpMailTransport` delivers over SMTP with STARTTLS or implicit TLS from the
+  `Mail:Smtp` section, which the host chart sets as `mail.smtp`, and `NCode.Identity.Mail.AmazonSes`'s
+  `AddAmazonSesMailTransport` sends through the Amazon SES v2 API from the `Mail:AmazonSes` section, which the host
+  chart sets as `mail.amazonSes`, as the AWS role that the chart's `aws.webIdentity` gives to the pods that use AWS KMS
+  and to the host's Deployment, the one pod that sends mail. A host configures one transport, and the local stack sends
+  to Mailpit; `ncode.identity.mail.messages` counts deliveries
   ([ADR-1532](docs/decisions/1532-outbound-mail-is-a-port-that-composes-each-queued-message-at-delivery-for-a-replaceable-transport-with-smtp-and-amazon-ses-adapters.md),
   [#911](https://github.com/NCodeGroup/identity/issues/911)).
 
@@ -4517,8 +4519,8 @@ Until the first stable release, the [Unreleased] section describes the product a
 - **A tenant's audit records stream to its own endpoints.** `api/tenants/{tenantId}/audit-streams` registers up to
   `max_audit_streams` (2) HTTPS endpoints; every replica follows the audit store forward under each stream's saved
   position and lease, posts batches of up to 100 records signed as Standard Webhooks with a `whsec_` secret that rotates
-  with a 24-hour overlap, retries with back-off, and reports each stream's delivery status;
-  `ncode.identity.audit_stream.deliveries` and `ncode.identity.audit_stream.records` count them
+  with a 24-hour overlap, at most three signing at once, retries with back-off, and reports each stream's delivery
+  status; `ncode.identity.audit_stream.deliveries` and `ncode.identity.audit_stream.records` count them
   ([ADR-1534](docs/decisions/1534-a-tenants-audit-records-stream-to-its-endpoints-read-forward-from-the-audit-store-and-signed-as-standard-webhooks.md),
   [#910](https://github.com/NCodeGroup/identity/issues/910)).
 
@@ -6806,7 +6808,8 @@ Until the first stable release, the [Unreleased] section describes the product a
   with one atomic take after every check and before their effect, and never logged; a forgot-password request answers
   the same and does the same remote work whether or not an account exists; a failed SMTP delivery reports the server's
   numeric status, never its reply text or the recipient; Amazon SES reports only its error code and status; a decoy
-  request's entries expire within a minute; passwords and codes cross the interactive surface's interfaces as
+  request's entries expire within a minute; the queued mail's model prints neither its code nor its address; a stored
+  flow that lacks a member refuses every code; passwords and codes cross the interactive surface's interfaces as
   `Secret<char>`; `Mail:Smtp:Tls=None` is refused outside local development
   ([ADR-1533](docs/decisions/1533-an-end-user-verifies-an-email-address-resets-a-password-and-signs-in-with-a-second-factor-through-one-time-email-codes.md),
   [ADR-1532](docs/decisions/1532-outbound-mail-is-a-port-that-composes-each-queued-message-at-delivery-for-a-replaceable-transport-with-smtp-and-amazon-ses-adapters.md),
