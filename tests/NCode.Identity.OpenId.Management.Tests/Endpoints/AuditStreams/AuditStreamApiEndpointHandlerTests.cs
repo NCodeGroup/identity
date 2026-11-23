@@ -1042,6 +1042,71 @@ public sealed class AuditStreamApiEndpointHandlerTests : IDisposable
         Assert.Null(stream.SigningSecrets[2].ExpiryTime);
     }
 
+    [Fact]
+    public async Task RotateSigningSecretAsync_WhenThreeSecretsSign_ReturnsConflictUntilTheOldestStops()
+    {
+        SetupAuthorization(AuthorizationResult.Success());
+        SetupStore();
+        var current = CreateSecret("current");
+        var older = CreateSecret("older", expiryTime: Start.AddHours(2));
+        var newer = CreateSecret("newer", expiryTime: Start.AddHours(5));
+        var stream = CreateStream(signingSecrets: [current, older, newer]);
+        MockAuditStreamStore
+            .Setup(x => x.GetOrDefaultAsync(StreamId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(stream)
+            .Verifiable();
+
+        // Strict mocks: no update, protector or save setup, so creating or storing a secret would fail the test.
+        var httpContext = CreateHttpContext();
+        var result = await Handler.RotateSigningSecretAsync(
+            httpContext,
+            TenantId,
+            StreamId,
+            CancellationToken.None
+        );
+
+        var problem = Assert.IsType<ProblemHttpResult>(result);
+        Assert.Equal(StatusCodes.Status409Conflict, problem.StatusCode);
+        Assert.Equal("7200", httpContext.Response.Headers.RetryAfter.ToString());
+        Assert.Equal(7200L, problem.ProblemDetails.Extensions[RetryAfterProblem.MemberName]);
+        Assert.Equal(
+            ["current", "older", "newer"],
+            stream.SigningSecrets.Select(secret => secret.SecretId)
+        );
+    }
+
+    [Fact]
+    public async Task RotateSigningSecretAsync_WhenAnExpiredSecretFreesASlot_Rotates()
+    {
+        CryptoService.ResourceIds.Enqueue(NewSecretId);
+        SetupAuthorization(AuthorizationResult.Success());
+        SetupStore();
+        SetupProtector();
+        SetupSave();
+        var current = CreateSecret("current");
+        var expired = CreateSecret("expired", expiryTime: Start.AddMinutes(-1));
+        var overlapping = CreateSecret("overlapping", expiryTime: Start.AddHours(3));
+        var stream = CreateStream(signingSecrets: [current, expired, overlapping]);
+        MockAuditStreamStore
+            .Setup(x => x.GetOrDefaultAsync(StreamId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(stream)
+            .Verifiable();
+        MockAuditStreamStore
+            .Setup(x => x.UpdateAsync(stream, It.IsAny<CancellationToken>()))
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable();
+        SetupRecorder(StreamId, ResourceChangeTypes.Updated);
+
+        var result = await Handler.RotateSigningSecretAsync(
+            CreateHttpContext(),
+            TenantId,
+            StreamId,
+            CancellationToken.None
+        );
+
+        Assert.IsType<Created<CreatedAuditStreamSigningSecretResource>>(result);
+    }
+
     #endregion
 
     #region Map Tests
@@ -1052,7 +1117,11 @@ public sealed class AuditStreamApiEndpointHandlerTests : IDisposable
     [InlineData("GET", "/audit-streams/{streamId}", new[] { 401, 403, 404 })]
     [InlineData("PATCH", "/audit-streams/{streamId}", new[] { 400, 401, 403, 404, 412, 415 })]
     [InlineData("DELETE", "/audit-streams/{streamId}", new[] { 401, 403, 404, 412 })]
-    [InlineData("POST", "/audit-streams/{streamId}/signing-secrets", new[] { 401, 403, 404, 412 })]
+    [InlineData(
+        "POST",
+        "/audit-streams/{streamId}/signing-secrets",
+        new[] { 401, 403, 404, 409, 412 }
+    )]
     public async Task Map_Always_DeclaresAndDescribesEveryProblemARouteAnswers(
         string httpMethod,
         string routePattern,

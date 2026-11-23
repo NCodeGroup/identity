@@ -72,6 +72,11 @@ internal class AuditStreamApiEndpointHandler(
     private const string CreateGuardKeyPurpose = "audit-stream-create";
     private const int CreateGuardOwnerLength = 16;
 
+    /// <summary>
+    /// The most signing secrets of a stream that sign at once: the current one and two rotated ones in their overlap.
+    /// </summary>
+    private const int MaxSigningSecrets = 3;
+
     private static TimeSpan SigningSecretOverlap { get; } = TimeSpan.FromHours(24);
     private static TimeSpan CreateGuardLifetime { get; } = TimeSpan.FromSeconds(30);
 
@@ -148,6 +153,7 @@ internal class AuditStreamApiEndpointHandler(
             .ProducesProblem(StatusCodes.Status401Unauthorized)
             .ProducesProblem(StatusCodes.Status403Forbidden)
             .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status409Conflict)
             .ProducesProblem(StatusCodes.Status412PreconditionFailed)
             .WithNoStore();
     }
@@ -648,6 +654,7 @@ internal class AuditStreamApiEndpointHandler(
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
     /// <response code="201">The new signing secret, including its one-time value.</response>
     /// <response code="404">The audit stream does not exist.</response>
+    /// <response code="409">The stream has three signing secrets that sign, its maximum, until the oldest rotated one stops signing.</response>
     [EndpointName("api/audit-streams/rotate-signing-secret")]
     internal virtual async ValueTask<IResult> RotateSigningSecretAsync(
         HttpContext httpContext,
@@ -678,6 +685,17 @@ internal class AuditStreamApiEndpointHandler(
         }
 
         var now = TimeProvider.GetUtcNow();
+        if (GetRotationWait(stream, now) is { } wait)
+        {
+            var problem = new ProblemDetails
+            {
+                Status = StatusCodes.Status409Conflict,
+                Detail =
+                    $"The audit stream has {MaxSigningSecrets} signing secrets that sign, its maximum; a rotated secret stops signing 24 hours after its rotation.",
+            };
+            return RetryAfterProblem.Create(httpContext, wait, problem);
+        }
+
         var (signingSecret, signingSecretValue) = await CreateSigningSecretAsync(
             tenantId,
             now,
@@ -723,6 +741,45 @@ internal class AuditStreamApiEndpointHandler(
         };
         var location = GetStreamLocation(tenantId, streamId);
         return TypedResults.Created(location, createdResource);
+    }
+
+    /// <summary>
+    /// Gets how long a rotation waits before it may add a signing secret: nothing while fewer than the most signing
+    /// secrets sign, and otherwise the time until the earliest of the secrets that sign stops signing.
+    /// </summary>
+    /// <param name="stream">The audit stream to rotate.</param>
+    /// <param name="now">The current time.</param>
+    /// <returns>
+    /// The time to wait, or <see langword="null"/> when the stream has room for another signing secret.
+    /// </returns>
+    private static TimeSpan? GetRotationWait(PersistedAuditStream stream, DateTimeOffset now)
+    {
+        var count = 0;
+        DateTimeOffset? earliestExpiry = null;
+        foreach (var secret in stream.SigningSecrets)
+        {
+            if (secret.ExpiryTime is { } expiryTime)
+            {
+                if (expiryTime <= now)
+                {
+                    continue;
+                }
+
+                if (earliestExpiry is not { } earliest || expiryTime < earliest)
+                {
+                    earliestExpiry = expiryTime;
+                }
+            }
+
+            count++;
+        }
+
+        if (count < MaxSigningSecrets)
+        {
+            return null;
+        }
+
+        return earliestExpiry is { } expiry ? expiry - now : SigningSecretOverlap;
     }
 
     /// <summary>
