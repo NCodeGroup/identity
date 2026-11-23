@@ -258,6 +258,11 @@ public sealed class AdmissionEndpointFilterTests : BaseTests
             OpenIdConstants.TenantEnvironmentTypes.Production,
             measurement.Tags.GetValueOrDefault(AuthenticationMetrics.TenantEnvironmentTypeAttribute)
         );
+        var instrument = Collector.Instrument;
+        Assert.NotNull(instrument);
+        Assert.Equal("ncode.identity.admission.shed", instrument.Name);
+        Assert.Equal("{request}", instrument.Unit);
+        Assert.Equal("NCode.Identity.OpenId.Authentication", instrument.Meter.Name);
     }
 
     #endregion
