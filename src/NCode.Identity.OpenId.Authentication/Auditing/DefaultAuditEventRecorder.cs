@@ -731,8 +731,14 @@ internal class DefaultAuditEventRecorder(
         return EventPublisher.PublishAsync(auditEvent, cancellationToken);
     }
 
-    // The record of a committed change runs on one bounded token of its own, so the request's cancellation never drops
-    // it. A failure, its timeout included, is logged and never turns a committed change into an error response.
+    /// <summary>
+    /// Publishes an audit record that follows a committed change on one bounded token of its own, so the request's
+    /// cancellation never drops it. A failure, its timeout included, is logged and never turns a committed change into
+    /// an error response.
+    /// </summary>
+    /// <typeparam name="TEvent">The type of the audit record to publish.</typeparam>
+    /// <param name="auditEvent">The audit record to publish.</param>
+    /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation.</returns>
     // See ADR-1351.
     [SuppressMessage(
         "Design",

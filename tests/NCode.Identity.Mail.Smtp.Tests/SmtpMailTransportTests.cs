@@ -299,7 +299,7 @@ public class SmtpMailTransportTests : BaseTests
             .Verifiable();
         string? logged = null;
         LoggerMock.Setup(x => x.IsEnabled(LogLevel.Warning)).Returns(true).Verifiable();
-#pragma warning disable CA1873
+#pragma warning disable CA1873 // The arguments are matchers of a mock setup, not log arguments.
         LoggerMock
             .Setup(x =>
                 x.Log(

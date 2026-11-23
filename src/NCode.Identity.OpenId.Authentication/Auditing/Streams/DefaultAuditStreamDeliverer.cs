@@ -175,7 +175,14 @@ internal sealed class DefaultAuditStreamDeliverer(
         }
     }
 
-    // Counts and logs a failure of this stream's delivery, then backs the stream off like a refused delivery.
+    /// <summary>
+    /// Counts and logs a failure of this stream's delivery, then backs the stream off like a refused delivery.
+    /// </summary>
+    /// <param name="state">The state of the stream as this replica claimed it.</param>
+    /// <param name="error">The short error code that names why the delivery failed.</param>
+    /// <param name="exception">The exception that failed the delivery.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation.</returns>
     private async ValueTask RecordFailureAsync(
         PersistedAuditStreamState state,
         string error,
