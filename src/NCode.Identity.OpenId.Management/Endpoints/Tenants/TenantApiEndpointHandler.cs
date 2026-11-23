@@ -111,7 +111,7 @@ internal class TenantApiEndpointHandler(
     IRemoteSecretDestroyer remoteSecretDestroyer,
     ITenantDirectory tenantDirectory,
     IOptions<CellOptions> cellOptions,
-    IOptions<TenantResolutionOptions> tenantResolutionOptions,
+    ITenantPlacer tenantPlacer,
     ITenantConfigurationExporter tenantConfigurationExporter,
     IManagementAuditRecorder managementAuditRecorder,
     ILogger<TenantApiEndpointHandler> logger
@@ -143,9 +143,9 @@ internal class TenantApiEndpointHandler(
     private CellOptions CellOptions { get; } = cellOptions.Value;
 
     /// <summary>
-    /// Gets the options of the root tenant, which name the platform's own team.
+    /// Gets the placer that reserves and places in the global directory a tenant this handler creates.
     /// </summary>
-    private RootTenantOptions RootOptions => tenantResolutionOptions.Value.Root;
+    private ITenantPlacer TenantPlacer { get; } = tenantPlacer;
     private ITenantConfigurationExporter TenantConfigurationExporter { get; } =
         tenantConfigurationExporter;
 
@@ -937,13 +937,12 @@ internal class TenantApiEndpointHandler(
     }
 
     /// <summary>
-    /// Creates a tenant through the directory as a saga: reserves the tenant's identifier and issuer, places the tenant
-    /// in this cell, then inserts it, so its row never exists unplaced. A placement that does not take effect releases
-    /// the reservation on its own bounded token, and a release that fails is logged, so the refusal or the failure that
-    /// ended the creation surfaces; an insert that fails leaves the tenant placed in this cell, which creating the
-    /// tenant again in this cell with the same issuer and team completes, because the directory reserves and places
-    /// again for the cell that holds the tenant. A tenant of the platform's own team is reserved in no team, because
-    /// the directory holds no record of that team.
+    /// Creates a tenant through the directory: the placer reserves the tenant's identifier and issuer, in the tenant's
+    /// team or, for the platform's own team, in no team, and places the tenant in this cell, then the tenant is
+    /// inserted, so its row never exists unplaced. A refusal of either is answered <c>409</c> with the directory's
+    /// detail; an insert that fails leaves the tenant placed in this cell, which creating the tenant again in this cell
+    /// with the same issuer and team completes, because the directory reserves and places again for the cell that holds
+    /// the tenant.
     /// </summary>
     /// <param name="tenant">The <see cref="PersistedTenant"/> to create.</param>
     /// <param name="storeManager">The <see cref="IStoreManager"/> that inserts the tenant.</param>
@@ -957,77 +956,20 @@ internal class TenantApiEndpointHandler(
         CancellationToken cancellationToken
     )
     {
-        // A tenant of the platform's own team is reserved in no team, because the directory holds no record of that
-        // team (ADR-1411).
-        var reservedTeamId = TenantReservationRules.GetTeamId(tenant.TeamId, RootOptions.TeamId);
-
-        // A tenant without an issuer reserves and places its identifier alone (ADR-1160).
-        var reservation = new TenantReservation
+        var placementResult = await TenantPlacer.ReserveAndPlaceAsync(
+            tenant.TenantId,
+            tenant.Issuer,
+            tenant.TeamId,
+            cancellationToken
+        );
+        if (!placementResult.IsReserved)
         {
-            TenantId = tenant.TenantId,
-            Issuer = tenant.Issuer,
-            TeamId = reservedTeamId,
-            Cell = CellOptions.Name,
-        };
-        var reservationResult = await TenantDirectory.ReserveAsync(reservation, cancellationToken);
-        if (!reservationResult.IsReserved)
-        {
-            var reservationError = new ManagementError
+            var placementError = new ManagementError
             {
                 StatusCode = StatusCodes.Status409Conflict,
-                Detail = reservationResult.ConflictDetail,
+                Detail = placementResult.ConflictDetail,
             };
-            return ToErrorResult(reservationError);
-        }
-
-        var isPlaced = false;
-        try
-        {
-            var placementRequest = new TenantPlacementRequest
-            {
-                TenantId = tenant.TenantId,
-                Issuer = tenant.Issuer,
-                Cell = CellOptions.Name,
-            };
-            var placementResult = await TenantDirectory.PlaceAsync(
-                placementRequest,
-                cancellationToken
-            );
-            if (!placementResult.IsReserved)
-            {
-                var placementError = new ManagementError
-                {
-                    StatusCode = StatusCodes.Status409Conflict,
-                    Detail = placementResult.ConflictDetail,
-                };
-                return ToErrorResult(placementError);
-            }
-
-            isPlaced = true;
-        }
-        finally
-        {
-            if (!isPlaced)
-            {
-                // A placement that did not take effect releases the reservation, even when the creation was canceled,
-                // on its own token bounded as work that follows a commit, and a release that fails or outlasts its
-                // bound is logged, so the failure that ended the creation surfaces. A release frees only a tenant that
-                // is not placed, so it never frees the placement of a concurrent creator of the tenant in this cell,
-                // and a placement whose acknowledgement was lost stays for the next creation of the tenant in this
-                // cell to complete. See ADR-1351 and ADR-1411.
-                try
-                {
-                    await PostCommitWork.RunAsync(
-                        TimeProvider,
-                        TenantDirectory.ReleaseAsync,
-                        tenant.TenantId
-                    );
-                }
-                catch (Exception exception)
-                {
-                    Logger.TenantCreationReleaseFailed(tenant.TenantId, exception);
-                }
-            }
+            return ToErrorResult(placementError);
         }
 
         // The tenant's row is the creation's last write, so it never exists unplaced; an insert that fails leaves the
