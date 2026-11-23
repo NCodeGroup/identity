@@ -416,6 +416,7 @@ exits 0 on an instance that is already initialized. Setup runs in the control-pl
 | `setup.job.existingSecret`               | A Secret holding the root administrator's credentials. Required when the Job is enabled.    |
 | `setup.job.userNameKey`                  | The key of the user name in that Secret (`userName`).                                       |
 | `setup.job.emailKey`                     | The key of the email address in that Secret (`email`); the Secret may omit it.              |
+| `setup.job.displayNameKey`               | The key of the root administrator's display name in that Secret (`displayName`); the Secret may omit it, and the username is used. |
 | `setup.job.passwordKey`                  | The key of the password in that Secret (`password`); at least 15 characters.                |
 | `setup.job.backoffLimit`                 | How often the Job retries (`2`).                                                            |
 | `setup.job.activeDeadlineSeconds`        | How long the Job may run, in seconds (`300`).                                               |

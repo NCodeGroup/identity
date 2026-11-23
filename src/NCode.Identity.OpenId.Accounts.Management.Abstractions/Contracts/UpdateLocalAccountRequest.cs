@@ -8,13 +8,19 @@ using JetBrains.Annotations;
 namespace NCode.Identity.OpenId.Accounts.Management.Contracts;
 
 /// <summary>
-/// Represents the mutable profile fields of a local account that a JSON Patch document may modify. The credential,
+/// Represents the mutable profile fields of a local account, which a JSON Patch document modifies. The credential,
 /// enabled status, and metadata are managed through their own endpoints.
 /// </summary>
 [PublicAPI]
 [ExcludeFromCodeCoverage]
 public sealed class UpdateLocalAccountRequest
 {
+    /// <summary>
+    /// Gets or sets the account's display name, the source of its <c>name</c> claim.
+    /// </summary>
+    [JsonPropertyName("displayName")]
+    public string DisplayName { get; set; } = string.Empty;
+
     /// <summary>
     /// Gets or sets the account's username (login handle), unique within the tenant.
     /// </summary>

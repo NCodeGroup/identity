@@ -565,6 +565,83 @@ public class DeveloperInteractiveSeedHandlerTests : BaseTests
     }
 
     [Fact]
+    public async Task HandleAsync_WhenTheAdministratorIsSeeded_UsesTheUserNameAsTheDisplayName()
+    {
+        var platform = CreateLooseMock<ISettingCollection>().Object;
+        var tenantSettings = CreateLooseMock<ISettingCollection>().Object;
+        var mockResolver = CreateStrictMock<IEffectiveSettingsResolver>();
+        mockResolver
+            .Setup(x => x.ResolveTeamAsync("platform", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(platform)
+            .Verifiable();
+        mockResolver
+            .Setup(x => x.Resolve(platform, OpenIdSettingScopes.Tenant, It.IsAny<JsonElement>()))
+            .Returns(tenantSettings)
+            .Verifiable();
+
+        var mockPolicy = CreateStrictMock<IPasswordPolicy>();
+        mockPolicy
+            .Setup(x =>
+                x.ValidateAsync(
+                    It.IsAny<PasswordPolicyContext>(),
+                    It.IsAny<ReadOnlyMemory<char>>(),
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync(PasswordPolicyResult.Accepted)
+            .Verifiable();
+
+        var options = new DeveloperInteractiveSeedOptions
+        {
+            TenantId = WorkloadTenantId,
+            AdminPassword = "a-sufficiently-long-password",
+        };
+        var handler = new DeveloperInteractiveSeedHandler(
+            options,
+            CreateStrictMock<IClientKeyImporter>().Object,
+            TimeProvider.System,
+            CreateSeededClientValidator(),
+            CreateSeededLocalAccountValidator(mockResolver.Object, mockPolicy.Object),
+            CreateStrictMock<ILogger<DeveloperInteractiveSeedHandler>>().Object
+        );
+
+        var mockAccountStore = CreateStrictMock<ILocalAccountStore>();
+        mockAccountStore
+            .Setup(x => x.GetByUserNameOrDefaultAsync("admin", It.IsAny<CancellationToken>()))
+            .ReturnsAsync((PersistedLocalAccount?)null)
+            .Verifiable();
+        PersistedLocalAccount? captured = null;
+        mockAccountStore
+            .Setup(x =>
+                x.AddAsync(
+                    It.IsAny<PersistedLocalAccount>(),
+                    It.IsAny<ReadOnlyMemory<byte>?>(),
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .Callback(
+                (PersistedLocalAccount account, ReadOnlyMemory<byte>? _, CancellationToken _) =>
+                    captured = account
+            )
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable();
+        var mockStoreManager = CreateStrictMock<IStoreManager>();
+        mockStoreManager
+            .Setup(x => x.GetStore<ILocalAccountStore>())
+            .Returns(mockAccountStore.Object)
+            .Verifiable();
+
+        await handler.HandleAsync(
+            CreateCommand(WorkloadTenantId, TenantPlane.Workload, mockStoreManager.Object),
+            CancellationToken.None
+        );
+
+        Assert.NotNull(captured);
+        Assert.Equal("admin", captured.UserName);
+        Assert.Equal(captured.UserName, captured.DisplayName);
+    }
+
+    [Fact]
     public async Task HandleAsync_WhenBffClientConfigured_StoresItsSettingsAndImportedKeys()
     {
         const string jwks = """{"keys":[{"kty":"EC","kid":"key-1"}]}""";

@@ -15,6 +15,7 @@ import './containers/PlatformSettingsPage.js';
 import './containers/TeamDetailPage.js';
 import './containers/TeamsPage.js';
 import './containers/TenantDetailPage.js';
+import './containers/UsersPage.js';
 
 const runtime: BffRuntimeConfig = {
   kind: 'bff',
@@ -366,6 +367,44 @@ describe('App (platform ↔ team ↔ tenant boundary)', () => {
       'The platform has no machine clients yet.',
     );
     expect(window.location.pathname).toBe('/clients');
+  });
+
+  it('switches to the platform and tenant Users surfaces', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: RequestInfo | URL) => {
+        const url =
+          input instanceof Request ? input.url : input instanceof URL ? input.href : String(input);
+        if (url.endsWith('/api/platform/local-accounts')) {
+          return jsonResponse({ items: [] });
+        }
+        if (url.endsWith('/api/tenants/acme/local-accounts')) {
+          return jsonResponse({ items: [] });
+        }
+        if (url.endsWith('/api/tenants/acme/clients')) {
+          return jsonResponse({ items: [] });
+        }
+        const directory = directoryResponse(url);
+        if (directory) {
+          return directory;
+        }
+        throw new Error(`Unexpected fetch: ${url}`);
+      }),
+    );
+
+    renderApp();
+
+    fireEvent.click(await screen.findByTestId('platform-tab-users'));
+    expect(await screen.findByRole('heading', { name: 'Users' })).toBeInTheDocument();
+    expect(window.location.pathname).toBe('/users');
+
+    window.history.pushState(null, '', '/tenants/acme/clients');
+    act(() => {
+      window.dispatchEvent(new PopStateEvent('popstate'));
+    });
+    fireEvent.click(await screen.findByTestId('tenant-tab-users'));
+    expect(await screen.findByRole('heading', { name: 'Users' })).toBeInTheDocument();
+    expect(window.location.pathname).toBe('/tenants/acme/users');
   });
 
   it('lists teams and crosses into a team scope', async () => {

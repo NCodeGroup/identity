@@ -73,6 +73,7 @@ public sealed class LocalAccountTenantTransferContributorTests : IDisposable
         {
             LocalAccountId = localAccountId,
             UserName = userName,
+            DisplayName = userName,
             NormalizedUserName = userName.ToUpperInvariant(),
             Email = $"{userName}@example.com",
             NormalizedEmail = $"{userName}@example.com".ToUpperInvariant(),

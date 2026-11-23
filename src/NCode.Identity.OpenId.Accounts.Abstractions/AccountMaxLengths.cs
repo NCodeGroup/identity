@@ -34,6 +34,11 @@ public static class AccountMaxLengths
     public const int NormalizedUserName = UserName + TenantLookupPrefixLength;
 
     /// <summary>
+    /// Specifies the maximum length of an account's display name.
+    /// </summary>
+    public const int DisplayName = 300;
+
+    /// <summary>
     /// Specifies the maximum length of an account's <c>Email</c> address.
     /// </summary>
     public const int Email = 300;

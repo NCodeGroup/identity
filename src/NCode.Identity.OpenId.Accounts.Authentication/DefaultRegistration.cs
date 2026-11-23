@@ -45,6 +45,13 @@ public static class DefaultRegistration
         serviceCollection.TryAddEnumerable(descriptor);
     }
 
+    // The subject factory is shared by the password grant and the interactive sign-in, so both registrations wire it;
+    // TryAddSingleton adds it exactly once.
+    private static void AddLocalAccountSubjectFactory(IServiceCollection serviceCollection)
+    {
+        serviceCollection.TryAddSingleton<LocalAccountSubjectFactory>();
+    }
+
     /// <param name="builder">The <see cref="OpenIdAuthenticationLibrary"/> builder these capabilities extend.</param>
     extension(IServiceBuilder<OpenIdAuthenticationLibrary> builder)
     {
@@ -82,6 +89,7 @@ public static class DefaultRegistration
                 DefaultCreatePasswordGrantSubjectHandler
             >();
 
+            AddLocalAccountSubjectFactory(serviceCollection);
             AddLocalAccountUserInfoClaims(serviceCollection);
             AddLocalAccountSubjectValidation(serviceCollection);
 
@@ -123,6 +131,7 @@ public static class DefaultRegistration
             >();
             serviceCollection.Replace(passwordChangerDescriptor);
 
+            AddLocalAccountSubjectFactory(serviceCollection);
             AddLocalAccountUserInfoClaims(serviceCollection);
             AddLocalAccountSubjectValidation(serviceCollection);
 

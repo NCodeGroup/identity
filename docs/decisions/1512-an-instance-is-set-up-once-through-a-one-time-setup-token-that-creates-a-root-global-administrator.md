@@ -71,11 +71,12 @@ setup creates a root global administrator.**
    assignment (`GlobalAdmin` on the platform resource) in the control-plane tenant confers every management authority, so
    setup writes no other assignment. The account, its identity, the assignment and the initialized mark are staged on one
    store manager and saved once.
-6. **Setup also runs unattended.** The host's `setup` command reads `Setup:Root:UserName`, `Setup:Root:Email` and
-   `Setup:Root:Password`, needs no token, creates the root through the same service, and exits 0 when the instance is
-   already initialized, so a Job can run it on every release. The chart references an operator Secret for the token
-   (`setup.token.existingSecret` and `setup.token.key`, passed as `Setup__Token`) and offers an opt-in `setup.job` that
-   runs the `setup` command with `Setup__Root__*` from an operator Secret. The chart generates no token Secret.
+6. **Setup also runs unattended.** The host's `setup` command reads `Setup:Root:UserName`, `Setup:Root:Email`,
+   `Setup:Root:Password` and `Setup:Root:DisplayName` (the wizard's required field), needs no token, creates the root
+   through the same service, and exits 0 when the instance is already initialized, so a Job can run it on every release.
+   The chart references an operator Secret for the token (`setup.token.existingSecret` and `setup.token.key`, passed as
+   `Setup__Token`) and offers an opt-in `setup.job` that runs the `setup` command with `Setup__Root__*` from an operator
+   Secret. The chart generates no token Secret.
 7. **`BootstrapAdmin` is a development convenience.** The deployment safety check refuses the `BootstrapAdmin` section
    in every host that does not set `LocalDevelopment:Enabled`, like the other development seeders, so the setup token is
    the deployment path

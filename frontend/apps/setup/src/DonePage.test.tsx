@@ -7,6 +7,7 @@ import type { CreatedRoot, SetupTokenSource } from './setupApi.js';
 const ROOT: CreatedRoot = {
   tenantId: 'tenant-1',
   principalId: 'principal-1',
+  displayName: 'Root Admin',
   userName: 'root',
   issuer: 'https://id.example.test/',
   discoveryUrl: 'https://id.example.test/.well-known/openid-configuration',
@@ -43,6 +44,8 @@ describe('DonePage', () => {
     renderPage(ROOT);
 
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('The instance is set up');
+    expect(screen.getByText('Display name')).toBeInTheDocument();
+    expect(screen.getByText('Root Admin')).toBeInTheDocument();
     expect(screen.getByText('root')).toBeInTheDocument();
     expect(screen.getByText('tenant-1')).toBeInTheDocument();
     expect(remaining()).toEqual([

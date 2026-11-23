@@ -32,6 +32,13 @@ public sealed class LocalAccountTransferRecord
     public required string UserName { get; init; }
 
     /// <summary>
+    /// Gets the account's display name, the end user's name as people read it; it is the source of the account's
+    /// <c>name</c> claim and is never empty.
+    /// </summary>
+    [MaxLength(AccountMaxLengths.DisplayName)]
+    public required string DisplayName { get; init; }
+
+    /// <summary>
     /// Gets the normalized username as the exporting store holds it.
     /// </summary>
     [MaxLength(AccountMaxLengths.NormalizedUserName)]
