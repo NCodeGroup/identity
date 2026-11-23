@@ -136,7 +136,7 @@ Until the first stable release, the [Unreleased] section describes the product a
   `IServiceCollection` extensions, and cross-library helpers invoked from several library builders
   (`AddMessageFactory<TMessage>`, `AddEndpointProvider<T>`, `AddEndpointGroup<T>`) take the non-generic
   `IServiceBuilder` receiver ([ADR-1069](docs/decisions/1069-di-registration-proves-every-prerequisite-at-compile-time-through-marker-builders.md),
-  [ADR-1051](docs/decisions/1051-a-local-account-is-a-self-issued-connection-behind-one-pluggable-store-seam.md),
+  [ADR-1051](docs/decisions/1051-a-local-account-belongs-to-one-local-connection-behind-a-named-pluggable-store-seam.md),
   [ADR-1057](docs/decisions/1057-local-account-management-is-an-opt-in-capability-that-provisions-the-principal-eagerly-and-authorizes-per-tenant.md)).
 
 - **The library chain composes off typed builders.** `AddJoseLibrary()` extends `IServiceBuilder<SecretsLibrary>` and
@@ -165,7 +165,7 @@ Until the first stable release, the [Unreleased] section describes the product a
   extends `IServiceBuilder<OpenIdManagementLibrary>`, each returning its receiver for chaining, for example
   `AddIdentityServer().OpenIdAuthenticationLibraryBuilder.AddLocalAccountAuthentication(localAccountStore)`
   ([ADR-1069](docs/decisions/1069-di-registration-proves-every-prerequisite-at-compile-time-through-marker-builders.md),
-  [ADR-1051](docs/decisions/1051-a-local-account-is-a-self-issued-connection-behind-one-pluggable-store-seam.md)).
+  [ADR-1051](docs/decisions/1051-a-local-account-belongs-to-one-local-connection-behind-a-named-pluggable-store-seam.md)).
 
 - **Strict configuration binding is public.** `NCode.Identity.Registration.StrictConfigurationBindingExtensions.BindStrictly`
   binds a section so that a key that maps to no option fails, so an extension binds its own section the way the family
@@ -1634,7 +1634,7 @@ Until the first stable release, the [Unreleased] section describes the product a
   `NCode.Identity.OpenId.Accounts.Authentication` (`AddLocalAccountAuthentication()`, with
   `CreatePasswordGrantSubjectCommand`), so `NCode.Identity.OpenId.Authentication` does not depend on the account
   packages; without that capability the base package answers the grant with `unsupported_grant_type`
-  ([ADR-1051](docs/decisions/1051-a-local-account-is-a-self-issued-connection-behind-one-pluggable-store-seam.md)). The
+  ([ADR-1051](docs/decisions/1051-a-local-account-belongs-to-one-local-connection-behind-a-named-pluggable-store-seam.md)). The
   metadata projection claim types are in `NCode.Identity.OpenId.Principals.SubjectMetadataClaimTypes`
   ([ADR-1055](docs/decisions/1055-subject-metadata-lives-on-the-principal-and-projects-into-tokens-as-nested-claims-at-issuance.md)). Its tickets
   carry the authentication's `AuthenticationProperties`: `DefaultPasswordGrantHandler` records the authentication
@@ -2213,7 +2213,7 @@ Until the first stable release, the [Unreleased] section describes the product a
   `ITenantBoundUser`, so every user belongs to one tenant. `IFederatedPrincipalStore` provides `UpdateAsync` and
   `RemoveAsync`,
   and `IFederatedIdentityStore` provides `RemoveAsync`. See
-  [ADR-1051](docs/decisions/1051-a-local-account-is-a-self-issued-connection-behind-one-pluggable-store-seam.md).
+  [ADR-1051](docs/decisions/1051-a-local-account-belongs-to-one-local-connection-behind-a-named-pluggable-store-seam.md).
 
 - **The interactive surface is served under the tenant route.** The login, consent, logout, and account endpoints share
   the protocol endpoints' tenant route, so interactive flows work under `DynamicByPath` at `/{tenantId}/account/*`.
@@ -2704,7 +2704,7 @@ Until the first stable release, the [Unreleased] section describes the product a
   `IEndpointProvider` to the tenant group, and the generic audit seam
   `RecordResourceChangeAsync(HttpContext, ResourceChangeAuditEvent)`. See
   [ADR-1057](docs/decisions/1057-local-account-management-is-an-opt-in-capability-that-provisions-the-principal-eagerly-and-authorizes-per-tenant.md),
-  [ADR-1051](docs/decisions/1051-a-local-account-is-a-self-issued-connection-behind-one-pluggable-store-seam.md) and
+  [ADR-1051](docs/decisions/1051-a-local-account-belongs-to-one-local-connection-behind-a-named-pluggable-store-seam.md) and
   issue [#781](https://github.com/NCodeGroup/identity/issues/781).
 
 - **Every local account has a display name, which is its `name` claim.** `PersistedLocalAccount.DisplayName` (at most
@@ -2712,7 +2712,7 @@ Until the first stable release, the [Unreleased] section describes the product a
   subject and UserInfo (under the `profile` scope) carry it as `name`, and a `name` profile claim is refused with `400`,
   so the management console's header and every relying party show the person's name. The ASP.NET Core Identity adapter
   stores it through `ITenantBoundUser.DisplayName`, and a tenant transfer carries it
-  ([ADR-1051](docs/decisions/1051-a-local-account-is-a-self-issued-connection-behind-one-pluggable-store-seam.md)).
+  ([ADR-1051](docs/decisions/1051-a-local-account-belongs-to-one-local-connection-behind-a-named-pluggable-store-seam.md)).
 
 - **The management console manages users.** A Users tab in every tenant and in the platform scope lists local accounts
   by display name, username, email, principal identifier and status, and creates, edits, disables and enables, resets
@@ -3190,7 +3190,7 @@ Until the first stable release, the [Unreleased] section describes the product a
   chose a query splitting behavior. Split queries read one snapshot only inside a transaction, so a host chooses
   `UseQuerySplittingBehavior(QuerySplittingBehavior.SingleQuery)` or a query calls `AsSingleQuery()` where it needs one
   ([ADR-1052](docs/decisions/1052-entity-framework-persistence-is-a-reusable-framework-that-domain-slices-plug-into.md),
-  [ADR-1051](docs/decisions/1051-a-local-account-is-a-self-issued-connection-behind-one-pluggable-store-seam.md),
+  [ADR-1051](docs/decisions/1051-a-local-account-belongs-to-one-local-connection-behind-a-named-pluggable-store-seam.md),
   [ADR-1517](docs/decisions/1517-internal-surrogate-keys-are-uuidv7-minted-in-process-behind-one-seam-and-never-reach-a-caller.md),
   [#843](https://github.com/NCodeGroup/identity/issues/843)).
 

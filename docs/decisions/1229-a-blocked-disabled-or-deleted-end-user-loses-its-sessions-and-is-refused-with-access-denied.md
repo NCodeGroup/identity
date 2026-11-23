@@ -7,7 +7,7 @@
 ## Context
 
 A local account is a self-issued connection of a federated principal
-([ADR-1051](1051-a-local-account-is-a-self-issued-connection-behind-one-pluggable-store-seam.md)), and the sessions,
+([ADR-1051](1051-a-local-account-belongs-to-one-local-connection-behind-a-named-pluggable-store-seam.md)), and the sessions,
 grants and consents of the end user are keyed by the principal's identifier
 ([ADR-1035](1035-an-end-user-is-one-tenant-scoped-principal-that-every-authentication-entry-point-resolves-to.md)).
 Four forces shape what happens when an end user is blocked, disabled or deleted:
@@ -154,7 +154,7 @@ includes, that the interactive sign-in sends before it creates a session, and wh
 
 - [ADR-1035](1035-an-end-user-is-one-tenant-scoped-principal-that-every-authentication-entry-point-resolves-to.md) — the
   federated principal and its identities.
-- [ADR-1051](1051-a-local-account-is-a-self-issued-connection-behind-one-pluggable-store-seam.md) — the local account.
+- [ADR-1051](1051-a-local-account-belongs-to-one-local-connection-behind-a-named-pluggable-store-seam.md) — the local account.
 - [ADR-1062](1062-the-op-serves-an-opt-in-interactive-sign-in-and-consent-surface-with-a-pluggable-credential-verifier.md) — the
   interactive surface.
 - [ADR-1081](1081-consent-is-a-durable-record-of-decided-and-granted-scopes-enforced-at-the-authorization-endpoint.md) — the

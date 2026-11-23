@@ -11,7 +11,7 @@ enterprise IdP or a scheme the host registers. Each sign-in yields an identity t
 principal
 ([ADR-1035](1035-an-end-user-is-one-tenant-scoped-principal-that-every-authentication-entry-point-resolves-to.md)), and
 a local account is an identity the server's own credential check verifies
-([ADR-1051](1051-a-local-account-is-a-self-issued-connection-behind-one-pluggable-store-seam.md)). A tenant needs a
+([ADR-1051](1051-a-local-account-belongs-to-one-local-connection-behind-a-named-pluggable-store-seam.md)). A tenant needs a
 record of the authorities it accepts, each with a name that clients and requests can use. It needs more than one
 namespace of local accounts, each behind a store of its choice, with user names and emails unique within a namespace.
 A client needs a list of the authorities it accepts, and the names in that list must be defined by something.
@@ -248,7 +248,7 @@ local-accounts section's records by connection id.
   [#64](https://github.com/NCodeGroup/identity/issues/64): enterprise connections built on it.
 - [ADR-1035](1035-an-end-user-is-one-tenant-scoped-principal-that-every-authentication-entry-point-resolves-to.md):
   principals, identities, resolution and linking.
-- [ADR-1051](1051-a-local-account-is-a-self-issued-connection-behind-one-pluggable-store-seam.md): local accounts and
+- [ADR-1051](1051-a-local-account-belongs-to-one-local-connection-behind-a-named-pluggable-store-seam.md): local accounts and
   `ILocalAccountStore`.
 - [ADR-1010](1010-settings-merge-as-ceilings-and-floors-unset-lists-restrict-nothing-and-a-secure-baseline-supplies-defaults.md),
   [ADR-1149](1149-settings-declare-the-scopes-they-apply-to-and-the-scopes-are-a-registered-cascade.md),

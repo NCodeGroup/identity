@@ -17,7 +17,7 @@ depended on the account abstractions, every management host would carry the capa
 the management audit abstraction would know the shape of an event that is not part of its slice.
 [ADR-1086](1086-endpoints-compose-as-a-declarative-group-tree-and-a-protocol-endpoint-is-a-thin-mediator-driven-provider.md)
 establishes the keyed endpoint-group model this design relies on, and
-[ADR-1051](1051-a-local-account-is-a-self-issued-connection-behind-one-pluggable-store-seam.md) applies the same
+[ADR-1051](1051-a-local-account-belongs-to-one-local-connection-behind-a-named-pluggable-store-seam.md) applies the same
 dependency inversion to the authentication slice: the password grant is an opt-in package over the account abstractions.
 
 Two facts about the account model make a plain set of CRUD endpoints insufficient:
@@ -134,7 +134,7 @@ enforced at compile time. A local-account store registration (`AddLocalAccountEn
   resolves, not to the account, and it carries the owner-versus-server trust boundary, so it has its own endpoint.
 - **A provisioner seam between the handler and the store.** The create handler composes the account, principal and
   identity writes in one unit of work against the one store seam; a separate write seam is the split
-  [ADR-1051](1051-a-local-account-is-a-self-issued-connection-behind-one-pluggable-store-seam.md) rejects.
+  [ADR-1051](1051-a-local-account-belongs-to-one-local-connection-behind-a-named-pluggable-store-seam.md) rejects.
 - **Duplicating the endpoint base in the capability package.** It leaves the other handlers untouched but copies
   endpoint plumbing that drifts.
 - **Account-owned opt-in packages that build on a public management abstraction, with eager provisioning and
@@ -158,7 +158,7 @@ enforced at compile time. A local-account store registration (`AddLocalAccountEn
 
 - Code: `src/NCode.Identity.OpenId.Accounts.Management.Abstractions`, `src/NCode.Identity.OpenId.Accounts.Management`,
   `src/NCode.Identity.OpenId.Management.Abstractions`.
-- [ADR-1051](1051-a-local-account-is-a-self-issued-connection-behind-one-pluggable-store-seam.md): the store seam and the
+- [ADR-1051](1051-a-local-account-belongs-to-one-local-connection-behind-a-named-pluggable-store-seam.md): the store seam and the
   self-issued identity.
 - [ADR-1035](1035-an-end-user-is-one-tenant-scoped-principal-that-every-authentication-entry-point-resolves-to.md): the
   principal an account resolves to.

@@ -10,7 +10,7 @@ The family ships many independently-published packages, and each registers its o
 bolt-on capabilities that only make sense layered on another package's services: the resource-owner password grant over
 the OpenId Authentication library, local-account management over the Management slice, and the interactive
 login/consent surface over the OpenID server
-([ADR-1051](1051-a-local-account-is-a-self-issued-connection-behind-one-pluggable-store-seam.md),
+([ADR-1051](1051-a-local-account-belongs-to-one-local-connection-behind-a-named-pluggable-store-seam.md),
 [ADR-1057](1057-local-account-management-is-an-opt-in-capability-that-provisions-the-principal-eagerly-and-authorizes-per-tenant.md),
 [ADR-1062](1062-the-op-serves-an-opt-in-interactive-sign-in-and-consent-surface-with-a-pluggable-credential-verifier.md)). Because an implementation package depends only
 on abstractions ([ADR-1500](1500-every-package-names-one-capability-under-the-ncode-identity-prefix-as-an-abstractions-and-implementation-pair.md)), no package can see another's
@@ -170,7 +170,7 @@ methods on the bare `IServiceCollection`.
   registration-time only; the runtime routing tree is a separate mechanism.
 - [ADR-1001](1001-behavior-is-a-service-a-strategy-collection-or-a-mediator-seam-chosen-by-one-ladder.md): the service,
   strategy and mediator model these registrations wire up.
-- [ADR-1051](1051-a-local-account-is-a-self-issued-connection-behind-one-pluggable-store-seam.md),
+- [ADR-1051](1051-a-local-account-belongs-to-one-local-connection-behind-a-named-pluggable-store-seam.md),
   [ADR-1057](1057-local-account-management-is-an-opt-in-capability-that-provisions-the-principal-eagerly-and-authorizes-per-tenant.md) and
   [ADR-1062](1062-the-op-serves-an-opt-in-interactive-sign-in-and-consent-surface-with-a-pluggable-credential-verifier.md): the opt-in capabilities that gate on these
   builders.

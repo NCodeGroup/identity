@@ -337,7 +337,7 @@ The records are grouped by area; within an area they are in number order.
 | --- | --- | --- |
 | [1035](./1035-an-end-user-is-one-tenant-scoped-principal-that-every-authentication-entry-point-resolves-to.md) | An end user is one tenant-scoped principal that every authentication entry point resolves to | Accepted |
 | [1047](./1047-observation-is-a-fault-isolated-event-seam-that-audit-specializes-and-protocol-errors-reach-once.md) | Observation is a fault-isolated event seam that audit specializes and protocol errors reach once | Accepted |
-| [1051](./1051-a-local-account-is-a-self-issued-connection-behind-one-pluggable-store-seam.md) | A local account is a self-issued connection behind one pluggable store seam | Accepted |
+| [1051](./1051-a-local-account-belongs-to-one-local-connection-behind-a-named-pluggable-store-seam.md) | A local account belongs to one local connection behind a named pluggable store seam | Accepted |
 | [1055](./1055-subject-metadata-lives-on-the-principal-and-projects-into-tokens-as-nested-claims-at-issuance.md) | Subject metadata lives on the principal and projects into tokens as nested claims at issuance | Accepted |
 | [1057](./1057-local-account-management-is-an-opt-in-capability-that-provisions-the-principal-eagerly-and-authorizes-per-tenant.md) | Local-account management is an opt-in capability that provisions the principal eagerly and authorizes per tenant | Accepted |
 | [1062](./1062-the-op-serves-an-opt-in-interactive-sign-in-and-consent-surface-with-a-pluggable-credential-verifier.md) | The OP serves an opt-in interactive sign-in and consent surface with a pluggable credential verifier | Accepted |
