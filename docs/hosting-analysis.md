@@ -424,10 +424,10 @@ A platform is a global directory over independent cells.
   `cell.managementUrl`, `cell.isControlPlane` and `cell.controlPlaneIssuer` render as the `Cell__*` settings.
   `directory.url`, `directory.clientId`, `directory.keyRing` and `directory.keys.*` give the cell its directory client.
   `directory.enabled` deploys the directory host as well, with `directory.issuer`, `directory.controlPlaneCell`,
-  `directory.controlPlaneTenantId` (derived in the control-plane cell's own release), its own database Secret and a
-  migration Job. `backup.location` annotates the pods of the host, the directory and their migration Jobs with
-  `ncode.io/backup-location`, and `telemetry.otlpEndpoint` sets the OTLP endpoint, with `cell.name` and `cell.region` as
-  resource attributes on every pod, so a signal names its cell. The
+  `directory.controlPlaneTenantId` (derived in the control-plane cell's own `StaticSingle` release), its own database
+  Secret and a migration Job. `backup.location` annotates the pods of the host, the directory and their migration Jobs
+  with `ncode.io/backup-location`, and `telemetry.otlpEndpoint` sets the OTLP endpoint, with `cell.name` and
+  `cell.region` as resource attributes on every pod, so a signal names its cell. The
   [chart README](../charts/ncode-identity-host/README.md#the-cell) lists every value.
 
 ## 3. Compute sizing

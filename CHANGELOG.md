@@ -4354,14 +4354,14 @@ Until the first stable release, the [Unreleased] section describes the product a
   `5xx`, or a call that outlasts `DirectoryClientOptions.RequestTimeout`, its response body included. Creating a tenant
   reserves its identifier and, when it has one, its issuer, in its team (a team's `max_tenants` is enforced there) or in
   no team when it belongs to the platform's own team, which the directory holds no record of, saves the tenant and
-  places it, releasing the reservation on failure; a tenant a cell creates on demand that a strategy serves at an
-  address, a static strategy's own tenant or the root tenant of a cell that is not the control plane when it has an
-  issuer, is reserved and placed the same way, and a tenant it creates on demand without an issuer is created in its
-  cell alone; serving a tenant's requests never calls the directory, because the cell's own tenant row is authoritative;
-  the control-plane cell creates its root tenant without reserving or placing it, which the directory holds from its own
-  configuration, judges its address and changes its keys without asking the directory, which accepts only the tokens
-  that tenant issues, so a control-plane cell serves from a release that carries its directory client from the first
-  release
+  places it, and on failure removes the saved tenant and then releases the reservation, which stays held while the
+  tenant's row remains; a tenant a cell creates on demand that a strategy serves at an address, a static strategy's own
+  tenant or the root tenant of a cell that is not the control plane when it has an issuer, is reserved and placed the
+  same way, and a tenant it creates on demand without an issuer is created in its cell alone; serving a tenant's
+  requests never calls the directory, because the cell's own tenant row is authoritative; the control-plane cell creates
+  its root tenant without reserving or placing it, which the directory holds from its own configuration, judges its
+  address and changes its keys without asking the directory, which accepts only the tokens that tenant issues, so a
+  control-plane cell serves from a release that carries its directory client from the first release
   ([ADR-1411](docs/decisions/1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md),
   [#918](https://github.com/NCodeGroup/identity/issues/918)).
 
@@ -4466,20 +4466,22 @@ Until the first stable release, the [Unreleased] section describes the product a
   each of which lies in the location its provider uses (`IRemoteKeyProvider.IsInLocation` reads the key's identifier
   and the provider's options), and the Entity Framework local-account store derives each imported account's
   normalized user name and email itself; grants, consents and sessions end, audit and usage records stay in the
-  source, and the tenant keeps its identifier and issuer. Only the named target cell imports the package, and the
-  directory moves the placement only for the target cell that calls, on that unexpired offer and only between cells of
-  one region (any other caller gets `403`), so a tenant for another region is created in a cell of that region, an
-  import repeats over the rows an interrupted import left, and the release removes the source's rows without retiring
-  an identifier or destroying a remote key. A move that the directory does not confirm is read back from the
-  placement: the import completes when the directory places the tenant in the target cell, undoes itself when it
-  places it in the source cell or in no cell, and otherwise keeps what it wrote and answers `503` that the outcome of
-  the move is unknown, with the problem's `moveOutcome` (`ManagementProblemMembers.MoveOutcome`) set to `unknown`. An
-  export that the directory refuses because it places the tenant in another cell names that cell in the problem's
-  `placedCell` (`ManagementProblemMembers.PlacedCell`). The console runs the four calls as Move, keeps a failed move and
-  its Retry when its dialog is closed and opened again, offers Release, which runs only the release at the source, when
-  the export names `placedCell`, says that the outcome is unknown when the import's `moveOutcome` is `unknown`, says
-  when the list of cells is loading or could not be loaded, and opens the tenant's surface in the cell it moved to once
-  the move completes
+  source, and the tenant keeps its identifier and issuer. A tenant the deployment requires, the root tenant or the
+  static strategy's tenant, never moves: the export and the release answer `409` for it, and the directory refuses an
+  offer or a move of the control-plane cell's root tenant (`DirectoryServer:ControlPlaneTenantId`). Only the named
+  target cell imports the package, and the directory moves the placement only for the target cell that calls, on that
+  unexpired offer and only between cells of one region (any other caller gets `403`), so a tenant for another region is
+  created in a cell of that region, an import repeats over the rows an interrupted import left, and the release removes
+  the source's rows without retiring an identifier or destroying a remote key. A move that the directory does not
+  confirm is read back from the placement: the import completes when the directory places the tenant in the target cell,
+  undoes itself when it places it in the source cell or in no cell, and otherwise keeps what it wrote and answers `503`
+  that the outcome of the move is unknown, with the problem's `moveOutcome` (`ManagementProblemMembers.MoveOutcome`) set
+  to `unknown`. An export that the directory refuses because it places the tenant in another cell names that cell in the
+  problem's `placedCell` (`ManagementProblemMembers.PlacedCell`). The console runs the four calls as Move, keeps a
+  failed move and its Retry when its dialog is closed and opened again, offers Release, which runs only the release at
+  the source, when the export names `placedCell`, says that the outcome is unknown when the import's `moveOutcome` is
+  `unknown`, says when the list of cells is loading or could not be loaded, and opens the tenant's surface in the cell
+  it moved to once the move completes
   ([ADR-1514](docs/decisions/1514-a-tenant-moves-between-cells-of-one-region-through-an-encrypted-export-and-import.md),
   [`docs/tenant-move.md`](docs/tenant-move.md)).
 
@@ -4490,12 +4492,13 @@ Until the first stable release, the [Unreleased] section describes the product a
   `directory.clientId`, `directory.keyRing` and `directory.keys` point a cell at the platform's directory;
   `tenantResolution.staticSingle.tenantId` and `displayName` name a cell's own tenant, which a `StaticSingle` cell that
   is not the control plane must name; and `directory.enabled` runs the directory host with its own database,
-  `directory.controlPlaneTenantId` (the control-plane cell's root tenant, which a release of that cell takes from its
-  tenant resolution), `directory.database` (the runtime role's connection, which only the directory's Deployment
-  receives, and the role's name), `directory.migrations.database` (the schema owner's connection, which only the
-  migration Job receives), `directory.backendTls`, and a pre-install migration Job, which migrates as the owner and
-  grants the runtime role data access to the directory's tables (`DirectoryMigration:RuntimeRole`). `directory.database`
-  and `directory.migrations.database` each take a Secret that holds the finished connection string
+  `directory.controlPlaneTenantId` (the control-plane cell's root tenant, which a `StaticSingle` release of that cell
+  takes from `tenantResolution.staticSingle.tenantId` and every other release names), `directory.database` (the runtime
+  role's connection, which only the directory's Deployment receives, and the role's name),
+  `directory.migrations.database` (the schema owner's connection, which only the migration Job receives),
+  `directory.backendTls`, and a pre-install migration Job, which migrates as the owner and grants the runtime role data
+  access to the directory's tables (`DirectoryMigration:RuntimeRole`). `directory.database` and
+  `directory.migrations.database` each take a Secret that holds the finished connection string
   (`ConnectionStrings:directory`) or the connection's parts (`DirectoryDatabase`), never both, the keys of a
   CloudNativePG `<cluster>-app` Secret by default, and an empty key of the owner's falls back to the runtime role's, so
   a Secret of the same shape needs only its name. The chart refuses a directory, control-plane issuer or management URL
@@ -6535,14 +6538,15 @@ Until the first stable release, the [Unreleased] section describes the product a
 - **A tenant export is sealed to a one-time transfer key and exists only for a disabled tenant.** The export is one
   compact `JWE` to a key the receiving cell published, which that cell hands out once and holds for one hour, so the
   package carries ciphertext secrets and the tenant's master keys sealed to that key and never a plaintext secret; the
-  tenant must be disabled so nothing changes while it moves, and the response is never logged. The import answers
-  `422`, before any key decrypts the package or any remote key is retagged, for an empty `kid`, a package whose
-  protected header does not name `ECDH-ES+A256KW` and `A256GCM`, a root key that the checks of
-  `IOwnerRootKeyManager.SetAsync` refuse (the owner's policies, the allowed key wrappers and the cell's cloud regions,
-  which `MasterKeyTransferResult.RefusalDetail` reports), and a remote key outside the location that the target cell's
-  provider uses. While the global directory places a tenant in another cell, deleting the tenant or one of its secrets
-  at the source answers `409` (`503` when the directory cannot be reached), so a moved tenant's source copy never
-  destroys a remote key that the live copy uses, and `release-moved` removes that copy
+  tenant must be disabled so nothing changes while it moves, and a tenant the deployment requires is never exported or
+  released, and the response is never logged. The import answers `422`, before any key decrypts the package or any
+  remote key is retagged, for an empty `kid`, a package whose protected header does not name `ECDH-ES+A256KW` and
+  `A256GCM`, a root key that the checks of `IOwnerRootKeyManager.SetAsync` refuse (the owner's policies, the allowed key
+  wrappers and the cell's cloud regions, which `MasterKeyTransferResult.RefusalDetail` reports), and a remote key
+  outside the location that the target cell's provider uses. While the global directory places a tenant in another cell,
+  deleting the tenant or one of its secrets at the source answers `409` (`503` when the directory cannot be reached), so
+  a moved tenant's source copy never destroys a remote key that the live copy uses, and `release-moved` removes that
+  copy
   ([ADR-1514](docs/decisions/1514-a-tenant-moves-between-cells-of-one-region-through-an-encrypted-export-and-import.md)).
 
 - **Deleting an owner removes what it owns.** `IClientStore.RemoveAsync` removes a client's secrets, grants to resource

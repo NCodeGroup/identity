@@ -32,6 +32,9 @@ relative to the API of the cell that each stage names.
   platform administrator holds it everywhere, and such a cell answers `503` while it cannot reach the control plane.
 - **Both cells are in one region.** `<source>` and `<target>` have the same `Cell:Region`. The import refuses a package
   from another region with `422`, and the directory refuses a move between cells of different regions with `409`.
+- **A tenant the deployment does not require.** `<source>`'s root tenant, which under the static strategy is its one
+  tenant, never moves: the export and the release refuse it with `409`, and the directory refuses an offer or a move of
+  the control-plane cell's root tenant with `409`.
 - **A directory that knows both cells.** The move changes the tenant's placement in the global directory, so both cells
   reach the same directory (`Directory:Url`) and are registered in it. A platform of one cell has no other cell to move
   a tenant to: the local directory adapter answers every move with a conflict.
@@ -81,7 +84,7 @@ keys sealed to the same key. The audit record `tenant.exported` records the expo
 | ------ | -------------------------------------------------------------------------------------------------------------------- |
 | `200`  | The package.                                                                                                         |
 | `404`  | The tenant does not exist in `<source>`.                                                                             |
-| `409`  | The tenant is not disabled, or the directory refuses the move offer (the tenant is not placed in `<source>`, a cell is not registered, or the cells are in different regions). When the directory places the tenant in another cell, the problem's `placedCell` names that cell: a move there completed, and only the release (stage 5) remains. |
+| `409`  | The tenant is `<source>`'s root tenant, which its deployment requires, or it is not disabled, or the directory refuses the move offer (the tenant is not placed in `<source>`, a cell is not registered, the cells are in different regions, or the tenant is the control-plane cell's root tenant). When the directory places the tenant in another cell, the problem's `placedCell` names that cell: a move there completed, and only the release (stage 5) remains. |
 | `422`  | The key is not a `JWK` of an elliptic curve key on `P-256` for encryption, or it is refused; `targetCell` is not a valid cell name; or the tenant's package is over a move's 64 MiB, and the move offer that the export recorded expires unused. |
 | `503`  | The directory is unavailable, with a `Retry-After` header. No package is made.                                       |
 
@@ -114,17 +117,18 @@ The audit record `tenant.imported` names the source cell.
 
 ## 5. Release the tenant at the source
 
-Run at `<source>`: `POST <source-api>/api/tenants/<tenant>/release-moved`. The route proceeds only when the directory
-places the tenant in another cell. It removes the tenant's records and master keys from `<source>`. It destroys no
-remote key, because `<target>` holds the tenant's keys, and it retires no identifier or issuer, because the tenant lives
-on. The audit record `tenant.released` names the target cell.
+Run at `<source>`: `POST <source-api>/api/tenants/<tenant>/release-moved`. The route answers `409` for `<source>`'s root
+tenant, which its deployment requires, and otherwise proceeds only when the directory places the tenant in another cell.
+It removes the tenant's records and master keys from `<source>`. It destroys no remote key, because `<target>` holds the
+tenant's keys, and it retires no identifier or issuer, because the tenant lives on. The audit record `tenant.released`
+names the target cell.
 
-| Status | Meaning                                                                                  |
-| ------ | ---------------------------------------------------------------------------------------- |
-| `204`  | The tenant is released from `<source>`.                                                  |
-| `404`  | The tenant does not exist in `<source>`.                                                 |
-| `409`  | The directory does not place the tenant in another cell.                                 |
-| `503`  | The directory is unavailable, with a `Retry-After` header. Nothing is released.          |
+| Status | Meaning                                                                                                                            |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `204`  | The tenant is released from `<source>`.                                                                                            |
+| `404`  | The tenant does not exist in `<source>`.                                                                                           |
+| `409`  | The tenant is `<source>`'s root tenant, which its deployment requires, or the directory does not place the tenant in another cell. |
+| `503`  | The directory is unavailable, with a `Retry-After` header. Nothing is released.                                                    |
 
 The route never releases on a guess: it reads the placement from the directory each time. While the directory places the
 tenant in another cell, deleting the tenant or one of its secrets at `<source>` answers `409` and names that cell, so

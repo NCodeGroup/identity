@@ -333,11 +333,11 @@ other cell once the directory runs.
    and every client of that tenant can request them.
 2. **Run the directory.** Deploy the directory host with `directory.enabled=true`, `directory.issuer` set to the
    control-plane cell's issuer, `directory.controlPlaneCell` set to its name, `directory.controlPlaneTenantId` set to
-   its root tenant's identifier when the directory runs in a release of another cell (the control-plane cell's own
-   release derives it), `directory.allowedHosts`, its own database (the runtime role's connection in
-   `directory.database`, whose role `directory.database.runtimeRole` names, and the schema owner's connection in
-   `directory.migrations.database`, each from a Secret that holds the finished connection string, `existingSecret`, or
-   the connection's parts, `directory.database.parts.existingSecret` and
+   its root tenant's identifier when the directory runs in a release of another cell or under a strategy other than
+   `StaticSingle` (the control-plane cell's own `StaticSingle` release derives it), `directory.allowedHosts`, its own
+   database (the runtime role's connection in `directory.database`, whose role `directory.database.runtimeRole` names,
+   and the schema owner's connection in `directory.migrations.database`, each from a Secret that holds the finished
+   connection string, `existingSecret`, or the connection's parts, `directory.database.parts.existingSecret` and
    `directory.migrations.database.parts.existingSecret`), its serving certificate (`directory.backendTls`, which the
    chart issues by default) and its route (`directory.ingress` or `directory.httpRoute`), as the chart's
    [The cell](../charts/ncode-identity-host/README.md#the-cell) section lists. The directory accepts bearer tokens of
