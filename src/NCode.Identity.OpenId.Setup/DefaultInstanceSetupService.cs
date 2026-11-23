@@ -354,10 +354,10 @@ internal sealed class DefaultInstanceSetupService(
 
         // A host replica that generates its setup token writes the same row, so setup adds the row in a unit of work of
         // its own, where the first writer wins, and always updates it.
-        var existing =
+        var setup =
             await setupStore.GetOrDefaultAsync(cancellationToken)
             ?? await InstanceSetupRecords.GetOrAddAsync(StoreManagerFactory, cancellationToken);
-        if (existing.IsInitialized)
+        if (setup.IsInitialized)
             return CreateAlreadySetUpResult();
 
         string principalId;
@@ -446,8 +446,7 @@ internal sealed class DefaultInstanceSetupService(
             }
         }
 
-        // The row written is the one read or added above, so the update carries its concurrency token.
-        var setup = existing;
+        // The update carries the concurrency token of the row read or added above.
         setup.IsInitialized = true;
         setup.InitializedAt = TimeProvider.GetUtcNow();
         setup.InitializedByPrincipalId = principalId;
