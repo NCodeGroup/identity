@@ -24,6 +24,7 @@ internal static class ManagementOpenApiTags
             OpenIdConstants.EndpointTags.Sessions,
             OpenIdConstants.EndpointTags.ClientGrants,
             OpenIdConstants.EndpointTags.ResourceServers,
+            OpenIdConstants.EndpointTags.Connections,
             OpenIdConstants.EndpointTags.Platform,
             OpenIdConstants.EndpointTags.Tenants,
             OpenIdConstants.EndpointTags.Teams,
