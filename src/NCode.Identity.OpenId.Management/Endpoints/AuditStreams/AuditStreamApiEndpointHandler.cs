@@ -936,7 +936,14 @@ internal class AuditStreamApiEndpointHandler(
                 static (chars, bytes) =>
                 {
                     SigningSecretPrefix.CopyTo(chars);
-                    Convert.TryToBase64Chars(bytes, chars[SigningSecretPrefix.Length..], out _);
+                    var text = chars[SigningSecretPrefix.Length..];
+                    if (
+                        !Convert.TryToBase64Chars(bytes, text, out var written)
+                        || written != text.Length
+                    )
+                        throw new InvalidOperationException(
+                            "The signing secret does not fit its buffer."
+                        );
                 }
             );
 

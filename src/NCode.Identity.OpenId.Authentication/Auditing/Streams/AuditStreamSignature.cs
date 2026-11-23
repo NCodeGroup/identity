@@ -87,7 +87,9 @@ internal static class AuditStreamSignature
             {
                 Version.CopyTo(chars);
                 chars[Version.Length] = ',';
-                Convert.TryToBase64Chars(h, chars[(Version.Length + 1)..], out _);
+                var text = chars[(Version.Length + 1)..];
+                if (!Convert.TryToBase64Chars(h, text, out var written) || written != text.Length)
+                    throw new InvalidOperationException("The signature does not fit its buffer.");
             }
         );
     }
