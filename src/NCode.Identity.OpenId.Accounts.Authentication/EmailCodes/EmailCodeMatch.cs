@@ -8,6 +8,7 @@ namespace NCode.Identity.OpenId.Accounts.Authentication.EmailCodes;
 /// <summary>
 /// Represents the flow that a right code matched: the account the code was sent for and the address it was mailed to.
 /// </summary>
+/// <param name="ConnectionId">The identifier of the connection the local account belongs to.</param>
 /// <param name="LocalAccountId">The identifier of the local account the code was sent for.</param>
 /// <param name="Email">The email address the code was mailed to.</param>
 // See ADR-1533.

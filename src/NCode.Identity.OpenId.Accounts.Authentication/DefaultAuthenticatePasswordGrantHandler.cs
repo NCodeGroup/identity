@@ -10,6 +10,7 @@ using NCode.Identity.OpenId.Authentication.Passwords;
 using NCode.Identity.OpenId.Authentication.Subject;
 using NCode.Identity.OpenId.Connections;
 using NCode.Identity.OpenId.Contexts;
+using NCode.Identity.OpenId.Errors;
 using NCode.Identity.OpenId.PrincipalResolution;
 using NCode.Identity.OpenId.Settings;
 using NCode.Identity.Persistence.Stores;
