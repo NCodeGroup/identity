@@ -913,6 +913,56 @@ public class LocalAccountInteractivePasswordResetterTests : BaseTests
     }
 
     [Fact]
+    public async Task ResetPasswordAsync_WhenTheAccountIsDisabled_RefusesAndChangesNothing()
+    {
+        var mockContext = CreateContext(isResetEnabled: true);
+        SetupVerify(LocalAccountId);
+        SetupStoreManager();
+        SetupLookupById(Account(isEnabled: false));
+        SetupResetFailed(
+            mockContext,
+            subjectId: null,
+            localAccountId: null,
+            InteractiveEmailCodeErrors.InvalidCode
+        );
+
+        var result = await Resetter.ResetPasswordAsync(
+            mockContext.Object,
+            FlowId,
+            Code,
+            NewPassword,
+            CancellationToken.None
+        );
+
+        Assert.False(result.IsChanged);
+        Assert.Equal(InteractiveEmailCodeErrors.InvalidCode, result.Error);
+        MockAuditEventRecorder.Verify(
+            x =>
+                x.RecordPasswordResetFailedAsync(
+                    mockContext.Object,
+                    null,
+                    null,
+                    InteractiveEmailCodeErrors.InvalidCode,
+                    It.IsAny<CancellationToken>()
+                ),
+            Times.Once
+        );
+        MockLocalAccountStore.Verify(
+            x =>
+                x.SetPasswordAsync(
+                    It.IsAny<string>(),
+                    It.IsAny<ReadOnlyMemory<byte>>(),
+                    It.IsAny<CancellationToken>()
+                ),
+            Times.Never
+        );
+        MockStoreManager.Verify(
+            x => x.SaveChangesAsync(It.IsAny<CancellationToken>()),
+            Times.Never
+        );
+    }
+
+    [Fact]
     public async Task ResetPasswordAsync_WithTheCode_SetsThePasswordEndsTheSessionsAndClearsTheAttempts()
     {
         var mockContext = CreateContext(isResetEnabled: true, needsTenantId: true);

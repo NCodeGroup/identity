@@ -146,35 +146,18 @@ internal sealed class LocalAccountInteractiveEmailVerifier(
         var subjectId = openIdContext.GetSubjectId(principal);
         ArgumentException.ThrowIfNullOrEmpty(subjectId);
 
-        // A code authorizes nothing once the account's address differs from the one it was mailed to. See ADR-1533.
+        // The code is spent after every check has passed, once it is bound to the account, and before its effect, with
+        // one atomic take. See ADR-1533.
         if (
             match is null
-            || !string.Equals(
-                match.LocalAccountId,
-                account.LocalAccountId,
-                StringComparison.Ordinal
-            )
-            || !string.Equals(match.Email, account.Email, StringComparison.OrdinalIgnoreCase)
-        )
-        {
-            await AuditEventRecorder.RecordEmailVerificationFailedAsync(
+            || !match.IsFor(account)
+            || !await EmailCodes.ConsumeAsync(
                 openIdContext,
-                subjectId,
-                account.LocalAccountId,
-                InteractiveEmailCodeErrors.InvalidCode,
+                EmailCodePurposes.VerifyEmail,
+                flowId,
                 cancellationToken
-            );
-            return InteractiveEmailCodeResult.Refused(InteractiveEmailCodeErrors.InvalidCode);
-        }
-
-        // The code is spent after every check has passed and before its effect, with one atomic take. See ADR-1533.
-        var consumed = await EmailCodes.ConsumeAsync(
-            openIdContext,
-            EmailCodePurposes.VerifyEmail,
-            flowId,
-            cancellationToken
-        );
-        if (!consumed)
+            )
+        )
         {
             await AuditEventRecorder.RecordEmailVerificationFailedAsync(
                 openIdContext,

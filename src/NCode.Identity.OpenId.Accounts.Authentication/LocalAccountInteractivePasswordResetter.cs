@@ -195,7 +195,7 @@ internal sealed class LocalAccountInteractivePasswordResetter(
         }
 
         // A code authorizes nothing once the account's address differs from the one it was mailed to. See ADR-1533.
-        if (!string.Equals(account.Email, match.Email, StringComparison.OrdinalIgnoreCase))
+        if (!match.IsFor(account))
         {
             await AuditEventRecorder.RecordPasswordResetFailedAsync(
                 openIdContext,
