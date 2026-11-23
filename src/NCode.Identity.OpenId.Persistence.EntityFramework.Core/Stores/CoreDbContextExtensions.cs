@@ -44,6 +44,8 @@ internal static class CoreDbContextExtensions
 
         public DbSet<ConsentEntity> Consents => context.Set<ConsentEntity>();
 
+        public DbSet<ConnectionEntity> Connections => context.Set<ConnectionEntity>();
+
         public DbSet<ResourceServerEntity> ResourceServers => context.Set<ResourceServerEntity>();
 
         public DbSet<ResourceServerSecretEntity> ResourceServerSecrets =>
