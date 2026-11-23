@@ -21,7 +21,7 @@ namespace NCode.Identity.OpenId.Accounts.Authentication.EmailCodes;
 internal sealed record EmailCodeState(
     string LocalAccountId,
     string Email,
-    byte[] CodeHash,
+    EmailCodeHash CodeHash,
     int Attempts,
     DateTimeOffset ExpiresWhen
 );

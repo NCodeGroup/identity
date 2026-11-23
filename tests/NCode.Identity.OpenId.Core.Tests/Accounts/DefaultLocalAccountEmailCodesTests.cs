@@ -122,12 +122,26 @@ public partial class DefaultLocalAccountEmailCodesTests : BaseTests
             ConcurrencyToken = string.Empty,
         };
 
+    private static EmailCodeHash HashOf(string flowId, string code)
+    {
+        var hash = default(EmailCodeHash);
+        DefaultLocalAccountEmailCodes.HashCode(flowId, code, hash);
+        return hash;
+    }
+
+    private static bool SameHash(EmailCodeHash left, EmailCodeHash right)
+    {
+        ReadOnlySpan<byte> leftBytes = left;
+        ReadOnlySpan<byte> rightBytes = right;
+        return leftBytes.SequenceEqual(rightBytes);
+    }
+
     private static byte[] Serialize(int attempts) =>
         JsonSerializer.SerializeToUtf8Bytes(
             new EmailCodeState(
                 LocalAccountId,
                 Email,
-                DefaultLocalAccountEmailCodes.HashCode(FlowId, Code),
+                HashOf(FlowId, Code),
                 attempts,
                 Now + Lifetime
             ),
@@ -239,7 +253,7 @@ public partial class DefaultLocalAccountEmailCodesTests : BaseTests
         Assert.Equal(Email, state.Email);
         Assert.Equal(0, state.Attempts);
         Assert.Equal(Now + Lifetime, state.ExpiresWhen);
-        Assert.Equal(DefaultLocalAccountEmailCodes.HashCode(FlowId, match.Value), state.CodeHash);
+        Assert.True(SameHash(HashOf(FlowId, match.Value), state.CodeHash));
     }
 
     [Fact]
@@ -360,7 +374,7 @@ public partial class DefaultLocalAccountEmailCodesTests : BaseTests
         for (var number = 0; number < 1_000; ++number)
         {
             var code = number.ToString("D6", CultureInfo.InvariantCulture);
-            Assert.NotEqual(DefaultLocalAccountEmailCodes.HashCode(FlowId, code), state.CodeHash);
+            Assert.False(SameHash(HashOf(FlowId, code), state.CodeHash));
         }
 
         MockMailSender.VerifyNoOtherCalls();
@@ -553,7 +567,7 @@ public partial class DefaultLocalAccountEmailCodesTests : BaseTests
         for (var number = 0; number < 1_000; ++number)
         {
             var code = number.ToString("D6", CultureInfo.InvariantCulture);
-            Assert.NotEqual(DefaultLocalAccountEmailCodes.HashCode(FlowId, code), state.CodeHash);
+            Assert.False(SameHash(HashOf(FlowId, code), state.CodeHash));
         }
 
         MockCounterSet.VerifyNoOtherCalls();

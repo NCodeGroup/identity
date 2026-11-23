@@ -1,6 +1,7 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using System.Buffers;
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text.Json;
@@ -112,7 +113,8 @@ internal sealed class DefaultLocalAccountEmailCodes(
             .GetInt32(CodeUpperBound)
             .ToString(CodeFormat, CultureInfo.InvariantCulture);
 
-        var codeHash = HashCode(flowId, code);
+        var codeHash = default(EmailCodeHash);
+        HashCode(flowId, code, codeHash);
         var state = new EmailCodeState(
             account.LocalAccountId,
             account.Email,
@@ -121,11 +123,14 @@ internal sealed class DefaultLocalAccountEmailCodes(
             expiresWhen
         );
         var flowKey = CreateFlowKey(tenant.TenantId, purpose, flowId);
-        var stateBytes = JsonSerializer.SerializeToUtf8Bytes(
-            state,
-            EmailCodeJsonContext.Default.EmailCodeState
+        using var stateBuffer = BufferFactory.CreateContiguousBufferWriter(isSensitive: true);
+        WriteState(state, stateBuffer);
+        var added = await ValueSet.TryAddAsync(
+            flowKey,
+            stateBuffer.WrittenMemory,
+            expiresWhen,
+            cancellationToken
         );
-        var added = await ValueSet.TryAddAsync(flowKey, stateBytes, expiresWhen, cancellationToken);
         if (!added)
         {
             throw new InvalidOperationException(DuplicateFlowMessage);
@@ -159,10 +164,7 @@ internal sealed class DefaultLocalAccountEmailCodes(
 
         // The decoy does the remote work of a send, so a request that mails nothing takes as long as one that does,
         // and it counts under a key of its own, so it never touches a real account's counter. See ADR-1533.
-        var loweredIdentifier = identifier.ToLowerInvariant();
-        var identifierBytes = SecureEncoding.UTF8.GetBytes(loweredIdentifier);
-        var identifierDigest = SHA256.HashData(identifierBytes);
-        var identifierHash = Convert.ToHexString(identifierDigest);
+        var identifierHash = HashIdentifier(identifier);
         var sendsKey = ExpiringKeys.Create(
             DecoySendsKeyPurpose,
             tenant.TenantId,
@@ -187,13 +189,9 @@ internal sealed class DefaultLocalAccountEmailCodes(
 
         var flowId = CryptoService.GenerateUrlSafeKey();
 
-        // The code hash is that of random bytes, so no code verifies.
-        using var randomOwner = BufferFactory.RentRandom(
-            SHA256.HashSizeInBytes,
-            isSensitive: false,
-            out Span<byte> randomBytes
-        );
-        var codeHash = SHA256.HashData(randomBytes);
+        // The code hash is random bytes, so no code verifies.
+        var codeHash = new EmailCodeHash();
+        RandomNumberGenerator.Fill(codeHash);
         var state = new EmailCodeState(
             LocalAccountId: string.Empty,
             Email: string.Empty,
@@ -202,11 +200,14 @@ internal sealed class DefaultLocalAccountEmailCodes(
             expiresWhen
         );
         var flowKey = CreateFlowKey(tenant.TenantId, purpose, flowId);
-        var stateBytes = JsonSerializer.SerializeToUtf8Bytes(
-            state,
-            EmailCodeJsonContext.Default.EmailCodeState
+        using var stateBuffer = BufferFactory.CreateContiguousBufferWriter(isSensitive: true);
+        WriteState(state, stateBuffer);
+        var added = await ValueSet.TryAddAsync(
+            flowKey,
+            stateBuffer.WrittenMemory,
+            expiresWhen,
+            cancellationToken
         );
-        var added = await ValueSet.TryAddAsync(flowKey, stateBytes, expiresWhen, cancellationToken);
         if (!added)
         {
             throw new InvalidOperationException(DuplicateFlowMessage);
@@ -225,7 +226,8 @@ internal sealed class DefaultLocalAccountEmailCodes(
     )
     {
         var key = CreateFlowKey(openIdContext.Tenant.TenantId, purpose, flowId);
-        var presentedHash = HashCode(flowId, code);
+        var presentedHash = default(EmailCodeHash);
+        HashCode(flowId, code, presentedHash);
 
         // Each guess is counted before it is judged, so at most five guesses are compared against one flow however
         // many race, and a lost swap reads the flow again.
@@ -254,14 +256,12 @@ internal sealed class DefaultLocalAccountEmailCodes(
 
             var attempts = state.Attempts + 1;
             var updatedState = state with { Attempts = attempts };
-            var updatedBytes = JsonSerializer.SerializeToUtf8Bytes(
-                updatedState,
-                EmailCodeJsonContext.Default.EmailCodeState
-            );
+            using var updatedBuffer = BufferFactory.CreateContiguousBufferWriter(isSensitive: true);
+            WriteState(updatedState, updatedBuffer);
             var replaced = await ValueSet.TryReplaceAsync(
                 key,
                 value.Version,
-                updatedBytes,
+                updatedBuffer.WrittenMemory,
                 state.ExpiresWhen,
                 cancellationToken
             );
@@ -270,7 +270,8 @@ internal sealed class DefaultLocalAccountEmailCodes(
                 continue;
             }
 
-            if (CryptographicOperations.FixedTimeEquals(state.CodeHash, presentedHash))
+            var storedHash = state.CodeHash;
+            if (CryptographicOperations.FixedTimeEquals(storedHash, presentedHash))
             {
                 return new EmailCodeMatch(state.LocalAccountId, state.Email);
             }
@@ -312,14 +313,59 @@ internal sealed class DefaultLocalAccountEmailCodes(
     /// </summary>
     /// <param name="flowId">The identifier of the flow the code belongs to.</param>
     /// <param name="code">The code.</param>
-    /// <returns>The SHA-256 hash of the flow and the code.</returns>
-    internal static byte[] HashCode(string flowId, string code)
+    /// <param name="destination">The buffer that receives the SHA-256 hash of the flow and the code.</param>
+    internal static void HashCode(string flowId, ReadOnlySpan<char> code, Span<byte> destination)
     {
-        using var owner = SecureEncoding.UTF8.RentBytes(
-            $"{flowId}:{code}",
-            isSensitive: true,
-            out Memory<byte> buffer
+        using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+
+        using (SecureEncoding.UTF8.RentBytes(flowId, isSensitive: false, out Span<byte> flowBytes))
+        {
+            hash.AppendData(flowBytes);
+        }
+
+        hash.AppendData(":"u8);
+
+        using (SecureEncoding.UTF8.RentBytes(code, isSensitive: true, out Span<byte> codeBytes))
+        {
+            hash.AppendData(codeBytes);
+        }
+
+        hash.GetHashAndReset(destination);
+    }
+
+    /// <summary>
+    /// Writes the state of a flow as JSON into a buffer.
+    /// </summary>
+    /// <param name="state">The state to write.</param>
+    /// <param name="buffer">The buffer that receives the JSON.</param>
+    private static void WriteState(EmailCodeState state, IBufferWriter<byte> buffer)
+    {
+        using var writer = new Utf8JsonWriter(buffer);
+        JsonSerializer.Serialize(writer, state, EmailCodeJsonContext.Default.EmailCodeState);
+    }
+
+    /// <summary>
+    /// Hashes an identifier, lowercased, so a counter key never holds the identifier itself.
+    /// </summary>
+    /// <param name="identifier">The identifier to hash.</param>
+    /// <returns>The hexadecimal SHA-256 hash of the lowercased identifier.</returns>
+    private static string HashIdentifier(string identifier)
+    {
+        using var charsOwner = BufferFactory.Rent<char>(
+            identifier.Length,
+            isSensitive: false,
+            out Span<char> lowered
         );
-        return SHA256.HashData(buffer.Span);
+        var written = identifier.AsSpan().ToLowerInvariant(lowered);
+
+        using var bytesOwner = SecureEncoding.UTF8.RentBytes(
+            lowered[..written],
+            isSensitive: false,
+            out Span<byte> bytes
+        );
+
+        Span<byte> digest = stackalloc byte[SHA256.HashSizeInBytes];
+        SHA256.HashData(bytes, digest);
+        return Convert.ToHexString(digest);
     }
 }
