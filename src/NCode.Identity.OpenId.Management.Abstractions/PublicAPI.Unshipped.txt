@@ -1482,3 +1482,64 @@ NCode.Identity.OpenId.Management.Transfers.TenantTransferSection.Json.init -> vo
 NCode.Identity.OpenId.Management.Transfers.TenantTransferSection.Name.get -> string!
 NCode.Identity.OpenId.Management.Transfers.TenantTransferSection.Name.init -> void
 NCode.Identity.OpenId.Management.Transfers.TenantTransferSection.TenantTransferSection() -> void
+NCode.Identity.OpenId.Management.Contracts.Connections.ConnectionResource
+NCode.Identity.OpenId.Management.Contracts.Connections.ConnectionResource.ConnectionResource() -> void
+NCode.Identity.OpenId.Management.Contracts.Connections.ConnectionResource.ConcurrencyToken.get -> string!
+NCode.Identity.OpenId.Management.Contracts.Connections.ConnectionResource.ConcurrencyToken.init -> void
+NCode.Identity.OpenId.Management.Contracts.Connections.ConnectionResource.ConnectionId.get -> string!
+NCode.Identity.OpenId.Management.Contracts.Connections.ConnectionResource.ConnectionId.init -> void
+NCode.Identity.OpenId.Management.Contracts.Connections.ConnectionResource.DisplayName.get -> string!
+NCode.Identity.OpenId.Management.Contracts.Connections.ConnectionResource.DisplayName.init -> void
+NCode.Identity.OpenId.Management.Contracts.Connections.ConnectionResource.IsEnabled.get -> bool
+NCode.Identity.OpenId.Management.Contracts.Connections.ConnectionResource.IsEnabled.init -> void
+NCode.Identity.OpenId.Management.Contracts.Connections.ConnectionResource.Name.get -> string!
+NCode.Identity.OpenId.Management.Contracts.Connections.ConnectionResource.Name.init -> void
+NCode.Identity.OpenId.Management.Contracts.Connections.ConnectionResource.Options.get -> System.Text.Json.JsonElement
+NCode.Identity.OpenId.Management.Contracts.Connections.ConnectionResource.Options.init -> void
+NCode.Identity.OpenId.Management.Contracts.Connections.ConnectionResource.Strategy.get -> string!
+NCode.Identity.OpenId.Management.Contracts.Connections.ConnectionResource.Strategy.init -> void
+NCode.Identity.OpenId.Management.Contracts.Connections.ConnectionResource.TenantId.get -> string!
+NCode.Identity.OpenId.Management.Contracts.Connections.ConnectionResource.TenantId.init -> void
+NCode.Identity.OpenId.Management.Contracts.Connections.ConnectionSettingsResource
+NCode.Identity.OpenId.Management.Contracts.Connections.ConnectionSettingsResource.ConnectionSettingsResource() -> void
+NCode.Identity.OpenId.Management.Contracts.Connections.ConnectionSettingsResource.ConcurrencyToken.get -> string!
+NCode.Identity.OpenId.Management.Contracts.Connections.ConnectionSettingsResource.ConcurrencyToken.init -> void
+NCode.Identity.OpenId.Management.Contracts.Connections.ConnectionSettingsResource.ConnectionId.get -> string!
+NCode.Identity.OpenId.Management.Contracts.Connections.ConnectionSettingsResource.ConnectionId.init -> void
+NCode.Identity.OpenId.Management.Contracts.Connections.ConnectionSettingsResource.Settings.get -> System.Text.Json.JsonElement
+NCode.Identity.OpenId.Management.Contracts.Connections.ConnectionSettingsResource.Settings.init -> void
+NCode.Identity.OpenId.Management.Contracts.Connections.ConnectionSettingsResource.TenantId.get -> string!
+NCode.Identity.OpenId.Management.Contracts.Connections.ConnectionSettingsResource.TenantId.init -> void
+NCode.Identity.OpenId.Management.Contracts.Connections.ConnectionEffectiveSettingsResource
+NCode.Identity.OpenId.Management.Contracts.Connections.ConnectionEffectiveSettingsResource.ConnectionEffectiveSettingsResource() -> void
+NCode.Identity.OpenId.Management.Contracts.Connections.ConnectionEffectiveSettingsResource.ConnectionId.get -> string!
+NCode.Identity.OpenId.Management.Contracts.Connections.ConnectionEffectiveSettingsResource.ConnectionId.init -> void
+NCode.Identity.OpenId.Management.Contracts.Connections.ConnectionEffectiveSettingsResource.Settings.get -> System.Text.Json.JsonElement
+NCode.Identity.OpenId.Management.Contracts.Connections.ConnectionEffectiveSettingsResource.Settings.init -> void
+NCode.Identity.OpenId.Management.Contracts.Connections.ConnectionEffectiveSettingsResource.TenantId.get -> string!
+NCode.Identity.OpenId.Management.Contracts.Connections.ConnectionEffectiveSettingsResource.TenantId.init -> void
+NCode.Identity.OpenId.Management.Contracts.Connections.CreateConnectionRequest
+NCode.Identity.OpenId.Management.Contracts.Connections.CreateConnectionRequest.CreateConnectionRequest() -> void
+NCode.Identity.OpenId.Management.Contracts.Connections.CreateConnectionRequest.DisplayName.get -> string!
+NCode.Identity.OpenId.Management.Contracts.Connections.CreateConnectionRequest.DisplayName.init -> void
+NCode.Identity.OpenId.Management.Contracts.Connections.CreateConnectionRequest.IsEnabled.get -> bool
+NCode.Identity.OpenId.Management.Contracts.Connections.CreateConnectionRequest.IsEnabled.init -> void
+NCode.Identity.OpenId.Management.Contracts.Connections.CreateConnectionRequest.Name.get -> string!
+NCode.Identity.OpenId.Management.Contracts.Connections.CreateConnectionRequest.Name.init -> void
+NCode.Identity.OpenId.Management.Contracts.Connections.CreateConnectionRequest.Options.get -> System.Text.Json.JsonElement?
+NCode.Identity.OpenId.Management.Contracts.Connections.CreateConnectionRequest.Options.init -> void
+NCode.Identity.OpenId.Management.Contracts.Connections.CreateConnectionRequest.Settings.get -> System.Text.Json.JsonElement?
+NCode.Identity.OpenId.Management.Contracts.Connections.CreateConnectionRequest.Settings.init -> void
+NCode.Identity.OpenId.Management.Contracts.Connections.CreateConnectionRequest.Strategy.get -> string!
+NCode.Identity.OpenId.Management.Contracts.Connections.CreateConnectionRequest.Strategy.init -> void
+NCode.Identity.OpenId.Management.Contracts.Connections.UpdateConnectionRequest
+NCode.Identity.OpenId.Management.Contracts.Connections.UpdateConnectionRequest.UpdateConnectionRequest() -> void
+NCode.Identity.OpenId.Management.Contracts.Connections.UpdateConnectionRequest.DisplayName.get -> string!
+NCode.Identity.OpenId.Management.Contracts.Connections.UpdateConnectionRequest.DisplayName.set -> void
+NCode.Identity.OpenId.Management.Contracts.Connections.UpdateConnectionRequest.IsEnabled.get -> bool
+NCode.Identity.OpenId.Management.Contracts.Connections.UpdateConnectionRequest.IsEnabled.set -> void
+NCode.Identity.OpenId.Management.Contracts.Connections.UpdateConnectionRequest.Options.get -> System.Text.Json.JsonElement
+NCode.Identity.OpenId.Management.Contracts.Connections.UpdateConnectionRequest.Options.set -> void
+NCode.Identity.OpenId.Management.Endpoints.Connections.IConnectionValidator
+NCode.Identity.OpenId.Management.Endpoints.Connections.IConnectionValidator.ValidateCreateAsync(NCode.Identity.OpenId.Persistence.DataContracts.PersistedConnection! connection, NCode.Identity.Persistence.Stores.IStoreManager! storeManager, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.Management.ManagementError?>
+NCode.Identity.OpenId.Management.Endpoints.Connections.IConnectionValidator.ValidateUpdateAsync(NCode.Identity.OpenId.Persistence.DataContracts.PersistedConnection! connection, NCode.Identity.Persistence.Stores.IStoreManager! storeManager, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.Management.ManagementError?>

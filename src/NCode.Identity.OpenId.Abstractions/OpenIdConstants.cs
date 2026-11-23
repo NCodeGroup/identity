@@ -253,6 +253,11 @@ public static partial class OpenIdConstants
         public const string ResourceServers = "ResourceServers";
 
         /// <summary>
+        /// Contains the OpenAPI tag applied to the <c>connections</c> management endpoints.
+        /// </summary>
+        public const string Connections = "Connections";
+
+        /// <summary>
         /// Contains the OpenAPI tag applied to the <c>platform</c> management endpoints.
         /// </summary>
         public const string Platform = "Platform";
