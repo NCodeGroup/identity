@@ -143,14 +143,8 @@ internal static class EventIds
     public const int TenantKeysPlacementUnknown = Base + 52;
 
     /// <summary>
-    /// Identifies the warning that removing a tenant whose creation failed did not complete, so the global directory
-    /// keeps the tenant's reservation for this cell.
-    /// </summary>
-    public const int TenantCreationRemovalFailed = Base + 53;
-
-    /// <summary>
     /// Identifies the warning that releasing the global directory's reservation of a tenant whose creation failed did
     /// not complete, so the identifier stays reserved for this cell.
     /// </summary>
-    public const int TenantCreationReleaseFailed = Base + 54;
+    public const int TenantCreationReleaseFailed = Base + 53;
 }
