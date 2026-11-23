@@ -19,6 +19,7 @@ namespace NCode.Identity.OpenId.Accounts.Authentication.EmailCodes;
 // A data record with no behavior to test.
 [ExcludeFromCodeCoverage]
 internal sealed record EmailCodeState(
+    string ConnectionId,
     string LocalAccountId,
     string Email,
     EmailCodeHash CodeHash,

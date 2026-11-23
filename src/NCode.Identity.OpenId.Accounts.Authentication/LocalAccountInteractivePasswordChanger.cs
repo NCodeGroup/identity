@@ -7,6 +7,7 @@ using NCode.Identity.OpenId.Accounts.Stores;
 using NCode.Identity.OpenId.Authentication.Auditing;
 using NCode.Identity.OpenId.Authentication.Interactive;
 using NCode.Identity.OpenId.Authentication.Passwords;
+using NCode.Identity.OpenId.Connections;
 using NCode.Identity.OpenId.Contexts;
 using NCode.Identity.Persistence.Stores;
 
@@ -24,12 +25,16 @@ namespace NCode.Identity.OpenId.Accounts.Authentication;
 // See ADR-1230.
 internal sealed class LocalAccountInteractivePasswordChanger(
     IStoreManagerFactory storeManagerFactory,
+    IConnectionResolver connectionResolver,
+    LocalAccountStoreCatalog localAccountStoreCatalog,
     IPasswordPolicy passwordPolicy,
     IPasswordAttemptLimiter passwordAttemptLimiter,
     IAuditEventRecorder auditEventRecorder
 ) : IInteractivePasswordChanger
 {
     private IStoreManagerFactory StoreManagerFactory { get; } = storeManagerFactory;
+    private IConnectionResolver ConnectionResolver { get; } = connectionResolver;
+    private LocalAccountStoreCatalog LocalAccountStoreCatalog { get; } = localAccountStoreCatalog;
     private IPasswordPolicy PasswordPolicy { get; } = passwordPolicy;
     private IPasswordAttemptLimiter PasswordAttemptLimiter { get; } = passwordAttemptLimiter;
     private IAuditEventRecorder AuditEventRecorder { get; } = auditEventRecorder;
@@ -46,13 +51,15 @@ internal sealed class LocalAccountInteractivePasswordChanger(
         await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
 
         // A principal that links several local accounts has no single password to change.
-        var account = await LocalAccountSignedInAccounts.FindAsync(
+        var found = await LocalAccountSignedInAccounts.FindAsync(
             storeManager,
             openIdContext,
+            ConnectionResolver,
+            LocalAccountStoreCatalog,
             principal,
             cancellationToken
         );
-        if (account is not { IsEnabled: true })
+        if (found is not { Account: { IsEnabled: true } account, Connection: var connection })
         {
             return InteractivePasswordChangeResult.NotSupported;
         }
@@ -66,8 +73,8 @@ internal sealed class LocalAccountInteractivePasswordChanger(
         var newPasswordMemory = newPassword.RevealMemory();
         var policyContext = new PasswordPolicyContext
         {
-            Settings = openIdContext.Tenant.SettingsProvider.Collection,
-            UserName = account.UserName,
+            Settings = connection.Settings,
+            UserName = account.UserName ?? string.Empty,
             Email = account.Email,
         };
         var policyResult = await PasswordPolicy.ValidateAsync(
@@ -100,10 +107,16 @@ internal sealed class LocalAccountInteractivePasswordChanger(
         // password refused at the limit is verified against its dummy hash and counts as a failure, as a wrong one
         // does. The gate refuses a result that a store verified after a refusal and fails a store that never asked, so
         // no store lifts the limit. See ADR-1237.
-        var accountStore = storeManager.GetStore<ILocalAccountStore>();
-        var gate = new PasswordAttemptGate(PasswordAttemptLimiter, openIdContext);
+        var accountStore = LocalAccountStoreCatalog.GetStore(storeManager, connection.Connection);
+        var identifier = new LocalAccountSignInIdentifier
+        {
+            ConnectionId = connection.ConnectionId,
+            UserName = account.UserName,
+            Email = account.UserName is null ? account.Email : null,
+        };
+        var gate = new PasswordAttemptGate(PasswordAttemptLimiter, openIdContext, connection);
         var storedResult = await accountStore.VerifyCredentialAsync(
-            account.UserName,
+            identifier,
             currentBuffer,
             gate.IsRefusedAsync,
             cancellationToken
@@ -121,7 +134,8 @@ internal sealed class LocalAccountInteractivePasswordChanger(
             // A failure is recorded even when the client disconnects.
             await PasswordAttemptLimiter.RecordFailureAsync(
                 openIdContext,
-                result.UserName,
+                connection,
+                result.AccountKey,
                 CancellationToken.None
             );
             await AuditEventRecorder.RecordPasswordChangeFailedAsync(
@@ -136,7 +150,8 @@ internal sealed class LocalAccountInteractivePasswordChanger(
 
         await PasswordAttemptLimiter.ResetAsync(
             openIdContext.Tenant.TenantId,
-            result.UserName,
+            connection.ConnectionId,
+            result.AccountKey,
             cancellationToken
         );
 
