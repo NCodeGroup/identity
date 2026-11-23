@@ -234,6 +234,14 @@ const connectionsPath = (tenantId: string, connectionId?: string, suffix = ''): 
 const connectionSettingsTag = (tenantId: string, connectionId: string): string =>
   tenantTag(tenantId, `connection-settings:${connectionId}`);
 
+/** The cache-tag id of the effective settings of a connection. */
+const connectionEffectiveTag = (tenantId: string, connectionId: string): string =>
+  tenantTag(tenantId, `connection-effective:${connectionId}`);
+
+/** The cache-tag id of the setting limits of a connection. */
+const connectionLimitsTag = (tenantId: string, connectionId: string): string =>
+  tenantTag(tenantId, `connection-limits:${connectionId}`);
+
 // The caller's own access spans scopes, so each mutation that can change where it holds a role invalidates it.
 const callerTag = 'me';
 
@@ -818,6 +826,8 @@ export const managementApi = createApi({
       invalidatesTags: (_result, _error, { tenantId, connectionId }) => [
         { type: 'Connection', id: tenantTag(tenantId, LIST_TAG) },
         { type: 'Connection', id: tenantTag(tenantId, connectionId) },
+        { type: 'Settings', id: connectionEffectiveTag(tenantId, connectionId) },
+        { type: 'SettingLimits', id: connectionLimitsTag(tenantId, connectionId) },
       ],
     }),
     deleteConnection: build.mutation<void, WithCell<{ tenantId: string; connectionId: string }>>({
@@ -836,6 +846,26 @@ export const managementApi = createApi({
         inCell(cell, connectionsPath(tenantId, connectionId, '/settings')),
       providesTags: (_result, _error, { tenantId, connectionId }) => [
         { type: 'Settings' as const, id: connectionSettingsTag(tenantId, connectionId) },
+      ],
+    }),
+    getConnectionEffectiveSettings: build.query<
+      EffectiveSettingsResource,
+      WithCell<{ tenantId: string; connectionId: string }>
+    >({
+      query: ({ tenantId, connectionId, cell }) =>
+        inCell(cell, connectionsPath(tenantId, connectionId, '/effective-settings')),
+      providesTags: (_result, _error, { tenantId, connectionId }) => [
+        { type: 'Settings' as const, id: connectionEffectiveTag(tenantId, connectionId) },
+      ],
+    }),
+    getConnectionSettingLimits: build.query<
+      SettingLimitsResource,
+      WithCell<{ tenantId: string; connectionId: string }>
+    >({
+      query: ({ tenantId, connectionId, cell }) =>
+        inCell(cell, connectionsPath(tenantId, connectionId, '/settings/limits')),
+      providesTags: (_result, _error, { tenantId, connectionId }) => [
+        { type: 'SettingLimits' as const, id: connectionLimitsTag(tenantId, connectionId) },
       ],
     }),
     // Connection settings are an opaque object, so updates are a top-level add/remove/replace diff.
@@ -858,6 +888,8 @@ export const managementApi = createApi({
         }),
       invalidatesTags: (_result, _error, { tenantId, connectionId }) => [
         { type: 'Settings', id: connectionSettingsTag(tenantId, connectionId) },
+        { type: 'Settings', id: connectionEffectiveTag(tenantId, connectionId) },
+        { type: 'SettingLimits', id: connectionLimitsTag(tenantId, connectionId) },
       ],
     }),
     listResourceServers: build.query<
@@ -1377,6 +1409,15 @@ export const {
   useEnableLocalAccountMutation,
   useDisableLocalAccountMutation,
   useResetLocalAccountPasswordMutation,
+  useListConnectionsQuery,
+  useGetConnectionQuery,
+  useCreateConnectionMutation,
+  useUpdateConnectionMutation,
+  useDeleteConnectionMutation,
+  useGetConnectionSettingsQuery,
+  useGetConnectionEffectiveSettingsQuery,
+  useGetConnectionSettingLimitsQuery,
+  useUpdateConnectionSettingsMutation,
   useCreateResourceServerMutation,
   useUpdateResourceServerMutation,
   useDeleteResourceServerMutation,

@@ -60,6 +60,8 @@ export {
   useUpdateConnectionMutation,
   useDeleteConnectionMutation,
   useGetConnectionSettingsQuery,
+  useGetConnectionEffectiveSettingsQuery,
+  useGetConnectionSettingLimitsQuery,
   useUpdateConnectionSettingsMutation,
   useCreateResourceServerMutation,
   useUpdateResourceServerMutation,

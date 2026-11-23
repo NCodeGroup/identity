@@ -4154,4 +4154,78 @@ describe('managementApi connections', () => {
 
     expect(fetches.count('GET', `${itemPath}/settings`)).toBe(2);
   });
+
+  it('getConnectionEffectiveSettings and getConnectionSettingLimits GET their connection routes', async () => {
+    const captured = mockFetch(jsonResponse({}));
+    const store = createStore();
+
+    await store.dispatch(
+      managementApi.endpoints.getConnectionEffectiveSettings.initiate({
+        tenantId: 'acme',
+        connectionId: 'c/1',
+        cell: undefined,
+      }),
+    );
+    await store.dispatch(
+      managementApi.endpoints.getConnectionSettingLimits.initiate({
+        tenantId: 'acme',
+        connectionId: 'c/1',
+        cell: 'eu-1',
+      }),
+    );
+
+    expect(captured.map((request) => request.url)).toEqual([
+      'https://api.test/api/tenants/acme/connections/c%2F1/effective-settings',
+      'https://api.test/cells/eu-1/api/tenants/acme/connections/c%2F1/settings/limits',
+    ]);
+  });
+
+  it('updateConnectionSettings and updateConnection refetch the effective settings and limits', async () => {
+    const fetches = routeFetch((method) =>
+      method === 'GET' ? jsonResponse({}) : new Response(null, { status: 204 }),
+    );
+    const store = createStore();
+    const args = { tenantId: 'acme', connectionId: 'c/1', cell: undefined };
+    await store.dispatch(managementApi.endpoints.getConnectionEffectiveSettings.initiate(args));
+    await store.dispatch(managementApi.endpoints.getConnectionSettingLimits.initiate(args));
+
+    await store.dispatch(
+      managementApi.endpoints.updateConnectionSettings.initiate({
+        ...args,
+        concurrencyToken: 's',
+        original: {},
+        desired: { a: 1 },
+      }),
+    );
+    await settle(store);
+    await store.dispatch(
+      managementApi.endpoints.updateConnection.initiate({
+        ...args,
+        concurrencyToken: 'k1',
+        fields: { displayName: 'Staff', isEnabled: true, options: {} },
+      }),
+    );
+    await settle(store);
+
+    expect(fetches.count('GET', `${itemPath}/effective-settings`)).toBe(3);
+    expect(fetches.count('GET', `${itemPath}/settings/limits`)).toBe(3);
+  });
+
+  it('exports every connection hook as a function', async () => {
+    const hooks = await import('./managementApi.js');
+
+    for (const name of [
+      'useListConnectionsQuery',
+      'useGetConnectionQuery',
+      'useCreateConnectionMutation',
+      'useUpdateConnectionMutation',
+      'useDeleteConnectionMutation',
+      'useGetConnectionSettingsQuery',
+      'useGetConnectionEffectiveSettingsQuery',
+      'useGetConnectionSettingLimitsQuery',
+      'useUpdateConnectionSettingsMutation',
+    ] as const) {
+      expect(hooks[name]).toBeTypeOf('function');
+    }
+  });
 });

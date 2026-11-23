@@ -7,6 +7,7 @@ import { App } from './App.js';
 // Each surface is a lazily loaded chunk (ADR-1151). Loading the modules first lets each lazy surface resolve from the
 // module cache, so a test waits for the surface's data and render rather than a cold transform of its chunk.
 import './containers/ClientsPage.js';
+import './containers/ConnectionsPage.js';
 import './containers/GrantsPage.js';
 import './containers/HomePage.js';
 import './containers/MachineClientsPage.js';
@@ -269,6 +270,45 @@ describe('App (platform ↔ team ↔ tenant boundary)', () => {
       input instanceof Request ? input.url : String(input),
     );
     expect(requestedUrls).toContain('https://api.test/api/tenants/acme/resource-servers');
+  });
+
+  it('opens the connections surface of a tenant', async () => {
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      const url =
+        input instanceof Request ? input.url : input instanceof URL ? input.href : String(input);
+      if (url.includes('/api/tenants/acme/connections')) {
+        return jsonResponse({
+          items: [
+            {
+              tenantId: 'acme',
+              connectionId: 'c-local',
+              concurrencyToken: 'c',
+              name: 'local',
+              displayName: 'Username and password',
+              strategy: 'local',
+              isEnabled: true,
+              options: { store: 'default' },
+            },
+          ],
+        });
+      }
+      if (url.includes('/api/tenants/acme/clients')) {
+        return jsonResponse({ items: [] });
+      }
+      const directory = directoryResponse(url);
+      if (directory) {
+        return directory;
+      }
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    window.history.replaceState(null, '', '/teams/acme/tenants');
+    renderApp();
+
+    fireEvent.click(await screen.findByTestId('tenant-row-acme'));
+    fireEvent.click(await screen.findByTestId('tenant-tab-connections'));
+    expect(await screen.findByText('Username and password')).toBeInTheDocument();
   });
 
   it('switches to the platform Settings surface', async () => {
