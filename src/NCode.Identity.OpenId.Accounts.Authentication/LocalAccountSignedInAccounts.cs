@@ -42,9 +42,9 @@ internal static class LocalAccountSignedInAccounts
             return null;
         }
 
-        var identities = await storeManager
-            .GetStore<IFederatedIdentityStore>()
-            .GetByPrincipalAsync(principalId, cancellationToken);
+        var identityStore = storeManager.GetStore<IFederatedIdentityStore>();
+
+        var identities = await identityStore.GetByPrincipalAsync(principalId, cancellationToken);
 
         // A principal that links several local accounts has no single account to act on.
         var selfIssuedIdentities = identities
@@ -61,8 +61,10 @@ internal static class LocalAccountSignedInAccounts
             return null;
         }
 
-        return await storeManager
-            .GetStore<ILocalAccountStore>()
-            .GetByIdOrDefaultAsync(selfIssuedIdentities[0].Subject, cancellationToken);
+        var accountStore = storeManager.GetStore<ILocalAccountStore>();
+        return await accountStore.GetByIdOrDefaultAsync(
+            selfIssuedIdentities[0].Subject,
+            cancellationToken
+        );
     }
 }

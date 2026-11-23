@@ -143,14 +143,6 @@ internal sealed class LocalAccountInteractiveSignInCodeChallenge(
             return InteractiveEmailCodeResult.Refused(InteractiveEmailCodeErrors.NotSupported);
         }
 
-        var match = await EmailCodes.VerifyAsync(
-            openIdContext,
-            EmailCodePurposes.SignIn,
-            flowId,
-            code,
-            cancellationToken
-        );
-
         // The second factor is audited as the password grant's authentication is (ADR-1533).
         var subjectId = openIdContext.GetSubjectId(principal);
         ArgumentException.ThrowIfNullOrEmpty(subjectId);
@@ -158,12 +150,13 @@ internal sealed class LocalAccountInteractiveSignInCodeChallenge(
         // The code is spent after every check has passed, once it is bound to the account, and before its effect, with
         // one atomic take. See ADR-1533.
         if (
-            match is null
-            || !match.IsFor(account)
-            || !await EmailCodes.ConsumeAsync(
+            !await EmailCodeRedemption.TryRedeemAsync(
+                EmailCodes,
                 openIdContext,
                 EmailCodePurposes.SignIn,
                 flowId,
+                code,
+                account,
                 cancellationToken
             )
         )
@@ -181,10 +174,9 @@ internal sealed class LocalAccountInteractiveSignInCodeChallenge(
 
         if (!account.EmailVerified)
         {
+            var accountStore = storeManager.GetStore<ILocalAccountStore>();
             account.EmailVerified = true;
-            await storeManager
-                .GetStore<ILocalAccountStore>()
-                .UpdateAsync(account, cancellationToken);
+            await accountStore.UpdateAsync(account, cancellationToken);
             await storeManager.SaveChangesAsync(cancellationToken);
         }
 

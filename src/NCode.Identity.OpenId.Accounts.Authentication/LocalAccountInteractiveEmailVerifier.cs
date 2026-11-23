@@ -135,14 +135,6 @@ internal sealed class LocalAccountInteractiveEmailVerifier(
             return InteractiveEmailCodeResult.Refused(InteractiveEmailCodeErrors.NotSupported);
         }
 
-        var match = await EmailCodes.VerifyAsync(
-            openIdContext,
-            EmailCodePurposes.VerifyEmail,
-            flowId,
-            code,
-            cancellationToken
-        );
-
         // The end user's verification is audited as the password grant's authentication is (ADR-1533).
         var subjectId = openIdContext.GetSubjectId(principal);
         ArgumentException.ThrowIfNullOrEmpty(subjectId);
@@ -150,12 +142,13 @@ internal sealed class LocalAccountInteractiveEmailVerifier(
         // The code is spent after every check has passed, once it is bound to the account, and before its effect, with
         // one atomic take. See ADR-1533.
         if (
-            match is null
-            || !match.IsFor(account)
-            || !await EmailCodes.ConsumeAsync(
+            !await EmailCodeRedemption.TryRedeemAsync(
+                EmailCodes,
                 openIdContext,
                 EmailCodePurposes.VerifyEmail,
                 flowId,
+                code,
+                account,
                 cancellationToken
             )
         )
@@ -170,8 +163,9 @@ internal sealed class LocalAccountInteractiveEmailVerifier(
             return InteractiveEmailCodeResult.Refused(InteractiveEmailCodeErrors.InvalidCode);
         }
 
+        var accountStore = storeManager.GetStore<ILocalAccountStore>();
         account.EmailVerified = true;
-        await storeManager.GetStore<ILocalAccountStore>().UpdateAsync(account, cancellationToken);
+        await accountStore.UpdateAsync(account, cancellationToken);
         await storeManager.SaveChangesAsync(cancellationToken);
 
         await AuditEventRecorder.RecordEmailVerifiedAsync(
