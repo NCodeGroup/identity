@@ -38,6 +38,19 @@ public interface IAuditStreamStore : IStore
     );
 
     /// <summary>
+    /// Gets the delivery state of a stream of the ambient tenant, without the stream's configuration or signing
+    /// secrets.
+    /// </summary>
+    /// <param name="streamId">The identifier of the stream.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation, containing the state, or
+    /// <see langword="null"/> when the tenant has no such stream.</returns>
+    ValueTask<PersistedAuditStreamState?> GetStateOrDefaultAsync(
+        string streamId,
+        CancellationToken cancellationToken
+    );
+
+    /// <summary>
     /// Gets one page of the ambient tenant's streams, ordered by their identifier, using keyset (cursor) pagination,
     /// with each stream's signing secrets and delivery state.
     /// </summary>

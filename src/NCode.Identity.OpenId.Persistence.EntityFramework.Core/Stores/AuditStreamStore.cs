@@ -152,6 +152,26 @@ internal sealed class AuditStreamStore(
     }
 
     /// <inheritdoc />
+    public async ValueTask<PersistedAuditStreamState?> GetStateOrDefaultAsync(
+        string streamId,
+        CancellationToken cancellationToken
+    )
+    {
+        // Only the state row and two identifiers leave the database: the delivery reads the state before each write, and
+        // the stream's configuration and signing secrets are of no use to it. See ADR-1534.
+        var row = await DbContext
+            .AuditStreamStates.Where(entity => entity.AuditStream.StreamId == streamId)
+            .Select(entity => new
+            {
+                State = entity,
+                entity.Tenant.TenantId,
+                entity.AuditStream.StreamId,
+            })
+            .SingleOrDefaultAsync(cancellationToken);
+        return row is null ? null : MapState(row.State, row.TenantId, row.StreamId);
+    }
+
+    /// <inheritdoc />
     public async ValueTask<int> CountAsync(CancellationToken cancellationToken)
     {
         return await DbContext.AuditStreams.CountAsync(cancellationToken);
