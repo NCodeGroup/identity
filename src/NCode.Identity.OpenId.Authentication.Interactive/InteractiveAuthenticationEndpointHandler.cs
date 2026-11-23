@@ -1843,7 +1843,8 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
             var renewedProperties = CreatePendingSignInProperties(
                 sent.FlowId,
                 returnUrl,
-                languageTag
+                languageTag,
+                properties
             );
             await httpContext.SignInAsync(
                 InteractiveAuthenticationDefaults.PendingSignInSchemeName,
@@ -1990,7 +1991,8 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
         var pendingProperties = CreatePendingSignInProperties(
             sent.FlowId,
             safeReturnUrl,
-            languageTag
+            languageTag,
+            pending: null
         );
         await httpContext.SignInAsync(
             InteractiveAuthenticationDefaults.PendingSignInSchemeName,
@@ -2011,11 +2013,16 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
     /// <param name="flowId">The identifier of the email code flow the mailed code belongs to.</param>
     /// <param name="returnUrl">The return URL the end user continues to once the sign-in completes.</param>
     /// <param name="languageTag">The language tag the form carried, which is kept only when it is set.</param>
+    /// <param name="pending">
+    /// The properties of the pending sign-in that a resent code renews, whose issue and expiry times the renewed cookie
+    /// keeps, or <see langword="null"/> for a new pending sign-in.
+    /// </param>
     /// <returns>The properties of the pending sign-in cookie.</returns>
-    private static AuthenticationProperties CreatePendingSignInProperties(
+    internal static AuthenticationProperties CreatePendingSignInProperties(
         string flowId,
         string returnUrl,
-        string? languageTag
+        string? languageTag,
+        AuthenticationProperties? pending
     )
     {
         var properties = new AuthenticationProperties();
@@ -2024,6 +2031,14 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
         if (!string.IsNullOrEmpty(languageTag))
         {
             properties.Items[UiLocalesItem] = languageTag;
+        }
+
+        // A resent code renews the cookie with the times of the pending sign-in it renews, so the sign-in completes
+        // within the pending lifetime of the password check however many codes are resent. See ADR-1533.
+        if (pending is not null)
+        {
+            properties.IssuedUtc = pending.IssuedUtc;
+            properties.ExpiresUtc = pending.ExpiresUtc;
         }
 
         return properties;

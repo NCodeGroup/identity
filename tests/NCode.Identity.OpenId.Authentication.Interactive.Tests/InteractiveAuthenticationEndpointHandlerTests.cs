@@ -618,6 +618,46 @@ public sealed class InteractiveAuthenticationEndpointHandlerTests : IDisposable
 
     #endregion
 
+    #region CreatePendingSignInProperties Tests
+
+    [Fact]
+    public void CreatePendingSignInProperties_WhenRenewingAPendingSignIn_KeepsItsIssueAndExpiryTimes()
+    {
+        var issued = new DateTimeOffset(2026, 11, 22, 12, 0, 0, TimeSpan.Zero);
+        var pending = new AuthenticationProperties
+        {
+            IssuedUtc = issued,
+            ExpiresUtc = issued.AddMinutes(15),
+        };
+
+        var renewed = InteractiveAuthenticationEndpointHandler.CreatePendingSignInProperties(
+            "flow-2",
+            "/foo",
+            "yy",
+            pending
+        );
+
+        Assert.Equal(issued, renewed.IssuedUtc);
+        Assert.Equal(issued.AddMinutes(15), renewed.ExpiresUtc);
+        Assert.Equal("flow-2", renewed.Items["email_code_flow"]);
+    }
+
+    [Fact]
+    public void CreatePendingSignInProperties_ForANewPendingSignIn_LeavesTheTimesToTheCookie()
+    {
+        var properties = InteractiveAuthenticationEndpointHandler.CreatePendingSignInProperties(
+            "flow-1",
+            "/foo",
+            "yy",
+            pending: null
+        );
+
+        Assert.Null(properties.IssuedUtc);
+        Assert.Null(properties.ExpiresUtc);
+    }
+
+    #endregion
+
     #region Helpers
 
     private InteractiveAuthenticationEndpointHandler CreateHandler(

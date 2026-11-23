@@ -53,12 +53,13 @@ off until the tenant turns it on.**
 4. **A verification is `email_verification_enabled`, off by default.** The account page links the email page, which
    sends a code to the account's address and marks the address verified when the code comes back.
 5. **A second factor is `email_mfa_required`, off by default and merged with `Or`.** A team can require it, and a tenant
-   can't lift it. After the password and the end user's standing pass, the surface holds the verified principal in a
-   data-protected pending cookie, `__Host-NCode.Identity.Interactive.PendingSignIn` (15 minutes, `SameSite=Strict`), and
-   mails a code to the account's address, verified or not, because the code proves the mailbox, which a right code then
-   marks verified. An account without an address is refused with `access_denied`. A right code adds `otp` and `mfa` to
-   `amr` ([RFC 8176](https://www.rfc-editor.org/rfc/rfc8176)) and creates the session. The resource-owner password grant
-   is refused for a tenant that requires the second factor, because it cannot carry one.
+   can't lift it. After the password and the end user's standing pass, the surface holds the verified principal for 15
+   minutes from the password check, however many codes are resent, in a data-protected pending cookie,
+   `__Host-NCode.Identity.Interactive.PendingSignIn` (`SameSite=Strict`), and mails a code to the account's address,
+   verified or not, because the code proves the mailbox, which a right code then marks verified. An account without an
+   address is refused with `access_denied`. A right code adds `otp` and `mfa` to `amr`
+   ([RFC 8176](https://www.rfc-editor.org/rfc/rfc8176)) and creates the session. The resource-owner password grant is
+   refused for a tenant that requires the second factor, because it cannot carry one.
 6. **Seams carry the three flows.** The surface's `IInteractivePasswordResetter`, `IInteractiveEmailVerifier` and
    `IInteractiveSignInCodeChallenge` default to supporting nothing. The local-account capability implements them over
    the account store, the shared state and `IMailSender`, and mails in the locale the page renders in, under the
