@@ -404,7 +404,12 @@ public sealed class DefaultSetupTokenServiceTests : IDisposable
         TimeProvider.Advance(TimeSpan.FromMinutes(5));
         var stale = CreateRow();
         var otherIssuedAt = ProcessClock.StartedAt.AddMinutes(2);
-        var other = CreateRow(StoredToken, otherIssuedAt, otherIssuedAt.AddHours(1), isInitialized: true);
+        var other = CreateRow(
+            StoredToken,
+            otherIssuedAt,
+            otherIssuedAt.AddHours(1),
+            isInitialized: true
+        );
         SetupStoreManagers(Times.Exactly(3));
         var reads = 0;
         MockInstanceSetupStore

@@ -265,5 +265,8 @@ internal static partial class Log
         Level = LogLevel.Error,
         Message = "The setup command failed; the instance is not set up."
     )]
-    internal static partial void InstanceSetupCommandFailed(this ILogger logger, Exception exception);
+    internal static partial void InstanceSetupCommandFailed(
+        this ILogger logger,
+        Exception exception
+    );
 }
