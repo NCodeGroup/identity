@@ -155,20 +155,6 @@ internal static partial class Log
     );
 
     /// <summary>
-    /// Logs that removing a tenant whose creation failed did not complete.
-    /// </summary>
-    [LoggerMessage(
-        EventId = EventIds.TenantCreationRemovalFailed,
-        Level = LogLevel.Warning,
-        Message = "Removing the tenant '{TenantId}' after its creation failed did not complete; the global directory keeps its reservation for this cell while its row may remain"
-    )]
-    internal static partial void TenantCreationRemovalFailed(
-        this ILogger logger,
-        string tenantId,
-        Exception exception
-    );
-
-    /// <summary>
     /// Logs that releasing the global directory's reservation of a tenant whose creation failed did not complete.
     /// </summary>
     [LoggerMessage(

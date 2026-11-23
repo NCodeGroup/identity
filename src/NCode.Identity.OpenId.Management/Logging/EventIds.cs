@@ -30,21 +30,15 @@ internal static class EventIds
     public const int RemoteKeyProviderFailed = Base + 15;
 
     /// <summary>
-    /// Identifies the warning that removing a tenant whose creation failed did not complete, so the global directory
-    /// keeps the tenant's reservation for this cell.
-    /// </summary>
-    public const int TenantCreationRemovalFailed = Base + 16;
-
-    /// <summary>
     /// Identifies the warning that releasing the global directory's reservation of a tenant whose creation failed did
     /// not complete, so the identifier stays reserved for this cell.
     /// </summary>
-    public const int TenantCreationReleaseFailed = Base + 17;
+    public const int TenantCreationReleaseFailed = Base + 16;
 
     /// <summary>
     /// Identifies the warning that giving a tenant back its previous issuer in the global directory did not complete
     /// after the update that changed its issuer failed to write the tenant's row, so the directory holds the issuer the
     /// update would have given the tenant.
     /// </summary>
-    public const int TenantIssuerChangeTakeBackFailed = Base + 18;
+    public const int TenantIssuerChangeTakeBackFailed = Base + 17;
 }

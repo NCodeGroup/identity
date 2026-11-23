@@ -874,7 +874,7 @@ internal class TenantApiEndpointHandler(
         // ADR-1411, ADR-1426).
         try
         {
-            var directoryFailure = await ReserveInsertAndPlaceAsync(
+            var directoryFailure = await ReservePlaceAndInsertAsync(
                 tenant,
                 storeManager,
                 cancellationToken
@@ -937,12 +937,13 @@ internal class TenantApiEndpointHandler(
     }
 
     /// <summary>
-    /// Creates a tenant through the directory as a saga: reserves the tenant's identifier and issuer, inserts the
-    /// tenant, then places it in this cell. A creation that fails before the tenant is placed removes the inserted
-    /// tenant and then releases the reservation, each on its own bounded token, and keeps the reservation when the
-    /// removal fails, so the directory never frees an identifier whose row still exists; a compensating step that fails
-    /// is logged, and the failure that ended the creation propagates. A tenant of the platform's own team is reserved
-    /// in no team, because the directory holds no record of that team.
+    /// Creates a tenant through the directory as a saga: reserves the tenant's identifier and issuer, places the tenant
+    /// in this cell, then inserts it, so its row never exists unplaced. A placement that does not take effect releases
+    /// the reservation on its own bounded token, and a release that fails is logged, so the refusal or the failure that
+    /// ended the creation surfaces; an insert that fails leaves the tenant placed in this cell, which creating the
+    /// tenant again in this cell with the same issuer and team completes, because the directory reserves and places
+    /// again for the cell that holds the tenant. A tenant of the platform's own team is reserved in no team, because
+    /// the directory holds no record of that team.
     /// </summary>
     /// <param name="tenant">The <see cref="PersistedTenant"/> to create.</param>
     /// <param name="storeManager">The <see cref="IStoreManager"/> that inserts the tenant.</param>
@@ -950,7 +951,7 @@ internal class TenantApiEndpointHandler(
     /// <returns>The <see cref="IResult"/> that refuses the creation, or <c>null</c> when the tenant is created and
     /// placed.</returns>
     // See ADR-1160.
-    private async ValueTask<IResult?> ReserveInsertAndPlaceAsync(
+    private async ValueTask<IResult?> ReservePlaceAndInsertAsync(
         PersistedTenant tenant,
         IStoreManager storeManager,
         CancellationToken cancellationToken
@@ -979,19 +980,9 @@ internal class TenantApiEndpointHandler(
             return ToErrorResult(reservationError);
         }
 
-        var isInserted = false;
         var isPlaced = false;
         try
         {
-            var store = storeManager.GetStore<ITenantStore>();
-            await store.AddAsync(tenant, cancellationToken);
-
-            // The tenant row commits first: the creator's ownership is a row the tenant owns, and the stores resolve an
-            // owning tenant from the database rather than the change tracker — the same reason the provisioner commits
-            // a tenant before seeding it.
-            await storeManager.SaveChangesAsync(cancellationToken);
-            isInserted = true;
-
             var placementRequest = new TenantPlacementRequest
             {
                 TenantId = tenant.TenantId,
@@ -1018,66 +1009,38 @@ internal class TenantApiEndpointHandler(
         {
             if (!isPlaced)
             {
-                // The compensation runs even when the creation was canceled, each step on its own token bounded as work
-                // that follows a commit, and a step that fails or outlasts its bound is logged, so the failure that
-                // ended the creation surfaces. The reservation is released only once the inserted row is gone, so the
-                // directory never frees an identifier whose row still exists; a reservation kept for a row that a
-                // timed-out removal did remove is reserved again by the next creation of the tenant in this cell.
-                // See ADR-1351 and ADR-1411.
-                var isRemoved = !isInserted;
-                if (isInserted)
+                // A placement that did not take effect releases the reservation, even when the creation was canceled,
+                // on its own token bounded as work that follows a commit, and a release that fails or outlasts its
+                // bound is logged, so the failure that ended the creation surfaces. A release frees only a tenant that
+                // is not placed, so it never frees the placement of a concurrent creator of the tenant in this cell,
+                // and a placement whose acknowledgement was lost stays for the next creation of the tenant in this
+                // cell to complete. See ADR-1351 and ADR-1411.
+                try
                 {
-                    try
-                    {
-                        await PostCommitWork.RunAsync(
-                            TimeProvider,
-                            RemoveCreatedTenantAsync,
-                            tenant.TenantId
-                        );
-                        isRemoved = true;
-                    }
-                    catch (Exception exception)
-                    {
-                        Logger.TenantCreationRemovalFailed(tenant.TenantId, exception);
-                    }
+                    await PostCommitWork.RunAsync(
+                        TimeProvider,
+                        TenantDirectory.ReleaseAsync,
+                        tenant.TenantId
+                    );
                 }
-
-                if (isRemoved)
+                catch (Exception exception)
                 {
-                    try
-                    {
-                        await PostCommitWork.RunAsync(
-                            TimeProvider,
-                            TenantDirectory.ReleaseAsync,
-                            tenant.TenantId
-                        );
-                    }
-                    catch (Exception exception)
-                    {
-                        Logger.TenantCreationReleaseFailed(tenant.TenantId, exception);
-                    }
+                    Logger.TenantCreationReleaseFailed(tenant.TenantId, exception);
                 }
             }
         }
 
-        return null;
-    }
+        // The tenant's row is the creation's last write, so it never exists unplaced; an insert that fails leaves the
+        // tenant placed in this cell, which creating the tenant again here with the same issuer and team completes.
+        var store = storeManager.GetStore<ITenantStore>();
+        await store.AddAsync(tenant, cancellationToken);
 
-    /// <summary>
-    /// Removes a tenant whose creation failed after its row committed, on a store manager of its own, so the creation's
-    /// unit of work takes no part in it.
-    /// </summary>
-    /// <param name="tenantId">The identifier of the tenant to remove.</param>
-    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to observe.</param>
-    /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation.</returns>
-    private async ValueTask RemoveCreatedTenantAsync(
-        string tenantId,
-        CancellationToken cancellationToken
-    )
-    {
-        await using var cleanup = await StoreManagerFactory.CreateAsync(cancellationToken);
-        await cleanup.GetStore<ITenantStore>().RemoveFromCellAsync(tenantId, cancellationToken);
-        await cleanup.SaveChangesAsync(cancellationToken);
+        // The tenant row commits first: the creator's ownership is a row the tenant owns, and the stores resolve an
+        // owning tenant from the database rather than the change tracker — the same reason the provisioner commits
+        // a tenant before seeding it.
+        await storeManager.SaveChangesAsync(cancellationToken);
+
+        return null;
     }
 
     /// <summary>
