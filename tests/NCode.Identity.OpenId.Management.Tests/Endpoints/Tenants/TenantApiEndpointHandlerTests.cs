@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Time.Testing;
@@ -27,6 +28,7 @@ using NCode.Identity.OpenId.Management.Contracts.Secrets;
 using NCode.Identity.OpenId.Management.Contracts.Tenants;
 using NCode.Identity.OpenId.Management.Endpoints.Clients;
 using NCode.Identity.OpenId.Management.Endpoints.Secrets;
+using NCode.Identity.OpenId.Management.Logging;
 using NCode.Identity.OpenId.Management.Promotions;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
@@ -130,10 +132,13 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
         // A write announces the change after it commits; the tests that write verify the announcement.
         MockMediator = MockRepository.Create<IMediator>();
 
-        Handler = CreateHandler(TimeProvider.System);
+        Handler = CreateHandler(TimeProvider.System, NullLogger<TenantApiEndpointHandler>.Instance);
     }
 
-    private TenantApiEndpointHandler CreateHandler(TimeProvider timeProvider) =>
+    private TenantApiEndpointHandler CreateHandler(
+        TimeProvider timeProvider,
+        ILogger<TenantApiEndpointHandler> logger
+    ) =>
         new(
             MockStoreManagerFactory.Object,
             MockAuthorizationService.Object,
@@ -160,7 +165,7 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
             MockTenantPlacer.Object,
             MockTenantConfigurationExporter.Object,
             MockManagementAuditRecorder.Object,
-            NullLogger<TenantApiEndpointHandler>.Instance
+            logger
         );
 
     // Only a request that changes the tenant announces the change to every replica.
@@ -4855,13 +4860,16 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
     }
 
     [Fact]
-    public async Task UpdateTenantAsync_WhenTheStoreUpdateFailsAndTheTakeBackThrows_RethrowsTheStoreFailure()
+    public async Task UpdateTenantAsync_WhenTheStoreUpdateFailsAndTheTakeBackThrows_LogsAWarningAndRethrowsTheStoreFailure()
     {
         SetupDefaultAlias(TenantId, alias: null);
         const string previous = "https://op.example/tenant-1";
         const string next = "https://op.example/tenant-1-renamed";
         SetupIssuerChange(previous, next, ReservationResult.Reserved());
         var takeBackToken = CancellationToken.None;
+        var takeBackFailure = new HttpRequestException(
+            "The directory answered with a malformed body."
+        );
         MockTenantDirectory
             .Setup(x =>
                 x.ChangeIssuerAsync(
@@ -4870,13 +4878,29 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
                 )
             )
             .Callback((TenantIssuerChange _, CancellationToken token) => takeBackToken = token)
-            .ThrowsAsync(new HttpRequestException("The directory answered with a malformed body."))
+            .ThrowsAsync(takeBackFailure)
             .Verifiable();
+        var mockLogger = MockRepository.Create<ILogger<TenantApiEndpointHandler>>();
+        mockLogger.Setup(x => x.IsEnabled(LogLevel.Warning)).Returns(true).Verifiable();
+        mockLogger
+            .Setup(x =>
+                x.Log(
+                    LogLevel.Warning,
+                    It.Is<EventId>(eventId =>
+                        eventId.Id == EventIds.TenantIssuerChangeTakeBackFailed
+                    ),
+                    It.IsAny<It.IsAnyType>(),
+                    takeBackFailure,
+                    It.IsAny<Func<It.IsAnyType, Exception?, string>>()
+                )
+            )
+            .Verifiable();
+        var handler = CreateHandler(TimeProvider.System, mockLogger.Object);
         var failure = new InvalidOperationException("The row cannot be written.");
         SetupUpdate(CreateTenant("tenant-ct", issuer: previous), _ => { }, failure);
 
         var thrown = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
-            await Handler.UpdateTenantAsync(
+            await handler.UpdateTenantAsync(
                 CreateHttpContext(authenticated: true),
                 TenantId,
                 CreateIssuerPatch(next),
@@ -4890,7 +4914,7 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
     }
 
     [Fact]
-    public async Task UpdateTenantAsync_WhenTheStoreUpdateFailsAndTheTakeBackIsRefused_RethrowsTheStoreFailure()
+    public async Task UpdateTenantAsync_WhenTheStoreUpdateFailsAndTheTakeBackIsRefused_LogsAWarningAndRethrowsTheStoreFailure()
     {
         SetupDefaultAlias(TenantId, alias: null);
         const string previous = "https://op.example/tenant-1";
@@ -4905,11 +4929,32 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
             )
             .ReturnsAsync(ReservationResult.Conflict("Another tenant already has the issuer."))
             .Verifiable();
+        var mockLogger = MockRepository.Create<ILogger<TenantApiEndpointHandler>>();
+        mockLogger.Setup(x => x.IsEnabled(LogLevel.Warning)).Returns(true).Verifiable();
+        mockLogger
+            .Setup(x =>
+                x.Log(
+                    LogLevel.Warning,
+                    It.Is<EventId>(eventId =>
+                        eventId.Id == EventIds.TenantIssuerChangeTakeBackFailed
+                    ),
+                    It.IsAny<It.IsAnyType>(),
+                    It.Is<InvalidOperationException>(exception =>
+                        exception.Message.Contains(
+                            "Another tenant already has the issuer.",
+                            StringComparison.Ordinal
+                        )
+                    ),
+                    It.IsAny<Func<It.IsAnyType, Exception?, string>>()
+                )
+            )
+            .Verifiable();
+        var handler = CreateHandler(TimeProvider.System, mockLogger.Object);
         var failure = new InvalidOperationException("The row cannot be written.");
         SetupUpdate(CreateTenant("tenant-ct", issuer: previous), _ => { }, failure);
 
         var thrown = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
-            await Handler.UpdateTenantAsync(
+            await handler.UpdateTenantAsync(
                 CreateHttpContext(authenticated: true),
                 TenantId,
                 CreateIssuerPatch(next),
@@ -4925,7 +4970,7 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
     public async Task UpdateTenantAsync_WhenTheStoreUpdateFailsAndTheTakeBackHangs_RethrowsTheStoreFailureOnceTheTakeBacksBoundElapses()
     {
         var timeProvider = new FakeTimeProvider();
-        var handler = CreateHandler(timeProvider);
+        var handler = CreateHandler(timeProvider, NullLogger<TenantApiEndpointHandler>.Instance);
         SetupDefaultAlias(TenantId, alias: null);
         const string previous = "https://op.example/tenant-1";
         const string next = "https://op.example/tenant-1-renamed";
