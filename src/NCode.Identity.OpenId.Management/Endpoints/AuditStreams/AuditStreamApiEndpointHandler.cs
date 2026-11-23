@@ -813,11 +813,12 @@ internal class AuditStreamApiEndpointHandler(
         var now = TimeProvider.GetUtcNow();
         if (GetRotationWait(stream, now) is { } wait)
         {
+            var overlapHours = (int)SigningSecretOverlap.TotalHours;
             var problem = new ProblemDetails
             {
                 Status = StatusCodes.Status409Conflict,
                 Detail =
-                    $"The audit stream has {MaxSigningSecrets} signing secrets that sign, its maximum; a rotated secret stops signing 24 hours after its rotation.",
+                    $"The audit stream has {MaxSigningSecrets} signing secrets that sign, its maximum; a rotated secret stops signing {overlapHours} hours after its rotation.",
             };
             return RetryAfterProblem.Create(httpContext, wait, problem);
         }

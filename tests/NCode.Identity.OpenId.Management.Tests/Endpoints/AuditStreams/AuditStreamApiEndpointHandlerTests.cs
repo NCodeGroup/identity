@@ -1067,6 +1067,10 @@ public sealed class AuditStreamApiEndpointHandlerTests : IDisposable
 
         var problem = Assert.IsType<ProblemHttpResult>(result);
         Assert.Equal(StatusCodes.Status409Conflict, problem.StatusCode);
+        Assert.Equal(
+            "The audit stream has 3 signing secrets that sign, its maximum; a rotated secret stops signing 24 hours after its rotation.",
+            problem.ProblemDetails.Detail
+        );
         Assert.Equal("7200", httpContext.Response.Headers.RetryAfter.ToString());
         Assert.Equal(7200L, problem.ProblemDetails.Extensions[RetryAfterProblem.MemberName]);
         Assert.Equal(
