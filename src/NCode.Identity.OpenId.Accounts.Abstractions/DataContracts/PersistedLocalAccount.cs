@@ -10,9 +10,9 @@ using NCode.Identity.Persistence;
 namespace NCode.Identity.OpenId.Accounts.DataContracts;
 
 /// <summary>
-/// Contains the data for a persisted local account: the server-owned profile and status payload behind a self-issued
-/// connection identity. The <see cref="LocalAccountId"/> is both this record's opaque public identifier and the
-/// <c>subject</c> of its one-to-one self-issued federated identity, from which the owning principal is resolved. The
+/// Contains the data for a persisted local account: the server-owned profile and status payload behind a local
+/// connection's identity. The <see cref="LocalAccountId"/> is both this record's opaque public identifier and the
+/// <c>subject</c> of its one-to-one federated identity in the connection, from which the owning principal is resolved. The
 /// credential (password hash) is never carried on this data contract; it is a store-internal detail managed through the
 /// <see cref="Stores.ILocalAccountStore"/>'s first-class credential operations.
 /// </summary>
@@ -28,16 +28,23 @@ public sealed class PersistedLocalAccount : ISupportTenantId, ISupportConcurrenc
 
     /// <summary>
     /// Gets the server-generated opaque public identifier of this local account, used as the subject of its
-    /// self-issued federated identity.
+    /// federated identity in the connection.
     /// </summary>
     [MaxLength(MaxLengths.ResourceId)]
     public required string LocalAccountId { get; init; }
 
     /// <summary>
-    /// Gets or sets the account's username (login handle), unique within the tenant.
+    /// Gets the identifier of the local connection that holds this account, which never changes.
+    /// </summary>
+    [MaxLength(MaxLengths.ResourceId)]
+    public required string ConnectionId { get; init; }
+
+    /// <summary>
+    /// Gets or sets the account's username (login handle), unique within its connection, or <c>null</c> when the
+    /// account signs in by email address only.
     /// </summary>
     [MaxLength(AccountMaxLengths.UserName)]
-    public required string UserName { get; set; }
+    public required string? UserName { get; set; }
 
     /// <summary>
     /// Gets or sets the account's display name, the end user's name as people read it; it is the source of the

@@ -26,10 +26,10 @@ public sealed class LocalAccountTransferRecord
     public required string LocalAccountId { get; init; }
 
     /// <summary>
-    /// Gets the account's username (login handle).
+    /// Gets the account's username (login handle), or <c>null</c> when it signs in by email address only.
     /// </summary>
     [MaxLength(AccountMaxLengths.UserName)]
-    public required string UserName { get; init; }
+    public required string? UserName { get; init; }
 
     /// <summary>
     /// Gets the account's display name, the end user's name as people read it; it is the source of the account's
@@ -39,10 +39,10 @@ public sealed class LocalAccountTransferRecord
     public required string DisplayName { get; init; }
 
     /// <summary>
-    /// Gets the normalized username as the exporting store holds it.
+    /// Gets the normalized username as the exporting store holds it, or <c>null</c> when the account has none.
     /// </summary>
     [MaxLength(AccountMaxLengths.NormalizedUserName)]
-    public required string NormalizedUserName { get; init; }
+    public required string? NormalizedUserName { get; init; }
 
     /// <summary>
     /// Gets the account's email address, or <c>null</c> when none is recorded.
