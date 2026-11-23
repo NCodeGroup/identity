@@ -239,15 +239,25 @@ public sealed class SecretProtectionCommandLine
         }
         // An exception that escapes Main leaves the end of the process to the runtime's crash path, which does not end
         // a process that runs as PID 1 in its container (dotnet/runtime issue 112580), so a Job would run until its
-        // deadline.
-        catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
+        // deadline. Only a cancellation the caller requested propagates; any other failure, even one after the caller
+        // cancels, is logged and ends the command with 1.
+        catch (Exception exception)
+            when (exception is not OperationCanceledException
+                || !cancellationToken.IsCancellationRequested
+            )
         {
             logger.SecretProtectionCommandFailed(exception);
             return 1;
         }
     }
 
-    // The command checks the same configuration the host checks when it starts.
+    /// <summary>
+    /// Checks the configuration that the host checks when it starts.
+    /// </summary>
+    /// <param name="services">The services of the built host.</param>
+    /// <param name="logger">The <see cref="ILogger"/> that records an invalid configuration.</param>
+    /// <returns><see langword="true"/> when the configuration is valid or the host registers no startup validator,
+    /// <see langword="false"/> when an options type is invalid, which it logs.</returns>
     private static bool IsConfigurationValid(IServiceProvider services, ILogger logger)
     {
         try
