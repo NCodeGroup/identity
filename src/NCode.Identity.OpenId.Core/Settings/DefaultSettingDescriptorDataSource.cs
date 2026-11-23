@@ -324,19 +324,6 @@ internal class DefaultSettingDescriptorDataSource(
                 OnMerge = And,
             };
 
-            // allowed_identity_providers: identity providers a client may use; unset permits any.
-            // Ceiling (Intersect): a child narrows the parent's set; a set (or narrowed-to-empty) list denies all others (fail-closed).
-            var allowedIdentityProvidersItemRule = SettingRules.NonEmpty();
-            yield return new SettingDescriptor<IReadOnlyCollection<string>>
-            {
-                Name = OpenIdSettingNames.AllowedIdentityProviders,
-                AppliesTo = Clients,
-                Rule = SettingRules.Each(allowedIdentityProvidersItemRule),
-
-                IsDiscoverable = IsNonStdDiscoverable,
-                OnMerge = Intersect,
-            };
-
             // allowed_connections: the connections a client may sign end users in through, by name; unset permits every
             // enabled connection. (ADR-1535)
             // Ceiling (Intersect): a child narrows the parent's set; a set (or narrowed-to-empty) list denies all others (fail-closed).

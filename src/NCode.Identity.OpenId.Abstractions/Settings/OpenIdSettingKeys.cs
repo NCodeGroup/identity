@@ -136,12 +136,6 @@ public static class OpenIdSettingKeys
         new(OpenIdSettingNames.LocalAccountIdentifier);
 
     /// <summary>
-    /// Gets the <see cref="SettingKey{TValue}"/> for the 'allowed_identity_providers' setting.
-    /// </summary>
-    public static SettingKey<IReadOnlyCollection<string>> AllowedIdentityProviders =>
-        new(OpenIdSettingNames.AllowedIdentityProviders);
-
-    /// <summary>
     /// Gets the <see cref="SettingKey{TValue}"/> for the 'allow_loopback_redirect' setting. Whether a registered
     /// loopback IP redirect URI (<c>http://127.0.0.1</c> or <c>http://[::1]</c>) may be requested with any port
     /// (RFC 8252 §7.3). Every other part of a redirect URI must equal a registered one exactly. Default <c>true</c>;

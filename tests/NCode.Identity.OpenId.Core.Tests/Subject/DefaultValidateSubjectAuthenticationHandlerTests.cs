@@ -7,15 +7,19 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.Extensions.Logging;
 using Moq;
 using NCode.Identity.Jose;
+using NCode.Identity.Json;
 using NCode.Identity.OpenId.Authentication.Clients;
 using NCode.Identity.OpenId.Authentication.Endpoints.Authorization.Messages;
 using NCode.Identity.OpenId.Authentication.Messages.Parameters;
 using NCode.Identity.OpenId.Authentication.Messages.Parsers;
 using NCode.Identity.OpenId.Authentication.Subject;
+using NCode.Identity.OpenId.Connections;
 using NCode.Identity.OpenId.Contexts;
 using NCode.Identity.OpenId.Errors;
 using NCode.Identity.OpenId.Messages;
 using NCode.Identity.OpenId.Messages.Parameters;
+using NCode.Identity.OpenId.Persistence.DataContracts;
+using NCode.Identity.OpenId.Settings;
 using NCode.Identity.OpenId.Tenants;
 using NCode.Identity.Registration.AspNetCore;
 using NCode.Identity.Settings;
@@ -28,12 +32,15 @@ public class DefaultValidateSubjectAuthenticationHandlerTests : BaseTests
     private const string TenantId = "tenant-1";
 
     private DefaultValidateSubjectAuthenticationHandler Handler { get; }
+    private Mock<IConnectionResolver> MockConnectionResolver { get; }
 
     public DefaultValidateSubjectAuthenticationHandlerTests()
     {
         var mockLogger = CreateLooseMock<ILogger<DefaultValidateSubjectAuthenticationHandler>>();
+        MockConnectionResolver = CreateStrictMock<IConnectionResolver>();
         Handler = new DefaultValidateSubjectAuthenticationHandler(
             TimeProvider.System,
+            MockConnectionResolver.Object,
             mockLogger.Object
         );
     }
@@ -118,7 +125,8 @@ public class DefaultValidateSubjectAuthenticationHandlerTests : BaseTests
     ) CreateCommand(
         SubjectAuthentication subjectAuthentication,
         IOpenIdError? initialError,
-        IParameterCollection? requestParameters = null
+        IParameterCollection? requestParameters = null,
+        IReadOnlyCollection<string>? allowedConnections = null
     )
     {
         var mockContext = CreateStrictMock<OpenIdContext>();
@@ -134,6 +142,15 @@ public class DefaultValidateSubjectAuthenticationHandlerTests : BaseTests
         mockContext.SetupGet(x => x.ErrorFactory).Returns(mockErrorFactory.Object).Verifiable();
         mockClient.SetupGet(x => x.Settings).Returns(mockSettings.Object).Verifiable();
         mockErrorFactory.Setup(x => x.Create(It.IsAny<string>())).Returns(mockError.Object);
+
+        if (allowedConnections is not null)
+        {
+            mockSettings
+                .Setup(x =>
+                    x.TryGetValue(OpenIdSettingKeys.AllowedConnections, out allowedConnections)
+                )
+                .Returns(true);
+        }
 
         // Parameters are read only once a request reaches the max_age/acr checks past the early
         // short-circuits, so only those tests supply a collection.
@@ -159,6 +176,209 @@ public class DefaultValidateSubjectAuthenticationHandlerTests : BaseTests
     {
         mockContext.SetupGet(x => x.Tenant).Returns(mockTenant.Object).Verifiable();
         mockTenant.SetupGet(x => x.TenantId).Returns(TenantId).Verifiable();
+    }
+
+    private static ClaimsPrincipal CreateSubjectWithConnection(string? connectionId)
+    {
+        var identity = new ClaimsIdentity(authenticationType: "pwd");
+        if (connectionId is not null)
+        {
+            identity.AddClaim(new Claim(ConnectionClaimTypes.Connection, connectionId));
+        }
+
+        return new ClaimsPrincipal(identity);
+    }
+
+    private static IParameterCollection CreateAcrValuesParameters(params string[] acrValues)
+    {
+        var parameter = new Parameter<List<string>>(
+            new ParameterDescriptor(OpenIdCommonParameters.AcrValues),
+            OpenIdCommonParameters.AcrValues.Parser,
+            [.. acrValues]
+        );
+        return new ParameterCollection([parameter], cloneParameters: false);
+    }
+
+    private ResolvedConnection SetupConnection(string connectionId, string name, bool isEnabled)
+    {
+        var resolved = new ResolvedConnection
+        {
+            Connection = new PersistedConnection
+            {
+                TenantId = TenantId,
+                ConnectionId = connectionId,
+                Name = name,
+                Strategy = ConnectionStrategyNames.Local,
+                DisplayName = name,
+                IsEnabled = isEnabled,
+                Options = JsonElements.EmptyObject,
+                Settings = new PersistedConnectionSettings
+                {
+                    TenantId = TenantId,
+                    ConnectionId = connectionId,
+                    Value = JsonElements.EmptyObject,
+                },
+            },
+            Strategy = CreateLooseMock<IConnectionStrategy>().Object,
+            Settings = CreateLooseMock<IReadOnlySettingCollection>().Object,
+        };
+
+        MockConnectionResolver
+            .Setup(x =>
+                x.GetByIdOrDefaultAsync(
+                    It.IsAny<OpenIdContext>(),
+                    connectionId,
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync(resolved);
+
+        return resolved;
+    }
+
+    #endregion
+
+    #region Connection Tests
+
+    [Fact]
+    public async Task HandleAsync_WhenNoConnectionClaimAndNoAllowList_Succeeds()
+    {
+        var subject = CreateSubjectAuthentication(TenantId, CreateSubjectWithConnection(null));
+        var (command, disposition, mockContext, mockTenant) = CreateCommand(
+            subject,
+            initialError: null
+        );
+        SetupTenant(mockContext, mockTenant);
+
+        await Handler.HandleAsync(command with { OpenIdRequest = null }, CancellationToken.None);
+
+        Assert.False(disposition.HasError);
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenConnectionIsListed_Succeeds()
+    {
+        SetupConnection("c1", "local", isEnabled: true);
+        var subject = CreateSubjectAuthentication(TenantId, CreateSubjectWithConnection("c1"));
+        var (command, disposition, mockContext, mockTenant) = CreateCommand(
+            subject,
+            initialError: null,
+            allowedConnections: ["local"]
+        );
+        SetupTenant(mockContext, mockTenant);
+
+        await Handler.HandleAsync(command with { OpenIdRequest = null }, CancellationToken.None);
+
+        Assert.False(disposition.HasError);
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenConnectionIsUnknown_SetsAccessDeniedError()
+    {
+        MockConnectionResolver
+            .Setup(x =>
+                x.GetByIdOrDefaultAsync(
+                    It.IsAny<OpenIdContext>(),
+                    "missing",
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync((ResolvedConnection?)null);
+        var subject = CreateSubjectAuthentication(TenantId, CreateSubjectWithConnection("missing"));
+        var (command, disposition, mockContext, mockTenant) = CreateCommand(
+            subject,
+            initialError: null
+        );
+        SetupTenant(mockContext, mockTenant);
+
+        await Handler.HandleAsync(command with { OpenIdRequest = null }, CancellationToken.None);
+
+        Assert.True(disposition.HasError);
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenConnectionIsDisabled_SetsAccessDeniedError()
+    {
+        SetupConnection("c1", "local", isEnabled: false);
+        var subject = CreateSubjectAuthentication(TenantId, CreateSubjectWithConnection("c1"));
+        var (command, disposition, mockContext, mockTenant) = CreateCommand(
+            subject,
+            initialError: null
+        );
+        SetupTenant(mockContext, mockTenant);
+
+        await Handler.HandleAsync(command with { OpenIdRequest = null }, CancellationToken.None);
+
+        Assert.True(disposition.HasError);
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenAllowListIsSetAndSubjectHasNoConnection_SetsAccessDeniedError()
+    {
+        var subject = CreateSubjectAuthentication(TenantId, CreateSubjectWithConnection(null));
+        var (command, disposition, mockContext, mockTenant) = CreateCommand(
+            subject,
+            initialError: null,
+            allowedConnections: ["local"]
+        );
+        SetupTenant(mockContext, mockTenant);
+
+        await Handler.HandleAsync(command with { OpenIdRequest = null }, CancellationToken.None);
+
+        Assert.True(disposition.HasError);
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenConnectionIsNotListed_SetsAccessDeniedError()
+    {
+        SetupConnection("c1", "other", isEnabled: true);
+        var subject = CreateSubjectAuthentication(TenantId, CreateSubjectWithConnection("c1"));
+        var (command, disposition, mockContext, mockTenant) = CreateCommand(
+            subject,
+            initialError: null,
+            allowedConnections: ["local"]
+        );
+        SetupTenant(mockContext, mockTenant);
+
+        await Handler.HandleAsync(command with { OpenIdRequest = null }, CancellationToken.None);
+
+        Assert.True(disposition.HasError);
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenRequestedConnectionDiffers_SetsAccessDeniedError()
+    {
+        SetupConnection("c1", "local", isEnabled: true);
+        var subject = CreateSubjectAuthentication(TenantId, CreateSubjectWithConnection("c1"));
+        var parameters = CreateAcrValuesParameters("idp:other");
+        var (command, disposition, mockContext, mockTenant) = CreateCommand(
+            subject,
+            initialError: null,
+            parameters
+        );
+        SetupTenant(mockContext, mockTenant);
+
+        await Handler.HandleAsync(command, CancellationToken.None);
+
+        Assert.True(disposition.HasError);
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenRequestedConnectionMatches_Succeeds()
+    {
+        SetupConnection("c1", "local", isEnabled: true);
+        var subject = CreateSubjectAuthentication(TenantId, CreateSubjectWithConnection("c1"));
+        var parameters = CreateAcrValuesParameters("idp:local");
+        var (command, disposition, mockContext, mockTenant) = CreateCommand(
+            subject,
+            initialError: null,
+            parameters
+        );
+        SetupTenant(mockContext, mockTenant);
+
+        await Handler.HandleAsync(command, CancellationToken.None);
+
+        Assert.False(disposition.HasError);
     }
 
     #endregion

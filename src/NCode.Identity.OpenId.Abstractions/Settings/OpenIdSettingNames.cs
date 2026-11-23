@@ -142,11 +142,6 @@ public static class OpenIdSettingNames
     public const string LocalAccountIdentifier = "local_account_identifier";
 
     /// <summary>
-    /// Contains the name of <c>allowed_identity_providers</c> setting.
-    /// </summary>
-    public const string AllowedIdentityProviders = "allowed_identity_providers";
-
-    /// <summary>
     /// Contains the name of the <c>allow_loopback_redirect</c> setting. Whether a registered loopback IP redirect URI
     /// (<c>http://127.0.0.1</c> or <c>http://[::1]</c>) may be requested with any port (RFC 8252 §7.3). Every other
     /// part of a redirect URI must equal a registered one exactly. Default <c>true</c>; <c>fapi1-advanced</c> turns it

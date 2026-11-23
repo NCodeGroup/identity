@@ -9,6 +9,7 @@ using NCode.Identity.Json;
 using NCode.Identity.OpenId.Authentication.Endpoints.Authorization.Messages;
 using NCode.Identity.OpenId.Authentication.Logging;
 using NCode.Identity.OpenId.Authentication.Messages.Parameters;
+using NCode.Identity.OpenId.Connections;
 using NCode.Identity.OpenId.Errors;
 using NCode.Identity.OpenId.Messages;
 using NCode.Identity.OpenId.Messages.Parameters;
@@ -28,10 +29,12 @@ namespace NCode.Identity.OpenId.Authentication.Subject;
 /// </remarks>
 internal class DefaultValidateSubjectAuthenticationHandler(
     TimeProvider timeProvider,
+    IConnectionResolver connectionResolver,
     ILogger<DefaultValidateSubjectAuthenticationHandler> logger
 ) : ICommandHandler<ValidateSubjectAuthenticationCommand>, ISupportMediatorPriority
 {
     private TimeProvider TimeProvider { get; } = timeProvider;
+    private IConnectionResolver ConnectionResolver { get; } = connectionResolver;
     private ILogger<DefaultValidateSubjectAuthenticationHandler> Logger { get; } = logger;
 
     /// <inheritdoc />
@@ -120,24 +123,64 @@ internal class DefaultValidateSubjectAuthenticationHandler(
             }
         }
 
-        // check requested IdP
-        var receivedIdp = subjectAuthentication.Subject.FindFirstValue(JoseClaimNames.Payload.Idp);
-        if (!IsRequestedIdpValid(receivedIdp, openIdRequest))
+        return HandleConnectionAndAcrAsync(command, cancellationToken);
+    }
+
+    private async ValueTask HandleConnectionAndAcrAsync(
+        ValidateSubjectAuthenticationCommand command,
+        CancellationToken cancellationToken
+    )
+    {
+        var (
+            openIdContext,
+            openIdClient,
+            openIdRequest,
+            subjectAuthentication,
+            operationDisposition,
+            _
+        ) = command;
+        var errorFactory = openIdContext.ErrorFactory;
+        var settings = openIdClient.Settings;
+
+        // resolve the connection the subject signed in through
+        var connectionId = subjectAuthentication.Subject.FindFirstValue(
+            ConnectionClaimTypes.Connection
+        );
+        ResolvedConnection? connection = null;
+        if (!string.IsNullOrEmpty(connectionId))
         {
-            const string message = "The end-user's IdP does not match the requested IdP.";
-            operationDisposition.Error ??= errorFactory.AccessDenied(message);
-            Logger.SubjectValidationFailed(message);
-            return ValueTask.CompletedTask;
+            connection = await ConnectionResolver.GetByIdOrDefaultAsync(
+                openIdContext,
+                connectionId,
+                cancellationToken
+            );
+            if (connection is null || !connection.Connection.IsEnabled)
+            {
+                const string message = "The end-user's connection is unknown or disabled.";
+                operationDisposition.Error ??= errorFactory.AccessDenied(message);
+                Logger.SubjectValidationFailed(message);
+                return;
+            }
         }
 
-        // check allowed IdP
-        if (!IsReceivedIdpAllowed(receivedIdp, settings))
+        // check allowed connections
+        if (!IsConnectionAllowed(connection, settings))
         {
             const string message =
-                "The end-user's IdP is not allowed according to the client's settings.";
+                "The end-user's connection is not allowed according to the client's settings.";
             operationDisposition.Error ??= errorFactory.AccessDenied(message);
             Logger.SubjectValidationFailed(message);
-            return ValueTask.CompletedTask;
+            return;
+        }
+
+        // check requested connection
+        if (!IsRequestedConnectionValid(connection, openIdRequest))
+        {
+            const string message =
+                "The end-user's connection does not match the requested connection.";
+            operationDisposition.Error ??= errorFactory.AccessDenied(message);
+            Logger.SubjectValidationFailed(message);
+            return;
         }
 
         // enforce a requested essential acr
@@ -147,10 +190,7 @@ internal class DefaultValidateSubjectAuthenticationHandler(
                 "The end-user's acr does not satisfy the requested essential acr values.";
             operationDisposition.Error ??= errorFactory.AccessDenied(message);
             Logger.SubjectValidationFailed(message);
-            return ValueTask.CompletedTask;
         }
-
-        return ValueTask.CompletedTask;
     }
 
     private static bool IsRequestedAcrSatisfied(
@@ -215,57 +255,41 @@ internal class DefaultValidateSubjectAuthenticationHandler(
         return values;
     }
 
-    private static bool IsReceivedIdpAllowed(
-        string? receivedIdp,
+    private static bool IsConnectionAllowed(
+        ResolvedConnection? connection,
         IReadOnlySettingCollection settings
     )
     {
         // An unset allowlist imposes no restriction (ADR-1010); a set allowlist (which merges as a
-        // ceiling via intersection) is explicit, so a narrowed-to-empty list denies every IdP.
-        if (!settings.TryGetValue(OpenIdSettingKeys.AllowedIdentityProviders, out var allowed))
+        // ceiling via intersection) is explicit, so a narrowed-to-empty list denies every connection.
+        if (!settings.TryGetValue(OpenIdSettingKeys.AllowedConnections, out var allowed))
+        {
             return true;
-        return allowed.Contains(receivedIdp, StringComparer.Ordinal);
+        }
+
+        return connection is not null && allowed.Contains(connection.Name, StringComparer.Ordinal);
     }
 
-    private static bool IsRequestedIdpValid(string? receivedIdp, IOpenIdRequest? openIdRequest)
+    private static bool IsRequestedConnectionValid(
+        ResolvedConnection? connection,
+        IOpenIdRequest? openIdRequest
+    )
     {
-        // a subject validated outside a protocol request has no requested idp to match
+        // a subject validated outside a protocol request has no requested connection to match
         if (openIdRequest is null)
         {
             return true;
         }
 
-        // if no specific acr values were requested, then any idp is valid
         var acrValues = openIdRequest.Parameters.GetValueOrDefault(
             OpenIdCommonParameters.AcrValues
         );
-        if (acrValues is null || acrValues.Count == 0)
-        {
-            return true;
-        }
-
-        const string prefix = OpenIdConstants
-            .AuthenticationContextClassReferencePrefixes
-            .IdentityProvider;
-
-        var anyRequested = false;
-        var requestedIdpValues = acrValues
-            .Where(value => value.StartsWith(prefix, StringComparison.Ordinal))
-            .Select(value => value[prefix.Length..]);
-
-        foreach (var requestedIdp in requestedIdpValues)
-        {
-            // if the received idp matches any requested idp, then the idp is valid
-            if (string.Equals(requestedIdp, receivedIdp, StringComparison.Ordinal))
-            {
-                return true;
-            }
-
-            anyRequested = true;
-        }
-
-        // if no specific idp values were requested, then any idp is valid
-        return !anyRequested;
+        var requestedName = ConnectionRequests.GetRequestedName(null, acrValues ?? []);
+        return requestedName is null
+            || (
+                connection is not null
+                && string.Equals(requestedName, connection.Name, StringComparison.Ordinal)
+            );
     }
 
     private static string? GetReceivedTenantId(SubjectAuthentication subjectAuthentication)
