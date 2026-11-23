@@ -158,12 +158,7 @@ public class LocalAccountInteractivePasswordChangerTests : BaseTests
     private void SetupChangeRecorded(Mock<OpenIdContext> mockContext) =>
         MockAuditEventRecorder
             .Setup(x =>
-                x.RecordPasswordChangedAsync(
-                    mockContext.Object,
-                    PrincipalId,
-                    LocalAccountId,
-                    It.IsAny<CancellationToken>()
-                )
+                x.RecordPasswordChangedAsync(mockContext.Object, PrincipalId, LocalAccountId)
             )
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
@@ -456,12 +451,7 @@ public class LocalAccountInteractivePasswordChangerTests : BaseTests
         SetupPasswordChange();
         MockAuditEventRecorder
             .Setup(x =>
-                x.RecordPasswordChangedAsync(
-                    mockContext.Object,
-                    PrincipalId,
-                    LocalAccountId,
-                    cancellationSource.Token
-                )
+                x.RecordPasswordChangedAsync(mockContext.Object, PrincipalId, LocalAccountId)
             )
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
@@ -476,13 +466,7 @@ public class LocalAccountInteractivePasswordChangerTests : BaseTests
 
         Assert.Equal(InteractivePasswordChangeResult.Changed, result);
         MockAuditEventRecorder.Verify(
-            x =>
-                x.RecordPasswordChangedAsync(
-                    mockContext.Object,
-                    PrincipalId,
-                    LocalAccountId,
-                    cancellationSource.Token
-                ),
+            x => x.RecordPasswordChangedAsync(mockContext.Object, PrincipalId, LocalAccountId),
             Times.Once
         );
     }

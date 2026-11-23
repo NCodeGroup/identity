@@ -271,15 +271,8 @@ internal sealed class LocalAccountInteractivePasswordResetter(
         await accountStore.SetPasswordAsync(localAccountId, newBuffer, cancellationToken);
         await storeManager.SaveChangesAsync(cancellationToken);
 
-        await AuditEventRecorder.RecordPasswordResetAsync(
-            openIdContext,
-            principal?.PrincipalId,
-            localAccountId,
-            cancellationToken
-        );
-
-        // The change is committed, so each effect runs on its own bounded token and a failure is logged. See ADR-1229,
-        // ADR-1237 and ADR-1351.
+        // The change is committed, so each effect and the record run on their own bounded token and a failure is
+        // logged. The record follows the effects. See ADR-1229, ADR-1237 and ADR-1351.
         if (principal is not null)
         {
             await PostCommitSecurityEffects.TerminateSessionsAsync(
@@ -292,6 +285,12 @@ internal sealed class LocalAccountInteractivePasswordResetter(
         await PostCommitSecurityEffects.ResetPasswordAttemptsAsync(
             openIdContext.Tenant.TenantId,
             account.UserName
+        );
+
+        await AuditEventRecorder.RecordPasswordResetAsync(
+            openIdContext,
+            principal?.PrincipalId,
+            localAccountId
         );
 
         return InteractivePasswordChangeResult.Changed;

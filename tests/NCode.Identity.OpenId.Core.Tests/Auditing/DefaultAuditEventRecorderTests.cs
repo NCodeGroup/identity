@@ -3,11 +3,15 @@
 
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Logging.Testing;
 using Moq;
 using NCode.Identity.Events;
 using NCode.Identity.Events.Audit;
 using NCode.Identity.OpenId.Authentication.Auditing;
 using NCode.Identity.OpenId.Authentication.Clients;
+using NCode.Identity.OpenId.Authentication.Logging;
 using NCode.Identity.OpenId.Authentication.Sessions;
 using NCode.Identity.OpenId.Authentication.Tokens.Models;
 using NCode.Identity.OpenId.Contexts;
@@ -24,6 +28,16 @@ public sealed class DefaultAuditEventRecorderTests : IDisposable
     private MockRepository MockRepository { get; } = new(MockBehavior.Strict);
 
     public void Dispose() => MockRepository.Verify();
+
+    private static DefaultAuditEventRecorder CreateRecorder(
+        IEventPublisher eventPublisher,
+        ILogger<DefaultAuditEventRecorder>? logger = null
+    ) =>
+        new(
+            eventPublisher,
+            TimeProvider.System,
+            logger ?? NullLogger<DefaultAuditEventRecorder>.Instance
+        );
 
     private static DefaultHttpContext CreateHttpContext(string endpointName)
     {
@@ -78,7 +92,7 @@ public sealed class DefaultAuditEventRecorderTests : IDisposable
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
 
-        var recorder = new DefaultAuditEventRecorder(mockPublisher.Object, TimeProvider.System);
+        var recorder = CreateRecorder(mockPublisher.Object);
 
         var securityToken = new SecurityToken
         {
@@ -138,7 +152,7 @@ public sealed class DefaultAuditEventRecorderTests : IDisposable
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
 
-        var recorder = new DefaultAuditEventRecorder(mockPublisher.Object, TimeProvider.System);
+        var recorder = CreateRecorder(mockPublisher.Object);
 
         await recorder.RecordTokenRevokedAsync(
             mockContext.Object,
@@ -191,7 +205,7 @@ public sealed class DefaultAuditEventRecorderTests : IDisposable
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
 
-        var recorder = new DefaultAuditEventRecorder(mockPublisher.Object, TimeProvider.System);
+        var recorder = CreateRecorder(mockPublisher.Object);
 
         await recorder.RecordSubjectAuthenticatedAsync(
             mockContext.Object,
@@ -243,7 +257,7 @@ public sealed class DefaultAuditEventRecorderTests : IDisposable
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
 
-        var recorder = new DefaultAuditEventRecorder(mockPublisher.Object, TimeProvider.System);
+        var recorder = CreateRecorder(mockPublisher.Object);
 
         await recorder.RecordSubjectAuthenticationFailedAsync(
             mockContext.Object,
@@ -301,7 +315,7 @@ public sealed class DefaultAuditEventRecorderTests : IDisposable
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
 
-        var recorder = new DefaultAuditEventRecorder(mockPublisher.Object, TimeProvider.System);
+        var recorder = CreateRecorder(mockPublisher.Object);
 
         await recorder.RecordAuthorizationGrantedAsync(
             mockContext.Object,
@@ -350,7 +364,7 @@ public sealed class DefaultAuditEventRecorderTests : IDisposable
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
 
-        var recorder = new DefaultAuditEventRecorder(mockPublisher.Object, TimeProvider.System);
+        var recorder = CreateRecorder(mockPublisher.Object);
 
         await recorder.RecordAuthorizationDeniedAsync(
             mockContext.Object,
@@ -401,7 +415,7 @@ public sealed class DefaultAuditEventRecorderTests : IDisposable
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
 
-        var recorder = new DefaultAuditEventRecorder(mockPublisher.Object, TimeProvider.System);
+        var recorder = CreateRecorder(mockPublisher.Object);
 
         await recorder.RecordClientAuthenticationFailedAsync(
             mockContext.Object,
@@ -457,7 +471,7 @@ public sealed class DefaultAuditEventRecorderTests : IDisposable
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
 
-        var recorder = new DefaultAuditEventRecorder(mockPublisher.Object, TimeProvider.System);
+        var recorder = CreateRecorder(mockPublisher.Object);
 
         await recorder.RecordOpenIdErrorAsync(
             mockContext.Object,
@@ -504,7 +518,7 @@ public sealed class DefaultAuditEventRecorderTests : IDisposable
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
 
-        var recorder = new DefaultAuditEventRecorder(mockPublisher.Object, TimeProvider.System);
+        var recorder = CreateRecorder(mockPublisher.Object);
 
         await recorder.RecordOpenIdErrorAsync(
             mockContext.Object,
@@ -552,7 +566,7 @@ public sealed class DefaultAuditEventRecorderTests : IDisposable
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
 
-        var recorder = new DefaultAuditEventRecorder(mockPublisher.Object, TimeProvider.System);
+        var recorder = CreateRecorder(mockPublisher.Object);
 
         await recorder.RecordRefreshTokenReplayAsync(
             mockContext.Object,
@@ -607,7 +621,7 @@ public sealed class DefaultAuditEventRecorderTests : IDisposable
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
 
-        var recorder = new DefaultAuditEventRecorder(mockPublisher.Object, TimeProvider.System);
+        var recorder = CreateRecorder(mockPublisher.Object);
 
         await recorder.RecordRefreshTokenRetryAsync(
             mockContext.Object,
@@ -656,7 +670,7 @@ public sealed class DefaultAuditEventRecorderTests : IDisposable
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
 
-        var recorder = new DefaultAuditEventRecorder(mockPublisher.Object, TimeProvider.System);
+        var recorder = CreateRecorder(mockPublisher.Object);
 
         await recorder.RecordSessionCreatedAsync(
             mockContext.Object,
@@ -711,7 +725,7 @@ public sealed class DefaultAuditEventRecorderTests : IDisposable
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
 
-        var recorder = new DefaultAuditEventRecorder(mockPublisher.Object, TimeProvider.System);
+        var recorder = CreateRecorder(mockPublisher.Object);
 
         await recorder.RecordSessionTerminatedAsync(
             mockContext.Object,
@@ -769,7 +783,7 @@ public sealed class DefaultAuditEventRecorderTests : IDisposable
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
 
-        var recorder = new DefaultAuditEventRecorder(mockPublisher.Object, TimeProvider.System);
+        var recorder = CreateRecorder(mockPublisher.Object);
 
         await recorder.RecordUserInfoAccessedAsync(
             mockContext.Object,
@@ -824,7 +838,7 @@ public sealed class DefaultAuditEventRecorderTests : IDisposable
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
 
-        var recorder = new DefaultAuditEventRecorder(mockPublisher.Object, TimeProvider.System);
+        var recorder = CreateRecorder(mockPublisher.Object);
 
         await recorder.RecordUserInfoAccessDeniedAsync(
             mockContext.Object,
@@ -872,7 +886,7 @@ public sealed class DefaultAuditEventRecorderTests : IDisposable
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
 
-        var recorder = new DefaultAuditEventRecorder(mockPublisher.Object, TimeProvider.System);
+        var recorder = CreateRecorder(mockPublisher.Object);
 
         await recorder.RecordUserInfoAccessDeniedAsync(
             mockContext.Object,
@@ -905,12 +919,7 @@ public sealed class DefaultAuditEventRecorderTests : IDisposable
     {
         var captured = await RecordAsync<PasswordChangeAuditEvent>(
             (recorder, openIdContext) =>
-                recorder.RecordPasswordChangedAsync(
-                    openIdContext,
-                    "subject-1",
-                    "account-1",
-                    CancellationToken.None
-                )
+                recorder.RecordPasswordChangedAsync(openIdContext, "subject-1", "account-1")
         );
 
         Assert.Equal("password.change", captured.EventName);
@@ -1017,12 +1026,7 @@ public sealed class DefaultAuditEventRecorderTests : IDisposable
     {
         var captured = await RecordAsync<PasswordResetAuditEvent>(
             (recorder, openIdContext) =>
-                recorder.RecordPasswordResetAsync(
-                    openIdContext,
-                    "subject-1",
-                    "account-1",
-                    CancellationToken.None
-                )
+                recorder.RecordPasswordResetAsync(openIdContext, "subject-1", "account-1")
         );
 
         Assert.Equal("password.reset", captured.EventName);
@@ -1060,12 +1064,7 @@ public sealed class DefaultAuditEventRecorderTests : IDisposable
     {
         var captured = await RecordAsync<EmailVerificationAuditEvent>(
             (recorder, openIdContext) =>
-                recorder.RecordEmailVerifiedAsync(
-                    openIdContext,
-                    "subject-1",
-                    "account-1",
-                    CancellationToken.None
-                )
+                recorder.RecordEmailVerifiedAsync(openIdContext, "subject-1", "account-1")
         );
 
         Assert.Equal("email.verification", captured.EventName);
@@ -1107,8 +1106,7 @@ public sealed class DefaultAuditEventRecorderTests : IDisposable
                     openIdContext,
                     "subject-1",
                     "account-1",
-                    AuditCredentialFactors.EmailCode,
-                    CancellationToken.None
+                    AuditCredentialFactors.EmailCode
                 )
         );
 
@@ -1145,6 +1143,63 @@ public sealed class DefaultAuditEventRecorderTests : IDisposable
         Assert.Equal("no_email", captured.Error?.Code);
     }
 
+    [Fact]
+    public async Task RecordPasswordChangedAsync_Always_PublishesOnATokenOfItsOwn()
+    {
+        var openIdContext = CreateAuthorizeContext();
+        var mockPublisher = MockRepository.Create<IEventPublisher>();
+        mockPublisher
+            .Setup(x =>
+                x.PublishAsync(
+                    It.IsAny<PasswordChangeAuditEvent>(),
+                    It.Is<CancellationToken>(token =>
+                        token.CanBeCanceled && !token.IsCancellationRequested
+                    )
+                )
+            )
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable();
+        var recorder = CreateRecorder(mockPublisher.Object);
+
+        await recorder.RecordPasswordChangedAsync(openIdContext, "subject-1", "account-1");
+    }
+
+    [Fact]
+    public async Task RecordPasswordResetAsync_WhenThePublishFails_LogsAndDoesNotThrow()
+    {
+        var openIdContext = CreateAuthorizeContext();
+        var exception = new InvalidOperationException("The publish failed.");
+        var mockPublisher = MockRepository.Create<IEventPublisher>();
+        mockPublisher
+            .Setup(x =>
+                x.PublishAsync(It.IsAny<PasswordResetAuditEvent>(), It.IsAny<CancellationToken>())
+            )
+            .Throws(exception)
+            .Verifiable();
+        var logger = new FakeLogger<DefaultAuditEventRecorder>();
+        var recorder = CreateRecorder(mockPublisher.Object, logger);
+
+        await recorder.RecordPasswordResetAsync(openIdContext, "subject-1", "account-1");
+
+        var record = Assert.Single(logger.Collector.GetSnapshot());
+        Assert.Equal(EventIds.AuditRecordPublishFailed, record.Id.Id);
+        Assert.Equal(LogLevel.Error, record.Level);
+        Assert.Same(exception, record.Exception);
+    }
+
+    private OpenIdContext CreateAuthorizeContext()
+    {
+        var mockContext = MockRepository.Create<OpenIdContext>();
+        var mockTenant = MockRepository.Create<OpenIdTenant>();
+
+        mockContext.Setup(x => x.Tenant).Returns(mockTenant.Object).Verifiable();
+        mockTenant.Setup(x => x.TenantId).Returns("tenant-1").Verifiable();
+        SetupTenantEnvironmentType(mockTenant, "production");
+        mockContext.Setup(x => x.Http).Returns(CreateHttpContext("api/authorize")).Verifiable();
+
+        return mockContext.Object;
+    }
+
     private async ValueTask<TEvent> RecordAsync<TEvent>(
         Func<DefaultAuditEventRecorder, OpenIdContext, ValueTask> record,
         CancellationToken cancellationToken = default
@@ -1169,7 +1224,7 @@ public sealed class DefaultAuditEventRecorderTests : IDisposable
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
 
-        var recorder = new DefaultAuditEventRecorder(mockPublisher.Object, TimeProvider.System);
+        var recorder = CreateRecorder(mockPublisher.Object);
 
         await record(recorder, mockContext.Object);
 

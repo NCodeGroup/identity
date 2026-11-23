@@ -109,4 +109,9 @@ internal static class EventIds
     /// Identifies the error that an audit stream's delivery failed for a reason other than its endpoint.
     /// </summary>
     public const int AuditStreamDeliveryErrored = Base + 82;
+
+    /// <summary>
+    /// Identifies the error that an audit record that follows a committed change could not be published.
+    /// </summary>
+    public const int AuditRecordPublishFailed = Base + 83;
 }

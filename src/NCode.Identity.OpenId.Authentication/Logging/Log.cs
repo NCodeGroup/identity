@@ -783,4 +783,16 @@ internal static partial class Log
         string tenantId,
         Exception exception
     );
+
+    // See ADR-1351.
+    [LoggerMessage(
+        EventId = EventIds.AuditRecordPublishFailed,
+        Level = LogLevel.Error,
+        Message = "The audit record {AuditEventName} could not be published after its change was committed."
+    )]
+    internal static partial void AuditRecordPublishFailed(
+        this ILogger logger,
+        Exception exception,
+        string auditEventName
+    );
 }

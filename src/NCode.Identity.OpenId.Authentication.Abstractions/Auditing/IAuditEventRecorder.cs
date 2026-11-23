@@ -1,6 +1,7 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using System.Diagnostics.CodeAnalysis;
 using JetBrains.Annotations;
 using NCode.Identity.OpenId.Authentication.Clients;
 using NCode.Identity.OpenId.Authentication.Sessions;
@@ -318,18 +319,23 @@ public interface IAuditEventRecorder
     /// <param name="openIdContext">The <see cref="OpenIdContext"/> associated with the current request.</param>
     /// <param name="subjectId">The identifier of the signed-in subject who changed the password.</param>
     /// <param name="localAccountId">The identifier of the local account whose password changed.</param>
-    /// <param name="cancellationToken">
-    /// The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.
-    /// </param>
     /// <returns>
     /// A <see cref="ValueTask"/> that represents the asynchronous operation.
     /// </returns>
-    // See ADR-1533.
+    /// <remarks>
+    /// The change is committed when this is called, so the record runs on its own bounded token and a failure is
+    /// logged, never thrown.
+    /// </remarks>
+    // See ADR-1351 and ADR-1533.
+    [SuppressMessage(
+        "Design",
+        "NCID0003",
+        Justification = "The work follows a committed change and runs on its own bounded token, so no caller can pass a token that drops it (ADR-1351)."
+    )]
     ValueTask RecordPasswordChangedAsync(
         OpenIdContext openIdContext,
         string subjectId,
-        string localAccountId,
-        CancellationToken cancellationToken
+        string localAccountId
     );
 
     /// <summary>
@@ -401,18 +407,23 @@ public interface IAuditEventRecorder
     /// <param name="openIdContext">The <see cref="OpenIdContext"/> associated with the current request.</param>
     /// <param name="subjectId">The identifier of the subject behind the account, if known.</param>
     /// <param name="localAccountId">The identifier of the local account whose password was reset.</param>
-    /// <param name="cancellationToken">
-    /// The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.
-    /// </param>
     /// <returns>
     /// A <see cref="ValueTask"/> that represents the asynchronous operation.
     /// </returns>
-    // See ADR-1533.
+    /// <remarks>
+    /// The reset is committed when this is called, so the record runs on its own bounded token and a failure is logged,
+    /// never thrown.
+    /// </remarks>
+    // See ADR-1351 and ADR-1533.
+    [SuppressMessage(
+        "Design",
+        "NCID0003",
+        Justification = "The work follows a committed change and runs on its own bounded token, so no caller can pass a token that drops it (ADR-1351)."
+    )]
     ValueTask RecordPasswordResetAsync(
         OpenIdContext openIdContext,
         string? subjectId,
-        string localAccountId,
-        CancellationToken cancellationToken
+        string localAccountId
     );
 
     /// <summary>
@@ -443,18 +454,23 @@ public interface IAuditEventRecorder
     /// <param name="openIdContext">The <see cref="OpenIdContext"/> associated with the current request.</param>
     /// <param name="subjectId">The identifier of the signed-in subject who verified the address.</param>
     /// <param name="localAccountId">The identifier of the local account whose address was verified.</param>
-    /// <param name="cancellationToken">
-    /// The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.
-    /// </param>
     /// <returns>
     /// A <see cref="ValueTask"/> that represents the asynchronous operation.
     /// </returns>
-    // See ADR-1533.
+    /// <remarks>
+    /// The verification is committed when this is called, so the record runs on its own bounded token and a failure is
+    /// logged, never thrown.
+    /// </remarks>
+    // See ADR-1351 and ADR-1533.
+    [SuppressMessage(
+        "Design",
+        "NCID0003",
+        Justification = "The work follows a committed change and runs on its own bounded token, so no caller can pass a token that drops it (ADR-1351)."
+    )]
     ValueTask RecordEmailVerifiedAsync(
         OpenIdContext openIdContext,
         string subjectId,
-        string localAccountId,
-        CancellationToken cancellationToken
+        string localAccountId
     );
 
     /// <summary>
@@ -487,19 +503,24 @@ public interface IAuditEventRecorder
     /// <param name="localAccountId">The identifier of the local account the factor was proved for, if any.</param>
     /// <param name="factor">The second factor: one of <see cref="AuditCredentialFactors"/> or an extension's own
     /// name.</param>
-    /// <param name="cancellationToken">
-    /// The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.
-    /// </param>
     /// <returns>
     /// A <see cref="ValueTask"/> that represents the asynchronous operation.
     /// </returns>
-    // See ADR-1533.
+    /// <remarks>
+    /// The factor's code is spent when this is called, so the record runs on its own bounded token and a failure is
+    /// logged, never thrown.
+    /// </remarks>
+    // See ADR-1351 and ADR-1533.
+    [SuppressMessage(
+        "Design",
+        "NCID0003",
+        Justification = "The work follows a committed change and runs on its own bounded token, so no caller can pass a token that drops it (ADR-1351)."
+    )]
     ValueTask RecordSecondFactorVerifiedAsync(
         OpenIdContext openIdContext,
         string subjectId,
         string? localAccountId,
-        string factor,
-        CancellationToken cancellationToken
+        string factor
     );
 
     /// <summary>

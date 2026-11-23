@@ -176,8 +176,7 @@ internal sealed class LocalAccountInteractiveEmailVerifier(
         await AuditEventRecorder.RecordEmailVerifiedAsync(
             openIdContext,
             subjectId,
-            account.LocalAccountId,
-            cancellationToken
+            account.LocalAccountId
         );
 
         return InteractiveEmailCodeResult.Verified;

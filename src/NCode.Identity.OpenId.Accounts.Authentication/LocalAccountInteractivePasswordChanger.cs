@@ -151,8 +151,7 @@ internal sealed class LocalAccountInteractivePasswordChanger(
         await AuditEventRecorder.RecordPasswordChangedAsync(
             openIdContext,
             principalId,
-            account.LocalAccountId,
-            cancellationToken
+            account.LocalAccountId
         );
 
         return InteractivePasswordChangeResult.Changed;

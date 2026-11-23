@@ -150,14 +150,7 @@ public class LocalAccountInteractiveEmailVerifierTests : BaseTests
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
         MockAuditEventRecorder
-            .Setup(x =>
-                x.RecordEmailVerifiedAsync(
-                    mockContext.Object,
-                    PrincipalId,
-                    LocalAccountId,
-                    It.IsAny<CancellationToken>()
-                )
-            )
+            .Setup(x => x.RecordEmailVerifiedAsync(mockContext.Object, PrincipalId, LocalAccountId))
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
         SetupConsume(mockContext, consumed: true);
@@ -510,13 +503,7 @@ public class LocalAccountInteractiveEmailVerifierTests : BaseTests
         );
 
         MockAuditEventRecorder.Verify(
-            x =>
-                x.RecordEmailVerifiedAsync(
-                    mockContext.Object,
-                    PrincipalId,
-                    LocalAccountId,
-                    It.IsAny<CancellationToken>()
-                ),
+            x => x.RecordEmailVerifiedAsync(mockContext.Object, PrincipalId, LocalAccountId),
             Times.Once
         );
         MockAuditEventRecorder.VerifyNoOtherCalls();

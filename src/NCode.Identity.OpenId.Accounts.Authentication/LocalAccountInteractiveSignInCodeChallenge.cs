@@ -182,8 +182,7 @@ internal sealed class LocalAccountInteractiveSignInCodeChallenge(
             openIdContext,
             subjectId,
             account.LocalAccountId,
-            AuditCredentialFactors.EmailCode,
-            cancellationToken
+            AuditCredentialFactors.EmailCode
         );
 
         return InteractiveEmailCodeResult.Verified;

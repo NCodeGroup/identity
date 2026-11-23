@@ -107,8 +107,7 @@ public class LocalAccountInteractiveSignInCodeChallengeTests : BaseTests
                     MockContext.Object,
                     PrincipalId,
                     LocalAccountId,
-                    AuditCredentialFactors.EmailCode,
-                    It.IsAny<CancellationToken>()
+                    AuditCredentialFactors.EmailCode
                 )
             )
             .Returns(ValueTask.CompletedTask)
@@ -468,8 +467,7 @@ public class LocalAccountInteractiveSignInCodeChallengeTests : BaseTests
                     MockContext.Object,
                     PrincipalId,
                     LocalAccountId,
-                    AuditCredentialFactors.EmailCode,
-                    It.IsAny<CancellationToken>()
+                    AuditCredentialFactors.EmailCode
                 ),
             Times.Once
         );

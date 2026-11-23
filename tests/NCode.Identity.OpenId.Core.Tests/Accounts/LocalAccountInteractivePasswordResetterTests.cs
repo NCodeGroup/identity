@@ -237,7 +237,7 @@ public class LocalAccountInteractivePasswordResetterTests : BaseTests
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
 
-    private void SetupSuccessfulReset(Mock<OpenIdContext> mockContext)
+    private void SetupSuccessfulReset(Mock<OpenIdContext> mockContext, List<string>? calls = null)
     {
         SetupVerify(LocalAccountId);
         SetupStoreManager();
@@ -268,14 +268,8 @@ public class LocalAccountInteractivePasswordResetterTests : BaseTests
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
         MockAuditEventRecorder
-            .Setup(x =>
-                x.RecordPasswordResetAsync(
-                    mockContext.Object,
-                    PrincipalId,
-                    LocalAccountId,
-                    It.IsAny<CancellationToken>()
-                )
-            )
+            .Setup(x => x.RecordPasswordResetAsync(mockContext.Object, PrincipalId, LocalAccountId))
+            .Callback(() => calls?.Add(nameof(IAuditEventRecorder.RecordPasswordResetAsync)))
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
         SetupConsume(mockContext, consumed: true);
@@ -287,10 +281,14 @@ public class LocalAccountInteractivePasswordResetterTests : BaseTests
                     SessionTerminationReasons.PasswordReset
                 )
             )
+            .Callback(() => calls?.Add(nameof(IPostCommitSecurityEffects.TerminateSessionsAsync)))
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
         MockPostCommitSecurityEffects
             .Setup(x => x.ResetPasswordAttemptsAsync(TenantId, UserName))
+            .Callback(() =>
+                calls?.Add(nameof(IPostCommitSecurityEffects.ResetPasswordAttemptsAsync))
+            )
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
     }
@@ -994,16 +992,35 @@ public class LocalAccountInteractivePasswordResetterTests : BaseTests
         );
 
         MockAuditEventRecorder.Verify(
-            x =>
-                x.RecordPasswordResetAsync(
-                    mockContext.Object,
-                    PrincipalId,
-                    LocalAccountId,
-                    It.IsAny<CancellationToken>()
-                ),
+            x => x.RecordPasswordResetAsync(mockContext.Object, PrincipalId, LocalAccountId),
             Times.Once
         );
         MockAuditEventRecorder.VerifyNoOtherCalls();
+    }
+
+    [Fact]
+    public async Task ResetPasswordAsync_Always_RecordsTheResetAfterTheSecurityEffects()
+    {
+        var calls = new List<string>();
+        var mockContext = CreateContext(isResetEnabled: true, needsTenantId: true);
+        SetupSuccessfulReset(mockContext, calls);
+
+        await Resetter.ResetPasswordAsync(
+            mockContext.Object,
+            FlowId,
+            Code,
+            NewPassword,
+            CancellationToken.None
+        );
+
+        Assert.Equal(
+            [
+                nameof(IPostCommitSecurityEffects.TerminateSessionsAsync),
+                nameof(IPostCommitSecurityEffects.ResetPasswordAttemptsAsync),
+                nameof(IAuditEventRecorder.RecordPasswordResetAsync),
+            ],
+            calls
+        );
     }
 
     #endregion

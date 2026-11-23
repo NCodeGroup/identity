@@ -51,7 +51,9 @@ Work that wholly follows a committed change runs on its own bounded token, never
    environment-type lookup and the publish. No `IManagementAuditRecorder` method, and no helper whose only work is
    recording, takes a `CancellationToken`. A failure is logged as `AuditPublishFailed` and never thrown, so a caller
    that records several events records the rest. A custom recorder substitutes `DefaultManagementAuditRecorder` and owns
-   its own bound.
+   its own bound. The protocol plane's records of a committed self-service change (the `password.change`,
+   `password.reset`, `email.verification` and `subject.second_factor` successes) are each one bounded step of
+   `IAuditEventRecorder`, which takes no token for them and logs a failure as `AuditRecordPublishFailed`.
 5. **Security effects.** Every security effect that follows a committed change to an end user runs through
    `IPostCommitSecurityEffects`, declared in `NCode.Identity.OpenId.Authentication.Abstractions`, with the singleton
    default `DefaultPostCommitSecurityEffects` in `NCode.Identity.OpenId.Authentication`:
@@ -71,6 +73,7 @@ Work that wholly follows a committed change runs on its own bounded token, never
    - disabling a local account (`AccountDisabled`);
    - an administrator's password reset (`PasswordReset`, plus clearing failed attempts);
    - an administrator's account create (clearing failed attempts);
+   - a self-service password reset (`PasswordReset`, plus clearing failed attempts);
    - a self-service password change (`PasswordChanged`, other sessions).
 9. **Pre-commit steps keep the request's token.** The termination before an account deletion, and the session and
    grant revoke routes, are not post-commit work and use the request's token. A failed termination is repeated by
