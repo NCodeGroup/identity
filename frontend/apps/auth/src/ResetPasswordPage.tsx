@@ -9,6 +9,7 @@ import { TenantCard } from '@ncodegroup/identity-ui';
 import { useLocale } from './i18n/LocaleContext.js';
 import {
   ANTIFORGERY_FIELD,
+  FLOW_FIELD,
   PASSWORD_RESET_PATH,
   UI_LOCALES_FIELD,
   resolveSurfacePath,
@@ -65,7 +66,7 @@ export function ResetPasswordPage({
 
             <input type="hidden" name="ReturnUrl" value={returnUrl} />
             <input type="hidden" name={ANTIFORGERY_FIELD} value={antiforgeryToken} />
-            <input type="hidden" name="flow" value={flow} />
+            <input type="hidden" name={FLOW_FIELD} value={flow} />
             {pageLanguage ? (
               <input type="hidden" name={UI_LOCALES_FIELD} value={pageLanguage} />
             ) : null}

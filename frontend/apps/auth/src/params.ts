@@ -21,6 +21,9 @@ export const ANTIFORGERY_COOKIE = '__Host-XSRF-TOKEN';
 /** The antiforgery form field the ASP.NET Core antiforgery middleware validates on POST. */
 export const ANTIFORGERY_FIELD = '__RequestVerificationToken';
 
+/** The form field and query parameter that carry the handle of an email-code flow back to the host. */
+export const FLOW_FIELD = 'flow';
+
 /** The surface path the login form posts credentials to. */
 export const LOGIN_ACTION = 'login';
 

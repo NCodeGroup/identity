@@ -14,6 +14,7 @@ import {
   EMAIL_SEND_ACTION,
   EMAIL_STATUS_ENDPOINT,
   EMAIL_VERIFY_ACTION,
+  FLOW_FIELD,
   UI_LOCALES_FIELD,
   resolveSurfacePath,
 } from './params.js';
@@ -166,7 +167,7 @@ export function EmailPage({
                 data-testid="email-verify"
               >
                 <input type="hidden" name={ANTIFORGERY_FIELD} value={antiforgeryToken} />
-                <input type="hidden" name="flow" value={flow} />
+                <input type="hidden" name={FLOW_FIELD} value={flow} />
                 {pageLanguage ? (
                   <input type="hidden" name={UI_LOCALES_FIELD} value={pageLanguage} />
                 ) : null}
