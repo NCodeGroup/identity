@@ -1,14 +1,19 @@
 import { describe, expect, it } from 'vitest';
 import { en } from './i18n/en.js';
 import {
+  describeEmailCodeError,
   describeLoginError,
   describePasswordError,
   getQueryParam,
   isAccountPath,
   isApplicationsPath,
   isConsentPath,
+  isEmailPath,
+  isLoginCodePath,
   isLogoutConfirmPath,
+  isPasswordForgotPath,
   isPasswordPath,
+  isPasswordResetPath,
   isSessionsPath,
   readCookie,
   resolveSurfacePath,
@@ -112,6 +117,63 @@ describe('isPasswordPath', () => {
     expect(isPasswordPath('/account')).toBe(false);
     expect(isPasswordPath('/account/sessions')).toBe(false);
   });
+
+  it('does not match the forgot-password or reset-password paths', () => {
+    expect(isPasswordPath('/account/password/forgot')).toBe(false);
+    expect(isPasswordPath('/account/password/reset')).toBe(false);
+  });
+});
+
+describe('isPasswordForgotPath', () => {
+  it('matches the forgot-password path with trailing slashes', () => {
+    expect(isPasswordForgotPath('/account/password/forgot')).toBe(true);
+    expect(isPasswordForgotPath('/account/password/forgot/')).toBe(true);
+    expect(isPasswordForgotPath('/acme/account/password/forgot', TENANT_BASE)).toBe(true);
+  });
+
+  it('does not match the change-password or reset-password paths', () => {
+    expect(isPasswordForgotPath('/account/password')).toBe(false);
+    expect(isPasswordForgotPath('/account/password/reset')).toBe(false);
+  });
+});
+
+describe('isPasswordResetPath', () => {
+  it('matches the reset-password path with trailing slashes', () => {
+    expect(isPasswordResetPath('/account/password/reset')).toBe(true);
+    expect(isPasswordResetPath('/account/password/reset/')).toBe(true);
+    expect(isPasswordResetPath('/acme/account/password/reset', TENANT_BASE)).toBe(true);
+  });
+
+  it('does not match the change-password or forgot-password paths', () => {
+    expect(isPasswordResetPath('/account/password')).toBe(false);
+    expect(isPasswordResetPath('/account/password/forgot')).toBe(false);
+  });
+});
+
+describe('isLoginCodePath', () => {
+  it('matches the sign-in code path with trailing slashes', () => {
+    expect(isLoginCodePath('/account/login/code')).toBe(true);
+    expect(isLoginCodePath('/account/login/code/')).toBe(true);
+    expect(isLoginCodePath('/acme/account/login/code', TENANT_BASE)).toBe(true);
+  });
+
+  it('does not match the login path or other paths', () => {
+    expect(isLoginCodePath('/account/login')).toBe(false);
+    expect(isLoginCodePath('/account/email')).toBe(false);
+  });
+});
+
+describe('isEmailPath', () => {
+  it('matches the email path with trailing slashes', () => {
+    expect(isEmailPath('/account/email')).toBe(true);
+    expect(isEmailPath('/account/email/')).toBe(true);
+    expect(isEmailPath('/acme/account/email', TENANT_BASE)).toBe(true);
+  });
+
+  it('does not match the account root or the email endpoints', () => {
+    expect(isEmailPath('/account')).toBe(false);
+    expect(isEmailPath('/account/email/status')).toBe(false);
+  });
 });
 
 describe('isLogoutConfirmPath', () => {
@@ -132,6 +194,7 @@ describe('describeLoginError', () => {
     expect(describeLoginError('invalid_credentials', en)).toMatch(/incorrect/i);
     expect(describeLoginError('invalid_request', en)).toMatch(/username and a password/i);
     expect(describeLoginError('access_denied', en)).toMatch(/cannot sign in/i);
+    expect(describeLoginError('too_many_codes', en)).toBe(en.emailCodeErrors.tooManyCodes);
     expect(describeLoginError('boom', en)).toMatch(/failed/i);
   });
 });
@@ -164,5 +227,36 @@ describe('describePasswordError', () => {
     expect(describePasswordError('password_blocklisted', en)).toBe(
       'The new password is too common or is known to be compromised. Choose one you do not use anywhere else.',
     );
+  });
+});
+
+describe('describeEmailCodeError', () => {
+  it('maps the email-code codes', () => {
+    expect(describeEmailCodeError(null, en)).toBeNull();
+    expect(describeEmailCodeError('invalid_code', en)).toBe(en.emailCodeErrors.invalidCode);
+    expect(describeEmailCodeError('too_many_codes', en)).toBe(en.emailCodeErrors.tooManyCodes);
+    expect(describeEmailCodeError('password_mismatch', en)).toBe(
+      en.emailCodeErrors.passwordMismatch,
+    );
+    expect(describeEmailCodeError('no_email', en)).toBe(en.emailCodeErrors.noEmail);
+    expect(describeEmailCodeError('already_verified', en)).toBe(en.emailCodeErrors.alreadyVerified);
+  });
+
+  it('maps a missing field to the login message for it', () => {
+    expect(describeEmailCodeError('invalid_request', en)).toBe(en.emailCodeErrors.missingFields);
+  });
+
+  it('maps the password policy codes through the change-password messages', () => {
+    expect(describeEmailCodeError('password_too_short', en)).toBe(
+      en.passwordErrors.passwordTooShort,
+    );
+    expect(describeEmailCodeError('password_too_long', en)).toBe(en.passwordErrors.passwordTooLong);
+    expect(describeEmailCodeError('password_blocklisted', en)).toBe(
+      en.passwordErrors.passwordBlocklisted,
+    );
+  });
+
+  it('defaults an unknown code', () => {
+    expect(describeEmailCodeError('boom', en)).toBe(en.emailCodeErrors.fallback);
   });
 });

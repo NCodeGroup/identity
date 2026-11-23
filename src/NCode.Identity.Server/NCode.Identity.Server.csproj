@@ -10,6 +10,7 @@
         <ProjectReference Include="..\NCode.Identity.Events\NCode.Identity.Events.csproj" />
         <ProjectReference Include="..\NCode.Identity.Jose\NCode.Identity.Jose.csproj" />
         <ProjectReference Include="..\NCode.Identity.Jwt\NCode.Identity.Jwt.csproj" />
+        <ProjectReference Include="..\NCode.Identity.Mail\NCode.Identity.Mail.csproj" />
         <ProjectReference Include="..\NCode.Identity.OpenId.Accounts.Abstractions\NCode.Identity.OpenId.Accounts.Abstractions.csproj" />
         <ProjectReference Include="..\NCode.Identity.OpenId.Authentication\NCode.Identity.OpenId.Authentication.csproj" />
         <ProjectReference Include="..\NCode.Identity.OpenId.Client\NCode.Identity.OpenId.Client.csproj" />

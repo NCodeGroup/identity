@@ -3,6 +3,8 @@
 
 using NCode.Identity.AspNetCore;
 using NCode.Identity.AspNetCore.OpenTelemetry;
+using NCode.Identity.Mail.AmazonSes;
+using NCode.Identity.Mail.Smtp;
 using NCode.Identity.OpenId.Accounts.Authentication;
 using NCode.Identity.OpenId.Accounts.Credentials;
 using NCode.Identity.OpenId.Accounts.Management;
@@ -131,6 +133,12 @@ identityServer.AddFrontendBootstrap(configuration);
 // in-process, which is correct only for a single replica (ADR-1164).
 identityServer.SharedStateLibraryBuilder.AddValkey(configuration);
 
+// Mail — verification, password-reset and sign-in codes — goes to the SMTP server the 'Mail:Smtp' section names, or
+// through Amazon SES when the 'Mail:AmazonSes' section names its region; a host configures one. Without either
+// section the host sends no mail, and each failed delivery is logged (ADR-1532).
+identityServer.MailLibraryBuilder.AddSmtpMailTransport(configuration);
+identityServer.MailLibraryBuilder.AddAmazonSesMailTransport(configuration);
+
 var entityFrameworkPersistence =
     serviceCollection.AddEntityFrameworkCorePersistence<OpenIdDbContext>();
 
@@ -151,7 +159,7 @@ serviceCollection.AddDefaultPasswordHasher();
 identityServer
     .OpenIdAuthenticationLibraryBuilder.AddLocalAccountAuthentication(localAccountStore)
     .AddInteractiveAuthentication(configuration, hostEnvironment)
-    .AddLocalAccountInteractiveAuthentication(localAccountStore);
+    .AddLocalAccountInteractiveAuthentication(localAccountStore, identityServer.MailLibraryBuilder);
 
 // Enable the local-account management endpoints on the management-library builder (nested under the tenant-plane
 // group). The account stack provides this capability; the Management slice itself does not depend on accounts.

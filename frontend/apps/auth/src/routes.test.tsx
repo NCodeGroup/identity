@@ -97,6 +97,147 @@ describe('resolveRoute', () => {
     expect(screen.getByTestId('password-changed')).toBeInTheDocument();
   });
 
+  it('renders the forgot-password surface for the forgot-password path', () => {
+    const { container } = renderRoute({ ...baseContext, pathname: '/account/password/forgot' });
+    expect(container.querySelector('form')?.getAttribute('action')).toBe(
+      '/account/password/forgot',
+    );
+    expect(container.querySelector('#send-code')).not.toBeNull();
+    expect(
+      (container.querySelector('input[name="ReturnUrl"]') as HTMLInputElement | null)?.value,
+    ).toBe('/authorize');
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('maps the email-code error code on the forgot-password surface', () => {
+    renderRoute({
+      ...baseContext,
+      pathname: '/account/password/forgot',
+      errorCode: 'invalid_request',
+    });
+    expect(screen.getByRole('alert')).toHaveTextContent(en.emailCodeErrors.missingFields);
+  });
+
+  it('renders the reset-password surface for the reset-password path, carrying the flow', () => {
+    const { container } = renderRoute({
+      ...baseContext,
+      pathname: '/account/password/reset',
+      flow: 'handle-1',
+    });
+    expect(container.querySelector('form')?.getAttribute('action')).toBe('/account/password/reset');
+    expect(container.querySelector('#reset-password')).not.toBeNull();
+    expect((container.querySelector('input[name="flow"]') as HTMLInputElement | null)?.value).toBe(
+      'handle-1',
+    );
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('carries no flow to the reset-password surface when the query has none', () => {
+    const { container } = renderRoute({
+      ...baseContext,
+      pathname: '/account/password/reset',
+      flow: null,
+    });
+    expect((container.querySelector('input[name="flow"]') as HTMLInputElement | null)?.value).toBe(
+      '',
+    );
+  });
+
+  it('maps the email-code error code on the reset-password surface', () => {
+    renderRoute({
+      ...baseContext,
+      pathname: '/account/password/reset',
+      flow: 'handle-1',
+      errorCode: 'invalid_code',
+    });
+    expect(screen.getByRole('alert')).toHaveTextContent(en.emailCodeErrors.invalidCode);
+  });
+
+  it('renders the sign-in code surface for the sign-in code path', () => {
+    const { container } = renderRoute({ ...baseContext, pathname: '/account/login/code' });
+    expect(container.querySelector('form')?.getAttribute('action')).toBe('/account/login/code');
+    expect(container.querySelector('#verify')).not.toBeNull();
+    expect(container.querySelector('#resend')).not.toBeNull();
+    expect(container.querySelector('#login')).toBeNull();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('confirms a sent code on the sign-in code surface', () => {
+    renderRoute({ ...baseContext, pathname: '/account/login/code', status: 'sent' });
+    expect(screen.getByRole('alert')).toHaveTextContent(en.signInCode.sent);
+  });
+
+  it('shows no confirmation on the sign-in code surface for any other status', () => {
+    renderRoute({ ...baseContext, pathname: '/account/login/code', status: 'other' });
+    expect(screen.queryByText(en.signInCode.sent)).not.toBeInTheDocument();
+  });
+
+  it('maps the email-code error code on the sign-in code surface', () => {
+    renderRoute({
+      ...baseContext,
+      pathname: '/account/login/code',
+      errorCode: 'too_many_codes',
+    });
+    expect(screen.getByRole('alert')).toHaveTextContent(en.emailCodeErrors.tooManyCodes);
+  });
+
+  it('renders the email surface for the email path', async () => {
+    renderRoute({ ...baseContext, pathname: '/account/email' });
+    expect(screen.getByTestId('email-loading')).toBeInTheDocument();
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith('/account/email/status', expect.anything()),
+    );
+  });
+
+  it('carries the flow, the status and the error code to the email surface', () => {
+    renderRoute({
+      ...baseContext,
+      pathname: '/account/email',
+      flow: 'handle-1',
+      status: 'verified',
+      errorCode: 'invalid_code',
+    });
+    expect(screen.getByTestId('email-verified-status')).toBeInTheDocument();
+    expect(screen.getByText(en.emailCodeErrors.invalidCode)).toBeInTheDocument();
+  });
+
+  it('links the login surface to the forgot-password page the server page offers', () => {
+    renderRoute({
+      ...baseContext,
+      serverPage: { ...EMPTY_SERVER_PAGE, forgotPasswordHref: 'password/forgot?ReturnUrl=%2F' },
+    });
+    expect(screen.getByRole('link', { name: en.login.forgotPassword })).toHaveAttribute(
+      'href',
+      'password/forgot?ReturnUrl=%2F',
+    );
+  });
+
+  it('offers no forgot-password link when the server page has none', () => {
+    renderRoute(baseContext);
+    expect(screen.queryByRole('link', { name: en.login.forgotPassword })).not.toBeInTheDocument();
+  });
+
+  it('confirms a password reset on the login surface', () => {
+    renderRoute({ ...baseContext, status: 'password_reset' });
+    expect(screen.getByRole('alert')).toHaveTextContent(en.login.passwordReset);
+  });
+
+  it('shows no status on the login surface for any other status', () => {
+    renderRoute({ ...baseContext, status: 'changed' });
+    expect(screen.queryByText(en.login.passwordReset)).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ['omitted', {}],
+    ['null', { status: null }],
+  ] as const)('shows no status on the login surface when the status is %s', (_label, extra) => {
+    renderRoute({ ...baseContext, ...extra });
+    expect(screen.queryByText(en.login.passwordReset)).not.toBeInTheDocument();
+  });
+
   it.each([
     ['/account/', 'account-loading'],
     ['/account/applications/', 'applications-loading'],
@@ -151,6 +292,7 @@ describe('resolveRoute', () => {
     ['/account/applications', 'Acme — authorized applications'],
     ['/account/sessions', 'Acme — active sessions'],
     ['/account/password', 'Acme — change password'],
+    ['/account/email', 'Email address for Acme'],
   ])('titles %s with the tenant display name', (pathname, title) => {
     renderRoute({ ...baseContext, pathname, branding: { displayName: 'Acme' } });
     expect(screen.getByText(title)).toBeInTheDocument();

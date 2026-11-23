@@ -256,6 +256,29 @@ public interface IManagementAuditRecorder
     );
 
     /// <summary>
+    /// Records that an administrator created, updated, or deleted an audit stream, or rotated its signing secret.
+    /// </summary>
+    /// <param name="httpContext">The <see cref="HttpContext"/> for the current request.</param>
+    /// <param name="tenantId">The identifier of the tenant the audit stream belongs to.</param>
+    /// <param name="streamId">The identifier of the affected audit stream.</param>
+    /// <param name="changeType">
+    /// The lifecycle transition that occurred; one of the <see cref="ResourceChangeTypes"/> values.
+    /// </param>
+    /// <param name="resourceValues">
+    /// A non-sensitive snapshot of the audit stream's values, or <c>null</c> when none is captured.
+    /// </param>
+    /// <returns>
+    /// A <see cref="ValueTask"/> that represents the asynchronous operation.
+    /// </returns>
+    ValueTask RecordAuditStreamChangedAsync(
+        HttpContext httpContext,
+        string tenantId,
+        string streamId,
+        string changeType,
+        JsonElement? resourceValues
+    );
+
+    /// <summary>
     /// Records that an administrator created, updated, or deleted a scope belonging to a resource server.
     /// </summary>
     /// <param name="httpContext">The <see cref="HttpContext"/> for the current request.</param>

@@ -14,11 +14,13 @@ namespace NCode.Identity.OpenId.Authentication.Interactive;
 /// <param name="Amr">The authentication method references (<c>amr</c>) of the session.</param>
 /// <param name="Idp">The identity provider (<c>idp</c>) that authenticated the end-user, or <see langword="null"/>.</param>
 /// <param name="SessionId">The opaque server-side session identifier (<c>sid</c>), or <see langword="null"/>.</param>
+/// <param name="EmailVerification">Whether the tenant lets the end user verify the account's email address.</param>
 internal sealed record AccountMeResponse(
     string Subject,
     string? Name,
     long? AuthTime,
     IReadOnlyList<string> Amr,
     string? Idp,
-    string? SessionId
+    string? SessionId,
+    bool EmailVerification
 );

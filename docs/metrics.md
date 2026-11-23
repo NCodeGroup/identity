@@ -29,6 +29,7 @@ the only package that references the OpenTelemetry SDK. It adds:
 | `NCode.Identity.OpenId.Authentication` | `NCode.Identity.OpenId.Authentication` | `OpenIdAuthenticationMetrics.MeterName` |
 | `NCode.Identity.Events`                | `NCode.Identity.Events`                | `EventMetrics.MeterName`                |
 | `NCode.Identity.SharedState.Valkey`    | `NCode.Identity.SharedState.Valkey`    | `ValkeyMetrics.MeterName`               |
+| `NCode.Identity.Mail`                  | `NCode.Identity.Mail`                  | `MailMetrics.MeterName`                 |
 | `NCode.Identity.Bff`                   | `NCode.Identity.Bff`                   | `BffTelemetry.MeterName`                |
 | `NCode.Identity.OpenId.Client`         | `NCode.Identity.OpenId.Client`         | `OpenIdClientMetrics.MeterName`         |
 | `NCode.Buffers`                        | `NCode.Buffers`                        | `BufferMetrics.MeterName`               |
@@ -71,6 +72,31 @@ them.
 | `ncode.identity.rate_limiting.result`    | `admitted`, `overage`, `rejected`, `store_unavailable` (fail open)                                                                                    |
 | `ncode.identity.tenant.environment_type` | The tenant's registered environment type, such as `production` or `development` (a bounded value, never the tenant's free-form `environment_name`)    |
 
+### `ncode.identity.admission.shed`
+
+Counter, unit `{request}`, meter `NCode.Identity.OpenId.Authentication`. Recorded once for each metered protocol request
+a replica sheds because its in-flight requests fill the share of its capacity the request's tenant may fill
+([ADR-1523](decisions/1523-a-replica-sheds-a-tenants-protocol-requests-once-its-in-flight-requests-fill-the-tenants-share-of-its-capacity.md)).
+
+| Attribute                                | Values                                                                                                                                             |
+| ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ncode.identity.tenant.environment_type` | The tenant's registered environment type, such as `production` or `development` (a bounded value, never the tenant's free-form `environment_name`) |
+
+### `ncode.identity.audit_stream.deliveries`
+
+Counter, unit `{request}`, meter `NCode.Identity.OpenId.Authentication`. Recorded once for each batch of audit records
+the server posts to an audit stream's endpoint
+([ADR-1534](decisions/1534-a-tenants-audit-records-stream-to-its-endpoints-read-forward-from-the-audit-store-and-signed-as-standard-webhooks.md)).
+
+| Attribute                            | Values                                                                                                                 |
+| ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------- |
+| `ncode.identity.audit_stream.result` | `delivered` (the endpoint answered `2xx`), `failed` (another status, a failed request, a timeout or no signing secret) |
+
+### `ncode.identity.audit_stream.records`
+
+Counter, unit `{record}`, meter `NCode.Identity.OpenId.Authentication`. Recorded for each audit record an audit stream's
+endpoint accepts, when the batch that carries it is delivered. It has no attributes.
+
 ### `ncode.identity.events.published`
 
 Counter, unit `{event}`, meter `NCode.Identity.Events`. Recorded once for each event published through the event seam
@@ -101,6 +127,15 @@ server. The in-process adapter records nothing: a dictionary operation in memory
 | `ncode.identity.shared_state.operation` | `counter.increment`, `counter.increment_until_exceeded`, `counter.get`, `counter.remove`, `key_set.try_add`, `key_set.contains`, `broadcast.publish`, `value_set.try_add`, `value_set.get`, `value_set.try_replace`, `value_set.try_take`, `value_set.remove`, `value_set.try_remove`, `index_set.add_member`, `index_set.get_members`, `index_set.remove_member`, `index_set.remove` |
 | `ncode.identity.shared_state.adapter`   | `valkey`, or the name another networked adapter declares                                                                                                                                                                                                                                                                                                                              |
 | `error.type`                            | On failure only: the full type name of the exception                                                                                                                                                                                                                                                                                                                                  |
+
+### `ncode.identity.mail.messages`
+
+Counter, unit `{message}`, meter `NCode.Identity.Mail`. Recorded once for each delivery attempt of a queued mail message
+([ADR-1532](decisions/1532-outbound-mail-is-a-port-that-composes-each-queued-message-at-delivery-for-a-replaceable-transport-with-smtp-and-amazon-ses-adapters.md)).
+
+| Attribute                    | Values                                                  |
+| ---------------------------- | ------------------------------------------------------- |
+| `ncode.identity.mail.result` | `delivered`, `failed` (the transport raised an error)   |
 
 ### `ncode.identity.bff.token.refresh.duration`
 

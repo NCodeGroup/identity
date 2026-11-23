@@ -3,6 +3,7 @@
 
 using System.Buffers;
 using System.Text.RegularExpressions;
+using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
 using NCode.Buffers;
@@ -29,6 +30,11 @@ public class InteractiveBundleShellTests
             InteractiveBundleShell.TryCreate
         );
     }
+
+    private static InteractivePageForm CreateForm(
+        string antiforgeryFieldName,
+        string antiforgeryToken
+    ) => new(new AntiforgeryTokenSet(antiforgeryToken, null, antiforgeryFieldName, null));
 
     #region TryCreate Tests
 
@@ -145,10 +151,11 @@ public class InteractiveBundleShellTests
         InteractiveAuthenticationPageRenderer.RenderLoginPage(
             writer,
             frame,
-            returnUrl: "/",
-            antiforgeryFieldName: "__RequestVerificationToken",
-            antiforgeryToken: "t",
-            errorMessage: null
+            CreateForm("__RequestVerificationToken", "t") with
+            {
+                ReturnUrl = "/",
+            },
+            forgotPasswordHref: null
         );
         var html = writer.WrittenSpan.ToString();
 

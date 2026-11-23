@@ -46,8 +46,8 @@ change them.**
 4. **Creation needs no separate check.** Only roles that also manage the parent can create a node's resource there, so
    a creator already holds the authority over the limits it writes. The RFC 7592 registration update keeps the limits
    the client document carries.
-5. **The built-in limits are** `max_teams`, `max_tenants`, `quota_tenant_requests_per_day`,
-   `quota_tenant_token_requests_per_day`, `quota_tenant_requests_overage_per_day`,
+5. **The built-in limits are** `admission_capacity_percent`, `max_audit_streams`, `max_teams`, `max_tenants`,
+   `quota_tenant_requests_per_day`, `quota_tenant_token_requests_per_day`, `quota_tenant_requests_overage_per_day`,
    `quota_tenant_token_requests_overage_per_day`, `rate_limit_tenant_per_minute`, `rate_limit_address_per_minute` and
    `rate_limit_client_per_minute`. A plan tier's quotas are written on the team's document by the administrators above
    the team.

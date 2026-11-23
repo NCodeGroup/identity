@@ -6,15 +6,24 @@ import { LoginForm } from './LoginForm.js';
 import { LogoutConfirmPage } from './LogoutConfirmPage.js';
 import { AccountPage } from './AccountPage.js';
 import { AuthorizedAppsPage } from './AuthorizedAppsPage.js';
+import { EmailPage } from './EmailPage.js';
+import { ForgotPasswordPage } from './ForgotPasswordPage.js';
 import { PasswordPage } from './PasswordPage.js';
+import { ResetPasswordPage } from './ResetPasswordPage.js';
 import { SessionsPage } from './SessionsPage.js';
+import { SignInCodePage } from './SignInCodePage.js';
 import {
+  describeEmailCodeError,
   describePasswordError,
   isAccountPath,
   isApplicationsPath,
   isConsentPath,
+  isEmailPath,
+  isLoginCodePath,
   isLogoutConfirmPath,
+  isPasswordForgotPath,
   isPasswordPath,
+  isPasswordResetPath,
   isSessionsPath,
 } from './params.js';
 import { EMPTY_SERVER_PAGE, type ServerPage } from './serverPage.js';
@@ -30,6 +39,8 @@ export type RouteContext = {
   readonly errorCode?: string | null;
   /** The `status` query value a surface reports a completed operation with. */
   readonly status?: string | null;
+  /** The `flow` query value, the handle of the email-code flow a surface continues. */
+  readonly flow?: string | null;
   /** The tenant's branding; its display name titles the surfaces that present the tenant. */
   readonly branding?: BrandingConfig;
   /** The state of the page the host rendered: typed values, focus, cleared scopes and any authorization error. */
@@ -63,6 +74,49 @@ const ROUTES: readonly Route[] = [
       <LogoutConfirmPage
         returnUrl={returnUrl}
         antiforgeryToken={antiforgeryToken}
+        {...productNameOf(branding)}
+      />
+    ),
+  },
+  {
+    match: isPasswordForgotPath,
+    render: ({ returnUrl, antiforgeryToken, errorCode, messages }) => (
+      <ForgotPasswordPage
+        returnUrl={returnUrl}
+        antiforgeryToken={antiforgeryToken}
+        errorMessage={describeEmailCodeError(errorCode ?? null, messages)}
+      />
+    ),
+  },
+  {
+    match: isPasswordResetPath,
+    render: ({ returnUrl, antiforgeryToken, flow, errorCode, messages }) => (
+      <ResetPasswordPage
+        returnUrl={returnUrl}
+        antiforgeryToken={antiforgeryToken}
+        flow={flow ?? ''}
+        errorMessage={describeEmailCodeError(errorCode ?? null, messages)}
+      />
+    ),
+  },
+  {
+    match: isLoginCodePath,
+    render: ({ antiforgeryToken, errorCode, status, messages }) => (
+      <SignInCodePage
+        antiforgeryToken={antiforgeryToken}
+        errorMessage={describeEmailCodeError(errorCode ?? null, messages)}
+        sent={status === 'sent'}
+      />
+    ),
+  },
+  {
+    match: isEmailPath,
+    render: ({ antiforgeryToken, branding, errorCode, flow, status, messages }) => (
+      <EmailPage
+        antiforgeryToken={antiforgeryToken}
+        flow={flow ?? null}
+        status={status ?? null}
+        errorMessage={describeEmailCodeError(errorCode ?? null, messages)}
         {...productNameOf(branding)}
       />
     ),
@@ -112,6 +166,8 @@ function renderLogin({
   returnUrl,
   antiforgeryToken,
   errorMessage,
+  status,
+  messages,
   branding,
   serverPage = EMPTY_SERVER_PAGE,
 }: RouteContext): ReactElement {
@@ -120,6 +176,8 @@ function renderLogin({
       returnUrl={returnUrl}
       antiforgeryToken={antiforgeryToken}
       {...(errorMessage ? { errorMessage } : {})}
+      {...(status === 'password_reset' ? { statusMessage: messages.login.passwordReset } : {})}
+      forgotPasswordHref={serverPage.forgotPasswordHref}
       {...productNameOf(branding)}
       carriedValues={serverPage.fieldValues}
       focusedFieldId={serverPage.focusedFieldId}

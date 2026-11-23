@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.Routing.Patterns;
 using Microsoft.Extensions.DependencyInjection;
 using NCode.Identity.AspNetCore;
+using NCode.Identity.OpenId.Authentication.Admission;
 using NCode.Identity.OpenId.Authentication.Endpoints.Authorization;
 using NCode.Identity.OpenId.Authentication.Endpoints.BackchannelAuthentication;
 using NCode.Identity.OpenId.Authentication.Endpoints.CheckSession;
@@ -69,10 +70,12 @@ internal sealed class OpenIdEndpointGroup : IEndpointGroup
         // exception filter, so a refused request is answered before any endpoint work and is not audited. The metrics
         // filter wraps them all, so even a request the environment refuses is tagged with its endpoint. The
         // interaction-id filter sits just inside the metrics filter, so every response, including a refused request's,
-        // carries the x-fapi-interaction-id header.
+        // carries the x-fapi-interaction-id header. The admission filter sits between them, so a request the replica
+        // sheds under load spends no rate-limit count or quota.
         group.AddEndpointFilter<RouteGroupBuilder, OpenIdMetricsEndpointFilter>();
         group.AddEndpointFilter(FapiInteractionIdEndpointFilter.Instance);
         group.AddEndpointFilter<RouteGroupBuilder, OpenIdEnvironmentEndpointFilter>();
+        group.AddEndpointFilter<RouteGroupBuilder, AdmissionEndpointFilter>();
         group.AddEndpointFilter<RouteGroupBuilder, RateLimitEndpointFilter>();
         group.AddEndpointFilter<RouteGroupBuilder, OpenIdExceptionEndpointFilter>();
     }

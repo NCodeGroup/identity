@@ -342,6 +342,202 @@ public sealed class AuditEventShapeTests
 
     #endregion
 
+    #region PasswordChangeAuditEvent Tests
+
+    [Fact]
+    public void EventName_WhenAPasswordIsChanged_IsPasswordChange()
+    {
+        var auditEvent = CreatePasswordChangeEvent();
+
+        Assert.Equal(OpenIdAuditEventNames.PasswordChange, auditEvent.EventName);
+    }
+
+    [Fact]
+    public void EventCategory_WhenAPasswordIsChanged_IsAuthentication()
+    {
+        var auditEvent = CreatePasswordChangeEvent();
+
+        Assert.Equal(AuditEventCategories.Authentication, auditEvent.EventCategory);
+    }
+
+    [Fact]
+    public void Resources_WithALocalAccount_ListsIt()
+    {
+        var auditEvent = CreatePasswordChangeEvent() with { LocalAccountId = "account-1" };
+
+        var resource = Assert.Single(auditEvent.Resources);
+
+        Assert.Equal(new AuditResource(AuditResourceTypes.LocalAccount, "account-1"), resource);
+    }
+
+    [Fact]
+    public void Resources_WithoutALocalAccount_IsEmpty()
+    {
+        var auditEvent = CreatePasswordChangeEvent();
+
+        Assert.Empty(auditEvent.Resources);
+    }
+
+    #endregion
+
+    #region PasswordResetRequestAuditEvent Tests
+
+    [Fact]
+    public void EventName_WhenAResetCodeIsRequested_IsPasswordResetRequest()
+    {
+        var auditEvent = CreatePasswordResetRequestEvent();
+
+        Assert.Equal(OpenIdAuditEventNames.PasswordResetRequest, auditEvent.EventName);
+    }
+
+    [Fact]
+    public void EventCategory_WhenAResetCodeIsRequested_IsAuthentication()
+    {
+        var auditEvent = CreatePasswordResetRequestEvent();
+
+        Assert.Equal(AuditEventCategories.Authentication, auditEvent.EventCategory);
+    }
+
+    [Fact]
+    public void Resources_WithALocalAccount_ListsItForAResetRequest()
+    {
+        var auditEvent = CreatePasswordResetRequestEvent() with { LocalAccountId = "account-1" };
+
+        var resource = Assert.Single(auditEvent.Resources);
+
+        Assert.Equal(new AuditResource(AuditResourceTypes.LocalAccount, "account-1"), resource);
+    }
+
+    [Fact]
+    public void Serialize_WhenARequestNamesAUsername_WritesItAsTheDetailsAndNotTheSubject()
+    {
+        var auditEvent = CreatePasswordResetRequestEvent() with
+        {
+            Outcome = AuditOutcome.Failure,
+            AttemptedUsername = "alice",
+        };
+
+        var record = ParseRecord(auditEvent);
+
+        Assert.Equal(
+            """{"attempted_username":"alice"}""",
+            record.GetProperty("details").GetRawText()
+        );
+        Assert.False(record.TryGetProperty("subject_id", out _));
+    }
+
+    [Fact]
+    public void Serialize_WhenNoUsernameIsAttempted_WritesNoDetailsForAResetRequest()
+    {
+        var auditEvent = CreatePasswordResetRequestEvent();
+
+        var record = ParseRecord(auditEvent);
+
+        Assert.False(record.TryGetProperty("details", out _));
+    }
+
+    #endregion
+
+    #region PasswordResetAuditEvent Tests
+
+    [Fact]
+    public void EventName_WhenAPasswordIsReset_IsPasswordReset()
+    {
+        var auditEvent = CreatePasswordResetEvent();
+
+        Assert.Equal(OpenIdAuditEventNames.PasswordReset, auditEvent.EventName);
+    }
+
+    [Fact]
+    public void EventCategory_WhenAPasswordIsReset_IsAuthentication()
+    {
+        var auditEvent = CreatePasswordResetEvent();
+
+        Assert.Equal(AuditEventCategories.Authentication, auditEvent.EventCategory);
+    }
+
+    [Fact]
+    public void Resources_WithALocalAccount_ListsItForAReset()
+    {
+        var auditEvent = CreatePasswordResetEvent() with { LocalAccountId = "account-1" };
+
+        var resource = Assert.Single(auditEvent.Resources);
+
+        Assert.Equal(new AuditResource(AuditResourceTypes.LocalAccount, "account-1"), resource);
+    }
+
+    #endregion
+
+    #region EmailVerificationAuditEvent Tests
+
+    [Fact]
+    public void EventName_WhenAnAddressIsVerified_IsEmailVerification()
+    {
+        var auditEvent = CreateEmailVerificationEvent();
+
+        Assert.Equal(OpenIdAuditEventNames.EmailVerification, auditEvent.EventName);
+    }
+
+    [Fact]
+    public void EventCategory_WhenAnAddressIsVerified_IsAuthentication()
+    {
+        var auditEvent = CreateEmailVerificationEvent();
+
+        Assert.Equal(AuditEventCategories.Authentication, auditEvent.EventCategory);
+    }
+
+    [Fact]
+    public void Resources_WithALocalAccount_ListsItForAVerification()
+    {
+        var auditEvent = CreateEmailVerificationEvent() with { LocalAccountId = "account-1" };
+
+        var resource = Assert.Single(auditEvent.Resources);
+
+        Assert.Equal(new AuditResource(AuditResourceTypes.LocalAccount, "account-1"), resource);
+    }
+
+    #endregion
+
+    #region SecondFactorAuditEvent Tests
+
+    [Fact]
+    public void EventName_WhenASecondFactorIsCompleted_IsSecondFactor()
+    {
+        var auditEvent = CreateSecondFactorEvent();
+
+        Assert.Equal(OpenIdAuditEventNames.SecondFactor, auditEvent.EventName);
+    }
+
+    [Fact]
+    public void EventCategory_WhenASecondFactorIsCompleted_IsAuthentication()
+    {
+        var auditEvent = CreateSecondFactorEvent();
+
+        Assert.Equal(AuditEventCategories.Authentication, auditEvent.EventCategory);
+    }
+
+    [Fact]
+    public void Resources_WithALocalAccount_ListsItForASecondFactor()
+    {
+        var auditEvent = CreateSecondFactorEvent() with { LocalAccountId = "account-1" };
+
+        var resource = Assert.Single(auditEvent.Resources);
+
+        Assert.Equal(new AuditResource(AuditResourceTypes.LocalAccount, "account-1"), resource);
+    }
+
+    [Fact]
+    public void Serialize_WhenASecondFactorIsCompleted_WritesTheFactorAsTheDetails()
+    {
+        var auditEvent = CreateSecondFactorEvent();
+
+        var record = ParseRecord(auditEvent);
+
+        Assert.Equal("""{"factor":"email_code"}""", record.GetProperty("details").GetRawText());
+    }
+
+    #endregion
+
     #region Helpers
 
     private static JsonElement ParseRecord(IAuditEvent auditEvent)
@@ -454,6 +650,52 @@ public sealed class AuditEventShapeTests
             Outcome = AuditOutcome.Success,
             SessionId = sessionId,
             TerminationReason = "logout",
+        };
+
+    private static PasswordChangeAuditEvent CreatePasswordChangeEvent() =>
+        new()
+        {
+            EventId = Guid.NewGuid(),
+            EventTime = DateTimeOffset.UnixEpoch,
+            EventSource = AuditEventSources.OpenId,
+            Outcome = AuditOutcome.Success,
+        };
+
+    private static PasswordResetRequestAuditEvent CreatePasswordResetRequestEvent() =>
+        new()
+        {
+            EventId = Guid.NewGuid(),
+            EventTime = DateTimeOffset.UnixEpoch,
+            EventSource = AuditEventSources.OpenId,
+            Outcome = AuditOutcome.Success,
+        };
+
+    private static PasswordResetAuditEvent CreatePasswordResetEvent() =>
+        new()
+        {
+            EventId = Guid.NewGuid(),
+            EventTime = DateTimeOffset.UnixEpoch,
+            EventSource = AuditEventSources.OpenId,
+            Outcome = AuditOutcome.Success,
+        };
+
+    private static EmailVerificationAuditEvent CreateEmailVerificationEvent() =>
+        new()
+        {
+            EventId = Guid.NewGuid(),
+            EventTime = DateTimeOffset.UnixEpoch,
+            EventSource = AuditEventSources.OpenId,
+            Outcome = AuditOutcome.Success,
+        };
+
+    private static SecondFactorAuditEvent CreateSecondFactorEvent() =>
+        new()
+        {
+            EventId = Guid.NewGuid(),
+            EventTime = DateTimeOffset.UnixEpoch,
+            EventSource = AuditEventSources.OpenId,
+            Outcome = AuditOutcome.Success,
+            Factor = AuditCredentialFactors.EmailCode,
         };
 
     #endregion

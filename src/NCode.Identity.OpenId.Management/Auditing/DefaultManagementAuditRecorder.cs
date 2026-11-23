@@ -312,6 +312,32 @@ internal class DefaultManagementAuditRecorder(
     }
 
     /// <inheritdoc />
+    public ValueTask RecordAuditStreamChangedAsync(
+        HttpContext httpContext,
+        string tenantId,
+        string streamId,
+        string changeType,
+        JsonElement? resourceValues
+    )
+    {
+        var now = TimeProvider.GetUtcNow();
+        var auditEvent = new AuditStreamChangedAuditEvent
+        {
+            EventId = Guid.CreateVersion7(now),
+            EventTime = now,
+            EventSource = AuditEventSources.Management,
+            TenantId = tenantId,
+            Request = CreateRequest(httpContext),
+            Outcome = AuditOutcome.Success,
+            ResourceId = streamId,
+            ChangeType = changeType,
+            ResourceValues = resourceValues,
+        };
+
+        return RecordAsync(httpContext, tenantId, auditEvent);
+    }
+
+    /// <inheritdoc />
     public ValueTask RecordResourceServerScopeChangedAsync(
         HttpContext httpContext,
         string tenantId,

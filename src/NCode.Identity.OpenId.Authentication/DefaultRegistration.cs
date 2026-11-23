@@ -4,6 +4,7 @@
 using JetBrains.Annotations;
 using Microsoft.Extensions.DependencyInjection;
 using NCode.Identity.Jose;
+using NCode.Identity.OpenId.Authentication.Admission;
 using NCode.Identity.OpenId.Authentication.Auditing;
 using NCode.Identity.OpenId.Authentication.ClientCertificates;
 using NCode.Identity.OpenId.Authentication.Clients;
@@ -60,6 +61,7 @@ public static class DefaultRegistration
             var newBuilder = builder.NewBuilder<OpenIdAuthenticationLibrary>();
 
             newBuilder
+                .AddAdmissionServices()
                 .AddAuditingServices()
                 .AddClientCertificateServices()
                 .AddClientServices()

@@ -105,6 +105,22 @@ describe('readServerPage', () => {
 
     expect(readServerPage(container, null)).toEqual(EMPTY_SERVER_PAGE);
   });
+
+  it('reads the address of the forgot-password link', () => {
+    const container = pageOf(
+      '<p><a id="forgot-password-link" href="password/forgot?ReturnUrl=%2F">Forgot your password?</a></p>',
+    );
+
+    expect(readServerPage(container, null).forgotPasswordHref).toBe(
+      'password/forgot?ReturnUrl=%2F',
+    );
+  });
+
+  it('reads no forgot-password address when the page has no link', () => {
+    const container = pageOf('<a href="elsewhere">Elsewhere</a>');
+
+    expect(readServerPage(container, null).forgotPasswordHref).toBeNull();
+  });
 });
 
 describe('writeCarriedValue', () => {

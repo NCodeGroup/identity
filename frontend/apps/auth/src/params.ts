@@ -9,6 +9,9 @@
 
 import type { Messages } from './i18n/messages.js';
 
+/** The form field and query parameter that carry the return URL the end user continues to after the page. */
+export const RETURN_URL_FIELD = 'ReturnUrl';
+
 /**
  * The form field that carries the language tag the host selected for the page back to it, so a page the host
  * redirects to after a failed sign-in renders in the same language; the authorization request's parameter name.
@@ -20,6 +23,9 @@ export const ANTIFORGERY_COOKIE = '__Host-XSRF-TOKEN';
 
 /** The antiforgery form field the ASP.NET Core antiforgery middleware validates on POST. */
 export const ANTIFORGERY_FIELD = '__RequestVerificationToken';
+
+/** The form field and query parameter that carry the handle of an email-code flow back to the host. */
+export const FLOW_FIELD = 'flow';
 
 /** The surface path the login form posts credentials to. */
 export const LOGIN_ACTION = 'login';
@@ -65,6 +71,32 @@ export const SESSIONS_REVOKE_ALL_ACTION = 'sessions/revoke-all';
 
 /** The self-service change-password page; its form posts to the same path. */
 export const PASSWORD_PATH = 'password';
+
+/** The forgot-password page, where an end-user who is not signed in asks for a reset code; its form posts to it. */
+export const PASSWORD_FORGOT_PATH = 'password/forgot';
+
+/**
+ * The reset-password page, where an end-user presents the reset code and chooses a new password; its form posts to it.
+ */
+export const PASSWORD_RESET_PATH = 'password/reset';
+
+/**
+ * The sign-in code page, where an end-user whose password is verified presents the code mailed to the account's
+ * address; its form posts to it.
+ */
+export const LOGIN_CODE_PATH = 'login/code';
+
+/** The self-service email page, where the end-user verifies the account's email address. */
+export const EMAIL_PATH = 'email';
+
+/** The surface JSON endpoint returning the account's email address and whether it is verified. */
+export const EMAIL_STATUS_ENDPOINT = 'email/status';
+
+/** The surface path the email page posts to in order to mail a verification code. */
+export const EMAIL_SEND_ACTION = 'email/send';
+
+/** The surface path the email page posts the flow and the mailed code to in order to verify the address. */
+export const EMAIL_VERIFY_ACTION = 'email/verify';
 
 /** The path that renders the consent page (every other path renders login). */
 export const CONSENT_PATH = 'consent';
@@ -129,6 +161,29 @@ export function isPasswordPath(pathname: string, baseUri: string = document.base
   return isSurfacePath(pathname, PASSWORD_PATH, baseUri);
 }
 
+/** True when the given path should render the forgot-password page. */
+export function isPasswordForgotPath(
+  pathname: string,
+  baseUri: string = document.baseURI,
+): boolean {
+  return isSurfacePath(pathname, PASSWORD_FORGOT_PATH, baseUri);
+}
+
+/** True when the given path should render the reset-password page. */
+export function isPasswordResetPath(pathname: string, baseUri: string = document.baseURI): boolean {
+  return isSurfacePath(pathname, PASSWORD_RESET_PATH, baseUri);
+}
+
+/** True when the given path should render the sign-in code page. */
+export function isLoginCodePath(pathname: string, baseUri: string = document.baseURI): boolean {
+  return isSurfacePath(pathname, LOGIN_CODE_PATH, baseUri);
+}
+
+/** True when the given path should render the email page. */
+export function isEmailPath(pathname: string, baseUri: string = document.baseURI): boolean {
+  return isSurfacePath(pathname, EMAIL_PATH, baseUri);
+}
+
 /** True when the given path should render the logout confirmation page. */
 export function isLogoutConfirmPath(pathname: string, baseUri: string = document.baseURI): boolean {
   return isSurfacePath(pathname, LOGOUT_CONFIRM_PATH, baseUri);
@@ -145,6 +200,8 @@ export function describeLoginError(error: string | null, messages: Messages): st
       return messages.loginErrors.invalidRequest;
     case 'access_denied':
       return messages.loginErrors.accessDenied;
+    case 'too_many_codes':
+      return messages.emailCodeErrors.tooManyCodes;
     default:
       return messages.loginErrors.fallback;
   }
@@ -171,5 +228,31 @@ export function describePasswordError(error: string | null, messages: Messages):
       return messages.passwordErrors.passwordBlocklisted;
     default:
       return messages.passwordErrors.fallback;
+  }
+}
+
+/** Maps an email-code error code of the reset and sign-in-code pages to the page's message for it. */
+export function describeEmailCodeError(error: string | null, messages: Messages): string | null {
+  switch (error) {
+    case null:
+      return null;
+    case 'invalid_code':
+      return messages.emailCodeErrors.invalidCode;
+    case 'too_many_codes':
+      return messages.emailCodeErrors.tooManyCodes;
+    case 'password_mismatch':
+      return messages.emailCodeErrors.passwordMismatch;
+    case 'no_email':
+      return messages.emailCodeErrors.noEmail;
+    case 'already_verified':
+      return messages.emailCodeErrors.alreadyVerified;
+    case 'invalid_request':
+      return messages.emailCodeErrors.missingFields;
+    case 'password_too_short':
+    case 'password_too_long':
+    case 'password_blocklisted':
+      return describePasswordError(error, messages);
+    default:
+      return messages.emailCodeErrors.fallback;
   }
 }

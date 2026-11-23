@@ -475,7 +475,9 @@ NCode.Identity.OpenId.Persistence.Stores.ITenantUsageStore.ListByTeamAsync(strin
 NCode.Identity.OpenId.Persistence.Stores.ITenantUsageStore.RemoveBeforeAsync(System.DateOnly day, int limit, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<int>
 const NCode.Identity.OpenId.Persistence.OpenIdMaxLengths.AuditName = 100 -> int
 const NCode.Identity.OpenId.Persistence.OpenIdMaxLengths.AuditSourceIp = 64 -> int
+const NCode.Identity.OpenId.Persistence.OpenIdMaxLengths.AuditStreamError = 100 -> int
 const NCode.Identity.OpenId.Persistence.OpenIdMaxLengths.AuditTraceId = 100 -> int
+const NCode.Identity.OpenId.Persistence.OpenIdMaxLengths.ReplicaId = 64 -> int
 NCode.Identity.OpenId.Persistence.DataContracts.PersistedAuditRecord
 NCode.Identity.OpenId.Persistence.DataContracts.PersistedAuditRecord.ActorId.get -> string?
 NCode.Identity.OpenId.Persistence.DataContracts.PersistedAuditRecord.ActorId.init -> void
@@ -544,6 +546,27 @@ NCode.Identity.OpenId.Persistence.Stores.AuditRecordFilter.StartTime.init -> voi
 NCode.Identity.OpenId.Persistence.Stores.AuditRecordFilter.TenantId.get -> string!
 NCode.Identity.OpenId.Persistence.Stores.AuditRecordFilter.TenantId.init -> void
 NCode.Identity.OpenId.Persistence.Stores.IAuditRecordStore.GetPageAsync(NCode.Identity.OpenId.Persistence.Stores.AuditRecordFilter filter, NCode.Identity.Persistence.Stores.PageRequest page, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.Persistence.Stores.PagedResult<NCode.Identity.OpenId.Persistence.DataContracts.PersistedAuditRecord!>!>
+NCode.Identity.OpenId.Persistence.Stores.AuditRecordStreamPage
+NCode.Identity.OpenId.Persistence.Stores.AuditRecordStreamPage.AuditRecordStreamPage() -> void
+NCode.Identity.OpenId.Persistence.Stores.AuditRecordStreamPage.Items.get -> System.Collections.Generic.IReadOnlyList<NCode.Identity.OpenId.Persistence.DataContracts.PersistedAuditRecord!>!
+NCode.Identity.OpenId.Persistence.Stores.AuditRecordStreamPage.Items.init -> void
+NCode.Identity.OpenId.Persistence.Stores.AuditRecordStreamPage.LastEventId.get -> System.Guid?
+NCode.Identity.OpenId.Persistence.Stores.AuditRecordStreamPage.LastEventId.init -> void
+NCode.Identity.OpenId.Persistence.Stores.AuditRecordStreamPage.LastStoredTime.get -> System.DateTimeOffset?
+NCode.Identity.OpenId.Persistence.Stores.AuditRecordStreamPage.LastStoredTime.init -> void
+NCode.Identity.OpenId.Persistence.Stores.AuditRecordStreamRequest
+NCode.Identity.OpenId.Persistence.Stores.AuditRecordStreamRequest.AfterEventId.get -> System.Guid
+NCode.Identity.OpenId.Persistence.Stores.AuditRecordStreamRequest.AfterEventId.init -> void
+NCode.Identity.OpenId.Persistence.Stores.AuditRecordStreamRequest.AfterStoredTime.get -> System.DateTimeOffset
+NCode.Identity.OpenId.Persistence.Stores.AuditRecordStreamRequest.AfterStoredTime.init -> void
+NCode.Identity.OpenId.Persistence.Stores.AuditRecordStreamRequest.AuditRecordStreamRequest() -> void
+NCode.Identity.OpenId.Persistence.Stores.AuditRecordStreamRequest.Limit.get -> int
+NCode.Identity.OpenId.Persistence.Stores.AuditRecordStreamRequest.Limit.init -> void
+NCode.Identity.OpenId.Persistence.Stores.AuditRecordStreamRequest.StoredBefore.get -> System.DateTimeOffset
+NCode.Identity.OpenId.Persistence.Stores.AuditRecordStreamRequest.StoredBefore.init -> void
+NCode.Identity.OpenId.Persistence.Stores.AuditRecordStreamRequest.TenantId.get -> string!
+NCode.Identity.OpenId.Persistence.Stores.AuditRecordStreamRequest.TenantId.init -> void
+NCode.Identity.OpenId.Persistence.Stores.IAuditRecordStore.GetStreamPageAsync(NCode.Identity.OpenId.Persistence.Stores.AuditRecordStreamRequest request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.Persistence.Stores.AuditRecordStreamPage!>
 abstract NCode.Identity.OpenId.Persistence.DataContracts.BasePersistedTeamResource.ResourceType.get -> string!
 const NCode.Identity.OpenId.Persistence.DataContracts.BasePersistedTeamResource.ResourceTypePrefix = "team" -> string!
 const NCode.Identity.OpenId.Persistence.OpenIdResourceTypes.Team = "team" -> string!
@@ -622,3 +645,71 @@ const NCode.Identity.OpenId.Persistence.TeamPaths.MaxDepth = 8 -> int
 NCode.Identity.OpenId.Persistence.TeamPaths
 static NCode.Identity.OpenId.Persistence.TeamPaths.Format(System.Collections.Generic.IEnumerable<string!>! teamIds) -> string!
 static NCode.Identity.OpenId.Persistence.TeamPaths.Parse(string! teamPath) -> System.Collections.Generic.IReadOnlyList<string!>!
+NCode.Identity.OpenId.Persistence.DataContracts.PersistedAuditStream
+NCode.Identity.OpenId.Persistence.DataContracts.PersistedAuditStream.ConcurrencyToken.get -> string!
+NCode.Identity.OpenId.Persistence.DataContracts.PersistedAuditStream.ConcurrencyToken.set -> void
+NCode.Identity.OpenId.Persistence.DataContracts.PersistedAuditStream.CreatedTime.get -> System.DateTimeOffset
+NCode.Identity.OpenId.Persistence.DataContracts.PersistedAuditStream.CreatedTime.init -> void
+NCode.Identity.OpenId.Persistence.DataContracts.PersistedAuditStream.DisplayName.get -> string!
+NCode.Identity.OpenId.Persistence.DataContracts.PersistedAuditStream.DisplayName.set -> void
+NCode.Identity.OpenId.Persistence.DataContracts.PersistedAuditStream.Endpoint.get -> string!
+NCode.Identity.OpenId.Persistence.DataContracts.PersistedAuditStream.Endpoint.set -> void
+NCode.Identity.OpenId.Persistence.DataContracts.PersistedAuditStream.IsEnabled.get -> bool
+NCode.Identity.OpenId.Persistence.DataContracts.PersistedAuditStream.IsEnabled.set -> void
+NCode.Identity.OpenId.Persistence.DataContracts.PersistedAuditStream.PersistedAuditStream() -> void
+NCode.Identity.OpenId.Persistence.DataContracts.PersistedAuditStream.SigningSecrets.get -> System.Collections.Generic.IReadOnlyList<NCode.Identity.OpenId.Persistence.DataContracts.PersistedAuditStreamSigningSecret!>!
+NCode.Identity.OpenId.Persistence.DataContracts.PersistedAuditStream.SigningSecrets.set -> void
+NCode.Identity.OpenId.Persistence.DataContracts.PersistedAuditStream.State.get -> NCode.Identity.OpenId.Persistence.DataContracts.PersistedAuditStreamState?
+NCode.Identity.OpenId.Persistence.DataContracts.PersistedAuditStream.State.init -> void
+NCode.Identity.OpenId.Persistence.DataContracts.PersistedAuditStream.StreamId.get -> string!
+NCode.Identity.OpenId.Persistence.DataContracts.PersistedAuditStream.StreamId.init -> void
+NCode.Identity.OpenId.Persistence.DataContracts.PersistedAuditStream.TenantId.get -> string!
+NCode.Identity.OpenId.Persistence.DataContracts.PersistedAuditStream.TenantId.init -> void
+NCode.Identity.OpenId.Persistence.DataContracts.PersistedAuditStreamSigningSecret
+NCode.Identity.OpenId.Persistence.DataContracts.PersistedAuditStreamSigningSecret.CreatedTime.get -> System.DateTimeOffset
+NCode.Identity.OpenId.Persistence.DataContracts.PersistedAuditStreamSigningSecret.CreatedTime.init -> void
+NCode.Identity.OpenId.Persistence.DataContracts.PersistedAuditStreamSigningSecret.ExpiryTime.get -> System.DateTimeOffset?
+NCode.Identity.OpenId.Persistence.DataContracts.PersistedAuditStreamSigningSecret.ExpiryTime.set -> void
+NCode.Identity.OpenId.Persistence.DataContracts.PersistedAuditStreamSigningSecret.PersistedAuditStreamSigningSecret() -> void
+NCode.Identity.OpenId.Persistence.DataContracts.PersistedAuditStreamSigningSecret.ProtectedValue.get -> string!
+NCode.Identity.OpenId.Persistence.DataContracts.PersistedAuditStreamSigningSecret.ProtectedValue.set -> void
+NCode.Identity.OpenId.Persistence.DataContracts.PersistedAuditStreamSigningSecret.SecretId.get -> string!
+NCode.Identity.OpenId.Persistence.DataContracts.PersistedAuditStreamSigningSecret.SecretId.init -> void
+NCode.Identity.OpenId.Persistence.DataContracts.PersistedAuditStreamState
+NCode.Identity.OpenId.Persistence.DataContracts.PersistedAuditStreamState.ConcurrencyToken.get -> string!
+NCode.Identity.OpenId.Persistence.DataContracts.PersistedAuditStreamState.ConcurrencyToken.set -> void
+NCode.Identity.OpenId.Persistence.DataContracts.PersistedAuditStreamState.ConsecutiveFailures.get -> int
+NCode.Identity.OpenId.Persistence.DataContracts.PersistedAuditStreamState.ConsecutiveFailures.set -> void
+NCode.Identity.OpenId.Persistence.DataContracts.PersistedAuditStreamState.LastDeliveryTime.get -> System.DateTimeOffset?
+NCode.Identity.OpenId.Persistence.DataContracts.PersistedAuditStreamState.LastDeliveryTime.set -> void
+NCode.Identity.OpenId.Persistence.DataContracts.PersistedAuditStreamState.LastError.get -> string?
+NCode.Identity.OpenId.Persistence.DataContracts.PersistedAuditStreamState.LastError.set -> void
+NCode.Identity.OpenId.Persistence.DataContracts.PersistedAuditStreamState.LastFailureTime.get -> System.DateTimeOffset?
+NCode.Identity.OpenId.Persistence.DataContracts.PersistedAuditStreamState.LastFailureTime.set -> void
+NCode.Identity.OpenId.Persistence.DataContracts.PersistedAuditStreamState.LeaseExpiryTime.get -> System.DateTimeOffset?
+NCode.Identity.OpenId.Persistence.DataContracts.PersistedAuditStreamState.LeaseExpiryTime.set -> void
+NCode.Identity.OpenId.Persistence.DataContracts.PersistedAuditStreamState.LeaseHolder.get -> string?
+NCode.Identity.OpenId.Persistence.DataContracts.PersistedAuditStreamState.LeaseHolder.set -> void
+NCode.Identity.OpenId.Persistence.DataContracts.PersistedAuditStreamState.NextAttemptTime.get -> System.DateTimeOffset
+NCode.Identity.OpenId.Persistence.DataContracts.PersistedAuditStreamState.NextAttemptTime.set -> void
+NCode.Identity.OpenId.Persistence.DataContracts.PersistedAuditStreamState.PersistedAuditStreamState() -> void
+NCode.Identity.OpenId.Persistence.DataContracts.PersistedAuditStreamState.PositionEventId.get -> System.Guid
+NCode.Identity.OpenId.Persistence.DataContracts.PersistedAuditStreamState.PositionEventId.set -> void
+NCode.Identity.OpenId.Persistence.DataContracts.PersistedAuditStreamState.PositionStoredTime.get -> System.DateTimeOffset
+NCode.Identity.OpenId.Persistence.DataContracts.PersistedAuditStreamState.PositionStoredTime.set -> void
+NCode.Identity.OpenId.Persistence.DataContracts.PersistedAuditStreamState.StreamId.get -> string!
+NCode.Identity.OpenId.Persistence.DataContracts.PersistedAuditStreamState.StreamId.init -> void
+NCode.Identity.OpenId.Persistence.DataContracts.PersistedAuditStreamState.TenantId.get -> string!
+NCode.Identity.OpenId.Persistence.DataContracts.PersistedAuditStreamState.TenantId.init -> void
+NCode.Identity.OpenId.Persistence.Stores.IAuditStreamStore
+NCode.Identity.OpenId.Persistence.Stores.IAuditStreamStore.AddAsync(NCode.Identity.OpenId.Persistence.DataContracts.PersistedAuditStream! stream, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+NCode.Identity.OpenId.Persistence.Stores.IAuditStreamStore.CountAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<int>
+NCode.Identity.OpenId.Persistence.Stores.IAuditStreamStore.GetDueStatesAsync(System.DateTimeOffset now, System.DateTimeOffset storedBefore, int limit, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<NCode.Identity.OpenId.Persistence.DataContracts.PersistedAuditStreamState!>!>
+NCode.Identity.OpenId.Persistence.Stores.IAuditStreamStore.GetOrDefaultAsync(string! streamId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.Persistence.DataContracts.PersistedAuditStream?>
+NCode.Identity.OpenId.Persistence.Stores.IAuditStreamStore.GetPageAsync(NCode.Identity.Persistence.Stores.PageRequest page, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.Persistence.Stores.PagedResult<NCode.Identity.OpenId.Persistence.DataContracts.PersistedAuditStream!>!>
+NCode.Identity.OpenId.Persistence.Stores.IAuditStreamStore.GetProtectedSigningSecretPageAsync(string! tenantId, System.Collections.Generic.IReadOnlyCollection<string!>! valuePrefixes, NCode.Identity.Persistence.Stores.PageRequest page, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.Persistence.Stores.PagedResult<NCode.Identity.OpenId.Persistence.DataContracts.PersistedProtectedValue!>!>
+NCode.Identity.OpenId.Persistence.Stores.IAuditStreamStore.GetStateOrDefaultAsync(string! streamId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.Persistence.DataContracts.PersistedAuditStreamState?>
+NCode.Identity.OpenId.Persistence.Stores.IAuditStreamStore.RemoveAsync(string! streamId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<bool>
+NCode.Identity.OpenId.Persistence.Stores.IAuditStreamStore.UpdateAsync(NCode.Identity.OpenId.Persistence.DataContracts.PersistedAuditStream! stream, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+NCode.Identity.OpenId.Persistence.Stores.IAuditStreamStore.UpdateProtectedSigningSecretAsync(NCode.Identity.OpenId.Persistence.DataContracts.PersistedProtectedValue! value, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<bool>
+NCode.Identity.OpenId.Persistence.Stores.IAuditStreamStore.UpdateStateAsync(NCode.Identity.OpenId.Persistence.DataContracts.PersistedAuditStreamState! state, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask

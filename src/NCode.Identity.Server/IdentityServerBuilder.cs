@@ -11,6 +11,7 @@ using NCode.Identity.Dispatch;
 using NCode.Identity.Events;
 using NCode.Identity.Jose;
 using NCode.Identity.Jwt;
+using NCode.Identity.Mail;
 using NCode.Identity.OpenId;
 using NCode.Identity.OpenId.Authentication;
 using NCode.Identity.OpenId.Client;
@@ -35,6 +36,9 @@ internal sealed class IdentityServerBuilder : ServiceBuilder<IdentityServer>, II
 
     /// <inheritdoc />
     public IServiceBuilder<SharedStateLibrary> SharedStateLibraryBuilder { get; }
+
+    /// <inheritdoc />
+    public IServiceBuilder<MailLibrary> MailLibraryBuilder { get; }
 
     /// <inheritdoc />
     public IServiceBuilder<SecretsLibrary> SecretsLibraryBuilder { get; }
@@ -81,6 +85,9 @@ internal sealed class IdentityServerBuilder : ServiceBuilder<IdentityServer>, II
         // The in-process, self-scheduling job dispatcher is the default adapter; a host swaps in a durable or
         // distributed backend (outbox, broker, scheduler cluster) by registering its own IJobDispatcher first.
         serviceCollection.AddDispatchServices().AddInProcessJobDispatcher();
+
+        // Mail is queued through the job dispatcher; the host registers the transport that delivers it (ADR-1532).
+        MailLibraryBuilder = serviceCollection.AddMailServices();
 
         // The in-process expiring key, counter and value sets are the default shared-state adapters, correct for a
         // single replica; a deployment that runs several replicas swaps in shared adapters (AddValkey) on

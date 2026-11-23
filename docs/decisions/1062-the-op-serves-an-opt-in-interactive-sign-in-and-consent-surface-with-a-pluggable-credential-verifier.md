@@ -81,19 +81,23 @@ The surface is the leaf package pair `NCode.Identity.OpenId.Authentication.Inter
   ([ADR-1069](1069-di-registration-proves-every-prerequisite-at-compile-time-through-marker-builders.md)). It binds
   the `InteractiveAuthentication` section strictly, validates on start and resolves `BundleRootPath` against the
   content root.
-- It registers a named cookie scheme, `IdentityConstants.ApplicationScheme`, which matches the
-  `authorization_authenticate_scheme` and `authorization_challenge_scheme` defaults and is never the host's default
-  scheme. Its `LoginPath` is `/account/login` and its `LogoutPath` is `/account/logout`.
+- It registers the named cookie scheme `IdentityConstants.ApplicationScheme`, which matches the
+  `authorization_authenticate_scheme` and `authorization_challenge_scheme` defaults. It is the host's default scheme
+  only when the host names none, the default ASP.NET Core gives a host's only scheme, so the subject authentication of
+  an interactive request and the device verification page find the session cookie. The pending sign-in scheme of
+  [ADR-1533](1533-an-end-user-verifies-an-email-address-resets-a-password-and-signs-in-with-a-second-factor-through-one-time-email-codes.md)
+  is never a default. Its `LoginPath` is `/account/login` and its `LogoutPath` is `/account/logout`.
 - It wires no verifier, as the base authentication library reports the password grant unsupported until a capability
   supplies it, and it is never enabled by default.
 
 ### The credential backend
 
-- The local backend is `AddLocalAccountInteractiveAuthentication(IServiceBuilder<LocalAccountLibrary>)` in
+- The local backend is
+  `AddLocalAccountInteractiveAuthentication(IServiceBuilder<LocalAccountLibrary>, IServiceBuilder<MailLibrary>)` in
   `NCode.Identity.OpenId.Accounts.Authentication`, registered like the password grant
   ([ADR-1051](1051-a-local-account-is-a-self-issued-connection-behind-one-pluggable-store-seam.md)). It registers
-  `LocalAccountInteractiveCredentialVerifier`, which verifies through secure buffers and issues a self-issued
-  principal, and `LocalAccountInteractivePasswordChanger`
+  `LocalAccountInteractiveCredentialVerifier`, which verifies through secure buffers and issues a self-issued principal,
+  and `LocalAccountInteractivePasswordChanger`
   ([ADR-1230](1230-an-end-user-changes-their-password-through-an-optional-seam-and-keeps-only-the-current-session.md)).
 - An LDAP, external-IdP or passwordless backend registers its own `IInteractiveCredentialVerifier`.
 

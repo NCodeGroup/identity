@@ -13,6 +13,9 @@ const NCode.Identity.OpenId.Authentication.Sessions.SessionTerminationReasons.Pa
 const NCode.Identity.OpenId.Authentication.Sessions.SessionTerminationReasons.PasswordReset = "password_reset" -> string!
 const NCode.Identity.OpenId.Authentication.Sessions.SessionTerminationReasons.UserBlocked = "user_blocked" -> string!
 const NCode.Identity.OpenId.Authentication.Sessions.SessionTerminationReasons.UserInitiated = "user_initiated" -> string!
+NCode.Identity.OpenId.Authentication.Admission.IRequestAdmissionGate
+NCode.Identity.OpenId.Authentication.Admission.IRequestAdmissionGate.Exit() -> void
+NCode.Identity.OpenId.Authentication.Admission.IRequestAdmissionGate.TryEnter(int capacityPercent) -> bool
 NCode.Identity.OpenId.Authentication.ClientCertificates.ClientCertificateHeaderFormats
 const NCode.Identity.OpenId.Authentication.ClientCertificates.ClientCertificateHeaderFormats.Base64Der = "Base64Der" -> string!
 const NCode.Identity.OpenId.Authentication.ClientCertificates.ClientCertificateHeaderFormats.EnvoyXfcc = "EnvoyXfcc" -> string!
@@ -1867,3 +1870,58 @@ NCode.Identity.OpenId.Authentication.Auditing.UserInfoAccessedAuditEvent.HasAudi
 NCode.Identity.OpenId.Authentication.Auditing.UserInfoAccessedAuditEvent.WriteAuditDetails(System.Text.Json.Utf8JsonWriter! writer) -> void
 override NCode.Identity.OpenId.Authentication.Auditing.UserInfoAccessedAuditEvent.EventCategory.get -> string!
 override NCode.Identity.OpenId.Authentication.Auditing.UserInfoAccessedAuditEvent.EventName.get -> string!
+const NCode.Identity.OpenId.Authentication.Auditing.AuditCredentialFactors.EmailCode = "email_code" -> string!
+const NCode.Identity.OpenId.Authentication.Auditing.OpenIdAuditEventNames.EmailVerification = "email.verification" -> string!
+const NCode.Identity.OpenId.Authentication.Auditing.OpenIdAuditEventNames.PasswordChange = "password.change" -> string!
+const NCode.Identity.OpenId.Authentication.Auditing.OpenIdAuditEventNames.PasswordReset = "password.reset" -> string!
+const NCode.Identity.OpenId.Authentication.Auditing.OpenIdAuditEventNames.PasswordResetRequest = "password.reset_request" -> string!
+const NCode.Identity.OpenId.Authentication.Auditing.OpenIdAuditEventNames.SecondFactor = "subject.second_factor" -> string!
+NCode.Identity.OpenId.Authentication.Auditing.AuditCredentialFactors
+NCode.Identity.OpenId.Authentication.Auditing.EmailVerificationAuditEvent
+NCode.Identity.OpenId.Authentication.Auditing.EmailVerificationAuditEvent.LocalAccountId.get -> string?
+NCode.Identity.OpenId.Authentication.Auditing.EmailVerificationAuditEvent.LocalAccountId.init -> void
+NCode.Identity.OpenId.Authentication.Auditing.IAuditEventRecorder.RecordEmailVerificationFailedAsync(NCode.Identity.OpenId.Contexts.OpenIdContext! openIdContext, string! subjectId, string! localAccountId, string! errorCode, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+NCode.Identity.OpenId.Authentication.Auditing.IAuditEventRecorder.RecordEmailVerifiedAsync(NCode.Identity.OpenId.Contexts.OpenIdContext! openIdContext, string! subjectId, string! localAccountId) -> System.Threading.Tasks.ValueTask
+NCode.Identity.OpenId.Authentication.Auditing.IAuditEventRecorder.RecordPasswordChangeFailedAsync(NCode.Identity.OpenId.Contexts.OpenIdContext! openIdContext, string! subjectId, string! localAccountId, string! errorCode, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+NCode.Identity.OpenId.Authentication.Auditing.IAuditEventRecorder.RecordPasswordChangedAsync(NCode.Identity.OpenId.Contexts.OpenIdContext! openIdContext, string! subjectId, string! localAccountId) -> System.Threading.Tasks.ValueTask
+NCode.Identity.OpenId.Authentication.Auditing.IAuditEventRecorder.RecordPasswordResetAsync(NCode.Identity.OpenId.Contexts.OpenIdContext! openIdContext, string? subjectId, string! localAccountId) -> System.Threading.Tasks.ValueTask
+NCode.Identity.OpenId.Authentication.Auditing.IAuditEventRecorder.RecordPasswordResetFailedAsync(NCode.Identity.OpenId.Contexts.OpenIdContext! openIdContext, string? subjectId, string? localAccountId, string! errorCode, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+NCode.Identity.OpenId.Authentication.Auditing.IAuditEventRecorder.RecordPasswordResetRequestFailedAsync(NCode.Identity.OpenId.Contexts.OpenIdContext! openIdContext, string! errorCode, string! attemptedUsername, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+NCode.Identity.OpenId.Authentication.Auditing.IAuditEventRecorder.RecordPasswordResetRequestedAsync(NCode.Identity.OpenId.Contexts.OpenIdContext! openIdContext, string? subjectId, string! localAccountId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+NCode.Identity.OpenId.Authentication.Auditing.IAuditEventRecorder.RecordSecondFactorFailedAsync(NCode.Identity.OpenId.Contexts.OpenIdContext! openIdContext, string! subjectId, string? localAccountId, string! factor, string! errorCode, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+NCode.Identity.OpenId.Authentication.Auditing.IAuditEventRecorder.RecordSecondFactorVerifiedAsync(NCode.Identity.OpenId.Contexts.OpenIdContext! openIdContext, string! subjectId, string? localAccountId, string! factor) -> System.Threading.Tasks.ValueTask
+NCode.Identity.OpenId.Authentication.Auditing.PasswordChangeAuditEvent
+NCode.Identity.OpenId.Authentication.Auditing.PasswordChangeAuditEvent.LocalAccountId.get -> string?
+NCode.Identity.OpenId.Authentication.Auditing.PasswordChangeAuditEvent.LocalAccountId.init -> void
+NCode.Identity.OpenId.Authentication.Auditing.PasswordResetAuditEvent
+NCode.Identity.OpenId.Authentication.Auditing.PasswordResetAuditEvent.LocalAccountId.get -> string?
+NCode.Identity.OpenId.Authentication.Auditing.PasswordResetAuditEvent.LocalAccountId.init -> void
+NCode.Identity.OpenId.Authentication.Auditing.PasswordResetRequestAuditEvent
+NCode.Identity.OpenId.Authentication.Auditing.PasswordResetRequestAuditEvent.AttemptedUsername.get -> string?
+NCode.Identity.OpenId.Authentication.Auditing.PasswordResetRequestAuditEvent.AttemptedUsername.init -> void
+NCode.Identity.OpenId.Authentication.Auditing.PasswordResetRequestAuditEvent.HasAuditDetails.get -> bool
+NCode.Identity.OpenId.Authentication.Auditing.PasswordResetRequestAuditEvent.LocalAccountId.get -> string?
+NCode.Identity.OpenId.Authentication.Auditing.PasswordResetRequestAuditEvent.LocalAccountId.init -> void
+NCode.Identity.OpenId.Authentication.Auditing.PasswordResetRequestAuditEvent.WriteAuditDetails(System.Text.Json.Utf8JsonWriter! writer) -> void
+NCode.Identity.OpenId.Authentication.Auditing.SecondFactorAuditEvent
+NCode.Identity.OpenId.Authentication.Auditing.SecondFactorAuditEvent.Factor.get -> string!
+NCode.Identity.OpenId.Authentication.Auditing.SecondFactorAuditEvent.Factor.init -> void
+NCode.Identity.OpenId.Authentication.Auditing.SecondFactorAuditEvent.HasAuditDetails.get -> bool
+NCode.Identity.OpenId.Authentication.Auditing.SecondFactorAuditEvent.LocalAccountId.get -> string?
+NCode.Identity.OpenId.Authentication.Auditing.SecondFactorAuditEvent.LocalAccountId.init -> void
+NCode.Identity.OpenId.Authentication.Auditing.SecondFactorAuditEvent.WriteAuditDetails(System.Text.Json.Utf8JsonWriter! writer) -> void
+override NCode.Identity.OpenId.Authentication.Auditing.EmailVerificationAuditEvent.EventCategory.get -> string!
+override NCode.Identity.OpenId.Authentication.Auditing.EmailVerificationAuditEvent.EventName.get -> string!
+override NCode.Identity.OpenId.Authentication.Auditing.EmailVerificationAuditEvent.Resources.get -> System.Collections.Generic.IReadOnlyList<NCode.Identity.Events.Audit.AuditResource!>!
+override NCode.Identity.OpenId.Authentication.Auditing.PasswordChangeAuditEvent.EventCategory.get -> string!
+override NCode.Identity.OpenId.Authentication.Auditing.PasswordChangeAuditEvent.EventName.get -> string!
+override NCode.Identity.OpenId.Authentication.Auditing.PasswordChangeAuditEvent.Resources.get -> System.Collections.Generic.IReadOnlyList<NCode.Identity.Events.Audit.AuditResource!>!
+override NCode.Identity.OpenId.Authentication.Auditing.PasswordResetAuditEvent.EventCategory.get -> string!
+override NCode.Identity.OpenId.Authentication.Auditing.PasswordResetAuditEvent.EventName.get -> string!
+override NCode.Identity.OpenId.Authentication.Auditing.PasswordResetAuditEvent.Resources.get -> System.Collections.Generic.IReadOnlyList<NCode.Identity.Events.Audit.AuditResource!>!
+override NCode.Identity.OpenId.Authentication.Auditing.PasswordResetRequestAuditEvent.EventCategory.get -> string!
+override NCode.Identity.OpenId.Authentication.Auditing.PasswordResetRequestAuditEvent.EventName.get -> string!
+override NCode.Identity.OpenId.Authentication.Auditing.PasswordResetRequestAuditEvent.Resources.get -> System.Collections.Generic.IReadOnlyList<NCode.Identity.Events.Audit.AuditResource!>!
+override NCode.Identity.OpenId.Authentication.Auditing.SecondFactorAuditEvent.EventCategory.get -> string!
+override NCode.Identity.OpenId.Authentication.Auditing.SecondFactorAuditEvent.EventName.get -> string!
+override NCode.Identity.OpenId.Authentication.Auditing.SecondFactorAuditEvent.Resources.get -> System.Collections.Generic.IReadOnlyList<NCode.Identity.Events.Audit.AuditResource!>!

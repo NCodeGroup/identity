@@ -1,0 +1,179 @@
+// Copyright © NCode Group
+// SPDX-License-Identifier: Apache-2.0
+
+using System.Security.Claims;
+using NCode.Buffers;
+using NCode.Identity.OpenId.Accounts.Authentication.EmailCodes;
+using NCode.Identity.OpenId.Accounts.DataContracts;
+using NCode.Identity.OpenId.Accounts.Stores;
+using NCode.Identity.OpenId.Authentication.Auditing;
+using NCode.Identity.OpenId.Authentication.Interactive;
+using NCode.Identity.OpenId.Contexts;
+using NCode.Identity.Persistence.Stores;
+
+namespace NCode.Identity.OpenId.Accounts.Authentication;
+
+/// <summary>
+/// Provides the local-account implementation of the <see cref="IInteractiveSignInCodeChallenge"/> seam, backed by the
+/// configured <see cref="ILocalAccountStore"/>. It resolves the end user's single enabled local account from the
+/// pending sign-in's principal, mails a one-time code to the account's address, verified or not, and completes the
+/// second factor when the end user presents the code. A right code marks an unverified address verified, and a code
+/// that belongs to another account completes nothing. It audits each attempt to complete the second factor and each
+/// refused send.
+/// </summary>
+// See ADR-1533.
+internal sealed class LocalAccountInteractiveSignInCodeChallenge(
+    IStoreManagerFactory storeManagerFactory,
+    ILocalAccountEmailCodes emailCodes,
+    IAuditEventRecorder auditEventRecorder
+) : IInteractiveSignInCodeChallenge
+{
+    private IStoreManagerFactory StoreManagerFactory { get; } = storeManagerFactory;
+    private ILocalAccountEmailCodes EmailCodes { get; } = emailCodes;
+    private IAuditEventRecorder AuditEventRecorder { get; } = auditEventRecorder;
+
+    /// <inheritdoc />
+    public async ValueTask<InteractiveEmailCodeResult> SendSignInCodeAsync(
+        OpenIdContext openIdContext,
+        ClaimsPrincipal principal,
+        InteractiveLocale locale,
+        CancellationToken cancellationToken
+    )
+    {
+        var account = await LocalAccountSignedInAccounts.FindAsync(
+            StoreManagerFactory,
+            openIdContext,
+            principal,
+            cancellationToken
+        );
+
+        if (account is not { IsEnabled: true })
+        {
+            return InteractiveEmailCodeResult.NotSupported;
+        }
+
+        if (string.IsNullOrEmpty(account.Email))
+        {
+            await RecordSendRefusedAsync(
+                openIdContext,
+                principal,
+                account,
+                InteractiveEmailCodeErrors.NoEmail,
+                cancellationToken
+            );
+            return InteractiveEmailCodeResult.Refused(InteractiveEmailCodeErrors.NoEmail);
+        }
+
+        var flowId = await EmailCodes.SendAsync(
+            openIdContext,
+            EmailCodePurposes.SignIn,
+            account,
+            locale,
+            cancellationToken
+        );
+        if (flowId is null)
+        {
+            await RecordSendRefusedAsync(
+                openIdContext,
+                principal,
+                account,
+                InteractiveEmailCodeErrors.TooManyCodes,
+                cancellationToken
+            );
+            return InteractiveEmailCodeResult.Refused(InteractiveEmailCodeErrors.TooManyCodes);
+        }
+
+        return InteractiveEmailCodeResult.Sent(flowId);
+    }
+
+    /// <summary>
+    /// Audits that the mailing of a sign-in code was refused, as the failure of the second factor, because a refused
+    /// send blocks the sign-in.
+    /// </summary>
+    /// <param name="openIdContext">The context of the tenant and environment the request is for.</param>
+    /// <param name="principal">The principal whose password is verified.</param>
+    /// <param name="account">The account that was refused a code.</param>
+    /// <param name="errorCode">The error code the send was refused with.</param>
+    /// <param name="cancellationToken">A token to cancel the operation.</param>
+    private async ValueTask RecordSendRefusedAsync(
+        OpenIdContext openIdContext,
+        ClaimsPrincipal principal,
+        PersistedLocalAccount account,
+        string errorCode,
+        CancellationToken cancellationToken
+    )
+    {
+        // A refused send blocks a sign-in, so it is audited as the second factor's failure (ADR-1533).
+        var subjectId = openIdContext.GetSubjectId(principal);
+        ArgumentException.ThrowIfNullOrEmpty(subjectId);
+
+        await AuditEventRecorder.RecordSecondFactorFailedAsync(
+            openIdContext,
+            subjectId,
+            account.LocalAccountId,
+            AuditCredentialFactors.EmailCode,
+            errorCode,
+            cancellationToken
+        );
+    }
+
+    /// <inheritdoc />
+    public async ValueTask<InteractiveEmailCodeResult> VerifySignInCodeAsync(
+        OpenIdContext openIdContext,
+        ClaimsPrincipal principal,
+        string flowId,
+        Secret<char> code,
+        CancellationToken cancellationToken
+    )
+    {
+        await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
+
+        var account = await LocalAccountSignedInAccounts.FindAsync(
+            storeManager,
+            openIdContext,
+            principal,
+            cancellationToken
+        );
+        if (account is not { IsEnabled: true })
+        {
+            return InteractiveEmailCodeResult.NotSupported;
+        }
+
+        // The second factor is audited as the password grant's authentication is (ADR-1533).
+        var subjectId = openIdContext.GetSubjectId(principal);
+        ArgumentException.ThrowIfNullOrEmpty(subjectId);
+
+        // The code is spent after every check has passed, once it is bound to the account, and before its effect, with
+        // one atomic take. See ADR-1533.
+        var flow = new EmailCodeFlow(EmailCodePurposes.SignIn, flowId);
+        if (!await EmailCodes.TryRedeemAsync(openIdContext, flow, code, account, cancellationToken))
+        {
+            await AuditEventRecorder.RecordSecondFactorFailedAsync(
+                openIdContext,
+                subjectId,
+                account.LocalAccountId,
+                AuditCredentialFactors.EmailCode,
+                InteractiveEmailCodeErrors.InvalidCode,
+                cancellationToken
+            );
+            return InteractiveEmailCodeResult.Refused(InteractiveEmailCodeErrors.InvalidCode);
+        }
+
+        if (!account.EmailVerified)
+        {
+            var accountStore = storeManager.GetStore<ILocalAccountStore>();
+            account.EmailVerified = true;
+            await accountStore.UpdateAsync(account, cancellationToken);
+            await storeManager.SaveChangesAsync(cancellationToken);
+        }
+
+        await AuditEventRecorder.RecordSecondFactorVerifiedAsync(
+            openIdContext,
+            subjectId,
+            account.LocalAccountId,
+            AuditCredentialFactors.EmailCode
+        );
+
+        return InteractiveEmailCodeResult.Verified;
+    }
+}

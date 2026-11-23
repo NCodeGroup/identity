@@ -28,4 +28,10 @@ internal static class EventIds
     public const int OwnerRootKeyUnavailable = Base + 13;
     public const int AuditPublishFailed = Base + 14;
     public const int RemoteKeyProviderFailed = Base + 15;
+
+    /// <summary>
+    /// Identifies the warning that the guard that serializes the audit-stream creates of a tenant could not be
+    /// released.
+    /// </summary>
+    public const int AuditStreamCreateGuardReleaseFailed = Base + 16;
 }

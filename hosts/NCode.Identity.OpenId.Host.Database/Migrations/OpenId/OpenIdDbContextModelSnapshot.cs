@@ -215,6 +215,9 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                         .IsUnicode(false)
                         .HasColumnType("character varying(64)");
 
+                    b.Property<DateTimeOffset>("StoredTime")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<string>("SubjectId")
                         .HasMaxLength(300)
                         .HasColumnType("character varying(300)");
@@ -250,6 +253,8 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
 
                     b.HasIndex("TenantId", "EventTime", "Id");
 
+                    b.HasIndex("TenantId", "StoredTime", "EventId");
+
                     b.ToTable("AuditRecords", (string)null);
                 });
 
@@ -281,6 +286,176 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                     b.HasIndex("Type", "ResourceId");
 
                     b.ToTable("AuditRecordResources", (string)null);
+                });
+
+            modelBuilder.Entity("NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.AuditStreamEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ConcurrencyToken")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .IsUnicode(false)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<DateTimeOffset>("CreatedTime")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DisplayName")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<string>("Endpoint")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .IsUnicode(false)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<bool>("IsEnabled")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("NormalizedTenantId")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .IsUnicode(false)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<string>("StreamId")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .IsUnicode(false)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "StreamId")
+                        .IsUnique();
+
+                    b.ToTable("AuditStreams", (string)null);
+                });
+
+            modelBuilder.Entity("NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.AuditStreamSigningSecretEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("AuditStreamId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ConcurrencyToken")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .IsUnicode(false)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<DateTimeOffset>("CreatedTime")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset?>("ExpiryTime")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("NormalizedTenantId")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .IsUnicode(false)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<string>("ProtectedValue")
+                        .IsRequired()
+                        .HasMaxLength(8000)
+                        .IsUnicode(false)
+                        .HasColumnType("character varying(8000)");
+
+                    b.Property<string>("SecretId")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .IsUnicode(false)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("AuditStreamId", "SecretId")
+                        .IsUnique();
+
+                    b.ToTable("AuditStreamSigningSecrets", (string)null);
+                });
+
+            modelBuilder.Entity("NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.AuditStreamStateEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("AuditStreamId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ConcurrencyToken")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .IsUnicode(false)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<int>("ConsecutiveFailures")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset?>("LastDeliveryTime")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("LastError")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTimeOffset?>("LastFailureTime")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset?>("LeaseExpiryTime")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("LeaseHolder")
+                        .HasMaxLength(64)
+                        .IsUnicode(false)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<DateTimeOffset>("NextAttemptTime")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("NormalizedTenantId")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .IsUnicode(false)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<Guid>("PositionEventId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("PositionStoredTime")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AuditStreamId")
+                        .IsUnique();
+
+                    b.HasIndex("NextAttemptTime");
+
+                    b.HasIndex("TenantId");
+
+                    b.ToTable("AuditStreamStates", (string)null);
                 });
 
             modelBuilder.Entity("NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.ClientEntity", b =>
@@ -1823,6 +1998,55 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                     b.Navigation("AuditRecord");
                 });
 
+            modelBuilder.Entity("NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.AuditStreamEntity", b =>
+                {
+                    b.HasOne("NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.TenantEntity", "Tenant")
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Tenant");
+                });
+
+            modelBuilder.Entity("NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.AuditStreamSigningSecretEntity", b =>
+                {
+                    b.HasOne("NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.AuditStreamEntity", "AuditStream")
+                        .WithMany("SigningSecrets")
+                        .HasForeignKey("AuditStreamId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.TenantEntity", "Tenant")
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("AuditStream");
+
+                    b.Navigation("Tenant");
+                });
+
+            modelBuilder.Entity("NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.AuditStreamStateEntity", b =>
+                {
+                    b.HasOne("NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.AuditStreamEntity", "AuditStream")
+                        .WithOne("State")
+                        .HasForeignKey("NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.AuditStreamStateEntity", "AuditStreamId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.TenantEntity", "Tenant")
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("AuditStream");
+
+                    b.Navigation("Tenant");
+                });
+
             modelBuilder.Entity("NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.ClientEntity", b =>
                 {
                     b.HasOne("NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.ResourceServerEntity", "ResourceServer")
@@ -2078,6 +2302,13 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
             modelBuilder.Entity("NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.AuditRecordEntity", b =>
                 {
                     b.Navigation("Resources");
+                });
+
+            modelBuilder.Entity("NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.AuditStreamEntity", b =>
+                {
+                    b.Navigation("SigningSecrets");
+
+                    b.Navigation("State");
                 });
 
             modelBuilder.Entity("NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.ClientEntity", b =>

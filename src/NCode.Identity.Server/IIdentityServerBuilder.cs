@@ -7,6 +7,7 @@ using NCode.Identity.Claims;
 using NCode.Identity.Cryptography;
 using NCode.Identity.Jose;
 using NCode.Identity.Jwt;
+using NCode.Identity.Mail;
 using NCode.Identity.OpenId;
 using NCode.Identity.OpenId.Authentication;
 using NCode.Identity.OpenId.Client;
@@ -36,6 +37,12 @@ public interface IIdentityServerBuilder : IServiceBuilder<IdentityServer>
     /// single replica; a deployment that runs several registers a shared adapter on this builder.
     /// </summary>
     IServiceBuilder<SharedStateLibrary> SharedStateLibraryBuilder { get; }
+
+    /// <summary>
+    /// Gets the builder of the mail library, whose default transport refuses every message until the host registers
+    /// one, such as <c>AddSmtpMailTransport</c> or <c>AddAmazonSesMailTransport</c>.
+    /// </summary>
+    IServiceBuilder<MailLibrary> MailLibraryBuilder { get; }
 
     /// <summary>
     /// Gets the builder for configuring the secrets library.

@@ -13,6 +13,7 @@ import {
   ANTIFORGERY_FIELD,
   CONSENT_ACTION,
   CONSENT_DETAILS_ENDPOINT,
+  RETURN_URL_FIELD,
   UI_LOCALES_FIELD,
   resolveSurfacePath,
 } from './params.js';
@@ -58,7 +59,7 @@ async function fetchDetails(returnUrl: string): Promise<ConsentDetails | null> {
     return null;
   }
   const response = await fetch(
-    `${resolveSurfacePath(CONSENT_DETAILS_ENDPOINT)}?ReturnUrl=${encodeURIComponent(returnUrl)}`,
+    `${resolveSurfacePath(CONSENT_DETAILS_ENDPOINT)}?${RETURN_URL_FIELD}=${encodeURIComponent(returnUrl)}`,
     { headers: { accept: 'application/json' } },
   );
   if (!response.ok) {
@@ -159,7 +160,7 @@ export function ConsentForm({
               </FormGroup>
             ) : null}
 
-            <input type="hidden" name="ReturnUrl" value={returnUrl} />
+            <input type="hidden" name={RETURN_URL_FIELD} value={returnUrl} />
             <input type="hidden" name={ANTIFORGERY_FIELD} value={antiforgeryToken} />
             {pageLanguage ? (
               <input type="hidden" name={UI_LOCALES_FIELD} value={pageLanguage} />

@@ -6,6 +6,7 @@ using System.Text.Json;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Time.Testing;
 using NCode.Identity.Json;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
@@ -23,6 +24,7 @@ public sealed class AuditRecordStoreTests : IDisposable
 
     private SqliteConnection Connection { get; }
     private ServiceProvider Provider { get; }
+    private FakeTimeProvider TimeProvider { get; } = new(Now);
 
     public AuditRecordStoreTests()
     {
@@ -48,12 +50,14 @@ public sealed class AuditRecordStoreTests : IDisposable
             Mock.Of<IStoreProvider>(),
             Provider.GetRequiredService<ISurrogateKeyGenerator>(),
             TestPageCursorProtector.Instance,
-            context
+            context,
+            TimeProvider
         );
 
     private static PersistedAuditRecord Record(
         Guid? eventId = null,
         DateTimeOffset? eventTime = null,
+        string tenantId = "tenant-1",
         params PersistedAuditResource[] resources
     ) =>
         new()
@@ -65,8 +69,7 @@ public sealed class AuditRecordStoreTests : IDisposable
             Outcome = "success",
             Severity = "info",
             Cell = "cell-1",
-            TenantId = "tenant-1",
-            SubjectId = "user-1",
+            TenantId = tenantId,
             ClientId = "client-1",
             ActorType = "user",
             ActorId = "admin-1",
@@ -203,6 +206,159 @@ public sealed class AuditRecordStoreTests : IDisposable
         );
     }
 
+    [Fact]
+    public async Task AddAsync_Always_StampsTheStoredTime()
+    {
+        TimeProvider.SetUtcNow(Now.AddMinutes(5));
+        var first = Record(eventTime: Now.AddDays(-1));
+        var second = Record(eventTime: Now.AddDays(-2));
+
+        await AddAsync([first, second], CancellationToken.None);
+
+        using var scope = Provider.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<OpenIdDbContext>();
+        var storedTimes = await context.AuditRecords.Select(e => e.StoredTime).ToListAsync();
+        Assert.Equal([Now.AddMinutes(5), Now.AddMinutes(5)], storedTimes);
+    }
+
+    #endregion
+
+    #region GetStreamPageAsync Tests
+
+    private async ValueTask<AuditRecordStreamPage> GetStreamPageAsync(
+        ServiceProvider provider,
+        AuditRecordStreamRequest request,
+        CancellationToken cancellationToken
+    )
+    {
+        using var scope = provider.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<OpenIdDbContext>();
+        return await CreateStore(context).GetStreamPageAsync(request, cancellationToken);
+    }
+
+    private static AuditRecordStreamRequest StreamRequest(
+        DateTimeOffset afterStoredTime,
+        Guid afterEventId,
+        DateTimeOffset storedBefore,
+        int limit = 10,
+        string tenantId = "tenant-1"
+    ) =>
+        new()
+        {
+            TenantId = tenantId,
+            AfterStoredTime = afterStoredTime,
+            AfterEventId = afterEventId,
+            StoredBefore = storedBefore,
+            Limit = limit,
+        };
+
+    [Fact]
+    public async Task GetStreamPageAsync_Always_ReadsOldestFirstAfterThePosition()
+    {
+        await using var provider = CreateInMemoryProvider();
+        var first = Record(eventTime: Now.AddDays(-1));
+        var second = Record(eventTime: Now.AddDays(-3));
+        var third = Record(eventTime: Now.AddDays(-2));
+        var firstTime = Now.AddMinutes(1);
+        foreach (var (record, minutes) in new[] { (first, 1), (second, 2), (third, 3) })
+        {
+            TimeProvider.SetUtcNow(Now.AddMinutes(minutes));
+            await AddAsync(provider, [record], CancellationToken.None);
+        }
+        var storedBefore = Now.AddHours(1);
+
+        var page = await GetStreamPageAsync(
+            provider,
+            StreamRequest(firstTime, first.EventId, storedBefore),
+            CancellationToken.None
+        );
+
+        Assert.Equal([second.EventId, third.EventId], page.Items.Select(item => item.EventId));
+        Assert.Equal(Now.AddMinutes(3), page.LastStoredTime);
+        Assert.Equal(third.EventId, page.LastEventId);
+    }
+
+    [Fact]
+    public async Task GetStreamPageAsync_Always_SkipsRecordsStoredAtOrAfterStoredBefore()
+    {
+        await using var provider = CreateInMemoryProvider();
+        var before = Record();
+        var at = Record();
+        var after = Record();
+        foreach (var (record, minutes) in new[] { (before, 1), (at, 2), (after, 3) })
+        {
+            TimeProvider.SetUtcNow(Now.AddMinutes(minutes));
+            await AddAsync(provider, [record], CancellationToken.None);
+        }
+
+        var page = await GetStreamPageAsync(
+            provider,
+            StreamRequest(Now.AddDays(-1), Guid.Empty, storedBefore: Now.AddMinutes(2)),
+            CancellationToken.None
+        );
+
+        Assert.Equal(before.EventId, Assert.Single(page.Items).EventId);
+    }
+
+    [Fact]
+    public async Task GetStreamPageAsync_Always_ReadsOnlyTheTenantsRecords()
+    {
+        await using var provider = CreateInMemoryProvider();
+        var mine = Record();
+        var other = Record(tenantId: "tenant-2");
+        await AddAsync(provider, [mine, other], CancellationToken.None);
+
+        var page = await GetStreamPageAsync(
+            provider,
+            StreamRequest(Now.AddDays(-1), Guid.Empty, Now.AddHours(1)),
+            CancellationToken.None
+        );
+
+        Assert.Equal(mine.EventId, Assert.Single(page.Items).EventId);
+    }
+
+    [Fact]
+    public async Task GetStreamPageAsync_WhenNothingFollows_ReturnsAnEmptyPage()
+    {
+        await using var provider = CreateInMemoryProvider();
+        var record = Record();
+        await AddAsync(provider, [record], CancellationToken.None);
+
+        var page = await GetStreamPageAsync(
+            provider,
+            StreamRequest(Now, record.EventId, Now.AddHours(1)),
+            CancellationToken.None
+        );
+
+        Assert.Empty(page.Items);
+        Assert.Null(page.LastStoredTime);
+        Assert.Null(page.LastEventId);
+    }
+
+    [Fact]
+    public async Task GetStreamPageAsync_WithTheSameStoredTime_OrdersByEventId()
+    {
+        await using var provider = CreateInMemoryProvider();
+        var ordered = new[] { Guid.CreateVersion7(), Guid.CreateVersion7(), Guid.CreateVersion7() }
+            .Order()
+            .ToList();
+        await AddAsync(
+            provider,
+            [Record(ordered[2]), Record(ordered[0]), Record(ordered[1])],
+            CancellationToken.None
+        );
+
+        var page = await GetStreamPageAsync(
+            provider,
+            StreamRequest(Now, ordered[0], Now.AddHours(1), limit: 1),
+            CancellationToken.None
+        );
+
+        Assert.Equal(ordered[1], Assert.Single(page.Items).EventId);
+        Assert.Equal(Now, page.LastStoredTime);
+        Assert.Equal(ordered[1], page.LastEventId);
+    }
+
     #endregion
 
     #region GetPageAsync Tests
@@ -221,7 +377,8 @@ public sealed class AuditRecordStoreTests : IDisposable
             Mock.Of<IStoreProvider>(),
             provider.GetRequiredService<ISurrogateKeyGenerator>(),
             TestPageCursorProtector.Instance,
-            context
+            context,
+            new FakeTimeProvider(Now)
         );
         return await store.GetPageAsync(
             filter,

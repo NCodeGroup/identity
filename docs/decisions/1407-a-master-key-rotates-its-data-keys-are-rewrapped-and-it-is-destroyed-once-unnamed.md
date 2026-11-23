@@ -49,9 +49,11 @@ a retired key is destroyed once a scan finds no value that still names it. The p
 5. **Protected values are found through an open strategy collection.** `IProtectedValueSource` has two members:
    `RewrapAsync(owner, masterKeyIds)` rewraps every value of the source that names one of the keys, and
    `FindReferencedAsync(owner, masterKeyIds)` answers the subset that a value still names. Every source is asked once
-   per owner, and a source ignores an owner it holds nothing for. The family registers three: the stored secrets of a
-   tenant (its tenant record, clients and resource servers), the grant payloads of a tenant, and the
-   platform's Data Protection key ring. A package that protects its own values registers a source for them
+   per owner, and a source ignores an owner it holds nothing for. The family registers four: the stored secrets of a
+   tenant (its tenant record, clients and resource servers), the grant payloads of a tenant, the signing secrets of a
+   tenant's audit streams
+   ([ADR-1534](1534-a-tenants-audit-records-stream-to-its-endpoints-read-forward-from-the-audit-store-and-signed-as-standard-webhooks.md)),
+   and the platform's Data Protection key ring. A package that protects its own values registers a source for them
    ([ADR-1150](1150-vocabularies-are-open-unless-provably-closed.md)); a value that no source reports is not rewrapped
    and becomes unreadable once its key is destroyed.
 6. **Sources page, rewrap in units of work, and isolate each value.** `ISecretProtectorProvider.GetMasterKeyIdPrefix`

@@ -152,6 +152,52 @@ describe('LoginForm', () => {
     expect(submitted.get('login')).toBe('login');
   });
 
+  it('links to the forgot-password page when one is offered', () => {
+    const { container } = renderForm({
+      returnUrl: '/',
+      antiforgeryToken: 'the-token',
+      forgotPasswordHref: 'password/forgot?ReturnUrl=%2F',
+    });
+
+    const link = screen.getByRole('link', { name: 'Forgot your password?' });
+    expect(link).toHaveAttribute('href', 'password/forgot?ReturnUrl=%2F');
+    expect(container.querySelector('#forgot-password-link')).toBe(link);
+  });
+
+  it.each([
+    ['omitted', {}],
+    ['null', { forgotPasswordHref: null }],
+    ['empty', { forgotPasswordHref: '' }],
+  ] as const)('shows no forgot-password link when the address is %s', (_label, extra) => {
+    renderForm({ returnUrl: '/', antiforgeryToken: 'the-token', ...extra });
+
+    expect(screen.queryByRole('link')).not.toBeInTheDocument();
+  });
+
+  it('shows the status message in a success alert when one is provided', () => {
+    renderForm({
+      returnUrl: '/',
+      antiforgeryToken: 'the-token',
+      statusMessage: 'Your password has been reset. Sign in with your new password.',
+    });
+
+    const alert = screen.getByRole('alert');
+    expect(alert).toHaveTextContent(
+      'Your password has been reset. Sign in with your new password.',
+    );
+    expect(alert).toHaveClass('MuiAlert-colorSuccess');
+  });
+
+  it.each([
+    ['omitted', {}],
+    ['null', { statusMessage: null }],
+    ['empty', { statusMessage: '' }],
+  ] as const)('shows no status alert when the status message is %s', (_label, extra) => {
+    renderForm({ returnUrl: '/', antiforgeryToken: 'the-token', ...extra });
+
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
   it('carries no language when the page has none', () => {
     const { container } = renderForm({ returnUrl: '/', antiforgeryToken: 't' });
 

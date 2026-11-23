@@ -150,6 +150,7 @@ const NCode.Identity.OpenId.Settings.OpenIdSettingNames.AccessTokenSenderConstra
 const NCode.Identity.OpenId.Settings.OpenIdSettingNames.AccessTokenSigningAlgValuesSupported = "access_token_signing_alg_values_supported" -> string!
 const NCode.Identity.OpenId.Settings.OpenIdSettingNames.AccessTokenType = "access_token_type" -> string!
 const NCode.Identity.OpenId.Settings.OpenIdSettingNames.AcrValuesSupported = "acr_values_supported" -> string!
+const NCode.Identity.OpenId.Settings.OpenIdSettingNames.AdmissionCapacityPercent = "admission_capacity_percent" -> string!
 const NCode.Identity.OpenId.Settings.OpenIdSettingNames.AllowedIdentityProviders = "allowed_identity_providers" -> string!
 const NCode.Identity.OpenId.Settings.OpenIdSettingNames.AlwaysIncludeAuthTime = "always_include_auth_time" -> string!
 const NCode.Identity.OpenId.Settings.OpenIdSettingNames.AllowLoopbackRedirect = "allow_loopback_redirect" -> string!
@@ -170,6 +171,10 @@ const NCode.Identity.OpenId.Settings.OpenIdSettingNames.DefaultAcr = "default_ac
 const NCode.Identity.OpenId.Settings.OpenIdSettingNames.DeviceCodeLifetime = "device_code_lifetime" -> string!
 const NCode.Identity.OpenId.Settings.OpenIdSettingNames.DeviceCodePollingInterval = "device_code_polling_interval" -> string!
 const NCode.Identity.OpenId.Settings.OpenIdSettingNames.DisplayValuesSupported = "display_values_supported" -> string!
+const NCode.Identity.OpenId.Settings.OpenIdSettingNames.EmailCodeLifetime = "email_code_lifetime" -> string!
+const NCode.Identity.OpenId.Settings.OpenIdSettingNames.EmailCodeSendsPerHour = "email_code_sends_per_hour" -> string!
+const NCode.Identity.OpenId.Settings.OpenIdSettingNames.EmailMfaRequired = "email_mfa_required" -> string!
+const NCode.Identity.OpenId.Settings.OpenIdSettingNames.EmailVerificationEnabled = "email_verification_enabled" -> string!
 const NCode.Identity.OpenId.Settings.OpenIdSettingNames.GrantTypesEnabled = "grant_types_enabled" -> string!
 const NCode.Identity.OpenId.Settings.OpenIdSettingNames.GrantTypesSupported = "grant_types_supported" -> string!
 const NCode.Identity.OpenId.Settings.OpenIdSettingNames.IdTokenEncryptionAlgValuesSupported = "id_token_encryption_alg_values_supported" -> string!
@@ -707,6 +712,7 @@ static NCode.Identity.OpenId.Settings.OpenIdSettingKeys.AccessTokenSenderConstra
 static NCode.Identity.OpenId.Settings.OpenIdSettingKeys.AccessTokenSigningAlgValuesSupported.get -> NCode.Identity.Settings.SettingKey<System.Collections.Generic.IReadOnlyCollection<string!>!>
 static NCode.Identity.OpenId.Settings.OpenIdSettingKeys.AccessTokenType.get -> NCode.Identity.Settings.SettingKey<string!>
 static NCode.Identity.OpenId.Settings.OpenIdSettingKeys.AcrValuesSupported.get -> NCode.Identity.Settings.SettingKey<System.Collections.Generic.IReadOnlyCollection<string!>!>
+static NCode.Identity.OpenId.Settings.OpenIdSettingKeys.AdmissionCapacityPercent.get -> NCode.Identity.Settings.SettingKey<int>
 static NCode.Identity.OpenId.Settings.OpenIdSettingKeys.AllowedIdentityProviders.get -> NCode.Identity.Settings.SettingKey<System.Collections.Generic.IReadOnlyCollection<string!>!>
 static NCode.Identity.OpenId.Settings.OpenIdSettingKeys.AlwaysIncludeAuthTime.get -> NCode.Identity.Settings.SettingKey<bool>
 static NCode.Identity.OpenId.Settings.OpenIdSettingKeys.AllowLoopbackRedirect.get -> NCode.Identity.Settings.SettingKey<bool>
@@ -730,6 +736,10 @@ static NCode.Identity.OpenId.Settings.OpenIdSettingKeys.DefaultAcr.get -> NCode.
 static NCode.Identity.OpenId.Settings.OpenIdSettingKeys.DeviceCodeLifetime.get -> NCode.Identity.Settings.SettingKey<System.TimeSpan>
 static NCode.Identity.OpenId.Settings.OpenIdSettingKeys.DeviceCodePollingInterval.get -> NCode.Identity.Settings.SettingKey<System.TimeSpan>
 static NCode.Identity.OpenId.Settings.OpenIdSettingKeys.DisplayValuesSupported.get -> NCode.Identity.Settings.SettingKey<System.Collections.Generic.IReadOnlyCollection<string!>!>
+static NCode.Identity.OpenId.Settings.OpenIdSettingKeys.EmailCodeLifetime.get -> NCode.Identity.Settings.SettingKey<System.TimeSpan>
+static NCode.Identity.OpenId.Settings.OpenIdSettingKeys.EmailCodeSendsPerHour.get -> NCode.Identity.Settings.SettingKey<int>
+static NCode.Identity.OpenId.Settings.OpenIdSettingKeys.EmailMfaRequired.get -> NCode.Identity.Settings.SettingKey<bool>
+static NCode.Identity.OpenId.Settings.OpenIdSettingKeys.EmailVerificationEnabled.get -> NCode.Identity.Settings.SettingKey<bool>
 static NCode.Identity.OpenId.Settings.OpenIdSettingKeys.DPoPNonceRequired.get -> NCode.Identity.Settings.SettingKey<bool>
 static NCode.Identity.OpenId.Settings.OpenIdSettingKeys.DPoPProofLifetime.get -> NCode.Identity.Settings.SettingKey<System.TimeSpan>
 static NCode.Identity.OpenId.Settings.OpenIdSettingKeys.DPoPSigningAlgValuesSupported.get -> NCode.Identity.Settings.SettingKey<System.Collections.Generic.IReadOnlyCollection<string!>!>
@@ -950,10 +960,12 @@ const NCode.Identity.OpenId.Settings.OpenIdSettingNames.PasswordFailedAttemptsLi
 const NCode.Identity.OpenId.Settings.OpenIdSettingNames.PasswordFailedAttemptsWindow = "password_failed_attempts_window" -> string!
 const NCode.Identity.OpenId.Settings.OpenIdSettingNames.PasswordMaxLength = "password_max_length" -> string!
 const NCode.Identity.OpenId.Settings.OpenIdSettingNames.PasswordMinLength = "password_min_length" -> string!
+const NCode.Identity.OpenId.Settings.OpenIdSettingNames.PasswordResetEnabled = "password_reset_enabled" -> string!
 static NCode.Identity.OpenId.Settings.OpenIdSettingKeys.PasswordFailedAttemptsLimit.get -> NCode.Identity.Settings.SettingKey<int>
 static NCode.Identity.OpenId.Settings.OpenIdSettingKeys.PasswordFailedAttemptsWindow.get -> NCode.Identity.Settings.SettingKey<System.TimeSpan>
 static NCode.Identity.OpenId.Settings.OpenIdSettingKeys.PasswordMaxLength.get -> NCode.Identity.Settings.SettingKey<int>
 static NCode.Identity.OpenId.Settings.OpenIdSettingKeys.PasswordMinLength.get -> NCode.Identity.Settings.SettingKey<int>
+static NCode.Identity.OpenId.Settings.OpenIdSettingKeys.PasswordResetEnabled.get -> NCode.Identity.Settings.SettingKey<bool>
 const NCode.Identity.OpenId.Settings.OpenIdSettingNames.AuthorizationEncryptedResponseAlg = "authorization_encrypted_response_alg" -> string!
 static NCode.Identity.OpenId.Settings.OpenIdSettingKeys.AuthorizationEncryptedResponseAlg.get -> NCode.Identity.Settings.SettingKey<string!>
 const NCode.Identity.OpenId.Settings.OpenIdSettingNames.AuthorizationEncryptedResponseEnc = "authorization_encrypted_response_enc" -> string!
@@ -987,6 +999,7 @@ NCode.Identity.OpenId.Tenants.ITenantEnvironmentType.IsProduction.get -> bool
 NCode.Identity.OpenId.Tenants.ITenantEnvironmentType.SecurityProfiles.get -> System.Collections.Generic.IReadOnlyCollection<string!>!
 NCode.Identity.OpenId.Tenants.ITenantEnvironmentType.TypeName.get -> string!
 const NCode.Identity.OpenId.OpenIdConstants.EndpointTags.AuditRecords = "AuditRecords" -> string!
+const NCode.Identity.OpenId.OpenIdConstants.EndpointTags.AuditStreams = "AuditStreams" -> string!
 const NCode.Identity.OpenId.Tenants.RootTenantOptions.DefaultTeamDisplayName = "Platform" -> string!
 const NCode.Identity.OpenId.Tenants.RootTenantOptions.DefaultTeamId = "platform" -> string!
 NCode.Identity.OpenId.Tenants.RootTenantOptions.TeamDisplayName.get -> string!
@@ -997,9 +1010,11 @@ NCode.Identity.OpenId.Teams.ITeamDescendantWalker
 NCode.Identity.OpenId.Teams.ITeamDescendantWalker.WalkDescendantsAsync(string! teamId, System.Func<NCode.Identity.OpenId.Persistence.DataContracts.PersistedTeam!, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask<bool>>! visitAsync, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 NCode.Identity.OpenId.Teams.ITeamProvisioner
 NCode.Identity.OpenId.Teams.ITeamProvisioner.EnsureCreatedAsync(string! teamId, string! displayName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.Persistence.DataContracts.PersistedTeam!>
+const NCode.Identity.OpenId.Settings.OpenIdSettingNames.MaxAuditStreams = "max_audit_streams" -> string!
 const NCode.Identity.OpenId.Settings.OpenIdSettingNames.MaxTenants = "max_tenants" -> string!
 const NCode.Identity.OpenId.Settings.OpenIdSettingNames.MaxTeams = "max_teams" -> string!
 const NCode.Identity.OpenId.Settings.OpenIdSettingNames.MaxTeamDepth = "max_team_depth" -> string!
+static NCode.Identity.OpenId.Settings.OpenIdSettingKeys.MaxAuditStreams.get -> NCode.Identity.Settings.SettingKey<int>
 static NCode.Identity.OpenId.Settings.OpenIdSettingKeys.MaxTeams.get -> NCode.Identity.Settings.SettingKey<int>
 static NCode.Identity.OpenId.Settings.OpenIdSettingKeys.MaxTeamDepth.get -> NCode.Identity.Settings.SettingKey<int>
 abstract NCode.Identity.OpenId.Teams.OpenIdTeam.ConcurrencyToken.get -> string!

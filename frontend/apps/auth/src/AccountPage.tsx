@@ -9,10 +9,12 @@ import Typography from '@mui/material/Typography';
 import {
   ACCOUNT_PATH,
   ANTIFORGERY_FIELD,
+  EMAIL_PATH,
   LOGIN_ACTION,
   LOGOUT_ACTION,
   ME_ENDPOINT,
   PASSWORD_PATH,
+  RETURN_URL_FIELD,
   SESSIONS_PATH,
   resolveSurfacePath,
 } from './params.js';
@@ -27,6 +29,8 @@ export type AccountSession = {
   readonly amr?: readonly string[];
   readonly idp?: string | null;
   readonly sessionId?: string | null;
+  /** Whether the tenant lets the end-user verify the account's email address. */
+  readonly emailVerification?: boolean;
 };
 
 export type AccountPageProps = {
@@ -138,7 +142,11 @@ export function AccountPage({
 
             <Stack component="form" method="post" action={resolveSurfacePath(LOGOUT_ACTION)}>
               <input type="hidden" name={ANTIFORGERY_FIELD} value={antiforgeryToken} />
-              <input type="hidden" name="ReturnUrl" value={resolveSurfacePath(LOGIN_ACTION)} />
+              <input
+                type="hidden"
+                name={RETURN_URL_FIELD}
+                value={resolveSurfacePath(LOGIN_ACTION)}
+              />
               <Button
                 id="logout"
                 name="logout"
@@ -159,6 +167,12 @@ export function AccountPage({
             <Button href={resolveSurfacePath(PASSWORD_PATH)} variant="text">
               {text.changePassword}
             </Button>
+
+            {session?.emailVerification ? (
+              <Button href={resolveSurfacePath(EMAIL_PATH)} variant="text">
+                {text.verifyEmail}
+              </Button>
+            ) : null}
           </Stack>
         </CardContent>
       </Card>

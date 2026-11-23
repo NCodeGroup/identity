@@ -508,7 +508,7 @@ a dict with the chart context as root and the key management service name as nam
 The workload credentials of the host, as YAML that the kmsCredentials helpers take as a dict (after fromYaml): name is
 the component's full name, awsKms, azureKeyVault and googleCloudKms are "true" or empty by whether the component uses
 that service, and webIdentity, workloadIdentity and workloadIdentityFederation are its identity values in the shapes of
-secretProtection.awsKms.webIdentity, secretProtection.azureKeyVault.workloadIdentity and
+aws.webIdentity, secretProtection.azureKeyVault.workloadIdentity and
 secretProtection.googleCloudKms.workloadIdentityFederation. Takes the chart context.
 */}}
 {{- define "identity-host.kmsCredentials.server" -}}
@@ -517,11 +517,30 @@ awsKms: {{ include "identity-host.usesKeyManagementService" (dict "root" . "name
 azureKeyVault: {{ include "identity-host.usesKeyManagementService" (dict "root" . "name" "azure-key-vault") | quote }}
 googleCloudKms: {{ include "identity-host.usesKeyManagementService" (dict "root" . "name" "google-cloud-kms") | quote }}
 webIdentity:
-  {{- toYaml .Values.secretProtection.awsKms.webIdentity | nindent 2 }}
+  {{- toYaml .Values.aws.webIdentity | nindent 2 }}
 workloadIdentity:
   {{- toYaml .Values.secretProtection.azureKeyVault.workloadIdentity | nindent 2 }}
 workloadIdentityFederation:
   {{- toYaml .Values.secretProtection.googleCloudKms.workloadIdentityFederation | nindent 2 }}
+{{- end }}
+
+{{/*
+The AWS workload credentials that the host's Deployment adds to send mail through Amazon SES, as YAML in the shape
+kmsCredentials.server renders: amazonSes is "true" when mail.amazonSes.region is set and the server's credentials do not
+already carry the AWS identity for AWS KMS, and every other service is empty. Only the Deployment sends mail, so the
+setup and secret protection Jobs carry the AWS identity only for AWS KMS. Takes the chart context.
+*/}}
+{{- define "identity-host.kmsCredentials.mail" -}}
+{{- $server := include "identity-host.kmsCredentials.server" . | fromYaml }}
+name: {{ $server.name | quote }}
+awsKms: ""
+amazonSes: {{ ternary "true" "" (and (not (empty .Values.mail.amazonSes.region)) (empty $server.awsKms)) | quote }}
+azureKeyVault: ""
+googleCloudKms: ""
+webIdentity:
+  {{- toYaml .Values.aws.webIdentity | nindent 2 }}
+workloadIdentity: {}
+workloadIdentityFederation: {}
 {{- end }}
 
 {{/*
@@ -543,12 +562,13 @@ kmsCredentials.volumes projects. Takes the dict that kmsCredentials.server rende
 
 {{/*
 The AWS web identity environment entries: the SDK exchanges the projected token for short-lived credentials of the role.
-Empty unless the component uses AWS KMS and names a role. Takes the dict that kmsCredentials.server renders.
+Empty unless the component uses AWS KMS or Amazon SES and names a role. Takes the dict that kmsCredentials.server or
+kmsCredentials.mail renders.
 */}}
 {{- define "identity-host.kmsCredentials.awsEnv" -}}
 {{- $awsWebIdentityRoot := "/var/run/secrets/tokens/aws" }}
-{{- /* A pod that uses AWS KMS neither for the root key, nor for a tenant's root key, nor for a tenant's keys never carries AWS credentials, whatever the web identity values say. */}}
-{{- if and .awsKms .webIdentity.roleArn }}
+{{- /* A pod that uses AWS KMS neither for the root key, nor for a tenant's root key, nor for a tenant's keys, and sends no mail through Amazon SES never carries AWS credentials, whatever the web identity values say. */}}
+{{- if and (or .awsKms .amazonSes) .webIdentity.roleArn }}
 # The SDK exchanges the projected token for short-lived credentials of this role.
 - name: AWS_ROLE_ARN
   value: {{ .webIdentity.roleArn | quote }}
@@ -598,13 +618,13 @@ federation. Takes the dict that kmsCredentials.server renders.
 
 {{/*
 The volume mounts of the AWS, Azure and Google workload credentials, each present only when the component uses that
-service with an identity. Takes the dict that kmsCredentials.server renders.
+service with an identity. Takes the dict that kmsCredentials.server or kmsCredentials.mail renders.
 */}}
 {{- define "identity-host.kmsCredentials.volumeMounts" -}}
 {{- $awsWebIdentityRoot := "/var/run/secrets/tokens/aws" }}
 {{- $azureWorkloadIdentityRoot := "/var/run/secrets/tokens/azure" }}
 {{- $googleCloudTokenRoot := "/var/run/secrets/tokens/google" }}
-{{- if and .awsKms .webIdentity.roleArn }}
+{{- if and (or .awsKms .amazonSes) .webIdentity.roleArn }}
 - name: aws-web-identity
   mountPath: {{ $awsWebIdentityRoot }}
   readOnly: true
@@ -623,10 +643,10 @@ service with an identity. Takes the dict that kmsCredentials.server renders.
 
 {{/*
 The volumes of the AWS, Azure and Google workload credentials, each present only when the component uses that service
-with an identity. Takes the dict that kmsCredentials.server renders.
+with an identity. Takes the dict that kmsCredentials.server or kmsCredentials.mail renders.
 */}}
 {{- define "identity-host.kmsCredentials.volumes" -}}
-{{- if and .awsKms .webIdentity.roleArn }}
+{{- if and (or .awsKms .amazonSes) .webIdentity.roleArn }}
 # The pod does not mount the default service account token, so this one is projected explicitly, for AWS only.
 - name: aws-web-identity
   projected:
@@ -697,6 +717,73 @@ cell's identity as resource attributes.
 {{- end }}
 
 {{/*
+The outbound mail environment of the host container: the SMTP server, the sender and the credentials' Secret
+references, or the Amazon SES region, the sender and its tags. Only the pods that send mail receive it, the host's
+Deployment, so no Job holds the SMTP password. Renders nothing when mail.smtp.host and mail.amazonSes.region are empty,
+and refuses both set, because a host sends through one transport. It refuses two tag names that differ only in case,
+because configuration keys ignore case.
+*/}}
+{{- define "identity-host.mailEnv" -}}
+{{- if and .Values.mail.smtp.host .Values.mail.amazonSes.region }}
+{{- fail "Set at most one of mail.smtp.host and mail.amazonSes.region." }}
+{{- end }}
+{{- if .Values.mail.amazonSes.region }}
+- name: Mail__AmazonSes__Region
+  value: {{ .Values.mail.amazonSes.region | quote }}
+- name: Mail__AmazonSes__From
+  value: {{ .Values.mail.amazonSes.from | quote }}
+{{- with .Values.mail.amazonSes.fromName }}
+- name: Mail__AmazonSes__FromName
+  value: {{ . | quote }}
+{{- end }}
+{{- with .Values.mail.amazonSes.fromIdentityArn }}
+- name: Mail__AmazonSes__FromIdentityArn
+  value: {{ . | quote }}
+{{- end }}
+{{- with .Values.mail.amazonSes.configurationSetName }}
+- name: Mail__AmazonSes__ConfigurationSetName
+  value: {{ . | quote }}
+{{- end }}
+{{- $tagNames := dict }}
+{{- range $key, $value := .Values.mail.amazonSes.tags }}
+{{- $lowerKey := lower $key }}
+{{- if hasKey $tagNames $lowerKey }}
+{{- fail (printf "mail.amazonSes.tags names %s and another tag that differs from it only in case; configuration keys ignore case, so one would replace the other." $key) }}
+{{- end }}
+{{- $_ := set $tagNames $lowerKey true }}
+- name: {{ printf "Mail__AmazonSes__Tags__%s" $key | quote }}
+  value: {{ $value | quote }}
+{{- end }}
+{{- end }}
+{{- if .Values.mail.smtp.host }}
+- name: Mail__Smtp__Host
+  value: {{ .Values.mail.smtp.host | quote }}
+- name: Mail__Smtp__Port
+  value: {{ .Values.mail.smtp.port | quote }}
+- name: Mail__Smtp__Tls
+  value: {{ .Values.mail.smtp.tls | quote }}
+- name: Mail__Smtp__From
+  value: {{ .Values.mail.smtp.from | quote }}
+{{- with .Values.mail.smtp.fromName }}
+- name: Mail__Smtp__FromName
+  value: {{ . | quote }}
+{{- end }}
+{{- with .Values.mail.smtp.existingSecret }}
+- name: Mail__Smtp__UserName
+  valueFrom:
+    secretKeyRef:
+      name: {{ . | quote }}
+      key: username
+- name: Mail__Smtp__Password
+  valueFrom:
+    secretKeyRef:
+      name: {{ . | quote }}
+      key: password
+{{- end }}
+{{- end }}
+{{- end }}
+
+{{/*
 The pod annotation that names where the cell's backups are kept, for the pods that own a database: those of the host,
 the directory and their migration Jobs. Renders nothing when backup.location is empty.
 */}}
@@ -759,6 +846,10 @@ same configuration the pods it rewraps keys for read.
   value: {{ .Values.apiReference.documentEnabled | quote }}
 - name: ApiReference__PageEnabled
   value: {{ .Values.apiReference.pageEnabled | quote }}
+{{- if .Values.admission.concurrencyLimit }}
+- name: OpenId__Admission__ConcurrencyLimit
+  value: {{ .Values.admission.concurrencyLimit | quote }}
+{{- end }}
 {{ include "identity-host.databaseEnv" (dict "scope" .Values.database "defaults" .Values.database) | trim }}
 {{- if $valkey }}
 {{ include "identity-host.valkeyEnv" (dict "scope" .Values.valkey "defaults" .Values.valkey) | trim }}
@@ -1079,7 +1170,7 @@ service's workload credentials. Takes a dict with the chart context as root and 
 {{/*
 The workload credentials of the management console, as YAML in the shape that kmsCredentials.server renders: the
 console's full name, whether a remote key of the console names each service, and the console's own identity values from
-managementConsole.secretProtection. Takes the chart context.
+managementConsole.aws and managementConsole.secretProtection. Takes the chart context.
 */}}
 {{- define "identity-host.kmsCredentials.managementConsole" -}}
 name: {{ include "identity-host.managementConsole.fullname" . | quote }}
@@ -1087,7 +1178,7 @@ awsKms: {{ include "identity-host.managementConsole.usesKeyManagementService" (d
 azureKeyVault: {{ include "identity-host.managementConsole.usesKeyManagementService" (dict "root" . "name" "azure-key-vault") | quote }}
 googleCloudKms: {{ include "identity-host.managementConsole.usesKeyManagementService" (dict "root" . "name" "google-cloud-kms") | quote }}
 webIdentity:
-  {{- toYaml .Values.managementConsole.secretProtection.awsKms.webIdentity | nindent 2 }}
+  {{- toYaml .Values.managementConsole.aws.webIdentity | nindent 2 }}
 workloadIdentity:
   {{- toYaml .Values.managementConsole.secretProtection.azureKeyVault.workloadIdentity | nindent 2 }}
 workloadIdentityFederation:

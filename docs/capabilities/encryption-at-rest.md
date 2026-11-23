@@ -116,6 +116,7 @@ flowchart TB
 | Tenant **private signing and encryption keys**                                      | Tenant               | `nce1.` envelope                                                                                           |
 | **Client secrets** of a client that only compares its secret (`client_secret_basic`, `client_secret_post`) | Tenant | A one-way verifier in an `nce1.` envelope: the server cannot read the secret back. A supplied secret's PBKDF2 verifier can still be searched by whoever holds the root key and the database, so choose a long random one ([ADR-1391](../decisions/1391-a-client-secret-is-a-one-way-verifier-unless-its-method-keys-from-its-utf-8-octets.md)) |
 | **Client secrets** of a client that uses its secret as a key (`client_secret_jwt`), and resource-server keys | Tenant | `nce1.` envelope |
+| **Audit-stream signing secrets**, which sign each delivery to a tenant's endpoint | Tenant | `nce1.` envelope ([ADR-1534](../decisions/1534-a-tenants-audit-records-stream-to-its-endpoints-read-forward-from-the-audit-store-and-signed-as-standard-webhooks.md)) |
 | **Grant payloads**: authorization codes, refresh tokens, sessions, device, CIBA and PAR requests, DCR tokens | Tenant               | `nce1.` envelope ([ADR-1235](../decisions/1235-stored-secrets-and-grant-payloads-are-protected-by-a-key-hierarchy-under-an-external-root-key.md))     |
 | ASP.NET Core **Data Protection key ring** (sign-in cookies, anti-forgery tokens)        | Platform             | Each key in an `nce1.` envelope                                                                            |
 | Your own application's sensitive data                                                   | Platform / tenant    | `nce1.` envelope ([see below](#protect-your-own-data-with-it))                                             |
@@ -468,10 +469,10 @@ sequenceDiagram
   owner and purpose, never to a master key, so its payload stays valid. A pass reads each owner's values once and only
   those under a retired key; a value that cannot be rewrapped is logged by record id and keeps its key.
 - **Destroy is conservative.** A retired key is destroyed only after `RetirementGrace` (30 days) and when every
-  registered `IProtectedValueSource` reports no value that names it. The sources cover stored secrets, grant payloads and
-  the Data Protection key ring. A ring key is not re-encrypted, so the retired platform key stays while a live ring key
-  names it, and always when the ring cannot be read. `SecretProtection:MasterKeys:DestroyRetired=false` keeps retired
-  keys for good.
+  registered `IProtectedValueSource` reports no value that names it. The sources cover stored secrets, grant payloads,
+  audit-stream signing secrets and the Data Protection key ring. A ring key is not re-encrypted, so the retired platform
+  key stays while a live ring key names it, and always when the ring cannot be read.
+  `SecretProtection:MasterKeys:DestroyRetired=false` keeps retired keys for good.
 - **Every change is audited.** `master_key.rotated` and `master_key.destroyed` are `key` events without material (see
   [Audit records](../audit-records.md#master-keys)). A status read is not. A tenant's root key changes are audited as
   `root_key.*` events ([Audit records](../audit-records.md#root-keys)).
