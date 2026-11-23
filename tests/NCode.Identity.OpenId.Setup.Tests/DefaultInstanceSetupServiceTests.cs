@@ -789,6 +789,8 @@ public sealed class DefaultInstanceSetupServiceTests : IDisposable
     public async Task SetUpAsync_WhenAHostAddsTheRowFirst_InitializesTheHostsRow()
     {
         var hostRow = CreateRow();
+        var duplicateKey = new InvalidOperationException("duplicate key");
+        var saves = 0;
         var state = new Dictionary<string, object?>();
 
         SetupTenantScope();
@@ -799,9 +801,11 @@ public sealed class DefaultInstanceSetupServiceTests : IDisposable
         SetupAssignment(_ => { });
         SetupAdd(_ => { });
         MockStoreManager
-            .SetupSequence(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()))
-            .Throws(new InvalidOperationException("duplicate key"))
-            .Returns(ValueTask.CompletedTask);
+            .Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()))
+            .Returns(() =>
+                ++saves == 1 ? ValueTask.FromException(duplicateKey) : ValueTask.CompletedTask
+            )
+            .Verifiable(Times.Exactly(2));
         SetupUpdate(hostRow);
         SetupLogged(LogLevel.Information, EventIds.RootAdministratorCreated, state);
 
@@ -864,7 +868,8 @@ public sealed class DefaultInstanceSetupServiceTests : IDisposable
         SetupTenantScope();
         SetupStoreManagers(2 * attempts);
         SetupInstanceSetupStore(2 * attempts);
-        // Each read returns a row of its own, because an attempt marks the row it read as initialized before its update.
+        // Each read returns a row of its own, because an attempt marks the row it read as initialized before its
+        // update.
         MockInstanceSetupStore
             .Setup(x => x.GetOrDefaultAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(() => CreateRow())
