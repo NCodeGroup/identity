@@ -57,20 +57,37 @@ customer's tenants and spans cells, and a tenant lives in exactly one cell.**
 2. **The global directory reserves, places and publishes, and holds no personal data.** It reserves tenant and team
    identifiers platform-wide and retires them when their owners are deleted, places each tenant in one cell, records the
    cells, and publishes team documents (name, settings and per-region root-key references). It holds identifiers,
-   placements, cells and team documents, and nothing about a person. Creating a tenant reserves its identifier,
-   inserts the tenant and then places it, and a failure after the insert removes the inserted tenant and then releases
-   the reservation, so the directory never frees an identifier whose row still exists; creation fails closed with `503`
-   when the directory is unreachable. Creating a team reserves its identifier, inserts the team and then publishes its
-   document, and a failure after the insert removes the inserted team and then releases the reservation. The directory
-   authorizes a tenant write against the stored record in the transaction that writes it: a cell writes the tenants it
-   holds, and the control-plane cell writes any tenant. A tenant with no record is retired only by the control-plane
-   cell, and a release of an unknown tenant writes nothing. Retirement and an issuer change retire the stored issuer,
-   and an issuer change names the issuer the tenant holds.
-   Each write of the directory runs again when the acknowledgement of its commit is lost, so a write that runs again
-   recognizes its own committed result: a tenant reservation that the calling cell holds for the same issuer and team,
-   before the tenant is placed, a team reservation that is not yet published, and a move of a tenant already placed in
-   the target cell each succeed. A placement names the tenant, its issuer and its cell, and its region is the region
-   that the cell registered with the directory.
+   placements, cells and team documents, and nothing about a person. Creating a tenant reserves its identifier and, when
+   it has one, its issuer, in its team or, for a tenant of the platform's own team, in no team (decision 11), places the
+   tenant in its cell and then inserts it, so a tenant's row never exists unplaced, and a placement whose row is not yet
+   written serves nothing, because serving never calls the directory. A placement that does not take effect releases the
+   reservation on its own bounded token, and a release that fails is logged, so the failure that ended the creation
+   surfaces. A failure after the placement releases nothing, because the directory never frees a placed tenant: another
+   creator of the same tenant in the same cell holds the same placement and may still write its row. The identifier then
+   stays placed in that cell, and creating the tenant again there with the same issuer and team completes it; creation
+   fails closed with `503` when the directory is unreachable. A tenant a cell creates on demand that a strategy serves
+   at an address (one with an issuer), a static strategy's own tenant or the root tenant of a cell that is not the
+   control plane when `TenantResolution:Root:Issuer` gives it one, is reserved, placed and inserted the same way when
+   the cell first creates it, and the cell does not create it while the directory refuses it or cannot be reached; a
+   tenant a cell creates on demand without an issuer has no address on the platform and is created in its cell alone.
+   The directory holds the control-plane cell's root tenant from its own configuration:
+   `DirectoryServer:ControlPlaneTenantId` names it, and before every reservation and every issuer change the directory
+   ensures its record, placed in the control-plane cell under `DirectoryServer:Issuer` and in no team, in a transaction
+   that commits first, so no other cell reserves its identifier or its issuer and the control-plane cell changes that
+   tenant's issuer through the directory as for any tenant. The directory refuses an offer or a move of that tenant
+   (`409`), because it places it in the control-plane cell from its own configuration and accepts only the tokens it
+   issues, so it never leaves that cell. A configuration that names an identifier another cell holds, or an issuer
+   another tenant holds, fails the write. Creating a team reserves its identifier, inserts the team and then publishes
+   its document, and a failure after the insert removes the inserted team and then releases the reservation. The
+   directory authorizes a tenant write against the stored record in the transaction that writes it: a cell writes the
+   tenants it holds, and the control-plane cell writes any tenant. A tenant with no record is retired only by the
+   control-plane cell, and a release of an unknown tenant writes nothing. Retirement and an issuer change retire the
+   stored issuer, and an issuer change names the issuer the tenant holds. Each write of the directory runs again when
+   the acknowledgement of its commit is lost, so a write that runs again recognizes its own committed result: a tenant
+   reservation that the calling cell holds for the same issuer and team, before or after the tenant is placed, a team
+   reservation that is not yet published, and a move of a tenant already placed in the target cell each succeed. A
+   placement names the tenant, its issuer when it has one, and its cell, and its region is the region that the cell
+   registered with the directory.
 3. **One cell runs on its own.** The directory is three ports (tenants, teams, cells). A local adapter over the cell's
    own retired-identifier tables is the default and needs no extra service, so a single deployment is a platform of one
    cell. A remote adapter, selected by `Directory:Url`, calls the directory service over HTTP with a client-credentials
@@ -84,7 +101,11 @@ customer's tenants and spans cells, and a tenant lives in exactly one cell.**
    endpoint who a caller is, and they fail closed. A tenant's own role assignments stay in the tenant's cell. Setup runs
    once per platform, in the control-plane cell only. A host's published configuration names no cell, so a host that is
    not given `Cell:Name` and `Cell:Region` refuses to start, and only a host given `Cell:IsControlPlane` serves the
-   control plane.
+   control plane. The control-plane cell's control-plane tenant never waits on the directory: the cell creates it
+   without reserving or placing it, which the directory holds from its own configuration (decision 2), judges its
+   address and changes its keys without asking the directory, which accepts only the tokens that tenant issues, so a
+   control-plane cell serves from a release that carries its directory client from the first. Only the control-plane
+   cell seeds its root tenant in the root plane; every other cell seeds its root tenant in the workload plane.
 5. **A team spans cells.** The control-plane cell owns teams and publishes each team document to the directory. Every
    other cell mirrors team documents into its team rows from the directory's change feed and evicts the caches the
    change touches, so the settings cascade resolves the same way in every cell. A tenant never moves between teams. The
@@ -131,7 +152,8 @@ customer's tenants and spans cells, and a tenant lives in exactly one cell.**
     ([ADR-1426](1426-a-team-can-nest-beneath-a-parent-team-and-its-subtree-is-walked-depth-first.md)).
 11. **The platform's own team.** `TenantResolution:Root:TeamId` (default `platform`) names the team that holds the root
     tenant and every tenant a tenant-resolution strategy creates. It is top-level, holds no teams, and can be neither
-    disabled nor deleted.
+    disabled nor deleted. The directory holds no record of it, because each cell creates it for itself, so a tenant of
+    the platform's own team is reserved in no team and no team limit applies to it.
 12. **The cascade.** Settings resolve through host configuration and the platform, the team or teams, the tenant, and the
     client or resource server, with the registered setting scopes `platform`, `team`, `tenant`, `client` and
     `resource_server`. A team document carries every setting that applies beneath it, so the security profiles and
@@ -153,9 +175,9 @@ customer's tenants and spans cells, and a tenant lives in exactly one cell.**
     have globally unique, retired identifiers, so an assignment matches them on type and identifier; any other node
     counts an assignment only within its tenant, because client and resource-server identifiers are unique only within a
     tenant.
-15. **Tenant routes.** Tenants are created and listed under `/api/teams/{teamId}/tenants`. The root tenant holds the
-    `platform_settings`, `platform_encryption_keys`, `teams`, `team_settings` and `tenants` scope families, and team and
-    platform management routes are mapped only in the control-plane cell.
+15. **Tenant routes.** Tenants are created and listed under `/api/teams/{teamId}/tenants`. The control-plane cell's root
+    tenant holds the `platform_settings`, `platform_encryption_keys`, `teams`, `team_settings` and `tenants` scope
+    families, and team and platform management routes are mapped only in the control-plane cell.
 16. **Lifecycle.** A team's lifecycle (create, disable, restore, delete) is authority at the node above it, which is the
     platform for a top-level team. Platform authority or `GlobalAdmin` lists teams and tenants across teams. A disabled
     team's tenants answer `404` on the protocol surface and on the management routes that act through a tenant's runtime
@@ -188,6 +210,11 @@ customer's tenants and spans cells, and a tenant lives in exactly one cell.**
   and ignores a tenant's region.
 - **A directory that every request consults.** Rejected: it puts the directory in the serving path and makes its outage
   an outage of every tenant; the cell's own tenant row is authoritative for serving.
+- **The control-plane cell reserves and places its root tenant in the background once it registers.** Rejected: until it
+  does, a workload cell can reserve the same identifier, and the platform holds two tenants with one identifier.
+- **The directory records the control-plane cell's root tenant when it starts.** Rejected: the directory then needs its
+  database before it listens, which it otherwise does not; a replica whose database cannot be reached waits out of
+  rotation behind its readiness check instead of failing to start.
 - **A query filter that matches every tenant when no scope is set.** Rejected: it fails open on every path nobody
   reviewed. A filter that matches nothing, plus explicit reasoned unscoped scopes, fails closed.
 - **The query filter alone.** Rejected: a query that escapes the filter reads other tenants' rows. Row-level security

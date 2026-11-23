@@ -4,6 +4,7 @@
 using System.Collections.Immutable;
 using System.Text.Json;
 using NCode.Identity.OpenId.GlobalDirectory.Server.Entities;
+using NCode.Identity.OpenId.GlobalDirectory.Server.Stores;
 using Xunit;
 
 namespace NCode.Identity.OpenId.GlobalDirectory.Server;
@@ -30,6 +31,39 @@ public sealed class DefaultDirectoryStoreReserveTests : DefaultDirectoryStoreTes
         Assert.Equal(TimeProvider.GetUtcNow(), record.CreatedWhen);
         Assert.Equal(TimeProvider.GetUtcNow(), record.ModifiedWhen);
         Assert.Null(await Tenants.GetPlacementOrDefaultAsync(TenantId, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task ReserveAsync_WhenTheTenantHasNoIssuer_ReservesItsIdentifierAlone()
+    {
+        var result = await ReserveAsync(TenantId, issuer: null);
+
+        Assert.True(result.IsReserved);
+        var record = await ReadTenantAsync(TenantId);
+        Assert.NotNull(record);
+        Assert.Null(record.Issuer);
+        Assert.Null(record.NormalizedIssuer);
+        Assert.Equal(TenantRecord.StateReserved, record.State);
+    }
+
+    [Fact]
+    public async Task ReserveAsync_WhenTenantsWithoutAnIssuerAreReservedInTurn_ReservesEach()
+    {
+        var first = await ReserveAsync(TenantId, issuer: null);
+        var second = await ReserveAsync(OtherTenantId, issuer: null);
+
+        Assert.True(first.IsReserved);
+        Assert.True(second.IsReserved);
+    }
+
+    [Fact]
+    public async Task ReserveAsync_WhenAReservationWithoutAnIssuerRunsAgain_IsReserved()
+    {
+        var first = await ReserveAsync(TenantId, issuer: null);
+        var second = await ReserveAsync(TenantId, issuer: null);
+
+        Assert.True(first.IsReserved);
+        Assert.True(second.IsReserved);
     }
 
     [Fact]
@@ -102,11 +136,59 @@ public sealed class DefaultDirectoryStoreReserveTests : DefaultDirectoryStoreTes
     }
 
     [Fact]
-    public async Task ReserveAsync_WhenTheTenantIsPlaced_ConflictsWithTheHeldIdentifierText()
+    public async Task ReserveAsync_WhenTheHoldingCellReservesItsPlacedTenantAgain_IsReservedAndKeepsItPlaced()
     {
         await ReserveAndPlaceAsync(TenantId, Issuer);
 
         var result = await ReserveAsync(TenantId, Issuer);
+
+        Assert.True(result.IsReserved);
+        Assert.Null(result.ConflictDetail);
+        var record = await ReadTenantAsync(TenantId);
+        Assert.NotNull(record);
+        Assert.Equal(TenantRecord.StatePlaced, record.State);
+        Assert.Equal(CellName, record.Cell);
+    }
+
+    [Fact]
+    public async Task ReserveAsync_WhenTheHoldingCellReservesItsPlacedTenantAgainInAFullTeam_IsReserved()
+    {
+        await PublishTeamAsync("team-1", maxTenants: 1);
+        await ReserveAndPlaceAsync(TenantId, Issuer, teamId: "team-1");
+
+        var result = await ReserveAsync(TenantId, Issuer, teamId: "team-1");
+
+        Assert.True(result.IsReserved);
+    }
+
+    [Fact]
+    public async Task ReserveAsync_WhenAnotherCellReservesAPlacedTenant_ConflictsWithTheHeldIdentifierText()
+    {
+        await ReserveAndPlaceAsync(TenantId, Issuer);
+
+        var result = await Tenants.ReserveAsync(
+            new TenantReservation
+            {
+                TenantId = TenantId,
+                Issuer = Issuer,
+                Cell = "cell-b",
+            },
+            CancellationToken.None
+        );
+
+        Assert.False(result.IsReserved);
+        Assert.Equal(
+            $"Another tenant already has the identifier '{TenantId}'.",
+            result.ConflictDetail
+        );
+    }
+
+    [Fact]
+    public async Task ReserveAsync_WhenTheHoldingCellReservesItsPlacedTenantUnderAnotherIssuer_ConflictsWithTheHeldIdentifierText()
+    {
+        await ReserveAndPlaceAsync(TenantId, Issuer);
+
+        var result = await ReserveAsync(TenantId, OtherIssuer);
 
         Assert.False(result.IsReserved);
         Assert.Equal(
@@ -159,6 +241,166 @@ public sealed class DefaultDirectoryStoreReserveTests : DefaultDirectoryStoreTes
         Assert.Equal(
             $"The issuer '{Issuer}' belonged to another tenant and is never reissued.",
             result.ConflictDetail
+        );
+    }
+
+    [Fact]
+    public async Task ReserveAsync_WhenAnotherCellReservesTheControlPlaneTenantId_Conflicts()
+    {
+        var result = await ReserveAsync(ControlPlaneTenantId, FreeIssuer);
+
+        Assert.False(result.IsReserved);
+        Assert.Equal(
+            $"Another tenant already has the identifier '{ControlPlaneTenantId}'.",
+            result.ConflictDetail
+        );
+        var record = await ReadTenantAsync(ControlPlaneTenantId);
+        Assert.NotNull(record);
+        Assert.Equal(TenantRecord.StatePlaced, record.State);
+        Assert.Equal(ControlPlaneCell, record.Cell);
+        Assert.Equal(ControlPlaneIssuer, record.Issuer);
+        Assert.Null(record.NormalizedTeamId);
+    }
+
+    [Fact]
+    public async Task ReserveAsync_WhenATenantReservesTheControlPlaneIssuer_Conflicts()
+    {
+        var result = await ReserveAsync(TenantId, ControlPlaneIssuer);
+
+        Assert.False(result.IsReserved);
+        Assert.Equal(
+            $"Another tenant already has the issuer '{ControlPlaneIssuer}'.",
+            result.ConflictDetail
+        );
+    }
+
+    [Fact]
+    public async Task ReserveAsync_WhenTenantsAreReservedInTurn_HoldsTheControlPlaneTenantOnce()
+    {
+        var first = await ReserveAsync(TenantId, Issuer);
+        var second = await ReserveAsync(OtherTenantId, OtherIssuer);
+
+        Assert.True(first.IsReserved);
+        Assert.True(second.IsReserved);
+        var record = await ReadTenantAsync(ControlPlaneTenantId);
+        Assert.NotNull(record);
+        Assert.Equal(TenantRecord.StatePlaced, record.State);
+    }
+
+    [Fact]
+    public async Task ReserveAsync_WhenTheControlPlaneCellHoldsItsRootTenantReserved_PlacesItAndKeepsItsIssuer()
+    {
+        var holder = await CreateTenantDirectory("other-root")
+            .ReserveAsync(
+                new TenantReservation
+                {
+                    TenantId = TenantId,
+                    Issuer = Issuer,
+                    Cell = ControlPlaneCell,
+                },
+                CancellationToken.None
+            );
+        Assert.True(holder.IsReserved);
+        TimeProvider.Advance(TimeSpan.FromMinutes(5));
+
+        var result = await CreateTenantDirectory(TenantId)
+            .ReserveAsync(
+                new TenantReservation
+                {
+                    TenantId = OtherTenantId,
+                    Issuer = OtherIssuer,
+                    Cell = CellName,
+                },
+                CancellationToken.None
+            );
+
+        Assert.True(result.IsReserved);
+        var record = await ReadTenantAsync(TenantId);
+        Assert.NotNull(record);
+        Assert.Equal(TenantRecord.StatePlaced, record.State);
+        Assert.Equal(ControlPlaneCell, record.Cell);
+        Assert.Equal(Issuer, record.Issuer);
+        Assert.Equal(TimeProvider.GetUtcNow(), record.ModifiedWhen);
+        Assert.True(record.CreatedWhen < record.ModifiedWhen);
+    }
+
+    [Fact]
+    public async Task ReserveAsync_WhenAnotherCellHoldsTheConfiguredControlPlaneTenantId_Throws()
+    {
+        await ReserveAndPlaceAsync(TenantId, Issuer);
+        var tenants = CreateTenantDirectory(TenantId);
+        var reservation = new TenantReservation
+        {
+            TenantId = OtherTenantId,
+            Issuer = OtherIssuer,
+            Cell = CellName,
+        };
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await tenants.ReserveAsync(reservation, CancellationToken.None)
+        );
+
+        Assert.Equal(
+            $"The tenant '{TenantId}' that DirectoryServer:ControlPlaneTenantId names is retired or held by another cell, so the directory cannot hold it for the control-plane cell; set DirectoryServer:ControlPlaneTenantId to the control-plane cell's root tenant identifier, which no other cell holds or retired.",
+            exception.Message
+        );
+    }
+
+    [Fact]
+    public async Task ReserveAsync_WhenAnotherTenantHoldsTheControlPlaneIssuer_Throws()
+    {
+        var holder = await CreateTenantDirectory("other-root")
+            .ReserveAsync(
+                new TenantReservation
+                {
+                    TenantId = TenantId,
+                    Issuer = FreeIssuer,
+                    Cell = CellName,
+                },
+                CancellationToken.None
+            );
+        Assert.True(holder.IsReserved);
+        var reservation = new TenantReservation
+        {
+            TenantId = OtherTenantId,
+            Issuer = OtherIssuer,
+            Cell = CellName,
+        };
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await Tenants.ReserveAsync(reservation, CancellationToken.None)
+        );
+
+        Assert.Equal(
+            $"Another tenant holds or retired the issuer that DirectoryServer:Issuer names, so the directory cannot hold it for the control-plane cell's root tenant '{ControlPlaneTenantId}'; set DirectoryServer:Issuer to the control-plane cell's issuer, which no other tenant holds or retired.",
+            exception.Message
+        );
+    }
+
+    [Fact]
+    public async Task ReserveAsync_WhenTheControlPlaneTenantIsRetired_Throws()
+    {
+        Assert.True((await ReserveAsync(TenantId, Issuer)).IsReserved);
+        var retirement = await TenantWriter.RetireAsync(
+            new TenantRetirement { TenantId = ControlPlaneTenantId },
+            ControlPlaneCell,
+            CancellationToken.None
+        );
+        Assert.Equal(DirectoryTenantWriteOutcome.Done, retirement.Outcome);
+        var reservation = new TenantReservation
+        {
+            TenantId = OtherTenantId,
+            Issuer = OtherIssuer,
+            Cell = CellName,
+        };
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await Tenants.ReserveAsync(reservation, CancellationToken.None)
+        );
+
+        Assert.Equal(
+            $"The tenant '{ControlPlaneTenantId}' that DirectoryServer:ControlPlaneTenantId names is retired or held by another cell, so the directory cannot hold it for the control-plane cell; set DirectoryServer:ControlPlaneTenantId to the control-plane cell's root tenant identifier, which no other cell holds or retired.",
+            exception.Message
         );
     }
 

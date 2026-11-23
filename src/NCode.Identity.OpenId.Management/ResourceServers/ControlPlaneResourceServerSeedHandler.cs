@@ -1,7 +1,6 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
-using Microsoft.Extensions.Options;
 using NCode.Identity.Cryptography;
 using NCode.Identity.Json;
 using NCode.Identity.OpenId.GlobalDirectory;
@@ -14,20 +13,17 @@ namespace NCode.Identity.OpenId.Management.ResourceServers;
 
 /// <summary>
 /// Seeds the reserved directory (<see cref="GlobalDirectoryProtocol.DirectoryAudience"/>) and control-plane
-/// (<see cref="GlobalDirectoryProtocol.ControlPlaneAudience"/>) resource servers into the root tenant of the
-/// control-plane cell. Other cells request tokens for these audiences with the scopes
+/// (<see cref="GlobalDirectoryProtocol.ControlPlaneAudience"/>) resource servers into the root plane, which only the
+/// control-plane cell's root tenant is seeded in. Other cells request tokens for these audiences with the scopes
 /// <see cref="GlobalDirectoryProtocol.DirectoryScope"/> and <see cref="GlobalDirectoryProtocol.ControlPlaneScope"/>.
-/// The handler seeds nothing in a workload tenant or in a cell that is not the control plane. It is idempotent: it
-/// creates each resource server only when it is absent.
+/// The handler seeds nothing in the workload plane. It is idempotent: it creates each resource server only when it is
+/// absent.
 /// </summary>
-internal sealed class ControlPlaneResourceServerSeedHandler(
-    ICryptoService cryptoService,
-    IOptions<CellOptions> cellOptions
-) : ICommandHandler<SeedTenantCommand>, ISupportMediatorPriority
+internal sealed class ControlPlaneResourceServerSeedHandler(ICryptoService cryptoService)
+    : ICommandHandler<SeedTenantCommand>,
+        ISupportMediatorPriority
 {
     private ICryptoService CryptoService { get; } = cryptoService;
-
-    private CellOptions CellOptions { get; } = cellOptions.Value;
 
     /// <inheritdoc />
     public int MediatorPriority => DefaultMediatorPriorities.Low;
@@ -39,7 +35,7 @@ internal sealed class ControlPlaneResourceServerSeedHandler(
     )
     {
         var context = command.Context;
-        if (context.Plane != TenantPlane.Root || !CellOptions.IsControlPlane)
+        if (context.Plane != TenantPlane.Root)
         {
             return;
         }

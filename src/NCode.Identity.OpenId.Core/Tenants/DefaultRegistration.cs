@@ -5,6 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 using NCode.Identity.OpenId.Core.ResourceServers;
+using NCode.Identity.OpenId.GlobalDirectory;
 using NCode.Identity.OpenId.Persistence.Tenants;
 using NCode.Identity.OpenId.Teams;
 using NCode.Identity.OpenId.Tenants.Keys;
@@ -56,9 +57,11 @@ internal static class DefaultRegistration
             serviceCollection.TryAddSingleton<IOpenIdTenantFactory, DefaultOpenIdTenantFactory>();
 
             // Tenants are provisioned and seeded through one mediator-driven pipeline: the provisioner opens a single
-            // unit of work and fans SeedTenantCommand out to every seed handler (ADR-1166).
+            // unit of work and fans SeedTenantCommand out to every seed handler (ADR-1166). A tenant a creator serves at
+            // an address is reserved and placed through one placer (ADR-1411).
             serviceCollection.AddMediator();
             serviceCollection.TryAddScoped<ITenantProvisioner, DefaultTenantProvisioner>();
+            serviceCollection.TryAddSingleton<ITenantPlacer, DefaultTenantPlacer>();
 
             var seedHandler = ServiceDescriptor.Singleton<
                 ICommandHandler<SeedTenantCommand>,

@@ -5,6 +5,10 @@ metadata:
   name: {{ include "identity-host.directory.fullname" . }}
   labels:
     {{- include "identity-host.directory.labels" . | nindent 4 }}
+  {{- if and .Values.directory.ingress.enabled (eq .Values.ingress.controller "traefik") }}
+  annotations:
+    {{- include "identity-host.backendTls.traefikServiceAnnotations" (dict "root" . "name" (include "identity-host.directory.fullname" .)) | nindent 4 }}
+  {{- end }}
 spec:
   type: {{ .Values.directory.service.type }}
   ports:

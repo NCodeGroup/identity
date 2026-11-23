@@ -13,14 +13,14 @@ namespace NCode.Identity.OpenId.Tenants;
 public enum TenantPlane
 {
     /// <summary>
-    /// The workload plane, which holds a tenant's own clients, resource servers, scopes, and grants. This is the
-    /// plane of every tenant other than the root tenant.
+    /// The workload plane, which holds a tenant's own clients, resource servers, scopes, and grants. This is the plane
+    /// of every tenant other than the control-plane cell's root tenant, the root tenant of every other cell included.
     /// </summary>
     Workload = 0,
 
     /// <summary>
-    /// The control plane, which administers the platform, teams and tenants. This is the plane of the root tenant,
-    /// whose identifier is <see cref="RootTenantOptions.TenantId"/>.
+    /// The control plane, which administers the platform, teams and tenants. This is the plane of the control-plane
+    /// cell's root tenant, the control-plane tenant that <see cref="ITenantStrategy.GetControlPlaneTenantId"/> names.
     /// </summary>
     Root = 1,
 }

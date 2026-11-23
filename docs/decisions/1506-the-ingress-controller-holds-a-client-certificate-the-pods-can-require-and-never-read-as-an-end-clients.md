@@ -42,11 +42,11 @@ client's.**
    and the property #788 asks for holds: no pod's key ever reaches the controller. Which routes use the Secret, and
    so cause the chart to issue it, is decided in
    [ADR-1507](1507-the-host-chart-routes-to-its-https-only-pods-through-gateway-api-a-traefik-ingress-or-the-operators-own-ingress.md).
-   - `backendTls.ingressSecret` and `managementConsole.backendTls.ingressSecret` name a Secret the operator created.
-     That Secret is then the only Secret the controller verifies against. The console's value falls back to the
-     server's, then to `<release>-ingress`.
+   - `backendTls.ingressSecret`, `managementConsole.backendTls.ingressSecret` and `directory.backendTls.ingressSecret`
+     name a Secret the operator created. That Secret is then the only Secret the controller verifies against. The
+     console's and the directory's values fall back to the server's, then to `<release>-ingress`.
    - The chart issues the Certificate only when a route uses the Secret and no `ingressSecret` names the component's
-     Secret; the console's `ingressSecret` falls back to the server's.
+     Secret; the console's and the directory's `ingressSecret` fall back to the server's.
    - The chart renders the release's private CA whenever the Certificate needs it.
    - When `backendTls.certManager.issuerRef.name` is empty and a component's `existingSecret` is set without an
      `ingressSecret` for it, rendering fails when a route uses the Secret: the chart cannot know the CA that signed the
@@ -77,12 +77,13 @@ client's.**
    - A direct-TLS deployment that serves end clients' certificates on the connection does not enable
      `ProxyClientCertificate`.
 4. **The chart enables it with `backendTls.clientCertificate`.** `required` (default `false`) and `commonName` (default
-   `ncode-identity-ingress`) apply to the server and the console. The chart sets `ProxyClientCertificate__Required`,
-   `__CertificateAuthorityPath` to the mounted serving Secret's `ca.crt`, so no further mount is needed, and
-   `__AllowedSubjects__0` to `CN=<commonName>`. How each route presents the certificate is decided in
-   [ADR-1507](1507-the-host-chart-routes-to-its-https-only-pods-through-gateway-api-a-traefik-ingress-or-the-operators-own-ingress.md). With
-   `ingress.controller: other`, or with an `ingressSecret` the operator created, the operator's certificate must have
-   the subject `CN=<commonName>` and be issued by the CA in the serving Secret's `ca.crt`.
+   `ncode-identity-ingress`) apply to the server, the console and the directory. The chart sets
+   `ProxyClientCertificate__Required`, `__CertificateAuthorityPath` to the mounted serving Secret's `ca.crt`, so no
+   further mount is needed, and `__AllowedSubjects__0` to `CN=<commonName>`. How each route presents the certificate is
+   decided in
+   [ADR-1507](1507-the-host-chart-routes-to-its-https-only-pods-through-gateway-api-a-traefik-ingress-or-the-operators-own-ingress.md).
+   With `ingress.controller: other`, or with an `ingressSecret` the operator created, the operator's certificate must
+   have the subject `CN=<commonName>` and be issued by the CA in the serving Secret's `ca.crt`.
 5. **The chart workflow gates the Secret and installs the chart in kind.** The `check` job renders the chart and fails
    unless Traefik verifies against the ingress Secret by default, against an operator's `ingressSecret` when set, and
    never against a serving Secret. The `cluster` job installs the chart's server and management console in a kind

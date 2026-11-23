@@ -34,6 +34,7 @@ public class DirectoryEndpointsTests : IAsyncLifetime
     private const string Token = "directory-access-token";
     private const string CellName = "a";
     private const string ControlPlaneCell = "control";
+    private const string ControlPlaneTenantId = "root";
     private const string DirectoryScope = GlobalDirectoryProtocol.DirectoryScope;
     private const string TenantId = "tenant-1";
     private const string OtherTenantId = "tenant-2";
@@ -106,6 +107,7 @@ public class DirectoryEndpointsTests : IAsyncLifetime
             {
                 ["DirectoryServer:Issuer"] = ServerIssuer,
                 ["DirectoryServer:ControlPlaneCell"] = ControlPlaneCell,
+                ["DirectoryServer:ControlPlaneTenantId"] = ControlPlaneTenantId,
                 ["AllowedHosts"] = "localhost",
             }
         );
@@ -192,7 +194,7 @@ public class DirectoryEndpointsTests : IAsyncLifetime
 
     private async ValueTask<HttpResponseMessage> ReserveTenantAsync(
         string tenantId,
-        string issuer,
+        string? issuer,
         string? teamId = null,
         CancellationToken cancellationToken = default
     ) =>
@@ -400,13 +402,24 @@ public class DirectoryEndpointsTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task ReserveTenant_WithoutAnIssuer_AnswersBadRequest()
+    public async Task ReserveTenant_WithoutAnIssuer_AnswersOk()
+    {
+        Authenticate();
+
+        var response = await ReserveTenantAsync(TenantId, issuer: null);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task ReserveTenant_WhenTheIssuerIsEmpty_AnswersBadRequestWithTheDetail()
     {
         Authenticate();
 
         var response = await ReserveTenantAsync(TenantId, string.Empty);
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal(InvalidIssuerDetail, await ReadProblemDetailAsync(response));
     }
 
     [Fact]
@@ -563,6 +576,31 @@ public class DirectoryEndpointsTests : IAsyncLifetime
         var json = await getResponse.Content.ReadAsStringAsync();
         Assert.Contains("\"tenantId\":\"tenant-1\"", json, StringComparison.Ordinal);
         Assert.Contains("\"region\":\"region-a\"", json, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task PlaceTenant_WithoutAnIssuer_PlacesTheTenant()
+    {
+        Authenticate();
+        var cellResponse = await Client.PutAsJsonAsync(
+            $"/directory/v1/cells/{CellName}",
+            CreateCell(CellName),
+            WebOptions
+        );
+        Assert.Equal(HttpStatusCode.OK, cellResponse.StatusCode);
+        await ReserveTenantAsync(TenantId, issuer: null);
+
+        var placeResponse = await Client.PostAsJsonAsync(
+            "/directory/v1/tenants/place",
+            new TenantPlacementRequest { TenantId = TenantId, Cell = CellName },
+            WebOptions
+        );
+        var getResponse = await Client.GetAsync($"/directory/v1/tenants/{TenantId}");
+
+        Assert.Equal(HttpStatusCode.OK, placeResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, getResponse.StatusCode);
+        var placement = await ReadAsync<JsonElement>(getResponse);
+        Assert.Equal(JsonValueKind.Null, placement.GetProperty("issuer").ValueKind);
     }
 
     [Fact]
@@ -1342,6 +1380,22 @@ public class DirectoryEndpointsTests : IAsyncLifetime
         );
     }
 
+    private async ValueTask AssertControlPlaneTenantStaysInTheControlPlaneCellAsync(
+        CancellationToken cancellationToken = default
+    )
+    {
+        var services = (App ?? throw new InvalidOperationException()).Services;
+        var tenants = services.GetRequiredService<ITenantDirectory>();
+
+        var placement = await tenants.GetPlacementOrDefaultAsync(
+            ControlPlaneTenantId,
+            cancellationToken
+        );
+
+        Assert.NotNull(placement);
+        Assert.Equal(ControlPlaneCell, placement.Cell);
+    }
+
     private async ValueTask OfferMoveAsync(
         string fromCell,
         string toCell,
@@ -1402,6 +1456,25 @@ public class DirectoryEndpointsTests : IAsyncLifetime
             await ReadProblemDetailAsync(response)
         );
         Assert.Equal("a", await GetPlacedCellAsync());
+    }
+
+    [Fact]
+    public async Task MoveTenant_WhenTheTenantIsTheControlPlaneTenant_AnswersConflictWithTheDetail()
+    {
+        await SeedPlacedTenantAsync("region-a");
+        Authenticate(clientId: "cell-b");
+
+        var response = await Client.PostAsync(
+            $"/directory/v1/tenants/{ControlPlaneTenantId}/move?fromCell={ControlPlaneCell}&toCell=b",
+            content: null
+        );
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        Assert.Equal(
+            $"The tenant '{ControlPlaneTenantId}' is the control-plane cell's root tenant, which DirectoryServer:ControlPlaneTenantId names, and it never leaves that cell.",
+            await ReadProblemDetailAsync(response)
+        );
+        await AssertControlPlaneTenantStaysInTheControlPlaneCellAsync();
     }
 
     [Fact]
@@ -1593,6 +1666,26 @@ public class DirectoryEndpointsTests : IAsyncLifetime
             "The cells 'a' and 'b' are in different regions, and a tenant moves only within its region.",
             await ReadProblemDetailAsync(response)
         );
+    }
+
+    [Fact]
+    public async Task OfferMove_WhenTheTenantIsTheControlPlaneTenant_AnswersConflictWithTheDetail()
+    {
+        await SeedPlacedTenantAsync("region-a");
+        AuthenticateAsControlPlane();
+
+        var response = await Client.PostAsJsonAsync(
+            $"/directory/v1/tenants/{ControlPlaneTenantId}/move-offers",
+            new TenantMoveOfferRequest { ToCell = "b" },
+            WebOptions
+        );
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        Assert.Equal(
+            $"The tenant '{ControlPlaneTenantId}' is the control-plane cell's root tenant, which DirectoryServer:ControlPlaneTenantId names, and it never leaves that cell.",
+            await ReadProblemDetailAsync(response)
+        );
+        await AssertControlPlaneTenantStaysInTheControlPlaneCellAsync();
     }
 
     #endregion

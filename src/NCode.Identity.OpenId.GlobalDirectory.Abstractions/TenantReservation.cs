@@ -20,12 +20,14 @@ public sealed record TenantReservation
     public required string TenantId { get; init; }
 
     /// <summary>
-    /// Gets the issuer of the tenant.
+    /// Gets the issuer of the tenant, or <c>null</c> when the tenant has none. A tenant without an issuer reserves its
+    /// identifier alone.
     /// </summary>
-    public required string Issuer { get; init; }
+    public string? Issuer { get; init; }
 
     /// <summary>
-    /// Gets the identifier of the team that owns the tenant, or <c>null</c> when no team owns it.
+    /// Gets the identifier of the team that owns the tenant, or <c>null</c> when no team the directory holds a record
+    /// of owns it, as for a tenant of the platform's own team (<see cref="TenantReservationRules.GetTeamId"/>).
     /// </summary>
     public string? TeamId { get; init; }
 

@@ -169,6 +169,34 @@ public sealed class DefaultDirectoryStoreTenantTests : DefaultDirectoryStoreTest
     }
 
     [Fact]
+    public async Task PlaceAsync_WhenTheTenantHasNoIssuer_PlacesItWithoutAnIssuer()
+    {
+        await RegisterCellAsync();
+
+        await ReserveAndPlaceAsync(TenantId, issuer: null);
+
+        var placement = await Tenants.GetPlacementOrDefaultAsync(TenantId, CancellationToken.None);
+        Assert.NotNull(placement);
+        Assert.Null(placement.Issuer);
+        Assert.Equal(CellName, placement.Cell);
+    }
+
+    [Fact]
+    public async Task PlaceAsync_WhenATenantReservedWithoutAnIssuerIsPlacedUnderOne_Conflicts()
+    {
+        await RegisterCellAsync();
+        Assert.True((await ReserveAsync(TenantId, issuer: null)).IsReserved);
+
+        var result = await PlaceTenantAsync(TenantId, Issuer);
+
+        Assert.False(result.IsReserved);
+        Assert.Equal(
+            $"The tenant '{TenantId}' is reserved for another cell or issuer.",
+            result.ConflictDetail
+        );
+    }
+
+    [Fact]
     public async Task PlaceAsync_WhenTheTenantIsAlreadyPlaced_IsReserved()
     {
         await RegisterCellAsync();
@@ -698,6 +726,36 @@ public sealed class DefaultDirectoryStoreTenantTests : DefaultDirectoryStoreTest
         Assert.NotNull(record);
         Assert.Equal(TenantRecord.StateRetired, record.State);
         Assert.Null(record.Issuer);
+    }
+
+    [Fact]
+    public async Task ChangeIssuerAsync_WhenTheControlPlaneCellChangesItsRootTenantsIssuer_ChangesIt()
+    {
+        var result = await WriterChangeIssuerAsync(
+            ControlPlaneCell,
+            ControlPlaneTenantId,
+            ControlPlaneIssuer,
+            FreeIssuer
+        );
+
+        Assert.Equal(DirectoryTenantWriteOutcome.Done, result.Outcome);
+        var record = await ReadTenantAsync(ControlPlaneTenantId);
+        Assert.NotNull(record);
+        Assert.Equal(FreeIssuer, record.Issuer);
+    }
+
+    [Fact]
+    public async Task ChangeIssuerAsync_WhenATenantTakesTheControlPlaneIssuer_Conflicts()
+    {
+        await ReserveAndPlaceAsync(TenantId, Issuer);
+
+        var result = await ChangeIssuerAsync(TenantId, Issuer, ControlPlaneIssuer);
+
+        Assert.False(result.IsReserved);
+        Assert.Equal(
+            $"Another tenant already has the issuer '{ControlPlaneIssuer}'.",
+            result.ConflictDetail
+        );
     }
 
     #endregion

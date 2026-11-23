@@ -60,16 +60,17 @@ The environment's name never skips the check.
    takes precedence over the base image's `ASPNETCORE_HTTP_PORTS`, read the certificate from
    `/etc/ncode-identity/tls/tls.crt` and the key from `/etc/ncode-identity/tls/tls.key`
    (`Kestrel__Certificates__Default__Path` and `__KeyPath`), and expose port 8443. The mount point is the contract.
-6. **The chart serves HTTPS.** The server's and the console's Deployments carry the TLS environment, the mount and the
-   volume. The migration Job runs before cert-manager has created the Secret, and the secret-protection Job runs an
-   offline command that binds no endpoint; neither carries a TLS environment, mount or volume. The container port is
-   8443, the three probes use `scheme: HTTPS`, and the Service is `https` on port 443 with `appProtocol: https`, which
-   the chart's Ingress backend names. Without an `existingSecret`, the chart creates a cert-manager `Certificate` per component, with
-   an ECDSA P-256 key, from a private CA that it also creates (a self-signed Issuer, a CA Certificate and a CA Issuer).
-   `backendTls.certManager.issuerRef` names an Issuer or ClusterIssuer of the operator's instead of the private CA, and
-   `backendTls.existingSecret` (`managementConsole.backendTls.existingSecret` for the console) names a
-   `kubernetes.io/tls` Secret of the operator's that also holds `ca.crt`. What routes traffic to the pods, and how it
-   verifies their certificate, is decided in
+6. **The chart serves HTTPS.** The server's, the console's and the directory's Deployments carry the TLS environment,
+   the mount and the volume. The migration Job runs before cert-manager has created the Secret, and the
+   secret-protection Job runs an offline command that binds no endpoint; neither carries a TLS environment, mount or
+   volume. The container port is 8443, the three probes use `scheme: HTTPS`, and the Service is `https` on port 443 with
+   `appProtocol: https`, which the chart's Ingress backend names. Without an `existingSecret`, the chart creates a
+   cert-manager `Certificate` per component, with an ECDSA P-256 key, from a private CA that it also creates (a
+   self-signed Issuer, a CA Certificate and a CA Issuer). `backendTls.certManager.issuerRef` names an Issuer or
+   ClusterIssuer of the operator's instead of the private CA, and `backendTls.existingSecret`
+   (`managementConsole.backendTls.existingSecret` for the console, `directory.backendTls.existingSecret` for the
+   directory) names a `kubernetes.io/tls` Secret of the operator's that also holds `ca.crt`. What routes traffic to the
+   pods, and how it verifies their certificate, is decided in
    [ADR-1507](1507-the-host-chart-routes-to-its-https-only-pods-through-gateway-api-a-traefik-ingress-or-the-operators-own-ingress.md);
    the client certificate the pods can require of it is decided in
    [ADR-1506](1506-the-ingress-controller-holds-a-client-certificate-the-pods-can-require-and-never-read-as-an-end-clients.md).

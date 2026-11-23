@@ -29,17 +29,18 @@ Five facts shape how the chart does that (issue [#792](https://github.com/NCodeG
 
 ## Decision
 
-**The chart routes to the pods in one of three modes, for the server and the console alike, and no mode gives a router
-the pods' private key: the Gateway API mode verifies the pods against a CA ConfigMap that holds only `ca.crt`, and the
-Traefik mode against the ingress controller's own Secret.**
+**The chart routes to the pods in one of three modes, for the server, the console and the directory alike, and no mode
+gives a router the pods' private key: the Gateway API mode verifies the pods against a CA ConfigMap that holds only
+`ca.crt`, and the Traefik mode against the ingress controller's own Secret.**
 
-1. **Gateway API.** `httpRoute.enabled` (`managementConsole.httpRoute.enabled` for the console) renders an `HTTPRoute`
-   attached to the operator's Gateway through `parentRefs` that sends every path to the Service's `https` port, and a
-   `BackendTLSPolicy` that targets that port and verifies the pods' certificate against the CA ConfigMap under the host
-   name `<service>.<namespace>.svc`, a name the pods' certificate carries. The server's route names its `hostnames`; the
-   console's hostname is `managementConsole.host`. When `backendTls.clientCertificate.required` is true, the operator
-   names the ingress controller's Secret as the Gateway's backend client certificate, because the chart does not own
-   the Gateway.
+1. **Gateway API.** `httpRoute.enabled` (`managementConsole.httpRoute.enabled` for the console,
+   `directory.httpRoute.enabled` for the directory) renders an `HTTPRoute` attached to the operator's Gateway through
+   `parentRefs` that sends every path to the Service's `https` port, and a `BackendTLSPolicy` that targets that port and
+   verifies the pods' certificate against the CA ConfigMap under the host name `<service>.<namespace>.svc`, a name the
+   pods' certificate carries. The server's route names its `hostnames`; the console's hostname is
+   `managementConsole.host`; the directory's route names `directory.allowedHosts` as its hostnames. When
+   `backendTls.clientCertificate.required` is true, the operator names the ingress controller's Secret as the Gateway's
+   backend client certificate, because the chart does not own the Gateway.
 2. **Traefik Ingress.** `ingress.controller: traefik` renders a `ServersTransport` with `serverName`, `rootCAs` naming
    the ingress controller's Secret and, when `backendTls.clientCertificate.required` is true, `certificatesSecrets`
    naming the same Secret, and the Service annotations `service.serversscheme` and `service.serverstransport`.
@@ -47,13 +48,14 @@ Traefik mode against the ingress controller's own Secret.**
    the CA and, when the pods require it, the controller's client certificate.
 4. **No default mode.** Routes stay off unless enabled, and an enabled Ingress must set `ingress.controller`, because a
    guessed controller renders the wrong backend TLS without a sign. The Ingress and the HTTPRoute may both be enabled.
-   `ingress.controller` serves the console's Ingress too.
+   `ingress.controller` serves the console's and the directory's Ingress too (`directory.ingress.enabled`, one rule per
+   host of `directory.allowedHosts`).
 5. **The Gateway API mode's CA is a ConfigMap.** `backendTls.caConfigMap` names a ConfigMap in the release namespace
-   that holds only `ca.crt`; `managementConsole.backendTls.caConfigMap` names the console's and falls back to the
-   server's.
-   The Gateway API mode requires it. trust-manager, with a `Bundle` that targets a ConfigMap, is the documented source,
-   and `kubectl create configmap <name> --from-file=ca.crt=<ca.pem>` the manual one. `backendTls.caPublisher` publishes
-   the chart's private CA itself: a post-install and post-upgrade hook Job runs the official `kubectl` image with
+   that holds only `ca.crt`; `managementConsole.backendTls.caConfigMap` names the console's and
+   `directory.backendTls.caConfigMap` the directory's, and each falls back to the server's. The Gateway API mode
+   requires it. trust-manager, with a `Bundle` that targets a ConfigMap, is the documented source, and
+   `kubectl create configmap <name> --from-file=ca.crt=<ca.pem>` the manual one. `backendTls.caPublisher` publishes the
+   chart's private CA itself: a post-install and post-upgrade hook Job runs the official `kubectl` image with
    `kubectl apply -k` over a projected volume that holds a static `kustomization.yaml` and only the `ca.crt` key of the
    `<release>-ca` Secret, and writes the ConfigMap `backendTls.caConfigMap` names, or `<release>-ca`.
 6. **A route uses the ingress controller's Secret** when the component's Ingress is enabled with
@@ -105,12 +107,15 @@ Traefik mode against the ingress controller's own Secret.**
   Envoy Gateway, which implements the Gateway's backend client certificate, the `BackendTLSPolicy` verifies the pods'
   certificate and the Gateway's `spec.tls.backend.clientCertificateRef` presents the ingress client certificate the
   pods require.
+- The `directory-cluster` job of the `Host chart` workflow installs a control-plane cell with its directory behind
+  Traefik in one release.
 - Each mode stays correct for one controller family, and a controller the chart does not configure uses
   `ingress.controller: other`.
 
 ## References
 
 - Issue [#792](https://github.com/NCodeGroup/identity/issues/792)
+- Issue [#920](https://github.com/NCodeGroup/identity/issues/920)
 - [ADR-1504](1504-the-hosts-serve-https-only-and-verify-their-certificate-at-startup.md)
 - [ADR-1506](1506-the-ingress-controller-holds-a-client-certificate-the-pods-can-require-and-never-read-as-an-end-clients.md)
 - [GEP-3155: Complete Backend mutual TLS Configuration](https://gateway-api.sigs.k8s.io/geps/gep-3155/)

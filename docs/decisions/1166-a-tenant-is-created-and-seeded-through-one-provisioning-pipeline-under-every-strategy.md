@@ -17,6 +17,8 @@ patch at a time leaves several mechanisms doing one job, with these defects:
   nothing does.
 - **No root tenant under the dynamic strategies.** A fresh host-routed or path-routed deployment has no control plane,
   so no bootstrap administrator can obtain the first management token.
+- **One tenant serves under the static strategy.** Only a tenant a strategy serves can issue a token, and the static
+  strategy serves one, so the control plane's data belongs in it.
 - **No reconciliation.** A dynamic tenant that is never seeded again misses a contributor a deploy adds and a bootstrap
   secret healed from configuration.
 - **No shared unit of work.** Seeders that each open their own unit of work span several transactions, so a partial
@@ -45,12 +47,18 @@ seeds exactly that tenant; and `SeedAsync` returns the row its seed committed.**
 `ITenantProvisioner`, default `DefaultTenantProvisioner`, is the one coordinator: a replaceable, scoped service. It has
 two operations:
 
-1. `EnsureCreatedAsync(teamId, tenantId, displayName)` creates a tenant that configuration defines, the root tenant or
-   the static strategy's own tenant, when it is missing. It first ensures the tenant's team exists through
-   `ITeamProvisioner`, the root team with `Root:TeamDisplayName`, so the tenant's team reference holds. The tenant is created at the address its strategy derives and is
-   judged like any other write
+1. `EnsureCreatedAsync(teamId, tenantId, displayName)` creates the root tenant, which configuration defines, when it is
+   missing. It first ensures the tenant's team exists through `ITeamProvisioner`, the root team with
+   `Root:TeamDisplayName`, so the tenant's team reference holds. The tenant is created at the address its strategy
+   derives and is judged like any other write
    ([ADR-1165](1165-a-tenants-stored-issuer-is-its-single-origin-and-its-mtls-alias-a-routed-second-host.md)). It
-   tolerates a concurrent creator by re-reading after a failed insert.
+   tolerates a concurrent creator by re-reading after a failed insert. Unless the tenant is the control-plane cell's
+   root tenant, it reserves the tenant's identifier and issuer through `ITenantDirectory`, places the tenant in the cell
+   and then inserts it, as the management API creates a tenant; a tenant of the platform's own team is reserved in no
+   team, the directory holding no record of that team; a placement that does not take effect releases the reservation on
+   its own bounded token, an insert that fails leaves the tenant placed in the cell, which the next creation of the
+   tenant completes, and a concurrent creator's row in the cell is returned. A tenant without an issuer has no address
+   on the platform, so it is created in its cell alone.
 2. `SeedAsync(tenantId)` ensures and seeds the root tenant first, without reading its row back, then seeds the tenant
    and returns the committed row.
 
@@ -62,7 +70,8 @@ orchestration, meaning ensuring the row, owning the unit of work, ordering and c
 and the open-ended set of contributors is the fan-out.
 
 1. `SeedTenantCommand` carries a `TenantSeedContext` with three members: `Tenant`, the seed's working copy; `Plane`, a
-   `TenantPlane` of `Root` or `Workload` that the coordinator computes once; and the shared `StoreManager`.
+   `TenantPlane` of `Root` or `Workload` that the coordinator computes once, `Root` only for the control-plane cell's
+   root tenant; and the shared `StoreManager`.
 2. Every `ICommandHandler<SeedTenantCommand>` runs, ordered by `ISupportMediatorPriority`, enlisted in one unit of work
    that the provisioner commits once. Contributors never save it.
 3. A contributor that changes the tenant's settings or secrets updates `TenantSeedContext.Tenant`, so the contributors
@@ -82,17 +91,26 @@ and the open-ended set of contributors is the fan-out.
 ### Strategies create, the materializer seeds
 
 A strategy resolves a request to its tenant and creates a configuration-defined tenant on demand: the static strategy
-creates its own tenant, and the dynamic strategies create the root tenant when a request reaches its address. Every
-other tenant is created through the management API, and a request for a missing one is `404`. The tenant factory seeds
-the resolved tenant on each cache miss, so every strategy reconciles its tenants. The host strategy resolves before it
-can probe the cache, so it too seeds only on a miss.
+creates its own tenant, which is the root tenant, and the dynamic strategies create the root tenant when a request
+reaches its address. Every other tenant is created through the management API, and a request for a missing one is `404`.
+The tenant factory seeds the resolved tenant on each cache miss, so every strategy reconciles its tenants. The host
+strategy resolves before it can probe the cache, so it too seeds only on a miss.
 
 `POST /api/teams/{teamId}/tenants` commits the tenant row, records the creator as owner, seeds, and answers with the
 returned committed row, so the tenant's system resource servers exist before its first request
 ([ADR-1411](1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md)).
 
-`TenantResolution:Root` groups the root tenant's `TenantId`, `DisplayName`, `Issuer` and `MtlsEndpointAliasAuthority`,
-and its team's `TeamId` and `TeamDisplayName`.
+### The root tenant
+
+The root tenant is the control-plane tenant the selected strategy names through
+`ITenantStrategy.GetControlPlaneTenantId` and `GetControlPlaneTenantDisplayName`. The control-plane cell seeds it in the
+root plane, so it holds the management resource server's control-plane families, `urn:ncode:directory` and
+`urn:ncode:control-plane`. Every other cell seeds its root tenant in the workload plane: that cell validates management
+tokens against the control-plane cell and maps no platform or team route, and its root tenant serves as the context of
+its management requests and the tenant of its platform events. Under the host and path strategies
+`TenantResolution:Root` names it: `TenantId`, default `root`, `DisplayName`, default `Root Tenant`, `Issuer` and
+`MtlsEndpointAliasAuthority`. Under the static strategy its own tenant is the root tenant, and the host refuses those
+four settings at startup. `Root:TeamId` and `Root:TeamDisplayName` name the platform's team under every strategy.
 
 A dynamic deployment boots from configuration alone: the first request to the root tenant's address creates and seeds
 it, including the bootstrap administrator, who creates every other tenant.
@@ -105,6 +123,8 @@ on their next seed:
 - `OpenIdIdentityResourceServerSeedHandler` seeds the OpenID identity resource server.
 - `ManagementResourceServerSeedHandler` seeds the management resource server, with the control-plane families only
   when `Plane == Root`.
+- `ControlPlaneResourceServerSeedHandler` seeds `urn:ncode:directory` and `urn:ncode:control-plane` when
+  `Plane == Root`.
 - `TenantKeySeedHandler` provisions the tenant's keys
   ([ADR-1169](1169-every-tenant-is-provisioned-with-a-persisted-key-for-each-configured-algorithm-it-uses.md)).
 - `BootstrapAdminSeedHandler` seeds the development bootstrap client.
@@ -131,6 +151,12 @@ assignment instead ([ADR-1512](1512-an-instance-is-set-up-once-through-a-one-tim
   unknown tenant would create it.
 - **Provision the root tenant at startup.** Rejected: the lazy path needs no hosted service, and it is where a
   configuration-only cold start already happens.
+- **A root tenant beside the static strategy's tenant.** Rejected: the static strategy serves only its own tenant, so
+  the control plane's resource servers would sit in a tenant that issues no token, and creating it asks the directory a
+  question the control-plane cell cannot yet authenticate.
+- **Seed the root plane into every cell's root tenant.** Rejected: a cell that is not the control plane never validates
+  a management token against its own resource servers and maps no platform or team route, so the control-plane families
+  would sit unused in it.
 - **Default a seeder's tenant to the root tenant or the static tenant.** Rejected: the right tenant depends on the
   strategy, and a default that silently varies is the guess that seeded every tenant. Naming it is one setting.
 - **Leave created tenants unseeded until their first request.** Rejected: the tenant's resource servers would be missing
@@ -172,7 +198,9 @@ assignment instead ([ADR-1512](1512-an-instance-is-set-up-once-through-a-one-tim
 - [ADR-1416](1416-a-replica-that-may-have-missed-announcements-evicts-only-teams-and-tenants-whose-row-changed.md):
   revalidation after a missed announcement.
 - [#619](https://github.com/NCodeGroup/identity/issues/619)
+- [#919](https://github.com/NCodeGroup/identity/issues/919)
 - Code: `NCode.Identity.OpenId.Tenants.ITenantProvisioner`, `DefaultTenantProvisioner`, `SeedTenantCommand`,
   `TenantSeedContext`, `TenantPlane`, `PostCommitWork`, `DefaultOpenIdTenantFactory`, `RootTenantOptions`,
+  `RootTenantRules`, `ITenantStrategy.GetControlPlaneTenantDisplayName`,
   `NCode.Identity.OpenId.Management.Endpoints.Tenants.TenantApiEndpointHandler.CreateTenantAsync`,
   `NCode.Identity.Server.DevelopmentEnvironment.BootstrapAdminOptionsValidator`.

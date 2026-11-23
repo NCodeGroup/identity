@@ -157,7 +157,7 @@ public sealed class LocalTenantDirectoryTests : IDisposable
 
     private static TenantReservation CreateReservation(
         string tenantId = TenantId,
-        string issuer = Issuer,
+        string? issuer = Issuer,
         string? teamId = null
     ) =>
         new()
@@ -474,6 +474,26 @@ public sealed class LocalTenantDirectoryTests : IDisposable
 
         Assert.False(result.IsReserved);
         Assert.Equal("The team 'missing' has no record.", result.ConflictDetail);
+    }
+
+    [Fact]
+    public async Task ReserveAsync_WhenTheTenantHasNoIssuer_ReservesItsIdentifierAlone()
+    {
+        SetupUnscoped();
+        SeedTenantWithIssuer(
+            SeedTeamWithLimit(TeamId, maxTenants: null),
+            OtherTenantId,
+            issuer: null
+        );
+
+        // A held-issuer check that compares the two absent issuers would refuse this reservation.
+        var result = await Directory.ReserveAsync(
+            CreateReservation(issuer: null),
+            CancellationToken.None
+        );
+
+        Assert.True(result.IsReserved);
+        Assert.Null(result.ConflictDetail);
     }
 
     #endregion
@@ -802,7 +822,7 @@ public sealed class LocalTenantDirectoryTests : IDisposable
     }
 
     [Fact]
-    public async Task GetPlacementOrDefaultAsync_WhenTheTenantHasNoIssuer_ReturnsAnEmptyIssuer()
+    public async Task GetPlacementOrDefaultAsync_WhenTheTenantHasNoIssuer_ReturnsNoIssuer()
     {
         SetupUnscoped();
         SeedTenantWithIssuer(SeedTeamWithLimit(TeamId, maxTenants: null), TenantId, issuer: null);
@@ -813,7 +833,7 @@ public sealed class LocalTenantDirectoryTests : IDisposable
         );
 
         Assert.NotNull(placement);
-        Assert.Equal(string.Empty, placement.Issuer);
+        Assert.Null(placement.Issuer);
     }
 
     [Fact]

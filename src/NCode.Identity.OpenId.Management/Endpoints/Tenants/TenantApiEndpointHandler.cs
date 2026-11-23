@@ -33,6 +33,7 @@ using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
 using NCode.Identity.OpenId.Settings;
 using NCode.Identity.OpenId.Tenants;
+using NCode.Identity.Persistence;
 using NCode.Identity.Persistence.Stores;
 using NCode.Identity.Registration.AspNetCore;
 using NCode.Identity.Secrets.Persistence;
@@ -110,6 +111,7 @@ internal class TenantApiEndpointHandler(
     IRemoteSecretDestroyer remoteSecretDestroyer,
     ITenantDirectory tenantDirectory,
     IOptions<CellOptions> cellOptions,
+    ITenantPlacer tenantPlacer,
     ITenantConfigurationExporter tenantConfigurationExporter,
     IManagementAuditRecorder managementAuditRecorder,
     ILogger<TenantApiEndpointHandler> logger
@@ -139,6 +141,11 @@ internal class TenantApiEndpointHandler(
     private IRemoteSecretDestroyer RemoteSecretDestroyer { get; } = remoteSecretDestroyer;
     private ITenantDirectory TenantDirectory { get; } = tenantDirectory;
     private CellOptions CellOptions { get; } = cellOptions.Value;
+
+    /// <summary>
+    /// Gets the placer that reserves and places in the global directory a tenant this handler creates.
+    /// </summary>
+    private ITenantPlacer TenantPlacer { get; } = tenantPlacer;
     private ITenantConfigurationExporter TenantConfigurationExporter { get; } =
         tenantConfigurationExporter;
 
@@ -815,7 +822,9 @@ internal class TenantApiEndpointHandler(
         var tenant = new PersistedTenant
         {
             TenantId = tenantId,
-            TeamId = teamId,
+            // The tenant takes its team's identifier as the team holds it, whatever case the route wrote, so the cell
+            // and the directory name one team.
+            TeamId = team.TeamId,
             ConcurrencyToken = string.Empty,
             Issuer = issuer,
             MtlsEndpointAliasAuthority = mtlsEndpointAliasAuthority,
@@ -865,7 +874,7 @@ internal class TenantApiEndpointHandler(
         // ADR-1411, ADR-1426).
         try
         {
-            var directoryFailure = await ReserveInsertAndPlaceAsync(
+            var directoryFailure = await ReservePlaceAndInsertAsync(
                 tenant,
                 storeManager,
                 cancellationToken
@@ -928,9 +937,12 @@ internal class TenantApiEndpointHandler(
     }
 
     /// <summary>
-    /// Creates a tenant through the directory as a saga: reserves the tenant's identifier and issuer, inserts the
-    /// tenant, then places it in this cell. A creation that fails before the tenant is placed removes the inserted
-    /// tenant, then releases the reservation, so the directory never frees an identifier whose row still exists.
+    /// Creates a tenant through the directory: the placer reserves the tenant's identifier and issuer, in the tenant's
+    /// team or, for the platform's own team, in no team, and places the tenant in this cell, then the tenant is
+    /// inserted, so its row never exists unplaced. A refusal of either is answered <c>409</c> with the directory's
+    /// detail; an insert that fails leaves the tenant placed in this cell, which creating the tenant again in this cell
+    /// with the same issuer and team completes, because the directory reserves and places again for the cell that holds
+    /// the tenant.
     /// </summary>
     /// <param name="tenant">The <see cref="PersistedTenant"/> to create.</param>
     /// <param name="storeManager">The <see cref="IStoreManager"/> that inserts the tenant.</param>
@@ -938,106 +950,39 @@ internal class TenantApiEndpointHandler(
     /// <returns>The <see cref="IResult"/> that refuses the creation, or <c>null</c> when the tenant is created and
     /// placed.</returns>
     // See ADR-1160.
-    private async ValueTask<IResult?> ReserveInsertAndPlaceAsync(
+    private async ValueTask<IResult?> ReservePlaceAndInsertAsync(
         PersistedTenant tenant,
         IStoreManager storeManager,
         CancellationToken cancellationToken
     )
     {
-        // A tenant without an issuer reserves its identifier alone.
-        var issuer = tenant.Issuer ?? string.Empty;
-
-        var reservation = new TenantReservation
+        var placementResult = await TenantPlacer.ReserveAndPlaceAsync(
+            tenant.TenantId,
+            tenant.Issuer,
+            tenant.TeamId,
+            cancellationToken
+        );
+        if (!placementResult.IsReserved)
         {
-            TenantId = tenant.TenantId,
-            Issuer = issuer,
-            TeamId = tenant.TeamId,
-            Cell = CellOptions.Name,
-        };
-        var reservationResult = await TenantDirectory.ReserveAsync(reservation, cancellationToken);
-        if (!reservationResult.IsReserved)
-        {
-            var reservationError = new ManagementError
+            var placementError = new ManagementError
             {
                 StatusCode = StatusCodes.Status409Conflict,
-                Detail = reservationResult.ConflictDetail,
+                Detail = placementResult.ConflictDetail,
             };
-            return ToErrorResult(reservationError);
+            return ToErrorResult(placementError);
         }
 
-        var isInserted = false;
-        var isPlaced = false;
-        try
-        {
-            var store = storeManager.GetStore<ITenantStore>();
-            await store.AddAsync(tenant, cancellationToken);
+        // The tenant's row is the creation's last write, so it never exists unplaced; an insert that fails leaves the
+        // tenant placed in this cell, which creating the tenant again here with the same issuer and team completes.
+        var store = storeManager.GetStore<ITenantStore>();
+        await store.AddAsync(tenant, cancellationToken);
 
-            // The tenant row commits first: the creator's ownership is a row the tenant owns, and the stores resolve an
-            // owning tenant from the database rather than the change tracker — the same reason the provisioner commits
-            // a tenant before seeding it.
-            await storeManager.SaveChangesAsync(cancellationToken);
-            isInserted = true;
-
-            var placementRequest = new TenantPlacementRequest
-            {
-                TenantId = tenant.TenantId,
-                Issuer = issuer,
-                Cell = CellOptions.Name,
-            };
-            var placementResult = await TenantDirectory.PlaceAsync(
-                placementRequest,
-                cancellationToken
-            );
-            if (!placementResult.IsReserved)
-            {
-                var placementError = new ManagementError
-                {
-                    StatusCode = StatusCodes.Status409Conflict,
-                    Detail = placementResult.ConflictDetail,
-                };
-                return ToErrorResult(placementError);
-            }
-
-            isPlaced = true;
-        }
-        finally
-        {
-            if (!isPlaced)
-            {
-                if (isInserted)
-                {
-                    try
-                    {
-                        await RemoveCreatedTenantAsync(tenant.TenantId, CancellationToken.None);
-                    }
-                    finally
-                    {
-                        // The release comes after the removal, so the directory never frees an identifier whose row
-                        // still exists.
-                        await TenantDirectory.ReleaseAsync(tenant.TenantId, CancellationToken.None);
-                    }
-                }
-                else
-                {
-                    // The release compensates a creation that failed, so it runs even when the request was canceled.
-                    await TenantDirectory.ReleaseAsync(tenant.TenantId, CancellationToken.None);
-                }
-            }
-        }
+        // The tenant row commits first: the creator's ownership is a row the tenant owns, and the stores resolve an
+        // owning tenant from the database rather than the change tracker — the same reason the provisioner commits
+        // a tenant before seeding it.
+        await storeManager.SaveChangesAsync(cancellationToken);
 
         return null;
-    }
-
-    // The removal compensates a creation that failed after its row committed, so it runs on a store manager of its own
-    // even when the request was canceled: the caller passes a token that is never canceled.
-    private async ValueTask RemoveCreatedTenantAsync(
-        string tenantId,
-        CancellationToken cancellationToken
-    )
-    {
-        await using var cleanup = await StoreManagerFactory.CreateAsync(cancellationToken);
-        await cleanup.GetStore<ITenantStore>().RemoveFromCellAsync(tenantId, cancellationToken);
-        await cleanup.SaveChangesAsync(cancellationToken);
     }
 
     /// <summary>
@@ -1412,13 +1357,28 @@ internal class TenantApiEndpointHandler(
         {
             if (isIssuerChanged)
             {
-                // The take-back compensates a failed update, so it runs even when the request was canceled.
-                await TakeBackIssuerChangeAsync(
-                    tenant.TenantId,
-                    previousIssuer,
-                    model.Issuer,
-                    CancellationToken.None
-                );
+                // The take-back compensates the failed update, so it runs even when the request was canceled, on its own
+                // token bounded as work that follows a commit; a take-back that fails, is refused or outlasts its bound
+                // is logged, so the update's failure surfaces, and the directory then holds the issuer the update would
+                // have given the tenant. See ADR-1160 and ADR-1351.
+                var takeBack = new TenantIssuerChange
+                {
+                    TenantId = tenant.TenantId,
+                    PreviousIssuer = model.Issuer,
+                    Issuer = previousIssuer,
+                };
+                try
+                {
+                    await PostCommitWork.RunAsync(
+                        TimeProvider,
+                        TakeBackIssuerChangeAsync,
+                        takeBack
+                    );
+                }
+                catch (Exception exception)
+                {
+                    Logger.TenantIssuerChangeTakeBackFailed(tenant.TenantId, exception);
+                }
             }
 
             throw;
@@ -1446,34 +1406,25 @@ internal class TenantApiEndpointHandler(
 
     /// <summary>
     /// Gives a tenant back the issuer it held before a change that the cell's tenant row did not take, so the directory
-    /// holds the issuer the row holds. The call is best effort: a directory that cannot be reached leaves the issuer
-    /// change recorded, which a later change of the tenant's issuer corrects.
+    /// holds the issuer the row holds. A refused take-back throws, so the caller logs it as it logs a take-back that
+    /// fails.
     /// </summary>
-    /// <param name="tenantId">The identifier of the tenant.</param>
-    /// <param name="previousIssuer">The issuer the tenant held before the change.</param>
-    /// <param name="attemptedIssuer">The issuer the change would have given the tenant.</param>
+    /// <param name="takeBack">The change that gives the tenant back the issuer it held before the update.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation.</returns>
+    /// <exception cref="InvalidOperationException">The global directory refuses the take-back.</exception>
     // See ADR-1160.
     private async ValueTask TakeBackIssuerChangeAsync(
-        string tenantId,
-        string? previousIssuer,
-        string? attemptedIssuer,
+        TenantIssuerChange takeBack,
         CancellationToken cancellationToken
     )
     {
-        try
+        var takeBackResult = await TenantDirectory.ChangeIssuerAsync(takeBack, cancellationToken);
+        if (!takeBackResult.IsReserved)
         {
-            var issuerChange = new TenantIssuerChange
-            {
-                TenantId = tenantId,
-                PreviousIssuer = attemptedIssuer,
-                Issuer = previousIssuer,
-            };
-            await TenantDirectory.ChangeIssuerAsync(issuerChange, cancellationToken);
-        }
-        catch (DirectoryUnavailableException)
-        {
-            // The update's own failure is the one the caller sees.
+            throw new InvalidOperationException(
+                $"The global directory refuses to give the tenant '{takeBack.TenantId}' back its previous issuer: {takeBackResult.ConflictDetail}"
+            );
         }
     }
 

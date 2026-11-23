@@ -315,13 +315,15 @@ client is manual because only an operator holds the platform authority that crea
 with. A platform of one cell skips this section: with no `directory.url` the cell uses local adapters and needs no
 other service.
 
-Each cell that sets `directory.url` authenticates to the directory and to the control-plane cell as the
-machine client `cell-{name}` of the control-plane cell's root tenant, where `{name}` is the cell's `cell.name`. The
-client uses `private_key_jwt`, and the cell holds its private keys as a named key ring. Every cell of a platform with
-a directory sets it, the control-plane cell included: a control-plane cell without `directory.url` keeps the local
-adapters, so its teams and platform changes never reach the directory and no other cell mirrors them. Steps 3 to 5
-give one cell its directory client: run them for the control-plane cell once the directory runs, and then for each
-other cell.
+Each cell that sets `directory.url` authenticates to the directory and to the control-plane cell as the machine client
+`cell-{name}` of the control-plane cell's root tenant, where `{name}` is the cell's `cell.name`. The client uses
+`private_key_jwt`, and the cell holds its private keys as a named key ring. Every cell of a platform with a directory
+sets it, the control-plane cell included: a control-plane cell without `directory.url` keeps the local adapters, so its
+teams and platform changes never reach the directory and no other cell mirrors them. Steps 3 to 5 give one cell its
+directory client. The control-plane cell can carry its client's values, and run the directory, from its first release:
+it creates its root tenant and gives it its keys without the directory, so it serves before the directory can answer it,
+and its own calls to the directory fail and are retried until step 4 registers its client. Run steps 3 to 5 for each
+other cell once the directory runs.
 
 1. **Set up the control-plane cell.** Deploy the cell with `cell.isControlPlane=true` and set the platform up once, as
    [first use of a deployed instance](first-deployed-instance.md) describes. Setup runs in the control-plane cell only.
@@ -330,15 +332,17 @@ other cell.
    `urn:ncode:directory` (scope `directory`) and `urn:ncode:control-plane` (scope `control-plane`) into its root tenant,
    and every client of that tenant can request them.
 2. **Run the directory.** Deploy the directory host with `directory.enabled=true`, `directory.issuer` set to the
-   control-plane cell's issuer, `directory.controlPlaneCell` set to its name, `directory.allowedHosts`, its own database
-   (the runtime role's connection in `directory.database`, whose role `directory.database.runtimeRole` names, and the
-   schema owner's connection in `directory.migrations.database`, each from a Secret that holds the finished connection
-   string, `existingSecret`, or the connection's parts, `directory.database.parts.existingSecret` and
-   `directory.migrations.database.parts.existingSecret`) and its serving certificate
-   (`directory.tls.existingSecret`), as the chart's
+   control-plane cell's issuer, `directory.controlPlaneCell` set to its name, `directory.controlPlaneTenantId` set to
+   its root tenant's identifier when the directory runs in a release of another cell or under a strategy other than
+   `StaticSingle` (the control-plane cell's own `StaticSingle` release derives it), `directory.allowedHosts`, its own
+   database (the runtime role's connection in `directory.database`, whose role `directory.database.runtimeRole` names,
+   and the schema owner's connection in `directory.migrations.database`, each from a Secret that holds the finished
+   connection string, `existingSecret`, or the connection's parts, `directory.database.parts.existingSecret` and
+   `directory.migrations.database.parts.existingSecret`), its serving certificate (`directory.backendTls`, which the
+   chart issues by default) and its route (`directory.ingress` or `directory.httpRoute`), as the chart's
    [The cell](../charts/ncode-identity-host/README.md#the-cell) section lists. The directory accepts bearer tokens of
-   the control-plane cell's issuer for audience `urn:ncode:directory` and scope `directory`. It runs as one replica,
-   and its database is its own, never a cell's.
+   the control-plane cell's issuer for audience `urn:ncode:directory` and scope `directory`. It runs as one replica, and
+   its database is its own, never a cell's.
 3. **Create the cell's key ring.** Generate a signing key for the cell, either a PEM file or a key in a key management
    service, and keep its private half with the cell. The key ring has the name you choose for `directory.keyRing`, and
    at least one key.
@@ -358,23 +362,29 @@ other cell.
    The response is `201`, and `409` when a client of that identifier exists. The client carries no scope setting: the
    cell requests the scopes `directory` and `control-plane` in its token requests, and the system resource servers of
    step 1 are available to every client of the tenant.
-5. **Deploy the cell with the directory client's values**, or redeploy the control-plane cell with them:
-   `directory.url`, `directory.clientId` (`cell-{name}`), `directory.keyRing` and `directory.keys`
+5. **Deploy the cell with the directory client's values**, or give them to the control-plane cell, in its first release
+   or a later one: `directory.url`, `directory.clientId` (`cell-{name}`), `directory.keyRing` and `directory.keys`
    (`directory.keys.pemSecret` or `directory.keys.remoteKeys`), `cell.controlPlaneIssuer` set to the control-plane
-   cell's issuer, which is the control-plane cell's own issuer when you redeploy it, and `cell.managementUrl` set to
+   cell's issuer, which is the control-plane cell's own issuer when you give them to it, and `cell.managementUrl` set to
    the URL of the cell's management API, which the cell registers with the directory. The host reads them as
    `Directory:Url`, `Directory:ClientId`, `Directory:KeyRing`, `Cell:ManagementUrl` and `KeyRings:{name}`, where
    `{name}` is the key ring's name, and the key ring signs the client's assertions. The host refuses to start when
-   `Directory:ClientId` is not `cell-` followed by `Cell:Name` or `Cell:ManagementUrl` is empty. Values of the chart
-   are in its [The cell](../charts/ncode-identity-host/README.md#the-cell) section; its `database` and
-   `migrations.database` values are the cell's own two roles and are never the directory's.
+   `Directory:ClientId` is not `cell-` followed by `Cell:Name` or `Cell:ManagementUrl` is empty. Values of the chart are
+   in its [The cell](../charts/ncode-identity-host/README.md#the-cell) section; its `database` and `migrations.database`
+   values are the cell's own two roles and are never the directory's. Under the `StaticSingle` strategy, give every cell
+   other than the control-plane cell its own `tenantResolution.staticSingle.tenantId`: a tenant identifier is unique
+   across the platform's cells, the cell reserves and places its tenant in the directory when it first creates it, and
+   it does not create a tenant whose identifier another cell holds. Under the host and path strategies, a cell that is
+   not the control plane and gives its root tenant an issuer (`TenantResolution:Root:Issuer`) names it with a
+   `TenantResolution:Root:TenantId` no other cell uses, because the cell reserves it in the directory; without an issuer
+   its root tenant is created in the cell alone.
 
-**Verify:** the cell starts and reports ready. A client-credentials token request for the client `cell-{name}`,
-signed with the key ring, at the control-plane cell's root issuer returns a token for the audience
-`urn:ncode:directory` with the scope `directory`. Creating a tenant in the cell reserves its identifier in the directory
-and places it in the cell, and fails with `503` while the directory is unreachable. A tenant that is already created
-keeps serving whether or not the directory is reachable. Once the control-plane cell runs with its client, a team
-created in it reaches the directory, and the other cells mirror it.
+**Verify:** the cell starts and reports ready. A client-credentials token request for the client `cell-{name}`, signed
+with the key ring, at the control-plane cell's root issuer returns a token for the audience `urn:ncode:directory` with
+the scope `directory`. Creating a tenant in the cell reserves its identifier in the directory and places it in the cell,
+and so does the cell's own tenant when the cell first serves it, and fails with `503` while the directory is
+unreachable. A tenant that is already created keeps serving whether or not the directory is reachable. Once the
+control-plane cell runs with its client, a team created in it reaches the directory, and the other cells mirror it.
 
 ## 10. Close out
 

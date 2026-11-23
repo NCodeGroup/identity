@@ -32,10 +32,10 @@ public sealed class PersistedTenant : BasePersistedTenantResource
     /// also what the host-based tenant strategy routes on, via the host component.
     /// </summary>
     /// <remarks>
-    /// <c>null</c> only for a tenant no strategy serves, such as the root tenant beneath the static strategy. Every
-    /// write path gives a served tenant the issuer its strategy derives when none is supplied, and a served tenant
-    /// without one fails closed: the origin is never derived from the incoming request, which would let a caller's
-    /// <c>Host</c> header choose where the server tells clients to send their credentials.
+    /// <c>null</c> only for a tenant no strategy serves. Every write path gives a served tenant the issuer its strategy
+    /// derives when none is supplied, and a served tenant without one fails closed: the origin is never derived from
+    /// the incoming request, which would let a caller's <c>Host</c> header choose where the server tells clients to
+    /// send their credentials.
     /// </remarks>
     [MaxLength(OpenIdMaxLengths.Issuer)]
     public required string? Issuer { get; set; }

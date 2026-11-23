@@ -4,6 +4,7 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using NCode.Identity.Json;
+using NCode.Identity.OpenId.GlobalDirectory;
 using NCode.Identity.OpenId.Logging;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
@@ -17,11 +18,16 @@ namespace NCode.Identity.OpenId.Tenants;
 
 /// <summary>
 /// Provides the default implementation of <see cref="ITenantProvisioner"/>. It creates a tenant at the address its
-/// strategy derives for it, judged by the same rules as every other tenant written, and it seeds a tenant — after the root
-/// tenant — by fanning out <see cref="SeedTenantCommand"/> to every registered handler within a single unit of work,
-/// then runs the steps the handlers queued for after the commit, each on its own bounded token; a step that fails is
-/// logged, the remaining steps run, and the seed stands, because its unit of work has committed. It then reads the tenant
-/// again in a fresh unit of work and returns the row its seed committed.
+/// strategy derives for it, judged by the same rules as every other tenant written, and it seeds a tenant — after the
+/// root tenant its strategy names — by fanning out <see cref="SeedTenantCommand"/> to every registered handler within a
+/// single unit of work, then runs the steps the handlers queued for after the commit, each on its own bounded token; a
+/// step that fails is logged, the remaining steps run, and the seed stands, because its unit of work has committed. It
+/// then reads the tenant again in a fresh unit of work and returns the row its seed committed. Only the control-plane
+/// cell seeds its root tenant in the root plane; every other tenant, and the root tenant of every other cell, is seeded
+/// in the workload plane. A tenant it creates that a strategy serves (one with an issuer), other than the control-plane
+/// cell's root tenant, is reserved and placed in this cell through the global directory, as the management API creates
+/// a tenant; a tenant of the platform's own team is reserved in no team; a tenant without an issuer is created in this
+/// cell alone.
 /// </summary>
 // See ADR-1166 (one seeding pipeline) and ADR-1351 (an effect that follows a committed change runs on its own bounded
 // token).
@@ -30,8 +36,10 @@ internal sealed class DefaultTenantProvisioner(
     IAmbientTenantAccessor ambientTenantAccessor,
     ITenantResolver tenantResolver,
     IOptions<TenantResolutionOptions> optionsAccessor,
+    IOptions<CellOptions> cellOptionsAccessor,
     IMediator mediator,
     ITeamProvisioner teamProvisioner,
+    ITenantPlacer tenantPlacer,
     TimeProvider timeProvider,
     ILogger<DefaultTenantProvisioner> logger
 ) : ITenantProvisioner
@@ -42,8 +50,18 @@ internal sealed class DefaultTenantProvisioner(
     private IStoreManagerFactory StoreManagerFactory { get; } = storeManagerFactory;
     private IAmbientTenantAccessor AmbientTenantAccessor { get; } = ambientTenantAccessor;
     private ITenantResolver TenantResolver { get; } = tenantResolver;
+
+    /// <summary>
+    /// Gets the options of the cell that the host runs.
+    /// </summary>
+    private CellOptions CellOptions { get; } = cellOptionsAccessor.Value;
     private IMediator Mediator { get; } = mediator;
     private ITeamProvisioner TeamProvisioner { get; } = teamProvisioner;
+
+    /// <summary>
+    /// Gets the placer that reserves and places in the global directory a tenant this provisioner creates.
+    /// </summary>
+    private ITenantPlacer TenantPlacer { get; } = tenantPlacer;
     private TimeProvider TimeProvider { get; } = timeProvider;
     private ILogger<DefaultTenantProvisioner> Logger { get; } = logger;
 
@@ -58,7 +76,11 @@ internal sealed class DefaultTenantProvisioner(
     )
     {
         // The tenant's team exists before the tenant, so the tenant's foreign key to it holds (ADR-1411).
-        var isRootTeam = string.Equals(teamId, RootOptions.TeamId, StringComparison.Ordinal);
+        var isRootTeam = string.Equals(
+            teamId,
+            RootOptions.TeamId,
+            StringComparison.OrdinalIgnoreCase
+        );
         await TeamProvisioner.EnsureCreatedAsync(
             teamId,
             isRootTeam ? RootOptions.TeamDisplayName : teamId,
@@ -105,7 +127,43 @@ internal sealed class DefaultTenantProvisioner(
             issuer,
             mtlsEndpointAliasAuthority
         );
-        await store.AddAsync(persistedTenant, cancellationToken);
+
+        // The control-plane cell creates its root tenant without the directory, which accepts only the tokens that
+        // tenant issues, and a tenant no strategy serves has no address on the platform, so it holds nothing in the
+        // directory: its identifier, such as a workload cell's root tenant `root`, can be the one the directory holds
+        // for the control-plane cell's root tenant. Every other tenant a strategy serves is reserved, placed and
+        // inserted through the directory, as the management API creates a tenant (ADR-1160, ADR-1411).
+        var isDirectoryTokenIssuer = RootTenantRules.IsDirectoryTokenIssuer(
+            CellOptions,
+            TenantResolver,
+            tenantId
+        );
+        if (isDirectoryTokenIssuer || persistedTenant.Issuer is null)
+        {
+            var concurrent = await InsertOrFindConcurrentAsync(
+                persistedTenant,
+                storeManager,
+                cancellationToken
+            );
+            return concurrent ?? persistedTenant;
+        }
+
+        return await ReservePlaceAndInsertAsync(persistedTenant, storeManager, cancellationToken);
+    }
+
+    /// <summary>
+    /// Inserts the tenant and commits it.
+    /// </summary>
+    /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation, containing <c>null</c> when the
+    /// tenant is inserted, or the row a concurrent creator wrote when the insert lost to it.</returns>
+    private async ValueTask<PersistedTenant?> InsertOrFindConcurrentAsync(
+        PersistedTenant tenant,
+        IStoreManager storeManager,
+        CancellationToken cancellationToken
+    )
+    {
+        var store = storeManager.GetStore<ITenantStore>();
+        await store.AddAsync(tenant, cancellationToken);
 
         try
         {
@@ -116,14 +174,54 @@ internal sealed class DefaultTenantProvisioner(
             // Another node or request may have created the tenant between the read above and this write — two replicas
             // reaching the root tenant on a fresh deployment, say. The row it wrote is the tenant; anything else is a
             // genuine failure.
-            var concurrent = await FindTenantAsync(tenantId, cancellationToken);
+            var concurrent = await FindTenantAsync(tenant.TenantId, cancellationToken);
             if (concurrent is null)
                 throw;
 
             return concurrent;
         }
 
-        return persistedTenant;
+        return null;
+    }
+
+    /// <summary>
+    /// Creates a tenant through the directory: the placer reserves the tenant's identifier and issuer and places the
+    /// tenant in this cell, then the tenant is inserted, so its row never exists unplaced. A refusal that follows a
+    /// concurrent creator's row returns that creator's tenant; an insert that fails leaves the tenant placed in this
+    /// cell, which the next creation of the tenant in this cell completes, because the directory reserves and places
+    /// again for the cell that holds the tenant.
+    /// </summary>
+    private async ValueTask<PersistedTenant> ReservePlaceAndInsertAsync(
+        PersistedTenant tenant,
+        IStoreManager storeManager,
+        CancellationToken cancellationToken
+    )
+    {
+        var placementResult = await TenantPlacer.ReserveAndPlaceAsync(
+            tenant.TenantId,
+            tenant.Issuer,
+            tenant.TeamId,
+            cancellationToken
+        );
+        if (!placementResult.IsReserved)
+        {
+            // Replicas race to create the same tenant. The global directory answers a concurrent creator in this cell
+            // reserved, and the local directory, whose placement is the tenant's row, refuses one once its row exists;
+            // a refusal that follows a concurrent creator's row is that creator's tenant.
+            var creator = await FindTenantAsync(tenant.TenantId, cancellationToken);
+            if (creator is not null)
+                return creator;
+
+            throw new InvalidOperationException(
+                $"The tenant '{tenant.TenantId}' cannot be created in this cell: {placementResult.ConflictDetail}"
+            );
+        }
+
+        // The tenant's row is the creation's last write, so it never exists unplaced. An insert that fails leaves the
+        // tenant placed in this cell, which the next creation of the tenant here reserves and places again and then
+        // inserts; a concurrent creator in this cell holds the same placement, and its row is returned.
+        var concurrent = await InsertOrFindConcurrentAsync(tenant, storeManager, cancellationToken);
+        return concurrent ?? tenant;
     }
 
     /// <inheritdoc />
@@ -132,26 +230,32 @@ internal sealed class DefaultTenantProvisioner(
         CancellationToken cancellationToken
     )
     {
-        var rootTenantId = RootOptions.TenantId;
+        var rootTenantId = TenantResolver.GetControlPlaneTenantId();
         var isRootTenant = string.Equals(tenantId, rootTenantId, StringComparison.Ordinal);
 
-        // The root (control-plane) tenant must exist and be seeded whatever tenant is seeded, so its control-plane data is
-        // in place under every strategy (ADR-1411, ADR-1166). It is seeded on this same path, so root and workload tenants
-        // are seeded identically.
+        var rootTenantPlane = CellOptions.IsControlPlane ? TenantPlane.Root : TenantPlane.Workload;
+
+        // The root tenant is the control-plane tenant that the strategy names; under the static single-tenant strategy it
+        // is the strategy's own tenant, which is then seeded once. It must exist and be seeded whatever tenant is
+        // seeded, on this same path, so root and workload tenants are seeded identically (ADR-1166). Only the
+        // control-plane cell seeds it in the root plane, which holds the control plane's data: every other cell
+        // validates management tokens against the control-plane cell and maps no platform or team route, so it seeds
+        // its root tenant in the workload plane (ADR-1411).
         if (!isRootTenant)
         {
+            var rootDisplayName = TenantResolver.GetControlPlaneTenantDisplayName();
             await EnsureCreatedAsync(
                 RootOptions.TeamId,
                 rootTenantId,
-                RootOptions.DisplayName,
+                rootDisplayName,
                 cancellationToken
             );
-            await SeedInUnitOfWorkAsync(rootTenantId, TenantPlane.Root, cancellationToken);
+            await SeedInUnitOfWorkAsync(rootTenantId, rootTenantPlane, cancellationToken);
         }
 
         await SeedInUnitOfWorkAsync(
             tenantId,
-            isRootTenant ? TenantPlane.Root : TenantPlane.Workload,
+            isRootTenant ? rootTenantPlane : TenantPlane.Workload,
             cancellationToken
         );
 

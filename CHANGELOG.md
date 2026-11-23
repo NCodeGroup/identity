@@ -1361,9 +1361,13 @@ Until the first stable release, the [Unreleased] section describes the product a
   ([ADR-1068](docs/decisions/1068-elliptic-curves-are-one-extensible-catalog-and-an-imported-point-is-checked-against-its-curve.md),
   [#337](https://github.com/NCodeGroup/identity/issues/337)).
 
-- **The secrets library registers logging.** `AddSecretsLibrary()` registers logging itself (`AddLogging()`), which its
-  key-type descriptors write to, so the secrets and JOSE libraries compose without the host having registered it
-  ([#327](https://github.com/NCodeGroup/identity/issues/327)).
+- **The secrets library registers logging and no Data Protection key ring.** `AddSecretsLibrary()` registers logging
+  itself (`AddLogging()`), which its key-type descriptors write to, so the secrets and JOSE libraries compose without
+  the host having registered it ([#327](https://github.com/NCodeGroup/identity/issues/327)). It protects key material in
+  memory under its own ephemeral provider (`IDataProtectorFactory<SecretKey>`) and registers no host Data Protection, so
+  a host that composes only the secrets, JOSE, JWT and protocol-client libraries, such as the directory host, starts
+  without a key ring; the OpenID core and management libraries register the host's Data Protection, whose key ring a
+  server persists ([#920](https://github.com/NCodeGroup/identity/issues/920)).
 
 - **Public-key import (BYOK) across the management API and dynamic client registration.** A relying party's public
   asymmetric key is imported and persisted as a first-class secret that round-trips and is used for client
@@ -2389,19 +2393,21 @@ Until the first stable release, the [Unreleased] section describes the product a
 
 - **One management resource server (`urn:ncode:management`) gates the whole management API through granular per-leaf
   scopes.** Scopes are composed as `{verb}:{family}` (for example `read:clients`, `update:tenant_settings`,
-  `update:team_settings`, `create:resource_servers`, `delete:grants`). The control-plane families
-  (`platform_settings`, `platform_encryption_keys`, `teams`, `team_settings`, `tenants`) are seeded only into the root
-  (control-plane) tenant, whose
-  identifier is `TenantResolutionOptions.Root.TenantId`, bound from `TenantResolution:Root:TenantId` (default `"root"`);
-  the tenant-plane families (a tenant's own settings and secrets, its clients, client secrets, resource servers,
-  resource-server secrets, client grants and grants) are seeded into every tenant. A `SystemResourceServerDescriptor`
-  declares a `Plane` (`SystemResourceServerPlane.Tenant`, the default, or `Control`), and the plane-aware system-resource-server seeder merges every provider that contributes to
-  one audience into one resource server per tenant, seeding `Control`-plane families only into the root tenant. The
-  static single-tenant strategy provisions the root tenant lazily alongside its workload tenant, so a single-tenant
-  deployment has its control plane with no extra configuration. See
+  `update:team_settings`, `create:resource_servers`, `delete:grants`). The control-plane families (`platform_settings`,
+  `platform_encryption_keys`, `teams`, `team_settings`, `tenants`) are seeded only into the control-plane cell's root
+  tenant, the control-plane tenant the tenant strategy names (`ITenantStrategy.GetControlPlaneTenantId()`):
+  `TenantResolution:Root:TenantId` (default `"root"`) under the host and path strategies, and the configured tenant
+  under the static single-tenant strategy; the tenant-plane families (a tenant's own settings and secrets, its clients,
+  client secrets, resource servers, resource-server secrets, client grants and grants) are seeded into every tenant. The
+  plane-aware system-resource-server seeder merges every provider that contributes to one audience into one resource
+  server per tenant. Under the static single-tenant strategy the one tenant it serves is the root tenant, so a
+  single-tenant control-plane cell has its control plane and the `urn:ncode:directory` and `urn:ncode:control-plane`
+  resource servers in the tenant that issues its tokens, with no extra configuration; every other cell seeds its root
+  tenant in the workload plane, because it validates management tokens against the control-plane cell. See
   [ADR-1417](docs/decisions/1417-management-authority-is-a-role-assignment-at-a-node-of-the-platform-team-and-tenant-hierarchy.md),
-  [ADR-1411](docs/decisions/1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md) and
-  [ADR-1166](docs/decisions/1166-a-tenant-is-created-and-seeded-through-one-provisioning-pipeline-under-every-strategy.md).
+  [ADR-1411](docs/decisions/1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md),
+  [ADR-1166](docs/decisions/1166-a-tenant-is-created-and-seeded-through-one-provisioning-pipeline-under-every-strategy.md)
+  and [#919](https://github.com/NCodeGroup/identity/issues/919).
 
 - **Resource ownership is data-driven.** Persisted `(principal, role, resource-node)` role assignments
   (`PersistedRoleAssignment` / `IRoleAssignmentStore`) back an additive `OwnershipHandler` that grants a principal every
@@ -3792,8 +3798,9 @@ Until the first stable release, the [Unreleased] section describes the product a
   [ADR-1518](docs/decisions/1518-a-long-lived-openid-object-owns-a-concurrent-property-bag-and-an-operation-layers-a-child-over-its-owners.md)).
 
 - **The control-plane tenant is named from configuration and served from the tenant cache.** `ITenantStrategy` and
-  `ITenantResolver` expose `GetControlPlaneTenantId()`, and `CreateControlPlaneTenantAsync` probes the tenant cache with
-  that identifier first, reading the store only on a miss
+  `ITenantResolver` expose `GetControlPlaneTenantId()` and `GetControlPlaneTenantDisplayName()`, which name the root
+  tenant and the display name it is created with, and `CreateControlPlaneTenantAsync` probes the tenant cache with that
+  identifier first, reading the store only on a miss
   ([ADR-1191](docs/decisions/1191-a-management-request-is-authenticated-by-the-control-plane-tenant-and-scoped-by-its-routes-tenant.md)).
 
 - **A tenant's issuer is a first-class tenant property, and a tenant created without one is given the issuer its tenant
@@ -3838,16 +3845,20 @@ Until the first stable release, the [Unreleased] section describes the product a
   strategy's default issuer, judged like any other write, and `SeedAsync(tenantId)` seeds it and returns the tenant row
   its seed committed; `ITenantStrategy` and `ITenantResolver` expose `GetDefaultIssuerAsync`, which a custom strategy
   implements. Under the host and path strategies the root (control-plane) tenant, configured under
-  `TenantResolution:Root` (`TenantId`, `DisplayName`, `Issuer`, `TeamId`, `TeamDisplayName`), is created when the first
-  request reaches its address, so a multi-tenant deployment boots from configuration alone: the bootstrap administrator,
-  named into the root tenant, obtains the first management token there. A tenant created through the management API is
-  seeded before the response, so its OpenID and management resource servers exist before its first request, and every
-  tenant is seeded again when it is next materialized, so every seed contributor a deployment registers reaches existing
-  tenants under every strategy. A tenant is materialized, and a created tenant answered, from the row its seed
-  committed, so it carries the concurrency tokens its own seed wrote, and a replica that revalidates its cached tenants
-  after a missed announcement keeps it. The Aspire conformance instance serves its own `conformance` tenant
+  `TenantResolution:Root` (`TenantId`, default `root`, `DisplayName`, `Issuer`, `MtlsEndpointAliasAuthority`, `TeamId`,
+  `TeamDisplayName`), is created when the first request reaches its address, so a multi-tenant deployment boots from
+  configuration alone: the bootstrap administrator, named into the root tenant, obtains the first management token
+  there. Under the static single-tenant strategy its own tenant is the root tenant, and the strategy refuses
+  `Root:TenantId`, `Root:DisplayName`, `Root:Issuer` and `Root:MtlsEndpointAliasAuthority` when the host starts. A
+  tenant created through the management API is seeded before the response, so its OpenID and management resource
+  servers exist before its first request, and every tenant is seeded again when it is next materialized, so every seed
+  contributor a deployment registers reaches existing tenants under every strategy. A tenant is materialized, and a
+  created tenant answered, from the row its seed committed, so it carries the concurrency tokens its own seed wrote,
+  and a replica that revalidates its cached tenants after a missed announcement keeps it. The Aspire conformance
+  instance serves its own `conformance` tenant
   ([ADR-1166](docs/decisions/1166-a-tenant-is-created-and-seeded-through-one-provisioning-pipeline-under-every-strategy.md),
-  [#619](https://github.com/NCodeGroup/identity/issues/619)).
+  [#619](https://github.com/NCodeGroup/identity/issues/619),
+  [#919](https://github.com/NCodeGroup/identity/issues/919)).
 
 - **Concurrent seeds of one tenant converge.** When two replicas, or two requests that miss the tenant cache together,
   seed the same tenant, a seed whose commit fails runs once more in a fresh unit of work; seed contributors are
@@ -3855,8 +3866,9 @@ Until the first stable release, the [Unreleased] section describes the product a
   servers ([ADR-1169](docs/decisions/1169-every-tenant-is-provisioned-with-a-persisted-key-for-each-configured-algorithm-it-uses.md)).
 
 - **A tenant the deployment requires cannot be deleted.** `DELETE /api/tenants/{tenantId}` answers `409 Conflict` for
-  the root tenant or the static single-tenant strategy's tenant, because a deleted tenant identifier is never reissued.
-  `ITenantStrategy` and `ITenantResolver` expose `IsRequiredTenant`, so a custom strategy names the tenants it requires
+  the root tenant, which the static single-tenant strategy's tenant is under that strategy, because a deleted tenant
+  identifier is never reissued. `ITenantStrategy` and `ITenantResolver` expose `IsRequiredTenant`, so a custom strategy
+  names the tenants it requires
   ([ADR-1160](docs/decisions/1160-a-tenant-is-named-by-its-creator-validated-by-its-strategy-and-never-reissued.md)).
 
 - **Tenants declare their environment.** The tenant settings `environment_type`, `environment_name` and
@@ -4370,21 +4382,31 @@ Until the first stable release, the [Unreleased] section describes the product a
   plane, or that sets `Directory:Url`, names the control plane's issuer. A cell's name and region follow one rule
   (`CellLabelRules`): 1 to 31 characters of lowercase letters, digits and single hyphens, starting with a letter and
   ending with a letter or digit, with no two hyphens in a row, which the host, the directory, the console, the
-  management API and the chart's values schema enforce and state (`CellLabelRules.Description`), so every cell name is
-  a valid remote-key tag. A cell that sets `Directory:Url` refuses to start unless `Directory:ClientId` is
+  management API and the chart's values schema enforce and state (`CellLabelRules.Description`), so every cell name is a
+  valid remote-key tag. A cell that sets `Directory:Url` refuses to start unless `Directory:ClientId` is
   `cell-{Cell:Name}` and `Cell:ManagementUrl` is set, because the directory knows a cell by that machine client and the
   cell registers its management URL with it. `NCode.Identity.OpenId.GlobalDirectory.Abstractions` holds the ports
-  `ITenantDirectory` (reserve, place with a `TenantPlacementRequest` of the tenant, its issuer and its cell, release,
-  retire, change an issuer, find a placement, whose region is the one its cell registered, move between cells of one
-  region), `ITeamDirectory` (reserve, release, publish, retire, get, list changes after a sequence),
+  `ITenantDirectory` (reserve, place with a `TenantPlacementRequest` of the tenant, its issuer when it has one, and its
+  cell, release, retire, change an issuer, find a placement, whose region is the one its cell registered, move between
+  cells of one region), `ITeamDirectory` (reserve, release, publish, retire, get, list changes after a sequence),
   `IPlatformDirectory` and `ICellDirectory`, their records and `DirectoryUnavailableException`. A cell runs on its own
-  with the local adapters over its own database and no extra service, and `Directory:Url` selects the remote adapters
-  of `NCode.Identity.OpenId.GlobalDirectory`, which fail closed with `503` and `Retry-After` on a transport failure, a
-  `5xx`, or a call that outlasts `DirectoryClientOptions.RequestTimeout`, its response body included. Creating a tenant
-  reserves its identifier (a team's `max_tenants` is enforced there), saves the tenant and places it, releasing the
-  reservation on failure; serving a tenant's requests never calls the directory, because the cell's own tenant row is
-  authoritative
-  ([ADR-1411](docs/decisions/1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md)).
+  with the local adapters over its own database and no extra service, and `Directory:Url` selects the remote adapters of
+  `NCode.Identity.OpenId.GlobalDirectory`, which fail closed with `503` and `Retry-After` on a transport failure, a
+  `5xx`, or a call that outlasts `DirectoryClientOptions.RequestTimeout`, its response body included. Creating a tenant,
+  through the one `ITenantPlacer` that the management API and the provisioner share, reserves its identifier and, when
+  it has one, its issuer, in its team (a team's `max_tenants` is enforced there) or in no team when it belongs to the
+  platform's own team, which the directory holds no record of, places the tenant in its cell and then saves it, so a
+  tenant's row never exists unplaced: a placement that fails releases the reservation, and a save that fails leaves the
+  tenant placed in its cell, which creating the tenant again there completes; a tenant a cell creates on demand that a
+  strategy serves at an address, a static strategy's own tenant or the root tenant of a cell that is not the control
+  plane when it has an issuer, is reserved and placed the same way, and a tenant it creates on demand without an issuer
+  is created in its cell alone; serving a tenant's requests never calls the directory, because the cell's own tenant row
+  is authoritative; the control-plane cell creates its root tenant without reserving or placing it, which the directory
+  holds from its own configuration, judges its address and changes its keys without asking the directory, which accepts
+  only the tokens that tenant issues, so a control-plane cell serves from a release that carries its directory client
+  from the first release
+  ([ADR-1411](docs/decisions/1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md),
+  [#918](https://github.com/NCodeGroup/identity/issues/918)).
 
 - **A directory host serves the global directory.** `NCode.Identity.OpenId.GlobalDirectory.Server` maps the endpoints
   under `/directory/v1/` (tenants, retired issuers, teams, the platform document, cells and the change feed) over its
@@ -4398,36 +4420,38 @@ Until the first stable release, the [Unreleased] section describes the product a
   change feed holds each team's and the platform's latest change, each carrying the whole document or the retire, so it
   stays bounded by the number of teams and a cell reading from the start reads every current document. A team's change
   always follows the latest change of each of its ancestors: each publish of a team lists every published team beneath
-  it again, parents first, so a team published before its parent follows it. A page of changes holds at most 768 KiB
-  of documents (`DirectoryLimits.MaxChangePageBytes`) and at least one change, so a page fits the 1 MiB that a cell
-  reads from one response. The host accepts unbound bearer tokens of the control-plane cell's issuer
+  it again, parents first, so a team published before its parent follows it. A page of changes holds at most 768 KiB of
+  documents (`DirectoryLimits.MaxChangePageBytes`) and at least one change, so a page fits the 1 MiB that a cell reads
+  from one response. The host accepts unbound bearer tokens of the control-plane cell's issuer
   (`DirectoryServer:Issuer`) for the audience `urn:ncode:directory` and the scope `directory`, and refuses a token that
-  carries a `cnf` claim. A request that arrives while that issuer cannot be reached is answered `503` with
-  `Retry-After` and the same wait in the problem's `retryAfterSeconds`. Each cell authenticates as the machine client
-  `cell-{name}` of the control-plane cell's root tenant (`private_key_jwt`; `Directory:ClientId` and
-  `Directory:KeyRing`, whose keys `KeyRings:{name}` holds), which `POST /api/platform/clients` registers with a
-  requested `clientId` and its `jwks`. A cell's token request to the control plane ends after
-  `Directory:TokenRequestTimeout` (30 seconds), and a failed request is remembered for
-  `Directory:TokenFailureCacheDuration` (5 seconds). The directory takes platform and team writes only from the
-  control-plane cell (`DirectoryServer:ControlPlaneCell`) and authorizes each tenant write against the tenant's stored
-  record in the transaction that writes it: the cell that holds the tenant and the control-plane cell write it, and only
-  the control-plane cell retires a tenant the directory has no record of; a cell registers only itself, with a
-  management URL that is an absolute `https` URL (or `http` in local development) with no user information, query or
-  fragment, and asks to move a tenant only into itself. A write that runs again after its commit's acknowledgement is
-  lost recognizes its own committed result: a cell's tenant reservation for the same issuer and team that is not yet
-  placed, a team reservation that is not yet published, and a move of a tenant already placed in the target cell each
-  succeed again. A placement's region is the region its cell registered, and the retired-issuer lookup is
-  `GET /directory/v1/retired-issuers?issuer=`, beside the tenant routes, so `GET /directory/v1/tenants/{tenantId}`
-  reads the placement of a tenant of any valid identifier, `retired-issuers` included. The directory refuses a tenant
-  or team identifier that the cells' identifier rule refuses (1 to 63 lowercase letters, digits or hyphens that start
-  and end with a letter or digit, a host label); a tenant issuer that is not an absolute `https` URL (or `http` on a
-  loopback host) with no user information, query or fragment; a team document that lacks its settings or its root
-  keys, or a platform document that lacks its settings; a team or platform document whose settings are not a JSON
-  object; a team or platform document whose JSON exceeds 64 KiB (`422`, `DirectoryLimits.MaxDocumentBytes`); and a
-  team document that would nest a team deeper than eight levels, the bound of a cell's team tree. A stored team or
-  platform document whose settings are missing or not a JSON object, `null` included, fails the tenant-limit check,
-  which refuses the reservation, and a cell's remote directory adapter fails closed on a document that lacks its
-  settings or its root keys.
+  carries a `cnf` claim. A request that arrives while that issuer cannot be reached is answered `503` with `Retry-After`
+  and the same wait in the problem's `retryAfterSeconds`. Each cell authenticates as the machine client `cell-{name}` of
+  the control-plane cell's root tenant (`private_key_jwt`; `Directory:ClientId` and `Directory:KeyRing`, whose keys
+  `KeyRings:{name}` holds), which `POST /api/platform/clients` registers with a requested `clientId` and its `jwks`. A
+  cell's token request to the control plane ends after `Directory:TokenRequestTimeout` (30 seconds), and a failed
+  request is remembered for `Directory:TokenFailureCacheDuration` (5 seconds). The directory takes platform and team
+  writes only from the control-plane cell (`DirectoryServer:ControlPlaneCell`) and authorizes each tenant write against
+  the tenant's stored record in the transaction that writes it: the cell that holds the tenant and the control-plane
+  cell write it, and only the control-plane cell retires a tenant the directory has no record of; a cell registers only
+  itself, with a management URL that is an absolute `https` URL (or `http` in local development) with no user
+  information, query or fragment, and asks to move a tenant only into itself. It holds the control-plane cell's root
+  tenant, which `DirectoryServer:ControlPlaneTenantId` names, placed in that cell under `DirectoryServer:Issuer`: before
+  every reservation and issuer change it ensures that tenant's record, so no other cell reserves its identifier or its
+  issuer. A write that runs again after its commit's acknowledgement is lost recognizes its own committed result: a
+  cell's tenant reservation for the same issuer and team, placed or not, a team reservation that is not yet published,
+  and a move of a tenant already placed in the target cell each succeed again. A placement's region is the region its
+  cell registered, and the retired-issuer lookup is `GET /directory/v1/retired-issuers?issuer=`, beside the tenant
+  routes, so `GET /directory/v1/tenants/{tenantId}` reads the placement of a tenant of any valid identifier,
+  `retired-issuers` included. A tenant without an issuer is reserved, placed and retired by its identifier alone. The
+  directory refuses a tenant or team identifier that the cells' identifier rule refuses (1 to 63 lowercase letters,
+  digits or hyphens that start and end with a letter or digit, a host label); a tenant issuer that is not an absolute
+  `https` URL (or `http` on a loopback host) with no user information, query or fragment; a team document that lacks its
+  settings or its root keys, or a platform document that lacks its settings; a team or platform document whose settings
+  are not a JSON object; a team or platform document whose JSON exceeds 64 KiB (`422`,
+  `DirectoryLimits.MaxDocumentBytes`); and a team document that would nest a team deeper than eight levels, the bound of
+  a cell's team tree. A stored team or platform document whose settings are missing or not a JSON object, `null`
+  included, fails the tenant-limit check, which refuses the reservation, and a cell's remote directory adapter fails
+  closed on a document that lacks its settings or its root keys.
 
 - **The control plane serves every cell.** The control-plane cell owns platform and team authority, setup and the team
   root keys; every other cell reaches it through remote adapters that fail closed. `IManagementTokenValidator` validates
@@ -4485,20 +4509,22 @@ Until the first stable release, the [Unreleased] section describes the product a
   each of which lies in the location its provider uses (`IRemoteKeyProvider.IsInLocation` reads the key's identifier
   and the provider's options), and the Entity Framework local-account store derives each imported account's
   normalized user name and email itself; grants, consents and sessions end, audit and usage records stay in the
-  source, and the tenant keeps its identifier and issuer. Only the named target cell imports the package, and the
-  directory moves the placement only for the target cell that calls, on that unexpired offer and only between cells of
-  one region (any other caller gets `403`), so a tenant for another region is created in a cell of that region, an
-  import repeats over the rows an interrupted import left, and the release removes the source's rows without retiring
-  an identifier or destroying a remote key. A move that the directory does not confirm is read back from the
-  placement: the import completes when the directory places the tenant in the target cell, undoes itself when it
-  places it in the source cell or in no cell, and otherwise keeps what it wrote and answers `503` that the outcome of
-  the move is unknown, with the problem's `moveOutcome` (`ManagementProblemMembers.MoveOutcome`) set to `unknown`. An
-  export that the directory refuses because it places the tenant in another cell names that cell in the problem's
-  `placedCell` (`ManagementProblemMembers.PlacedCell`). The console runs the four calls as Move, keeps a failed move and
-  its Retry when its dialog is closed and opened again, offers Release, which runs only the release at the source, when
-  the export names `placedCell`, says that the outcome is unknown when the import's `moveOutcome` is `unknown`, says
-  when the list of cells is loading or could not be loaded, and opens the tenant's surface in the cell it moved to once
-  the move completes
+  source, and the tenant keeps its identifier and issuer. A tenant the deployment requires, the root tenant or the
+  static strategy's tenant, never moves: the export and the release answer `409` for it, and the directory refuses an
+  offer or a move of the control-plane cell's root tenant (`DirectoryServer:ControlPlaneTenantId`). Only the named
+  target cell imports the package, and the directory moves the placement only for the target cell that calls, on that
+  unexpired offer and only between cells of one region (any other caller gets `403`), so a tenant for another region is
+  created in a cell of that region, an import repeats over the rows an interrupted import left, and the release removes
+  the source's rows without retiring an identifier or destroying a remote key. A move that the directory does not
+  confirm is read back from the placement: the import completes when the directory places the tenant in the target cell,
+  undoes itself when it places it in the source cell or in no cell, and otherwise keeps what it wrote and answers `503`
+  that the outcome of the move is unknown, with the problem's `moveOutcome` (`ManagementProblemMembers.MoveOutcome`) set
+  to `unknown`. An export that the directory refuses because it places the tenant in another cell names that cell in the
+  problem's `placedCell` (`ManagementProblemMembers.PlacedCell`). The console runs the four calls as Move, keeps a
+  failed move and its Retry when its dialog is closed and opened again, offers Release, which runs only the release at
+  the source, when the export names `placedCell`, says that the outcome is unknown when the import's `moveOutcome` is
+  `unknown`, says when the list of cells is loading or could not be loaded, and opens the tenant's surface in the cell
+  it moved to once the move completes
   ([ADR-1514](docs/decisions/1514-a-tenant-moves-between-cells-of-one-region-through-an-encrypted-export-and-import.md),
   [`docs/tenant-move.md`](docs/tenant-move.md)).
 
@@ -4538,11 +4564,15 @@ Until the first stable release, the [Unreleased] section describes the product a
   `cell.managementUrl`, `cell.isControlPlane` and `cell.controlPlaneIssuer` set `Cell`; `backup.location` annotates the
   pods of the host, the directory and their migration Jobs with `ncode.io/backup-location`; `telemetry.otlpEndpoint` and
   the `cell.name` and `cell.region` resource attributes tag every pod's OpenTelemetry signals; `directory.url`,
-  `directory.clientId`, `directory.keyRing` and `directory.keys` point a cell at the platform's directory; and
-  `directory.enabled` runs the directory host with its own database, `directory.database` (the runtime role's
+  `directory.clientId`, `directory.keyRing` and `directory.keys` point a cell at the platform's directory;
+  `tenantResolution.staticSingle.tenantId` (`default` when empty, which the chart writes for the cell and its directory
+  alike) and `displayName` name a cell's own tenant, which a `StaticSingle` cell that is not the control plane must
+  name; and `directory.enabled` runs the directory host with its own database, `directory.controlPlaneTenantId` (the
+  control-plane cell's root tenant, which a `StaticSingle` release of that cell takes from
+  `tenantResolution.staticSingle.tenantId` and every other release names), `directory.database` (the runtime role's
   connection, which only the directory's Deployment receives, and the role's name), `directory.migrations.database` (the
-  schema owner's connection, which only the migration Job receives), `directory.tls` and pre-install migration Job,
-  which migrates as the owner and grants the runtime role data access to the directory's tables
+  schema owner's connection, which only the migration Job receives), `directory.backendTls`, and a pre-install migration
+  Job, which migrates as the owner and grants the runtime role data access to the directory's tables
   (`DirectoryMigration:RuntimeRole`). `directory.database` and `directory.migrations.database` each take a Secret that
   holds the finished connection string (`ConnectionStrings:directory`) or the connection's parts (`DirectoryDatabase`),
   never both, the keys of a CloudNativePG `<cluster>-app` Secret by default, and an empty key of the owner's falls back
@@ -4550,13 +4580,28 @@ Until the first stable release, the [Unreleased] section describes the product a
   issuer or management URL that the host would refuse (an `https` URL, or an `http` URL on a loopback host for the
   directory and the issuers, with no user information, query, fragment or white space), a `directory.url` with no
   `cell.controlPlaneIssuer`, a `directory.url` whose `directory.clientId` is not `cell-<cell.name>` or whose
-  `cell.managementUrl` is empty, the directory client's values (`directory.clientId`, `directory.keyRing` and
-  `directory.keys`) while `directory.url` is empty, and the directory host's values while `directory.enabled` is
-  `false`. Its values schema holds `cell.name`, `cell.region` and `directory.controlPlaneCell` to the cell-name rule and
-  `directory.clientId` to `cell-` followed by a cell name, and the directory's resource names keep its Service name
-  within 63 characters. `ci/cell-values.yaml` is a cell that is not the control plane, `ci/directory-values.yaml` a
-  control-plane cell that runs the directory and reaches it as its own machine client, and the `Host chart` workflow
-  lints and renders both.
+  `cell.managementUrl` is empty, a `StaticSingle` cell that is not the control plane without
+  `tenantResolution.staticSingle.tenantId`, a directory whose control-plane cell's root tenant the release cannot name,
+  the directory client's values (`directory.clientId`, `directory.keyRing` and `directory.keys`) while `directory.url`
+  is empty, and the directory host's values while `directory.enabled` is `false`. Its values schema holds `cell.name`,
+  `cell.region` and `directory.controlPlaneCell` to the cell-name rule and `directory.clientId` to `cell-` followed by a
+  cell name, and the directory's resource names keep its Service name within 63 characters. `ci/cell-values.yaml` is a
+  cell that is not the control plane, `ci/directory-values.yaml` a control-plane cell that runs the directory and
+  reaches it as its own machine client, and the `Host chart` workflow lints and renders both.
+
+- **The host chart routes to the directory host over HTTPS it verifies.** `directory.ingress` renders an `Ingress` for
+  every host in `directory.allowedHosts`, which `ingress.controller: traefik` pairs with a `ServersTransport` and the
+  Service's `service.serversscheme` and `service.serverstransport` annotations, and `directory.httpRoute` renders an
+  `HTTPRoute` for those hosts and a `BackendTLSPolicy` that verifies the directory's pods against
+  `directory.backendTls.caConfigMap`, else `backendTls.caConfigMap`. The directory serves
+  `directory.backendTls.existingSecret`, or else a certificate the chart's cert-manager `Certificate` issues from
+  `backendTls.certManager`'s issuer for the directory Service's DNS names, and requires the ingress controller's client
+  certificate when `backendTls.clientCertificate.required` is true; the controller verifies it against
+  `directory.backendTls.ingressSecret`, else `backendTls.ingressSecret`, else `<release>-ingress`. The `Host chart`
+  workflow installs `ci/kind-directory-values.yaml`, a control-plane cell that runs the directory and carries its
+  directory client and setup Job in one release, in kind behind Traefik
+  ([#920](https://github.com/NCodeGroup/identity/issues/920),
+  [ADR-1507](docs/decisions/1507-the-host-chart-routes-to-its-https-only-pods-through-gateway-api-a-traefik-ingress-or-the-operators-own-ingress.md)).
 
 - **A tenant's data carries the cell that wrote it.** `Cell:Name` is stamped on audit records and usage rows, it is the
   tag of the keys a remote key provider creates, and it prefixes every Valkey key, so a cell's records, keys and
@@ -6256,16 +6301,17 @@ Until the first stable release, the [Unreleased] section describes the product a
   issue [#296](https://github.com/NCodeGroup/identity/issues/296)).
 
 - **The management API authenticates every caller against the control-plane tenant and takes its data scope from the
-  route.** Whatever host or path it is reached on (a collection route such as `POST /api/teams/{teamId}/tenants` under `DynamicByPath`,
-  a `/api/tenants/{tenantId}/…` route, or any host under `DynamicByHost`), the caller's token is
-  validated with the control-plane tenant (the root tenant, or a static strategy's own tenant). `ITenantStrategy` and
-  `ITenantResolver` expose `ResolveControlPlaneTenantAsync`, `IOpenIdTenantFactory` exposes
+  route.** Whatever host or path it is reached on (a collection route such as `POST /api/teams/{teamId}/tenants` under
+  `DynamicByPath`, a `/api/tenants/{tenantId}/…` route, or any host under `DynamicByHost`), the caller's token is
+  validated with the control-plane tenant (the root tenant, which a static strategy's own tenant is).
+  `ITenantStrategy` and `ITenantResolver` expose `ResolveControlPlaneTenantAsync`, `IOpenIdTenantFactory` exposes
   `CreateControlPlaneTenantAsync`, and `IOpenIdContextFactory` exposes `CreateForControlPlaneAsync`
   ([ADR-1191](docs/decisions/1191-a-management-request-is-authenticated-by-the-control-plane-tenant-and-scoped-by-its-routes-tenant.md)). The route's
   `{tenantId}` only scopes the data: it sets the ambient tenant scope, so a central-admin caller administers a tenant by
   id while the persistence-layer query filter confines the read fail-closed
   ([ADR-1018](docs/decisions/1018-tenant-selection-is-shared-and-tenant-bound-rows-are-scoped-at-the-persistence-layer.md)); a control-plane route without
-  `{tenantId}` uses the resolved tenant, which has no effect on the unscoped platform, team and tenant rows those routes act on
+  `{tenantId}` uses the resolved tenant, which has no effect on the unscoped platform, team and tenant rows those routes
+  act on
   ([ADR-1191](docs/decisions/1191-a-management-request-is-authenticated-by-the-control-plane-tenant-and-scoped-by-its-routes-tenant.md)).
 
 - **The bootstrap administrator's `ClientSecret` is supplied Base64Url-encoded and kept off the GC heap.** The seed
@@ -6567,14 +6613,15 @@ Until the first stable release, the [Unreleased] section describes the product a
 - **A tenant export is sealed to a one-time transfer key and exists only for a disabled tenant.** The export is one
   compact `JWE` to a key the receiving cell published, which that cell hands out once and holds for one hour, so the
   package carries ciphertext secrets and the tenant's master keys sealed to that key and never a plaintext secret; the
-  tenant must be disabled so nothing changes while it moves, and the response is never logged. The import answers
-  `422`, before any key decrypts the package or any remote key is retagged, for an empty `kid`, a package whose
-  protected header does not name `ECDH-ES+A256KW` and `A256GCM`, a root key that the checks of
-  `IOwnerRootKeyManager.SetAsync` refuse (the owner's policies, the allowed key wrappers and the cell's cloud regions,
-  which `MasterKeyTransferResult.RefusalDetail` reports), and a remote key outside the location that the target cell's
-  provider uses. While the global directory places a tenant in another cell, deleting the tenant or one of its secrets
-  at the source answers `409` (`503` when the directory cannot be reached), so a moved tenant's source copy never
-  destroys a remote key that the live copy uses, and `release-moved` removes that copy
+  tenant must be disabled so nothing changes while it moves, and a tenant the deployment requires is never exported or
+  released, and the response is never logged. The import answers `422`, before any key decrypts the package or any
+  remote key is retagged, for an empty `kid`, a package whose protected header does not name `ECDH-ES+A256KW` and
+  `A256GCM`, a root key that the checks of `IOwnerRootKeyManager.SetAsync` refuse (the owner's policies, the allowed key
+  wrappers and the cell's cloud regions, which `MasterKeyTransferResult.RefusalDetail` reports), and a remote key
+  outside the location that the target cell's provider uses. While the global directory places a tenant in another cell,
+  deleting the tenant or one of its secrets at the source answers `409` (`503` when the directory cannot be reached), so
+  a moved tenant's source copy never destroys a remote key that the live copy uses, and `release-moved` removes that
+  copy
   ([ADR-1514](docs/decisions/1514-a-tenant-moves-between-cells-of-one-region-through-an-encrypted-export-and-import.md)).
 
 - **Deleting an owner removes what it owns.** `IClientStore.RemoveAsync` removes a client's secrets, grants to resource

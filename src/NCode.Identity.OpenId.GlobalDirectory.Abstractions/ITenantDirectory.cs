@@ -14,11 +14,13 @@ namespace NCode.Identity.OpenId.GlobalDirectory;
 public interface ITenantDirectory
 {
     /// <summary>
-    /// Reserves the tenant identifier and issuer for a tenant about to be created. The reservation is refused when
-    /// another tenant holds the identifier or the issuer, when either is retired, or when the team already holds the
-    /// most tenants its <c>max_tenants</c> setting allows. Reserving again for the cell, issuer and team of a
-    /// reservation that is held and not yet placed succeeds, so a reservation that runs again after it took effect is
-    /// not refused.
+    /// Reserves the tenant identifier and, when the tenant has one, its issuer for a tenant about to be created; a
+    /// tenant without an issuer is reserved by its identifier alone. The reservation is refused when another tenant
+    /// holds the identifier or the issuer, when either is retired, or when the team already holds the most tenants its
+    /// <c>max_tenants</c> setting allows. Reserving again for the cell, issuer and team that hold the tenant, reserved
+    /// or placed, succeeds, so a creation that runs again after its reservation or its placement took effect is not
+    /// refused; the cell inserts the tenant's row after the placement, so it finds the row of a creation that completed
+    /// before it reserves again.
     /// </summary>
     /// <param name="reservation">The <see cref="TenantReservation"/> describing the identifiers to reserve.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
@@ -29,10 +31,11 @@ public interface ITenantDirectory
     );
 
     /// <summary>
-    /// Places a tenant that the placement's cell reserved under the placement's issuer, once the cell holds the
-    /// tenant's row. The placement is refused when nothing reserved the tenant, when the tenant is retired, or when the
-    /// reservation belongs to another cell or issuer; placing a tenant already placed in that cell under that issuer
-    /// succeeds. The directory takes the placement's region from the cell's registration.
+    /// Places a tenant that the placement's cell reserved under the placement's issuer, or under none when the
+    /// placement names none, before the cell inserts the tenant's row, so the row never exists unplaced. The placement
+    /// is refused when nothing reserved the tenant, when the tenant is retired, or when the reservation belongs to
+    /// another cell or issuer; placing a tenant already placed in that cell under that issuer succeeds. The directory
+    /// takes the placement's region from the cell's registration.
     /// </summary>
     /// <param name="placement">The <see cref="TenantPlacementRequest"/> to record.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
@@ -77,8 +80,9 @@ public interface ITenantDirectory
     /// <summary>
     /// Records that the cell holding a tenant offers the tenant to another cell of the same region, until the offer
     /// expires. A tenant has at most one offer, and offering again sets it to the new target cell and expiry. The offer
-    /// is refused when the tenant is not placed in the source cell, when the cells are the same, when either cell is
-    /// not registered, or when the cells are in different regions.
+    /// is refused for the control-plane cell's root tenant, which the directory holds in that cell from its own
+    /// configuration, and when the tenant is not placed in the source cell, when the cells are the same, when either
+    /// cell is not registered, or when the cells are in different regions.
     /// </summary>
     /// <param name="tenantId">The identifier of the tenant.</param>
     /// <param name="fromCell">The name of the cell that holds the tenant and offers it.</param>
@@ -94,10 +98,11 @@ public interface ITenantDirectory
 
     /// <summary>
     /// Moves a placed tenant from one cell to another cell of the same region. The move consumes the source cell's
-    /// unexpired offer of the tenant to the target cell, and is refused without one. The move is also refused when the
-    /// tenant is not placed in the source cell, when either cell is not registered, or when the cells are in different
-    /// regions. Moving a tenant that is already placed in the target cell succeeds, so a move that runs again after it
-    /// took effect is not refused.
+    /// unexpired offer of the tenant to the target cell, and is refused without one. The move is also refused for the
+    /// control-plane cell's root tenant, which the directory holds in that cell from its own configuration, and when
+    /// the tenant is not placed in the source cell, when either cell is not registered, or when the cells are in
+    /// different regions. Moving a tenant that is already placed in the target cell succeeds, so a move that runs again
+    /// after it took effect is not refused.
     /// </summary>
     /// <param name="tenantId">The identifier of the tenant.</param>
     /// <param name="fromCell">The name of the cell that holds the tenant.</param>

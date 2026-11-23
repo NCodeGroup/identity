@@ -37,8 +37,13 @@ Four facts shape how a tenant travels:
 target cell, in seven steps. The tenant keeps its identifier and its issuer, and a move across regions is refused: a new
 tenant is created there instead.**
 
-1. **The tenant is disabled (`IsDisabled`).** The export answers `409` for a tenant that is enabled, so nothing changes
-   while the tenant travels.
+1. **The tenant is disabled (`IsDisabled`), and its cell's deployment does not require it.** The export answers `409`
+   for a tenant that is enabled, so nothing changes while the tenant travels, and for a tenant the deployment requires
+   (`ITenantResolver.IsRequiredTenant`: the root tenant, which under the static strategy is its tenant), which never
+   leaves its cell, because it is part of its cell's deployment, which creates it on demand. The control-plane cell's
+   root tenant is also the tenant the directory places in that cell from its own configuration
+   (`DirectoryServer:ControlPlaneTenantId`) and whose tokens are the only ones it accepts, and that cell creates, judges
+   and keys it without the directory, so the directory refuses to offer or move it as well.
 2. **The target publishes a transfer key.** `ITenantTransferKeyService` makes an EC P-256 key with a random `kid`, `use`
    `enc` and `alg` `ECDH-ES+A256KW`, keeps its private half protected by Data Protection in the shared expiring value
    set for one hour, and returns the public JWK. `POST api/tenant-imports/transfer-keys` serves it. Taking the key
@@ -84,37 +89,42 @@ tenant is created there instead.**
    - The export takes the target cell's name (`targetCell`) with the transfer key. It records a move offer from the
      source cell to the target cell through `ITenantDirectory.OfferMoveAsync`, valid for the transfer key's hour, and
      writes the target cell's name into the package, so only that cell imports it. A conflict, such as a tenant the
-     directory does not place in the source cell or cells of different regions, answers `409`; when the directory places
-     the tenant in another cell, the `409` names that cell in the problem's `placedCell`, so the caller releases the
-     source's copy instead of exporting it again. An import of a package that names another cell answers `422`.
-   - The import calls `ITenantDirectory.MoveAsync` for the tenant from the source cell to the target cell. The
-     directory, in one serializable transaction, requires the placement to name the source cell, both cells to be
-     registered in the same region and the source cell's unexpired move offer to the target cell, which the move
-     consumes. The route moves the tenant only for the target cell that calls, so a cell cannot take a tenant offered to
-     another, and any other caller gets `403`. The directory can commit a move that it does not confirm, such as one
-     whose acknowledgement a timeout loses or whose transaction a retry runs again, so the import reads the placement
-     back, on a token of its own, whenever the move answers a conflict, cannot be reached, is cancelled or fails. A
-     placement in the target cell completes the import. A placement in the source cell or in no cell, where the move
-     cannot have committed, makes the import remove what it imported and answer the move's own failure. A placement in
-     another cell, or a directory that cannot be read, keeps what the import wrote and the keys' tags, and answers `503`
-     that the outcome of the move is unknown: a repeated export then names the target cell in `placedCell` when the move
-     committed, and a repeated import otherwise clears the target's copy before it imports. The `503` carries the
-     problem member `moveOutcome` with the value `unknown`, so the console says that the outcome is unknown instead of
-     saying where the tenant is. The local adapter always answers a conflict, because a single cell has no other cell.
+     directory does not place in the source cell, cells of different regions or the control-plane cell's root tenant,
+     which the directory never offers, answers `409`; when the directory places the tenant in another cell, the `409`
+     names that cell in the problem's `placedCell`, so the caller releases the source's copy instead of exporting it
+     again. An import of a package that names another cell answers `422`.
+   - The import calls `ITenantDirectory.MoveAsync` for the tenant from the source cell to the target cell. The directory
+     refuses the control-plane cell's root tenant and, in one serializable transaction, requires the placement to name
+     the source cell, both cells to be registered in the same region and the source cell's unexpired move offer to the
+     target cell, which the move consumes. The route moves the tenant only for the target cell that calls, so a cell
+     cannot take a tenant offered to another, and any other caller gets `403`. The directory can commit a move that it
+     does not confirm, such as one whose acknowledgement a timeout loses or whose transaction a retry runs again, so the
+     import reads the placement back, on a token of its own, whenever the move answers a conflict, cannot be reached, is
+     cancelled or fails. A placement in the target cell completes the import. A placement in the source cell or in no
+     cell, where the move cannot have committed, makes the import remove what it imported and answer the move's own
+     failure. A placement in another cell, or a directory that cannot be read, keeps what the import wrote and the keys'
+     tags, and answers `503` that the outcome of the move is unknown: a repeated export then names the target cell in
+     `placedCell` when the move committed, and a repeated import otherwise clears the target's copy before it imports.
+     The `503` carries the problem member `moveOutcome` with the value `unknown`, so the console says that the outcome
+     is unknown instead of saying where the tenant is. The local adapter always answers a conflict, because a single
+     cell has no other cell.
    - The remote keys the import found carry the target cell's tag through `IRemoteKeyProvider.RetagKeyAsync`, so the
      target's sweep keeps them and the source's sweep, which lists only keys of its own name, never destroys them. The
      cells of a region that move tenants between them share the location that their providers use, one AWS account and
      region, one Key Vault or one Cloud KMS key ring, and each cell's identity may tag a key with the name of any cell
      of the region, so the target retags a moved tenant's keys and tags them back when it undoes an import.
-   - `POST api/tenants/{tenantId}/release-moved` runs at the source cell. It proceeds only when the directory's
-     placement names another cell, and answers `503` when the directory is unreachable, never releasing on a guess. It
-     calls each contributor's `RemoveAsync` in reverse `Order`, then `ITenantStore.RemoveFromCellAsync`, which deletes
-     the tenant's rows and master keys without checking dependents, destroying a remote key or retiring the identifier
-     or the issuer, because the tenant lives on in its target cell
-     ([ADR-1212](1212-deleting-a-client-resource-server-principal-or-tenant-removes-what-it-owns.md)). The audit record
-     `tenant.released` names the target cell. While the directory places the tenant in another cell, deleting the tenant
-     or one of its secrets at the source answers `409` naming that cell, and `503` when the directory cannot be reached,
-     so the release is the only path that removes the source's copy, and it destroys no remote key.
+   - `POST api/tenants/{tenantId}/release-moved` runs at the source cell. It answers `409` for a tenant the deployment
+     requires, which never leaves its cell, so a placement of the same identifier in another cell, such as the
+     control-plane cell's root tenant `root` beside a cell's own `root` tenant that has no issuer, never removes the
+     cell's own; otherwise it proceeds only when the directory's placement names another cell, and answers `503` when
+     the directory is unreachable, never releasing on a guess. It calls each contributor's `RemoveAsync` in reverse
+     `Order`, then `ITenantStore.RemoveFromCellAsync`, which deletes the tenant's rows and master keys without checking
+     dependents, destroying a remote key or retiring the identifier or the issuer, because the tenant lives on in its
+     target cell ([ADR-1212](1212-deleting-a-client-resource-server-principal-or-tenant-removes-what-it-owns.md)). The
+     audit record `tenant.released` names the target cell. While the directory places the tenant in another cell,
+     deleting the tenant or one of its secrets at the source answers `409` naming that cell, and `503` when the
+     directory cannot be reached, so the release is the only path that removes the source's copy, and it destroys no
+     remote key.
 7. **The operator writes the DNS record and enables the tenant.** The tenant's issuer is unchanged, so its hostname
    resolves to the target cell through an explicit DNS record
    ([ADR-1495](1495-the-hosted-platform-runs-customer-environments-as-tenants-on-production-under-the-ncodeid-net-platform-domain.md)),
@@ -148,6 +158,9 @@ tenant in the cell it moved to once the move completes.
 - Each person of the tenant signs in again, because sessions and grants are dropped. Refresh tokens and authorization
   codes do not survive the move.
 - The tenant's identifier and issuer stay reserved by the directory throughout, and no other tenant can take them.
+- A tenant the deployment requires never moves: a cell's root tenant stays in that cell, so a cell under the static
+  strategy, whose one tenant is its root tenant, moves no tenant, and the control-plane cell's root tenant stays in the
+  control-plane cell.
 - The source cell keeps the tenant's audit and usage records until their retention ends, while the target starts its own.
 - The operator who moves a tenant holds the `Update` operation at the platform node in both cells, and each cell
   authenticates to the directory as its own machine client.

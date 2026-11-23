@@ -188,7 +188,8 @@ internal class DynamicByHostTenantStrategy(
         CancellationToken cancellationToken
     )
     {
-        var rootIssuer = await GetDefaultIssuerAsync(RootOptions.TenantId, cancellationToken);
+        var rootTenantId = GetControlPlaneTenantId();
+        var rootIssuer = await GetDefaultIssuerAsync(rootTenantId, cancellationToken);
         return AbsoluteUri.TryParse(rootIssuer, out var rootIssuerUri)
             && string.Equals(rootIssuerUri.Host, issuerHost, StringComparison.OrdinalIgnoreCase);
     }

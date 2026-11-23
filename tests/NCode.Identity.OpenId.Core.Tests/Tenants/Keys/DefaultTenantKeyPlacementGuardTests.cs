@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging.Testing;
 using Microsoft.Extensions.Options;
 using Moq;
 using NCode.Identity.OpenId.GlobalDirectory;
+using NCode.Identity.OpenId.Tenants;
 using NCode.Identity.OpenId.Tenants.Keys;
 using Xunit;
 
@@ -21,6 +22,8 @@ public sealed class DefaultTenantKeyPlacementGuardTests : BaseTests
 
     private Mock<ITenantDirectory> MockTenantDirectory { get; }
 
+    private Mock<ITenantResolver> MockTenantResolver { get; }
+
     private FakeLogger<DefaultTenantKeyPlacementGuard> Logger { get; } = new();
 
     private DefaultTenantKeyPlacementGuard Guard { get; }
@@ -28,11 +31,19 @@ public sealed class DefaultTenantKeyPlacementGuardTests : BaseTests
     public DefaultTenantKeyPlacementGuardTests()
     {
         MockTenantDirectory = CreateStrictMock<ITenantDirectory>();
-        var cellOptions = Options.Create(new CellOptions { Name = ThisCell });
-        Guard = new DefaultTenantKeyPlacementGuard(MockTenantDirectory.Object, cellOptions, Logger);
+        MockTenantResolver = CreateStrictMock<ITenantResolver>();
+        Guard = CreateGuard(new CellOptions { Name = ThisCell });
     }
 
     #region Scaffolding
+
+    private DefaultTenantKeyPlacementGuard CreateGuard(CellOptions cellOptions) =>
+        new(
+            MockTenantDirectory.Object,
+            MockTenantResolver.Object,
+            Options.Create(cellOptions),
+            Logger
+        );
 
     private void SetupPlacement(string? cell)
     {
@@ -55,6 +66,30 @@ public sealed class DefaultTenantKeyPlacementGuardTests : BaseTests
     #endregion
 
     #region MayChangeKeysAsync Tests
+
+    [Fact]
+    public async Task MayChangeKeysAsync_WhenTheControlPlaneCellAsksForItsControlPlaneTenant_ReturnsTrueWithoutTheDirectory()
+    {
+        var guard = CreateGuard(new CellOptions { Name = ThisCell, IsControlPlane = true });
+        MockTenantResolver.Setup(x => x.GetControlPlaneTenantId()).Returns(TenantId).Verifiable();
+
+        var actual = await guard.MayChangeKeysAsync(TenantId, CancellationToken.None);
+
+        Assert.True(actual);
+        Assert.Empty(Logger.Collector.GetSnapshot());
+    }
+
+    [Fact]
+    public async Task MayChangeKeysAsync_WhenTheControlPlaneCellAsksForAnotherTenant_AsksTheDirectory()
+    {
+        var guard = CreateGuard(new CellOptions { Name = ThisCell, IsControlPlane = true });
+        MockTenantResolver.Setup(x => x.GetControlPlaneTenantId()).Returns("root").Verifiable();
+        SetupPlacement(OtherCell);
+
+        var actual = await guard.MayChangeKeysAsync(TenantId, CancellationToken.None);
+
+        Assert.False(actual);
+    }
 
     [Fact]
     public async Task MayChangeKeysAsync_WhenTheTenantHasNoPlacement_ReturnsTrue()

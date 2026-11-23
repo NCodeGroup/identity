@@ -61,7 +61,8 @@ a retired identifier or issuer is never reissued.**
    leftmost label of a host, so the name works under every built-in strategy, and a path tenant's issuer
    (`https://op.example/acme`) is known before the tenant exists: a tenant is created with its address in one request.
 3. **It is validated wherever it enters:** the management API through the seam below, and the configured identifiers
-   (`TenantResolution:Root:TenantId`, `TenantResolution:StaticSingle:TenantId`) when the host starts.
+   (`TenantResolution:Root:TenantId` under the host and path strategies, `TenantResolution:StaticSingle:TenantId` under
+   the static strategy) when the host starts.
 
 ### One seam judges the address
 
@@ -78,6 +79,10 @@ a retired identifier or issuer is never reissued.**
    - no other tenant holds the issuer (a conflict);
    - the identifier is not retired, which the tenant directory answers for the whole platform;
    - the issuer is not retired, unless this tenant gave it up, which the tenant directory answers for the whole platform.
+
+   The control-plane cell asks the tenant directory neither question about its control-plane tenant: the directory
+   accepts only the bearer tokens that tenant issues, so it cannot answer before the tenant serves, and the tenant is
+   required, so it is never deleted and its identifier never retired.
 6. **Strategy rules.** Every built-in strategy requires the issuer to end with the tenant route bound for the tenant; a
    path base the host is mounted under may precede it. The path route carries the tenant parameter as its only
    parameter, and a plain one (no constraint, default, optional marker or catch-all), so the route, and the issuer it
@@ -106,11 +111,24 @@ a retired identifier or issuer is never reissued.**
    ([ADR-1411](1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md)).
    The directory service checks the issuer a reservation, a placement or a retirement names, and the one an issuer
    change takes, by the service-URL rule of decision 5 and the same 1000-character bound, and answers `400` to any
-   other; the host-name bound is the serving cell's own, so the directory refuses no issuer that a cell accepts.
-10. **Creation reserves, then inserts, then places.** Creating a tenant reserves its identifier (`max_tenants` is
-    enforced at the reservation), inserts the tenant in its cell and then places it; a failure releases the
-    reservation. Creation fails closed with `503` when the directory is unreachable. Serving a tenant's requests never
-    calls the directory, because the cell's own tenant row is authoritative for serving.
+   other; the host-name bound is the serving cell's own, so the directory refuses no issuer that a cell accepts. A
+   tenant without an issuer is reserved, placed and retired by its identifier alone.
+10. **Creation reserves, then places, then inserts.** Creating a tenant reserves its identifier and, when it has one,
+    its issuer (`max_tenants` is enforced at the reservation), places the tenant in its cell and then inserts it there,
+    so its row never exists unplaced; a placement that does not take effect releases the reservation on its own bounded
+    token, so the failure that ended the creation surfaces, and a failure after the placement leaves the identifier
+    placed in the cell, which creating the tenant again there with the same issuer and team completes, because the
+    directory reserves and places again for the cell that holds the tenant. One service, `ITenantPlacer`, reserves and
+    places a tenant and releases a reservation whose placement does not take effect, for the management API and the
+    provisioner alike, and each of them inserts the tenant after it. Creation fails closed with `503` when the directory
+    is unreachable. Serving a tenant's requests never calls the directory, because the cell's own tenant row is
+    authoritative for serving. A tenant a cell creates on demand that a strategy serves at an address (one with an
+    issuer), a static strategy's own tenant or the root tenant of a cell that is not the control plane when
+    `TenantResolution:Root:Issuer` gives it one, is created the same way when the cell first creates it, and a tenant of
+    the platform's own team is reserved in no team; a tenant a cell creates on demand without an issuer has no address
+    on the platform and is created in its cell alone; only the control-plane cell's root tenant is created without the
+    directory, which accepts only the tokens that tenant issues, and the directory holds that tenant's identifier and
+    issuer from its own configuration (`DirectoryServer:ControlPlaneTenantId`), so no other cell reserves either.
 11. **One cell keeps its own tombstones.** The local adapter, the default, keeps the retired identifiers in the cell's
     own tables: `RetiredTenants` holds a deleted tenant's identifier and `RetiredIssuers` an issuer a tenant gave up,
     with the identifier of the tenant that held it; each has a unique normalized column. `RetiredTeams` retires a
@@ -126,8 +144,8 @@ a retired identifier or issuer is never reissued.**
     directory changes the placement, and the source cell deletes the tenant without retiring its identifiers. Across
     regions a new tenant is created under a new identifier.
 15. **A required tenant cannot be deleted.** `ITenantStrategy.IsRequiredTenant`, which `ITenantResolver` delegates to,
-    names the tenants the deployment needs (the root tenant, the static strategy's tenant), and the management API
-    answers `409` to deleting one, before it checks dependents. A custom strategy names its own.
+    names the tenants the deployment needs (the root tenant, which is the static strategy's tenant under that strategy),
+    and the management API answers `409` to deleting one, before it checks dependents. A custom strategy names its own.
 
 ## Options considered
 

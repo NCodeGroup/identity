@@ -60,6 +60,7 @@ public sealed class TenantTransferApiEndpointHandlerTests : IDisposable
     private Mock<KeyManagementAlgorithm> MockKeyManagement { get; }
     private Mock<AuthenticatedEncryptionAlgorithm> MockEncryption { get; }
     private Mock<ITenantDirectory> MockTenantDirectory { get; }
+    private Mock<ITenantResolver> MockTenantResolver { get; }
     private Mock<IManagementAuditRecorder> MockManagementAuditRecorder { get; }
     private FakeJoseEncoder Encoder { get; } = new();
     private TenantTransferApiEndpointHandler Handler { get; }
@@ -83,6 +84,7 @@ public sealed class TenantTransferApiEndpointHandlerTests : IDisposable
         MockKeyManagement = MockRepository.Create<KeyManagementAlgorithm>();
         MockEncryption = MockRepository.Create<AuthenticatedEncryptionAlgorithm>();
         MockTenantDirectory = MockRepository.Create<ITenantDirectory>();
+        MockTenantResolver = MockRepository.Create<ITenantResolver>();
         MockManagementAuditRecorder = MockRepository.Create<IManagementAuditRecorder>();
 
         // The handler reads each contributor's order once, to run them in order whatever order they are registered in.
@@ -100,6 +102,7 @@ public sealed class TenantTransferApiEndpointHandlerTests : IDisposable
             MockJoseSerializer.Object,
             MockAlgorithmCollectionProvider.Object,
             MockTenantDirectory.Object,
+            MockTenantResolver.Object,
             MockManagementAuditRecorder.Object,
             Microsoft.Extensions.Options.Options.Create(
                 new CellOptions { Name = CellName, Region = Region }
@@ -210,7 +213,7 @@ public sealed class TenantTransferApiEndpointHandlerTests : IDisposable
         return captured;
     }
 
-    private void SetupStore(PersistedTenant? tenant)
+    private void SetupStore(PersistedTenant? tenant, bool isRequired = false)
     {
         MockStoreManagerFactory
             .Setup(x => x.CreateAsync(It.IsAny<CancellationToken>()))
@@ -228,6 +231,14 @@ public sealed class TenantTransferApiEndpointHandlerTests : IDisposable
             .Setup(x => x.GetOrDefaultAsync(TenantId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(tenant)
             .Verifiable();
+
+        if (tenant is not null)
+        {
+            MockTenantResolver
+                .Setup(x => x.IsRequiredTenant(TenantId))
+                .Returns(isRequired)
+                .Verifiable();
+        }
     }
 
     // The importer accepts the recipient key and imports it under the client-key policy for encryption.
@@ -765,6 +776,29 @@ public sealed class TenantTransferApiEndpointHandlerTests : IDisposable
     }
 
     [Fact]
+    public async Task ExportTenantAsync_WhenTheTenantIsRequired_ReturnsConflictAndExportsNothing()
+    {
+        SetupAuthorization(AuthorizationResult.Success());
+        SetupImportAccepted();
+        SetupRecipientKey();
+        SetupStore(CreateTenant(isDisabled: true), isRequired: true);
+
+        var result = await Handler.ExportTenantAsync(
+            CreateHttpContext(),
+            TenantId,
+            CreateRequest(),
+            CancellationToken.None
+        );
+
+        var problem = Assert.IsType<ProblemHttpResult>(result);
+        Assert.Equal(StatusCodes.Status409Conflict, problem.StatusCode);
+        Assert.Equal(
+            "The tenant is required by the deployment (the root tenant, or the static strategy's tenant) and cannot be exported, because it never leaves its cell.",
+            problem.ProblemDetails.Detail
+        );
+    }
+
+    [Fact]
     public async Task ExportTenantAsync_WhenTheTenantDoesNotExist_ReturnsNotFound()
     {
         SetupAuthorization(AuthorizationResult.Success());
@@ -958,6 +992,26 @@ public sealed class TenantTransferApiEndpointHandlerTests : IDisposable
 
         var problem = Assert.IsType<ProblemHttpResult>(result);
         Assert.Equal(StatusCodes.Status409Conflict, problem.StatusCode);
+    }
+
+    [Fact]
+    public async Task ReleaseMovedTenantAsync_WhenTheTenantIsRequired_ReturnsConflictAndReleasesNothing()
+    {
+        SetupAuthorization(AuthorizationResult.Success());
+        SetupStore(CreateTenant(isDisabled: true), isRequired: true);
+
+        var result = await Handler.ReleaseMovedTenantAsync(
+            CreateHttpContext(),
+            TenantId,
+            CancellationToken.None
+        );
+
+        var problem = Assert.IsType<ProblemHttpResult>(result);
+        Assert.Equal(StatusCodes.Status409Conflict, problem.StatusCode);
+        Assert.Equal(
+            "The tenant is required by the deployment (the root tenant, or the static strategy's tenant) and cannot be released, because it never leaves its cell.",
+            problem.ProblemDetails.Detail
+        );
     }
 
     [Fact]

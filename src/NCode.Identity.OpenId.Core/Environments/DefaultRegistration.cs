@@ -1,6 +1,7 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using NCode.Identity.Registration;
 
@@ -21,6 +22,10 @@ internal static class DefaultRegistration
         public IServiceBuilder<OpenIdCoreLibrary> AddEnvironmentServices()
         {
             var serviceCollection = builder.ServiceCollection;
+
+            // The environment's protector protects under the host's Data Protection key ring, which a server persists
+            // (ADR-1247).
+            serviceCollection.AddDataProtection();
 
             serviceCollection.TryAddSingleton<
                 IOpenIdEnvironmentFactory,

@@ -21,7 +21,10 @@ namespace NCode.Identity.OpenId.GlobalDirectory.Server.Stores;
 /// <remarks>
 /// A tenant's limit is enforced from the documents alone. The platform document and the team documents carry the
 /// <c>max_tenants</c> setting, and each team document carries its parent team's identifier, so the directory knows the
-/// lineage and the subtree of every team without any other source. A cell's root tenant is never reserved.
+/// lineage and the subtree of every team without any other source. The control-plane cell's root tenant, which
+/// <see cref="DirectoryServerOptions.ControlPlaneTenantId"/> names, is held from configuration, placed in that cell,
+/// before every reservation and issuer change, and is never offered to or moved into another cell; every other tenant,
+/// the root tenant of every other cell included, is reserved and placed by its cell.
 /// </remarks>
 // See ADR-1160.
 // See ADR-1411.
@@ -48,6 +51,13 @@ internal sealed class DefaultDirectoryStore(
     private const int MoveOfferLifetimeHours = 1;
 
     private static JsonSerializerOptions JsonOptions { get; } = new(JsonSerializerDefaults.Web);
+
+    /// <summary>
+    /// Gets the configuration key of <see cref="DirectoryServerOptions.ControlPlaneTenantId"/>, which the store names
+    /// in each message that refuses the configured tenant.
+    /// </summary>
+    private static string ControlPlaneTenantIdKey =>
+        $"{DirectoryServerOptions.SectionName}:{nameof(DirectoryServerOptions.ControlPlaneTenantId)}";
 
     private IDbContextFactory<DirectoryDbContext> DbContextFactory { get; } = dbContextFactory;
 
@@ -102,6 +112,133 @@ internal sealed class DefaultDirectoryStore(
         return counter.LastSequence;
     }
 
+    /// <summary>
+    /// Ensures that the directory holds the control-plane cell's root tenant, which
+    /// <see cref="DirectoryServerOptions.ControlPlaneTenantId"/> names, placed in that cell under
+    /// <see cref="DirectoryServerOptions.Issuer"/> and in no team, in a serializable transaction of its own that
+    /// commits before the caller's. That cell creates its root tenant without asking the directory, which accepts only
+    /// the tokens that tenant issues, so the directory holds it from its own configuration and no other cell reserves
+    /// its identifier or its issuer. A record that cell already holds is kept whatever issuer it holds, because that
+    /// cell changes its root tenant's issuer through the directory.
+    /// </summary>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <returns>A <see cref="ValueTask"/> that completes when the directory holds the tenant.</returns>
+    /// <exception cref="InvalidOperationException">
+    /// The identifier is retired or another cell holds it, or another tenant holds or retired the issuer.
+    /// </exception>
+    private async ValueTask EnsureControlPlaneTenantAsync(CancellationToken cancellationToken)
+    {
+        var serverOptions = ServerOptions.Value;
+        var tenantId = serverOptions.ControlPlaneTenantId;
+        var controlPlaneCell = serverOptions.ControlPlaneCell;
+        var issuer = serverOptions.Issuer;
+
+        await using var dbContext = await DbContextFactory.CreateDbContextAsync(cancellationToken);
+        var executionStrategy = dbContext.Database.CreateExecutionStrategy();
+        await executionStrategy.ExecuteAsync(
+            async _ =>
+            {
+                // A retried attempt starts from the database, not from the failed attempt's tracked entities.
+                dbContext.ChangeTracker.Clear();
+                await using var transaction = await dbContext.Database.BeginTransactionAsync(
+                    IsolationLevel.Serializable,
+                    cancellationToken
+                );
+
+                var normalizedTenantId = Normalize(tenantId);
+                var existing = await dbContext.Tenants.SingleOrDefaultAsync(
+                    entity => entity.NormalizedTenantId == normalizedTenantId,
+                    cancellationToken
+                );
+                var now = TimeProvider.GetUtcNow();
+                if (existing is not null)
+                {
+                    var isHeld =
+                        existing.State != TenantRecord.StateRetired
+                        && string.Equals(existing.Cell, controlPlaneCell, StringComparison.Ordinal);
+                    if (!isHeld)
+                    {
+                        throw new InvalidOperationException(
+                            $"The tenant '{tenantId}' that {ControlPlaneTenantIdKey} names is retired or held by another cell, so the directory cannot hold it for the control-plane cell; set {ControlPlaneTenantIdKey} to the control-plane cell's root tenant identifier, which no other cell holds or retired."
+                        );
+                    }
+
+                    if (existing.State == TenantRecord.StatePlaced)
+                    {
+                        return;
+                    }
+
+                    existing.State = TenantRecord.StatePlaced;
+                    existing.ModifiedWhen = now;
+                    await dbContext.SaveChangesAsync(cancellationToken);
+                    await transaction.CommitAsync(cancellationToken);
+                    return;
+                }
+
+                var normalizedIssuer = Normalize(issuer);
+                var isIssuerHeld = await dbContext.Tenants.AnyAsync(
+                    entity => entity.NormalizedIssuer == normalizedIssuer,
+                    cancellationToken
+                );
+                var retiredIssuerDetail = await FindRetiredIssuerConflictAsync(
+                    dbContext,
+                    tenantId,
+                    issuer,
+                    cancellationToken
+                );
+                if (isIssuerHeld || retiredIssuerDetail is not null)
+                {
+                    throw new InvalidOperationException(
+                        $"Another tenant holds or retired the issuer that {DirectoryServerOptions.SectionName}:{nameof(DirectoryServerOptions.Issuer)} names, so the directory cannot hold it for the control-plane cell's root tenant '{tenantId}'; set {DirectoryServerOptions.SectionName}:{nameof(DirectoryServerOptions.Issuer)} to the control-plane cell's issuer, which no other tenant holds or retired."
+                    );
+                }
+
+                var surrogateKey = KeyGenerator.CreateKey();
+                var controlPlaneTenant = new TenantRecord
+                {
+                    Id = surrogateKey,
+                    TenantId = tenantId,
+                    NormalizedTenantId = normalizedTenantId,
+                    Issuer = issuer,
+                    NormalizedIssuer = normalizedIssuer,
+                    NormalizedTeamId = null,
+                    Cell = controlPlaneCell,
+                    State = TenantRecord.StatePlaced,
+                    CreatedWhen = now,
+                    ModifiedWhen = now,
+                };
+                dbContext.Tenants.Add(controlPlaneTenant);
+                await dbContext.SaveChangesAsync(cancellationToken);
+                await transaction.CommitAsync(cancellationToken);
+            },
+            cancellationToken
+        );
+    }
+
+    /// <summary>
+    /// Gets the detail that refuses an offer or a move of the control-plane cell's root tenant, which
+    /// <see cref="DirectoryServerOptions.ControlPlaneTenantId"/> names: the directory places that tenant in the
+    /// control-plane cell from its own configuration and accepts only the tokens it issues, so it never leaves that
+    /// cell.
+    /// </summary>
+    /// <param name="tenantId">The identifier of the tenant to offer or move.</param>
+    /// <returns>
+    /// The detail of the refusal, or <c>null</c> when the tenant is not the control-plane cell's root tenant.
+    /// </returns>
+    private string? GetControlPlaneTenantMoveDetailOrDefault(string tenantId)
+    {
+        var normalizedTenantId = Normalize(tenantId);
+        var controlPlaneTenantId = ServerOptions.Value.ControlPlaneTenantId;
+        var normalizedControlPlaneTenantId = Normalize(controlPlaneTenantId);
+        return string.Equals(
+            normalizedTenantId,
+            normalizedControlPlaneTenantId,
+            StringComparison.Ordinal
+        )
+            ? $"The tenant '{tenantId}' is the control-plane cell's root tenant, which {ControlPlaneTenantIdKey} names, and it never leaves that cell."
+            : null;
+    }
+
     #region ITenantDirectory
 
     /// <inheritdoc />
@@ -110,6 +247,10 @@ internal sealed class DefaultDirectoryStore(
         CancellationToken cancellationToken
     )
     {
+        // The control-plane cell's root tenant is held before any tenant is judged, so no reservation or issuer change
+        // takes its identifier or its issuer (ADR-1411).
+        await EnsureControlPlaneTenantAsync(cancellationToken);
+
         await using var dbContext = await DbContextFactory.CreateDbContextAsync(cancellationToken);
         var executionStrategy = dbContext.Database.CreateExecutionStrategy();
         return await executionStrategy.ExecuteAsync(
@@ -124,7 +265,9 @@ internal sealed class DefaultDirectoryStore(
 
                 var tenantId = reservation.TenantId;
                 var normalizedTenantId = Normalize(tenantId);
-                var normalizedIssuer = Normalize(reservation.Issuer);
+                var normalizedIssuer = reservation.Issuer is { } requestedIssuer
+                    ? Normalize(requestedIssuer)
+                    : null;
                 var normalizedTeamId = reservation.TeamId is { } requestedTeamId
                     ? Normalize(requestedTeamId)
                     : null;
@@ -149,12 +292,12 @@ internal sealed class DefaultDirectoryStore(
 
                 if (existing is not null)
                 {
-                    // A reservation that runs again after its commit's acknowledgement is lost finds its own
-                    // record: the calling cell holds it for the same issuer and team, and no placement has
-                    // consumed it.
+                    // A creation that runs again finds its own record: the calling cell holds it for the same
+                    // issuer and team, reserved or placed. A creation runs again after the acknowledgement of its
+                    // reservation or its placement is lost, or after its insert failed, and the cell writes the
+                    // tenant's row last, so it completes the tenant the directory holds for it (ADR-1411).
                     if (
-                        existing.State == TenantRecord.StateReserved
-                        && string.Equals(existing.Cell, reservation.Cell, StringComparison.Ordinal)
+                        string.Equals(existing.Cell, reservation.Cell, StringComparison.Ordinal)
                         && string.Equals(
                             existing.NormalizedIssuer,
                             normalizedIssuer,
@@ -175,27 +318,32 @@ internal sealed class DefaultDirectoryStore(
                     );
                 }
 
-                if (
-                    await dbContext.Tenants.AnyAsync(
-                        entity => entity.NormalizedIssuer == normalizedIssuer,
-                        cancellationToken
+                // A tenant without an issuer is reserved by its identifier alone: no issuer is judged, because a null
+                // would match every tenant without one and every retired record.
+                if (reservation.Issuer is { } issuer)
+                {
+                    if (
+                        await dbContext.Tenants.AnyAsync(
+                            entity => entity.NormalizedIssuer == normalizedIssuer,
+                            cancellationToken
+                        )
                     )
-                )
-                {
-                    return ReservationResult.Conflict(
-                        $"Another tenant already has the issuer '{reservation.Issuer}'."
-                    );
-                }
+                    {
+                        return ReservationResult.Conflict(
+                            $"Another tenant already has the issuer '{issuer}'."
+                        );
+                    }
 
-                var retiredIssuerDetail = await FindRetiredIssuerConflictAsync(
-                    dbContext,
-                    tenantId,
-                    reservation.Issuer,
-                    cancellationToken
-                );
-                if (retiredIssuerDetail is not null)
-                {
-                    return ReservationResult.Conflict(retiredIssuerDetail);
+                    var retiredIssuerDetail = await FindRetiredIssuerConflictAsync(
+                        dbContext,
+                        tenantId,
+                        issuer,
+                        cancellationToken
+                    );
+                    if (retiredIssuerDetail is not null)
+                    {
+                        return ReservationResult.Conflict(retiredIssuerDetail);
+                    }
                 }
 
                 if (reservation.TeamId is { } teamId)
@@ -279,7 +427,9 @@ internal sealed class DefaultDirectoryStore(
                 );
                 if (!isReservedElsewhere)
                 {
-                    var normalizedPlacementIssuer = Normalize(placement.Issuer);
+                    var normalizedPlacementIssuer = placement.Issuer is { } placementIssuer
+                        ? Normalize(placementIssuer)
+                        : null;
                     isReservedElsewhere = !string.Equals(
                         tenant.NormalizedIssuer,
                         normalizedPlacementIssuer,
@@ -389,6 +539,12 @@ internal sealed class DefaultDirectoryStore(
         CancellationToken cancellationToken
     )
     {
+        var controlPlaneDetail = GetControlPlaneTenantMoveDetailOrDefault(tenantId);
+        if (controlPlaneDetail is not null)
+        {
+            return MoveResult.Conflict(controlPlaneDetail);
+        }
+
         await using var dbContext = await DbContextFactory.CreateDbContextAsync(cancellationToken);
         var executionStrategy = dbContext.Database.CreateExecutionStrategy();
         return await executionStrategy.ExecuteAsync(
@@ -504,6 +660,12 @@ internal sealed class DefaultDirectoryStore(
         CancellationToken cancellationToken
     )
     {
+        var controlPlaneDetail = GetControlPlaneTenantMoveDetailOrDefault(tenantId);
+        if (controlPlaneDetail is not null)
+        {
+            return MoveOfferResult.Conflict(controlPlaneDetail);
+        }
+
         await using var dbContext = await DbContextFactory.CreateDbContextAsync(cancellationToken);
         var executionStrategy = dbContext.Database.CreateExecutionStrategy();
         return await executionStrategy.ExecuteAsync(
@@ -735,6 +897,10 @@ internal sealed class DefaultDirectoryStore(
         CancellationToken cancellationToken
     )
     {
+        // The control-plane cell's root tenant is held before any tenant is judged, so no reservation or issuer change
+        // takes its identifier or its issuer (ADR-1411).
+        await EnsureControlPlaneTenantAsync(cancellationToken);
+
         await using var dbContext = await DbContextFactory.CreateDbContextAsync(cancellationToken);
         var executionStrategy = dbContext.Database.CreateExecutionStrategy();
         return await executionStrategy.ExecuteAsync(
@@ -891,7 +1057,7 @@ internal sealed class DefaultDirectoryStore(
         return new TenantPlacement
         {
             TenantId = tenant.TenantId,
-            Issuer = tenant.Issuer ?? string.Empty,
+            Issuer = tenant.Issuer,
             Cell = cell,
             Region = region ?? string.Empty,
         };

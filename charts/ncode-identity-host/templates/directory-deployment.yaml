@@ -116,7 +116,7 @@ spec:
             sizeLimit: 64Mi
         - name: tls
           secret:
-            secretName: {{ $directory.tls.existingSecret }}
+            secretName: {{ include "identity-host.directory.backendTls.secretName" . }}
             defaultMode: 0440
         {{- with $directory.extraVolumes }}
         {{- toYaml . | nindent 8 }}

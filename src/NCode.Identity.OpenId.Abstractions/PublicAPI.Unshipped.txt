@@ -917,14 +917,14 @@ NCode.Identity.OpenId.Tenants.ITenantResolver.GetDefaultMtlsEndpointAliasAuthori
 NCode.Identity.OpenId.Tenants.ITenantStrategy.GetDefaultIssuerAsync(string! tenantId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<string?>
 NCode.Identity.OpenId.Tenants.ITenantStrategy.GetDefaultMtlsEndpointAliasAuthorityAsync(string! tenantId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<string?>
 NCode.Identity.OpenId.Tenants.RootTenantOptions
-NCode.Identity.OpenId.Tenants.RootTenantOptions.DisplayName.get -> string!
+NCode.Identity.OpenId.Tenants.RootTenantOptions.DisplayName.get -> string?
 NCode.Identity.OpenId.Tenants.RootTenantOptions.DisplayName.set -> void
 NCode.Identity.OpenId.Tenants.RootTenantOptions.Issuer.get -> string?
 NCode.Identity.OpenId.Tenants.RootTenantOptions.Issuer.set -> void
 NCode.Identity.OpenId.Tenants.RootTenantOptions.MtlsEndpointAliasAuthority.get -> string?
 NCode.Identity.OpenId.Tenants.RootTenantOptions.MtlsEndpointAliasAuthority.set -> void
 NCode.Identity.OpenId.Tenants.RootTenantOptions.RootTenantOptions() -> void
-NCode.Identity.OpenId.Tenants.RootTenantOptions.TenantId.get -> string!
+NCode.Identity.OpenId.Tenants.RootTenantOptions.TenantId.get -> string?
 NCode.Identity.OpenId.Tenants.RootTenantOptions.TenantId.set -> void
 NCode.Identity.OpenId.Tenants.TenantResolutionOptions.Root.get -> NCode.Identity.OpenId.Tenants.RootTenantOptions!
 NCode.Identity.OpenId.Tenants.TenantResolutionOptions.Root.set -> void
@@ -981,7 +981,9 @@ static NCode.Identity.OpenId.Settings.OpenIdSettingKeys.AuthorizationResponseLif
 const NCode.Identity.OpenId.Settings.OpenIdSettingNames.AuthorizationSigningAlgValuesSupported = "authorization_signing_alg_values_supported" -> string!
 static NCode.Identity.OpenId.Settings.OpenIdSettingKeys.AuthorizationSigningAlgValuesSupported.get -> NCode.Identity.Settings.SettingKey<System.Collections.Generic.IReadOnlyCollection<string!>!>
 NCode.Identity.OpenId.Tenants.ITenantResolver.GetControlPlaneTenantId() -> string!
+NCode.Identity.OpenId.Tenants.ITenantResolver.GetControlPlaneTenantDisplayName() -> string!
 NCode.Identity.OpenId.Tenants.ITenantStrategy.GetControlPlaneTenantId() -> string!
+NCode.Identity.OpenId.Tenants.ITenantStrategy.GetControlPlaneTenantDisplayName() -> string!
 NCode.Identity.OpenId.ClientCertificates.DistinguishedName
 NCode.Identity.OpenId.ClientCertificates.DistinguishedName.Matches(NCode.Identity.OpenId.ClientCertificates.DistinguishedName! other) -> bool
 static NCode.Identity.OpenId.ClientCertificates.DistinguishedName.FromX500(System.Security.Cryptography.X509Certificates.X500DistinguishedName! name) -> NCode.Identity.OpenId.ClientCertificates.DistinguishedName!

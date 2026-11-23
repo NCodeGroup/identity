@@ -20,6 +20,7 @@ public sealed class DirectoryServerRegistrationTests
 {
     private const string ServerIssuer = "https://control-plane.example";
     private const string ControlPlaneCell = "control";
+    private const string ControlPlaneTenantId = "root";
 
     private static WebApplication CreateApp(
         SqliteConnection connection,
@@ -64,7 +65,7 @@ public sealed class DirectoryServerRegistrationTests
     #region StartAsync Tests
 
     [Fact]
-    public async Task StartAsync_WhenTheIssuerAndControlPlaneCellAreMissing_ThrowsOptionsValidationException()
+    public async Task StartAsync_WhenTheDirectoryServerSectionIsMissing_ThrowsOptionsValidationException()
     {
         await using var connection = new SqliteConnection("DataSource=:memory:");
         connection.Open();
@@ -79,6 +80,7 @@ public sealed class DirectoryServerRegistrationTests
 
         Assert.Contains("DirectoryServer:Issuer", exception.Message);
         Assert.Contains("DirectoryServer:ControlPlaneCell", exception.Message);
+        Assert.Contains("DirectoryServer:ControlPlaneTenantId", exception.Message);
     }
 
     [Fact]
@@ -92,6 +94,7 @@ public sealed class DirectoryServerRegistrationTests
             {
                 ["DirectoryServer:Issuer"] = ServerIssuer,
                 ["DirectoryServer:ControlPlaneCell"] = ControlPlaneCell,
+                ["DirectoryServer:ControlPlaneTenantId"] = ControlPlaneTenantId,
                 ["AllowedHosts"] = "localhost",
             }
         );

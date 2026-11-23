@@ -1,8 +1,9 @@
-# A throwaway Postgres for the kind cluster the chart workflow installs the host chart in. The workflow applies it with
-# -n identity and creates the Secrets it reads: 'postgres-app' (the schema owner, the superuser the image creates) and
-# 'postgres-runtime' (the runtime role 'ncode_identity_app'), each with the keys 'host', 'port', 'dbname', 'user' and
-# 'password'; no password is stored here. The init script creates the runtime role as a login role that is not a
-# superuser and does not bypass row-level security. The data lives in an emptyDir, so it is lost with the pod.
+# A throwaway Postgres for the kind cluster the chart workflow installs the host chart in. The workflow applies it to
+# the namespace of a database, `identity` for the cell and `directory-db` for the directory, and creates the Secrets it
+# reads in that namespace: 'postgres-app' (the schema owner, the superuser the image creates) and 'postgres-runtime'
+# (the runtime role 'ncode_identity_app'), each with the keys 'host', 'port', 'dbname', 'user' and 'password'; no
+# password is stored here. The init script creates the runtime role as a login role that is not a superuser and does
+# not bypass row-level security. The data lives in an emptyDir, so it is lost with the pod.
 apiVersion: v1
 kind: ConfigMap
 metadata:

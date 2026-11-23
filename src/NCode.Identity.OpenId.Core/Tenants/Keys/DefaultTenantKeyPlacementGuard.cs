@@ -11,16 +11,24 @@ namespace NCode.Identity.OpenId.Tenants.Keys;
 /// <summary>
 /// Provides a default implementation of <see cref="ITenantKeyPlacementGuard"/> that asks the global directory where it
 /// places the tenant. A tenant placed in this cell or in no cell may change; a tenant placed in another cell, or whose
-/// placement cannot be read, may not, so a change is deferred and never made on a guess.
+/// placement cannot be read, may not, so a change is deferred and never made on a guess. The directory places the
+/// control-plane cell's root tenant in that cell from its own configuration and accepts only the tokens that tenant
+/// issues, so on that cell its keys change without asking the directory.
 /// </summary>
-// See ADR-1404 and ADR-1514.
+// See ADR-1404, ADR-1411 and ADR-1514.
 internal sealed class DefaultTenantKeyPlacementGuard(
     ITenantDirectory tenantDirectory,
+    ITenantResolver tenantResolver,
     IOptions<CellOptions> cellOptions,
     ILogger<DefaultTenantKeyPlacementGuard> logger
 ) : ITenantKeyPlacementGuard
 {
     private ITenantDirectory TenantDirectory { get; } = tenantDirectory;
+
+    /// <summary>
+    /// Gets the resolver that names the control-plane tenant.
+    /// </summary>
+    private ITenantResolver TenantResolver { get; } = tenantResolver;
     private IOptions<CellOptions> CellOptions { get; } = cellOptions;
     private ILogger<DefaultTenantKeyPlacementGuard> Logger { get; } = logger;
 
@@ -30,6 +38,13 @@ internal sealed class DefaultTenantKeyPlacementGuard(
         CancellationToken cancellationToken
     )
     {
+        // The directory places the control-plane cell's root tenant in this cell from its own configuration and
+        // accepts only the tokens it issues, so its keys change without asking the directory (ADR-1411).
+        if (RootTenantRules.IsDirectoryTokenIssuer(CellOptions.Value, TenantResolver, tenantId))
+        {
+            return true;
+        }
+
         TenantPlacement? placement;
         try
         {

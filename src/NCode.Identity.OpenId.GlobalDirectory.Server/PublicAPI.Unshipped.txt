@@ -27,6 +27,8 @@ NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryEndpoints.extension(Micros
 NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryServerOptions
 NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryServerOptions.ControlPlaneCell.get -> string!
 NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryServerOptions.ControlPlaneCell.set -> void
+NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryServerOptions.ControlPlaneTenantId.get -> string!
+NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryServerOptions.ControlPlaneTenantId.set -> void
 NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryServerOptions.DirectoryServerOptions() -> void
 NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryServerOptions.Issuer.get -> string!
 NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryServerOptions.Issuer.set -> void

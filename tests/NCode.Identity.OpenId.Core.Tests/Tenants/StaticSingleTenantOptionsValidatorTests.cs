@@ -47,6 +47,30 @@ public sealed class StaticSingleTenantOptionsValidatorTests
     }
 
     [Fact]
+    public void Validate_WhenRootTenantIdIsConfigured_FailsBecauseItIsNeverHonored()
+    {
+        var options = Selected(new StaticSingleTenantOptions { Issuer = "https://op.example" });
+        options.Root.TenantId = "root";
+
+        var failures = Failures(options);
+
+        Assert.Contains("Root:TenantId has no effect", failures, StringComparison.Ordinal);
+        Assert.Contains("StaticSingle:TenantId", failures, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Validate_WhenRootDisplayNameIsConfigured_FailsBecauseItIsNeverHonored()
+    {
+        var options = Selected(new StaticSingleTenantOptions { Issuer = "https://op.example" });
+        options.Root.DisplayName = "Root Tenant";
+
+        var failures = Failures(options);
+
+        Assert.Contains("Root:DisplayName has no effect", failures, StringComparison.Ordinal);
+        Assert.Contains("StaticSingle:DisplayName", failures, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Validate_WhenRootMtlsEndpointAliasAuthorityIsConfigured_FailsBecauseItIsNeverHonored()
     {
         var options = Selected(new StaticSingleTenantOptions { Issuer = "https://op.example" });

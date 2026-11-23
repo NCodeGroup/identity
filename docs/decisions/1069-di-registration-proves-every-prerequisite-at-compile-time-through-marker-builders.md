@@ -93,8 +93,11 @@ stands alone takes a bare `IServiceCollection`:
   `IServiceBuilder<JoseLibrary>`.
 - **One-service helpers** such as `AddAuthorizationHandler<T>`, `AddDefaultPasswordHasher` and
   `AddEndpointGroupRouting` are not capability entry points.
-- **Marker-less cross-cutting infrastructure** such as `AddDataProtection` is registered inline on the bare collection
-  before the gated chain, because it has no presence another package must prove.
+- **Marker-less cross-cutting infrastructure** such as `AddDataProtection` is registered inline, on the service
+  collection, by each library whose services use it, because it has no presence another package must prove and
+  registering it again changes nothing: the OpenID core and management libraries register the host's Data Protection,
+  and the secrets library, which protects key material under its own ephemeral provider, registers none, so a host that
+  composes only the secrets, JOSE, JWT and protocol-client libraries carries no key ring.
 
 Cross-library helpers that run from more than one library's builder take the non-generic `IServiceBuilder`:
 `AddMessageFactory<TMessage>`, `AddEndpointProvider<T>` and `AddEndpointGroup<T>`. That is stronger than a bare

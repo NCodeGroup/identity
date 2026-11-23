@@ -141,4 +141,10 @@ internal static class EventIds
     /// read to learn where the tenant is placed.
     /// </summary>
     public const int TenantKeysPlacementUnknown = Base + 52;
+
+    /// <summary>
+    /// Identifies the warning that releasing the global directory's reservation of a tenant whose creation failed did
+    /// not complete, so the identifier stays reserved for this cell.
+    /// </summary>
+    public const int TenantCreationReleaseFailed = Base + 53;
 }

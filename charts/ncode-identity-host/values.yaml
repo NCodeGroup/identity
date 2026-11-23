@@ -93,8 +93,8 @@ directory:
     #    curve: P-256
   # Runs the directory host as its own Deployment, with a Service and a pre-install and pre-upgrade Job that applies its
   # migrations. The directory keeps its single-use state in process, so it runs one replica. The issuer, controlPlaneCell,
-  # allowedHosts, database, migrations.database, tls, serviceAccount, image and extra* values are refused while enabled
-  # is false.
+  # controlPlaneTenantId, allowedHosts, database, migrations.database, backendTls, ingress, httpRoute, serviceAccount,
+  # image and extra* values are refused while enabled is false.
   enabled: false
   # The issuer of the control-plane cell (DirectoryServer:Issuer), whose bearer tokens the directory accepts. Required
   # when enabled. An `https` URL, or an `http` URL on a loopback host, with no user information, query or fragment.
@@ -102,6 +102,12 @@ directory:
   # The name of the control-plane cell (DirectoryServer:ControlPlaneCell), the only cell that writes the platform and the
   # teams. Required when enabled.
   controlPlaneCell: ""
+  # The identifier of the control-plane cell's root tenant (DirectoryServer:ControlPlaneTenantId), which the directory
+  # holds for that cell so no other cell reserves it. Empty takes it from this release when its cell is the
+  # control-plane cell (cell.isControlPlane is true and cell.name is controlPlaneCell) and tenantResolution.strategyCode
+  # is StaticSingle: tenantResolution.staticSingle.tenantId, or `default`. Required when enabled otherwise, because
+  # another strategy's root tenant is named by settings the chart does not read, such as extraEnv.
+  controlPlaneTenantId: ""
   # The host names the directory answers to (AllowedHosts), such as the host of url. The probes send the first. Required
   # when enabled; '*' is refused.
   allowedHosts: []
@@ -132,13 +138,34 @@ directory:
       databaseKey: dbname
       usernameKey: user
       passwordKey: password
-  # A kubernetes.io/tls Secret the operator created, with tls.crt and tls.key, that the directory serves. Its
-  # certificate names the host of url. Required when enabled.
-  tls:
+  # The directory's serving certificate: a kubernetes.io/tls Secret with tls.crt, tls.key and ca.crt, or empty for a
+  # cert-manager Certificate from the issuer of backendTls.certManager.
+  backendTls:
     existingSecret: ""
+    # A Secret in the release namespace that the ingress controller reads to verify the directory's pods and, when
+    # backendTls.clientCertificate.required is true, to authenticate to them (see backendTls.ingressSecret).
+    # Empty uses backendTls.ingressSecret, and then <release>-ingress.
+    ingressSecret: ""
+    # A ConfigMap in the release namespace that holds only ca.crt, for a Gateway API implementation to verify the
+    # directory's pods. Empty uses the server's CA ConfigMap.
+    caConfigMap: ""
   service:
     type: ClusterIP
     port: 443
+  # Routes every path of each host in directory.allowedHosts to the directory.
+  ingress:
+    enabled: false
+    className: ""
+    annotations: {}
+    tls: []
+    #  - secretName: directory-example-com-tls
+    #    hosts:
+    #      - directory.example.com
+  # A Gateway API HTTPRoute and a BackendTLSPolicy for the directory. Its hostnames are directory.allowedHosts.
+  httpRoute:
+    enabled: false
+    parentRefs: []
+    annotations: {}
   # The ServiceAccount the directory's pods run under, which mounts no token because the directory never calls the
   # Kubernetes API. create makes it; name is its name, or the directory's full name when create is true and empty, or
   # 'default' when create is false and empty. The migration Job runs before the chart's own account exists on a first
@@ -193,6 +220,12 @@ tenantResolution:
   staticSingle:
     # The public issuer URL, for example https://id.example.com. Required by the StaticSingle strategy.
     issuer: ""
+    # The identifier of the cell's own tenant (StaticSingle:TenantId), `default` when empty, which the chart writes for
+    # the cell and for its directory alike. A tenant identifier is unique across the platform's cells, so a cell that
+    # is not the control plane names its own; the cell reserves it in the directory when it first creates the tenant.
+    tenantId: ""
+    # The display name the cell's own tenant is created with (StaticSingle:DisplayName), `Default Tenant` when empty.
+    displayName: ""
 
 # The proxies whose X-Forwarded-* headers the host trusts (ForwardedHeaders). Set knownNetworks to the pod CIDR when the
 # ingress controller runs in the cluster.

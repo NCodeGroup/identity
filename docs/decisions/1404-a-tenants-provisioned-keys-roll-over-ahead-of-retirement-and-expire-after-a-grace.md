@@ -121,7 +121,9 @@ makes to a tenant's key on its own is an audit event.**
    one whose placement cannot be read, keeps its keys, so a cell that still holds a moved tenant's copy never destroys a
    remote key the target cell uses
    ([ADR-1514](1514-a-tenant-moves-between-cells-of-one-region-through-an-encrypted-export-and-import.md)). A plan that
-   changes nothing reads no placement.
+   changes nothing reads no placement. The control-plane cell changes its control-plane tenant's keys without asking,
+   because the directory places that tenant in that cell from its own configuration
+   (`DirectoryServer:ControlPlaneTenantId`) and accepts only the tokens it issues.
 
 ## Options considered
 

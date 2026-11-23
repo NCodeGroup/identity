@@ -45,16 +45,18 @@ public sealed class RootTenantOptions
     public string TeamDisplayName { get; set; } = DefaultTeamDisplayName;
 
     /// <summary>
-    /// Gets or sets the identifier of the root tenant, into which the control-plane management resource server is
-    /// seeded. The default value is <see cref="DefaultTenantId"/>.
+    /// Gets or sets the identifier of the root tenant under the host and path strategies, which apply
+    /// <see cref="DefaultTenantId"/> when it is not set. The static single-tenant strategy, whose own tenant is the
+    /// root tenant, refuses it.
     /// </summary>
-    public string TenantId { get; set; } = DefaultTenantId;
+    public string? TenantId { get; set; }
 
     /// <summary>
-    /// Gets or sets the display name the root tenant is created with. The default value is
-    /// <see cref="DefaultDisplayName"/>.
+    /// Gets or sets the display name the root tenant is created with. The host and path strategies apply
+    /// <see cref="DefaultDisplayName"/> when it is not set. The static single-tenant strategy, whose own tenant is the
+    /// root tenant, refuses it.
     /// </summary>
-    public string DisplayName { get; set; } = DefaultDisplayName;
+    public string? DisplayName { get; set; }
 
     /// <summary>
     /// Gets or sets the issuer the root tenant is created with, when it differs from the one the tenant strategy derives
@@ -62,8 +64,8 @@ public sealed class RootTenantOptions
     /// <c>https://{tenantId}.auth.example</c>.
     /// </summary>
     /// <remarks>
-    /// Applied when the root tenant is first provisioned; it does not update an existing tenant. A strategy that does not
-    /// serve the root tenant (the static single-tenant strategy, unless its tenant is the root tenant) rejects it.
+    /// Applied when the root tenant is first provisioned; it does not update an existing tenant. The static
+    /// single-tenant strategy, whose own tenant is the root tenant, refuses it.
     /// </remarks>
     public string? Issuer { get; set; }
 
@@ -73,8 +75,8 @@ public sealed class RootTenantOptions
     /// beside workload tenants at <c>https://{tenantId}.mtls.example</c>. An https origin.
     /// </summary>
     /// <remarks>
-    /// Applied when the root tenant is first provisioned; it does not update an existing tenant. A strategy that does not
-    /// serve the root tenant (the static single-tenant strategy, unless its tenant is the root tenant) rejects it.
+    /// Applied when the root tenant is first provisioned; it does not update an existing tenant. The static
+    /// single-tenant strategy, whose own tenant is the root tenant, refuses it.
     /// </remarks>
     public string? MtlsEndpointAliasAuthority { get; set; }
 }

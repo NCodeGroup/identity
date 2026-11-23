@@ -17,9 +17,15 @@ namespace NCode.Identity.OpenId.Tenants;
 public interface ITenantProvisioner
 {
     /// <summary>
-    /// Ensures the tenant with the specified identifier exists, creating it when it does not with its strategy's default
-    /// issuer (<see cref="ITenantResolver.GetDefaultIssuerAsync"/>), judged by
+    /// Ensures the tenant with the specified identifier exists, creating it when it does not with its strategy's
+    /// default issuer (<see cref="ITenantResolver.GetDefaultIssuerAsync"/>), judged by
     /// <see cref="ITenantResolver.ValidateTenantAsync"/> like any other tenant written. It does not seed the tenant.
+    /// Unless the tenant is the control-plane cell's root tenant, whose tokens the directory accepts, a tenant a
+    /// strategy serves (one with an issuer) is reserved and placed in this cell through the global directory before it
+    /// is inserted, so its row never exists unplaced; a placement that fails releases the reservation, and an insert
+    /// that fails leaves the tenant placed in this cell, which the next creation of the tenant completes; a tenant of
+    /// the platform's own team is reserved in no team; a tenant without an issuer is created in this cell alone. A
+    /// directory that cannot be reached fails the creation.
     /// </summary>
     /// <param name="teamId">The identifier of the team the tenant belongs to; the team is created when it does not exist.</param>
     /// <param name="tenantId">The identifier of the tenant to create.</param>
@@ -28,7 +34,8 @@ public interface ITenantProvisioner
     /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation, containing the existing or newly
     /// created <see cref="PersistedTenant"/>.</returns>
     /// <exception cref="InvalidOperationException">The tenant does not exist and cannot be created at its default
-    /// address.</exception>
+    /// address, or the global directory refuses its reservation or its placement. A directory that cannot be reached
+    /// throws <c>DirectoryUnavailableException</c>.</exception>
     ValueTask<PersistedTenant> EnsureCreatedAsync(
         string teamId,
         string tenantId,

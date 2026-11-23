@@ -335,8 +335,8 @@ applied. Rendered for its side effect only.
 {{- include "identity-host.serviceUrlValidate" (dict "path" "cell.controlPlaneIssuer" "value" .Values.cell.controlPlaneIssuer "httpsOnly" false) }}
 {{- end }}
 {{- $directory := .Values.directory }}
-{{- if and (not $directory.enabled) (or $directory.issuer $directory.controlPlaneCell $directory.allowedHosts $directory.database.runtimeRole $directory.database.existingSecret $directory.database.parts.existingSecret $directory.migrations.database.existingSecret $directory.migrations.database.parts.existingSecret $directory.tls.existingSecret $directory.extraEnv $directory.extraEnvFrom $directory.extraVolumes $directory.extraVolumeMounts $directory.serviceAccount.name $directory.serviceAccount.annotations $directory.image.tag $directory.image.digest) }}
-{{- fail "directory.issuer, directory.controlPlaneCell, directory.allowedHosts, directory.database, directory.migrations.database, directory.tls, directory.serviceAccount, directory.image and directory.extra* configure the directory host, which runs only when directory.enabled is true: set directory.enabled, or clear them." }}
+{{- if and (not $directory.enabled) (or $directory.issuer $directory.controlPlaneCell $directory.controlPlaneTenantId $directory.allowedHosts $directory.database.runtimeRole $directory.database.existingSecret $directory.database.parts.existingSecret $directory.migrations.database.existingSecret $directory.migrations.database.parts.existingSecret $directory.backendTls.existingSecret $directory.backendTls.ingressSecret $directory.backendTls.caConfigMap $directory.ingress.enabled $directory.httpRoute.enabled $directory.extraEnv $directory.extraEnvFrom $directory.extraVolumes $directory.extraVolumeMounts $directory.serviceAccount.name $directory.serviceAccount.annotations $directory.image.tag $directory.image.digest) }}
+{{- fail "directory.issuer, directory.controlPlaneCell, directory.controlPlaneTenantId, directory.allowedHosts, directory.database, directory.migrations.database, directory.backendTls, directory.ingress, directory.httpRoute, directory.serviceAccount, directory.image and directory.extra* configure the directory host, which runs only when directory.enabled is true: set directory.enabled, or clear them." }}
 {{- end }}
 {{- if and .Values.directory.url .Values.directory.keyRing }}
 {{- $directoryKeys := .Values.directory.keys }}
@@ -358,6 +358,9 @@ applied. Rendered for its side effect only.
 {{- end }}
 {{- if and (eq .Values.tenantResolution.strategyCode "StaticSingle") (not .Values.tenantResolution.staticSingle.issuer) }}
 {{- fail "tenantResolution.staticSingle.issuer must be the public issuer URL." }}
+{{- end }}
+{{- if and (eq .Values.tenantResolution.strategyCode "StaticSingle") (not .Values.cell.isControlPlane) (not .Values.tenantResolution.staticSingle.tenantId) }}
+{{- fail "tenantResolution.staticSingle.tenantId must name the cell's tenant when cell.isControlPlane is false: a tenant identifier is unique across the platform's cells." }}
 {{- end }}
 {{- if and .Values.apiReference.pageEnabled (not .Values.apiReference.documentEnabled) }}
 {{- fail "apiReference.pageEnabled requires apiReference.documentEnabled: the page renders the OpenAPI document the host serves." }}
@@ -830,6 +833,14 @@ same configuration the pods it rewraps keys for read.
   value: {{ .Values.tenantResolution.strategyCode | quote }}
 {{- with .Values.tenantResolution.staticSingle.issuer }}
 - name: OpenId__TenantResolution__StaticSingle__Issuer
+  value: {{ . | quote }}
+{{- end }}
+{{- if eq .Values.tenantResolution.strategyCode "StaticSingle" }}
+- name: OpenId__TenantResolution__StaticSingle__TenantId
+  value: {{ include "identity-host.staticSingle.tenantId" . | quote }}
+{{- end }}
+{{- with .Values.tenantResolution.staticSingle.displayName }}
+- name: OpenId__TenantResolution__StaticSingle__DisplayName
   value: {{ . | quote }}
 {{- end }}
 {{- range $index, $network := .Values.forwardedHeaders.knownNetworks }}
@@ -1348,6 +1359,29 @@ The directory's container image: the digest when one is set, else the tag, which
 {{- end }}
 
 {{/*
+The identifier of the tenant a StaticSingle release serves: tenantResolution.staticSingle.tenantId, or `default`. The
+chart writes it for the cell and for the directory alike, so both read one identifier.
+*/}}
+{{- define "identity-host.staticSingle.tenantId" -}}
+{{- .Values.tenantResolution.staticSingle.tenantId | default "default" }}
+{{- end }}
+
+{{/*
+The identifier of the control-plane cell's root tenant, which the directory holds for that cell:
+directory.controlPlaneTenantId when set. Else, in the release of the control-plane cell (cell.isControlPlane is true and
+cell.name is directory.controlPlaneCell) under StaticSingle, the tenant the release serves:
+tenantResolution.staticSingle.tenantId, or `default`. Else empty, which the directory's validation refuses: another
+strategy's root tenant is named by settings the chart does not read, such as extraEnv, extraEnvFrom or a ConfigMap.
+*/}}
+{{- define "identity-host.directory.controlPlaneTenantId" -}}
+{{- if .Values.directory.controlPlaneTenantId }}
+{{- .Values.directory.controlPlaneTenantId }}
+{{- else if and .Values.cell.isControlPlane (eq .Values.cell.name .Values.directory.controlPlaneCell) (eq .Values.tenantResolution.strategyCode "StaticSingle") }}
+{{- include "identity-host.staticSingle.tenantId" . }}
+{{- end }}
+{{- end }}
+
+{{/*
 The environment of the directory's Deployment container, which holds the runtime role's connection: the finished
 connection string (ConnectionStrings:directory) or the parts of a Postgres operator's Secret (DirectoryDatabase), as the
 OP's pods read theirs (ADR-1509). The migration Job sets its own environment and never receives that connection.
@@ -1362,6 +1396,9 @@ OP's pods read theirs (ADR-1509). The migration Job sets its own environment and
   value: {{ $directory.issuer | quote }}
 - name: DirectoryServer__ControlPlaneCell
   value: {{ $directory.controlPlaneCell | quote }}
+- name: DirectoryServer__ControlPlaneTenantId
+  value: {{ include "identity-host.directory.controlPlaneTenantId" . | quote }}
+{{ include "identity-host.backendTls.env" . | trim }}
 {{ include "identity-host.databaseEnv" (dict "scope" $directory.database "defaults" $directory.database "connectionStringName" "directory" "sectionName" "DirectoryDatabase") | trim }}
 {{ include "identity-host.telemetryEnv" . | trim }}
 {{- with $directory.extraEnv }}
@@ -1389,6 +1426,13 @@ Refuses a directory the host would refuse, before anything is applied. Rendered 
 {{- if not $directory.controlPlaneCell }}
 {{- fail "directory.controlPlaneCell must name the control-plane cell when directory.enabled is true: the directory takes platform and team writes only from it." }}
 {{- end }}
+{{- $controlPlaneTenantId := include "identity-host.directory.controlPlaneTenantId" . }}
+{{- if not $controlPlaneTenantId }}
+{{- fail "directory.controlPlaneTenantId must name the control-plane cell's root tenant when directory.enabled is true and this release's cell is not directory.controlPlaneCell, or tenantResolution.strategyCode is not StaticSingle: the directory holds that tenant for the control-plane cell, and the chart reads no other strategy's settings." }}
+{{- end }}
+{{- if not (regexMatch "^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$" $controlPlaneTenantId) }}
+{{- fail "the control-plane cell's root tenant, which directory.controlPlaneTenantId names or the release's tenant resolution gives, must be 1 to 63 lowercase letters, digits or hyphens that start and end with a letter or digit." }}
+{{- end }}
 {{- include "identity-host.databaseValidate" (dict "path" "directory.database" "scope" $directory.database "defaults" $directory.database "required" true "connectionStringName" "directory") }}
 {{- if not $directory.database.runtimeRole }}
 {{- fail "directory.database.runtimeRole must name the Postgres role the directory connects as when directory.enabled is true: the migration Job grants it access to the tables." }}
@@ -1397,7 +1441,4 @@ Refuses a directory the host would refuse, before anything is applied. Rendered 
 {{- fail "directory.database.runtimeRole must be a lower-case Postgres role name of letters, digits and underscores that does not start with a digit." }}
 {{- end }}
 {{- include "identity-host.databaseValidate" (dict "path" "directory.migrations.database" "scope" $directory.migrations.database "defaults" $directory.database "required" true "connectionStringName" "directory") }}
-{{- if not $directory.tls.existingSecret }}
-{{- fail "directory.tls.existingSecret must name the Secret holding the directory's serving certificate when directory.enabled is true: the directory serves HTTPS only." }}
-{{- end }}
 {{- end }}

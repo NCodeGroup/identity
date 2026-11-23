@@ -21,6 +21,8 @@ allowedHosts:
 tenantResolution:
   staticSingle:
     issuer: https://id.eu.example.com
+    tenantId: ci-eu
+    displayName: CI EU
 database:
   existingSecret: identity-database
   runtimeRole: ncode_identity_app

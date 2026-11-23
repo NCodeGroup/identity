@@ -351,6 +351,10 @@
           "maxLength": 31,
           "pattern": "^([a-z](-?[a-z0-9])*)?$"
         },
+        "controlPlaneTenantId": {
+          "type": "string",
+          "pattern": "^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)?$"
+        },
         "allowedHosts": {
           "type": "array",
           "items": {
@@ -423,11 +427,17 @@
             }
           }
         },
-        "tls": {
+        "backendTls": {
           "type": "object",
           "additionalProperties": false,
           "properties": {
             "existingSecret": {
+              "type": "string"
+            },
+            "ingressSecret": {
+              "type": "string"
+            },
+            "caConfigMap": {
               "type": "string"
             }
           }
@@ -448,6 +458,71 @@
               "type": "integer",
               "minimum": 1,
               "maximum": 65535
+            }
+          }
+        },
+        "ingress": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "className": {
+              "type": "string"
+            },
+            "annotations": {
+              "type": "object"
+            },
+            "tls": {
+              "type": "array",
+              "items": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "httpRoute": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "parentRefs": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "group": {
+                    "type": "string"
+                  },
+                  "kind": {
+                    "type": "string"
+                  },
+                  "namespace": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "sectionName": {
+                    "type": "string"
+                  },
+                  "port": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 65535
+                  }
+                },
+                "required": [
+                  "name"
+                ]
+              }
+            },
+            "annotations": {
+              "type": "object"
             }
           }
         },
@@ -566,6 +641,13 @@
             "issuer": {
               "type": "string",
               "pattern": "^(https://.+)?$"
+            },
+            "tenantId": {
+              "type": "string",
+              "pattern": "^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)?$"
+            },
+            "displayName": {
+              "type": "string"
             }
           }
         }

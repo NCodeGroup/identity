@@ -58,12 +58,21 @@ public interface ITenantStrategy
     );
 
     /// <summary>
-    /// Gets the identifier of the control-plane tenant from configuration alone, without a store round-trip, so the
-    /// tenant cache can be probed before <see cref="ResolveControlPlaneTenantAsync"/> reads the store: the root tenant's
-    /// identifier or, for a strategy that serves only its own tenant, that tenant's identifier.
+    /// Gets the identifier of the control-plane tenant, which is the root tenant, from configuration alone, without a
+    /// store round-trip, so the tenant cache can be probed before <see cref="ResolveControlPlaneTenantAsync"/> reads
+    /// the store: the root tenant's configured identifier or, for a strategy that serves only its own tenant, that
+    /// tenant's identifier.
     /// </summary>
     /// <returns>The identifier of the control-plane tenant.</returns>
     string GetControlPlaneTenantId();
+
+    /// <summary>
+    /// Gets the display name the control-plane tenant, which is the root tenant, is created with, from configuration
+    /// alone: the root tenant's configured display name or, for a strategy that serves only its own tenant, that
+    /// tenant's display name.
+    /// </summary>
+    /// <returns>The display name of the control-plane tenant.</returns>
+    string GetControlPlaneTenantDisplayName();
 
     /// <summary>
     /// Resolves the control-plane tenant, which authenticates the management API whatever tenant the request addresses:
@@ -107,8 +116,9 @@ public interface ITenantStrategy
 
     /// <summary>
     /// Determines whether the deployment requires the specified tenant: one that is created on demand — the root tenant
-    /// under every strategy, and the configured tenant under the static single-tenant strategy. A required tenant cannot
-    /// be deleted, because retired tenant identifiers are never reissued and the next request would fail to recreate it.
+    /// under every strategy, and the configured tenant under the static single-tenant strategy. A required tenant
+    /// cannot be deleted, because retired tenant identifiers are never reissued and the next request would fail to
+    /// recreate it, and it never moves to another cell, because it is part of its cell's deployment.
     /// </summary>
     /// <param name="tenantId">The identifier of the tenant.</param>
     /// <returns><see langword="true"/> when the deployment requires the tenant; otherwise, <see langword="false"/>.</returns>

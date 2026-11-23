@@ -38,8 +38,8 @@ with per-surface overrides from `Frontend:Surfaces`.
 
 - **The serving tenant.** `FrontendIssuerResolver` takes the tenant that the request names without a store round trip
   (`ITenantResolver.TryGetTenantId`): under `StaticSingle` that is the one configured tenant. When the request names
-  none, it takes the root tenant (`TenantResolution:Root:TenantId`), the control plane. The rule names no strategy, so a
-  registered strategy is covered by what it already implements
+  none, it takes the root tenant, the control plane, which `ITenantResolver.GetControlPlaneTenantId` names. The rule
+  names no strategy, so a registered strategy is covered by what it already implements
   ([ADR-1150](1150-vocabularies-are-open-unless-provably-closed.md)).
 - **The issuer value** is that tenant's stored issuer, which its discovery document publishes byte for byte. Before the
   tenant is provisioned it is the strategy's default (`ITenantResolver.GetDefaultIssuerAsync`), the value provisioning

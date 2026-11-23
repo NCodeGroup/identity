@@ -30,4 +30,12 @@ public sealed class DirectoryServerOptions
     /// changes the issuer of any tenant. It is required.
     /// </summary>
     public string ControlPlaneCell { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the identifier of the control-plane cell's root tenant, the control-plane tenant whose bearer
+    /// tokens the directory accepts. That cell creates its root tenant without asking the directory, so the directory
+    /// holds the identifier and <see cref="Issuer"/> for it, placed in <see cref="ControlPlaneCell"/>, and no other
+    /// cell reserves either. It is required.
+    /// </summary>
+    public string ControlPlaneTenantId { get; set; } = string.Empty;
 }

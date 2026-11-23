@@ -170,7 +170,12 @@ it, and the chart renders them as the `Cell` section the host binds:
   management and setup (`Cell__IsControlPlane`);
 - `cell.controlPlaneIssuer`, the issuer of the control-plane cell (`Cell__ControlPlane__Issuer`), required when
   `cell.isControlPlane` is `false` because the cell accepts platform and team management tokens from it, and when
-  `directory.url` is set because the cell asks it for the token it presents to the directory.
+  `directory.url` is set because the cell asks it for the token it presents to the directory;
+- `tenantResolution.staticSingle.tenantId` and `displayName`, the cell's own tenant under the `StaticSingle` strategy
+  (`StaticSingle:TenantId` and `StaticSingle:DisplayName`), the tenant identifier `default` when empty, which the chart
+  writes for the cell and for the directory alike. A cell that is not the control plane must name its tenant, because a
+  tenant identifier is unique across the platform's cells and the cell reserves and places its tenant in the directory
+  when it first creates it.
 
 A cell reaches the platform's directory through the `directory` values, rendered as the `Directory` section
 (`Directory__Url`, `Directory__ClientId`, `Directory__KeyRing`) when `directory.url` is set, and then
@@ -205,6 +210,10 @@ and pre-upgrade Job that applies its migrations, and requires:
   (`DirectoryServer__Issuer`);
 - `directory.controlPlaneCell`, the name of the control-plane cell, the only cell that writes the platform and the teams
   (`DirectoryServer__ControlPlaneCell`);
+- `directory.controlPlaneTenantId`, the identifier of the control-plane cell's root tenant, which the directory holds
+  for that cell so no other cell reserves it (`DirectoryServer__ControlPlaneTenantId`). In the control-plane cell's own
+  release under `StaticSingle` the chart takes it from `tenantResolution.staticSingle.tenantId` (`default` when empty);
+  a release of another cell, or under another strategy, whose root-tenant settings the chart does not read, names it;
 - `directory.allowedHosts`, the host names the directory answers to, such as the host of `directory.url`; `*` is
   refused;
 - `directory.database`, the runtime role's connection to a database of its own, never the cell's, which only the
@@ -224,9 +233,14 @@ and pre-upgrade Job that applies its migrations, and requires:
   `directory.migrations.database.existingSecret` or `directory.migrations.database.parts.existingSecret`, never both,
   and the Job receives it under the same names as the Deployment, `ConnectionStrings__directory` or
   `DirectoryDatabase__*`, with the owner's credentials. An empty `connectionStringKey` or parts key falls back to the
-  same key under `directory.database`, so a Secret of the same shape needs only its name;
-- `directory.tls.existingSecret`, a `kubernetes.io/tls` Secret whose certificate names the host of `directory.url`,
-  because the directory serves HTTPS only.
+  same key under `directory.database`, so a Secret of the same shape needs only its name.
+
+The directory serves HTTPS only. Without `directory.backendTls.existingSecret`, the chart issues its certificate as a
+cert-manager `Certificate` from the issuer of `backendTls.certManager`, the chart's private CA by default, for the
+directory Service's DNS names. `directory.backendTls.existingSecret` names a `kubernetes.io/tls` Secret of your own that
+holds `tls.crt`, `tls.key` and `ca.crt`. `directory.ingress` and `directory.httpRoute` route every host of
+`directory.allowedHosts` to the directory as [Routing to the pods](#routing-to-the-pods) describes, and the directory's
+pods honor `backendTls.clientCertificate.required`.
 
 `directory.image.*`, `directory.service`, `directory.migrations.backoffLimit`,
 `directory.migrations.activeDeadlineSeconds`, `directory.migrations.resources`, `directory.resources`, `directory.extraEnv`,
@@ -264,6 +278,15 @@ Rendering fails, before anything is applied, when:
 - `backendTls.caPublisher.enabled` is `true`, the management console is enabled with a certificate of your own in
   `managementConsole.backendTls.existingSecret`, and `managementConsole.backendTls.caConfigMap` is empty, because the
   console's CA ConfigMap would fall back to the one the publisher writes, which holds only the chart's private CA;
+- `directory.ingress.enabled` is `true` and `ingress.controller` is empty;
+- `directory.httpRoute.enabled` is `true` and `directory.httpRoute.parentRefs` is empty, or there is no CA ConfigMap:
+  `directory.backendTls.caConfigMap`, which falls back to `backendTls.caConfigMap`;
+- `backendTls.caPublisher.enabled` is `true`, the directory is enabled with a certificate of your own in
+  `directory.backendTls.existingSecret`, and `directory.backendTls.caConfigMap` is empty, because the directory's CA
+  ConfigMap would fall back to the one the publisher writes, which holds only the chart's private CA;
+- a route of the directory uses the ingress controller's Secret, `directory.backendTls.existingSecret` is set, and
+  neither `backendTls.certManager.issuerRef.name` nor an `ingressSecret` for the directory is set, because the chart
+  cannot know the CA that signed your certificate;
 - neither `database.existingSecret` nor `database.parts.existingSecret` is set; `migrations.enabled` is `true` and
   neither `migrations.database.existingSecret` nor `migrations.database.parts.existingSecret` is set, or
   `database.runtimeRole` is empty; `database.runtimeRole` is set and is not a lower-case Postgres role name; a
@@ -276,6 +299,7 @@ Rendering fails, before anything is applied, when:
 - `setup.token.existingSecret` is set and `setup.token.key` is empty, or `setup.job.enabled` is `true` and
   `setup.job.existingSecret`, `setup.job.userNameKey` or `setup.job.passwordKey` is empty;
 - the `StaticSingle` strategy has no `https` issuer;
+- a `StaticSingle` cell that is not the control plane has no `tenantResolution.staticSingle.tenantId`;
 - `secretProtection.rootKeyProvider` is empty, in any environment, because the host does not start without one;
 - `secretProtection.rootKeyProvider` is `ephemeral`, in any environment, which would leave no root key outside the pod;
 - `secretProtection.rootKeyProvider` is `local`, in any environment, and `secretProtection.local.keySecret` is empty;
@@ -308,9 +332,12 @@ Rendering fails, before anything is applied, when:
   `cell.controlPlaneIssuer` is not such a URL while the host reads it, which is when `cell.isControlPlane` is `false`
   or `directory.url` is set; a `cell.managementUrl` is set and is not such an `https` URL;
 - a value that configures the directory host (`directory.issuer`, `directory.controlPlaneCell`,
-  `directory.allowedHosts`, `directory.database`, `directory.migrations.database`, `directory.tls`,
-  `directory.serviceAccount`, `directory.image` or `directory.extra*`) is set and `directory.enabled` is `false`,
-  because the chart then runs no directory host;
+  `directory.controlPlaneTenantId`, `directory.allowedHosts`, `directory.database`, `directory.migrations.database`,
+  `directory.backendTls`, `directory.ingress`, `directory.httpRoute`, `directory.serviceAccount`, `directory.image` or
+  `directory.extra*`) is set and `directory.enabled` is `false`, because the chart then runs no directory host;
+- `directory.enabled` is `true` and the control-plane cell's root tenant is unknown: `directory.controlPlaneTenantId` is
+  empty and the release's cell is not `directory.controlPlaneCell` with `cell.isControlPlane`, or
+  `tenantResolution.strategyCode` is not `StaticSingle`;
 - a key management service is used, as `secretProtection.rootKeyProvider`, in `secretProtection.ownerRootKeys.providers`
   or enabled under `secretProtection.remoteKeyProviders`, and its workload credentials are half set: only one of
   `secretProtection.azureKeyVault.workloadIdentity.tenantId` and `clientId` is set, or
@@ -1034,10 +1061,10 @@ self-signed Issuer, the CA `Certificate` `<release>-ca`, and an Issuer backed by
 `<service>.<namespace>.svc` and `<service>.<namespace>.svc.cluster.local`, plus `backendTls.certManager.dnsNames`.
 
 - `backendTls.certManager.issuerRef` names your own Issuer or ClusterIssuer, so the chart creates no private CA.
-- `backendTls.existingSecret` and `managementConsole.backendTls.existingSecret` name `kubernetes.io/tls` Secrets you
-  create, so the chart creates no `Certificate` for the component whose Secret you name. The private CA is still
-  created while another component needs a `Certificate` from it. Each Secret must also hold `ca.crt`, the CA that
-  signed the certificate: the pods trust it for the ingress controller's certificate.
+- `backendTls.existingSecret`, `managementConsole.backendTls.existingSecret` and `directory.backendTls.existingSecret`
+  name `kubernetes.io/tls` Secrets you create, so the chart creates no `Certificate` for the component whose Secret you
+  name. The private CA is still created while another component needs a `Certificate` from it. Each Secret must also
+  hold `ca.crt`, the CA that signed the certificate: the pods trust it for the ingress controller's certificate.
 
 ### Routing to the pods
 
@@ -1051,10 +1078,13 @@ modes needs:
 | Other Ingress   | `ingress.controller: other`                 | Neither. You configure the controller to speak HTTPS to the Service and to verify the pods' certificate. |
 
 The Ingress and the HTTPRoute may both be on. `ingress.annotations`, `managementConsole.ingress.annotations`,
-`httpRoute.annotations` and `managementConsole.httpRoute.annotations` add to the annotations the chart renders. The
-console's `managementConsole.httpRoute` takes `enabled`, `parentRefs` and `annotations`, and its hostname is
-`managementConsole.host`. The Gateway API mode needs the Gateway API v1.4 or later CRDs and a CA ConfigMap;
-`ci/gateway-api-values.yaml` shows a release:
+`directory.ingress.annotations`, `httpRoute.annotations`, `managementConsole.httpRoute.annotations` and
+`directory.httpRoute.annotations` add to the annotations the chart renders. The console's `managementConsole.httpRoute`
+takes `enabled`, `parentRefs` and `annotations`, and its hostname is `managementConsole.host`. The directory's
+`directory.ingress` takes `enabled`, `className`, `annotations` and `tls`, and `directory.httpRoute` takes `enabled`,
+`parentRefs` and `annotations`; both route every host of `directory.allowedHosts`, and `ingress.controller` selects the
+directory's Traefik mode, which renders its own `ServersTransport` and Service annotations. The Gateway API mode needs
+the Gateway API v1.4 or later CRDs and a CA ConfigMap; `ci/gateway-api-values.yaml` shows a release:
 
 ```yaml
 backendTls:
@@ -1106,18 +1136,19 @@ ingress:
 ### The ingress controller's Secret
 
 The Traefik mode reads one Secret, `<release>-ingress`, which cert-manager issues from the issuer of the pods'
-certificates as a client certificate for the common name `backendTls.clientCertificate.commonName`. Its `ca.crt` is
-what Traefik verifies the pods against (the `rootCAs` entry of the `ServersTransport`). Its `tls.crt` and `tls.key` are
-the controller's own client certificate, which authenticates it to the pods; they are never a pod's key, and the
-serving Secret is never the controller's Secret, so the controller, which reads Secrets cluster-wide, never receives a
-pod's private key. The chart issues the Secret when a route uses it: an Ingress with `ingress.controller: traefik`, or
-any route while `backendTls.clientCertificate.required` is `true`, and no `ingressSecret` of yours names it.
+certificates as a client certificate for the common name `backendTls.clientCertificate.commonName`. Its `ca.crt` is what
+Traefik verifies the pods against (the `rootCAs` entry of the `ServersTransport`). Its `tls.crt` and `tls.key` are the
+controller's own client certificate, which authenticates it to the pods; they are never a pod's key, and the serving
+Secret is never the controller's Secret, so the controller, which reads Secrets cluster-wide, never receives a pod's
+private key. The chart issues the Secret when a route uses it: an Ingress with `ingress.controller: traefik`, or any
+route while `backendTls.clientCertificate.required` is `true`, and no `ingressSecret` of yours names it.
 `backendTls.ingressSecret` names a Secret of your own in the release namespace that holds `ca.crt` and, when
 `backendTls.clientCertificate.required` is `true`, `tls.crt` and `tls.key`; the chart then names it in place of
-`<release>-ingress`. `managementConsole.backendTls.ingressSecret` does the same for the console and, when empty, falls
-back to `backendTls.ingressSecret` and then to `<release>-ingress`. Rendering fails when a route uses the controller's
-Secret, its component sets `existingSecret`, and neither `backendTls.certManager.issuerRef.name` nor an `ingressSecret`
-for it is set, because the chart cannot know the CA that signed your certificate.
+`<release>-ingress`. `managementConsole.backendTls.ingressSecret` and `directory.backendTls.ingressSecret` do the same
+for the console and the directory and, when empty, fall back to `backendTls.ingressSecret` and then to
+`<release>-ingress`. Rendering fails when a route uses the controller's Secret, its component sets `existingSecret`, and
+neither `backendTls.certManager.issuerRef.name` nor an `ingressSecret` for it is set, because the chart cannot know the
+CA that signed your certificate.
 
 ### The CA ConfigMap
 
@@ -1136,21 +1167,23 @@ With the chart's private CA, `backendTls.caPublisher.enabled` publishes the Conf
 post-upgrade hook Job, which runs the official `registry.k8s.io/kubectl` image pinned by digest, runs `kubectl apply -k`
 to write the `ca.crt` of the `<release>-ca` Secret to a ConfigMap named `<release>-ca`, or the name
 `backendTls.caConfigMap` sets, and the routes use it. The Job sees only the `ca.crt` key, never the CA's private key,
-and its Role reads and patches only that ConfigMap and may create ConfigMaps, which Kubernetes cannot limit by name.
-The kubelet holds its pod until cert-manager has created the Secret, and `helm uninstall` leaves the ConfigMap it
-wrote. The chart refuses the publisher with an issuer of your own in `backendTls.certManager.issuerRef.name` or a
-server certificate of your own in `backendTls.existingSecret`, because it publishes only the chart's private CA.
-`managementConsole.backendTls.caConfigMap` names the console's ConfigMap and, when empty, falls back to the server's.
-With the publisher, a console certificate of your own in `managementConsole.backendTls.existingSecret` needs its CA in
-`managementConsole.backendTls.caConfigMap`, and the chart refuses the release without it.
+and its Role reads and patches only that ConfigMap and may create ConfigMaps, which Kubernetes cannot limit by name. The
+kubelet holds its pod until cert-manager has created the Secret, and `helm uninstall` leaves the ConfigMap it wrote. The
+chart refuses the publisher with an issuer of your own in `backendTls.certManager.issuerRef.name` or a server
+certificate of your own in `backendTls.existingSecret`, because it publishes only the chart's private CA.
+`managementConsole.backendTls.caConfigMap` and `directory.backendTls.caConfigMap` name the console's and the directory's
+ConfigMaps and, when empty, fall back to the server's. With the publisher, a console or directory certificate of your
+own in `managementConsole.backendTls.existingSecret` or `directory.backendTls.existingSecret` needs its CA in
+`managementConsole.backendTls.caConfigMap` or `directory.backendTls.caConfigMap`, and the chart refuses the release
+without it.
 
 ### Requiring the ingress controller's certificate
 
-By default the pods accept a connection from any client. `backendTls.clientCertificate.required: true` makes the server
-and the console require the ingress controller's certificate: a pod answers `403` to every request whose connection
-carries no certificate that chains to the CA in the serving Secret's `ca.crt`, has the `client auth` usage, is valid and
-has the subject `CN=<backendTls.clientCertificate.commonName>` (`ncode-identity-ingress` by default), except
-`/health/live` and `/health/ready`, which the kubelet sends without one. The chart sets
+By default the pods accept a connection from any client. `backendTls.clientCertificate.required: true` makes the server,
+the console and the directory require the ingress controller's certificate: a pod answers `403` to every request whose
+connection carries no certificate that chains to the CA in the serving Secret's `ca.crt`, has the `client auth` usage,
+is valid and has the subject `CN=<backendTls.clientCertificate.commonName>` (`ncode-identity-ingress` by default),
+except `/health/live` and `/health/ready`, which the kubelet sends without one. The chart sets
 `ProxyClientCertificate__Required`, `__CertificateAuthorityPath` (`/etc/ncode-identity/tls/ca.crt`) and
 `__AllowedSubjects__0`, so the pods need no further mount. For Traefik, the chart adds `certificatesSecrets` to each
 `ServersTransport`, so Traefik presents the Secret's certificate.
@@ -1195,6 +1228,11 @@ Behind the Envoy Gateway, with `httpRoute` and `backendTls.caPublisher`, the job
 verifies the pods' certificate and that the Gateway's `spec.tls.backend.clientCertificateRef` presents the ingress
 client certificate the pods require. A Gateway without `clientCertificateRef` gets `403` outside the health paths
 and `200` on them, and a `BackendTLSPolicy` that holds a foreign CA gets `503`.
+
+The `directory-cluster` job of the `Host chart` workflow installs one release of a control-plane cell with its directory
+client, its setup Job and the directory in a kind cluster behind Traefik. It proves that the chart's certificate and
+`directory.ingress` serve the directory: the cell's discovery document, the cell's key set and the directory's readiness
+answer `200` through the controller.
 
 ## Strict-Transport-Security
 
