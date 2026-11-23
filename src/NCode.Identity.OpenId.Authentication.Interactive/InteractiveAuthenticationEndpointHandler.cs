@@ -199,7 +199,7 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
             httpContext.RequestAborted
         );
         var html = InteractiveHtmlResult.CreateBuffer();
-        var returnUrl = query["ReturnUrl"].ToString();
+        var returnUrl = query[ReturnUrlName].ToString();
         var errorQueryValue = query[ErrorQueryName].ToString();
         var loginError = DescribeLoginError(errorQueryValue, frame.Locale.Messages);
         var statusQueryValue = query[StatusQueryName].ToString();
@@ -241,7 +241,7 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
     public async ValueTask<IResult> GetConsentPageAsync(HttpContext httpContext)
     {
         var tokens = IssueAntiforgeryTokens(httpContext);
-        var rawReturnUrl = httpContext.Request.Query["ReturnUrl"].ToString();
+        var rawReturnUrl = httpContext.Request.Query[ReturnUrlName].ToString();
 
         var appName = "An application";
         IReadOnlyList<InteractiveAuthenticationPageRenderer.ScopeView> scopes = [];
@@ -393,7 +393,7 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
         HttpContext httpContext,
         [FromForm] string? username,
         [FromForm] string? password,
-        [FromForm(Name = "ReturnUrl")] string? returnUrl,
+        [FromForm(Name = ReturnUrlName)] string? returnUrl,
         [FromForm(Name = InteractiveAuthenticationPageRenderer.UiLocalesFieldName)]
             string? uiLocales
     )
@@ -482,7 +482,33 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
 
         // Establish a server-side session and mint its opaque `sid` onto the cookie principal so every subsequent
         // authorize request resolves the same session and the `sid` claim can be emitted into issued tokens.
-        await EstablishSessionAsync(openIdContext, principal, httpContext.RequestAborted);
+        return await CompleteSignInAsync(
+            httpContext,
+            openIdContext,
+            principal,
+            safeReturnUrl,
+            httpContext.RequestAborted
+        );
+    }
+
+    /// <summary>
+    /// Creates the end user's session, signs the principal in with the session cookie and redirects to the return URL.
+    /// </summary>
+    /// <param name="httpContext">The current request.</param>
+    /// <param name="openIdContext">The context of the tenant and environment the request is for.</param>
+    /// <param name="principal">The principal whose sign-in is complete.</param>
+    /// <param name="safeReturnUrl">The return URL, which is local to the server.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    /// <returns>The redirect to the return URL.</returns>
+    private async ValueTask<IResult> CompleteSignInAsync(
+        HttpContext httpContext,
+        OpenIdContext openIdContext,
+        ClaimsPrincipal principal,
+        string safeReturnUrl,
+        CancellationToken cancellationToken
+    )
+    {
+        await EstablishSessionAsync(openIdContext, principal, cancellationToken);
 
         await httpContext.SignInAsync(
             InteractiveAuthenticationDefaults.CookieSchemeName,
@@ -645,7 +671,7 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
     /// </summary>
     public async ValueTask<IResult> GetConsentDetailsAsync(
         HttpContext httpContext,
-        [FromQuery(Name = "ReturnUrl")] string? returnUrl
+        [FromQuery(Name = ReturnUrlName)] string? returnUrl
     )
     {
         var authenticateResult = await AuthenticateSessionAsync(
@@ -701,7 +727,7 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
     public async ValueTask<IResult> PostConsentAsync(
         HttpContext httpContext,
         [FromForm] string? action,
-        [FromForm(Name = "ReturnUrl")] string? returnUrl,
+        [FromForm(Name = ReturnUrlName)] string? returnUrl,
         [FromForm(Name = InteractiveAuthenticationPageRenderer.UiLocalesFieldName)]
             string? uiLocales
     )
@@ -786,7 +812,7 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
     /// </summary>
     public async ValueTask<IResult> PostLogoutAsync(
         HttpContext httpContext,
-        [FromForm(Name = "ReturnUrl")] string? returnUrl
+        [FromForm(Name = ReturnUrlName)] string? returnUrl
     )
     {
         var openIdContext = httpContext.GetOpenIdContext();
@@ -834,7 +860,7 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
     public async ValueTask<IResult> GetLogoutConfirmationPageAsync(HttpContext httpContext)
     {
         var tokens = IssueAntiforgeryTokens(httpContext);
-        var returnUrl = httpContext.Request.Query["ReturnUrl"].ToString();
+        var returnUrl = httpContext.Request.Query[ReturnUrlName].ToString();
         var branding = ReadBranding(httpContext);
         var security = InteractivePageSecurity.Create(branding);
         var html = InteractiveHtmlResult.CreateBuffer();
@@ -862,7 +888,7 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
     public async ValueTask<IResult> PostLogoutConfirmationAsync(
         HttpContext httpContext,
         [FromForm] string? action,
-        [FromForm(Name = "ReturnUrl")] string? returnUrl,
+        [FromForm(Name = ReturnUrlName)] string? returnUrl,
         [FromForm(Name = InteractiveAuthenticationPageRenderer.UiLocalesFieldName)]
             string? uiLocales
     )
@@ -1921,13 +1947,15 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
             );
         }
 
-        await EstablishSessionAsync(openIdContext, principal, httpContext.RequestAborted);
-        await httpContext.SignInAsync(
-            InteractiveAuthenticationDefaults.CookieSchemeName,
-            principal
+        var completed = await CompleteSignInAsync(
+            httpContext,
+            openIdContext,
+            principal,
+            returnUrl,
+            httpContext.RequestAborted
         );
         await httpContext.SignOutAsync(InteractiveAuthenticationDefaults.PendingSignInSchemeName);
-        return TypedResults.Redirect(returnUrl);
+        return completed;
     }
 
     /// <summary>
@@ -2064,12 +2092,11 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
     /// <param name="httpContext">The current request.</param>
     /// <returns><see langword="true"/> when the tenant lets its end users verify their address.</returns>
     // See ADR-1533.
-    private static bool IsEmailVerificationEnabled(HttpContext httpContext) =>
-        httpContext
-            .GetOpenIdContext()
-            .Tenant.SettingsProvider.Collection.GetValue(
-                OpenIdSettingKeys.EmailVerificationEnabled
-            );
+    private static bool IsEmailVerificationEnabled(HttpContext httpContext)
+    {
+        var settings = httpContext.GetOpenIdContext().Tenant.SettingsProvider.Collection;
+        return settings.GetValue(OpenIdSettingKeys.EmailVerificationEnabled);
+    }
 
     /// <summary>
     /// Determines whether the tenant lets its end users reset a password, because the forgot-password and
@@ -2078,10 +2105,11 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
     /// <param name="httpContext">The current request.</param>
     /// <returns><see langword="true"/> when the tenant lets its end users reset a password.</returns>
     // See ADR-1533.
-    private static bool IsPasswordResetEnabled(HttpContext httpContext) =>
-        httpContext
-            .GetOpenIdContext()
-            .Tenant.SettingsProvider.Collection.GetValue(OpenIdSettingKeys.PasswordResetEnabled);
+    private static bool IsPasswordResetEnabled(HttpContext httpContext)
+    {
+        var settings = httpContext.GetOpenIdContext().Tenant.SettingsProvider.Collection;
+        return settings.GetValue(OpenIdSettingKeys.PasswordResetEnabled);
+    }
 
     /// <summary>
     /// Builds the address of the forgot-password page, relative to the surface the page's base names, carrying the
