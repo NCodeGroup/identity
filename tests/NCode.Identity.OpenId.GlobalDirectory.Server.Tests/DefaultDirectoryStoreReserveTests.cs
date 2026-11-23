@@ -288,6 +288,43 @@ public sealed class DefaultDirectoryStoreReserveTests : DefaultDirectoryStoreTes
     }
 
     [Fact]
+    public async Task ReserveAsync_WhenTheControlPlaneCellHoldsItsRootTenantReserved_PlacesItAndKeepsItsIssuer()
+    {
+        var holder = await CreateTenantDirectory("other-root")
+            .ReserveAsync(
+                new TenantReservation
+                {
+                    TenantId = TenantId,
+                    Issuer = Issuer,
+                    Cell = ControlPlaneCell,
+                },
+                CancellationToken.None
+            );
+        Assert.True(holder.IsReserved);
+        TimeProvider.Advance(TimeSpan.FromMinutes(5));
+
+        var result = await CreateTenantDirectory(TenantId)
+            .ReserveAsync(
+                new TenantReservation
+                {
+                    TenantId = OtherTenantId,
+                    Issuer = OtherIssuer,
+                    Cell = CellName,
+                },
+                CancellationToken.None
+            );
+
+        Assert.True(result.IsReserved);
+        var record = await ReadTenantAsync(TenantId);
+        Assert.NotNull(record);
+        Assert.Equal(TenantRecord.StatePlaced, record.State);
+        Assert.Equal(ControlPlaneCell, record.Cell);
+        Assert.Equal(Issuer, record.Issuer);
+        Assert.Equal(TimeProvider.GetUtcNow(), record.ModifiedWhen);
+        Assert.True(record.CreatedWhen < record.ModifiedWhen);
+    }
+
+    [Fact]
     public async Task ReserveAsync_WhenAnotherCellHoldsTheConfiguredControlPlaneTenantId_Throws()
     {
         await ReserveAndPlaceAsync(TenantId, Issuer);

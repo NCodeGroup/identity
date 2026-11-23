@@ -326,8 +326,8 @@ public static class DirectoryEndpoints
         if (!TenantIdentifierRules.IsValidTenantId(placement.TenantId))
             return BadRequest(InvalidTenantIdDetail);
 
-        // A tenant without an issuer reserves its identifier alone; an issuer that is present, an empty one included,
-        // is judged.
+        // A tenant without an issuer is placed by its identifier alone; an issuer that is present, an empty one
+        // included, is judged.
         if (IsOverLong(placement.Issuer, DirectoryLimits.MaxIssuerLength))
             return BadRequest(IssuerTooLongDetail);
 

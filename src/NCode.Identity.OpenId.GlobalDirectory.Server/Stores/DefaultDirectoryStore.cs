@@ -53,8 +53,8 @@ internal sealed class DefaultDirectoryStore(
     private static JsonSerializerOptions JsonOptions { get; } = new(JsonSerializerDefaults.Web);
 
     /// <summary>
-    /// Gets the configuration key of <see cref="DirectoryServerOptions.ControlPlaneTenantId"/>, which the messages that
-    /// refuse the configured tenant name.
+    /// Gets the configuration key of <see cref="DirectoryServerOptions.ControlPlaneTenantId"/>, which the store names
+    /// in each message that refuses the configured tenant.
     /// </summary>
     private static string ControlPlaneTenantIdKey =>
         $"{DirectoryServerOptions.SectionName}:{nameof(DirectoryServerOptions.ControlPlaneTenantId)}";
