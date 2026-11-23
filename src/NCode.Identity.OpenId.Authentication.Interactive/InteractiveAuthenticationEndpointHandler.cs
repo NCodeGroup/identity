@@ -157,28 +157,51 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
         );
         surface.MapGet(InteractiveAuthenticationDefaults.PasswordPath, GetPasswordPageAsync);
         surface.MapPost(InteractiveAuthenticationDefaults.PasswordPath, PostPasswordAsync);
-        surface.MapGet(
+        // The reset pages exist only while the tenant lets its end users reset a password (ADR-1533).
+        var passwordResetFilter = new InteractiveFeatureEndpointFilter(
+            OpenIdSettingKeys.PasswordResetEnabled
+        );
+        var passwordReset = surface.MapGroup(string.Empty).AddEndpointFilter(passwordResetFilter);
+        passwordReset.MapGet(
             InteractiveAuthenticationDefaults.PasswordForgotPath,
             GetForgotPasswordPageAsync
         );
-        surface.MapPost(
+        passwordReset.MapPost(
             InteractiveAuthenticationDefaults.PasswordForgotPath,
             PostForgotPasswordAsync
         );
-        surface.MapGet(
+        passwordReset.MapGet(
             InteractiveAuthenticationDefaults.PasswordResetPath,
             GetResetPasswordPageAsync
         );
-        surface.MapPost(
+        passwordReset.MapPost(
             InteractiveAuthenticationDefaults.PasswordResetPath,
             PostResetPasswordAsync
         );
         surface.MapGet(InteractiveAuthenticationDefaults.LoginCodePath, GetSignInCodePageAsync);
         surface.MapPost(InteractiveAuthenticationDefaults.LoginCodePath, PostSignInCodeAsync);
-        surface.MapGet(InteractiveAuthenticationDefaults.EmailPath, GetEmailPageAsync);
-        surface.MapGet(InteractiveAuthenticationDefaults.EmailStatusPath, GetEmailStatusAsync);
-        surface.MapPost(InteractiveAuthenticationDefaults.EmailSendPath, PostSendEmailCodeAsync);
-        surface.MapPost(InteractiveAuthenticationDefaults.EmailVerifyPath, PostVerifyEmailAsync);
+
+        // The email page and its endpoints exist only while the tenant lets its end users verify their address
+        // (ADR-1533).
+        var emailVerificationFilter = new InteractiveFeatureEndpointFilter(
+            OpenIdSettingKeys.EmailVerificationEnabled
+        );
+        var emailVerification = surface
+            .MapGroup(string.Empty)
+            .AddEndpointFilter(emailVerificationFilter);
+        emailVerification.MapGet(InteractiveAuthenticationDefaults.EmailPath, GetEmailPageAsync);
+        emailVerification.MapGet(
+            InteractiveAuthenticationDefaults.EmailStatusPath,
+            GetEmailStatusAsync
+        );
+        emailVerification.MapPost(
+            InteractiveAuthenticationDefaults.EmailSendPath,
+            PostSendEmailCodeAsync
+        );
+        emailVerification.MapPost(
+            InteractiveAuthenticationDefaults.EmailVerifyPath,
+            PostVerifyEmailAsync
+        );
     }
 
     /// <summary>
@@ -1363,11 +1386,6 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
     // See ADR-1533.
     public async ValueTask<IResult> GetForgotPasswordPageAsync(HttpContext httpContext)
     {
-        if (!IsPasswordResetEnabled(httpContext))
-        {
-            return TypedResults.NotFound();
-        }
-
         var tokens = IssueAntiforgeryTokens(httpContext);
         var query = httpContext.Request.Query;
         var branding = ReadBranding(httpContext);
@@ -1401,11 +1419,6 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
     // See ADR-1533.
     public async ValueTask<IResult> GetResetPasswordPageAsync(HttpContext httpContext)
     {
-        if (!IsPasswordResetEnabled(httpContext))
-        {
-            return TypedResults.NotFound();
-        }
-
         var tokens = IssueAntiforgeryTokens(httpContext);
         var query = httpContext.Request.Query;
         var branding = ReadBranding(httpContext);
@@ -1448,11 +1461,6 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
             string? uiLocales
     )
     {
-        if (!IsPasswordResetEnabled(httpContext))
-        {
-            return TypedResults.NotFound();
-        }
-
         var languageTag = LocaleSelector.GetCarriedLanguageTag(uiLocales);
         var carriedReturnUrl = string.IsNullOrEmpty(returnUrl)
             ? null
@@ -1506,11 +1514,6 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
             string? uiLocales
     )
     {
-        if (!IsPasswordResetEnabled(httpContext))
-        {
-            return TypedResults.NotFound();
-        }
-
         var languageTag = LocaleSelector.GetCarriedLanguageTag(uiLocales);
         var carriedReturnUrl = string.IsNullOrEmpty(returnUrl)
             ? null
@@ -1575,11 +1578,6 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
     // See ADR-1533.
     public async ValueTask<IResult> GetEmailPageAsync(HttpContext httpContext)
     {
-        if (!IsEmailVerificationEnabled(httpContext))
-        {
-            return TypedResults.NotFound();
-        }
-
         var authenticateResult = await AuthenticateSessionAsync(
             httpContext,
             httpContext.RequestAborted
@@ -1600,11 +1598,6 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
     // See ADR-1533.
     public async ValueTask<IResult> GetEmailStatusAsync(HttpContext httpContext)
     {
-        if (!IsEmailVerificationEnabled(httpContext))
-        {
-            return TypedResults.NotFound();
-        }
-
         var authenticateResult = await AuthenticateSessionAsync(
             httpContext,
             httpContext.RequestAborted
@@ -1643,11 +1636,6 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
             string? uiLocales
     )
     {
-        if (!IsEmailVerificationEnabled(httpContext))
-        {
-            return TypedResults.NotFound();
-        }
-
         var languageTag = LocaleSelector.GetCarriedLanguageTag(uiLocales);
 
         var authenticateResult = await AuthenticateSessionAsync(
@@ -1698,11 +1686,6 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
             string? uiLocales
     )
     {
-        if (!IsEmailVerificationEnabled(httpContext))
-        {
-            return TypedResults.NotFound();
-        }
-
         var languageTag = LocaleSelector.GetCarriedLanguageTag(uiLocales);
 
         var authenticateResult = await AuthenticateSessionAsync(
@@ -2086,8 +2069,8 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
     }
 
     /// <summary>
-    /// Determines whether the tenant lets its end users verify their address, because the email page and its endpoints
-    /// exist only then.
+    /// Determines whether the tenant lets its end users verify their address, which the me response reports to the
+    /// bundle.
     /// </summary>
     /// <param name="httpContext">The current request.</param>
     /// <returns><see langword="true"/> when the tenant lets its end users verify their address.</returns>
@@ -2099,8 +2082,8 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
     }
 
     /// <summary>
-    /// Determines whether the tenant lets its end users reset a password, because the forgot-password and
-    /// reset-password pages exist only then.
+    /// Determines whether the tenant lets its end users reset a password, which the login page's link to the
+    /// forgot-password page shows.
     /// </summary>
     /// <param name="httpContext">The current request.</param>
     /// <returns><see langword="true"/> when the tenant lets its end users reset a password.</returns>
@@ -2360,7 +2343,7 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
         );
 
     private string BuildLoginUrl(HttpContext httpContext, string returnUrl) =>
-        $"{SurfacePaths.GetSurfacePath(httpContext, InteractiveAuthenticationDefaults.LoginPath)}?ReturnUrl={Uri.EscapeDataString(returnUrl)}";
+        $"{SurfacePaths.GetSurfacePath(httpContext, InteractiveAuthenticationDefaults.LoginPath)}?{ReturnUrlName}={Uri.EscapeDataString(returnUrl)}";
 
     // An anonymous request for an account page is sent to the login page, which returns to the page it asked for;
     // both carry the request's ui_locales, so the login page and the page after it render in the same locale.

@@ -20,7 +20,6 @@ using NCode.Identity.OpenId.Authentication.Subject;
 using NCode.Identity.OpenId.Contexts;
 using NCode.Identity.OpenId.Locales;
 using NCode.Identity.OpenId.PrincipalResolution;
-using NCode.Identity.OpenId.Settings;
 using NCode.Identity.OpenId.Tenants;
 using NCode.Identity.Settings;
 using Xunit;
@@ -228,10 +227,6 @@ public sealed class InteractiveAuthenticationEndpointHandlerTests : IDisposable
         mockCatalog.Setup(x => x.TryGet("yy", out carried)).Returns(true).Verifiable();
 
         var mockSettings = MockRepository.Create<IReadOnlySettingCollection>();
-        mockSettings
-            .Setup(x => x.GetValue(OpenIdSettingKeys.PasswordResetEnabled))
-            .Returns(true)
-            .Verifiable();
         // The page the end user saw was yy, so the mail is worded in yy, although the browser prefers xx.
         mockCatalog
             .Setup(x =>
@@ -312,10 +307,6 @@ public sealed class InteractiveAuthenticationEndpointHandlerTests : IDisposable
         mockCatalog.Setup(x => x.TryGet("yy", out carried)).Returns(true).Verifiable();
 
         var mockSettings = MockRepository.Create<IReadOnlySettingCollection>();
-        mockSettings
-            .Setup(x => x.GetValue(OpenIdSettingKeys.EmailVerificationEnabled))
-            .Returns(true)
-            .Verifiable();
         // The page the end user saw was yy, so the mail is worded in yy, although the browser prefers xx.
         mockCatalog
             .Setup(x =>
@@ -430,18 +421,7 @@ public sealed class InteractiveAuthenticationEndpointHandlerTests : IDisposable
         IUiLocale? carried = TestLocales.Yy;
         mockCatalog.Setup(x => x.TryGet("yy", out carried)).Returns(true).Verifiable();
 
-        var mockSettings = MockRepository.Create<IReadOnlySettingCollection>();
-        mockSettings
-            .Setup(x => x.GetValue(OpenIdSettingKeys.EmailVerificationEnabled))
-            .Returns(true)
-            .Verifiable();
-
-        var mockProvider = MockRepository.Create<IReadOnlySettingCollectionProvider>();
-        mockProvider.SetupGet(x => x.Collection).Returns(mockSettings.Object).Verifiable();
-        var mockTenant = MockRepository.Create<OpenIdTenant>();
-        mockTenant.SetupGet(x => x.SettingsProvider).Returns(mockProvider.Object).Verifiable();
         var mockContext = MockRepository.Create<OpenIdContext>();
-        mockContext.SetupGet(x => x.Tenant).Returns(mockTenant.Object).Verifiable();
         var mockFeature = MockRepository.Create<IOpenIdContextFeature>();
         mockFeature.SetupGet(x => x.OpenIdContext).Returns(mockContext.Object).Verifiable();
 
