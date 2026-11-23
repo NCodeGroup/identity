@@ -19,6 +19,8 @@ export type LocalAccountClaimsEditorProps = {
   readonly onSave: (claims: LocalAccountClaim[]) => void;
 };
 
+type ClaimRow = { readonly id: number; readonly type: string; readonly value: string };
+
 const reservedNameMessage = 'The display name is the name claim; edit it with the user.';
 
 /**
@@ -32,14 +34,15 @@ export function LocalAccountClaimsEditor({
   error,
   onSave,
 }: LocalAccountClaimsEditorProps) {
-  const [rows, setRows] = useState<LocalAccountClaim[]>(() =>
-    claims.map((claim) => ({ ...claim })),
-  );
+  const nextIdRef = useRef(0);
+  const seedRows = (source: readonly LocalAccountClaim[]): ClaimRow[] =>
+    source.map((claim) => ({ ...claim, id: nextIdRef.current++ }));
+  const [rows, setRows] = useState<ClaimRow[]>(() => seedRows(claims));
   const previousClaimsRef = useRef(claims);
 
   useEffect(() => {
     if (claims !== previousClaimsRef.current) {
-      setRows(claims.map((claim) => ({ ...claim })));
+      setRows(seedRows(claims));
       previousClaimsRef.current = claims;
     }
   }, [claims]);
@@ -71,7 +74,7 @@ export function LocalAccountClaimsEditor({
         </Alert>
       )}
       {rows.map((row, index) => (
-        <Box key={index} sx={{ display: 'flex', gap: 1, alignItems: 'flex-start' }}>
+        <Box key={row.id} sx={{ display: 'flex', gap: 1, alignItems: 'flex-start' }}>
           <TextField
             label="Type"
             value={row.type}
@@ -101,7 +104,9 @@ export function LocalAccountClaimsEditor({
       <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
         <Button
           startIcon={<AddIcon />}
-          onClick={() => setRows((current) => [...current, { type: '', value: '' }])}
+          onClick={() =>
+            setRows((current) => [...current, { id: nextIdRef.current++, type: '', value: '' }])
+          }
           data-testid="claim-add"
         >
           Add claim
