@@ -72,13 +72,13 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
     // The `status` query value the login page reads back to tell the end user that the password is reset, and the query
     // names the forgot-password and reset-password pages carry.
     private const string PasswordResetStatus = "password_reset";
-    private const string FlowQueryName = "flow";
+    private const string FlowQueryName = InteractiveAuthenticationPageRenderer.FlowFieldName;
     private const string ReturnUrlName = "ReturnUrl";
 
     // The `status` query value the sign-in code page reads back to tell the end user that a new code is sent, and the
     // `action` form value that asks the page for it; any other value verifies the code.
     private const string CodeSentStatusValue = "sent";
-    private const string ResendAction = "resend";
+    private const string ResendAction = InteractiveAuthenticationPageRenderer.ResendActionValue;
 
     // The `status` query value the email page reads back to tell the end user that the address is verified.
     private const string EmailVerifiedStatus = "verified";
@@ -1238,8 +1238,10 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
     public async ValueTask<IResult> PostPasswordAsync(
         HttpContext httpContext,
         [FromForm(Name = "current_password")] string? currentPassword,
-        [FromForm(Name = "new_password")] string? newPassword,
-        [FromForm(Name = "confirm_password")] string? confirmPassword
+        [FromForm(Name = InteractiveAuthenticationPageRenderer.NewPasswordFieldName)]
+            string? newPassword,
+        [FromForm(Name = InteractiveAuthenticationPageRenderer.ConfirmPasswordFieldName)]
+            string? confirmPassword
     )
     {
         var authenticateResult = await AuthenticateSessionAsync(
@@ -1262,19 +1264,21 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
 
         if (string.IsNullOrEmpty(currentPassword) || string.IsNullOrEmpty(newPassword))
         {
-            return RedirectToPasswordPage(
+            return RedirectToSurfacePage(
                 httpContext,
-                ErrorQueryName,
-                InteractivePasswordChangeErrors.InvalidRequest
+                InteractiveAuthenticationDefaults.PasswordPath,
+                languageTag: null,
+                (ErrorQueryName, InteractivePasswordChangeErrors.InvalidRequest)
             );
         }
 
         if (!string.Equals(newPassword, confirmPassword, StringComparison.Ordinal))
         {
-            return RedirectToPasswordPage(
+            return RedirectToSurfacePage(
                 httpContext,
-                ErrorQueryName,
-                InteractivePasswordChangeErrors.PasswordMismatch
+                InteractiveAuthenticationDefaults.PasswordPath,
+                languageTag: null,
+                (ErrorQueryName, InteractivePasswordChangeErrors.PasswordMismatch)
             );
         }
 
@@ -1287,7 +1291,12 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
         );
         if (!result.IsChanged)
         {
-            return RedirectToPasswordPage(httpContext, ErrorQueryName, result.Error);
+            return RedirectToSurfacePage(
+                httpContext,
+                InteractiveAuthenticationDefaults.PasswordPath,
+                languageTag: null,
+                (ErrorQueryName, result.Error)
+            );
         }
 
         // A change keeps the current session, ends every other one and revokes the grants issued under no session.
@@ -1299,7 +1308,12 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
             currentSessionId,
             SessionTerminationReasons.PasswordChanged
         );
-        return RedirectToPasswordPage(httpContext, StatusQueryName, PasswordChangedStatus);
+        return RedirectToSurfacePage(
+            httpContext,
+            InteractiveAuthenticationDefaults.PasswordPath,
+            languageTag: null,
+            (StatusQueryName, PasswordChangedStatus)
+        );
     }
 
     /// <summary>
@@ -1442,10 +1456,12 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
     // See ADR-1533.
     public async ValueTask<IResult> PostResetPasswordAsync(
         HttpContext httpContext,
-        [FromForm(Name = FlowQueryName)] string? flow,
-        [FromForm(Name = "code")] string? code,
-        [FromForm(Name = "new_password")] string? newPassword,
-        [FromForm(Name = "confirm_password")] string? confirmPassword,
+        [FromForm(Name = InteractiveAuthenticationPageRenderer.FlowFieldName)] string? flow,
+        [FromForm(Name = InteractiveAuthenticationPageRenderer.CodeFieldName)] string? code,
+        [FromForm(Name = InteractiveAuthenticationPageRenderer.NewPasswordFieldName)]
+            string? newPassword,
+        [FromForm(Name = InteractiveAuthenticationPageRenderer.ConfirmPasswordFieldName)]
+            string? confirmPassword,
         [FromForm(Name = ReturnUrlName)] string? returnUrl,
         [FromForm(Name = InteractiveAuthenticationPageRenderer.UiLocalesFieldName)]
             string? uiLocales
@@ -1633,8 +1649,8 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
     // See ADR-1533.
     public async ValueTask<IResult> PostVerifyEmailAsync(
         HttpContext httpContext,
-        [FromForm(Name = FlowQueryName)] string? flow,
-        [FromForm(Name = "code")] string? code,
+        [FromForm(Name = InteractiveAuthenticationPageRenderer.FlowFieldName)] string? flow,
+        [FromForm(Name = InteractiveAuthenticationPageRenderer.CodeFieldName)] string? code,
         [FromForm(Name = InteractiveAuthenticationPageRenderer.UiLocalesFieldName)]
             string? uiLocales
     )
@@ -1755,8 +1771,8 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
     // See ADR-1533.
     public async ValueTask<IResult> PostSignInCodeAsync(
         HttpContext httpContext,
-        [FromForm(Name = "code")] string? code,
-        [FromForm(Name = "action")] string? action
+        [FromForm(Name = InteractiveAuthenticationPageRenderer.CodeFieldName)] string? code,
+        [FromForm(Name = InteractiveAuthenticationPageRenderer.ActionFieldName)] string? action
     )
     {
         var pending = await httpContext.AuthenticateAsync(
@@ -2011,7 +2027,7 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
     // and the locale the login page carried.
     private static string BuildForgotPasswordHref(string returnUrl, string? languageTag)
     {
-        var href = "password/forgot";
+        var href = InteractiveAuthenticationPageRenderer.ForgotPasswordFormAction;
         if (!string.IsNullOrEmpty(returnUrl))
         {
             href += $"?{ReturnUrlName}={Uri.EscapeDataString(returnUrl)}";
@@ -2258,20 +2274,6 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
         var escapedError = Uri.EscapeDataString(error);
         var urlWithError = loginUrl + $"&{ErrorQueryName}={escapedError}";
         return InteractiveLocaleSelector.AppendUiLocalesQuery(urlWithError, languageTag);
-    }
-
-    private RedirectHttpResult RedirectToPasswordPage(
-        HttpContext httpContext,
-        string queryName,
-        string queryValue
-    )
-    {
-        var passwordPath = SurfacePaths.GetSurfacePath(
-            httpContext,
-            InteractiveAuthenticationDefaults.PasswordPath
-        );
-        var escapedValue = Uri.EscapeDataString(queryValue);
-        return TypedResults.Redirect($"{passwordPath}" + $"?{queryName}={escapedValue}");
     }
 
     // Guards against an open redirect: a local URL as LocalUrl defines it, or an absolute URL that targets this

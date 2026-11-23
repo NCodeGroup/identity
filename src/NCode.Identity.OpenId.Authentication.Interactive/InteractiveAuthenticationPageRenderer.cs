@@ -30,6 +30,41 @@ internal static class InteractiveAuthenticationPageRenderer
     /// </summary>
     public const string UiLocalesFieldName = OpenIdProtocol.Parameters.UiLocales;
 
+    /// <summary>
+    /// The name of the form field and the query parameter that carry the handle of an email code flow.
+    /// </summary>
+    public const string FlowFieldName = "flow";
+
+    /// <summary>
+    /// The name of the form field that carries the one-time code the end user typed.
+    /// </summary>
+    public const string CodeFieldName = "code";
+
+    /// <summary>
+    /// The name of the form field that carries the new password.
+    /// </summary>
+    public const string NewPasswordFieldName = "new_password";
+
+    /// <summary>
+    /// The name of the form field that carries the new password a second time.
+    /// </summary>
+    public const string ConfirmPasswordFieldName = "confirm_password";
+
+    /// <summary>
+    /// The name of the submit button field that carries the action the end user chose.
+    /// </summary>
+    public const string ActionFieldName = "action";
+
+    /// <summary>
+    /// The value of the action field that asks the sign-in code page for a new code.
+    /// </summary>
+    public const string ResendActionValue = "resend";
+
+    /// <summary>
+    /// The path of the forgot-password page, relative to the surface the page's base names.
+    /// </summary>
+    public const string ForgotPasswordFormAction = "password/forgot";
+
     private const string ConsentPromptPlaceholder = "{0}";
 
     private const string StandaloneHeadStart = "<!doctype html><html lang=\"";
@@ -147,7 +182,9 @@ internal static class InteractiveAuthenticationPageRenderer
         WriteHead(writer, frame, messages.ForgotPasswordTitle);
         Write(
             writer,
-            "<main class=\"auth-card\"><form method=\"post\" action=\"password/forgot\"><h1>"
+            "<main class=\"auth-card\"><form method=\"post\" action=\""
+                + ForgotPasswordFormAction
+                + "\"><h1>"
         );
         WriteEncoded(writer, messages.ForgotPasswordTitle);
         Write(writer, "</h1>");
@@ -201,7 +238,7 @@ internal static class InteractiveAuthenticationPageRenderer
         Write(writer, "</h1>");
         WriteError(writer, errorMessage);
         WriteHiddenFields(writer, returnUrl, antiforgeryFieldName, antiforgeryToken, locale);
-        Write(writer, "<input type=\"hidden\" name=\"flow\" value=\"");
+        Write(writer, "<input type=\"hidden\" name=\"" + FlowFieldName + "\" value=\"");
         WriteEncoded(writer, flowId);
         Write(writer, "\" /><p>");
         WriteEncoded(writer, messages.ResetPasswordPrompt);
@@ -210,21 +247,27 @@ internal static class InteractiveAuthenticationPageRenderer
         Write(
             writer,
             "</label><br />"
-                + "<input id=\"code\" name=\"code\" type=\"text\" inputmode=\"numeric\" autocomplete=\"one-time-code\" pattern=\"[0-9]{6}\" maxlength=\"6\" autofocus required /></p>"
+                + "<input id=\"code\" name=\""
+                + CodeFieldName
+                + "\" type=\"text\" inputmode=\"numeric\" autocomplete=\"one-time-code\" pattern=\"[0-9]{6}\" maxlength=\"6\" autofocus required /></p>"
                 + "<p><label for=\"new_password\">"
         );
         WriteEncoded(writer, messages.NewPasswordLabel);
         Write(
             writer,
             "</label><br />"
-                + "<input id=\"new_password\" name=\"new_password\" type=\"password\" autocomplete=\"new-password\" required /></p>"
+                + "<input id=\"new_password\" name=\""
+                + NewPasswordFieldName
+                + "\" type=\"password\" autocomplete=\"new-password\" required /></p>"
                 + "<p><label for=\"confirm_password\">"
         );
         WriteEncoded(writer, messages.ConfirmPasswordLabel);
         Write(
             writer,
             "</label><br />"
-                + "<input id=\"confirm_password\" name=\"confirm_password\" type=\"password\" autocomplete=\"new-password\" required /></p>"
+                + "<input id=\"confirm_password\" name=\""
+                + ConfirmPasswordFieldName
+                + "\" type=\"password\" autocomplete=\"new-password\" required /></p>"
                 + "<button id=\"reset-password\" type=\"submit\">"
         );
         WriteEncoded(writer, messages.ResetPasswordButton);
@@ -278,13 +321,21 @@ internal static class InteractiveAuthenticationPageRenderer
         Write(
             writer,
             "</label><br />"
-                + "<input id=\"code\" name=\"code\" type=\"text\" inputmode=\"numeric\" autocomplete=\"one-time-code\" pattern=\"[0-9]{6}\" maxlength=\"6\" autofocus required /></p>"
-                + "<button id=\"verify\" name=\"action\" value=\"verify\" type=\"submit\">"
+                + "<input id=\"code\" name=\""
+                + CodeFieldName
+                + "\" type=\"text\" inputmode=\"numeric\" autocomplete=\"one-time-code\" pattern=\"[0-9]{6}\" maxlength=\"6\" autofocus required /></p>"
+                + "<button id=\"verify\" name=\""
+                + ActionFieldName
+                + "\" value=\"verify\" type=\"submit\">"
         );
         WriteEncoded(writer, messages.VerifyCodeButton);
         Write(
             writer,
-            "</button><button id=\"resend\" name=\"action\" value=\"resend\" type=\"submit\" formnovalidate>"
+            "</button><button id=\"resend\" name=\""
+                + ActionFieldName
+                + "\" value=\""
+                + ResendActionValue
+                + "\" type=\"submit\" formnovalidate>"
         );
         WriteEncoded(writer, messages.ResendCodeButton);
         Write(writer, "</button></form></main>");
