@@ -4,7 +4,6 @@
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text.Json;
-using System.Text.RegularExpressions;
 using Microsoft.Extensions.Time.Testing;
 using Moq;
 using NCode.Buffers;
@@ -22,7 +21,7 @@ using Xunit;
 
 namespace NCode.Identity.OpenId.Core.Tests.Accounts;
 
-public partial class DefaultLocalAccountEmailCodesTests : BaseTests
+public class DefaultLocalAccountEmailCodesTests : BaseTests
 {
     private const string TenantId = "tenant-1";
     private const string LocalAccountId = "account-1";
@@ -180,9 +179,6 @@ public partial class DefaultLocalAccountEmailCodesTests : BaseTests
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
 
-    [GeneratedRegex(@"\d{6}")]
-    private static partial Regex SixDigits();
-
     #endregion
 
     #region SendAsync Tests
@@ -222,10 +218,12 @@ public partial class DefaultLocalAccountEmailCodesTests : BaseTests
             .ReturnsAsync(true)
             .Verifiable();
 
-        MailMessage? message = null;
+        LocalAccountCodeMail? mail = null;
         MockMailSender
-            .Setup(x => x.SendAsync(It.IsAny<MailMessage>(), It.IsAny<CancellationToken>()))
-            .Callback<MailMessage, CancellationToken>((sent, _) => message = sent)
+            .Setup(x =>
+                x.SendAsync(It.IsAny<LocalAccountCodeMail>(), It.IsAny<CancellationToken>())
+            )
+            .Callback<LocalAccountCodeMail, CancellationToken>((sent, _) => mail = sent)
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
 
@@ -238,14 +236,14 @@ public partial class DefaultLocalAccountEmailCodesTests : BaseTests
         );
 
         Assert.Equal(FlowId, flowId);
-        Assert.NotNull(message);
-        Assert.Equal(Email, message.To);
-        Assert.Equal("Acme", message.FromDisplayName);
-        Assert.Equal("Reset subject", message.Subject);
-
-        var match = SixDigits().Match(message.TextBody);
-        Assert.True(match.Success);
-        Assert.Contains("within 10 minutes", message.TextBody);
+        Assert.NotNull(mail);
+        Assert.Equal(Email, mail.To);
+        Assert.Equal("Acme", mail.FromDisplayName);
+        Assert.Equal("Reset subject", mail.Subject);
+        Assert.Equal("Reset {0} within {1} minutes", mail.BodyFormat);
+        Assert.Equal("fr", mail.LanguageTag);
+        Assert.Equal(10, mail.LifetimeMinutes);
+        Assert.InRange(mail.Code, 0, 999_999);
 
         Assert.NotNull(storedBytes);
         var state = Deserialize(storedBytes);
@@ -253,7 +251,84 @@ public partial class DefaultLocalAccountEmailCodesTests : BaseTests
         Assert.Equal(Email, state.Email);
         Assert.Equal(0, state.Attempts);
         Assert.Equal(Now + Lifetime, state.ExpiresWhen);
-        Assert.True(SameHash(HashOf(FlowId, match.Value), state.CodeHash));
+        var code = mail.Code.ToString("D6", CultureInfo.InvariantCulture);
+        Assert.True(SameHash(HashOf(FlowId, code), state.CodeHash));
+    }
+
+    [Theory]
+    [InlineData(EmailCodePurposes.VerifyEmail, "Verify subject", "Verify {0} within {1} minutes")]
+    [InlineData(EmailCodePurposes.ResetPassword, "Reset subject", "Reset {0} within {1} minutes")]
+    [InlineData(EmailCodePurposes.SignIn, "Sign-in subject", "Sign in {0} within {1} minutes")]
+    public async Task SendAsync_ForEachPurpose_QueuesItsSubjectAndBodyFormat(
+        string purpose,
+        string expectedSubject,
+        string expectedBodyFormat
+    )
+    {
+        var mockSettings = CreateSettings(sendsPerHour: 5);
+        mockSettings
+            .Setup(x => x.GetValue(OpenIdSettingKeys.EmailCodeLifetime))
+            .Returns(TimeSpan.FromSeconds(90))
+            .Verifiable();
+        mockSettings
+            .Setup(x => x.GetValue(InteractiveSettingKeys.BrandingDisplayName))
+            .Returns(string.Empty)
+            .Verifiable();
+        var mockContext = CreateContext(mockSettings);
+        var sendsKey = ExpiringKeys.Create(
+            DefaultLocalAccountEmailCodes.SendsKeyPurpose,
+            TenantId,
+            purpose,
+            LocalAccountId
+        );
+        MockCounterSet
+            .Setup(x =>
+                x.IncrementAsync(
+                    sendsKey,
+                    Now + TimeSpan.FromHours(1),
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync(1)
+            .Verifiable();
+        MockCryptoService
+            .Setup(x => x.GenerateKey(32, BinaryEncodings.Base64Url))
+            .Returns(FlowId)
+            .Verifiable();
+        MockValueSet
+            .Setup(x =>
+                x.TryAddAsync(
+                    DefaultLocalAccountEmailCodes.CreateFlowKey(TenantId, purpose, FlowId),
+                    It.IsAny<ReadOnlyMemory<byte>>(),
+                    Now + TimeSpan.FromSeconds(90),
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync(true)
+            .Verifiable();
+
+        LocalAccountCodeMail? mail = null;
+        MockMailSender
+            .Setup(x =>
+                x.SendAsync(It.IsAny<LocalAccountCodeMail>(), It.IsAny<CancellationToken>())
+            )
+            .Callback<LocalAccountCodeMail, CancellationToken>((sent, _) => mail = sent)
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable();
+
+        await EmailCodes.SendAsync(
+            mockContext.Object,
+            purpose,
+            Account(),
+            LocalAccountMailComposerTests.CreateLocale(),
+            CancellationToken.None
+        );
+
+        Assert.NotNull(mail);
+        Assert.Equal(expectedSubject, mail.Subject);
+        Assert.Equal(expectedBodyFormat, mail.BodyFormat);
+        Assert.Null(mail.FromDisplayName);
+        Assert.Equal(2, mail.LifetimeMinutes);
     }
 
     [Fact]

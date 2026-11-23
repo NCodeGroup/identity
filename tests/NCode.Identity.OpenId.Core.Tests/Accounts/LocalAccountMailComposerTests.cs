@@ -1,7 +1,9 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
-using System.Globalization;
+using System.Net.Mime;
+using NCode.Buffers;
+using NCode.Identity.Mail;
 using NCode.Identity.OpenId.Accounts.Authentication.EmailCodes;
 using NCode.Identity.OpenId.Authentication.Interactive;
 using Xunit;
@@ -11,7 +13,7 @@ namespace NCode.Identity.OpenId.Core.Tests.Accounts;
 public class LocalAccountMailComposerTests
 {
     private const string To = "user@example.com";
-    private const string Code = "123456";
+    private const int Code = 123456;
 
     #region Scaffolding
 
@@ -68,74 +70,118 @@ public class LocalAccountMailComposerTests
             }
         );
 
-    #endregion
+    private static LocalAccountCodeMail CreateModel(
+        int code = Code,
+        string bodyFormat = "Verify {0} within {1} minutes",
+        string languageTag = "fr",
+        string? fromDisplayName = null
+    ) => new(To, fromDisplayName, "Verify subject", bodyFormat, languageTag, code, 10);
 
-    #region Compose Tests
-
-    [Theory]
-    [InlineData(EmailCodePurposes.VerifyEmail, "Verify subject", "Verify 123456 within 10 minutes")]
-    [InlineData(EmailCodePurposes.ResetPassword, "Reset subject", "Reset 123456 within 10 minutes")]
-    [InlineData(EmailCodePurposes.SignIn, "Sign-in subject", "Sign in 123456 within 10 minutes")]
-    public void Compose_ForEachPurpose_UsesItsSubjectAndBody(
-        string purpose,
-        string expectedSubject,
-        string expectedBody
+    private static async ValueTask<string> ReadBodyAsync(
+        MailMessage message,
+        CancellationToken cancellationToken
     )
     {
-        var message = LocalAccountMailComposer.Compose(
-            purpose,
-            To,
-            Code,
-            TimeSpan.FromMinutes(10),
-            CreateLocale(),
-            fromDisplayName: null
+        Assert.NotNull(message.TextBody);
+        var stream = await message.TextBody.ReadAsStreamAsync(cancellationToken);
+        using var reader = new StreamReader(stream, SecureEncoding.UTF8, leaveOpen: true);
+        return await reader.ReadToEndAsync(cancellationToken);
+    }
+
+    #endregion
+
+    #region ComposeAsync Tests
+
+    [Fact]
+    public async Task ComposeAsync_ForACodeWithLeadingZeros_WritesSixDigits()
+    {
+        var composer = new LocalAccountMailComposer();
+
+        await using var message = await composer.ComposeAsync(
+            CreateModel(code: 42),
+            CancellationToken.None
         );
 
-        Assert.Equal(To, message.To);
-        Assert.Equal(expectedSubject, message.Subject);
-        Assert.Equal(expectedBody, message.TextBody);
+        var body = await ReadBodyAsync(message, CancellationToken.None);
+        Assert.Equal("Verify 000042 within 10 minutes", body);
+        var recipient = Assert.Single(message.To);
+        Assert.Equal(To, recipient.Address);
+        Assert.Equal("Verify subject", message.Subject);
         Assert.Null(message.FromDisplayName);
         Assert.Null(message.HtmlBody);
+        Assert.NotNull(message.TextBody);
+        Assert.Equal(MediaTypeNames.Text.Plain, message.TextBody.MediaType);
+        Assert.Equal("utf-8", message.TextBody.Charset);
     }
 
     [Fact]
-    public void Compose_WithADisplayName_SetsTheSenderName()
+    public async Task ComposeAsync_WithADisplayName_SetsTheSenderName()
     {
-        var message = LocalAccountMailComposer.Compose(
-            EmailCodePurposes.SignIn,
-            To,
-            Code,
-            TimeSpan.FromSeconds(90),
-            CreateLocale(),
-            fromDisplayName: "Acme"
+        var composer = new LocalAccountMailComposer();
+
+        await using var message = await composer.ComposeAsync(
+            CreateModel(fromDisplayName: "Acme"),
+            CancellationToken.None
         );
 
         Assert.Equal("Acme", message.FromDisplayName);
-        Assert.Equal("Sign in 123456 within 2 minutes", message.TextBody);
+        var body = await ReadBodyAsync(message, CancellationToken.None);
+        Assert.Equal("Verify 123456 within 10 minutes", body);
     }
 
     [Fact]
-    public void Compose_ForATagWithoutCultureData_WordsTheMailInTheInvariantCulture()
+    public async Task ComposeAsync_ForATagWithoutCultureData_WordsTheMailInTheInvariantCulture()
     {
-        var locale = CreateLocale() with { LanguageTag = "not a culture" };
+        var composer = new LocalAccountMailComposer();
 
-        var message = LocalAccountMailComposer.Compose(
-            EmailCodePurposes.VerifyEmail,
-            To,
-            Code,
-            TimeSpan.FromMinutes(10),
-            locale,
-            fromDisplayName: null
+        await using var message = await composer.ComposeAsync(
+            CreateModel(languageTag: "not a culture"),
+            CancellationToken.None
         );
 
-        var expectedBody = string.Format(
-            CultureInfo.InvariantCulture,
-            locale.Messages.VerificationMailBodyFormat,
-            Code,
-            10
+        var body = await ReadBodyAsync(message, CancellationToken.None);
+        Assert.Equal("Verify 123456 within 10 minutes", body);
+    }
+
+    [Fact]
+    public async Task ComposeAsync_WithALongFormat_GrowsItsBuffer()
+    {
+        var composer = new LocalAccountMailComposer();
+        var padding = new string('x', 3000);
+
+        await using var message = await composer.ComposeAsync(
+            CreateModel(bodyFormat: "{0} {1} " + padding),
+            CancellationToken.None
         );
-        Assert.Equal(expectedBody, message.TextBody);
-        Assert.Equal("Verify 123456 within 10 minutes", message.TextBody);
+
+        var body = await ReadBodyAsync(message, CancellationToken.None);
+        Assert.Equal("123456 10 " + padding, body);
+    }
+
+    [Fact]
+    public async Task ComposeAsync_WhenReadTwice_WritesTheSameBytes()
+    {
+        var composer = new LocalAccountMailComposer();
+
+        await using var message = await composer.ComposeAsync(
+            CreateModel(),
+            CancellationToken.None
+        );
+
+        var first = await ReadBodyAsync(message, CancellationToken.None);
+        var second = await ReadBodyAsync(message, CancellationToken.None);
+        Assert.Equal(first, second);
+    }
+
+    [Fact]
+    public async Task ComposeAsync_WithAnAddressThatIsNotAnAddress_Throws()
+    {
+        var composer = new LocalAccountMailComposer();
+        var model = CreateModel() with { To = "not an address" };
+
+        await Assert.ThrowsAsync<ArgumentException>(async () =>
+            await composer.ComposeAsync(model, CancellationToken.None)
+        );
     }
 
     #endregion

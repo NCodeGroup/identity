@@ -136,6 +136,13 @@ public static class DefaultRegistration
                 DefaultLocalAccountEmailCodes
             >();
 
+            // The queued mail of a code is composed at each delivery attempt. See ADR-1533.
+            var mailComposerDescriptor = ServiceDescriptor.Singleton<
+                IMailComposer,
+                LocalAccountMailComposer
+            >();
+            serviceCollection.TryAddEnumerable(mailComposerDescriptor);
+
             // Replace (not TryAdd) so this capability wins over the surface's default changer, which reports that no
             // change is supported, whatever the order the two registrations run in.
             // See ADR-1230.

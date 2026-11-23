@@ -2,67 +2,90 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using System.Globalization;
+using System.Net.Mime;
+using System.Text;
+using NCode.Buffers;
 using NCode.Identity.Mail;
 using NCode.Identity.OpenId.Authentication.Interactive;
 
 namespace NCode.Identity.OpenId.Accounts.Authentication.EmailCodes;
 
 /// <summary>
-/// Composes the plain-text mail that carries a one-time code, in the wording of an <see cref="InteractiveLocale"/>.
+/// Composes the plain-text mail that carries a one-time code, in the wording of an <see cref="InteractiveLocale"/>,
+/// from a <see cref="LocalAccountCodeMail"/> at each delivery attempt.
 /// </summary>
 // See ADR-1533.
-internal static class LocalAccountMailComposer
+internal sealed class LocalAccountMailComposer : MailComposer<LocalAccountCodeMail>
 {
-    /// <summary>
-    /// Composes the mail of a code.
-    /// </summary>
-    /// <param name="purpose">The purpose of the code, one of the <see cref="EmailCodePurposes"/>.</param>
-    /// <param name="to">The address the mail is sent to.</param>
-    /// <param name="code">The code the mail carries.</param>
-    /// <param name="lifetime">How long the code is valid, which the mail states in whole minutes, rounded up.</param>
-    /// <param name="locale">The <see cref="InteractiveLocale"/> whose messages word the mail.</param>
-    /// <param name="fromDisplayName">The display name of the sender, or <see langword="null"/> for the transport's
-    /// own.</param>
-    /// <returns>The <see cref="MailMessage"/> to send.</returns>
-    public static MailMessage Compose(
-        string purpose,
-        string to,
-        string code,
-        TimeSpan lifetime,
-        InteractiveLocale locale,
-        string? fromDisplayName
+    private const int InitialBodyChars = 256;
+
+    private const string BodyCharset = "utf-8";
+
+    /// <inheritdoc />
+    public override ValueTask<MailMessage> ComposeAsync(
+        LocalAccountCodeMail model,
+        CancellationToken cancellationToken
     )
     {
-        var messages = locale.Messages;
-        var (subject, bodyFormat) = purpose switch
-        {
-            EmailCodePurposes.VerifyEmail => (
-                messages.VerificationMailSubject,
-                messages.VerificationMailBodyFormat
-            ),
-            EmailCodePurposes.ResetPassword => (
-                messages.PasswordResetMailSubject,
-                messages.PasswordResetMailBodyFormat
-            ),
-            EmailCodePurposes.SignIn => (messages.SignInMailSubject, messages.SignInMailBodyFormat),
-            _ => throw new ArgumentOutOfRangeException(
-                nameof(purpose),
-                purpose,
-                "The purpose is not one of the email code purposes."
-            ),
-        };
+        ArgumentNullException.ThrowIfNull(model);
 
-        var minutes = (int)Math.Ceiling(lifetime.TotalMinutes);
-        var culture = GetCulture(locale.LanguageTag);
-        var body = string.Format(culture, bodyFormat, code, minutes);
-
-        return new MailMessage
+        var to = new MailAddress(model.To);
+        var stream = BufferFactory.CreatePooledStream(isSensitive: true);
+        try
         {
-            To = to,
-            FromDisplayName = fromDisplayName,
-            Subject = subject,
-            TextBody = body,
-        };
+            WriteBody(stream, model);
+            stream.Position = 0;
+
+            var message = new MailMessage
+            {
+                To = [to],
+                FromDisplayName = model.FromDisplayName,
+                Subject = model.Subject,
+                TextBody = new StreamMailContent(stream, MediaTypeNames.Text.Plain, BodyCharset),
+            };
+            return ValueTask.FromResult(message);
+        }
+        catch
+        {
+            stream.Dispose();
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Writes the body of a mail as UTF-8 into a stream. The text is formatted into a sensitive buffer that doubles
+    /// until the body fits.
+    /// </summary>
+    /// <param name="destination">The stream that receives the bytes of the body.</param>
+    /// <param name="model">The model that holds the format, the code and the lifetime.</param>
+    private static void WriteBody(Stream destination, LocalAccountCodeMail model)
+    {
+        var culture = GetCulture(model.LanguageTag);
+        var format = CompositeFormat.Parse(model.BodyFormat);
+        var code = new EmailCodeText(model.Code);
+
+        var size = InitialBodyChars;
+        while (true)
+        {
+            using var charsOwner = BufferFactory.Rent<char>(
+                size,
+                isSensitive: true,
+                out Span<char> chars
+            );
+
+            if (chars.TryWrite(culture, format, out var written, code, model.LifetimeMinutes))
+            {
+                using var bytesOwner = SecureEncoding.UTF8.RentBytes(
+                    chars[..written],
+                    isSensitive: true,
+                    out Span<byte> bytes
+                );
+                destination.Write(bytes);
+                return;
+            }
+
+            size *= 2;
+        }
     }
 
     /// <summary>

@@ -58,9 +58,6 @@ internal sealed class DefaultLocalAccountEmailCodes(
 
     private static int CodeUpperBound { get; } = (int)Math.Pow(10, CodeDigits);
 
-    private static string CodeFormat { get; } =
-        string.Create(CultureInfo.InvariantCulture, $"D{CodeDigits}");
-
     private static TimeSpan SendsWindow { get; } = TimeSpan.FromHours(1);
 
     // The lifetime of a decoy's counter and flow. A decoy flow refuses every code, an expired flow refuses a code with
@@ -109,12 +106,7 @@ internal sealed class DefaultLocalAccountEmailCodes(
         var expiresWhen = now + lifetime;
 
         var flowId = CryptoService.GenerateUrlSafeKey();
-        var code = RandomNumberGenerator
-            .GetInt32(CodeUpperBound)
-            .ToString(CodeFormat, CultureInfo.InvariantCulture);
-
-        var codeHash = default(EmailCodeHash);
-        HashCode(flowId, code, codeHash);
+        var codeHash = CreateCode(flowId, out var code);
         var state = new EmailCodeState(
             account.LocalAccountId,
             account.Email,
@@ -138,15 +130,18 @@ internal sealed class DefaultLocalAccountEmailCodes(
 
         var displayName = settings.GetValue(InteractiveSettingKeys.BrandingDisplayName);
         var fromDisplayName = string.IsNullOrEmpty(displayName) ? null : displayName;
-        var message = LocalAccountMailComposer.Compose(
-            purpose,
+        var (subject, bodyFormat) = SelectMail(purpose, locale.Messages);
+        var lifetimeMinutes = (int)Math.Ceiling(lifetime.TotalMinutes);
+        var mail = new LocalAccountCodeMail(
             account.Email,
+            fromDisplayName,
+            subject,
+            bodyFormat,
+            locale.LanguageTag,
             code,
-            lifetime,
-            locale,
-            fromDisplayName
+            lifetimeMinutes
         );
-        await MailSender.SendAsync(message, cancellationToken);
+        await MailSender.SendAsync(mail, cancellationToken);
 
         return flowId;
     }
@@ -308,6 +303,69 @@ internal sealed class DefaultLocalAccountEmailCodes(
     /// <returns>The key of the flow.</returns>
     internal static string CreateFlowKey(string tenantId, string purpose, string flowId) =>
         ExpiringKeys.Create(FlowKeyPurpose, tenantId, purpose, flowId);
+
+    /// <summary>
+    /// Draws a code and hashes it together with the flow it belongs to. The six digits of the code live only in a stack
+    /// buffer that is cleared before this method returns.
+    /// </summary>
+    /// <param name="flowId">The identifier of the flow the code belongs to.</param>
+    /// <param name="code">The code that was drawn.</param>
+    /// <returns>The SHA-256 hash of the flow and the code.</returns>
+    private static EmailCodeHash CreateCode(string flowId, out int code)
+    {
+        code = RandomNumberGenerator.GetInt32(CodeUpperBound);
+
+        Span<char> digits = stackalloc char[CodeDigits];
+        try
+        {
+            var formatted = new EmailCodeText(code).TryFormat(
+                digits,
+                out var written,
+                format: default,
+                CultureInfo.InvariantCulture
+            );
+            if (!formatted || written != CodeDigits)
+            {
+                throw new InvalidOperationException("The code does not format as six digits.");
+            }
+
+            var codeHash = default(EmailCodeHash);
+            HashCode(flowId, digits, codeHash);
+            return codeHash;
+        }
+        finally
+        {
+            digits.Clear();
+        }
+    }
+
+    /// <summary>
+    /// Selects the subject and the body format of the mail of a code by its purpose.
+    /// </summary>
+    /// <param name="purpose">The purpose of the code, one of the <see cref="EmailCodePurposes"/>.</param>
+    /// <param name="messages">The messages of the locale that word the mail.</param>
+    /// <returns>The subject and the composite format of the body.</returns>
+    private static (string Subject, string BodyFormat) SelectMail(
+        string purpose,
+        InteractiveMessages messages
+    ) =>
+        purpose switch
+        {
+            EmailCodePurposes.VerifyEmail => (
+                messages.VerificationMailSubject,
+                messages.VerificationMailBodyFormat
+            ),
+            EmailCodePurposes.ResetPassword => (
+                messages.PasswordResetMailSubject,
+                messages.PasswordResetMailBodyFormat
+            ),
+            EmailCodePurposes.SignIn => (messages.SignInMailSubject, messages.SignInMailBodyFormat),
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(purpose),
+                purpose,
+                "The purpose is not one of the email code purposes."
+            ),
+        };
 
     /// <summary>
     /// Hashes a code together with the flow it belongs to, so the state of a flow holds the hash and never the code.

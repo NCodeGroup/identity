@@ -3,32 +3,40 @@
 
 using System.Collections.Concurrent;
 using System.Text.RegularExpressions;
+using NCode.Buffers;
 using NCode.Identity.Mail;
 using Xunit;
 
 namespace NCode.Identity.OpenId.Integration.Tests.Infrastructure;
 
 /// <summary>
-/// Replaces the host's <see cref="IMailTransport"/> in a test: it keeps every message the host delivers, so the test
-/// reads the code a flow mailed.
+/// Replaces the host's <see cref="IMailTransport"/> in a test: it keeps what every message the host delivers says, so
+/// the test reads the code a flow mailed.
 /// </summary>
 // See ADR-1533.
 public sealed partial class CapturingMailTransport : IMailTransport
 {
     private static TimeSpan PollInterval { get; } = TimeSpan.FromMilliseconds(50);
 
-    private ConcurrentQueue<MailMessage> Messages { get; } = new();
+    private ConcurrentQueue<CapturedMail> Messages { get; } = new();
 
     /// <summary>
     /// Gets a snapshot of the messages delivered so far, in the order they arrived.
     /// </summary>
-    public IReadOnlyList<MailMessage> Delivered => [.. Messages];
+    public IReadOnlyList<CapturedMail> Delivered => [.. Messages];
 
     /// <inheritdoc />
-    public ValueTask DeliverAsync(MailMessage message, CancellationToken cancellationToken)
+    public async ValueTask DeliverAsync(MailMessage message, CancellationToken cancellationToken)
     {
-        Messages.Enqueue(message);
-        return ValueTask.CompletedTask;
+        Assert.NotNull(message.TextBody);
+        var stream = await message.TextBody.ReadAsStreamAsync(cancellationToken);
+        using var reader = new StreamReader(stream, SecureEncoding.UTF8, leaveOpen: true);
+        var textBody = await reader.ReadToEndAsync(cancellationToken);
+
+        var addresses = message.To.Select(address => address.Address);
+        var to = string.Join(", ", addresses);
+        var captured = new CapturedMail(to, message.Subject, textBody);
+        Messages.Enqueue(captured);
     }
 
     /// <summary>
@@ -39,7 +47,7 @@ public sealed partial class CapturingMailTransport : IMailTransport
     /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
     /// <returns>The first message addressed to <paramref name="address"/>.</returns>
     /// <exception cref="TimeoutException">No message arrived within <paramref name="timeout"/>.</exception>
-    public async ValueTask<MailMessage> WaitForMessageToAsync(
+    public async ValueTask<CapturedMail> WaitForMessageToAsync(
         string address,
         TimeSpan timeout,
         CancellationToken cancellationToken
@@ -66,7 +74,7 @@ public sealed partial class CapturingMailTransport : IMailTransport
     /// </summary>
     /// <param name="message">The message a flow mailed.</param>
     /// <returns>The first run of six digits in the plain-text body.</returns>
-    public static string ReadCode(MailMessage message)
+    public static string ReadCode(CapturedMail message)
     {
         var match = CodePattern().Match(message.TextBody);
         Assert.True(match.Success, message.TextBody);
