@@ -13,6 +13,7 @@ using NCode.Identity.OpenId.Management.ControlPlane;
 using NCode.Identity.OpenId.Management.Endpoints;
 using NCode.Identity.OpenId.Management.Endpoints.Secrets;
 using NCode.Identity.OpenId.Management.OpenApi;
+using NCode.Identity.OpenId.Management.Principals;
 using NCode.Identity.OpenId.Management.ResourceServers;
 using NCode.Identity.OpenId.Management.Transfers;
 using NCode.Identity.OpenId.Tenants;
@@ -110,6 +111,20 @@ public static class DefaultRegistration
                 )
             );
 
+            // Describes the control-plane principals a query names, on the same terms.
+            serviceCollection.TryAddSingleton<LocalControlPlanePrincipalDirectory>();
+            serviceCollection.TryAddSingleton<IControlPlanePrincipalDirectory>(serviceProvider =>
+                ResolveControlPlaneAdapter<
+                    IControlPlanePrincipalDirectory,
+                    LocalControlPlanePrincipalDirectory
+                >(serviceProvider)
+            );
+            var principalDescriberDescriptor = ServiceDescriptor.Singleton<
+                IPrincipalDescriber,
+                ClientPrincipalDescriber
+            >();
+            serviceCollection.TryAddEnumerable(principalDescriberDescriptor);
+
             serviceCollection.TryAddSingleton<
                 IManagementTenantEnvironmentResolver,
                 DefaultManagementTenantEnvironmentResolver
@@ -168,6 +183,7 @@ public static class DefaultRegistration
             // Serves the control-plane authority to the other cells, beside the /api tree and only in the
             // control-plane cell.
             builder.AddEndpointProvider<ControlPlaneAuthorityEndpointProvider>();
+            builder.AddEndpointProvider<ControlPlanePrincipalsEndpointProvider>();
 
             return builder.NewBuilder<OpenIdManagementLibrary>();
         }
