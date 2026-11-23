@@ -40,6 +40,7 @@ export type {
   ResetLocalAccountPasswordRequest,
   ResourceServerResource,
   RoleAssignmentResource,
+  PrincipalSummaryResource,
   RoleHolderResource,
   RoleListResource,
   RotateSecretRequest,

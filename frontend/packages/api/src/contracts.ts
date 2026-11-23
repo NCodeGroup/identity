@@ -251,11 +251,20 @@ export type RoleAssignmentResource = {
   readonly tenantId: string;
 };
 
+/** Mirror of `PrincipalSummaryResource`: who a principal is, for a person to recognise it. */
+export type PrincipalSummaryResource = {
+  readonly principalId: string;
+  readonly principalType: string;
+  readonly displayName: string;
+  readonly userName: string | null;
+};
+
 /** Mirror of `RoleHolderResource`: a principal that holds one role at a node. */
 export type RoleHolderResource = {
   readonly assignmentId: string;
   readonly principalId: string;
   readonly roleName: string;
+  readonly principal: PrincipalSummaryResource | null;
 };
 
 /**
@@ -267,10 +276,13 @@ export type RoleListResource = {
   readonly canChange: boolean;
 };
 
-/** Mirror of `AddRoleHolderRequest`: the body that grants a principal the role of a role list at its node. */
-export type AddRoleHolderRequest = {
-  readonly principalId: string;
-};
+/**
+ * Mirror of `AddRoleHolderRequest`: the body that grants the role of a role list at its node to a principal, named by
+ * its identifier or by its username.
+ */
+export type AddRoleHolderRequest =
+  | { readonly principalId: string; readonly userName?: never }
+  | { readonly userName: string; readonly principalId?: never };
 
 /**
  * Mirror of `CallerResource`: where the signed-in caller holds authority (ADR-1465). `principalId` is

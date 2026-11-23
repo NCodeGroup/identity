@@ -3486,7 +3486,7 @@ describe('managementApi role assignment requests', () => {
     await store.dispatch(
       managementApi.endpoints.addRoleAssignment.initiate({
         list: tenantOwners,
-        principalId: 'p-1',
+        holder: { principalId: 'p-1' },
         cell: undefined,
       }),
     );
@@ -3494,6 +3494,24 @@ describe('managementApi role assignment requests', () => {
     expect(captured[0]?.url).toBe('https://api.test/api/tenants/acme/owners');
     expect(captured[0]?.method).toBe('POST');
     expect(JSON.parse(captured[0]?.body ?? '{}')).toEqual({ principalId: 'p-1' });
+  });
+
+  it('addRoleAssignment posts the holder a grant names', async () => {
+    const captured = mockFetch(
+      jsonResponse({ assignmentId: 'a-1', principalId: 'p-1', roleName: 'Owner' }, 201),
+    );
+    const store = createStore();
+
+    await store.dispatch(
+      managementApi.endpoints.addRoleAssignment.initiate({
+        list: tenantOwners,
+        holder: { userName: 'alice' },
+        cell: undefined,
+      }),
+    );
+
+    expect(captured[0]?.url).toBe('https://api.test/api/tenants/acme/owners');
+    expect(captured[0]?.body).toBe('{"userName":"alice"}');
   });
 
   it('removeRoleAssignment DELETEs the principal by encoded id', async () => {
@@ -3531,7 +3549,7 @@ describe('managementApi role assignment requests', () => {
     await store.dispatch(
       managementApi.endpoints.addRoleAssignment.initiate({
         list: tenantOwners,
-        principalId: 'p-1',
+        holder: { principalId: 'p-1' },
         cell: undefined,
       }),
     );
@@ -3560,7 +3578,7 @@ describe('managementApi role assignment requests', () => {
     await store.dispatch(
       managementApi.endpoints.removeRoleAssignment.initiate({
         list: tenantOwners,
-        principalId: 'p-1',
+        holder: { principalId: 'p-1' },
         cell: undefined,
       }),
     );

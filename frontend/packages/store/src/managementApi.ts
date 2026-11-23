@@ -1183,13 +1183,13 @@ export const managementApi = createApi({
     }),
     addRoleAssignment: build.mutation<
       RoleHolderResource,
-      WithCell<{ list: RoleList; principalId: string }>
+      WithCell<{ list: RoleList; holder: AddRoleHolderRequest }>
     >({
-      query: ({ list, principalId, cell }) =>
+      query: ({ list, holder, cell }) =>
         inCell(cell, {
           url: roleListApiPath(list),
           method: 'POST',
-          body: { principalId } satisfies AddRoleHolderRequest,
+          body: holder,
         }),
       // A role change can change the caller's own access, its authority over every role list and its authority over any
       // scope's limits.
