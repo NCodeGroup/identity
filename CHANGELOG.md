@@ -4353,15 +4353,16 @@ Until the first stable release, the [Unreleased] section describes the product a
   `NCode.Identity.OpenId.GlobalDirectory`, which fail closed with `503` and `Retry-After` on a transport failure, a
   `5xx`, or a call that outlasts `DirectoryClientOptions.RequestTimeout`, its response body included. Creating a tenant
   reserves its identifier and, when it has one, its issuer, in its team (a team's `max_tenants` is enforced there) or in
-  no team when it belongs to the platform's own team, which the directory holds no record of, saves the tenant and
-  places it, and on failure removes the saved tenant and then releases the reservation, which stays held while the
-  tenant's row remains; a tenant a cell creates on demand that a strategy serves at an address, a static strategy's own
-  tenant or the root tenant of a cell that is not the control plane when it has an issuer, is reserved and placed the
-  same way, and a tenant it creates on demand without an issuer is created in its cell alone; serving a tenant's
-  requests never calls the directory, because the cell's own tenant row is authoritative; the control-plane cell creates
-  its root tenant without reserving or placing it, which the directory holds from its own configuration, judges its
-  address and changes its keys without asking the directory, which accepts only the tokens that tenant issues, so a
-  control-plane cell serves from a release that carries its directory client from the first release
+  no team when it belongs to the platform's own team, which the directory holds no record of, places the tenant in its
+  cell and then saves it, so a tenant's row never exists unplaced: a placement that fails releases the reservation, and
+  a save that fails leaves the tenant placed in its cell, which creating the tenant again there completes; a tenant a
+  cell creates on demand that a strategy serves at an address, a static strategy's own tenant or the root tenant of a
+  cell that is not the control plane when it has an issuer, is reserved and placed the same way, and a tenant it creates
+  on demand without an issuer is created in its cell alone; serving a tenant's requests never calls the directory,
+  because the cell's own tenant row is authoritative; the control-plane cell creates its root tenant without reserving
+  or placing it, which the directory holds from its own configuration, judges its address and changes its keys without
+  asking the directory, which accepts only the tokens that tenant issues, so a control-plane cell serves from a release
+  that carries its directory client from the first release
   ([ADR-1411](docs/decisions/1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md),
   [#918](https://github.com/NCodeGroup/identity/issues/918)).
 
@@ -4395,10 +4396,10 @@ Until the first stable release, the [Unreleased] section describes the product a
   tenant, which `DirectoryServer:ControlPlaneTenantId` names, placed in that cell under `DirectoryServer:Issuer`: before
   every reservation and issuer change it ensures that tenant's record, so no other cell reserves its identifier or its
   issuer. A write that runs again after its commit's acknowledgement is lost recognizes its own committed result: a
-  cell's tenant reservation for the same issuer and team that is not yet placed, a team reservation that is not yet
-  published, and a move of a tenant already placed in the target cell each succeed again. A placement's region is the
-  region its cell registered, and the retired-issuer lookup is `GET /directory/v1/retired-issuers?issuer=`, beside the
-  tenant routes, so `GET /directory/v1/tenants/{tenantId}` reads the placement of a tenant of any valid identifier,
+  cell's tenant reservation for the same issuer and team, placed or not, a team reservation that is not yet published,
+  and a move of a tenant already placed in the target cell each succeed again. A placement's region is the region its
+  cell registered, and the retired-issuer lookup is `GET /directory/v1/retired-issuers?issuer=`, beside the tenant
+  routes, so `GET /directory/v1/tenants/{tenantId}` reads the placement of a tenant of any valid identifier,
   `retired-issuers` included. A tenant without an issuer is reserved, placed and retired by its identifier alone. The
   directory refuses a tenant or team identifier that the cells' identifier rule refuses (1 to 63 lowercase letters,
   digits or hyphens that start and end with a letter or digit, a host label); a tenant issuer that is not an absolute

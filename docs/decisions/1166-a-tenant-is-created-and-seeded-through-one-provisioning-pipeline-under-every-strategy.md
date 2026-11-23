@@ -52,12 +52,13 @@ two operations:
    `Root:TeamDisplayName`, so the tenant's team reference holds. The tenant is created at the address its strategy
    derives and is judged like any other write
    ([ADR-1165](1165-a-tenants-stored-issuer-is-its-single-origin-and-its-mtls-alias-a-routed-second-host.md)). It
-   tolerates a concurrent creator by re-reading after a failed insert. Unless the tenant is the control-plane cell's root
-   tenant, it reserves the tenant's identifier and issuer through `ITenantDirectory`, inserts the tenant and places it
-   in the cell, as the management API creates a tenant; a tenant of the platform's own team is reserved in no team, the
-   directory holding no record of that team; a failed placement removes the row and then releases the reservation, which
-   stays held while the row remains, each step on its own bounded token, and a concurrent creator's row in the cell is
-   returned. A tenant without an issuer has no address on the platform, so it is created in its cell alone.
+   tolerates a concurrent creator by re-reading after a failed insert. Unless the tenant is the control-plane cell's
+   root tenant, it reserves the tenant's identifier and issuer through `ITenantDirectory`, places the tenant in the cell
+   and then inserts it, as the management API creates a tenant; a tenant of the platform's own team is reserved in no
+   team, the directory holding no record of that team; a placement that does not take effect releases the reservation on
+   its own bounded token, an insert that fails leaves the tenant placed in the cell, which the next creation of the
+   tenant completes, and a concurrent creator's row in the cell is returned. A tenant without an issuer has no address
+   on the platform, so it is created in its cell alone.
 2. `SeedAsync(tenantId)` ensures and seeds the root tenant first, without reading its row back, then seeds the tenant
    and returns the committed row.
 
