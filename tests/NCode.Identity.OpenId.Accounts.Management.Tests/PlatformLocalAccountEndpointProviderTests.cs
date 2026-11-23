@@ -116,7 +116,7 @@ public sealed class PlatformLocalAccountEndpointProviderTests : IDisposable
 
     [Theory]
     [InlineData("POST", "/platform/local-accounts", new[] { 400, 401, 403, 404, 409, 412, 415 })]
-    [InlineData("GET", "/platform/local-accounts", new[] { 400, 401, 403 })]
+    [InlineData("GET", "/platform/local-accounts", new[] { 400, 401, 403, 404 })]
     public async Task Map_OnTheControlPlane_DeclaresAndDescribesEveryProblemARouteAnswers(
         string httpMethod,
         string routePattern,

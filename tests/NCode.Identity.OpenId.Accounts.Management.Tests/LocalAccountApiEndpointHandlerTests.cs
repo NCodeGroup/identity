@@ -1686,7 +1686,7 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
         "/connections/{connectionId}/local-accounts",
         new[] { 400, 401, 403, 404, 409, 412, 415 }
     )]
-    [InlineData("GET", "/connections/{connectionId}/local-accounts", new[] { 400, 401, 403 })]
+    [InlineData("GET", "/connections/{connectionId}/local-accounts", new[] { 400, 401, 403, 404 })]
     [InlineData(
         "GET",
         "/connections/{connectionId}/local-accounts/{localAccountId}",

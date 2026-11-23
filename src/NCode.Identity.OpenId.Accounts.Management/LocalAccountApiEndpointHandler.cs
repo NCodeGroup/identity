@@ -128,7 +128,8 @@ internal class LocalAccountApiEndpointHandler(
             .Produces<CollectionResource<LocalAccountResource>>()
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status401Unauthorized)
-            .ProducesProblem(StatusCodes.Status403Forbidden);
+            .ProducesProblem(StatusCodes.Status403Forbidden)
+            .ProducesProblem(StatusCodes.Status404NotFound);
         accounts
             .MapGet("/{localAccountId}", GetLocalAccountAsync)
             .Produces<LocalAccountResource>()
@@ -419,7 +420,7 @@ internal class LocalAccountApiEndpointHandler(
     /// connection, one page at a time.
     /// </summary>
     /// <response code="200">A page of local accounts.</response>
-    /// <response code="404">The default connection does not exist or is not a local connection.</response>
+    /// <response code="404">The control-plane tenant's default connection does not exist or is not a local connection.</response>
     internal virtual async ValueTask<IResult> ListPlatformLocalAccountsAsync(
         HttpContext httpContext,
         [FromQuery] string? cursor,
