@@ -3,8 +3,8 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { RoleAssignmentTable, type RoleAssignmentRow } from './RoleAssignmentTable.js';
 
 const assignments: RoleAssignmentRow[] = [
-  { assignmentId: 'a-1', principalId: 'alice' },
-  { assignmentId: 'a-2', principalId: 'bob' },
+  { assignmentId: 'a-1', principalId: 'alice', displayName: null, principalType: null },
+  { assignmentId: 'a-2', principalId: 'bob', displayName: null, principalType: null },
 ];
 
 describe('RoleAssignmentTable', () => {
@@ -34,5 +34,36 @@ describe('RoleAssignmentTable', () => {
     expect(screen.getByRole('columnheader', { name: 'Actions' })).toBeInTheDocument();
     fireEvent.click(screen.getByTestId('owners-revoke-bob'));
     expect(onRevoke).toHaveBeenCalledExactlyOnceWith('bob');
+  });
+
+  it('names each holder', () => {
+    render(
+      <RoleAssignmentTable
+        label="Owners"
+        testIdPrefix="owners"
+        assignments={[
+          {
+            assignmentId: 'a-1',
+            principalId: 'u-1',
+            displayName: 'Alice',
+            principalType: 'local_account',
+          },
+          {
+            assignmentId: 'a-2',
+            principalId: 'c-1',
+            displayName: 'Build bot',
+            principalType: 'client',
+          },
+          { assignmentId: 'a-3', principalId: 'ghost', displayName: null, principalType: null },
+        ]}
+        onRevoke={vi.fn()}
+      />,
+    );
+    expect(screen.getByTestId('owners-name-u-1')).toHaveTextContent('Alice');
+    expect(screen.getByTestId('owners-row-u-1')).toHaveTextContent('User · u-1');
+    expect(screen.getByTestId('owners-row-c-1')).toHaveTextContent('Machine client · c-1');
+    expect(screen.getByTestId('owners-name-ghost')).toHaveTextContent('ghost');
+    expect(screen.getByTestId('owners-row-ghost')).toHaveTextContent(/^ghost$/);
+    expect(screen.getByRole('button', { name: 'Revoke Alice' })).toBeInTheDocument();
   });
 });
