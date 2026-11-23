@@ -1393,6 +1393,7 @@ MethodImplOptions.AggressiveOptimization)]`, manual unrolling of tiny fixed-coun
     | `30000`–`30999` | `NCode.Identity.OpenId.Host.Database`               |
     | `31000`–`31999` | `NCode.Identity.OpenId.GlobalDirectory`             |
     | `32000`–`32999` | `NCode.Identity.Mail`                               |
+    | `33000`–`33999` | `NCode.Identity.Mail.Smtp`                          |
 
 ### Metrics
 

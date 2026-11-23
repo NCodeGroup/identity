@@ -57,7 +57,9 @@ Forces:
    `failed`) on the meter `NCode.Identity.Mail`
    ([ADR-1197](1197-telemetry-has-one-owner-per-signal-bounded-attributes-and-spans-that-mirror-their-histograms.md)).
    A failed delivery logs its attempt and the exception, never the recipient or the body. The SMTP adapter throws the
-   server's numeric status and never its reply text, which can echo the recipient.
+   server's numeric status and never its reply text, which can echo the recipient. It treats a message as delivered
+   once the server accepts it, so a connection that fails to close afterwards is logged by its exception type and the
+   delivery is neither failed nor repeated.
 6. **The hosts.** The host chart's `mail.smtp` values set the section, with its credentials from a Secret, and refuse
    `None`. The local stack sends to Mailpit.
 

@@ -4,9 +4,11 @@
 using MailKit;
 using MailKit.Net.Smtp;
 using MailKit.Security;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MimeKit;
 using NCode.Identity.Mail.Smtp.Facades;
+using NCode.Identity.Mail.Smtp.Logging;
 using NCode.Identity.Mail.Smtp.Options;
 
 namespace NCode.Identity.Mail.Smtp;
@@ -20,10 +22,13 @@ namespace NCode.Identity.Mail.Smtp;
 // See ADR-1532.
 internal sealed class SmtpMailTransport(
     ISmtpClientFactory clientFactory,
-    IOptions<SmtpMailTransportOptions> optionsAccessor
+    IOptions<SmtpMailTransportOptions> optionsAccessor,
+    ILogger<SmtpMailTransport> logger
 ) : IMailTransport
 {
     private ISmtpClientFactory ClientFactory { get; } = clientFactory;
+
+    private ILogger<SmtpMailTransport> Logger { get; } = logger;
 
     private SmtpMailTransportOptions Options => optionsAccessor.Value;
 
@@ -93,12 +98,23 @@ internal sealed class SmtpMailTransport(
             }
 
             await client.SendAsync(mimeMessage, cancellationToken);
-            await client.DisconnectAsync(true, cancellationToken);
         }
         catch (SmtpCommandException exception)
         {
             // The reply text of the server can echo the recipient's address, so only its status leaves this method.
             throw new SmtpDeliveryException(exception.StatusCode);
+        }
+
+        try
+        {
+            await client.DisconnectAsync(true, cancellationToken);
+        }
+        catch (Exception exception)
+        {
+            // The server accepted the message, so a failed close neither fails nor repeats the delivery, and only the
+            // exception's type is logged because a reply can echo the recipient (See ADR-1532).
+            var exceptionType = exception.GetType().Name;
+            Logger.SmtpQuitFailed(exceptionType);
         }
     }
 }

@@ -34,6 +34,7 @@ public class DefaultRegistrationTests : BaseTests
     private ServiceCollection AddSmtpMailTransport(IConfiguration configuration)
     {
         var serviceCollection = new ServiceCollection();
+        serviceCollection.AddLogging();
         serviceCollection.AddSingleton(TransportRegisteredBefore);
         serviceCollection.AddSingleton(HostEnvironment);
         serviceCollection.NewBuilder<MailLibrary>().AddSmtpMailTransport(configuration);

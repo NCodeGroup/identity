@@ -4,10 +4,12 @@
 using MailKit;
 using MailKit.Net.Smtp;
 using MailKit.Security;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MimeKit;
 using Moq;
 using NCode.Identity.Mail.Smtp.Facades;
+using NCode.Identity.Mail.Smtp.Logging;
 using NCode.Identity.Mail.Smtp.Options;
 using Xunit;
 
@@ -18,6 +20,8 @@ public class SmtpMailTransportTests : BaseTests
     private Mock<ISmtpClientFactory> ClientFactoryMock { get; }
 
     private Mock<ISmtpClient> ClientMock { get; }
+
+    private Mock<ILogger<SmtpMailTransport>> LoggerMock { get; }
 
     private SmtpMailTransportOptions TransportOptions { get; } =
         new() { Host = "smtp.example.com", From = "noreply@example.com" };
@@ -36,9 +40,14 @@ public class SmtpMailTransportTests : BaseTests
     {
         ClientFactoryMock = CreateStrictMock<ISmtpClientFactory>();
         ClientMock = CreateStrictMock<ISmtpClient>();
+        LoggerMock = CreateStrictMock<ILogger<SmtpMailTransport>>();
 
         var optionsAccessor = new OptionsWrapper<SmtpMailTransportOptions>(TransportOptions);
-        Transport = new SmtpMailTransport(ClientFactoryMock.Object, optionsAccessor);
+        Transport = new SmtpMailTransport(
+            ClientFactoryMock.Object,
+            optionsAccessor,
+            LoggerMock.Object
+        );
     }
 
     private void SetupConnection(SecureSocketOptions expectedSocketOptions, int port = 587)
@@ -267,6 +276,50 @@ public class SmtpMailTransportTests : BaseTests
         );
 
         Assert.Same(failure, actual);
+    }
+
+    [Fact]
+    public async Task DeliverAsync_WhenTheCloseFailsAfterTheServerAccepted_SucceedsAndLogsTheExceptionType()
+    {
+        SetupConnection(SecureSocketOptions.StartTls);
+        ClientMock
+            .Setup(x => x.SendAsync(It.IsAny<ISendRequest>(), CancellationToken.None))
+            .ReturnsAsync(new SendResult("250 queued", [], []))
+            .Verifiable();
+        const string reply = "<user@example.org>: connection closed by the server";
+        var closeFailure = new SmtpCommandException(
+            SmtpErrorCode.UnexpectedStatusCode,
+            SmtpStatusCode.ServiceNotAvailable,
+            new MailboxAddress(string.Empty, "user@example.org"),
+            reply
+        );
+        ClientMock
+            .Setup(x => x.DisconnectAsync(true, CancellationToken.None))
+            .ThrowsAsync(closeFailure)
+            .Verifiable();
+        string? logged = null;
+        LoggerMock.Setup(x => x.IsEnabled(LogLevel.Warning)).Returns(true).Verifiable();
+#pragma warning disable CA1873
+        LoggerMock
+            .Setup(x =>
+                x.Log(
+                    LogLevel.Warning,
+                    It.Is<EventId>(eventId => eventId.Id == EventIds.SmtpQuitFailed),
+                    It.IsAny<It.IsAnyType>(),
+                    null,
+                    It.IsAny<Func<It.IsAnyType, Exception?, string>>()
+                )
+            )
+#pragma warning restore CA1873
+            .Callback(new InvocationAction(invocation => logged = $"{invocation.Arguments[2]}"))
+            .Verifiable(Times.Once);
+
+        await Transport.DeliverAsync(Message, CancellationToken.None);
+
+        Assert.NotNull(logged);
+        Assert.Contains(nameof(SmtpCommandException), logged);
+        Assert.DoesNotContain("user@example.org", logged);
+        Assert.DoesNotContain("connection closed by the server", logged);
     }
 
     #endregion
