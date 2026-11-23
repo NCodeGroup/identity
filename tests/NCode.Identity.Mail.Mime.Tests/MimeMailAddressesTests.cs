@@ -24,5 +24,15 @@ public class MimeMailAddressesTests : BaseTests
         Assert.False(MimeMailAddresses.IsMailAddress(value));
     }
 
+    [Theory]
+    [InlineData("Jane <noreply@example.com>")]
+    [InlineData("<noreply@example.com>")]
+    [InlineData("noreply@example.com (Jane)")]
+    [InlineData(" noreply@example.com")]
+    public void IsMailAddress_WithADisplayNameOrDecoration_ReturnsFalse(string value)
+    {
+        Assert.False(MimeMailAddresses.IsMailAddress(value));
+    }
+
     #endregion
 }
