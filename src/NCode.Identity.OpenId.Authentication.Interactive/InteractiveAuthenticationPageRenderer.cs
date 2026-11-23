@@ -65,6 +65,16 @@ internal static class InteractiveAuthenticationPageRenderer
     /// </summary>
     public const string ForgotPasswordFormAction = "password/forgot";
 
+    /// <summary>
+    /// The path of the reset-password page, relative to the surface the page's base names.
+    /// </summary>
+    public const string ResetPasswordFormAction = "password/reset";
+
+    /// <summary>
+    /// The path of the sign-in code page, relative to the surface the page's base names.
+    /// </summary>
+    public const string SignInCodeFormAction = "login/code";
+
     private const string ConsentPromptPlaceholder = "{0}";
 
     private const string StandaloneHeadStart = "<!doctype html><html lang=\"";
@@ -116,18 +126,8 @@ internal static class InteractiveAuthenticationPageRenderer
         Write(writer, "<main class=\"auth-card\"><form method=\"post\" action=\"login\"><h1>");
         WriteEncoded(writer, messages.SignInTitle);
         Write(writer, "</h1>");
-        if (!string.IsNullOrEmpty(errorMessage))
-        {
-            Write(writer, "<p id=\"error\" role=\"alert\" class=\"auth-error\">");
-            WriteEncoded(writer, errorMessage);
-            Write(writer, "</p>");
-        }
-        if (!string.IsNullOrEmpty(statusMessage))
-        {
-            Write(writer, "<p id=\"status\" role=\"status\" class=\"auth-status\">");
-            WriteEncoded(writer, statusMessage);
-            Write(writer, "</p>");
-        }
+        WriteError(writer, errorMessage);
+        WriteStatus(writer, statusMessage);
         WriteHiddenFields(writer, returnUrl, antiforgeryFieldName, antiforgeryToken, locale);
         Write(writer, "<p><label for=\"username\">");
         WriteEncoded(writer, messages.UsernameLabel);
@@ -232,7 +232,9 @@ internal static class InteractiveAuthenticationPageRenderer
         WriteHead(writer, frame, messages.ResetPasswordTitle);
         Write(
             writer,
-            "<main class=\"auth-card\"><form method=\"post\" action=\"password/reset\"><h1>"
+            "<main class=\"auth-card\"><form method=\"post\" action=\""
+                + ResetPasswordFormAction
+                + "\"><h1>"
         );
         WriteEncoded(writer, messages.ResetPasswordTitle);
         Write(writer, "</h1>");
@@ -298,16 +300,16 @@ internal static class InteractiveAuthenticationPageRenderer
         var locale = frame.Locale;
         var messages = locale.Messages;
         WriteHead(writer, frame, messages.SignInCodeTitle);
-        Write(writer, "<main class=\"auth-card\"><form method=\"post\" action=\"login/code\"><h1>");
+        Write(
+            writer,
+            "<main class=\"auth-card\"><form method=\"post\" action=\""
+                + SignInCodeFormAction
+                + "\"><h1>"
+        );
         WriteEncoded(writer, messages.SignInCodeTitle);
         Write(writer, "</h1>");
         WriteError(writer, errorMessage);
-        if (!string.IsNullOrEmpty(statusMessage))
-        {
-            Write(writer, "<p id=\"status\" role=\"status\" class=\"auth-status\">");
-            WriteEncoded(writer, statusMessage);
-            Write(writer, "</p>");
-        }
+        WriteStatus(writer, statusMessage);
         Write(writer, "<input type=\"hidden\" name=\"");
         WriteEncoded(writer, antiforgeryFieldName);
         Write(writer, "\" value=\"");
@@ -518,6 +520,23 @@ internal static class InteractiveAuthenticationPageRenderer
 
         Write(writer, "<p id=\"error\" role=\"alert\" class=\"auth-error\">");
         WriteEncoded(writer, errorMessage);
+        Write(writer, "</p>");
+    }
+
+    /// <summary>
+    /// Writes the paragraph that shows the status message, or nothing when there is no message.
+    /// </summary>
+    /// <param name="writer">The writer of the page.</param>
+    /// <param name="statusMessage">The message to show, or <see langword="null"/> when there is no status.</param>
+    private static void WriteStatus(IBufferWriter<char> writer, string? statusMessage)
+    {
+        if (string.IsNullOrEmpty(statusMessage))
+        {
+            return;
+        }
+
+        Write(writer, "<p id=\"status\" role=\"status\" class=\"auth-status\">");
+        WriteEncoded(writer, statusMessage);
         Write(writer, "</p>");
     }
 
