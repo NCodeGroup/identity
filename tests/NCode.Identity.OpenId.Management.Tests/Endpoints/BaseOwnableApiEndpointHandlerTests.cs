@@ -422,7 +422,7 @@ public class BaseOwnableApiEndpointHandlerTests : IDisposable
     }
 
     [Fact]
-    public async Task ProcessListRoleAssignmentsAsync_NamesEachHolderAndLeavesAnUnknownOneNull()
+    public async Task ProcessListRoleAssignmentsAsync_WhenSomeHoldersAreKnown_NamesThemAndLeavesTheUnknownOneNull()
     {
         var authz = Authz(AuthorizationResult.Success());
         var (factory, manager) = StoreManager();
@@ -458,7 +458,7 @@ public class BaseOwnableApiEndpointHandlerTests : IDisposable
             authz.Object,
             factory.Object,
             ownership.Object,
-            Mock.Of<IManagementAuditRecorder>(),
+            MockRepository.Create<IManagementAuditRecorder>().Object,
             directory.Object
         );
         var roleList = CreateRoleList(node, BuiltInRoles.Owner, Operations.Update, Exists);
@@ -478,7 +478,7 @@ public class BaseOwnableApiEndpointHandlerTests : IDisposable
     }
 
     [Fact]
-    public async Task ProcessListRoleAssignmentsAsync_NamesNobodyWithoutAskingTheDirectoryWhenNoOneHoldsTheRole()
+    public async Task ProcessListRoleAssignmentsAsync_WhenNoOneHoldsTheRole_NamesNobodyWithoutAskingTheDirectory()
     {
         var authz = Authz(AuthorizationResult.Success());
         var (factory, manager) = StoreManager();
@@ -503,7 +503,7 @@ public class BaseOwnableApiEndpointHandlerTests : IDisposable
             authz.Object,
             factory.Object,
             ownership.Object,
-            Mock.Of<IManagementAuditRecorder>(),
+            MockRepository.Create<IManagementAuditRecorder>().Object,
             directory.Object
         );
         var roleList = CreateRoleList(node, BuiltInRoles.Owner, Operations.Update, Exists);
@@ -626,7 +626,7 @@ public class BaseOwnableApiEndpointHandlerTests : IDisposable
     }
 
     [Fact]
-    public async Task ProcessAddRoleAssignmentAsync_ByUserName_ResolvesThePrincipalAndGrants()
+    public async Task ProcessAddRoleAssignmentAsync_WhenAUserNameIsNamed_ResolvesThePrincipalAndGrants()
     {
         var authz = Authz(AuthorizationResult.Success());
         var (factory, manager) = StoreManager();
@@ -696,7 +696,7 @@ public class BaseOwnableApiEndpointHandlerTests : IDisposable
     }
 
     [Fact]
-    public async Task ProcessAddRoleAssignmentAsync_ByUserName_WhenNoPrincipalHasItReturnsBadRequestWithoutGranting()
+    public async Task ProcessAddRoleAssignmentAsync_WhenNoPrincipalHasTheUserName_ReturnsBadRequestWithoutGranting()
     {
         var authz = Authz(AuthorizationResult.Success());
         var (factory, _) = StoreManager();
@@ -715,7 +715,7 @@ public class BaseOwnableApiEndpointHandlerTests : IDisposable
             authz.Object,
             factory.Object,
             ownership.Object,
-            Mock.Of<IManagementAuditRecorder>(),
+            MockRepository.Create<IManagementAuditRecorder>().Object,
             directory.Object
         );
         var roleList = CreateRoleList(node, RoleName, Operations.Create, Exists);
@@ -728,11 +728,15 @@ public class BaseOwnableApiEndpointHandlerTests : IDisposable
 
         var problem = Assert.IsType<ProblemHttpResult>(result);
         Assert.Equal(StatusCodes.Status400BadRequest, problem.StatusCode);
+        Assert.Equal(
+            "No principal of the control plane has the user name.",
+            problem.ProblemDetails.Detail
+        );
         Assert.DoesNotContain("alice", problem.ProblemDetails.Detail);
     }
 
     [Fact]
-    public async Task ProcessAddRoleAssignmentAsync_UnknownPrincipal_ReturnsBadRequestWithoutGrantingOrAuditing()
+    public async Task ProcessAddRoleAssignmentAsync_WhenThePrincipalIsUnknown_ReturnsBadRequestWithoutGrantingOrAuditing()
     {
         var authz = Authz(AuthorizationResult.Success());
         var (factory, _) = StoreManager();
@@ -777,13 +781,8 @@ public class BaseOwnableApiEndpointHandlerTests : IDisposable
         Assert.DoesNotContain("ghost-principal", problem.ProblemDetails.Detail);
     }
 
-    [Theory]
-    [InlineData("p2", "alice")]
-    [InlineData(null, null)]
-    public async Task ProcessAddRoleAssignmentAsync_ByUserName_WhenBothOrNeitherAreNamedReturnsBadRequestWithoutOpeningTheStore(
-        string? principalId,
-        string? userName
-    )
+    [Fact]
+    public async Task ProcessAddRoleAssignmentAsync_WhenBothAreNamed_ReturnsBadRequestWithoutOpeningTheStore()
     {
         var authz = Authz(AuthorizationResult.Success());
         // A request that names both or neither never opens the store.
@@ -796,12 +795,42 @@ public class BaseOwnableApiEndpointHandlerTests : IDisposable
         var result = await handler.ProcessAddRoleAssignmentAsync(
             CreateHttpContext(),
             roleList,
-            new AddRoleHolderRequest { PrincipalId = principalId, UserName = userName },
+            new AddRoleHolderRequest { PrincipalId = "p2", UserName = "alice" },
             CancellationToken.None
         );
 
         var problem = Assert.IsType<ProblemHttpResult>(result);
         Assert.Equal(StatusCodes.Status400BadRequest, problem.StatusCode);
+        Assert.Equal(
+            "Name exactly one of 'principalId' and 'userName'.",
+            problem.ProblemDetails.Detail
+        );
+    }
+
+    [Fact]
+    public async Task ProcessAddRoleAssignmentAsync_WhenNeitherIsNamed_ReturnsBadRequestWithoutOpeningTheStore()
+    {
+        var authz = Authz(AuthorizationResult.Success());
+        // A request that names both or neither never opens the store.
+        var factory = MockRepository.Create<IStoreManagerFactory>();
+        var ownership = MockRepository.Create<IResourceOwnershipService>();
+        var node = ResourceNode.For(TenantId, ResourceNodeTypes.Client, ResourceId);
+
+        var handler = new TestHandler(authz.Object, factory.Object, ownership.Object);
+        var roleList = CreateRoleList(node, RoleName, Operations.Create, Exists);
+        var result = await handler.ProcessAddRoleAssignmentAsync(
+            CreateHttpContext(),
+            roleList,
+            new AddRoleHolderRequest { PrincipalId = null, UserName = null },
+            CancellationToken.None
+        );
+
+        var problem = Assert.IsType<ProblemHttpResult>(result);
+        Assert.Equal(StatusCodes.Status400BadRequest, problem.StatusCode);
+        Assert.Equal(
+            "Name exactly one of 'principalId' and 'userName'.",
+            problem.ProblemDetails.Detail
+        );
     }
 
     [Fact]

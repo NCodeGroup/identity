@@ -218,18 +218,25 @@ internal abstract class BaseOwnableApiEndpointHandler : BaseApiEndpointHandler
             cancellationToken
         );
         var canChange = await canChangeAsync(storeManager, cancellationToken);
-        var principalIds = assignments
-            .Select(assignment => assignment.PrincipalId)
-            .Distinct(StringComparer.Ordinal)
-            .ToList();
-        var summaries = await DescribeAsync(principalIds, cancellationToken);
-        var items = assignments
-            .Select(assignment =>
+        var seenPrincipalIds = new HashSet<string>(StringComparer.Ordinal);
+        var principalIds = new List<string>(assignments.Count);
+        foreach (var assignment in assignments)
+        {
+            if (seenPrincipalIds.Add(assignment.PrincipalId))
             {
-                var summary = summaries.GetValueOrDefault(assignment.PrincipalId);
-                return ToRoleHolderResource(assignment, summary);
-            })
-            .ToList();
+                principalIds.Add(assignment.PrincipalId);
+            }
+        }
+
+        var summaries = await DescribeAsync(principalIds, cancellationToken);
+        var items = new List<RoleHolderResource>(assignments.Count);
+        foreach (var assignment in assignments)
+        {
+            var summary = summaries.GetValueOrDefault(assignment.PrincipalId);
+            var item = ToRoleHolderResource(assignment, summary);
+            items.Add(item);
+        }
+
         var roleListResource = new RoleListResource { Items = items, CanChange = canChange };
         return TypedResults.Json(roleListResource);
     }
@@ -310,9 +317,16 @@ internal abstract class BaseOwnableApiEndpointHandler : BaseApiEndpointHandler
                 userNameQuery,
                 cancellationToken
             );
-            var userNameMatch = matches.FirstOrDefault(match =>
-                string.Equals(match.UserName, requestedUserName, StringComparison.Ordinal)
-            );
+            PrincipalSummaryResource? userNameMatch = null;
+            foreach (var match in matches)
+            {
+                if (string.Equals(match.UserName, requestedUserName, StringComparison.Ordinal))
+                {
+                    userNameMatch = match;
+                    break;
+                }
+            }
+
             if (userNameMatch is null)
             {
                 return TypedResults.Problem(
