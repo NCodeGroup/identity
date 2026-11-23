@@ -22,6 +22,10 @@ the places where the caller holds a role. The forces:
 - A caller holds roles at many nodes, and the token names no team or tenant. The console needs a way to ask which
   teams and tenants the caller reaches.
 - Computing any of this in the browser would duplicate the server's rules and drift from them.
+- A role list names its principals by opaque identifier. The principals that hold management roles are control-plane
+  principals, whose local accounts and machine clients live in the control-plane cell, while a tenant's list may be
+  served by another cell. An administrator grants and revokes by name, so every holder needs a name that the serving
+  cell cannot read from its own tables.
 
 ## Decision
 
@@ -33,10 +37,11 @@ audited; and a caller reads its own assignments, teams and tenants from `GET /ap
 1. **The role lists are `…/owners` on a team, tenant, client and resource server and `…/admins` on a team and tenant.**
    `GET` reads the list, `POST` grants and `DELETE …/{principalId}` revokes.
 2. **The contracts name no role and no owner.** `GET` answers `RoleListResource { items, canChange }`. An item, and the
-   answer to a grant, is `RoleHolderResource { assignmentId, principalId, roleName }`. A grant's body is
-   `AddRoleHolderRequest { principalId }`, whose `principalId` is the one on the resource of the local account or client
-   to grant (`LocalAccountResource`, `ClientResource`). `RoleAssignmentResource`, which names its node, serves the
-   assignments that are read across nodes.
+   answer to a grant, is `RoleHolderResource { assignmentId, principalId, roleName, principal }`, where `principal` is a
+   `PrincipalSummaryResource { principalId, principalType, displayName, userName }` or null. A grant's body is
+   `AddRoleHolderRequest`, which names exactly one of `principalId`, the one on the resource of the local account or
+   client to grant (`LocalAccountResource`, `ClientResource`), and `userName`. `RoleAssignmentResource`, which names its
+   node, serves the assignments that are read across nodes.
 3. **`canChange` says whether the caller's grant or revoke of the role at the node passes every refusal that does not
    depend on the principal named.** Those refusals are `Update` at the node for owners, `Create` for administrators,
    and, for a client's owners, a client the host does not manage and custody of a machine client
@@ -51,7 +56,7 @@ audited; and a caller reads its own assignments, teams and tenants from `GET /ap
 
 5. **One flow grants every role.** A `RoleList` drives it: the node, the role, the operation that authorizes, the list
    path and the check that the resource exists. The flow authorizes, then answers:
-   - `400` when no principal is named;
+   - `400` when the request does not name exactly one principal, or names a `userName` that no principal has;
    - `404` for a missing resource;
    - `409` when the ownership service refuses, saving and recording nothing;
    - `200` with the existing assignment when the principal already holds the role, recording nothing;
@@ -64,35 +69,59 @@ audited; and a caller reads its own assignments, teams and tenants from `GET /ap
 8. **`IResourceOwnershipService` reports what it changed.** It returns `RoleAssignmentGrant` (`IsAdded`, `IsRefused`),
    the removed assignments and `OwnerRemoval`, so the flow records exactly what happened.
 
+### The holders' names
+
+9. **Names are read through the control plane.** The port `IControlPlanePrincipalDirectory` answers a
+   `ControlPlanePrincipalQuery` of principal ids and user names with `PrincipalSummaryResource` items. Its local
+   adapter, in the control-plane cell, describes the principals from the control-plane tenant's own tables. Its remote
+   adapter, in every other cell, posts the query to the control-plane cell and sends a query of more than 100 names in
+   chunks of 100. A list handler never reads names from the serving cell's own tables.
+10. **`POST /control-plane/v1/principals` answers the cells.** It sits behind the cell gate that guards
+    `POST /control-plane/v1/authority` and answers `400` for a query of more than 100 names
+    (`ControlPlanePrincipalQuery.MaxNames`, principal ids plus user names).
+11. **`IPrincipalDescriber` is a strategy collection** (see
+    [ADR-1001](1001-behavior-is-a-service-a-strategy-collection-or-a-mediator-seam-chosen-by-one-ladder.md)): every
+    registered describer describes the principals it knows, and the local adapter merges their answers. The
+    `local_account` describer gives an account's display name and username, and the `client` describer a client's
+    identifier as its display name. A package that registers another describer adds a principal type, so
+    `PrincipalTypes` holds an open vocabulary. A principal that no describer knows has `principal: null` on its item.
+12. **A grant by name fails closed.** A `userName` resolves through the directory after the flow authorizes and the
+    resource exists, and a name that no principal has answers `400` without echoing it, so only a caller with grant
+    authority at a node can probe a username. A control plane that fails or is unreachable is a
+    `DirectoryUnavailableException`, which the management endpoints answer `503`, for a list and for a grant, and a name
+    is never guessed.
+
 ### Audit
 
-9. **Every grant and revoke records a `RoleAssignmentChangedAuditEvent`** (see
-   [ADR-1283](1283-audit-records-are-cloudtrail-shaped-json-with-an-indexable-envelope.md)). Its resource type is
-   `role_assignment` (`ManagementResourceTypes.RoleAssignment`), its change type `created` or `deleted` and its
-   resource id the assignment id. Its resources are the assignment, then its node (`NodeType`, `NodeId`). Its
-   `subject_id` is the principal, and its `resource_values` are `assignmentId`, `principalId` and `roleName`.
-10. **The event's tenant is the assignment's**, the control-plane tenant for a team node, and its actor is the acting
+13. **Every grant and revoke records a `RoleAssignmentChangedAuditEvent`** (see
+    [ADR-1283](1283-audit-records-are-cloudtrail-shaped-json-with-an-indexable-envelope.md)). Its resource type is
+    `role_assignment` (`ManagementResourceTypes.RoleAssignment`), its change type `created` or `deleted` and its
+    resource id the assignment id. Its resources are the assignment, then its node (`NodeType`, `NodeId`). Its
+    `subject_id` is the principal, and its `resource_values` are `assignmentId`, `principalId` and `roleName`; the
+    holder's summary is not recorded.
+14. **The event's tenant is the assignment's**, the control-plane tenant for a team node, and its actor is the acting
     administrator or client.
-11. **The endpoint handler records the event after the commit**, for the owners and admins routes, the creator's
+15. **The endpoint handler records the event after the commit**, for the owners and admins routes, the creator's
     `Owner` assignment and a new team's `TeamAdmin` assignment. Assignments removed with their node are covered by the
     node's own `deleted` event.
 
 ### The caller's own assignments
 
-12. **`GET /api/me` returns `CallerResource`.** `principalId` is null when none resolves, `isPlatformAdministrator` is
+16. **`GET /api/me` returns `CallerResource`.** `principalId` is null when none resolves, `isPlatformAdministrator` is
     true when the caller holds `Operations.Read` at the platform node, and `assignments` are
     `RoleAssignmentResource` items. How the endpoint authenticates the caller is
     [ADR-1044](1044-the-management-api-authenticates-its-own-access-tokens-and-a-configured-client-bootstraps-the-first-globaladmin.md)'s.
-13. **`GET /api/me/teams` and `GET /api/me/tenants`** each return one `CollectionResource` page of the teams or tenants
+17. **`GET /api/me/teams` and `GET /api/me/tenants`** each return one `CollectionResource` page of the teams or tenants
     where the caller holds any assignment, ordered by identifier. The tenants are returned without `environment`.
-14. **Authority stays per request.** The token names no team or tenant, so one token spans every place the caller
+18. **Authority stays per request.** The token names no team or tenant, so one token spans every place the caller
     holds a role, and a grant or a revocation applies on the next request.
 
 ### The console
 
-15. **The console shows grant and revoke only when `canChange` is true**, and refetches every role list after any role
-    change.
-16. **The console opens on `/home`, and its tenant lists tell the cells apart.** `/home` lists "Open the platform" for
+19. **The console shows grant and revoke only when `canChange` is true**, and refetches every role list after any role
+    change. It shows each holder by its display name and username, or by the principal id when `principal` is null, and
+    its grant form takes a username or a principal id.
+20. **The console opens on `/home`, and its tenant lists tell the cells apart.** `/home` lists "Open the platform" for
     a platform administrator and the caller's teams and tenants, names each cell that did not answer, and opens a sole
     destination directly, replacing the history entry, only when every cell answered. `/home` is not a management
     scope. Two cells list one tenant while it moves between them
@@ -103,7 +132,7 @@ audited; and a caller reads its own assignments, teams and tenants from `GET /ap
     `placedCell` the cell that the global directory already places the tenant in, says that the outcome is unknown
     when the import's `503` carries `moveOutcome` `unknown`, says when the list of cells is loading or could not be
     loaded, and opens the tenant in the cell it moved to once the move completes.
-17. **A header Home control returns to `/home`.** A platform route becomes `/home` once the caller is known to lack
+21. **A header Home control returns to `/home`.** A platform route becomes `/home` once the caller is known to lack
     platform authority. Back controls lead to the parent the caller can reach: the platform's team list for a platform
     administrator, a tenant's team for a platform administrator or a role holder there, and otherwise Home. While the
     caller's access is unknown, a back control leads where the route's parent leads and a platform route stays.
@@ -117,6 +146,9 @@ audited; and a caller reads its own assignments, teams and tenants from `GET /ap
 - **Computing authority in the browser.** It repeats the server's rules and drifts from them. Rejected.
 - **Owner-named or per-role contracts, or `RoleAssignmentResource` items in a role list.** Each new role would add
   contracts, and a list at one node has no use for the node on every item. Rejected.
+- **A console-side principal lookup endpoint.** The console would make a second request, the endpoint would need an
+  authorization of its own, and it would disclose names outside a role list. Rejected.
+- **Names from the serving cell's own tables.** The control-plane principals are not in a tenant's cell. Rejected.
 - **A flow per handler.** The statuses, refusals and audit records would diverge. Rejected.
 - **Auditing in the store, or a per-node `role.granted` change type.** The store does not know the actor, and a change
   type per node multiplies the vocabulary of one fact. Rejected.
@@ -124,8 +156,9 @@ audited; and a caller reads its own assignments, teams and tenants from `GET /ap
   one per place, with a stale claim after every grant or revocation. Rejected.
 - **Probing endpoints from the console to find where the caller may act.** It costs a request per place and shows a
   `403` as a failure. Rejected.
-- **Chosen:** role-neutral contracts, one grant and revoke flow, `canChange` on the list, an audit event recorded after
-  the commit, and `GET /api/me` for the caller's assignments.
+- **Chosen:** role-neutral contracts, one grant and revoke flow, `canChange` on the list, holders named from the
+  control plane in the same answer, an audit event recorded after the commit, and `GET /api/me` for the caller's
+  assignments.
 
 ## Consequences
 
@@ -133,6 +166,8 @@ audited; and a caller reads its own assignments, teams and tenants from `GET /ap
 - The console never shows an action the caller's `403` would refuse, except where the principal named decides, as the
   last-owner `409` does.
 - Every change to who holds authority has an audit record with its node and its principal, whichever route made it.
+- A role list names every holder from one request, whichever cell serves it, and a grant names its principal by
+  username or identifier. A control plane that cannot answer makes the list and the grant answer `503`.
 - A caller sees every team and tenant where it holds a role from one token, and a grant or revocation shows on its next
   request.
 - The `canChange` answer can disagree with a later request only when the caller's authority changes between them, and
@@ -144,8 +179,9 @@ audited; and a caller reads its own assignments, teams and tenants from `GET /ap
 - Issues [#566](https://github.com/NCodeGroup/identity/issues/566),
   [#583](https://github.com/NCodeGroup/identity/issues/583),
   [#623](https://github.com/NCodeGroup/identity/issues/623),
-  [#627](https://github.com/NCodeGroup/identity/issues/627) and
-  [#628](https://github.com/NCodeGroup/identity/issues/628)
+  [#627](https://github.com/NCodeGroup/identity/issues/627),
+  [#628](https://github.com/NCodeGroup/identity/issues/628) and
+  [#934](https://github.com/NCodeGroup/identity/issues/934)
 - [ADR-1417](1417-management-authority-is-a-role-assignment-at-a-node-of-the-platform-team-and-tenant-hierarchy.md):
   management authority is a role assignment at a node.
 - [ADR-1418](1418-limits-are-set-by-the-authority-above-their-scope-and-readers-learn-which-they-may-change.md): a
