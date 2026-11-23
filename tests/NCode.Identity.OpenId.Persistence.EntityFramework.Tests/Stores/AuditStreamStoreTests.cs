@@ -298,7 +298,8 @@ public sealed class AuditStreamStoreTests : IDisposable
             CancellationToken.None
         );
 
-        Assert.Equal(TenantB, Assert.IsType<PersistedAuditStreamState>(state).TenantId);
+        var tenantState = Assert.IsType<PersistedAuditStreamState>(state);
+        Assert.Equal(TenantB, tenantState.TenantId);
     }
 
     [Fact]

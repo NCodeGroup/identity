@@ -624,11 +624,8 @@ public sealed class InteractiveAuthenticationEndpointHandlerTests : IDisposable
     public void CreatePendingSignInProperties_WhenRenewingAPendingSignIn_KeepsItsIssueAndExpiryTimes()
     {
         var issued = new DateTimeOffset(2026, 11, 22, 12, 0, 0, TimeSpan.Zero);
-        var pending = new AuthenticationProperties
-        {
-            IssuedUtc = issued,
-            ExpiresUtc = issued.AddMinutes(15),
-        };
+        var expires = issued.AddMinutes(15);
+        var pending = new AuthenticationProperties { IssuedUtc = issued, ExpiresUtc = expires };
 
         var renewed = InteractiveAuthenticationEndpointHandler.CreatePendingSignInProperties(
             "flow-2",
@@ -638,7 +635,7 @@ public sealed class InteractiveAuthenticationEndpointHandlerTests : IDisposable
         );
 
         Assert.Equal(issued, renewed.IssuedUtc);
-        Assert.Equal(issued.AddMinutes(15), renewed.ExpiresUtc);
+        Assert.Equal(expires, renewed.ExpiresUtc);
         Assert.Equal("flow-2", renewed.Items["email_code_flow"]);
     }
 
