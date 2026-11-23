@@ -6,8 +6,10 @@ using NCode.Identity.Dispatch;
 namespace NCode.Identity.Mail;
 
 /// <summary>
-/// The dispatch job that delivers one mail message through the registered <see cref="IMailTransport"/>.
+/// The dispatch job that composes one mail message from its model at each delivery attempt and delivers it through the
+/// registered <see cref="IMailTransport"/>.
 /// </summary>
-/// <param name="Message">The message to deliver.</param>
+/// <param name="Model">The serializable model that the registered <see cref="IMailComposer"/> of its type
+/// composes.</param>
 // See ADR-1532.
-internal sealed record MailDeliveryJob(MailMessage Message) : IDispatchJob;
+internal sealed record MailDeliveryJob(object Model) : IDispatchJob;

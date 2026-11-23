@@ -44,6 +44,12 @@ public class DefaultRegistrationTests : BaseTests
             serviceCollection,
             descriptor => descriptor.ServiceType == typeof(MailDeliveryMetrics)
         );
+        Assert.Single(
+            serviceCollection,
+            descriptor =>
+                descriptor.ServiceType == typeof(MailComposerRegistry)
+                && descriptor.Lifetime == ServiceLifetime.Singleton
+        );
     }
 
     [Fact]

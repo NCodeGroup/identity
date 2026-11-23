@@ -8,17 +8,20 @@ using NCode.Identity.Mail.Logging;
 namespace NCode.Identity.Mail;
 
 /// <summary>
-/// Executes a <see cref="MailDeliveryJob"/> by handing its message to the <see cref="IMailTransport"/>. A delivery
-/// failure is counted and logged without the recipient or the body, then rethrown so the <see cref="IJobDispatcher"/>
-/// retries the job.
+/// Executes a <see cref="MailDeliveryJob"/> by composing its model into a message with the registered
+/// <see cref="IMailComposer"/>, handing the message to the <see cref="IMailTransport"/> and disposing it. A composition
+/// or delivery failure is counted and logged without the recipient or the body, then rethrown so the
+/// <see cref="IJobDispatcher"/> retries the job.
 /// </summary>
 // See ADR-1532.
 internal sealed class MailDeliveryJobHandler(
+    MailComposerRegistry composerRegistry,
     IMailTransport transport,
     MailDeliveryMetrics metrics,
     ILogger<MailDeliveryJobHandler> logger
 ) : IDispatchJobHandler<MailDeliveryJob>
 {
+    private MailComposerRegistry ComposerRegistry { get; } = composerRegistry;
     private IMailTransport Transport { get; } = transport;
     private MailDeliveryMetrics Metrics { get; } = metrics;
     private ILogger Logger { get; } = logger;
@@ -32,7 +35,10 @@ internal sealed class MailDeliveryJobHandler(
     {
         try
         {
-            await Transport.DeliverAsync(job.Message, cancellationToken);
+            var modelType = job.Model.GetType();
+            var composer = ComposerRegistry.Get(modelType);
+            await using var message = await composer.ComposeAsync(job.Model, cancellationToken);
+            await Transport.DeliverAsync(message, cancellationToken);
             Metrics.Delivered();
         }
         catch (Exception exception) when (!cancellationToken.IsCancellationRequested)

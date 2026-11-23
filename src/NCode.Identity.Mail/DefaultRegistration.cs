@@ -20,9 +20,9 @@ public static class DefaultRegistration
     extension(IServiceCollection serviceCollection)
     {
         /// <summary>
-        /// Registers the mail library: the sender that queues each message for delivery through the job dispatcher, the
-        /// job that delivers it, and a transport that refuses every message, which a registered transport such as
-        /// <c>AddSmtpMailTransport</c> replaces.
+        /// Registers the mail library: the sender that queues each model for delivery through the job dispatcher, the
+        /// registry of the composers that compose each model into a message, the job that delivers it, and a transport
+        /// that refuses every message, which a registered transport such as <c>AddSmtpMailTransport</c> replaces.
         /// </summary>
         /// <returns>The <see cref="IServiceBuilder{T}"/> for the mail library so that calls can be chained.</returns>
         [PublicAPI]
@@ -32,6 +32,7 @@ public static class DefaultRegistration
 
             serviceCollection.AddMetrics();
             serviceCollection.TryAddSingleton<MailDeliveryMetrics>();
+            serviceCollection.TryAddSingleton<MailComposerRegistry>();
             serviceCollection.TryAddSingleton<IMailSender, DefaultMailSender>();
             serviceCollection.TryAddSingleton<IMailTransport, UnconfiguredMailTransport>();
 

@@ -17,15 +17,11 @@ public class MailDeliveryJobHandlerTests : BaseTests
     private const string Recipient = "user@example.com";
     private const string BodyText = "Your code is 123456";
 
-    private static MailMessage Message { get; } =
-        new()
-        {
-            To = Recipient,
-            Subject = "Subject",
-            TextBody = BodyText,
-        };
+    private sealed record CodeModel(string To, int Code);
 
-    private static MailDeliveryJob Job { get; } = new(Message);
+    private static CodeModel Model { get; } = new(Recipient, 123456);
+
+    private static MailDeliveryJob Job { get; } = new(Model);
 
     private static DispatchContext Context { get; } =
         new()
@@ -34,6 +30,8 @@ public class MailDeliveryJobHandlerTests : BaseTests
             Attempt = 2,
             MaxAttempts = 4,
         };
+
+    private Mock<IMailComposer> MockComposer { get; }
 
     private Mock<IMailTransport> MockTransport { get; }
 
@@ -47,6 +45,9 @@ public class MailDeliveryJobHandlerTests : BaseTests
 
     public MailDeliveryJobHandlerTests()
     {
+        MockComposer = CreateStrictMock<IMailComposer>();
+        MockComposer.Setup(x => x.ModelType).Returns(typeof(CodeModel)).Verifiable();
+
         MockTransport = CreateStrictMock<IMailTransport>();
 
         MetricsProvider = new ServiceCollection().AddMetrics().BuildServiceProvider();
@@ -58,7 +59,12 @@ public class MailDeliveryJobHandlerTests : BaseTests
         );
 
         var metrics = new MailDeliveryMetrics(meterFactory);
-        Handler = new MailDeliveryJobHandler(MockTransport.Object, metrics, Logger);
+        Handler = new MailDeliveryJobHandler(
+            new MailComposerRegistry([MockComposer.Object]),
+            MockTransport.Object,
+            metrics,
+            Logger
+        );
     }
 
     protected override void Dispose(bool disposing)
@@ -72,13 +78,30 @@ public class MailDeliveryJobHandlerTests : BaseTests
         base.Dispose(disposing);
     }
 
+    private static (MailMessage Message, MemoryStream Stream) CreateMessage()
+    {
+        var stream = new MemoryStream("Your code is 123456"u8.ToArray());
+        var message = new MailMessage
+        {
+            To = [new MailAddress(Recipient)],
+            Subject = "Subject",
+            TextBody = new StreamMailContent(stream, "text/plain", "utf-8"),
+        };
+        return (message, stream);
+    }
+
     #region HandleAsync Tests
 
     [Fact]
-    public async Task HandleAsync_WhenTheTransportDelivers_CountsADeliveredMessage()
+    public async Task HandleAsync_WhenTheTransportDelivers_CountsADeliveredMessageAndDisposesIt()
     {
+        var (message, stream) = CreateMessage();
+        MockComposer
+            .Setup(x => x.ComposeAsync(Model, CancellationToken.None))
+            .ReturnsAsync(message)
+            .Verifiable();
         MockTransport
-            .Setup(x => x.DeliverAsync(Message, CancellationToken.None))
+            .Setup(x => x.DeliverAsync(message, CancellationToken.None))
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
 
@@ -91,14 +114,51 @@ public class MailDeliveryJobHandlerTests : BaseTests
             measurement.Tags[MailDeliveryMetrics.ResultAttribute]
         );
         Assert.Empty(Logger.Collector.GetSnapshot());
+        Assert.False(stream.CanRead);
     }
 
     [Fact]
-    public async Task HandleAsync_WhenTheTransportThrows_CountsAFailureLogsAndRethrows()
+    public async Task HandleAsync_WhenTheTransportThrows_CountsAFailureLogsRethrowsAndDisposesTheMessage()
     {
+        var (message, stream) = CreateMessage();
         var failure = new InvalidOperationException("The provider refused the message.");
+        MockComposer
+            .Setup(x => x.ComposeAsync(Model, CancellationToken.None))
+            .ReturnsAsync(message)
+            .Verifiable();
         MockTransport
-            .Setup(x => x.DeliverAsync(Message, CancellationToken.None))
+            .Setup(x => x.DeliverAsync(message, CancellationToken.None))
+            .Throws(failure)
+            .Verifiable();
+
+        var thrown = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await Handler.HandleAsync(Job, Context, CancellationToken.None)
+        );
+
+        Assert.Same(failure, thrown);
+        Assert.False(stream.CanRead);
+
+        var measurement = Assert.Single(MessagesCollector.GetMeasurementSnapshot());
+        Assert.Equal(1, measurement.Value);
+        Assert.Equal(
+            MailDeliveryMetrics.FailedResult,
+            measurement.Tags[MailDeliveryMetrics.ResultAttribute]
+        );
+
+        var record = Assert.Single(Logger.Collector.GetSnapshot());
+        Assert.Equal(EventIds.MailDeliveryFailed, record.Id.Id);
+        Assert.Same(failure, record.Exception);
+        Assert.Contains("attempt 2 of 4", record.Message);
+        Assert.DoesNotContain(Recipient, record.Message);
+        Assert.DoesNotContain(BodyText, record.Message);
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenTheComposerThrows_CountsAFailureLogsAndRethrows()
+    {
+        var failure = new InvalidOperationException("The template could not be rendered.");
+        MockComposer
+            .Setup(x => x.ComposeAsync(Model, CancellationToken.None))
             .Throws(failure)
             .Verifiable();
 
@@ -118,9 +178,7 @@ public class MailDeliveryJobHandlerTests : BaseTests
         var record = Assert.Single(Logger.Collector.GetSnapshot());
         Assert.Equal(EventIds.MailDeliveryFailed, record.Id.Id);
         Assert.Same(failure, record.Exception);
-        Assert.Contains("attempt 2 of 4", record.Message);
         Assert.DoesNotContain(Recipient, record.Message);
-        Assert.DoesNotContain(BodyText, record.Message);
     }
 
     [Fact]
@@ -130,9 +188,14 @@ public class MailDeliveryJobHandlerTests : BaseTests
         var cancellationToken = cancellationTokenSource.Token;
         await cancellationTokenSource.CancelAsync();
 
+        var (message, stream) = CreateMessage();
         var cancellation = new OperationCanceledException(cancellationToken);
+        MockComposer
+            .Setup(x => x.ComposeAsync(Model, cancellationToken))
+            .ReturnsAsync(message)
+            .Verifiable();
         MockTransport
-            .Setup(x => x.DeliverAsync(Message, cancellationToken))
+            .Setup(x => x.DeliverAsync(message, cancellationToken))
             .Throws(cancellation)
             .Verifiable();
 
@@ -141,6 +204,7 @@ public class MailDeliveryJobHandlerTests : BaseTests
         );
 
         Assert.Same(cancellation, thrown);
+        Assert.False(stream.CanRead);
         Assert.Empty(MessagesCollector.GetMeasurementSnapshot());
         Assert.Empty(Logger.Collector.GetSnapshot());
     }

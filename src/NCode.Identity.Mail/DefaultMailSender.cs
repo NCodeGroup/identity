@@ -8,10 +8,14 @@ namespace NCode.Identity.Mail;
 /// <summary>
 /// Provides the default implementation of <see cref="IMailSender"/>, which queues a <see cref="MailDeliveryJob"/>
 /// through the <see cref="IJobDispatcher"/> with four attempts that back off from five seconds to one minute, so a
-/// one-time code still arrives within its lifetime.
+/// one-time code still arrives within its lifetime. It refuses a model that no registered <see cref="IMailComposer"/>
+/// handles before it queues the model.
 /// </summary>
 // See ADR-1532.
-internal sealed class DefaultMailSender(IJobDispatcher jobDispatcher) : IMailSender
+internal sealed class DefaultMailSender(
+    IJobDispatcher jobDispatcher,
+    MailComposerRegistry composerRegistry
+) : IMailSender
 {
     /// <summary>
     /// Gets the options with which every delivery is dispatched.
@@ -25,11 +29,19 @@ internal sealed class DefaultMailSender(IJobDispatcher jobDispatcher) : IMailSen
         };
 
     private IJobDispatcher JobDispatcher { get; } = jobDispatcher;
+    private MailComposerRegistry ComposerRegistry { get; } = composerRegistry;
 
     /// <inheritdoc />
-    public ValueTask SendAsync(MailMessage message, CancellationToken cancellationToken)
+    public ValueTask SendAsync<TModel>(TModel model, CancellationToken cancellationToken)
+        where TModel : class
     {
-        var job = new MailDeliveryJob(message);
+        ArgumentNullException.ThrowIfNull(model);
+
+        // Refuse a model that nothing composes now, not at a delivery attempt that can only fail.
+        var modelType = model.GetType();
+        _ = ComposerRegistry.Get(modelType);
+
+        var job = new MailDeliveryJob(model);
         return JobDispatcher.DispatchAsync(job, DeliveryOptions, cancellationToken);
     }
 }

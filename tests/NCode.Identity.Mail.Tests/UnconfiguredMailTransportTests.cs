@@ -13,11 +13,15 @@ public class UnconfiguredMailTransportTests : BaseTests
     public async Task DeliverAsync_Always_ThrowsNamingTheMissingTransport()
     {
         var transport = new UnconfiguredMailTransport();
-        var message = new MailMessage
+        using var message = new MailMessage
         {
-            To = "user@example.com",
+            To = [new MailAddress("user@example.com")],
             Subject = "Subject",
-            TextBody = "Body",
+            TextBody = new StreamMailContent(
+                new MemoryStream("Body"u8.ToArray()),
+                "text/plain",
+                "utf-8"
+            ),
         };
 
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
