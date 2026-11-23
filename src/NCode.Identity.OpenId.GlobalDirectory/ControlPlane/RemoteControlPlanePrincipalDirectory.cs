@@ -40,7 +40,8 @@ internal sealed class RemoteControlPlanePrincipalDirectory(
             CellOptions,
             GlobalDirectoryProtocol.ControlPlanePrincipalsPath
         );
-        var names = new List<(bool IsId, string Value)>();
+        var capacity = query.PrincipalIds.Count + query.UserNames.Count;
+        var names = new List<(bool IsId, string Value)>(capacity);
         foreach (var principalId in query.PrincipalIds)
         {
             names.Add((true, principalId));

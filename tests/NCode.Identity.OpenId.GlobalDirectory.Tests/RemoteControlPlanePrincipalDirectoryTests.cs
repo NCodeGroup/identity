@@ -23,18 +23,27 @@ public class RemoteControlPlanePrincipalDirectoryTests : BaseTests
 
     private static JsonSerializerOptions WireOptions { get; } = new(JsonSerializerDefaults.Web);
 
+    private static ControlPlanePrincipalQuery DeserializeBody(string? body)
+    {
+        Assert.NotNull(body);
+        var query = JsonSerializer.Deserialize<ControlPlanePrincipalQuery>(body, WireOptions);
+        Assert.NotNull(query);
+        return query;
+    }
+
     private RemoteControlPlanePrincipalDirectory CreateDirectory(
         HttpMessageHandler handler,
         string? issuer = Issuer
     )
     {
         var httpClient = new HttpClient(handler);
+        var anyTimes = Times.Between(0, int.MaxValue, Moq.Range.Inclusive);
 
         var factoryMock = CreateStrictMock<IHttpClientFactory>();
         factoryMock
             .Setup(x => x.CreateClient(OpenIdClientDefaults.HttpClientName))
             .Returns(httpClient)
-            .Verifiable(Times.Between(0, int.MaxValue, Moq.Range.Inclusive));
+            .Verifiable(anyTimes);
 
         var tokenSourceMock = CreateStrictMock<ICellTokenSource>();
         tokenSourceMock
@@ -46,28 +55,19 @@ public class RemoteControlPlanePrincipalDirectoryTests : BaseTests
                 )
             )
             .Returns(new ValueTask<string>(AccessToken))
-            .Verifiable(Times.Between(0, int.MaxValue, Moq.Range.Inclusive));
+            .Verifiable(anyTimes);
 
+        var clientOptions = Options.Create(new DirectoryClientOptions { Url = DirectoryUrl });
         var client = new DirectoryHttpClient(
             factoryMock.Object,
             tokenSourceMock.Object,
-            Options.Create(new DirectoryClientOptions { Url = DirectoryUrl })
+            clientOptions
         );
 
-        return new RemoteControlPlanePrincipalDirectory(
-            client,
-            Options.Create(
-                new CellOptions { ControlPlane = new ControlPlaneOptions { Issuer = issuer } }
-            )
+        var cellOptions = Options.Create(
+            new CellOptions { ControlPlane = new ControlPlaneOptions { Issuer = issuer } }
         );
-    }
-
-    private static ControlPlanePrincipalQuery DeserializeBody(string? body)
-    {
-        Assert.NotNull(body);
-        var query = JsonSerializer.Deserialize<ControlPlanePrincipalQuery>(body, WireOptions);
-        Assert.NotNull(query);
-        return query;
+        return new RemoteControlPlanePrincipalDirectory(client, cellOptions);
     }
 
     #region FindAsync Tests
@@ -134,7 +134,8 @@ public class RemoteControlPlanePrincipalDirectoryTests : BaseTests
         Assert.Equal(2, result.Count);
         var first = DeserializeBody(handler.Requests[0].Body);
         var second = DeserializeBody(handler.Requests[1].Body);
-        Assert.Equal(ids.GetRange(0, ControlPlanePrincipalQuery.MaxNames), first.PrincipalIds);
+        var firstIds = ids.GetRange(0, ControlPlanePrincipalQuery.MaxNames);
+        Assert.Equal(firstIds, first.PrincipalIds);
         Assert.Empty(first.UserNames);
         Assert.Equal([ids[ControlPlanePrincipalQuery.MaxNames]], second.PrincipalIds);
     }
@@ -169,11 +170,32 @@ public class RemoteControlPlanePrincipalDirectoryTests : BaseTests
         var handler = StubHttpMessageHandler.Respond(HttpStatusCode.ServiceUnavailable);
         var directory = CreateDirectory(handler);
 
-        await Assert.ThrowsAsync<DirectoryUnavailableException>(async () =>
+        var exception = await Assert.ThrowsAsync<DirectoryUnavailableException>(async () =>
             await directory.FindAsync(
                 new ControlPlanePrincipalQuery { PrincipalIds = ["p1"] },
                 CancellationToken.None
             )
+        );
+
+        Assert.Equal($"{PrincipalsUrl} answered 503 to POST.", exception.Message);
+    }
+
+    [Fact]
+    public async Task FindAsync_WhenTheControlPlaneAnswersNotFound_ThrowsDirectoryUnavailable()
+    {
+        var handler = StubHttpMessageHandler.Respond(HttpStatusCode.NotFound);
+        var directory = CreateDirectory(handler);
+
+        var exception = await Assert.ThrowsAsync<DirectoryUnavailableException>(async () =>
+            await directory.FindAsync(
+                new ControlPlanePrincipalQuery { PrincipalIds = ["p1"] },
+                CancellationToken.None
+            )
+        );
+
+        Assert.Equal(
+            "The directory answered 404 to describe control-plane principals.",
+            exception.Message
         );
     }
 
@@ -188,13 +210,14 @@ public class RemoteControlPlanePrincipalDirectoryTests : BaseTests
         var handler = StubHttpMessageHandler.Respond(HttpStatusCode.OK, Answer);
         var directory = CreateDirectory(handler, issuer);
 
-        await Assert.ThrowsAsync<DirectoryUnavailableException>(async () =>
+        var exception = await Assert.ThrowsAsync<DirectoryUnavailableException>(async () =>
             await directory.FindAsync(
                 new ControlPlanePrincipalQuery { PrincipalIds = ["p1"] },
                 CancellationToken.None
             )
         );
 
+        Assert.Equal("The cell does not know the issuer of the control plane.", exception.Message);
         Assert.Empty(handler.Requests);
     }
 

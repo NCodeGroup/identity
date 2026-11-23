@@ -40,9 +40,11 @@ public class ControlPlaneUrisTests
             ControlPlane = new ControlPlaneOptions { Issuer = issuer },
         };
 
-        Assert.Throws<DirectoryUnavailableException>(() =>
+        var exception = Assert.Throws<DirectoryUnavailableException>(() =>
             ControlPlaneUris.Create(cellOptions, GlobalDirectoryProtocol.ControlPlaneAuthorityPath)
         );
+
+        Assert.Equal("The cell does not know the issuer of the control plane.", exception.Message);
     }
 
     #endregion
