@@ -243,13 +243,13 @@ public sealed class AuditStreamApiEndpointHandlerTests : IDisposable
             .Verifiable();
     }
 
-    private void SetupTenantContext(int maxAuditStreams)
+    private void SetupTenantContext(int maxAuditStreams, string routeTenantId = TenantId)
     {
         MockOpenIdContextFactory
             .Setup(x =>
                 x.CreateForTenantAsync(
                     It.IsAny<HttpContext>(),
-                    TenantId,
+                    routeTenantId,
                     It.IsAny<IMediator>(),
                     It.IsAny<CancellationToken>()
                 )
@@ -259,6 +259,7 @@ public sealed class AuditStreamApiEndpointHandlerTests : IDisposable
                     context.Tenant.SettingsProvider.Collection.GetValue(
                         OpenIdSettingKeys.MaxAuditStreams
                     ) == maxAuditStreams
+                    && context.Tenant.TenantId == TenantId
                 )
             )
             .Verifiable();
@@ -597,6 +598,30 @@ public sealed class AuditStreamApiEndpointHandlerTests : IDisposable
         );
         Assert.Equal("1", httpContext.Response.Headers.RetryAfter.ToString());
         Assert.Equal(1L, problem.ProblemDetails.Extensions[RetryAfterProblem.MemberName]);
+    }
+
+    [Fact]
+    public async Task CreateAsync_WhenTheRouteSpellsTheTenantInAnotherCase_TakesTheCanonicalTenantsGuard()
+    {
+        const string routeTenantId = "TENANT-1";
+        SetupAuthorization(AuthorizationResult.Success());
+        SetupTenantContext(maxAuditStreams: 2, routeTenantId);
+        SetupCreateGuard(taken: false);
+        var request = new CreateAuditStreamRequest
+        {
+            DisplayName = "Warehouse",
+            Endpoint = "https://example.com/audit",
+        };
+
+        var result = await Handler.CreateAsync(
+            CreateHttpContext(),
+            routeTenantId,
+            request,
+            CancellationToken.None
+        );
+
+        var problem = Assert.IsType<ProblemHttpResult>(result);
+        Assert.Equal(StatusCodes.Status409Conflict, problem.StatusCode);
     }
 
     [Fact]

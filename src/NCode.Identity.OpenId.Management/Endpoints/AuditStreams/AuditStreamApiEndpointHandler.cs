@@ -417,13 +417,15 @@ internal class AuditStreamApiEndpointHandler(
             return validationProblem;
         }
 
-        var maxAuditStreams = await GetMaxAuditStreamsAsync(
+        var (canonicalTenantId, maxAuditStreams) = await ReadCreateLimitAsync(
             httpContext,
             tenantId,
             cancellationToken
         );
 
-        var guardKey = ExpiringKeys.Create(CreateGuardKeyPurpose, tenantId);
+        // The stores match a tenant by its lower-cased identifier, so the guard is keyed by the canonical one, which
+        // every spelling of the route's segment shares. See ADR-1534.
+        var guardKey = ExpiringKeys.Create(CreateGuardKeyPurpose, canonicalTenantId);
         var guardExpiry = TimeProvider.GetUtcNow() + CreateGuardLifetime;
         using var ownerRental = BufferFactory.Rent(
             CreateGuardOwnerLength,
@@ -871,13 +873,17 @@ internal class AuditStreamApiEndpointHandler(
     }
 
     /// <summary>
-    /// Reads the most audit streams that the addressed tenant may hold, from the settings of a context of that tenant.
+    /// Reads the canonical identifier of the addressed tenant and the most audit streams it may hold, from a context of
+    /// that tenant.
     /// </summary>
     /// <param name="httpContext">The <see cref="HttpContext"/> of the request.</param>
     /// <param name="tenantId">The identifier of the addressed tenant.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
-    /// <returns>The most audit streams the tenant may hold.</returns>
-    private async ValueTask<int> GetMaxAuditStreamsAsync(
+    /// <returns>
+    /// The tenant's canonical identifier, which the route's segment may spell in another case, and the most audit
+    /// streams the tenant may hold.
+    /// </returns>
+    private async ValueTask<(string TenantId, int MaxAuditStreams)> ReadCreateLimitAsync(
         HttpContext httpContext,
         string tenantId,
         CancellationToken cancellationToken
@@ -892,7 +898,10 @@ internal class AuditStreamApiEndpointHandler(
         );
 
         var settings = openIdContext.Tenant.SettingsProvider.Collection;
-        return settings.GetValue(OpenIdSettingKeys.MaxAuditStreams);
+        return (
+            openIdContext.Tenant.TenantId,
+            settings.GetValue(OpenIdSettingKeys.MaxAuditStreams)
+        );
     }
 
     /// <summary>
