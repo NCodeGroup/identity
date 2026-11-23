@@ -519,6 +519,7 @@ public sealed class DefaultAuditStreamDelivererTests : BaseTests
             record => record.Id.Id == EventIds.AuditStreamDeliveryFailed
         );
         Assert.Equal("http_500", logged.GetStructuredStateValue("Error"));
+        Assert.Null(logged.Exception);
     }
 
     [Fact]
@@ -560,6 +561,31 @@ public sealed class DefaultAuditStreamDelivererTests : BaseTests
 
         Assert.Equal("request_failed", Stored.LastError);
         Assert.Equal(1, Stored.ConsecutiveFailures);
+    }
+
+    [Fact]
+    public async Task DeliverAsync_WhenTheRequestFails_LogsTheExceptionWithTheError()
+    {
+        SetupScope();
+        SetupStores(updates: 1);
+        SetupProtector();
+        SetupHttpClient();
+        SetupPage(
+            Stored.PositionStoredTime,
+            Guid.Empty,
+            CreatePage(Now.AddMinutes(-5), CreateRecord(Guid.CreateVersion7()))
+        );
+        Handler.EnqueueFailure(new HttpRequestException("The connection was reset."));
+
+        await Deliverer.DeliverAsync(Copy(Stored), CancellationToken.None);
+
+        var logged = Assert.Single(
+            Logger.Collector.GetSnapshot(),
+            record => record.Id.Id == EventIds.AuditStreamDeliveryFailed
+        );
+        Assert.Equal("request_failed", logged.GetStructuredStateValue("Error"));
+        var exception = Assert.IsType<HttpRequestException>(logged.Exception);
+        Assert.Equal("The connection was reset.", exception.Message);
     }
 
     [Fact]

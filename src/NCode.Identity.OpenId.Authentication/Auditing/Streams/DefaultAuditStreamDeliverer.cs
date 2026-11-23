@@ -295,11 +295,17 @@ internal sealed class DefaultAuditStreamDeliverer(
                 return new AuditStreamDeliveryOutcome(Error: null, HoldsLease: true);
             }
 
-            var error = await PostAsync(handed.TenantId, stream, page, secrets, cancellationToken);
+            var (error, cause) = await PostAsync(
+                handed.TenantId,
+                stream,
+                page,
+                secrets,
+                cancellationToken
+            );
             if (error is not null)
             {
                 Metrics.AuditStreamFailed();
-                Logger.AuditStreamDeliveryFailed(handed.StreamId, handed.TenantId, error);
+                Logger.AuditStreamDeliveryFailed(handed.StreamId, handed.TenantId, error, cause);
                 return new AuditStreamDeliveryOutcome(error, HoldsLease: true);
             }
 
@@ -429,10 +435,10 @@ internal sealed class DefaultAuditStreamDeliverer(
     /// <param name="secrets">The unprotected signing secrets that sign the post.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
     /// <returns>
-    /// <see langword="null"/> when the endpoint accepted the post; otherwise the short error code that names why it did
-    /// not.
+    /// The short error code that names why the endpoint did not accept the post, with the exception that failed the
+    /// request when one did; both are <see langword="null"/> when the endpoint accepted the post.
     /// </returns>
-    private async ValueTask<string?> PostAsync(
+    private async ValueTask<(string? Error, Exception? Cause)> PostAsync(
         string tenantId,
         PersistedAuditStream stream,
         AuditRecordStreamPage page,
@@ -441,7 +447,7 @@ internal sealed class DefaultAuditStreamDeliverer(
     )
     {
         if (secrets.Count == 0)
-            return NoSigningSecretError;
+            return (NoSigningSecretError, null);
 
         var timestamp = TimeProvider.GetUtcNow();
         var unixTime = timestamp.ToUnixTimeSeconds();
@@ -485,19 +491,21 @@ internal sealed class DefaultAuditStreamDeliverer(
             );
 
             if (response.IsSuccessStatusCode)
-                return null;
+                return (null, null);
 
             var statusCode = (int)response.StatusCode;
-            return string.Create(CultureInfo.InvariantCulture, $"http_{statusCode}");
+            var statusError = string.Create(CultureInfo.InvariantCulture, $"http_{statusCode}");
+            return (statusError, null);
         }
-        catch (HttpRequestException)
+        catch (HttpRequestException exception)
         {
-            return RequestFailedError;
+            return (RequestFailedError, exception);
         }
         // A timeout throws OperationCanceledException with the token untouched; only a cancelled token is shutdown.
-        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        catch (OperationCanceledException exception)
+            when (!cancellationToken.IsCancellationRequested)
         {
-            return TimeoutError;
+            return (TimeoutError, exception);
         }
     }
 

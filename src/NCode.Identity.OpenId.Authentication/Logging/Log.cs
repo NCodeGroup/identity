@@ -748,7 +748,8 @@ internal static partial class Log
         this ILogger logger,
         string streamId,
         string tenantId,
-        string error
+        string error,
+        Exception? exception
     );
 
     // See ADR-1534.
