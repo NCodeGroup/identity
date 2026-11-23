@@ -595,8 +595,9 @@ Then set `secretProtection.rootKeyProvider=aws-kms`,
 The chart sets `AWS_REGION` from the key's ARN. When `roleArn` is set, it also mounts a projected service-account token
 (audience `aws.webIdentity.audience`, default `sts.amazonaws.com`, valid for `tokenExpirationSeconds`, at least 600)
 read-only at `/var/run/secrets/tokens/aws/token`, and sets `AWS_ROLE_ARN`, `AWS_WEB_IDENTITY_TOKEN_FILE`, and
-`AWS_ROLE_SESSION_NAME` (the release's full name). It does this only for a pod that uses AWS KMS, so a pod that uses
-another provider never carries AWS credentials. The pod still does not mount the default service-account token.
+`AWS_ROLE_SESSION_NAME` (the release's full name). It does this only for a pod that uses AWS KMS, and for the host's
+Deployment when it sends mail through Amazon SES, so a pod that uses neither never carries AWS credentials. The pod
+still does not mount the default service-account token.
 
 `aws.webIdentity` is one AWS identity for the pod: one IAM role serves every AWS service the pod calls, AWS KMS and
 Amazon SES alike, so the role's policy allows the actions of each service the pod uses.
@@ -1654,15 +1655,18 @@ secret protection Jobs, which send no mail, so those Jobs never hold the SMTP pa
 these, such as `Mail__Smtp__Timeout`, goes through `extraEnv`.
 
 `mail.amazonSes.*` sets the host's `Mail:AmazonSes` section, which sends the host's mail through the Amazon SES v2 API
-in `mail.amazonSes.region`, the cell's AWS region, as the pod's AWS role: no password exists. The pod carries the role
-in `aws.webIdentity.roleArn`, the same role that serves AWS KMS, so that role also needs `ses:SendEmail` and
-`ses:SendRawEmail` on the sending identity, because the transport sends the raw MIME message through the v2 `SendEmail`
-API (`ci/amazon-ses-values.yaml` shows a release). The chart renders the section only while `mail.amazonSes.region` is
-set, and a host sends through one transport, so the chart refuses `mail.smtp.host` and `mail.amazonSes.region` together.
-`mail.amazonSes.from` is required with the region and is the address every message is sent from, an identity SES
-verifies. `mail.amazonSes.fromName` sets the sender's display name, `mail.amazonSes.fromIdentityArn` names the identity
-that authorizes a sender from another account, `mail.amazonSes.configurationSetName` names a configuration set, and
-`mail.amazonSes.tags` is a map of tags SES attaches to each message, at most 50, with names of `A-Z a-z 0-9 _ . -`,
-because each name becomes part of an environment variable's name, and values of `A-Z a-z 0-9 _ . @ -`. The chart
-refuses `region` outside the form `us-east-1` and refuses every other `mail.amazonSes.*` setting while `region` is
-empty. A setting beyond these, such as `Mail__AmazonSes__Timeout`, goes through `extraEnv`.
+in `mail.amazonSes.region`, the cell's AWS region, as the pod's AWS role: no password exists. The host's Deployment, the
+one pod that sends mail, carries the role in `aws.webIdentity.roleArn`, the same role that serves AWS KMS, so that role
+also needs `ses:SendEmail` and `ses:SendRawEmail` on the sending identity, because the transport sends the raw MIME
+message through the v2 `SendEmail` API (`ci/amazon-ses-values.yaml` shows a release). The setup and secret protection
+Jobs carry the role only when they use AWS KMS. Without a role, the transport signs in with the pod's ambient identity,
+such as EKS Pod Identity, so the chart refuses no region for the lack of one. The chart renders the section only while
+`mail.amazonSes.region` is set, and a host sends through one transport, so the chart refuses `mail.smtp.host` and
+`mail.amazonSes.region` together. `mail.amazonSes.from` is required with the region and is the address every message is
+sent from, an identity SES verifies. `mail.amazonSes.fromName` sets the sender's display name,
+`mail.amazonSes.fromIdentityArn` names the identity that authorizes a sender from another account,
+`mail.amazonSes.configurationSetName` names a configuration set, and `mail.amazonSes.tags` is a map of tags SES attaches
+to each message, at most 50, with names of `A-Z a-z 0-9 _ . -`, because each name becomes part of an environment
+variable's name, and values of `A-Z a-z 0-9 _ . @ -`. The chart refuses `region` outside the form `us-east-1` and
+refuses every other `mail.amazonSes.*` setting while `region` is empty. A setting beyond these, such as
+`Mail__AmazonSes__Timeout`, goes through `extraEnv`.
