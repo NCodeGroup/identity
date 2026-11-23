@@ -24,22 +24,30 @@ internal sealed class DefaultRequestAdmissionGate(IOptions<AdmissionOptions> opt
         ArgumentOutOfRangeException.ThrowIfLessThan(capacityPercent, 1);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(capacityPercent, 100);
 
-        var count = Interlocked.Increment(ref _inFlight);
-
         var limit = OptionsAccessor.Value.ConcurrencyLimit;
         if (limit is null)
         {
+            Interlocked.Increment(ref _inFlight);
             return true;
         }
 
         var threshold = Math.Max(1, (int)((long)limit.Value * capacityPercent / 100));
-        if (count <= threshold)
-        {
-            return true;
-        }
 
-        Interlocked.Decrement(ref _inFlight);
-        return false;
+        // A refused request never writes the count, so a burst that is shed never raises the count another tenant's
+        // request reads. See ADR-1523.
+        while (true)
+        {
+            var current = Volatile.Read(ref _inFlight);
+            if (current >= threshold)
+            {
+                return false;
+            }
+
+            if (Interlocked.CompareExchange(ref _inFlight, current + 1, current) == current)
+            {
+                return true;
+            }
+        }
     }
 
     /// <inheritdoc />

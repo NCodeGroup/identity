@@ -79,7 +79,11 @@ public class DefaultRequestAdmissionGateTests
     {
         var gate = CreateGate();
 
-        Assert.Throws<ArgumentOutOfRangeException>(() => gate.TryEnter(capacityPercent));
+        var exception = Assert.Throws<ArgumentOutOfRangeException>(() =>
+            gate.TryEnter(capacityPercent)
+        );
+
+        Assert.Equal("capacityPercent", exception.ParamName);
     }
 
     #endregion
