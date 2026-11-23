@@ -27,6 +27,7 @@ using NCode.Identity.OpenId.Management.Clients;
 using NCode.Identity.OpenId.Management.Contracts;
 using NCode.Identity.OpenId.Management.Contracts.Clients;
 using NCode.Identity.OpenId.Management.Contracts.Secrets;
+using NCode.Identity.OpenId.Management.ControlPlane;
 using NCode.Identity.OpenId.Management.Endpoints.Secrets;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
@@ -53,6 +54,7 @@ public sealed class ClientApiEndpointHandlerTests : IAsyncLifetime
     private const string ClientId = "client-1";
 
     private MockRepository MockRepository { get; }
+    private Mock<IControlPlanePrincipalDirectory> MockPrincipalDirectory { get; }
     private Mock<IStoreManagerFactory> MockStoreManagerFactory { get; }
     private Mock<IStoreManager> MockStoreManager { get; }
     private Mock<IClientStore> MockClientStore { get; }
@@ -114,6 +116,7 @@ public sealed class ClientApiEndpointHandlerTests : IAsyncLifetime
         MockResourceOwnershipService = MockRepository.Create<IResourceOwnershipService>();
 
         MockManagementAuditRecorder = MockRepository.Create<IManagementAuditRecorder>();
+        MockPrincipalDirectory = MockRepository.Create<IControlPlanePrincipalDirectory>();
         MockHostManagedClientPolicy = MockRepository.Create<IHostManagedClientPolicy>();
         MockOutboundHostChecker = MockRepository.Create<IOutboundHostChecker>();
         MockAmbientTenantAccessor = MockRepository.Create<IAmbientTenantAccessor>();
@@ -171,7 +174,7 @@ public sealed class ClientApiEndpointHandlerTests : IAsyncLifetime
             MockClientCoherenceReporter.Object,
             MockClientSecretIssuer.Object,
             MockResourceOwnershipService.Object,
-            PrincipalDirectoryMocks.CreateDescribingEveryPrincipal().Object,
+            MockPrincipalDirectory.Object,
             MockManagementAuditRecorder.Object,
             new DefaultHostManagedClientChecker(hostManagedClientPolicies),
             keySourceChecker,
@@ -5423,6 +5426,7 @@ public sealed class ClientApiEndpointHandlerTests : IAsyncLifetime
     [Fact]
     public async Task ListOwnersAsync_WhenTheCallerMayChangeTheClient_ReportsItMayChangeTheOwners()
     {
+        PrincipalDirectoryMocks.SetupDescribingEveryPrincipal(MockPrincipalDirectory);
         SetupClientNodeAuthorization(AuthorizationResult.Success());
         SetupStore();
         SetupClientLookup();
@@ -5445,6 +5449,7 @@ public sealed class ClientApiEndpointHandlerTests : IAsyncLifetime
     [Fact]
     public async Task ListOwnersAsync_WhenTheCallerCannotCreateAtTheMachineClientsOwningNode_ReportsItMayNotChangeTheOwners()
     {
+        PrincipalDirectoryMocks.SetupDescribingEveryPrincipal(MockPrincipalDirectory);
         SetupStore();
         SetupMachineClientLookup();
         SetupOwners();
@@ -5468,6 +5473,7 @@ public sealed class ClientApiEndpointHandlerTests : IAsyncLifetime
     [Fact]
     public async Task ListOwnersAsync_WhenTheClientIsHostManaged_ReportsItMayNotChangeTheOwners()
     {
+        PrincipalDirectoryMocks.SetupDescribingEveryPrincipal(MockPrincipalDirectory);
         SetupAuthorization(AuthorizationResult.Success());
         SetupStore();
         SetupClientLookup();
@@ -5491,6 +5497,7 @@ public sealed class ClientApiEndpointHandlerTests : IAsyncLifetime
     [Fact]
     public async Task ListOwnersAsync_WhenTheCallerMayOnlyReadTheClient_ReportsItMayNotChangeTheOwners()
     {
+        PrincipalDirectoryMocks.SetupDescribingEveryPrincipal(MockPrincipalDirectory);
         SetupClientNodeAuthorization(AuthorizationResult.Success());
         SetupClientNodeAuthorization(Operations.Update, AuthorizationResult.Failed());
         SetupStore();
@@ -5597,6 +5604,7 @@ public sealed class ClientApiEndpointHandlerTests : IAsyncLifetime
     [Fact]
     public async Task AddOwnerAsync_WhenTheCallerMayChangeTheClient_GrantsTheOwnerRoleAndReturnsCreated()
     {
+        PrincipalDirectoryMocks.SetupDescribingEveryPrincipal(MockPrincipalDirectory);
         SetupClientNodeAuthorization(AuthorizationResult.Success());
         SetupStore();
         SetupClientLookup();
@@ -5656,6 +5664,7 @@ public sealed class ClientApiEndpointHandlerTests : IAsyncLifetime
     [Fact]
     public async Task AddOwnerAsync_WhenThePrincipalCannotHoldTheRole_ReturnsConflictWithoutSavingOrRecording()
     {
+        PrincipalDirectoryMocks.SetupDescribingEveryPrincipal(MockPrincipalDirectory);
         // Strict mocks: no SaveChangesAsync and no audit setup, so saving or recording would fail the test.
         SetupClientNodeAuthorization(AuthorizationResult.Success());
         SetupStore();

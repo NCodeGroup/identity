@@ -19,6 +19,7 @@ using NCode.Identity.OpenId.Management.Authorization;
 using NCode.Identity.OpenId.Management.Contracts;
 using NCode.Identity.OpenId.Management.Contracts.ResourceServers;
 using NCode.Identity.OpenId.Management.Contracts.Secrets;
+using NCode.Identity.OpenId.Management.ControlPlane;
 using NCode.Identity.OpenId.Management.Endpoints.Secrets;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
@@ -41,6 +42,7 @@ public sealed class ResourceServerApiEndpointHandlerTests : IDisposable
     private const string ResourceServerId = "rs-1";
 
     private MockRepository MockRepository { get; }
+    private Mock<IControlPlanePrincipalDirectory> MockPrincipalDirectory { get; }
     private Mock<IStoreManagerFactory> MockStoreManagerFactory { get; }
     private Mock<IStoreManager> MockStoreManager { get; }
     private Mock<IResourceServerStore> MockStore { get; }
@@ -80,6 +82,7 @@ public sealed class ResourceServerApiEndpointHandlerTests : IDisposable
         MockResourceOwnershipService = MockRepository.Create<IResourceOwnershipService>();
 
         MockManagementAuditRecorder = MockRepository.Create<IManagementAuditRecorder>();
+        MockPrincipalDirectory = MockRepository.Create<IControlPlanePrincipalDirectory>();
 
         Handler = new ResourceServerApiEndpointHandler(
             MockStoreManagerFactory.Object,
@@ -96,7 +99,7 @@ public sealed class ResourceServerApiEndpointHandlerTests : IDisposable
             MockSettingScopeCollectionProvider.Object,
             MockEffectiveSettingsResolver.Object,
             MockResourceOwnershipService.Object,
-            PrincipalDirectoryMocks.CreateDescribingEveryPrincipal().Object,
+            MockPrincipalDirectory.Object,
             MockManagementAuditRecorder.Object,
             NullLogger<ResourceServerApiEndpointHandler>.Instance
         );
@@ -1553,6 +1556,7 @@ public sealed class ResourceServerApiEndpointHandlerTests : IDisposable
     [Fact]
     public async Task ListOwnersAsync_WhenTheCallerMayUpdateTheResourceServer_ReportsItMayChangeTheOwners()
     {
+        PrincipalDirectoryMocks.SetupDescribingEveryPrincipal(MockPrincipalDirectory);
         SetupAuthorization(AuthorizationResult.Success());
         SetupStore();
         MockStore
@@ -1589,6 +1593,7 @@ public sealed class ResourceServerApiEndpointHandlerTests : IDisposable
     [Fact]
     public async Task ListOwnersAsync_WhenTheCallerMayOnlyReadTheResourceServer_ReportsItMayNotChangeTheOwners()
     {
+        PrincipalDirectoryMocks.SetupDescribingEveryPrincipal(MockPrincipalDirectory);
         SetupAuthorization(AuthorizationResult.Success());
         SetupAuthorization(Operations.Update, AuthorizationResult.Failed());
         SetupStore();
@@ -1630,6 +1635,7 @@ public sealed class ResourceServerApiEndpointHandlerTests : IDisposable
     [Fact]
     public async Task AddOwnerAsync_WhenAuthorized_GrantsTheOwnerRoleAndReturnsCreatedBeneathTheResourceServersOwners()
     {
+        PrincipalDirectoryMocks.SetupDescribingEveryPrincipal(MockPrincipalDirectory);
         SetupAuthorization(AuthorizationResult.Success());
         SetupStore();
         MockStore
@@ -1679,6 +1685,7 @@ public sealed class ResourceServerApiEndpointHandlerTests : IDisposable
     [Fact]
     public async Task AddOwnerAsync_WhenThePrincipalCannotHoldTheRole_ReturnsConflictWithoutSavingOrRecording()
     {
+        PrincipalDirectoryMocks.SetupDescribingEveryPrincipal(MockPrincipalDirectory);
         // Strict mocks: no SaveChangesAsync and no audit setup, so saving or recording would fail the test.
         SetupAuthorization(AuthorizationResult.Success());
         SetupStore();

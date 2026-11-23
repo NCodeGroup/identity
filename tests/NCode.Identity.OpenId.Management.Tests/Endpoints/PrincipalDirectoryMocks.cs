@@ -9,28 +9,6 @@ namespace NCode.Identity.OpenId.Management.Endpoints;
 
 internal static class PrincipalDirectoryMocks
 {
-    public static Mock<IControlPlanePrincipalDirectory> CreateDescribingEveryPrincipal()
-    {
-        var mock = new Mock<IControlPlanePrincipalDirectory>();
-        mock.Setup(x =>
-                x.FindAsync(It.IsAny<ControlPlanePrincipalQuery>(), It.IsAny<CancellationToken>())
-            )
-            .Returns(
-                (ControlPlanePrincipalQuery query, CancellationToken _) =>
-                    ValueTask.FromResult<IReadOnlyList<PrincipalSummaryResource>>(
-                        query
-                            .PrincipalIds.Select(id => new PrincipalSummaryResource
-                            {
-                                PrincipalId = id,
-                                PrincipalType = PrincipalTypes.Client,
-                                DisplayName = id,
-                            })
-                            .ToList()
-                    )
-            );
-        return mock;
-    }
-
     public static void SetupDescribingEveryPrincipal(Mock<IControlPlanePrincipalDirectory> mock) =>
         mock.Setup(x =>
                 x.FindAsync(It.IsAny<ControlPlanePrincipalQuery>(), It.IsAny<CancellationToken>())
