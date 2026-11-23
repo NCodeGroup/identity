@@ -24,6 +24,7 @@ import {
   type CreatedSecretResource,
   type CreateClientRequest,
   type CreateInitialAccessTokenRequest,
+  type CreateLocalAccountRequest,
   type CreateRemoteSecretRequest,
   type CreateResourceServerRequest,
   type CreateScopeRequest,
@@ -41,11 +42,13 @@ import {
   type GrantResource,
   type GrantRevocationResult,
   type ImportRemoteSecretRequest,
+  type LocalAccountResource,
   type MachineClientOwner,
   type ManagementCapabilitiesResource,
   type ManagementOwner,
   type RoleHolderResource,
   type PromoteTenantRequest,
+  type ResetLocalAccountPasswordRequest,
   type PublicKeyResource,
   type ResourceServerResource,
   type RoleList,
@@ -71,6 +74,7 @@ import {
   type TenantTransferKeyResource,
   type TenantUsageResource,
   type UpdateClientFields,
+  type UpdateLocalAccountFields,
   type UpdateResourceServerFields,
   type UpdateScopeRequest,
   type UpdateTeamFields,
@@ -159,6 +163,32 @@ const teamTag = (teamId: string, id: string): string => scopeTagId(teamScope(tea
 const tenantTag = (tenantId: string, id: string): string =>
   scopeTagId({ kind: 'tenant', tenantId }, id);
 
+/** The owner of a local-account list: the platform, or a tenant in the cell that holds it. */
+export type LocalAccountOwner =
+  | { readonly kind: 'platform' }
+  | { readonly kind: 'tenant'; readonly tenantId: string; readonly cell?: string | undefined };
+
+/** The local-accounts collection of `owner`, addressed to the owner's cell when it is a tenant in one. */
+const localAccountsPath = (owner: LocalAccountOwner): CellFetchArgs =>
+  owner.kind === 'platform'
+    ? { url: 'api/platform/local-accounts' }
+    : inCell(owner.cell, `api/tenants/${encodeURIComponent(owner.tenantId)}/local-accounts`);
+
+/** The cache-tag id of the list of local accounts that `owner` holds. */
+const localAccountListTag = (owner: LocalAccountOwner): string =>
+  owner.kind === 'platform' ? platformTag(LIST_TAG) : tenantTag(owner.tenantId, LIST_TAG);
+
+/** The route of one tenant local account, addressed to the cell that holds the tenant. */
+const localAccountItem = (
+  { tenantId, localAccountId, cell }: WithCell<{ tenantId: string; localAccountId: string }>,
+  suffix: string,
+  method: 'DELETE' | 'POST',
+): CellFetchArgs =>
+  inCell(cell, {
+    url: `api/tenants/${encodeURIComponent(tenantId)}/local-accounts/${encodeURIComponent(localAccountId)}${suffix}`,
+    method,
+  });
+
 // The caller's own access spans scopes, so each mutation that can change where it holds a role invalidates it.
 const callerTag = 'me';
 
@@ -176,6 +206,7 @@ export const managementApi = createApi({
     'Tenant',
     'Team',
     'Client',
+    'LocalAccount',
     'ResourceServer',
     'Grant',
     'Secret',
@@ -618,6 +649,86 @@ export const managementApi = createApi({
       invalidatesTags: (result, _error, { owner }) => [
         { type: 'Client' as const, id: scopeTagId(ownerScope(owner), LIST_TAG) },
         ...(result ? [{ type: 'Client' as const, id: tenantTag(result.tenantId, LIST_TAG) }] : []),
+      ],
+    }),
+    listLocalAccounts: build.query<CollectionResource<LocalAccountResource>, LocalAccountOwner>({
+      query: (owner) => localAccountsPath(owner),
+      providesTags: (result, _error, owner) => [
+        { type: 'LocalAccount' as const, id: localAccountListTag(owner) },
+        ...(result?.items ?? []).map((a) => ({
+          type: 'LocalAccount' as const,
+          id: tenantTag(a.tenantId, a.localAccountId),
+        })),
+      ],
+    }),
+    createLocalAccount: build.mutation<
+      LocalAccountResource,
+      { owner: LocalAccountOwner; body: CreateLocalAccountRequest }
+    >({
+      query: ({ owner, body }) => ({ ...localAccountsPath(owner), method: 'POST', body }),
+      invalidatesTags: (_result, _error, { owner }) => [
+        { type: 'LocalAccount', id: localAccountListTag(owner) },
+      ],
+    }),
+    updateLocalAccount: build.mutation<
+      void,
+      WithCell<{
+        tenantId: string;
+        localAccountId: string;
+        concurrencyToken: string;
+        fields: UpdateLocalAccountFields;
+      }>
+    >({
+      query: ({ tenantId, localAccountId, concurrencyToken, fields, cell }) =>
+        inCell(cell, {
+          url: `api/tenants/${encodeURIComponent(tenantId)}/local-accounts/${encodeURIComponent(localAccountId)}`,
+          method: 'PATCH',
+          body: replacePatch({ ...fields }),
+          headers: { 'If-Match': concurrencyToken },
+        }),
+      invalidatesTags: (_result, _error, { tenantId, localAccountId }) => [
+        { type: 'LocalAccount', id: tenantTag(tenantId, localAccountId) },
+      ],
+    }),
+    deleteLocalAccount: build.mutation<
+      void,
+      WithCell<{ tenantId: string; localAccountId: string }>
+    >({
+      query: (args) => localAccountItem(args, '', 'DELETE'),
+      invalidatesTags: (_result, _error, { tenantId, localAccountId }) => [
+        { type: 'LocalAccount', id: tenantTag(tenantId, localAccountId) },
+      ],
+    }),
+    enableLocalAccount: build.mutation<
+      void,
+      WithCell<{ tenantId: string; localAccountId: string }>
+    >({
+      query: (args) => localAccountItem(args, '/enable', 'POST'),
+      invalidatesTags: (_result, _error, { tenantId, localAccountId }) => [
+        { type: 'LocalAccount', id: tenantTag(tenantId, localAccountId) },
+      ],
+    }),
+    disableLocalAccount: build.mutation<
+      void,
+      WithCell<{ tenantId: string; localAccountId: string }>
+    >({
+      query: (args) => localAccountItem(args, '/disable', 'POST'),
+      invalidatesTags: (_result, _error, { tenantId, localAccountId }) => [
+        { type: 'LocalAccount', id: tenantTag(tenantId, localAccountId) },
+      ],
+    }),
+    resetLocalAccountPassword: build.mutation<
+      void,
+      WithCell<{ tenantId: string; localAccountId: string; body: ResetLocalAccountPasswordRequest }>
+    >({
+      query: ({ tenantId, localAccountId, body, cell }) =>
+        inCell(cell, {
+          url: `api/tenants/${encodeURIComponent(tenantId)}/local-accounts/${encodeURIComponent(localAccountId)}/password`,
+          method: 'POST',
+          body,
+        }),
+      invalidatesTags: (_result, _error, { tenantId, localAccountId }) => [
+        { type: 'LocalAccount', id: tenantTag(tenantId, localAccountId) },
       ],
     }),
     listResourceServers: build.query<
@@ -1130,6 +1241,13 @@ export const {
   useDeleteClientMutation,
   useListMachineClientsQuery,
   useCreateMachineClientMutation,
+  useListLocalAccountsQuery,
+  useCreateLocalAccountMutation,
+  useUpdateLocalAccountMutation,
+  useDeleteLocalAccountMutation,
+  useEnableLocalAccountMutation,
+  useDisableLocalAccountMutation,
+  useResetLocalAccountPasswordMutation,
   useCreateResourceServerMutation,
   useUpdateResourceServerMutation,
   useDeleteResourceServerMutation,

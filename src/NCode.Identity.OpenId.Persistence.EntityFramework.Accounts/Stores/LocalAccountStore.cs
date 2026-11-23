@@ -112,6 +112,7 @@ internal sealed class LocalAccountStore(
             LocalAccountId = account.LocalAccountId,
             NormalizedLocalAccountId = Normalize(account.LocalAccountId),
             UserName = account.UserName,
+            DisplayName = account.DisplayName,
             NormalizedUserName = Normalize(account.UserName),
             Email = account.Email,
             NormalizedEmail = Normalize(account.Email),
@@ -148,6 +149,7 @@ internal sealed class LocalAccountStore(
         var entity = await GetEntityByIdAsync(account.LocalAccountId, cancellationToken);
 
         entity.UserName = account.UserName;
+        entity.DisplayName = account.DisplayName;
         entity.NormalizedUserName = Normalize(account.UserName);
         entity.Email = account.Email;
         entity.NormalizedEmail = Normalize(account.Email);
@@ -328,6 +330,7 @@ internal sealed class LocalAccountStore(
                 LocalAccountId = record.LocalAccountId,
                 NormalizedLocalAccountId = Normalize(record.LocalAccountId),
                 UserName = record.UserName,
+                DisplayName = record.DisplayName,
                 NormalizedUserName = Normalize(record.UserName),
                 Email = record.Email,
                 NormalizedEmail = Normalize(record.Email),
@@ -421,6 +424,7 @@ internal sealed class LocalAccountStore(
         {
             LocalAccountId = entity.LocalAccountId,
             UserName = entity.UserName,
+            DisplayName = entity.DisplayName,
             NormalizedUserName = entity.NormalizedUserName,
             Email = entity.Email,
             NormalizedEmail = entity.NormalizedEmail,
@@ -446,6 +450,7 @@ internal sealed class LocalAccountStore(
             TenantId = entity.Tenant.TenantId,
             LocalAccountId = entity.LocalAccountId,
             UserName = entity.UserName,
+            DisplayName = entity.DisplayName,
             Email = entity.Email,
             EmailVerified = entity.EmailVerified,
             SecurityStamp = entity.SecurityStamp,

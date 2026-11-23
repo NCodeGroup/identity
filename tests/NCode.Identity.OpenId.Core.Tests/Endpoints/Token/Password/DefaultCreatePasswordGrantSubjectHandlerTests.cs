@@ -38,10 +38,8 @@ public class DefaultCreatePasswordGrantSubjectHandlerTests : BaseTests
             .Returns(() => ValueTask.FromResult(ResolvedAcr))
             .Verifiable();
 
-        Handler = new DefaultCreatePasswordGrantSubjectHandler(
-            MockResolver.Object,
-            TimeProvider.System
-        );
+        var factory = new LocalAccountSubjectFactory(MockResolver.Object, TimeProvider.System);
+        Handler = new DefaultCreatePasswordGrantSubjectHandler(factory);
     }
 
     #region Scaffolding
@@ -77,6 +75,7 @@ public class DefaultCreatePasswordGrantSubjectHandlerTests : BaseTests
             TenantId = string.Empty,
             LocalAccountId = "account-1",
             UserName = "user-1",
+            DisplayName = "Display Name",
             Email = null,
             EmailVerified = false,
             IsEnabled = true,
@@ -98,6 +97,18 @@ public class DefaultCreatePasswordGrantSubjectHandlerTests : BaseTests
         Assert.Equal("account-1", principal.FindFirstValue("sub"));
         Assert.Equal(AccountConstants.SelfIssuer, principal.FindFirstValue("iss"));
         Assert.Equal("admin", principal.FindFirstValue("role"));
+    }
+
+    [Fact]
+    public async Task HandleAsync_StampsTheDisplayNameAsName()
+    {
+        var command = CreateCommand(CreateAccount());
+
+        var principal = await Handler.HandleAsync(command, CancellationToken.None);
+
+        var name = principal.FindFirstValue(JoseClaimNames.Payload.Name);
+
+        Assert.Equal("Display Name", name);
     }
 
     [Fact]

@@ -4,6 +4,7 @@
 using System.Security.Claims;
 using Microsoft.Extensions.Time.Testing;
 using Moq;
+using NCode.Identity.Jose;
 using NCode.Identity.OpenId.Accounts.Authentication;
 using NCode.Identity.OpenId.Accounts.DataContracts;
 using NCode.Identity.OpenId.Accounts.Stores;
@@ -44,10 +45,10 @@ public class LocalAccountInteractiveCredentialVerifierTests : BaseTests
         MockResolver = CreateStrictMock<IAuthenticationContextReferenceResolver>();
         MockPasswordAttemptLimiter = CreateStrictMock<IPasswordAttemptLimiter>();
         MockContext = CreateStrictMock<OpenIdContext>();
+        var subjectFactory = new LocalAccountSubjectFactory(MockResolver.Object, TimeProvider);
         Verifier = new LocalAccountInteractiveCredentialVerifier(
             MockStoreManagerFactory.Object,
-            MockResolver.Object,
-            TimeProvider,
+            subjectFactory,
             MockPasswordAttemptLimiter.Object
         );
     }
@@ -117,6 +118,7 @@ public class LocalAccountInteractiveCredentialVerifierTests : BaseTests
             TenantId = TenantId,
             LocalAccountId = LocalAccountId,
             UserName = UserName,
+            DisplayName = "Display Name",
             Email = null,
             EmailVerified = false,
             IsEnabled = true,
@@ -280,6 +282,8 @@ public class LocalAccountInteractiveCredentialVerifierTests : BaseTests
 
         Assert.NotNull(principal);
         Assert.Equal(LocalAccountId, principal.FindFirstValue("sub"));
+        var name = principal.FindFirstValue(JoseClaimNames.Payload.Name);
+        Assert.Equal("Display Name", name);
     }
 
     #endregion

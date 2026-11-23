@@ -40,6 +40,13 @@ public sealed class PersistedLocalAccount : ISupportTenantId, ISupportConcurrenc
     public required string UserName { get; set; }
 
     /// <summary>
+    /// Gets or sets the account's display name, the end user's name as people read it; it is the source of the
+    /// account's <c>name</c> claim and is never empty.
+    /// </summary>
+    [MaxLength(AccountMaxLengths.DisplayName)]
+    public required string DisplayName { get; set; }
+
+    /// <summary>
     /// Gets or sets the account's email address, or <c>null</c> when none is recorded. A verified email serves as the
     /// join key used by the linking policy to attach the account to an existing principal.
     /// </summary>

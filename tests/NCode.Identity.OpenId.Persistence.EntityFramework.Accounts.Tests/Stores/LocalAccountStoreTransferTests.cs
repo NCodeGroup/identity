@@ -72,6 +72,7 @@ public sealed class LocalAccountStoreTransferTests : IDisposable
             TenantId = tenantId,
             LocalAccountId = localAccountId,
             UserName = userName,
+            DisplayName = "Alice Example",
             Email = $"{userName}@example.com",
             EmailVerified = true,
             IsEnabled = isEnabled,
@@ -133,6 +134,7 @@ public sealed class LocalAccountStoreTransferTests : IDisposable
         Assert.Equal(AccountA, record.LocalAccountId);
         Assert.Equal(UserA, record.UserName);
         Assert.Equal(UserA, record.NormalizedUserName);
+        Assert.Equal("Alice Example", record.DisplayName);
         Assert.Equal("alice@example.com", record.Email);
         Assert.Equal("alice@example.com", record.NormalizedEmail);
         Assert.True(record.EmailVerified);
@@ -182,6 +184,7 @@ public sealed class LocalAccountStoreTransferTests : IDisposable
         Assert.Equal(AccountA, result.Account.LocalAccountId);
         Assert.Equal(before.SecurityStamp, result.Account.SecurityStamp);
         Assert.Equal("tenant-b", result.Account.TenantId);
+        Assert.Equal("Alice Example", result.Account.DisplayName);
         var wrong = await Store.VerifyCredentialAsync(
             UserA,
             "another long passphrase"u8.ToArray(),
@@ -222,6 +225,7 @@ public sealed class LocalAccountStoreTransferTests : IDisposable
         {
             LocalAccountId = AccountA,
             UserName = "Alice",
+            DisplayName = "Alice Example",
             NormalizedUserName = "TENANT-A|ALICE",
             Email = "Alice@Example.com",
             NormalizedEmail = "TENANT-A|ALICE@EXAMPLE.COM",
@@ -254,6 +258,7 @@ public sealed class LocalAccountStoreTransferTests : IDisposable
         {
             LocalAccountId = AccountA,
             UserName = UserA,
+            DisplayName = "Alice Example",
             NormalizedUserName = UserA,
             Email = null,
             NormalizedEmail = null,

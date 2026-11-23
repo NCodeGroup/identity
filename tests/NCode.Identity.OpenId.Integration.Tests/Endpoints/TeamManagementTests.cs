@@ -311,6 +311,7 @@ public class TeamManagementTests
                     TenantId = RootTenantId,
                     LocalAccountId = localAccountId,
                     UserName = UserName,
+                    DisplayName = UserName,
                     Email = null,
                     EmailVerified = false,
                     IsEnabled = true,

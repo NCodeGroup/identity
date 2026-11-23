@@ -31,6 +31,11 @@ public sealed class CreateRootResponse
     public required string UserName { get; init; }
 
     /// <summary>
+    /// Gets the root administrator's stored display name.
+    /// </summary>
+    public required string DisplayName { get; init; }
+
+    /// <summary>
     /// Gets the <c>client_id</c> of the management console's client that setup registered, or <c>null</c> when setup
     /// registered none.
     /// </summary>

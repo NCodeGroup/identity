@@ -26,6 +26,8 @@ using NCode.Identity.OpenId.Persistence.Tenants;
 using NCode.Identity.Persistence.Stores;
 using NCode.Identity.Registration.AspNetCore;
 using NCode.Mediator;
+using SystemTextJsonPatch;
+using SystemTextJsonPatch.Exceptions;
 
 namespace NCode.Identity.OpenId.Accounts.Management;
 
@@ -206,6 +208,7 @@ internal class LocalAccountApiEndpointHandler(
             TenantId = account.TenantId,
             LocalAccountId = account.LocalAccountId,
             PrincipalId = principalId,
+            DisplayName = account.DisplayName,
             UserName = account.UserName,
             Email = account.Email,
             EmailVerified = account.EmailVerified,
@@ -217,7 +220,7 @@ internal class LocalAccountApiEndpointHandler(
     /// Creates a local account in a tenant, together with the principal and the self-issued identity that it resolves to.
     /// </summary>
     /// <response code="201">The created local account.</response>
-    /// <response code="400">The password does not meet the tenant's password policy.</response>
+    /// <response code="400">The username is missing or longer than allowed, the display name is longer than allowed, the claims include the reserved <c>name</c> claim, or the password does not meet the tenant's password policy.</response>
     /// <response code="404">The tenant does not exist.</response>
     /// <response code="409">A local account with the username already exists in the tenant.</response>
     internal virtual async ValueTask<IResult> CreateLocalAccountAsync(
@@ -338,6 +341,47 @@ internal class LocalAccountApiEndpointHandler(
     }
 
     /// <summary>
+    /// Lists the local accounts of the platform, which are the accounts of the control-plane tenant, one page at a
+    /// time.
+    /// </summary>
+    /// <response code="200">A page of local accounts.</response>
+    internal virtual async ValueTask<IResult> ListPlatformLocalAccountsAsync(
+        HttpContext httpContext,
+        [FromQuery] string? cursor,
+        [FromQuery] int? limit,
+        CancellationToken cancellationToken
+    )
+    {
+        var tenantId = httpContext.GetOpenIdContext().Tenant.TenantId;
+        using var scope = AmbientTenantAccessor.BeginScope(tenantId);
+        return await ListLocalAccountsAsync(
+            httpContext,
+            tenantId,
+            cursor,
+            limit,
+            cancellationToken
+        );
+    }
+
+    /// <summary>
+    /// Creates a local account of the platform, in the control-plane tenant.
+    /// </summary>
+    /// <response code="201">The created local account.</response>
+    /// <response code="400">The username is missing or longer than allowed, the display name is longer than allowed, the claims include the reserved <c>name</c> claim, or the password does not meet the tenant's password policy.</response>
+    /// <response code="404">The control-plane tenant does not exist.</response>
+    /// <response code="409">A local account with the username already exists in the control-plane tenant.</response>
+    internal virtual async ValueTask<IResult> CreatePlatformLocalAccountAsync(
+        HttpContext httpContext,
+        [FromBody] CreateLocalAccountRequest request,
+        CancellationToken cancellationToken
+    )
+    {
+        var tenantId = httpContext.GetOpenIdContext().Tenant.TenantId;
+        using var scope = AmbientTenantAccessor.BeginScope(tenantId);
+        return await CreateLocalAccountAsync(httpContext, tenantId, request, cancellationToken);
+    }
+
+    /// <summary>
     /// Gets a local account of a tenant.
     /// </summary>
     /// <response code="200">The local account.</response>
@@ -378,16 +422,17 @@ internal class LocalAccountApiEndpointHandler(
     }
 
     /// <summary>
-    /// Updates the username and the email of a local account.
+    /// Updates the display name, the username and the email of a local account by applying a JSON Patch document.
     /// </summary>
     /// <response code="204">The local account was updated.</response>
+    /// <response code="400">The JSON Patch document cannot be applied, or the username or the display name is missing or longer than allowed.</response>
     /// <response code="404">The local account does not exist.</response>
     /// <response code="409">Another local account in the tenant already has the username.</response>
     internal virtual async ValueTask<IResult> UpdateLocalAccountAsync(
         HttpContext httpContext,
         [FromRoute] string tenantId,
         [FromRoute] string localAccountId,
-        [FromBody] UpdateLocalAccountRequest request,
+        [FromBody] JsonPatchDocument<UpdateLocalAccountRequest> request,
         CancellationToken cancellationToken
     )
     {
@@ -410,12 +455,33 @@ internal class LocalAccountApiEndpointHandler(
             return ManagementProblems.ResourceNotFound();
         }
 
+        var model = new UpdateLocalAccountRequest
+        {
+            DisplayName = account.DisplayName,
+            UserName = account.UserName,
+            Email = account.Email,
+            EmailVerified = account.EmailVerified,
+        };
+
+        try
+        {
+            request.ApplyTo(model);
+        }
+        catch (JsonPatchException)
+        {
+            return TypedResults.Problem(
+                detail: "The JSON Patch document could not be applied.",
+                statusCode: StatusCodes.Status400BadRequest
+            );
+        }
+
+        model.DisplayName = model.DisplayName?.Trim() ?? string.Empty;
+
         var ifMatch = httpContext.Request.Headers.IfMatch.ToString();
         var expectedConcurrencyToken = string.IsNullOrEmpty(ifMatch) ? null : ifMatch;
         var error = await LocalAccountValidator.ValidateUpdateAsync(
-            localAccountId,
-            request.UserName,
-            account.ConcurrencyToken,
+            account,
+            model,
             expectedConcurrencyToken,
             storeManager,
             cancellationToken
@@ -431,9 +497,10 @@ internal class LocalAccountApiEndpointHandler(
             cancellationToken
         );
 
-        account.UserName = request.UserName;
-        account.Email = request.Email;
-        account.EmailVerified = request.EmailVerified;
+        account.DisplayName = model.DisplayName;
+        account.UserName = model.UserName;
+        account.Email = model.Email;
+        account.EmailVerified = model.EmailVerified;
         await store.UpdateAsync(account, cancellationToken);
         await storeManager.SaveChangesAsync(cancellationToken);
 
@@ -483,7 +550,7 @@ internal class LocalAccountApiEndpointHandler(
         }
 
         var error = await LocalAccountValidator.ValidateDeleteAsync(
-            localAccountId,
+            account,
             storeManager,
             cancellationToken
         );
@@ -793,6 +860,7 @@ internal class LocalAccountApiEndpointHandler(
     /// Replaces the claims of a local account.
     /// </summary>
     /// <response code="204">The claims were replaced.</response>
+    /// <response code="400">The claims include the reserved <c>name</c> claim, which is the account's display name.</response>
     /// <response code="404">The local account does not exist.</response>
     internal virtual async ValueTask<IResult> SetClaimsAsync(
         HttpContext httpContext,
@@ -819,6 +887,13 @@ internal class LocalAccountApiEndpointHandler(
         if (account is null)
         {
             return ManagementProblems.ResourceNotFound();
+        }
+
+        var claimTypes = request.Claims.Select(claim => claim.Type);
+        var reservedClaimError = LocalAccountClaimRules.GetReservedClaimErrorOrDefault(claimTypes);
+        if (reservedClaimError is not null)
+        {
+            return ToErrorResult(reservedClaimError);
         }
 
         var claims = request

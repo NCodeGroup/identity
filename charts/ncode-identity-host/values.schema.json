@@ -1039,6 +1039,10 @@
               "type": "string",
               "minLength": 1
             },
+            "displayNameKey": {
+              "type": "string",
+              "minLength": 1
+            },
             "passwordKey": {
               "type": "string",
               "minLength": 1

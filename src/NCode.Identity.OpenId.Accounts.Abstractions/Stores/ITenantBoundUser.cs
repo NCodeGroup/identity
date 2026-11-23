@@ -17,4 +17,9 @@ public interface ITenantBoundUser
     /// Gets or sets the identifier of the tenant that owns the user.
     /// </summary>
     string TenantId { get; set; }
+
+    /// <summary>
+    /// Gets or sets the account's display name, which the ASP.NET Core Identity store reads and writes.
+    /// </summary>
+    string DisplayName { get; set; }
 }

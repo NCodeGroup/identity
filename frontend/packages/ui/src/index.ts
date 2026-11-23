@@ -33,6 +33,11 @@ export {
 } from './components/TenantEnvironmentFilter.js';
 export { ClientTable, type ClientRow, type ClientTableProps } from './components/ClientTable.js';
 export { TeamTable, type TeamRow, type TeamTableProps } from './components/TeamTable.js';
+export {
+  LocalAccountTable,
+  type LocalAccountRow,
+  type LocalAccountTableProps,
+} from './components/LocalAccountTable.js';
 export { GrantTable, type GrantRow, type GrantTableProps } from './components/GrantTable.js';
 export {
   ResourceServerTable,
@@ -89,6 +94,16 @@ export {
   type TeamFormDialogProps,
   type TeamFormValues,
 } from './components/TeamFormDialog.js';
+export {
+  LocalAccountFormDialog,
+  emptyLocalAccountFormValues,
+  type LocalAccountFormDialogProps,
+  type LocalAccountFormValues,
+} from './components/LocalAccountFormDialog.js';
+export {
+  LocalAccountPasswordDialog,
+  type LocalAccountPasswordDialogProps,
+} from './components/LocalAccountPasswordDialog.js';
 export {
   TeamUsageTable,
   type TeamUsageRow,

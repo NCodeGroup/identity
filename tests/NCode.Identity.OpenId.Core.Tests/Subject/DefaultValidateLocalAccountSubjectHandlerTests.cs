@@ -115,6 +115,7 @@ public class DefaultValidateLocalAccountSubjectHandlerTests : BaseTests
             TenantId = TenantId,
             LocalAccountId = LocalAccountId,
             UserName = "user",
+            DisplayName = "Display Name",
             Email = null,
             EmailVerified = false,
             IsEnabled = isEnabled,

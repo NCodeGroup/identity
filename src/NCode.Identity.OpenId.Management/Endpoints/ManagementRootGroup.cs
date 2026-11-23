@@ -37,7 +37,7 @@ internal sealed class ManagementRootGroup : IEndpointGroup
     /// <summary>
     /// The <see cref="IEndpointGroup.Name"/> of the root management group.
     /// </summary>
-    public const string GroupName = "api";
+    public const string GroupName = ManagementEndpointGroups.Root;
 
     /// <summary>
     /// The largest request body, in bytes, that a management route reads unless the route sets a limit of its own. It

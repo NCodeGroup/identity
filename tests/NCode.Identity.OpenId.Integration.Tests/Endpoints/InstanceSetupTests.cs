@@ -6,6 +6,7 @@ using System.Net.Http.Json;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using NCode.Buffers;
+using NCode.Identity.OpenId.Accounts.Stores;
 using NCode.Identity.OpenId.Integration.Tests.Infrastructure;
 using NCode.Identity.OpenId.Management;
 using NCode.Identity.OpenId.Persistence;
@@ -74,6 +75,7 @@ public class InstanceSetupTests
     private static async ValueTask<HttpResponseMessage> PostRootAsync(
         HttpClient client,
         string token,
+        string? displayName,
         CancellationToken cancellationToken
     ) =>
         await client.PostAsJsonAsync(
@@ -84,6 +86,7 @@ public class InstanceSetupTests
                 UserName = RootUserName,
                 Email = "root-admin@example.test",
                 Password = RootPassword,
+                DisplayName = displayName,
             },
             cancellationToken
         );
@@ -257,6 +260,7 @@ public class InstanceSetupTests
         using var response = await PostRootAsync(
             client,
             "a-wrong-setup-token-0123456789012345",
+            null,
             CancellationToken.None
         );
 
@@ -272,7 +276,7 @@ public class InstanceSetupTests
         using var factory = CreateFactory();
         using var client = CreateClient(factory);
 
-        using var response = await PostRootAsync(client, SetupToken, CancellationToken.None);
+        using var response = await PostRootAsync(client, SetupToken, null, CancellationToken.None);
 
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
         var root = await response.Content.ReadFromJsonAsync<CreateRootResponse>();
@@ -298,12 +302,48 @@ public class InstanceSetupTests
     }
 
     [Fact]
+    public async Task PostRoot_WhenTheRequestNamesADisplayName_StoresItOnTheRootAccount()
+    {
+        using var factory = CreateFactory();
+        using var client = CreateClient(factory);
+
+        using var response = await PostRootAsync(
+            client,
+            SetupToken,
+            "Root Admin",
+            CancellationToken.None
+        );
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        var root = await response.Content.ReadFromJsonAsync<CreateRootResponse>();
+        Assert.NotNull(root);
+        Assert.Equal("Root Admin", root.DisplayName);
+
+        using var scope = factory.Services.CreateScope();
+        var ambientTenantAccessor =
+            scope.ServiceProvider.GetRequiredService<IAmbientTenantAccessor>();
+        using var tenantScope = ambientTenantAccessor.BeginScope(root.TenantId);
+        var storeManagerFactory = scope.ServiceProvider.GetRequiredService<IStoreManagerFactory>();
+        await using var storeManager = await storeManagerFactory.CreateAsync(
+            CancellationToken.None
+        );
+        var localAccountStore = storeManager.GetStore<ILocalAccountStore>();
+        var account = await localAccountStore.GetByUserNameOrDefaultAsync(
+            RootUserName,
+            CancellationToken.None
+        );
+
+        Assert.NotNull(account);
+        Assert.Equal("Root Admin", account.DisplayName);
+    }
+
+    [Fact]
     public async Task PostRoot_WhenTheTokenIsRight_ReturnsTheInstanceAddresses()
     {
         using var factory = CreateFactory();
         using var client = CreateClient(factory);
 
-        using var response = await PostRootAsync(client, SetupToken, CancellationToken.None);
+        using var response = await PostRootAsync(client, SetupToken, null, CancellationToken.None);
 
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
         var root = await response.Content.ReadFromJsonAsync<CreateRootResponse>();
@@ -328,11 +368,11 @@ public class InstanceSetupTests
         using var factory = CreateFactory();
         using var client = CreateClient(factory);
 
-        using var created = await PostRootAsync(client, SetupToken, CancellationToken.None);
+        using var created = await PostRootAsync(client, SetupToken, null, CancellationToken.None);
         Assert.Equal(HttpStatusCode.Created, created.StatusCode);
 
         using var status = await client.GetAsync(StatusPath);
-        using var root = await PostRootAsync(client, SetupToken, CancellationToken.None);
+        using var root = await PostRootAsync(client, SetupToken, null, CancellationToken.None);
         using var page = await client.GetAsync(PagePath);
 
         Assert.Equal(HttpStatusCode.NotFound, status.StatusCode);
