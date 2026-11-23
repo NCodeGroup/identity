@@ -297,9 +297,22 @@ internal sealed class DefaultLocalAccountEmailCodes(
         return taken is not null;
     }
 
+    /// <summary>
+    /// Creates the key a flow's state is stored under, which names the tenant, the purpose and the flow.
+    /// </summary>
+    /// <param name="tenantId">The identifier of the tenant the flow belongs to.</param>
+    /// <param name="purpose">The purpose of the code the flow mails.</param>
+    /// <param name="flowId">The identifier of the flow.</param>
+    /// <returns>The key of the flow.</returns>
     internal static string CreateFlowKey(string tenantId, string purpose, string flowId) =>
         ExpiringKeys.Create(FlowKeyPurpose, tenantId, purpose, flowId);
 
+    /// <summary>
+    /// Hashes a code together with the flow it belongs to, so the state of a flow holds the hash and never the code.
+    /// </summary>
+    /// <param name="flowId">The identifier of the flow the code belongs to.</param>
+    /// <param name="code">The code.</param>
+    /// <returns>The SHA-256 hash of the flow and the code.</returns>
     internal static byte[] HashCode(string flowId, string code)
     {
         using var owner = SecureEncoding.UTF8.RentBytes(

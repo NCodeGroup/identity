@@ -47,6 +47,12 @@ internal sealed class LocalAccountInteractivePasswordResetter(
         postCommitSecurityEffects;
     private IAuditEventRecorder AuditEventRecorder { get; } = auditEventRecorder;
 
+    /// <summary>
+    /// Determines whether an account may be sent a password reset code, which holds only for an enabled account whose
+    /// email address is verified.
+    /// </summary>
+    /// <param name="account">The account the end user named, or <see langword="null"/> when there is none.</param>
+    /// <returns><see langword="true"/> when the account may be sent a code.</returns>
     private static bool IsEligible([NotNullWhen(true)] PersistedLocalAccount? account) =>
         account is { IsEnabled: true, EmailVerified: true, Email: { Length: > 0 } };
 

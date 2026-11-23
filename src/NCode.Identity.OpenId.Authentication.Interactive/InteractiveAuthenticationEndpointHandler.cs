@@ -348,7 +348,14 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
         return TypedResults.Json(meResponse);
     }
 
-    // Projects the authenticated cookie principal into the account page's view model.
+    /// <summary>
+    /// Projects the authenticated cookie principal into the account page's view model.
+    /// </summary>
+    /// <param name="principal">The authenticated cookie principal.</param>
+    /// <param name="subjectId">The subject identifier of the principal, which names the account when it carries no
+    /// name.</param>
+    /// <param name="emailVerification">Whether the tenant lets its end users verify their email address.</param>
+    /// <returns>The view model of the account page.</returns>
     internal static AccountMeResponse BuildMeResponse(
         ClaimsPrincipal principal,
         string subjectId,
@@ -1909,9 +1916,19 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
         return TypedResults.Redirect(returnUrl);
     }
 
-    // Mails the end user whose password is verified the code that completes the sign-in and holds the principal in the
-    // pending sign-in cookie. A tenant that allows no more codes sends the end user back to the login page with that
-    // error; an account that cannot receive a code is refused as an account whose standing is refused.
+    /// <summary>
+    /// Mails the end user whose password is verified the code that completes the sign-in and holds the principal in the
+    /// pending sign-in cookie. A tenant that allows no more codes sends the end user back to the login page with that
+    /// error; an account that cannot receive a code is refused as an account whose standing is refused.
+    /// </summary>
+    /// <param name="httpContext">The current request.</param>
+    /// <param name="openIdContext">The context of the tenant and environment the request is for.</param>
+    /// <param name="principal">The principal whose password is verified.</param>
+    /// <param name="safeReturnUrl">The return URL the end user continues to once the sign-in completes.</param>
+    /// <param name="languageTag">The language tag the form carried, which words the mail, or
+    /// <see langword="null"/>.</param>
+    /// <param name="cancellationToken">A token to cancel the operation.</param>
+    /// <returns>The redirect to the sign-in code page, to the login page or to the refusal of the sign-in.</returns>
     // See ADR-1533.
     private async ValueTask<IResult> BeginSignInCodeAsync(
         HttpContext httpContext,
@@ -1978,6 +1995,14 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
         );
     }
 
+    /// <summary>
+    /// Creates the properties of the pending sign-in cookie, which carry the email code flow, the return URL and the
+    /// language tag the sign-in code page renders in.
+    /// </summary>
+    /// <param name="flowId">The identifier of the email code flow the mailed code belongs to.</param>
+    /// <param name="returnUrl">The return URL the end user continues to once the sign-in completes.</param>
+    /// <param name="languageTag">The language tag the form carried, which is kept only when it is set.</param>
+    /// <returns>The properties of the pending sign-in cookie.</returns>
     private static AuthenticationProperties CreatePendingSignInProperties(
         string flowId,
         string returnUrl,
@@ -1995,9 +2020,20 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
         return properties;
     }
 
+    /// <summary>
+    /// Reads an item of the pending sign-in cookie's properties.
+    /// </summary>
+    /// <param name="properties">The properties of the pending sign-in cookie.</param>
+    /// <param name="name">The name of the item.</param>
+    /// <returns>The value of the item, or <see langword="null"/> when the properties hold no such item.</returns>
     private static string? ReadPendingItem(AuthenticationProperties properties, string name) =>
         properties.Items.TryGetValue(name, out var value) ? value : null;
 
+    /// <summary>
+    /// Adds an authentication method reference to the identity unless the identity already carries it.
+    /// </summary>
+    /// <param name="identity">The identity of the signed-in principal.</param>
+    /// <param name="method">The authentication method reference to add.</param>
     private static void AddAuthenticationMethod(ClaimsIdentity identity, string method)
     {
         if (!identity.HasClaim(JoseClaimNames.Payload.Amr, method))
@@ -2007,7 +2043,12 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
         }
     }
 
-    // The email page and its endpoints exist only while the tenant lets its end users verify their address.
+    /// <summary>
+    /// Determines whether the tenant lets its end users verify their address, because the email page and its endpoints
+    /// exist only then.
+    /// </summary>
+    /// <param name="httpContext">The current request.</param>
+    /// <returns><see langword="true"/> when the tenant lets its end users verify their address.</returns>
     // See ADR-1533.
     private static bool IsEmailVerificationEnabled(HttpContext httpContext) =>
         httpContext
@@ -2016,15 +2057,25 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
                 OpenIdSettingKeys.EmailVerificationEnabled
             );
 
-    // The forgot-password and reset-password pages exist only while the tenant lets its end users reset a password.
+    /// <summary>
+    /// Determines whether the tenant lets its end users reset a password, because the forgot-password and
+    /// reset-password pages exist only then.
+    /// </summary>
+    /// <param name="httpContext">The current request.</param>
+    /// <returns><see langword="true"/> when the tenant lets its end users reset a password.</returns>
     // See ADR-1533.
     private static bool IsPasswordResetEnabled(HttpContext httpContext) =>
         httpContext
             .GetOpenIdContext()
             .Tenant.SettingsProvider.Collection.GetValue(OpenIdSettingKeys.PasswordResetEnabled);
 
-    // The address of the forgot-password page, relative to the surface the page's base names, carrying the return URL
-    // and the locale the login page carried.
+    /// <summary>
+    /// Builds the address of the forgot-password page, relative to the surface the page's base names, carrying the
+    /// return URL and the locale the login page carried.
+    /// </summary>
+    /// <param name="returnUrl">The return URL the login page carried, which is left out when it is empty.</param>
+    /// <param name="languageTag">The language tag the login page carried, or <see langword="null"/>.</param>
+    /// <returns>The address of the forgot-password page.</returns>
     private static string BuildForgotPasswordHref(string returnUrl, string? languageTag)
     {
         var href = InteractiveAuthenticationPageRenderer.ForgotPasswordFormAction;
@@ -2069,8 +2120,15 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
             _ => messages.EmailCodeFailedError,
         };
 
-    // Redirects to a page of the surface with the query values that are set, in a page that renders in the locale the
-    // form carried.
+    /// <summary>
+    /// Redirects to a page of the surface with the query values that are set, in a page that renders in the locale the
+    /// form carried.
+    /// </summary>
+    /// <param name="httpContext">The current request.</param>
+    /// <param name="surfacePath">The path of the page, relative to the surface.</param>
+    /// <param name="languageTag">The language tag the form carried, or <see langword="null"/>.</param>
+    /// <param name="query">The query values to carry, of which those without a value are left out.</param>
+    /// <returns>The redirect to the page.</returns>
     private RedirectHttpResult RedirectToSurfacePage(
         HttpContext httpContext,
         string surfacePath,
@@ -2189,18 +2247,32 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
         return InteractiveBranding.FromSettings(settings, TenantEnvironmentCatalog);
     }
 
-    // The page renders in the locale the request prefers among those the tenant supports (ADR-1402).
+    /// <summary>
+    /// Selects the locale the page renders in, which is the locale the request prefers among those the tenant supports.
+    /// </summary>
+    /// <param name="httpContext">The current request.</param>
+    /// <returns>The locale the page renders in.</returns>
+    // See ADR-1402.
     private InteractiveLocale SelectLocale(HttpContext httpContext) =>
         SelectLocale(httpContext, languageTag: null);
 
-    // A mail is worded in the locale the page the end user saw rendered in, which the form carried as its language tag.
+    /// <summary>
+    /// Selects the locale a mail is worded in, which is the locale of the page the end user saw rendered, as the form
+    /// carried it in its language tag.
+    /// </summary>
+    /// <param name="httpContext">The current request.</param>
+    /// <param name="languageTag">The language tag the form carried, or <see langword="null"/>.</param>
+    /// <returns>The locale the mail is worded in.</returns>
     private InteractiveLocale SelectLocale(HttpContext httpContext, string? languageTag)
     {
         var settings = httpContext.GetOpenIdContext().Tenant.SettingsProvider.Collection;
         return LocaleSelector.Select(httpContext, settings, languageTag);
     }
 
-    // Mirrors the apps/auth describeLoginError mapping so the no-JS login form shows the same messages.
+    /// <summary>
+    /// Maps the error code the login page receives to the page's message for it, so the login form without scripts
+    /// shows the same messages as the single-page form.
+    /// </summary>
     internal static string? DescribeLoginError(string? error, InteractiveMessages messages) =>
         error switch
         {
@@ -2262,7 +2334,14 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
         return TypedResults.Redirect(location);
     }
 
-    // A page the surface redirects back to renders in the locale the form carried.
+    /// <summary>
+    /// Builds the address of the login page with an error, which renders in the locale the form carried.
+    /// </summary>
+    /// <param name="httpContext">The current request.</param>
+    /// <param name="returnUrl">The return URL the login page carries.</param>
+    /// <param name="error">The error code the login page shows.</param>
+    /// <param name="languageTag">The language tag the form carried, or <see langword="null"/>.</param>
+    /// <returns>The address of the login page.</returns>
     private string BuildLoginRedirect(
         HttpContext httpContext,
         string returnUrl,

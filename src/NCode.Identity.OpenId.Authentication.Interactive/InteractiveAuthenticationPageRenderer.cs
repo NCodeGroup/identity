@@ -504,6 +504,11 @@ internal static class InteractiveAuthenticationPageRenderer
         WriteTail(writer, frame);
     }
 
+    /// <summary>
+    /// Writes the paragraph that shows the error message, or nothing when there is no message.
+    /// </summary>
+    /// <param name="writer">The writer of the page.</param>
+    /// <param name="errorMessage">The message to show, or <see langword="null"/> when there is no error.</param>
     private static void WriteError(IBufferWriter<char> writer, string? errorMessage)
     {
         if (string.IsNullOrEmpty(errorMessage))

@@ -65,7 +65,12 @@ internal static class LocalAccountMailComposer
         };
     }
 
-    // A host may register a locale whose tag the platform has no culture data for, which words the mail all the same.
+    /// <summary>
+    /// Gets the culture a mail is worded in. A host may register a locale whose tag the platform has no culture data
+    /// for, which words the mail all the same.
+    /// </summary>
+    /// <param name="languageTag">The language tag of the locale.</param>
+    /// <returns>The culture of the tag, or the invariant culture when the platform has none for it.</returns>
     private static CultureInfo GetCulture(string languageTag)
     {
         try

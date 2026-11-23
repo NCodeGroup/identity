@@ -89,6 +89,15 @@ internal sealed class LocalAccountInteractiveSignInCodeChallenge(
         return InteractiveEmailCodeResult.Sent(flowId);
     }
 
+    /// <summary>
+    /// Audits that the mailing of a sign-in code was refused, as the failure of the second factor, because a refused
+    /// send blocks the sign-in.
+    /// </summary>
+    /// <param name="openIdContext">The context of the tenant and environment the request is for.</param>
+    /// <param name="principal">The principal whose password is verified.</param>
+    /// <param name="account">The account that was refused a code.</param>
+    /// <param name="errorCode">The error code the send was refused with.</param>
+    /// <param name="cancellationToken">A token to cancel the operation.</param>
     private async ValueTask RecordSendRefusedAsync(
         OpenIdContext openIdContext,
         ClaimsPrincipal principal,
