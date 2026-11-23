@@ -28,6 +28,8 @@ public class DefaultConnectionResolverTests : BaseTests
         public string SignInMethod => ConnectionSignInMethods.Password;
 
         public string? ValidateOptions(JsonElement options) => null;
+
+        public string? ValidateOptionsChange(JsonElement current, JsonElement proposed) => null;
     }
 
     private Mock<IStoreManagerFactory> MockStoreManagerFactory { get; }

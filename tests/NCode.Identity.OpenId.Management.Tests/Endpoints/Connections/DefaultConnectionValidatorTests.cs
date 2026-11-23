@@ -78,7 +78,7 @@ public sealed class DefaultConnectionValidatorTests : IDisposable
             .Verifiable();
     }
 
-    private void SetupStrategy(string? optionsError)
+    private void SetupStrategy(string? optionsError, string? changeError = null)
     {
         var strategy = MockStrategy.Object;
         MockCatalog
@@ -89,6 +89,9 @@ public sealed class DefaultConnectionValidatorTests : IDisposable
             .Setup(x => x.ValidateOptions(It.IsAny<JsonElement>()))
             .Returns(optionsError)
             .Verifiable();
+        MockStrategy
+            .Setup(x => x.ValidateOptionsChange(It.IsAny<JsonElement>(), It.IsAny<JsonElement>()))
+            .Returns(changeError);
     }
 
     #endregion
@@ -215,6 +218,7 @@ public sealed class DefaultConnectionValidatorTests : IDisposable
 
         var result = await Validator.ValidateUpdateAsync(
             CreateConnection(options: JsonElements.EmptyObject),
+            JsonElements.EmptyObject,
             MockStoreManager.Object,
             CancellationToken.None
         );
@@ -224,12 +228,30 @@ public sealed class DefaultConnectionValidatorTests : IDisposable
     }
 
     [Fact]
-    public async Task ValidateUpdateAsync_ValidConnection_ReturnsNull()
+    public async Task ValidateUpdateAsync_ChangedOptionsTheStrategyRefuses_ReturnsBadRequest()
+    {
+        SetupStrategy(null, "The store of a local connection cannot change.");
+
+        var result = await Validator.ValidateUpdateAsync(
+            CreateConnection(),
+            JsonSerializer.SerializeToElement(new { store = "other" }),
+            MockStoreManager.Object,
+            CancellationToken.None
+        );
+
+        Assert.NotNull(result);
+        Assert.Equal(StatusCodes.Status400BadRequest, result.StatusCode);
+        Assert.Equal("The store of a local connection cannot change.", result.Detail);
+    }
+
+    [Fact]
+    public async Task ValidateUpdateAsync_ChangedDisplayName_ReturnsNull()
     {
         SetupStrategy(null);
 
         var result = await Validator.ValidateUpdateAsync(
-            CreateConnection(),
+            CreateConnection(displayName: "Corporate Sign-in"),
+            JsonSerializer.SerializeToElement(new { store = "default" }),
             MockStoreManager.Object,
             CancellationToken.None
         );

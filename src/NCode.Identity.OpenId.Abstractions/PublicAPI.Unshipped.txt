@@ -1111,6 +1111,7 @@ NCode.Identity.OpenId.Connections.IConnectionStrategy
 NCode.Identity.OpenId.Connections.IConnectionStrategy.Name.get -> string!
 NCode.Identity.OpenId.Connections.IConnectionStrategy.SignInMethod.get -> string!
 NCode.Identity.OpenId.Connections.IConnectionStrategy.ValidateOptions(System.Text.Json.JsonElement options) -> string?
+NCode.Identity.OpenId.Connections.IConnectionStrategy.ValidateOptionsChange(System.Text.Json.JsonElement current, System.Text.Json.JsonElement proposed) -> string?
 NCode.Identity.OpenId.Connections.IConnectionStrategyCatalog
 NCode.Identity.OpenId.Connections.IConnectionStrategyCatalog.Strategies.get -> System.Collections.Generic.IReadOnlyCollection<NCode.Identity.OpenId.Connections.IConnectionStrategy!>!
 NCode.Identity.OpenId.Connections.IConnectionStrategyCatalog.TryGetStrategy(string! name, out NCode.Identity.OpenId.Connections.IConnectionStrategy! strategy) -> bool

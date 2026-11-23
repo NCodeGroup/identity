@@ -416,6 +416,7 @@ internal class ConnectionApiEndpointHandler(
             return ToErrorResult(preconditionError);
         }
 
+        var previousOptions = connection.Options;
         var model = new UpdateConnectionRequest
         {
             DisplayName = connection.DisplayName,
@@ -442,6 +443,7 @@ internal class ConnectionApiEndpointHandler(
 
         var error = await ConnectionValidator.ValidateUpdateAsync(
             connection,
+            previousOptions,
             storeManager,
             cancellationToken
         );

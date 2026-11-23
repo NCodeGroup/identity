@@ -84,11 +84,9 @@ describe('ConnectionDetailPage', () => {
     renderPage();
 
     expect(screen.getByTestId('connection-detail-store')).toHaveValue('default');
+    expect(screen.getByTestId('connection-detail-store')).toBeDisabled();
     fireEvent.change(screen.getByTestId('connection-detail-display-name'), {
       target: { value: 'Staff' },
-    });
-    fireEvent.change(screen.getByTestId('connection-detail-store'), {
-      target: { value: 'staff-db' },
     });
     fireEvent.click(screen.getByTestId('connection-general-save'));
 
@@ -97,7 +95,7 @@ describe('ConnectionDetailPage', () => {
     expect(JSON.parse(patch?.body ?? '[]')).toEqual([
       { op: 'replace', path: '/displayName', value: 'Staff' },
       { op: 'replace', path: '/isEnabled', value: true },
-      { op: 'replace', path: '/options', value: { store: 'staff-db' } },
+      { op: 'replace', path: '/options', value: { store: 'default' } },
     ]);
   });
 

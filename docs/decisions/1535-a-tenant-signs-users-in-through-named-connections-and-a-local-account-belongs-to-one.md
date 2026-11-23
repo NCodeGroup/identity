@@ -74,7 +74,9 @@ management API in `NCode.Identity.OpenId.Management`.
 
 A strategy is an `IConnectionStrategy` registered with `TryAddEnumerable`, one class per strategy, and indexed by
 `IConnectionStrategyCatalog`, which rejects a duplicate name, as the tenant environment types are. A strategy has a
-`Name`, a `SignInMethod` and `ValidateOptions`, which returns an error description or `null`. The sign-in method is an
+`Name`, a `SignInMethod`, `ValidateOptions` and `ValidateOptionsChange`, which return an error description or
+`null`; the management API calls `ValidateOptionsChange` with an existing connection's current and proposed options, so
+the `store` of a `local` connection is fixed at create, because its accounts stay in that store. The sign-in method is an
 open vocabulary: `password` means the server verifies a password, so the interactive form and the password grant serve
 the connection. No host-scheme strategy ships; a host that delegates to its own ASP.NET Core authentication scheme
 registers a strategy whose options name that scheme, so every sign-in comes through a connection.

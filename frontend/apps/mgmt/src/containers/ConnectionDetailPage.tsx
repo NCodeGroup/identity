@@ -37,8 +37,8 @@ export function connectionStore(connection: ConnectionResource): string {
 }
 
 /**
- * Container: drills into one connection to edit its display name, enabled flag and store (General) and its
- * `connection`-scope settings (Settings). The parent {@link import('./ConnectionsPage.js').ConnectionsPage} supplies
+ * Container: drills into one connection to edit its display name and enabled flag (General, which shows a local connection's
+ * store read-only) and its `connection`-scope settings (Settings). The parent {@link import('./ConnectionsPage.js').ConnectionsPage} supplies
  * the connection and owns the drill-in selection. Settings reuse the shared {@link SettingsManager} over the
  * connection's own settings document, effective settings and limits. Owns only tab and form state.
  */
@@ -92,11 +92,10 @@ function ConnectionGeneralTab({
   const [updateConnection, { isLoading }] = useUpdateConnectionMutation();
   const [displayName, setDisplayName] = useState(connection.displayName);
   const [isEnabled, setIsEnabled] = useState(connection.isEnabled);
-  const [store, setStore] = useState(() => connectionStore(connection));
   const [error, setError] = useState<string>();
   const [saved, setSaved] = useState(false);
 
-  const canSave = displayName.trim().length > 0 && store.trim().length > 0 && !isLoading;
+  const canSave = displayName.trim().length > 0 && !isLoading;
 
   const handleSave = async () => {
     setError(undefined);
@@ -109,7 +108,7 @@ function ConnectionGeneralTab({
         fields: {
           displayName: displayName.trim(),
           isEnabled,
-          options: { ...connection.options, store: store.trim() },
+          options: connection.options,
         },
         cell,
       }).unwrap();
@@ -139,15 +138,16 @@ function ConnectionGeneralTab({
         fullWidth
         slotProps={{ htmlInput: { 'data-testid': 'connection-detail-display-name' } }}
       />
-      <TextField
-        label="Store"
-        value={store}
-        onChange={(event) => setStore(event.target.value)}
-        required
-        fullWidth
-        helperText="The named local-account store that holds this connection's accounts."
-        slotProps={{ htmlInput: { 'data-testid': 'connection-detail-store' } }}
-      />
+      {connection.strategy === 'local' && (
+        <TextField
+          label="Store"
+          value={connectionStore(connection)}
+          disabled
+          fullWidth
+          helperText="The named local-account store that holds this connection's accounts. It is fixed when the connection is created."
+          slotProps={{ htmlInput: { 'data-testid': 'connection-detail-store' } }}
+        />
+      )}
       <FormControlLabel
         control={
           <Switch checked={isEnabled} onChange={(event) => setIsEnabled(event.target.checked)} />

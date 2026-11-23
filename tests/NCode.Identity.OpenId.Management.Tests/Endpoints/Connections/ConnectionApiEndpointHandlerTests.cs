@@ -539,6 +539,7 @@ public sealed class ConnectionApiEndpointHandlerTests : IDisposable
                         connection.Options.ValueKind == JsonValueKind.Object
                         && connection.Options.EnumerateObject().Count() == 0
                     ),
+                    It.IsAny<JsonElement>(),
                     MockStoreManager.Object,
                     It.IsAny<CancellationToken>()
                 )
@@ -547,6 +548,43 @@ public sealed class ConnectionApiEndpointHandlerTests : IDisposable
             .Verifiable();
         var patch = new JsonPatchDocument<UpdateConnectionRequest>();
         patch.Replace(x => x.Options, JsonElements.EmptyObject);
+
+        var result = await Handler.UpdateAsync(
+            CreateHttpContext(),
+            TenantId,
+            ConnectionId,
+            patch,
+            ManagementEntityTags.Format(ConcurrencyToken),
+            CancellationToken.None
+        );
+
+        var problem = Assert.IsType<ProblemHttpResult>(result);
+        Assert.Equal(StatusCodes.Status400BadRequest, problem.StatusCode);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_WhenThePatchChangesTheStore_ReturnsBadRequestWithTheStoredOptionsAsPrevious()
+    {
+        SetupAuthorization(AuthorizationResult.Success());
+        SetupStore();
+        SetupGetConnection(CreateConnection());
+        MockValidator
+            .Setup(x =>
+                x.ValidateUpdateAsync(
+                    It.Is<PersistedConnection>(connection =>
+                        connection.Options.GetProperty("store").GetString() == "other"
+                    ),
+                    It.Is<JsonElement>(previous =>
+                        previous.GetProperty("store").GetString() == "default"
+                    ),
+                    MockStoreManager.Object,
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync(Error(StatusCodes.Status400BadRequest))
+            .Verifiable();
+        var patch = new JsonPatchDocument<UpdateConnectionRequest>();
+        patch.Replace(x => x.Options, JsonSerializer.SerializeToElement(new { store = "other" }));
 
         var result = await Handler.UpdateAsync(
             CreateHttpContext(),
@@ -576,6 +614,7 @@ public sealed class ConnectionApiEndpointHandlerTests : IDisposable
             .Setup(x =>
                 x.ValidateUpdateAsync(
                     It.Is<PersistedConnection>(connection => !connection.IsEnabled),
+                    It.IsAny<JsonElement>(),
                     MockStoreManager.Object,
                     It.IsAny<CancellationToken>()
                 )

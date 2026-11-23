@@ -60,6 +60,32 @@ public sealed class LocalConnectionStrategyTests
 
     #endregion
 
+    #region ValidateOptionsChange Tests
+
+    private static string? ValidateChange(string currentJson, string proposedJson) =>
+        CreateStrategy()
+            .ValidateOptionsChange(
+                JsonSerializer.Deserialize<JsonElement>(currentJson),
+                JsonSerializer.Deserialize<JsonElement>(proposedJson)
+            );
+
+    [Fact]
+    public void ValidateOptionsChange_WhenTheStoreIsUnchanged_ReturnsNull()
+    {
+        Assert.Null(ValidateChange("""{"store":"default"}""", """{"store":"default"}"""));
+    }
+
+    [Fact]
+    public void ValidateOptionsChange_WhenTheStoreChanges_ReturnsDescription()
+    {
+        Assert.Equal(
+            "The store of a local connection cannot change.",
+            ValidateChange("""{"store":"default"}""", """{"store":"other"}""")
+        );
+    }
+
+    #endregion
+
     #region AddLocalAccountStore Tests
 
     [Fact]

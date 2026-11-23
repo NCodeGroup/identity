@@ -1,6 +1,7 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using System.Text.Json;
 using Microsoft.AspNetCore.Http;
 using NCode.Identity.OpenId.Connections;
 using NCode.Identity.OpenId.Persistence;
@@ -47,12 +48,33 @@ internal sealed class DefaultConnectionValidator(IConnectionStrategyCatalog stra
     /// <inheritdoc />
     public ValueTask<ManagementError?> ValidateUpdateAsync(
         PersistedConnection connection,
+        JsonElement previousOptions,
         IStoreManager storeManager,
         CancellationToken cancellationToken
     )
     {
+        var result = ValidateUpdate(connection, previousOptions);
+        return ValueTask.FromResult(result);
+    }
+
+    private ManagementError? ValidateUpdate(
+        PersistedConnection connection,
+        JsonElement previousOptions
+    )
+    {
         var error = ValidateContent(connection);
-        return ValueTask.FromResult(error);
+        if (error is not null)
+        {
+            return error;
+        }
+
+        if (!strategyCatalog.TryGetStrategy(connection.Strategy, out var strategy))
+        {
+            return BadRequest("The connection strategy is not registered.");
+        }
+
+        var changeError = strategy.ValidateOptionsChange(previousOptions, connection.Options);
+        return changeError is null ? null : BadRequest(changeError);
     }
 
     private ManagementError? ValidateContent(PersistedConnection connection)

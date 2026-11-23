@@ -1,6 +1,7 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using System.Text.Json;
 using JetBrains.Annotations;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.Persistence.Stores;
@@ -33,11 +34,13 @@ public interface IConnectionValidator
     /// Validates that the specified connection may be updated.
     /// </summary>
     /// <param name="connection">The current <see cref="PersistedConnection"/> being updated.</param>
+    /// <param name="previousOptions">The options document the connection had before the update.</param>
     /// <param name="storeManager">The <see cref="IStoreManager"/> for the current unit of work.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
     /// <returns>A <see cref="ManagementError"/> describing the first failed precondition, or <c>null</c> when valid.</returns>
     ValueTask<ManagementError?> ValidateUpdateAsync(
         PersistedConnection connection,
+        JsonElement previousOptions,
         IStoreManager storeManager,
         CancellationToken cancellationToken
     );

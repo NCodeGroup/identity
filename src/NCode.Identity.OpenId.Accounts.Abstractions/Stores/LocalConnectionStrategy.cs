@@ -46,4 +46,22 @@ public sealed class LocalConnectionStrategy(LocalAccountStoreCatalog catalog) : 
 
         return null;
     }
+
+    /// <inheritdoc/>
+    public string? ValidateOptionsChange(JsonElement current, JsonElement proposed)
+    {
+        // The store holds the connection's accounts, so a different store would leave them unreachable.
+        var currentStore = ReadStore(current);
+        var proposedStore = ReadStore(proposed);
+        return string.Equals(currentStore, proposedStore, StringComparison.Ordinal)
+            ? null
+            : "The store of a local connection cannot change.";
+    }
+
+    private static string? ReadStore(JsonElement options) =>
+        options.ValueKind == JsonValueKind.Object
+        && options.TryGetProperty(StoreProperty, out var store)
+        && store.ValueKind == JsonValueKind.String
+            ? store.GetString()
+            : null;
 }
