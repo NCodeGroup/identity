@@ -36,6 +36,11 @@ public static partial class OpenIdProtocol
         public const string Audience = "audience";
 
         /// <summary>
+        /// Contains the name of <c>connection</c> parameter.
+        /// </summary>
+        public const string Connection = "connection";
+
+        /// <summary>
         /// Contains the name of <c>code</c> parameter.
         /// </summary>
         public const string AuthorizationCode = "code";

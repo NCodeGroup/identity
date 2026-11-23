@@ -55,6 +55,13 @@ public abstract class BaseAuthorizationRequestMessage<T> : OpenIdMessage<T>
         set => SetKnownParameter(OpenIdCommonParameters.AcrValues, value);
     }
 
+    /// <inheritdoc cref="IBaseAuthorizationRequestValues.Connection" />
+    public string? Connection
+    {
+        get => GetKnownParameter(OpenIdCommonParameters.Connection);
+        set => SetKnownParameter(OpenIdCommonParameters.Connection, value);
+    }
+
     /// <inheritdoc cref="IBaseAuthorizationRequestValues.Claims" />
     public IRequestClaims? Claims
     {

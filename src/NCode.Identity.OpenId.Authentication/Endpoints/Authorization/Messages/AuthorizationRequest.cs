@@ -86,6 +86,9 @@ public sealed class AuthorizationRequest : IAuthorizationRequest
     public IReadOnlyList<string> AcrValues => Values.AcrValues ?? [];
 
     /// <inheritdoc />
+    public string? Connection => Values.Connection;
+
+    /// <inheritdoc />
     public IRequestClaims? Claims => Values.Claims;
 
     /// <inheritdoc />

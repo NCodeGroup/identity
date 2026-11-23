@@ -17,6 +17,11 @@ public interface IBaseAuthorizationRequestValues : IBaseAuthorizationRequest
     List<string>? AcrValues { get; set; }
 
     /// <summary>
+    /// Gets or sets the <c>connection</c> parameter.
+    /// </summary>
+    string? Connection { get; set; }
+
+    /// <summary>
     /// Gets or sets the <c>claims</c> parameter.
     /// </summary>
     IRequestClaims? Claims { get; set; }

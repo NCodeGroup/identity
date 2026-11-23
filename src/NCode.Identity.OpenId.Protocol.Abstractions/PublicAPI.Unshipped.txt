@@ -118,6 +118,7 @@ const NCode.Identity.OpenId.OpenIdProtocol.MetadataNames.UserInfoEndpoint = "use
 const NCode.Identity.OpenId.OpenIdProtocol.Parameters.AccessToken = "access_token" -> string!
 const NCode.Identity.OpenId.OpenIdProtocol.Parameters.AccessTokenHash = "at_hash" -> string!
 const NCode.Identity.OpenId.OpenIdProtocol.Parameters.AcrValues = "acr_values" -> string!
+const NCode.Identity.OpenId.OpenIdProtocol.Parameters.Connection = "connection" -> string!
 const NCode.Identity.OpenId.OpenIdProtocol.Parameters.ActorToken = "actor_token" -> string!
 const NCode.Identity.OpenId.OpenIdProtocol.Parameters.ActorTokenType = "actor_token_type" -> string!
 const NCode.Identity.OpenId.OpenIdProtocol.Parameters.Assertion = "assertion" -> string!

@@ -284,7 +284,13 @@ internal class DefaultValidateSubjectAuthenticationHandler(
         var acrValues = openIdRequest.Parameters.GetValueOrDefault(
             OpenIdCommonParameters.AcrValues
         );
-        var requestedName = ConnectionRequests.GetRequestedName(null, acrValues ?? []);
+        var connectionParameter = openIdRequest.Parameters.GetValueOrDefault(
+            OpenIdCommonParameters.Connection
+        );
+        var requestedName = ConnectionRequests.GetRequestedName(
+            connectionParameter,
+            acrValues ?? []
+        );
         return requestedName is null
             || (
                 connection is not null

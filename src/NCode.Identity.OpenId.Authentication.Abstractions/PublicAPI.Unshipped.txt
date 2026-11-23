@@ -473,6 +473,7 @@ NCode.Identity.OpenId.Authentication.Endpoints.Authorization.Commands.ValidateAu
 NCode.Identity.OpenId.Authentication.Endpoints.Authorization.Messages.AuthorizationSourceTypes
 NCode.Identity.OpenId.Authentication.Endpoints.Authorization.Messages.IAuthorizationRequest
 NCode.Identity.OpenId.Authentication.Endpoints.Authorization.Messages.IAuthorizationRequest.AcrValues.get -> System.Collections.Generic.IReadOnlyList<string!>!
+NCode.Identity.OpenId.Authentication.Endpoints.Authorization.Messages.IAuthorizationRequest.Connection.get -> string?
 NCode.Identity.OpenId.Authentication.Endpoints.Authorization.Messages.IAuthorizationRequest.Claims.get -> NCode.Identity.OpenId.Authentication.Endpoints.Authorization.Messages.IRequestClaims?
 NCode.Identity.OpenId.Authentication.Endpoints.Authorization.Messages.IAuthorizationRequest.ClaimsLocales.get -> System.Collections.Generic.IReadOnlyList<string!>!
 NCode.Identity.OpenId.Authentication.Endpoints.Authorization.Messages.IAuthorizationRequest.ClientId.get -> string!
@@ -512,6 +513,8 @@ NCode.Identity.OpenId.Authentication.Endpoints.Authorization.Messages.IBaseAutho
 NCode.Identity.OpenId.Authentication.Endpoints.Authorization.Messages.IBaseAuthorizationRequestValues
 NCode.Identity.OpenId.Authentication.Endpoints.Authorization.Messages.IBaseAuthorizationRequestValues.AcrValues.get -> System.Collections.Generic.List<string!>?
 NCode.Identity.OpenId.Authentication.Endpoints.Authorization.Messages.IBaseAuthorizationRequestValues.AcrValues.set -> void
+NCode.Identity.OpenId.Authentication.Endpoints.Authorization.Messages.IBaseAuthorizationRequestValues.Connection.get -> string?
+NCode.Identity.OpenId.Authentication.Endpoints.Authorization.Messages.IBaseAuthorizationRequestValues.Connection.set -> void
 NCode.Identity.OpenId.Authentication.Endpoints.Authorization.Messages.IBaseAuthorizationRequestValues.Claims.get -> NCode.Identity.OpenId.Authentication.Endpoints.Authorization.Messages.IRequestClaims?
 NCode.Identity.OpenId.Authentication.Endpoints.Authorization.Messages.IBaseAuthorizationRequestValues.Claims.set -> void
 NCode.Identity.OpenId.Authentication.Endpoints.Authorization.Messages.IBaseAuthorizationRequestValues.ClaimsLocales.get -> System.Collections.Generic.List<string!>?
@@ -1109,6 +1112,8 @@ NCode.Identity.OpenId.Authentication.Endpoints.Token.Messages.ITokenRequest.Requ
 NCode.Identity.OpenId.Authentication.Endpoints.Token.Messages.ITokenRequest.RequestedTokenType.set -> void
 NCode.Identity.OpenId.Authentication.Endpoints.Token.Messages.ITokenRequest.Username.get -> string?
 NCode.Identity.OpenId.Authentication.Endpoints.Token.Messages.ITokenRequest.Username.set -> void
+NCode.Identity.OpenId.Authentication.Endpoints.Token.Messages.ITokenRequest.Connection.get -> string?
+NCode.Identity.OpenId.Authentication.Endpoints.Token.Messages.ITokenRequest.Connection.set -> void
 NCode.Identity.OpenId.Authentication.Endpoints.Token.Messages.ITokenResponse
 NCode.Identity.OpenId.Authentication.Endpoints.Token.Messages.ITokenResponse.AccessToken.get -> string?
 NCode.Identity.OpenId.Authentication.Endpoints.Token.Messages.ITokenResponse.AccessToken.set -> void

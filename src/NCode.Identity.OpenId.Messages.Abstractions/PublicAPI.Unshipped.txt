@@ -139,6 +139,7 @@ static NCode.Identity.OpenId.Messages.Parsers.EnumParser<T>.Singleton.get -> NCo
 static NCode.Identity.OpenId.Messages.Parsers.ParameterLoader.Default.get -> NCode.Identity.OpenId.Messages.Parsers.ParameterLoader!
 static NCode.Identity.OpenId.Messages.Parameters.OpenIdCommonParameters.AccessToken.get -> NCode.Identity.OpenId.Messages.Parameters.KnownParameter<string!>!
 static NCode.Identity.OpenId.Messages.Parameters.OpenIdCommonParameters.AcrValues.get -> NCode.Identity.OpenId.Messages.Parameters.KnownParameter<System.Collections.Generic.List<string!>!>!
+static NCode.Identity.OpenId.Messages.Parameters.OpenIdCommonParameters.Connection.get -> NCode.Identity.OpenId.Messages.Parameters.KnownParameter<string!>!
 static NCode.Identity.OpenId.Messages.Parameters.OpenIdCommonParameters.AuthorizationCode.get -> NCode.Identity.OpenId.Messages.Parameters.KnownParameter<string!>!
 static NCode.Identity.OpenId.Messages.Parameters.OpenIdCommonParameters.AuthorizationSourceType.get -> NCode.Identity.OpenId.Messages.Parameters.KnownParameter<string!>!
 static NCode.Identity.OpenId.Messages.Parameters.OpenIdCommonParameters.AuthReqId.get -> NCode.Identity.OpenId.Messages.Parameters.KnownParameter<string!>!

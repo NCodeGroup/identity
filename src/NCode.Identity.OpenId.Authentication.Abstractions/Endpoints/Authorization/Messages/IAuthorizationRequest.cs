@@ -64,6 +64,11 @@ public interface IAuthorizationRequest
     IReadOnlyList<string> AcrValues { get; }
 
     /// <summary>
+    /// Gets the <c>connection</c> parameter, the name of the connection the end user signs in through.
+    /// </summary>
+    string? Connection { get; }
+
+    /// <summary>
     /// Gets the <c>claims</c> parameter.
     /// </summary>
     IRequestClaims? Claims { get; }
