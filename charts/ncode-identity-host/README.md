@@ -719,10 +719,9 @@ credentials of a provider that is neither.
 **What a tenant grants.** The tenant gives the deployment's identity the permission to wrap and unwrap with its one key,
 and nothing else; the server calls no other operation:
 
-- AWS KMS: the key policy allows the IAM role in `aws.webIdentity.roleArn` to call `kms:Encrypt` and
-  `kms:Decrypt` on the key, as the policy in [AWS KMS](#aws-kms) shows, including the condition on the encryption
-  context key `ncode-identity:root-context`. For a key in another AWS account, the role's own policy must also allow the
-  key.
+- AWS KMS: the key policy allows the IAM role in `aws.webIdentity.roleArn` to call `kms:Encrypt` and `kms:Decrypt` on
+  the key, as the policy in [AWS KMS](#aws-kms) shows, including the condition on the encryption context key
+  `ncode-identity:root-context`. For a key in another AWS account, the role's own policy must also allow the key.
 - Azure Key Vault: assign the deployment's identity the role "Key Vault Crypto Service Encryption User" on the key only,
   or, for a key in a Managed HSM, the local role "Managed HSM Crypto Service Encryption User" at the key's scope.
 - Google Cloud KMS: grant `roles/cloudkms.cryptoKeyEncrypterDecrypter` on the key to the federated principal, or to the
@@ -990,14 +989,13 @@ reads every key where the key's own identifier names, so the chart renders no
 **Credentials.** The console has an identity of its own: `managementConsole.aws.webIdentity`, and under
 `managementConsole.secretProtection` `azureKeyVault.workloadIdentity` and `googleCloudKms.workloadIdentityFederation`,
 with the same fields and defaults as the server's `aws.webIdentity` and `secretProtection.*` of the same names. The
-chart mounts them at the same paths and sets the same environment variables as for the server, and renders the
-ConfigMap `<console full name>-google-cloud` for a Google federation, with a checksum annotation on the pod so a change
-restarts it. The federated credentials trust
-the console's service account, `system:serviceaccount:<namespace>:<service account>`, where the service account is
-`managementConsole.serviceAccount.name`, or the console's full name, `<release full name>-management-console`, when
-that is empty. A value left empty means the pod's ambient identity. A console pod carries a vendor's credentials only
-when a console remote key names that vendor: the server never carries the console's identity, nor the console the
-server's.
+chart mounts them at the same paths and sets the same environment variables as for the server, and renders the ConfigMap
+`<console full name>-google-cloud` for a Google federation, with a checksum annotation on the pod so a change restarts
+it. The federated credentials trust the console's service account,
+`system:serviceaccount:<namespace>:<service account>`, where the service account is
+`managementConsole.serviceAccount.name`, or the console's full name, `<release full name>-management-console`, when that
+is empty. A value left empty means the pod's ambient identity. A console pod carries a vendor's credentials only when a
+console remote key names that vendor: the server never carries the console's identity, nor the console the server's.
 
 **What the identity needs.** The console only reads and uses a key:
 

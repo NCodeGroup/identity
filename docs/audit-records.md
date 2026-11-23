@@ -178,8 +178,8 @@ The recorder states the actor explicitly for each event, so the actor does not d
 
 ### Resource types
 
-`session`, `tenant`, `tenant.secret`, `master_key`, `root_key`, `remote_key` and `local_account` are shared by the protocol and the management planes (`AuditResourceTypes`).
-The management types are `ManagementResourceTypes`.
+`session`, `tenant`, `tenant.secret`, `master_key`, `root_key`, `remote_key` and `local_account` are shared by the
+protocol and the management planes (`AuditResourceTypes`). The management types are `ManagementResourceTypes`.
 
 | `resources[].type`       | Entity                                                                                                                                                                 |
 | ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

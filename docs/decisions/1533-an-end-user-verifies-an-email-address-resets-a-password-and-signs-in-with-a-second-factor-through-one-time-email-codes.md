@@ -33,10 +33,10 @@ off until the tenant turns it on.**
 1. **The code is six digits, hashed, short-lived and used once.** It is six decimal digits from a cryptographic random
    generator, kept in shared state only as a SHA-256 hash bound to the flow's handle, for `email_code_lifetime` (10
    minutes by default, 1 minute to 1 hour, a narrower scope may only shorten it). Five guesses end the flow, each
-   counted before it is judged, and a code is used once: a flow is spent by one atomic take after every check has
-   passed and before its effect, so two requests that present the right code at once never both run the effect. An
-   account receives at most `email_code_sends_per_hour` codes for one purpose (5 by default, 1 to 20, a narrower scope
-   may only lower it), so an attacker gets at most 25 guesses an hour at a space of a million.
+   counted before it is judged, and a code is used once: a flow is spent by one atomic take after every check has passed
+   and before its effect, so two requests that present the right code at once never both run the effect. An account
+   receives at most `email_code_sends_per_hour` codes for one purpose (5 by default, 1 to 20, a narrower scope may only
+   lower it), so an attacker gets at most 25 guesses an hour at a space of a million.
 2. **A 256-bit flow handle names the flow.** The handle is random and rides on the page that started the flow, so the
    code alone opens nothing. A code is also bound to the address it was mailed to and authorizes nothing once the
    account's address differs, so an administrator who changes the address while a code is outstanding leaves the old
@@ -57,8 +57,8 @@ off until the tenant turns it on.**
    data-protected pending cookie, `__Host-NCode.Identity.Interactive.PendingSignIn` (15 minutes, `SameSite=Strict`), and
    mails a code to the account's address, verified or not, because the code proves the mailbox, which a right code then
    marks verified. An account without an address is refused with `access_denied`. A right code adds `otp` and `mfa` to
-   `amr` ([RFC 8176](https://www.rfc-editor.org/rfc/rfc8176)) and creates the session. The resource-owner password
-   grant is refused for a tenant that requires the second factor, because it cannot carry one.
+   `amr` ([RFC 8176](https://www.rfc-editor.org/rfc/rfc8176)) and creates the session. The resource-owner password grant
+   is refused for a tenant that requires the second factor, because it cannot carry one.
 6. **Seams carry the three flows.** The surface's `IInteractivePasswordResetter`, `IInteractiveEmailVerifier` and
    `IInteractiveSignInCodeChallenge` default to supporting nothing. The local-account capability implements them over
    the account store, the shared state and `IMailSender`, and mails in the locale the page renders in, under the
@@ -98,8 +98,8 @@ off until the tenant turns it on.**
 
 ## References
 
-- [ADR-1047](1047-observation-is-a-fault-isolated-event-seam-that-audit-specializes-and-protocol-errors-reach-once.md)
-  — the event seam that audit specializes.
+- [ADR-1047](1047-observation-is-a-fault-isolated-event-seam-that-audit-specializes-and-protocol-errors-reach-once.md) —
+  the event seam that audit specializes.
 - [ADR-1051](1051-a-local-account-is-a-self-issued-connection-behind-one-pluggable-store-seam.md) — the local account
   and its email address.
 - [ADR-1062](1062-the-op-serves-an-opt-in-interactive-sign-in-and-consent-surface-with-a-pluggable-credential-verifier.md)
@@ -112,8 +112,8 @@ off until the tenant turns it on.**
   the password change whose seam the three flows follow.
 - [ADR-1236](1236-a-password-is-judged-by-one-policy-wherever-it-is-set.md) — the password policy that judges a new
   password.
-- [ADR-1237](1237-failed-password-attempts-are-limited-per-account-and-a-refusal-costs-what-a-wrong-password-costs.md)
-  — the limit on failed attempts that a reset clears.
+- [ADR-1237](1237-failed-password-attempts-are-limited-per-account-and-a-refusal-costs-what-a-wrong-password-costs.md) —
+  the limit on failed attempts that a reset clears.
 - [ADR-1253](1253-a-tenant-brands-its-sign-in-pages-through-settings-and-the-bundle-mounts-over-the-hosts-page.md) — the
   pages' branding and no-JavaScript baseline.
 - [ADR-1283](1283-audit-records-are-cloudtrail-shaped-json-with-an-indexable-envelope.md) — the shape of an audit

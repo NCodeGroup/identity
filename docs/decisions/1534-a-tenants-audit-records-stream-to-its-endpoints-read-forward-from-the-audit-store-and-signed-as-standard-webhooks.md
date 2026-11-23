@@ -69,8 +69,8 @@ once the endpoint accepts them.**
 7. **The lease.** A stream's state row holds its lease holder and expiry (`StreamLeaseDuration`, 2 minutes), claimed
    with optimistic concurrency, so one replica sends a stream at a time and its order holds. A lease whose replica stops
    expires, and a replica that stops releases the leases it holds, on a token of its own bounded by 10 seconds. A poll
-   reads only the streams whose tenant has a record stored after their position and before the settle cutoff, so an
-   idle stream costs no lease write, no key unwrap and no poll slot.
+   reads only the streams whose tenant has a record stored after their position and before the settle cutoff, so an idle
+   stream costs no lease write, no key unwrap and no poll slot.
 8. **Telemetry.** As
    [ADR-1197](1197-telemetry-has-one-owner-per-signal-bounded-attributes-and-spans-that-mirror-their-histograms.md)
    requires: `ncode.identity.audit_stream.deliveries` by `ncode.identity.audit_stream.result` (`delivered`, `failed`)
