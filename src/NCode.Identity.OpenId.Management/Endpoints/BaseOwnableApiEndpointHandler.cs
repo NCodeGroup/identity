@@ -8,8 +8,8 @@ using Microsoft.AspNetCore.Http.HttpResults;
 using NCode.Identity.Events.Audit;
 using NCode.Identity.OpenId.Management.Auditing;
 using NCode.Identity.OpenId.Management.Authorization;
-using NCode.Identity.OpenId.Management.ControlPlane;
 using NCode.Identity.OpenId.Management.Contracts;
+using NCode.Identity.OpenId.Management.ControlPlane;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.Persistence.Stores;
 
@@ -63,7 +63,13 @@ internal abstract class BaseOwnableApiEndpointHandler : BaseApiEndpointHandler
         string changeType
     )
     {
-        var roleHolder = ToRoleHolderResource(assignment);
+        var values = new
+        {
+            assignment.AssignmentId,
+            assignment.PrincipalId,
+            assignment.RoleName,
+        };
+        var resourceValues = ToResourceValues(values);
         var auditEvent = new RoleAssignmentChangedAuditEvent
         {
             EventSource = AuditEventSources.Management,
@@ -73,7 +79,7 @@ internal abstract class BaseOwnableApiEndpointHandler : BaseApiEndpointHandler
             NodeType = assignment.ResourceType,
             NodeId = assignment.ResourceId,
             ChangeType = changeType,
-            ResourceValues = ToResourceValues(roleHolder),
+            ResourceValues = resourceValues,
             Outcome = AuditOutcome.Success,
         };
         return ManagementAuditRecorder.RecordResourceChangeAsync(httpContext, auditEvent);
@@ -83,14 +89,53 @@ internal abstract class BaseOwnableApiEndpointHandler : BaseApiEndpointHandler
     /// Maps a role assignment to its <see cref="RoleHolderResource"/> representation.
     /// </summary>
     /// <param name="assignment">The role assignment to map.</param>
+    /// <param name="principal">
+    /// The control plane's summary of the holder, or <see langword="null"/> when no describer knows it.
+    /// </param>
     /// <returns>The mapped <see cref="RoleHolderResource"/>.</returns>
-    internal virtual RoleHolderResource ToRoleHolderResource(PersistedRoleAssignment assignment) =>
+    internal virtual RoleHolderResource ToRoleHolderResource(
+        PersistedRoleAssignment assignment,
+        PrincipalSummaryResource? principal
+    ) =>
         new()
         {
             AssignmentId = assignment.AssignmentId,
             PrincipalId = assignment.PrincipalId,
             RoleName = assignment.RoleName,
+            Principal = principal,
         };
+
+    /// <summary>
+    /// Describes principals through the control plane's directory.
+    /// </summary>
+    /// <param name="principalIds">The identifiers of the principals to describe.</param>
+    /// <param name="cancellationToken">
+    /// The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.
+    /// </param>
+    /// <returns>
+    /// A <see cref="ValueTask{TResult}"/> whose result maps each described principal's identifier to its summary;
+    /// a principal no describer knows has no entry.
+    /// </returns>
+    private async ValueTask<IReadOnlyDictionary<string, PrincipalSummaryResource>> DescribeAsync(
+        List<string> principalIds,
+        CancellationToken cancellationToken
+    )
+    {
+        var summaries = new Dictionary<string, PrincipalSummaryResource>(StringComparer.Ordinal);
+        if (principalIds.Count == 0)
+        {
+            return summaries;
+        }
+
+        var query = new ControlPlanePrincipalQuery { PrincipalIds = principalIds };
+        var found = await ControlPlanePrincipalDirectory.FindAsync(query, cancellationToken);
+        foreach (var summary in found)
+        {
+            summaries[summary.PrincipalId] = summary;
+        }
+
+        return summaries;
+    }
 
     /// <summary>
     /// Determines whether the caller holds an operation at a resource node.
@@ -123,8 +168,8 @@ internal abstract class BaseOwnableApiEndpointHandler : BaseApiEndpointHandler
 
     /// <summary>
     /// Processes an HTTP <c>GET</c> for the principals that hold one role at a resource node: authorizes the caller
-    /// to read the node, then returns the assignments of the role and whether the caller may grant and revoke the
-    /// role there. Responds <c>404</c> when the resource does not exist.
+    /// to read the node, then returns the assignments of the role, each with the control plane's summary of its
+    /// holder, and whether the caller may grant and revoke the role there. Responds <c>404</c> when the resource does not exist.
     /// </summary>
     /// <param name="httpContext">The <see cref="HttpContext"/> of the request.</param>
     /// <param name="roleList">The <see cref="RoleList"/> that describes the role whose assignments are listed.</param>
@@ -171,7 +216,18 @@ internal abstract class BaseOwnableApiEndpointHandler : BaseApiEndpointHandler
             cancellationToken
         );
         var canChange = await canChangeAsync(storeManager, cancellationToken);
-        var items = assignments.Select(ToRoleHolderResource).ToList();
+        var principalIds = assignments
+            .Select(assignment => assignment.PrincipalId)
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+        var summaries = await DescribeAsync(principalIds, cancellationToken);
+        var items = assignments
+            .Select(assignment =>
+            {
+                var summary = summaries.GetValueOrDefault(assignment.PrincipalId);
+                return ToRoleHolderResource(assignment, summary);
+            })
+            .ToList();
         var roleListResource = new RoleListResource { Items = items, CanChange = canChange };
         return TypedResults.Json(roleListResource);
     }
@@ -189,14 +245,18 @@ internal abstract class BaseOwnableApiEndpointHandler : BaseApiEndpointHandler
 
     /// <summary>
     /// Processes an HTTP <c>POST</c> that grants a principal one role at a resource node: authorizes the caller to
-    /// perform the operation at the node, then adds the assignment and records the grant. Responds <c>403</c> when
-    /// the caller lacks the operation, <c>400</c> when the request names no principal, <c>404</c> when the resource
-    /// does not exist, <c>409</c> when the principal is a client that cannot hold the role at the node, <c>200</c>
+    /// perform the operation at the node, then adds the assignment and records the grant. The request names the
+    /// principal by identifier or by the username of a control-plane local account. Responds <c>403</c> when the
+    /// caller lacks the operation, <c>400</c> when the request names no principal, both, or a username no principal
+    /// has, <c>404</c> when the resource does not exist, <c>409</c> when the principal is a client that cannot hold the role at the node, <c>200</c>
     /// when the principal already holds the role, and <c>201</c> when the role is granted.
     /// </summary>
     /// <param name="httpContext">The <see cref="HttpContext"/> of the request.</param>
     /// <param name="roleList">The <see cref="RoleList"/> that describes the role to grant.</param>
-    /// <param name="request">The <see cref="AddRoleHolderRequest"/> that names the principal to grant the role to.</param>
+    /// <param name="request">
+    /// The <see cref="AddRoleHolderRequest"/> that names the principal to grant the role to by exactly one of its
+    /// identifier and its username.
+    /// </param>
     /// <param name="cancellationToken">
     /// The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.
     /// </param>
@@ -222,10 +282,12 @@ internal abstract class BaseOwnableApiEndpointHandler : BaseApiEndpointHandler
             return AuthorizationFailed(httpContext);
         }
 
-        if (string.IsNullOrEmpty(request.PrincipalId))
+        var requestedPrincipalId = request.PrincipalId;
+        var requestedUserName = request.UserName;
+        if (string.IsNullOrEmpty(requestedPrincipalId) == string.IsNullOrEmpty(requestedUserName))
         {
             return TypedResults.Problem(
-                detail: "The 'principalId' is required.",
+                detail: "Name exactly one of 'principalId' and 'userName'.",
                 statusCode: StatusCodes.Status400BadRequest
             );
         }
@@ -236,12 +298,41 @@ internal abstract class BaseOwnableApiEndpointHandler : BaseApiEndpointHandler
             return ManagementProblems.ResourceNotFound();
         }
 
+        PrincipalSummaryResource? summary;
+        if (!string.IsNullOrEmpty(requestedUserName))
+        {
+            var userNameQuery = new ControlPlanePrincipalQuery { UserNames = [requestedUserName] };
+            var matches = await ControlPlanePrincipalDirectory.FindAsync(
+                userNameQuery,
+                cancellationToken
+            );
+            summary = matches.FirstOrDefault(match =>
+                string.Equals(match.UserName, requestedUserName, StringComparison.Ordinal)
+            );
+            if (summary is null)
+            {
+                return TypedResults.Problem(
+                    detail: "No principal of the control plane has the user name.",
+                    statusCode: StatusCodes.Status400BadRequest
+                );
+            }
+        }
+        else
+        {
+            var described = await DescribeAsync(
+                [requestedPrincipalId ?? string.Empty],
+                cancellationToken
+            );
+            summary = described.GetValueOrDefault(requestedPrincipalId ?? string.Empty);
+        }
+
+        var principalId = summary?.PrincipalId ?? requestedPrincipalId ?? string.Empty;
         var grant = await ResourceOwnershipService.AddAssignmentAsync(
             storeManager,
             node.TenantId,
             node.ResourceType,
             node.ResourceId,
-            request.PrincipalId,
+            principalId,
             roleList.RoleName,
             cancellationToken
         );
@@ -252,7 +343,7 @@ internal abstract class BaseOwnableApiEndpointHandler : BaseApiEndpointHandler
 
         await storeManager.SaveChangesAsync(cancellationToken);
 
-        var roleHolder = ToRoleHolderResource(grant.Assignment);
+        var roleHolder = ToRoleHolderResource(grant.Assignment, summary);
         if (!grant.IsAdded)
         {
             return TypedResults.Ok(roleHolder);
@@ -264,7 +355,7 @@ internal abstract class BaseOwnableApiEndpointHandler : BaseApiEndpointHandler
             ResourceChangeTypes.Created
         );
 
-        return TypedResults.Created($"{roleList.Path}/{grant.Assignment.PrincipalId}", roleHolder);
+        return TypedResults.Created($"{roleList.Path}/{principalId}", roleHolder);
     }
 
     /// <summary>
