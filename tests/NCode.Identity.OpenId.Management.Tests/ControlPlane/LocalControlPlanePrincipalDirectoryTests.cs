@@ -276,6 +276,53 @@ public sealed class LocalControlPlanePrincipalDirectoryTests : IDisposable
     }
 
     [Fact]
+    public async Task FindAsync_WhenAFederatedPrincipalsLaterIdentitySortsAfterItsFirst_KeepsTheFirst()
+    {
+        SetupScope();
+        var principals = SetupFederatedPrincipalStore();
+        var identities = SetupFederatedIdentityStore();
+        var query = new ControlPlanePrincipalQuery { PrincipalIds = ["p1"] };
+        var describer = CreateDescriber(["p1"], []);
+        var principal = CreateFederatedPrincipal("p1");
+        var firstIdentity = CreateFederatedIdentity("p1", "https://a.example", "a");
+        var laterIdentity = CreateFederatedIdentity("p1", "https://b.example", "a");
+        SetupPrincipalsRead(principals, ["p1"], principal);
+        SetupIdentitiesRead(identities, ["p1"], firstIdentity, laterIdentity);
+        var directory = CreateDirectory(describer.Object);
+
+        var result = await directory.FindAsync(query, CancellationToken.None);
+
+        var summary = Assert.Single(result);
+        Assert.Equal("a (https://a.example)", summary.DisplayName);
+    }
+
+    [Fact]
+    public async Task FindAsync_WhenADescriberKnowsOnlySomeUserNames_AsksTheNextAboutTheRest()
+    {
+        SetupScope();
+        var query = new ControlPlanePrincipalQuery { UserNames = ["alice", "bob"] };
+        var aliceSummary = PrincipalDirectoryMocks.CreateSummary(
+            "p1",
+            PrincipalTypes.LocalAccount,
+            "Alice",
+            "alice"
+        );
+        var bobSummary = PrincipalDirectoryMocks.CreateSummary(
+            "p2",
+            PrincipalTypes.LocalAccount,
+            "Bob",
+            "bob"
+        );
+        var first = CreateDescriber([], ["alice", "bob"], aliceSummary);
+        var second = CreateDescriber([], ["bob"], bobSummary);
+        var directory = CreateDirectory(first.Object, second.Object);
+
+        var result = await directory.FindAsync(query, CancellationToken.None);
+
+        Assert.Equal(["p1", "p2"], result.Select(summary => summary.PrincipalId));
+    }
+
+    [Fact]
     public async Task FindAsync_WhenAFederatedPrincipalHasNoIdentity_NamesItByItsId()
     {
         SetupScope();

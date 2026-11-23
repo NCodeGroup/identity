@@ -197,4 +197,88 @@ describe('LocalAccountDetailPage', () => {
       systemMetadata: {},
     });
   });
+
+  it('shows the server problem when the metadata save fails', async () => {
+    installFetch((url, method) => {
+      if (url.endsWith(metadataUrl) && method === 'PATCH') {
+        return jsonResponse({ detail: 'The metadata changed since it was loaded.' }, 412);
+      }
+      if (url.endsWith(metadataUrl)) {
+        return jsonResponse(metadataResource);
+      }
+      if (url.endsWith(claimsUrl)) {
+        return jsonResponse(claimsResource);
+      }
+      throw new Error(`Unexpected ${method} ${url}`);
+    });
+
+    renderPage();
+    fireEvent.click(await screen.findByTestId('local-account-tab-metadata'));
+    fireEvent.change(await screen.findByTestId('metadata-profile'), {
+      target: { value: '{"theme":"light"}' },
+    });
+    fireEvent.click(screen.getByTestId('metadata-save'));
+
+    expect(await screen.findByTestId('metadata-error')).toHaveTextContent(
+      'The metadata changed since it was loaded.',
+    );
+  });
+
+  it('shows the username alone when the account has no email', async () => {
+    installFetch((url) => {
+      if (url.endsWith(claimsUrl)) {
+        return jsonResponse(claimsResource);
+      }
+      throw new Error(`Unexpected ${url}`);
+    });
+
+    renderPage({ email: null });
+    await screen.findByTestId('claim-type-0');
+
+    expect(screen.getByText('ada')).toBeInTheDocument();
+    expect(screen.queryByText(/·/)).not.toBeInTheDocument();
+  });
+
+  it('shows an error when the claims fail to load', async () => {
+    installFetch(() => jsonResponse({ detail: 'boom' }, 500));
+
+    renderPage();
+
+    expect(await screen.findByText('Failed to load profile claims.')).toBeInTheDocument();
+  });
+
+  it('shows an error when the metadata fails to load', async () => {
+    installFetch((url) => {
+      if (url.endsWith(metadataUrl)) {
+        return jsonResponse({ detail: 'boom' }, 500);
+      }
+      if (url.endsWith(claimsUrl)) {
+        return jsonResponse(claimsResource);
+      }
+      throw new Error(`Unexpected ${url}`);
+    });
+
+    renderPage();
+    fireEvent.click(await screen.findByTestId('local-account-tab-metadata'));
+
+    expect(await screen.findByText('Failed to load metadata.')).toBeInTheDocument();
+  });
+
+  it('seeds both metadata editors with an empty object when the bags are null', async () => {
+    installFetch((url) => {
+      if (url.endsWith(metadataUrl)) {
+        return jsonResponse({ ...metadataResource, profileMetadata: null });
+      }
+      if (url.endsWith(claimsUrl)) {
+        return jsonResponse(claimsResource);
+      }
+      throw new Error(`Unexpected ${url}`);
+    });
+
+    renderPage();
+    fireEvent.click(await screen.findByTestId('local-account-tab-metadata'));
+
+    expect(await screen.findByTestId('metadata-profile')).toHaveValue('{}');
+    expect(screen.getByTestId('metadata-system')).toHaveValue('{}');
+  });
 });

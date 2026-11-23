@@ -405,6 +405,18 @@ public sealed class ClientStorePagingTests : IDisposable
     }
 
     [Fact]
+    public async Task GetByPrincipalsAsync_WhenNoPrincipalIsNamed_ReturnsNothing()
+    {
+        await SeedAsync(2, CancellationToken.None);
+
+        using var scope = Ambient.BeginUnscoped("test");
+
+        var loaded = await Store.GetByPrincipalsAsync([], CancellationToken.None);
+
+        Assert.Empty(loaded);
+    }
+
+    [Fact]
     public async Task GetByPrincipalsAsync_WhenTheScopeIsATenantScope_Throws()
     {
         await SeedAsync(1, CancellationToken.None);

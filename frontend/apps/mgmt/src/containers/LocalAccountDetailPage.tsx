@@ -5,7 +5,11 @@ import Stack from '@mui/material/Stack';
 import Tab from '@mui/material/Tab';
 import Tabs from '@mui/material/Tabs';
 import Typography from '@mui/material/Typography';
-import type { LocalAccountResource } from '@ncodegroup/identity-api';
+import type {
+  LocalAccountClaimsResource,
+  LocalAccountMetadataResource,
+  LocalAccountResource,
+} from '@ncodegroup/identity-api';
 import {
   apiErrorMessage,
   useGetLocalAccountClaimsQuery,
@@ -59,15 +63,12 @@ export function LocalAccountDetailPage({ account, cell, onBack }: LocalAccountDe
   const [setLocalAccountMetadata, { isLoading: isSavingMetadata }] =
     useSetLocalAccountMetadataMutation();
 
-  const saveClaims = async (next: LocalAccountClaim[]) => {
-    if (!claims) {
-      return;
-    }
+  const saveClaims = async (loaded: LocalAccountClaimsResource, next: LocalAccountClaim[]) => {
     setClaimsError(undefined);
     try {
       await setLocalAccountClaims({
         ...address,
-        concurrencyToken: claims.concurrencyToken,
+        concurrencyToken: loaded.concurrencyToken,
         body: { claims: next },
       }).unwrap();
     } catch (failure) {
@@ -76,17 +77,15 @@ export function LocalAccountDetailPage({ account, cell, onBack }: LocalAccountDe
   };
 
   const saveMetadata = async (
+    loaded: LocalAccountMetadataResource,
     profileMetadata: Record<string, unknown>,
     systemMetadata: Record<string, unknown>,
   ) => {
-    if (!metadata) {
-      return;
-    }
     setMetadataError(undefined);
     try {
       await setLocalAccountMetadata({
         ...address,
-        concurrencyToken: metadata.concurrencyToken,
+        concurrencyToken: loaded.concurrencyToken,
         body: { profileMetadata, systemMetadata },
       }).unwrap();
     } catch (failure) {
@@ -144,7 +143,7 @@ export function LocalAccountDetailPage({ account, cell, onBack }: LocalAccountDe
               claims={claims.claims}
               isSaving={isSavingClaims}
               error={claimsError}
-              onSave={(next) => void saveClaims(next)}
+              onSave={(next) => void saveClaims(claims, next)}
             />
           ) : null}
         </DataStateBoundary>
@@ -159,7 +158,7 @@ export function LocalAccountDetailPage({ account, cell, onBack }: LocalAccountDe
               systemJson={JSON.stringify(metadata.systemMetadata ?? {}, null, 2)}
               isSaving={isSavingMetadata}
               error={metadataError}
-              onSave={(profile, system) => void saveMetadata(profile, system)}
+              onSave={(profile, system) => void saveMetadata(metadata, profile, system)}
             />
           ) : null}
         </DataStateBoundary>
