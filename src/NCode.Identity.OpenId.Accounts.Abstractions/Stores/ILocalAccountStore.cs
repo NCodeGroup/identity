@@ -105,7 +105,7 @@ public interface ILocalAccountStore : IStore
 
     /// <summary>
     /// Gets the local accounts from the store that have any of the specified opaque identifiers (their self-issued
-    /// subjects), in one call; an identifier no account has contributes none.
+    /// subjects); an identifier no account has contributes none.
     /// </summary>
     /// <param name="localAccountIds">The opaque identifiers of the local accounts.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
@@ -129,8 +129,8 @@ public interface ILocalAccountStore : IStore
     );
 
     /// <summary>
-    /// Gets the local accounts from the store that have any of the specified usernames (login handles), in one call; a
-    /// name no account has contributes none.
+    /// Gets the local accounts from the store that have any of the specified usernames (login handles); a name no
+    /// account has contributes none.
     /// </summary>
     /// <param name="userNames">The usernames of the local accounts.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>

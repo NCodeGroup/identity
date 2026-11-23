@@ -628,6 +628,11 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
     }
 
     /// <inheritdoc />
+    /// <remarks>
+    /// The matching users are read in one query. ASP.NET Core Identity's claim store reads the claims of one user at a
+    /// time, so each matched account's claims are read with a call of its own, one query per account over ASP.NET Core
+    /// Identity's Entity Framework store.
+    /// </remarks>
     public async ValueTask<IReadOnlyList<PersistedLocalAccount>> GetByIdsAsync(
         IReadOnlyCollection<string> localAccountIds,
         CancellationToken cancellationToken
@@ -648,6 +653,11 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
     }
 
     /// <inheritdoc />
+    /// <remarks>
+    /// The matching users are read in one query. ASP.NET Core Identity's claim store reads the claims of one user at a
+    /// time, so each matched account's claims are read with a call of its own, one query per account over ASP.NET Core
+    /// Identity's Entity Framework store.
+    /// </remarks>
     public async ValueTask<IReadOnlyList<PersistedLocalAccount>> GetByUserNamesAsync(
         IReadOnlyCollection<string> userNames,
         CancellationToken cancellationToken
