@@ -22,10 +22,13 @@ namespace NCode.Identity.Mail.AmazonSes;
 // See ADR-1528.
 internal sealed class AmazonSesMailTransport(
     IAmazonSesClientFactory clientFactory,
+    IMimeMessageFactory mimeMessageFactory,
     IOptions<AmazonSesMailTransportOptions> optionsAccessor
 ) : IMailTransport
 {
     private IAmazonSesClientFactory ClientFactory { get; } = clientFactory;
+
+    private IMimeMessageFactory MimeMessageFactory { get; } = mimeMessageFactory;
 
     private AmazonSesMailTransportOptions Options => optionsAccessor.Value;
 
@@ -56,12 +59,12 @@ internal sealed class AmazonSesMailTransport(
 
         var options = Options;
         var defaultFrom = new MailAddress(options.From, options.FromName);
-        using var mimeMessage = await MimeMailMessages.CreateAsync(
+        using var mimeMessage = await MimeMessageFactory.CreateAsync(
             message,
             defaultFrom,
             cancellationToken
         );
-        var formatOptions = MimeMailMessages.CreateFormatOptions();
+        var formatOptions = MimeMessageFactory.CreateFormatOptions();
 
         await using var raw = BufferFactory.CreatePooledStream(isSensitive: true);
         await mimeMessage.WriteToAsync(formatOptions, raw, cancellationToken);

@@ -6,6 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using NCode.Identity.Mail.AmazonSes.Facades;
 using NCode.Identity.Mail.AmazonSes.Options;
+using NCode.Identity.Mail.Mime;
 using NCode.Identity.Registration;
 using Xunit;
 
@@ -73,6 +74,7 @@ public class DefaultRegistrationTests : BaseTests
         Assert.IsType<DefaultAmazonSesClientFactory>(
             provider.GetRequiredService<IAmazonSesClientFactory>()
         );
+        Assert.NotNull(provider.GetService<IMimeMessageFactory>());
         var options = provider.GetRequiredService<IOptions<AmazonSesMailTransportOptions>>().Value;
         Assert.Equal("us-east-1", options.Region);
         Assert.Equal("noreply@example.com", options.From);
@@ -98,7 +100,7 @@ public class DefaultRegistrationTests : BaseTests
         );
 
         Assert.Equal(
-            "The mail transport 'Mail:Smtp' is registered; configure one of 'Mail:Smtp' and 'Mail:AmazonSes'.",
+            "The mail transport 'Mail:Smtp' is registered, so the mail transport 'Mail:AmazonSes' cannot be; a host configures one mail transport.",
             exception.Message
         );
     }

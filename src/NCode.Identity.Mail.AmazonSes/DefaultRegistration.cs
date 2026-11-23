@@ -8,6 +8,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 using NCode.Identity.Mail.AmazonSes.Facades;
 using NCode.Identity.Mail.AmazonSes.Options;
+using NCode.Identity.Mail.Mime;
 using NCode.Identity.Registration;
 
 namespace NCode.Identity.Mail.AmazonSes;
@@ -44,21 +45,9 @@ public static class DefaultRegistration
 
             var serviceCollection = builder.ServiceCollection;
 
-            var registered = serviceCollection.FirstOrDefault(descriptor =>
-                descriptor.ServiceType == typeof(MailTransportRegistration)
+            builder.AddMimeMailTransport<AmazonSesMailTransport>(
+                AmazonSesMailTransportOptions.SectionName
             );
-            if (registered is not null)
-            {
-                var registeredName =
-                    (registered.ImplementationInstance as MailTransportRegistration)?.Name
-                    ?? "(unknown)";
-                throw new InvalidOperationException(
-                    $"The mail transport '{registeredName}' is registered; configure one of 'Mail:Smtp' and 'Mail:AmazonSes'."
-                );
-            }
-
-            var marker = new MailTransportRegistration(AmazonSesMailTransportOptions.SectionName);
-            serviceCollection.AddSingleton(marker);
 
             serviceCollection
                 .AddOptions<AmazonSesMailTransportOptions>()
@@ -75,11 +64,6 @@ public static class DefaultRegistration
                 IAmazonSesClientFactory,
                 DefaultAmazonSesClientFactory
             >();
-            var transportDescriptor = ServiceDescriptor.Singleton<
-                IMailTransport,
-                AmazonSesMailTransport
-            >();
-            serviceCollection.Replace(transportDescriptor);
 
             return builder;
         }

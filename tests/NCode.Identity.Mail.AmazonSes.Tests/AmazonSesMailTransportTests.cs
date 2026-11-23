@@ -4,11 +4,14 @@
 using System.Net;
 using Amazon.SimpleEmailV2;
 using Amazon.SimpleEmailV2.Model;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Moq;
 using NCode.Buffers;
 using NCode.Identity.Mail.AmazonSes.Facades;
 using NCode.Identity.Mail.AmazonSes.Options;
+using NCode.Identity.Mail.Mime;
+using NCode.Identity.Registration;
 using Xunit;
 
 namespace NCode.Identity.Mail.AmazonSes.Tests;
@@ -18,6 +21,8 @@ public class AmazonSesMailTransportTests : BaseTests
     private Mock<IAmazonSesClientFactory> ClientFactoryMock { get; }
 
     private Mock<IAmazonSimpleEmailServiceV2> ClientMock { get; }
+
+    private ServiceProvider MimeServices { get; }
 
     private AmazonSesMailTransportOptions TransportOptions { get; } =
         new() { Region = "us-east-1", From = "noreply@example.com" };
@@ -39,14 +44,26 @@ public class AmazonSesMailTransportTests : BaseTests
         ClientFactoryMock = CreateStrictMock<IAmazonSesClientFactory>();
         ClientMock = CreateStrictMock<IAmazonSimpleEmailServiceV2>();
 
+        var mimeServices = new ServiceCollection();
+        mimeServices.NewBuilder<MailLibrary>().AddMimeMessageFactory();
+        MimeServices = mimeServices.BuildServiceProvider();
+        var mimeMessageFactory = MimeServices.GetRequiredService<IMimeMessageFactory>();
+
         var optionsAccessor = new OptionsWrapper<AmazonSesMailTransportOptions>(TransportOptions);
-        Transport = new AmazonSesMailTransport(ClientFactoryMock.Object, optionsAccessor);
+        Transport = new AmazonSesMailTransport(
+            ClientFactoryMock.Object,
+            mimeMessageFactory,
+            optionsAccessor
+        );
     }
 
     protected override void Dispose(bool disposing)
     {
         if (disposing)
+        {
             Message.Dispose();
+            MimeServices.Dispose();
+        }
 
         base.Dispose(disposing);
     }
