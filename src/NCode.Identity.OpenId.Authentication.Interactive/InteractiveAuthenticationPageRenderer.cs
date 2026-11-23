@@ -25,6 +25,11 @@ namespace NCode.Identity.OpenId.Authentication.Interactive;
 internal static class InteractiveAuthenticationPageRenderer
 {
     /// <summary>
+    /// The name of the form field and the query parameter that carry the return URL the end user continues to.
+    /// </summary>
+    public const string ReturnUrlFieldName = "ReturnUrl";
+
+    /// <summary>
     /// The name of the form field and the query parameter that carry the language tag of the locale a page rendered
     /// in, the same name as the authorization request's parameter.
     /// </summary>
@@ -350,12 +355,16 @@ internal static class InteractiveAuthenticationPageRenderer
         WriteHiddenFields(writer, form, locale);
         Write(
             writer,
-            "<button id=\"consent-deny\" name=\"action\" value=\"deny\" type=\"submit\">"
+            "<button id=\"consent-deny\" name=\""
+                + ActionFieldName
+                + "\" value=\"deny\" type=\"submit\">"
         );
         WriteEncoded(writer, messages.DenyButton);
         Write(
             writer,
-            "</button><button id=\"consent-allow\" name=\"action\" value=\"allow\" type=\"submit\">"
+            "</button><button id=\"consent-allow\" name=\""
+                + ActionFieldName
+                + "\" value=\"allow\" type=\"submit\">"
         );
         WriteEncoded(writer, messages.AllowButton);
         Write(writer, "</button></form></main>");
@@ -389,12 +398,16 @@ internal static class InteractiveAuthenticationPageRenderer
         WriteHiddenFields(writer, form, locale);
         Write(
             writer,
-            "<button id=\"logout-cancel\" name=\"action\" value=\"cancel\" type=\"submit\">"
+            "<button id=\"logout-cancel\" name=\""
+                + ActionFieldName
+                + "\" value=\"cancel\" type=\"submit\">"
         );
         WriteEncoded(writer, messages.StaySignedInButton);
         Write(
             writer,
-            "</button><button id=\"logout-confirm\" name=\"action\" value=\"logout\" type=\"submit\">"
+            "</button><button id=\"logout-confirm\" name=\""
+                + ActionFieldName
+                + "\" value=\"logout\" type=\"submit\">"
         );
         WriteEncoded(writer, messages.SignOutButton);
         Write(writer, "</button></form></main>");
@@ -540,7 +553,7 @@ internal static class InteractiveAuthenticationPageRenderer
         InteractiveLocale locale
     )
     {
-        Write(writer, "<input type=\"hidden\" name=\"ReturnUrl\" value=\"");
+        Write(writer, "<input type=\"hidden\" name=\"" + ReturnUrlFieldName + "\" value=\"");
         WriteEncoded(writer, form.ReturnUrl);
         Write(writer, "\" />");
         WriteAntiforgeryField(writer, form);
