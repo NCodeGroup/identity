@@ -31,21 +31,14 @@ internal sealed class ClientPrincipalDescriber(IAmbientTenantAccessor ambientTen
         CancellationToken cancellationToken
     )
     {
-        var summaries = new List<PrincipalSummaryResource>();
-
         if (query.PrincipalIds.Count == 0)
         {
-            return summaries;
+            return [];
         }
 
         var clientStore = storeManager.GetStore<IClientStore>();
-        IReadOnlyList<PersistedClient> clients;
-
-        // A principal names at most one client in any tenant, so the principals are read across tenants. See ADR-1018.
-        using (AmbientTenantAccessor.BeginUnscoped(UnscopedReason))
-        {
-            clients = await clientStore.GetByPrincipalsAsync(query.PrincipalIds, cancellationToken);
-        }
+        var clients = await ReadClientsAsync(clientStore, query.PrincipalIds, cancellationToken);
+        var summaries = new List<PrincipalSummaryResource>(clients.Count);
 
         foreach (var client in clients)
         {
@@ -60,5 +53,24 @@ internal sealed class ClientPrincipalDescriber(IAmbientTenantAccessor ambientTen
         }
 
         return summaries;
+    }
+
+    /// <summary>
+    /// Reads the clients that hold any of the principals across tenants, inside an unscoped ambient scope, because a
+    /// principal names at most one client in any tenant.
+    /// </summary>
+    /// <param name="clientStore">The store that reads the clients.</param>
+    /// <param name="principalIds">The identifiers of the principals whose clients to read.</param>
+    /// <param name="cancellationToken">The token that cancels the read.</param>
+    /// <returns>The clients that hold any of the principals.</returns>
+    private async ValueTask<IReadOnlyList<PersistedClient>> ReadClientsAsync(
+        IClientStore clientStore,
+        IReadOnlyList<string> principalIds,
+        CancellationToken cancellationToken
+    )
+    {
+        // A principal names at most one client in any tenant, so the principals are read across tenants. See ADR-1018.
+        using var unscoped = AmbientTenantAccessor.BeginUnscoped(UnscopedReason);
+        return await clientStore.GetByPrincipalsAsync(principalIds, cancellationToken);
     }
 }
