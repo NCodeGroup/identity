@@ -45,6 +45,7 @@ internal class FederatedIdentityStore(
             TenantId = entity.Tenant.TenantId,
             FederatedIdentityId = entity.FederatedIdentityId,
             PrincipalId = entity.FederatedPrincipal.PrincipalId,
+            ConnectionId = entity.Connection.ConnectionId,
             Issuer = entity.Issuer,
             Subject = entity.Subject,
             JoinKey = entity.JoinKey,
@@ -62,6 +63,7 @@ internal class FederatedIdentityStore(
         return GetLocalOrDefault(predicate)
             ?? await DbContext
                 .FederatedIdentities.Include(entity => entity.FederatedPrincipal)
+                .Include(entity => entity.Connection)
                 .Include(entity => entity.Tenant)
                 .FirstOrDefaultAsync(predicate, cancellationToken);
     }
@@ -75,6 +77,7 @@ internal class FederatedIdentityStore(
     {
         var query = DbContext
             .FederatedIdentities.Include(entity => entity.FederatedPrincipal)
+            .Include(entity => entity.Connection)
             .Include(entity => entity.Tenant)
             .AsQueryable();
 
@@ -108,6 +111,17 @@ internal class FederatedIdentityStore(
                 $"A federated principal with '{identity.PrincipalId}' was not found."
             );
 
+        var normalizedConnectionId = Normalize(identity.ConnectionId);
+        var connectionEntity =
+            GetLocalConnectionOrDefault(normalizedConnectionId)
+            ?? await DbContext.Connections.SingleOrDefaultAsync(
+                connection => connection.NormalizedConnectionId == normalizedConnectionId,
+                cancellationToken
+            )
+            ?? throw new InvalidOperationException(
+                $"A connection with '{identity.ConnectionId}' was not found."
+            );
+
         // The interceptor leaves a pre-seeded insert token intact (ADR-1012).
         identity.ConcurrencyToken = NextConcurrencyToken();
 
@@ -119,14 +133,15 @@ internal class FederatedIdentityStore(
             FederatedIdentityId = identity.FederatedIdentityId,
             NormalizedFederatedIdentityId = Normalize(identity.FederatedIdentityId),
             FederatedPrincipalId = principalEntity.Id,
+            ConnectionId = connectionEntity.Id,
             Issuer = identity.Issuer,
-            NormalizedIssuer = Normalize(identity.Issuer),
             Subject = identity.Subject,
             NormalizedSubject = Normalize(identity.Subject),
             JoinKey = identity.JoinKey,
             NormalizedJoinKey = Normalize(identity.JoinKey),
             ConcurrencyToken = identity.ConcurrencyToken,
             FederatedPrincipal = principalEntity,
+            Connection = connectionEntity,
             Tenant = tenantEntity,
         };
 
@@ -148,17 +163,17 @@ internal class FederatedIdentityStore(
     }
 
     /// <inheritdoc />
-    public async ValueTask<PersistedFederatedIdentity?> GetByIssuerSubjectAsync(
-        string issuer,
+    public async ValueTask<PersistedFederatedIdentity?> GetByConnectionSubjectAsync(
+        string connectionId,
         string subject,
         CancellationToken cancellationToken
     )
     {
-        var normalizedIssuer = Normalize(issuer);
+        var normalizedConnectionId = Normalize(connectionId);
         var normalizedSubject = Normalize(subject);
         var entity = await GetEntityOrDefaultAsync(
             identity =>
-                identity.NormalizedIssuer == normalizedIssuer
+                identity.Connection.NormalizedConnectionId == normalizedConnectionId
                 && identity.NormalizedSubject == normalizedSubject,
             cancellationToken
         );
@@ -166,8 +181,8 @@ internal class FederatedIdentityStore(
     }
 
     /// <inheritdoc />
-    public async ValueTask<IReadOnlyList<PersistedFederatedIdentity>> GetByIssuerSubjectsAsync(
-        string issuer,
+    public async ValueTask<IReadOnlyList<PersistedFederatedIdentity>> GetByConnectionSubjectsAsync(
+        string connectionId,
         IReadOnlyCollection<string> subjects,
         CancellationToken cancellationToken
     )
@@ -177,7 +192,7 @@ internal class FederatedIdentityStore(
             return [];
         }
 
-        var normalizedIssuer = Normalize(issuer);
+        var normalizedConnectionId = Normalize(connectionId);
         var normalizedSubjects = new List<string>(subjects.Count);
         foreach (var subject in subjects)
         {
@@ -187,9 +202,10 @@ internal class FederatedIdentityStore(
 
         var entities = await DbContext
             .FederatedIdentities.Include(entity => entity.FederatedPrincipal)
+            .Include(entity => entity.Connection)
             .Include(entity => entity.Tenant)
             .Where(entity =>
-                entity.NormalizedIssuer == normalizedIssuer
+                entity.Connection.NormalizedConnectionId == normalizedConnectionId
                 && normalizedSubjects.Contains(entity.NormalizedSubject)
             )
             .ToListAsync(cancellationToken);
@@ -205,6 +221,19 @@ internal class FederatedIdentityStore(
     }
 
     /// <inheritdoc />
+    public async ValueTask<bool> AnyByConnectionAsync(
+        string connectionId,
+        CancellationToken cancellationToken
+    )
+    {
+        var normalizedConnectionId = Normalize(connectionId);
+        return await DbContext.FederatedIdentities.AnyAsync(
+            entity => entity.Connection.NormalizedConnectionId == normalizedConnectionId,
+            cancellationToken
+        );
+    }
+
+    /// <inheritdoc />
     public async ValueTask<IReadOnlyList<PersistedFederatedIdentity>> GetByPrincipalAsync(
         string principalId,
         CancellationToken cancellationToken
@@ -213,6 +242,7 @@ internal class FederatedIdentityStore(
         var normalizedPrincipalId = Normalize(principalId);
         var entities = await DbContext
             .FederatedIdentities.Include(entity => entity.FederatedPrincipal)
+            .Include(entity => entity.Connection)
             .Include(entity => entity.Tenant)
             .Where(entity =>
                 entity.FederatedPrincipal.NormalizedPrincipalId == normalizedPrincipalId
@@ -238,6 +268,7 @@ internal class FederatedIdentityStore(
         var normalizedJoinKey = Normalize(joinKey);
         var entities = await DbContext
             .FederatedIdentities.Include(entity => entity.FederatedPrincipal)
+            .Include(entity => entity.Connection)
             .Include(entity => entity.Tenant)
             .Where(entity => entity.NormalizedJoinKey == normalizedJoinKey)
             .ToListAsync(cancellationToken);
@@ -276,5 +307,12 @@ internal class FederatedIdentityStore(
             .Set<FederatedPrincipalEntity>()
             .Local.FirstOrDefault(principal =>
                 principal.NormalizedPrincipalId == normalizedPrincipalId
+            );
+
+    private ConnectionEntity? GetLocalConnectionOrDefault(string normalizedConnectionId) =>
+        DbContext
+            .Set<ConnectionEntity>()
+            .Local.FirstOrDefault(connection =>
+                connection.NormalizedConnectionId == normalizedConnectionId
             );
 }

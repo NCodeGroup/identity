@@ -9,8 +9,8 @@ namespace NCode.Identity.OpenId.Persistence.Stores;
 
 /// <summary>
 /// Provides an abstraction for a store which persists <see cref="PersistedFederatedIdentity"/> instances: the external
-/// connection identities owned by federated principals. Each identity is uniquely identified upstream by its
-/// <c>(issuer, subject)</c> pair.
+/// connection identities owned by federated principals. Each identity is uniquely identified by its
+/// <c>(connection, subject)</c> pair.
 /// </summary>
 [PublicAPI]
 public interface IFederatedIdentityStore : IStore
@@ -36,34 +36,43 @@ public interface IFederatedIdentityStore : IStore
     );
 
     /// <summary>
-    /// Attempts to get a federated identity from the store by its upstream <c>(issuer, subject)</c> natural key (the
-    /// lookup used to resolve an authenticated caller to a principal).
+    /// Attempts to get a federated identity from the store by its <c>(connection, subject)</c> natural key (the lookup
+    /// used to resolve an authenticated caller to a principal).
     /// </summary>
-    /// <param name="issuer">The upstream issuer that authenticated the connection identity.</param>
-    /// <param name="subject">The upstream subject value issued by the <paramref name="issuer"/>.</param>
+    /// <param name="connectionId">The identifier of the connection that authenticated the identity.</param>
+    /// <param name="subject">The subject value issued by the connection.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
     /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation, containing the
     /// <see cref="PersistedFederatedIdentity"/> if found; otherwise <c>null</c>.</returns>
-    ValueTask<PersistedFederatedIdentity?> GetByIssuerSubjectAsync(
-        string issuer,
+    ValueTask<PersistedFederatedIdentity?> GetByConnectionSubjectAsync(
+        string connectionId,
         string subject,
         CancellationToken cancellationToken
     );
 
     /// <summary>
-    /// Gets the federated identities that the specified upstream issuer issued for any of the specified subjects, in
-    /// one call; a subject with no identity contributes none.
+    /// Gets the federated identities that the specified connection issued for any of the specified subjects, in one
+    /// call; a subject with no identity contributes none.
     /// </summary>
-    /// <param name="issuer">The upstream issuer that authenticated the connection identities.</param>
-    /// <param name="subjects">The upstream subject values issued by the <paramref name="issuer"/>.</param>
+    /// <param name="connectionId">The identifier of the connection that authenticated the identities.</param>
+    /// <param name="subjects">The subject values issued by the connection.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
     /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation, containing the identities
-    /// that match the <paramref name="issuer"/> and any of the <paramref name="subjects"/>.</returns>
-    ValueTask<IReadOnlyList<PersistedFederatedIdentity>> GetByIssuerSubjectsAsync(
-        string issuer,
+    /// that match the connection and any of the <paramref name="subjects"/>.</returns>
+    ValueTask<IReadOnlyList<PersistedFederatedIdentity>> GetByConnectionSubjectsAsync(
+        string connectionId,
         IReadOnlyCollection<string> subjects,
         CancellationToken cancellationToken
     );
+
+    /// <summary>
+    /// Determines whether any federated identity belongs to the specified connection.
+    /// </summary>
+    /// <param name="connectionId">The identifier of the connection.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation, containing <c>true</c> when at
+    /// least one identity belongs to the connection.</returns>
+    ValueTask<bool> AnyByConnectionAsync(string connectionId, CancellationToken cancellationToken);
 
     /// <summary>
     /// Gets every federated identity owned by the specified principal.

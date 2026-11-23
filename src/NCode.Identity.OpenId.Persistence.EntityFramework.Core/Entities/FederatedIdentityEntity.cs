@@ -12,11 +12,11 @@ namespace NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities;
 
 /// <summary>
 /// Represents an entity framework data contract for a federated identity: one external connection identity owned by a
-/// <see cref="FederatedPrincipalEntity"/>. The upstream <see cref="Issuer"/> + <see cref="Subject"/> pair is the
+/// <see cref="FederatedPrincipalEntity"/>. The <see cref="Connection"/> + <see cref="Subject"/> pair is the
 /// lookup-only natural key. The complimentary DTO for this entity is <c>PersistedFederatedIdentity</c>.
 /// </summary>
 [Index(nameof(TenantId), nameof(NormalizedFederatedIdentityId), IsUnique = true)]
-[Index(nameof(TenantId), nameof(NormalizedIssuer), nameof(NormalizedSubject), IsUnique = true)]
+[Index(nameof(TenantId), nameof(ConnectionId), nameof(NormalizedSubject), IsUnique = true)]
 [Index(nameof(TenantId), nameof(NormalizedJoinKey))]
 public sealed class FederatedIdentityEntity : ISupportTenantEntity, ISupportConcurrencyToken
 {
@@ -63,22 +63,21 @@ public sealed class FederatedIdentityEntity : ISupportTenantEntity, ISupportConc
     public required Guid FederatedPrincipalId { get; init; }
 
     /// <summary>
-    /// Gets the upstream issuer that authenticated this connection identity.
+    /// Gets the foreign key to the <see cref="ConnectionEntity"/> that authenticated this identity.
+    /// </summary>
+    [ForeignKey(nameof(Connection))]
+    public required Guid ConnectionId { get; init; }
+
+    /// <summary>
+    /// Gets the upstream issuer, when the connection is external, recorded for audit and display. It is not part of
+    /// any key. This value is <c>null</c> when the connection has no upstream issuer.
     /// </summary>
     [Unicode(false)]
     [MaxLength(OpenIdMaxLengths.Issuer)]
-    public required string Issuer { get; init; }
+    public required string? Issuer { get; init; }
 
     /// <summary>
-    /// Gets the value of <see cref="Issuer"/> in lowercase so that lookups can be sargable for DBMS engines that don't
-    /// support case-insensitive indices.
-    /// </summary>
-    [Unicode(false)]
-    [MaxLength(OpenIdMaxLengths.Issuer)]
-    public required string NormalizedIssuer { get; init; }
-
-    /// <summary>
-    /// Gets the upstream subject value (the OpenID <c>sub</c>) as issued by the <see cref="Issuer"/>.
+    /// Gets the subject value (the OpenID <c>sub</c>) as issued by the connection.
     /// </summary>
     [Unicode(false)]
     [MaxLength(OpenIdMaxLengths.SubjectId)]
@@ -123,6 +122,11 @@ public sealed class FederatedIdentityEntity : ISupportTenantEntity, ISupportConc
     /// Gets the <see cref="FederatedPrincipalEntity"/> that owns this identity.
     /// </summary>
     public required FederatedPrincipalEntity FederatedPrincipal { get; init; }
+
+    /// <summary>
+    /// Gets the <see cref="ConnectionEntity"/> that authenticated this identity.
+    /// </summary>
+    public required ConnectionEntity Connection { get; init; }
 
     /// <summary>
     /// Gets the navigation property for the associated tenant.
