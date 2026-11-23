@@ -112,6 +112,11 @@ internal sealed class AuditStreamDeliveryService(
         }
     }
 
+    /// <summary>
+    /// Reads the delivery states that are due: those whose next attempt has come and whose lease is free or expired.
+    /// </summary>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <returns>At most the configured number of streams per poll, as their delivery states.</returns>
     private async ValueTask<IReadOnlyList<PersistedAuditStreamState>> ReadDueStatesAsync(
         CancellationToken cancellationToken
     )
@@ -127,6 +132,13 @@ internal sealed class AuditStreamDeliveryService(
         );
     }
 
+    /// <summary>
+    /// Takes the lease of a stream for this replica in a unit of work of its own.
+    /// </summary>
+    /// <param name="state">The delivery state of the stream to claim.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <returns><see langword="true"/> when this replica took the lease; <see langword="false"/> when another replica
+    /// took it first.</returns>
     private async ValueTask<bool> TryClaimAsync(
         PersistedAuditStreamState state,
         CancellationToken cancellationToken

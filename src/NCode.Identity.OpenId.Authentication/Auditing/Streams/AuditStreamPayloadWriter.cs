@@ -60,6 +60,11 @@ internal static class AuditStreamPayloadWriter
         return buffer.WrittenSpan.ToArray();
     }
 
+    /// <summary>
+    /// Writes one audit record as a JSON object, leaving out each optional member that has no value.
+    /// </summary>
+    /// <param name="writer">The writer that receives the object.</param>
+    /// <param name="record">The record to write.</param>
     private static void WriteRecord(Utf8JsonWriter writer, PersistedAuditRecord record)
     {
         writer.WriteStartObject();
@@ -92,6 +97,12 @@ internal static class AuditStreamPayloadWriter
         writer.WriteEndObject();
     }
 
+    /// <summary>
+    /// Writes a string property only when it has a value.
+    /// </summary>
+    /// <param name="writer">The writer that receives the property.</param>
+    /// <param name="propertyName">The name of the property.</param>
+    /// <param name="value">The value of the property, or <see langword="null"/> to write nothing.</param>
     private static void WriteIfSet(Utf8JsonWriter writer, string propertyName, string? value)
     {
         if (value is not null)

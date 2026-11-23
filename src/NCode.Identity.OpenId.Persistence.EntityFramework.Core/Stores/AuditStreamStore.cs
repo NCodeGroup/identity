@@ -37,12 +37,22 @@ internal sealed class AuditStreamStore(
     /// <inheritdoc />
     protected override OpenIdDbContext DbContext { get; } = openIdDbContext;
 
+    /// <summary>
+    /// Gets the audit stream query that loads each stream with its tenant, delivery state and signing secrets.
+    /// </summary>
     private IQueryable<AuditStreamEntity> StreamsWithChildren =>
         DbContext
             .AuditStreams.Include(entity => entity.Tenant)
             .Include(entity => entity.State)
             .Include(entity => entity.SigningSecrets);
 
+    /// <summary>
+    /// Maps the delivery state entity of an audit stream to its persisted model.
+    /// </summary>
+    /// <param name="entity">The entity to map.</param>
+    /// <param name="tenantId">The identifier of the tenant that owns the stream.</param>
+    /// <param name="streamId">The identifier of the stream.</param>
+    /// <returns>The persisted delivery state.</returns>
     private static PersistedAuditStreamState MapState(
         AuditStreamStateEntity entity,
         string tenantId,
@@ -195,6 +205,13 @@ internal sealed class AuditStreamStore(
         await DbContext.AuditStreamStates.AddAsync(stateEntity, cancellationToken);
     }
 
+    /// <summary>
+    /// Creates the entity of a signing secret that belongs to an audit stream, with a new identifier and concurrency
+    /// token.
+    /// </summary>
+    /// <param name="streamEntity">The entity of the stream that owns the secret.</param>
+    /// <param name="signingSecret">The persisted signing secret to create the entity from.</param>
+    /// <returns>The new, untracked entity.</returns>
     private AuditStreamSigningSecretEntity CreateSigningSecretEntity(
         AuditStreamEntity streamEntity,
         PersistedAuditStreamSigningSecret signingSecret

@@ -134,6 +134,15 @@ internal sealed class AuditRecordOptionsValidator(IOptions<OutboundHttpOptions> 
             : ValidateOptionsResult.Fail(failures);
     }
 
+    /// <summary>
+    /// Adds a failure to the list when a value lies outside an inclusive range.
+    /// </summary>
+    /// <typeparam name="T">The type of the value, which must be comparable with itself.</typeparam>
+    /// <param name="failures">The failures to add to.</param>
+    /// <param name="propertyName">The name of the option that holds the value.</param>
+    /// <param name="value">The value to check.</param>
+    /// <param name="minValue">The least value that is accepted.</param>
+    /// <param name="maxValue">The greatest value that is accepted.</param>
     // See ADR-1534.
     private static void AddRangeFailure<T>(
         List<string> failures,

@@ -666,7 +666,13 @@ internal class AuditStreamApiEndpointHandler(
         return TypedResults.Created(location, createdResource);
     }
 
-    // Reads the most audit streams the addressed tenant may hold from the settings of a context of that tenant.
+    /// <summary>
+    /// Reads the most audit streams that the addressed tenant may hold, from the settings of a context of that tenant.
+    /// </summary>
+    /// <param name="httpContext">The <see cref="HttpContext"/> of the request.</param>
+    /// <param name="tenantId">The identifier of the addressed tenant.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <returns>The most audit streams the tenant may hold.</returns>
     private async ValueTask<int> GetMaxAuditStreamsAsync(
         HttpContext httpContext,
         string tenantId,
@@ -685,8 +691,16 @@ internal class AuditStreamApiEndpointHandler(
         return settings.GetValue(OpenIdSettingKeys.MaxAuditStreams);
     }
 
-    // Generates a signing secret of 32 random bytes, protects it under the tenant owner's master key, and returns the
-    // stored secret with the whsec_ text that the caller sees once. The bytes are zeroed once they are protected.
+    /// <summary>
+    /// Generates a signing secret of 32 random bytes and protects it under the tenant owner's master key. The bytes are
+    /// zeroed once they are protected.
+    /// </summary>
+    /// <param name="tenantId">The identifier of the tenant that owns the stream.</param>
+    /// <param name="createdTime">The time to record as the creation time of the secret.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <returns>
+    /// The stored secret, and the <c>whsec_</c> text of the secret that the caller sees once.
+    /// </returns>
     private async ValueTask<(
         PersistedAuditStreamSigningSecret SigningSecret,
         string SigningSecretValue
@@ -728,7 +742,12 @@ internal class AuditStreamApiEndpointHandler(
         }
     }
 
-    // Judges the writable members of an audit stream, naming each field that is refused in a validation problem.
+    /// <summary>
+    /// Judges the writable members of an audit stream, naming each field that is refused in a validation problem.
+    /// </summary>
+    /// <param name="displayName">The display name to judge.</param>
+    /// <param name="endpoint">The endpoint to judge.</param>
+    /// <returns>The validation problem, or <see langword="null"/> when every member is accepted.</returns>
     private static ValidationProblem? GetValidationProblemOrDefault(
         string? displayName,
         string? endpoint
@@ -762,6 +781,11 @@ internal class AuditStreamApiEndpointHandler(
         );
     }
 
+    /// <summary>
+    /// Judges the display name of an audit stream, which must be present, not too long and free of control characters.
+    /// </summary>
+    /// <param name="displayName">The display name to judge.</param>
+    /// <returns>The message that names why it is refused, or <see langword="null"/> when it is accepted.</returns>
     private static string? GetDisplayNameErrorOrDefault(string? displayName)
     {
         if (string.IsNullOrWhiteSpace(displayName))
@@ -779,6 +803,12 @@ internal class AuditStreamApiEndpointHandler(
             : null;
     }
 
+    /// <summary>
+    /// Judges the endpoint of an audit stream, which must be an absolute https URL of a bounded length that carries
+    /// neither user information nor a fragment.
+    /// </summary>
+    /// <param name="endpoint">The endpoint to judge.</param>
+    /// <returns>The message that names why it is refused, or <see langword="null"/> when it is accepted.</returns>
     private static string? GetEndpointErrorOrDefault(string? endpoint)
     {
         if (endpoint is { Length: > OpenIdMaxLengths.UrlValue })

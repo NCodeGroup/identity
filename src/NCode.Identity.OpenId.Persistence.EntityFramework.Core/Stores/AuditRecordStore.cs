@@ -92,6 +92,12 @@ internal sealed class AuditRecordStore(
         return added;
     }
 
+    /// <summary>
+    /// Creates the entity of an audit record, with an entity for each of its resources in their original order.
+    /// </summary>
+    /// <param name="record">The persisted record to create the entity from.</param>
+    /// <param name="storedTime">The time at which the record is stored.</param>
+    /// <returns>The new, untracked entity.</returns>
     private AuditRecordEntity CreateEntity(PersistedAuditRecord record, DateTimeOffset storedTime)
     {
         var entity = new AuditRecordEntity
