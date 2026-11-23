@@ -140,10 +140,10 @@ internal sealed class DefaultAuditStreamDeliverer(
 
         try
         {
-            UnprotectedSigningSecrets secrets;
+            UnprotectedSigningSecrets unprotected;
             try
             {
-                secrets = await UnprotectCurrentSecretsAsync(stream, cancellationToken);
+                unprotected = await UnprotectCurrentSecretsAsync(stream, cancellationToken);
             }
             catch (Exception exception)
                 when (exception is not OperationCanceledException
@@ -159,10 +159,13 @@ internal sealed class DefaultAuditStreamDeliverer(
                 return;
             }
 
-            using (secrets)
+            using var secrets = unprotected;
+
+            AuditStreamDeliveryOutcome outcome;
+            try
             {
                 var leaseDeadline = GetLeaseDeadline(state);
-                var outcome = await DeliverBatchesAsync(
+                outcome = await DeliverBatchesAsync(
                     state,
                     stream,
                     current,
@@ -170,30 +173,32 @@ internal sealed class DefaultAuditStreamDeliverer(
                     leaseDeadline,
                     cancellationToken
                 );
-
-                // The replica lost the lease, so it has nothing to release.
-                if (!outcome.HoldsLease)
-                    return;
-
-                await TrySaveStateAsync(
-                    state,
-                    saved => FinishDelivery(saved, outcome.Error),
-                    cancellationToken
-                );
             }
+            catch (Exception exception)
+                when (exception is not OperationCanceledException
+                    || !cancellationToken.IsCancellationRequested
+                )
+            {
+                await RecordFailureAsync(state, DeliveryError, exception, cancellationToken);
+                return;
+            }
+
+            // The replica lost the lease, so it has nothing to release.
+            if (!outcome.HoldsLease)
+                return;
+
+            // A failure to save the finished state is not a failed delivery: it reaches the caller, which logs it.
+            await TrySaveStateAsync(
+                state,
+                saved => FinishDelivery(saved, outcome.Error),
+                cancellationToken
+            );
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
             // The host is stopping, so the lease is released for the replica that delivers the stream next.
             await ReleaseOnStopAsync(state);
             throw;
-        }
-        catch (Exception exception)
-            when (exception is not OperationCanceledException
-                || !cancellationToken.IsCancellationRequested
-            )
-        {
-            await RecordFailureAsync(state, DeliveryError, exception, cancellationToken);
         }
     }
 

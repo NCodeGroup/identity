@@ -639,6 +639,96 @@ public sealed class DefaultAuditStreamDelivererTests : BaseTests
     }
 
     [Fact]
+    public async Task DeliverAsync_WhenTheSecretFailureCannotBeSaved_CountsOneFailureAndThrows()
+    {
+        var failure = new CryptographicException("The master key cannot unwrap the secret.");
+        SetupScope();
+        SetupStores(updates: 0);
+        MockSecretProtectorProvider
+            .Setup(x =>
+                x.GetProtectorAsync(
+                    SecretOwner.ForTenant(TenantId),
+                    It.IsAny<IReadOnlyCollection<string>>(),
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .Throws(failure)
+            .Verifiable();
+        MockStreamStore
+            .Setup(x =>
+                x.UpdateStateAsync(
+                    It.IsAny<PersistedAuditStreamState>(),
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .Throws(new InvalidOperationException("unreachable"))
+            .Verifiable(Times.Once);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            Deliverer.DeliverAsync(Copy(Stored), CancellationToken.None).AsTask()
+        );
+
+        var delivery = Assert.Single(DeliveryCollector.GetMeasurementSnapshot());
+        Assert.Equal(
+            AuthenticationMetrics.FailedResult,
+            delivery.Tags.GetValueOrDefault(AuthenticationMetrics.AuditStreamResultAttribute)
+        );
+        Assert.Single(
+            Logger.Collector.GetSnapshot(),
+            record => record.Id.Id == EventIds.AuditStreamDeliveryErrored
+        );
+    }
+
+    [Fact]
+    public async Task DeliverAsync_WhenTheFinalSaveFails_CountsNoFailureAndThrows()
+    {
+        var record = CreateRecord(Guid.CreateVersion7());
+        var updateCalls = 0;
+        SetupScope();
+        SetupStores(updates: 0);
+        SetupProtector();
+        SetupHttpClient();
+        SetupPage(Stored.PositionStoredTime, Guid.Empty, CreatePage(Now.AddMinutes(-5), record));
+        Handler.Enqueue(HttpStatusCode.OK);
+        MockStreamStore
+            .Setup(x =>
+                x.UpdateStateAsync(
+                    It.IsAny<PersistedAuditStreamState>(),
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .Callback(
+                (PersistedAuditStreamState state, CancellationToken _) =>
+                {
+                    if (++updateCalls > 1)
+                        throw new InvalidOperationException("unreachable");
+
+                    Stored = Copy(state);
+                }
+            )
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable(Times.Exactly(2));
+        MockStoreManager
+            .Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()))
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable(Times.Once);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            Deliverer.DeliverAsync(Copy(Stored), CancellationToken.None).AsTask()
+        );
+
+        var delivery = Assert.Single(DeliveryCollector.GetMeasurementSnapshot());
+        Assert.Equal(
+            AuthenticationMetrics.DeliveredResult,
+            delivery.Tags.GetValueOrDefault(AuthenticationMetrics.AuditStreamResultAttribute)
+        );
+        Assert.DoesNotContain(
+            Logger.Collector.GetSnapshot(),
+            logged => logged.Id.Id == EventIds.AuditStreamDeliveryErrored
+        );
+    }
+
+    [Fact]
     public async Task DeliverAsync_WhenTheStoreFailsMidDelivery_RecordsADeliveryError()
     {
         var position = Stored.PositionStoredTime;
