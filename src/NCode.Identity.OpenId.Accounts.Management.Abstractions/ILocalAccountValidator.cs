@@ -6,6 +6,7 @@ using JetBrains.Annotations;
 using NCode.Identity.OpenId.Accounts.DataContracts;
 using NCode.Identity.OpenId.Accounts.Management.Contracts;
 using NCode.Identity.OpenId.Management;
+using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.Persistence.Stores;
 
 namespace NCode.Identity.OpenId.Accounts.Management;
@@ -58,16 +59,21 @@ public interface ILocalAccountValidator
     );
 
     /// <summary>
-    /// Validates that the staged local account may be created. The default implementation reports 400 when the username
-    /// is empty or longer than <see cref="AccountMaxLengths.UserName"/>, or when the display name is empty or longer
-    /// than <see cref="AccountMaxLengths.DisplayName"/>, and 409 when another account holds the username.
+    /// Validates that the staged local account may be created in the connection. The default implementation reports
+    /// 400 when the connection's <c>local_account_identifier</c> setting demands a username or email address the
+    /// account lacks, when the username is longer than <see cref="AccountMaxLengths.UserName"/>, the email address is
+    /// longer than <see cref="AccountMaxLengths.Email"/>, or the display name is empty or longer than
+    /// <see cref="AccountMaxLengths.DisplayName"/>, and 409 when another account of the connection holds the username
+    /// or the email address.
     /// </summary>
+    /// <param name="connection">The local <see cref="PersistedConnection"/> that holds the account.</param>
     /// <param name="account">The staged <see cref="PersistedLocalAccount"/> to be created, its display name defaulted
     /// and trimmed.</param>
     /// <param name="storeManager">The <see cref="IStoreManager"/> for the current unit of work.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
     /// <returns>A <see cref="ManagementError"/> describing the first failed precondition, or <c>null</c> when valid.</returns>
     ValueTask<ManagementError?> ValidateCreateAsync(
+        PersistedConnection connection,
         PersistedLocalAccount account,
         IStoreManager storeManager,
         CancellationToken cancellationToken
@@ -75,9 +81,13 @@ public interface ILocalAccountValidator
 
     /// <summary>
     /// Validates that the specified local account may be updated. The default implementation reports 400 when the
-    /// username is empty or longer than <see cref="AccountMaxLengths.UserName"/>, or when the display name is empty or
-    /// longer than <see cref="AccountMaxLengths.DisplayName"/>, and 409 when another account holds the username.
+    /// connection's <c>local_account_identifier</c> setting demands a username or email address the proposed profile
+    /// lacks, when the username is longer than <see cref="AccountMaxLengths.UserName"/>, the email address is longer
+    /// than <see cref="AccountMaxLengths.Email"/>, or the display name is empty or longer than
+    /// <see cref="AccountMaxLengths.DisplayName"/>, and 409 when another account of the connection holds the username
+    /// or the email address.
     /// </summary>
+    /// <param name="connection">The local <see cref="PersistedConnection"/> that holds the account.</param>
     /// <param name="account">The current <see cref="PersistedLocalAccount"/> being updated.</param>
     /// <param name="model">The proposed (patched) profile, its display name trimmed.</param>
     /// <param name="ifMatch">The optional <c>If-Match</c> precondition: <c>*</c>, a quoted strong entity tag or a comma-separated list of them, or the bare concurrency token.</param>
@@ -85,6 +95,7 @@ public interface ILocalAccountValidator
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
     /// <returns>A <see cref="ManagementError"/> describing the first failed precondition, or <c>null</c> when valid.</returns>
     ValueTask<ManagementError?> ValidateUpdateAsync(
+        PersistedConnection connection,
         PersistedLocalAccount account,
         UpdateLocalAccountRequest model,
         string? ifMatch,

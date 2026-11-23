@@ -6,14 +6,16 @@ using NCode.Buffers;
 using NCode.Identity.OpenId.Accounts.DataContracts;
 using NCode.Identity.OpenId.Authentication.Passwords;
 using NCode.Identity.OpenId.Management;
+using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
 using NCode.Identity.OpenId.Settings;
 using NCode.Identity.Persistence.Stores;
+using NCode.Identity.Settings;
 
 namespace NCode.Identity.OpenId.Accounts.Management;
 
 /// <summary>
-/// Judges the passwords set on local accounts against the owning tenant's password policy and encodes them for the
+/// Judges the passwords set on local accounts against the owning connection's password policy and encodes them for the
 /// store without leaving the plaintext on the GC heap.
 /// </summary>
 internal sealed class LocalAccountPasswords(
@@ -25,14 +27,17 @@ internal sealed class LocalAccountPasswords(
         effectiveSettingsResolver;
     private IPasswordPolicy PasswordPolicy { get; } = passwordPolicy;
 
-    // Judges a password an administrator sets by the addressed tenant's effective settings, resolved from its stored
-    // document so the tenant need not be served. A document that cannot be honored is answered 409 by the management
-    // route group. See ADR-1236 and ADR-1245.
-    public async ValueTask<ManagementError?> ValidateAsync(
+    // Resolves a connection's effective settings from the stored documents, so the tenant need not be served: the
+    // tenant's effective settings (its team's settings under its own document), then the connection's document. A
+    // document that cannot be honored is answered 409 by the management route group. See ADR-1236, ADR-1245 and
+    // ADR-1535.
+    public async ValueTask<(
+        IReadOnlySettingCollection? Settings,
+        ManagementError? Error
+    )> ResolveConnectionSettingsAsync(
         IStoreManager storeManager,
         string tenantId,
-        PersistedLocalAccount account,
-        string password,
+        PersistedConnection connection,
         CancellationToken cancellationToken
     )
     {
@@ -41,11 +46,12 @@ internal sealed class LocalAccountPasswords(
             .GetOrDefaultAsync(tenantId, cancellationToken);
         if (tenant is null)
         {
-            return new ManagementError
+            var error = new ManagementError
             {
                 StatusCode = StatusCodes.Status404NotFound,
                 Detail = "The tenant was not found.",
             };
+            return (null, error);
         }
 
         var teamSettings = await EffectiveSettingsResolver.ResolveTeamAsync(
@@ -58,12 +64,41 @@ internal sealed class LocalAccountPasswords(
             tenantId,
             tenant.Settings.Value
         );
+        var connectionSettings = EffectiveSettingsResolver.ResolveStored(
+            tenantSettings,
+            OpenIdSettingScopes.Connection,
+            connection.ConnectionId,
+            connection.Settings.Value
+        );
+        return (connectionSettings, null);
+    }
+
+    // Judges a password an administrator sets by the connection's effective settings, resolved from its stored
+    // documents so the tenant need not be served.
+    public async ValueTask<ManagementError?> ValidateAsync(
+        IStoreManager storeManager,
+        PersistedConnection connection,
+        PersistedLocalAccount account,
+        string password,
+        CancellationToken cancellationToken
+    )
+    {
+        var (settings, error) = await ResolveConnectionSettingsAsync(
+            storeManager,
+            account.TenantId,
+            connection,
+            cancellationToken
+        );
+        if (settings is null)
+        {
+            return error;
+        }
 
         var passwordMemory = password.AsMemory();
         var policyContext = new PasswordPolicyContext
         {
-            Settings = tenantSettings,
-            UserName = account.UserName,
+            Settings = settings,
+            UserName = account.UserName ?? string.Empty,
             Email = account.Email,
         };
         var result = await PasswordPolicy.ValidateAsync(
