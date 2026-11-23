@@ -3,8 +3,15 @@ import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import TextField from '@mui/material/TextField';
+import ToggleButton from '@mui/material/ToggleButton';
+import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
 import Typography from '@mui/material/Typography';
-import { ConfirmDialog, DataStateBoundary, RoleAssignmentTable } from '@ncodegroup/identity-ui';
+import {
+  ConfirmDialog,
+  DataStateBoundary,
+  RoleAssignmentTable,
+  type RoleAssignmentRow,
+} from '@ncodegroup/identity-ui';
 import type { RoleList } from '@ncodegroup/identity-api';
 import {
   apiErrorMessage,
@@ -33,11 +40,17 @@ export function RoleAssignmentsManager({ list, title, description }: RoleAssignm
   const { data, isLoading, error: loadError } = useListRoleAssignmentsQuery({ ...list, cell });
   const [addRoleAssignment, { isLoading: isGranting }] = useAddRoleAssignmentMutation();
   const [removeRoleAssignment, { isLoading: isRevoking }] = useRemoveRoleAssignmentMutation();
+  const [grantBy, setGrantBy] = useState<'userName' | 'principalId'>('userName');
   const [principalId, setPrincipalId] = useState('');
-  const [revoking, setRevoking] = useState<string>();
+  const [revoking, setRevoking] = useState<RoleAssignmentRow>();
   const [error, setError] = useState<string>();
 
-  const assignments = data?.items ?? [];
+  const assignments: RoleAssignmentRow[] = (data?.items ?? []).map((holder) => ({
+    assignmentId: holder.assignmentId,
+    principalId: holder.principalId,
+    displayName: holder.principal?.displayName ?? null,
+    principalType: holder.principal?.principalType ?? null,
+  }));
   const canChange = data?.canChange ?? false;
   const isReadOnly = data !== undefined && !data.canChange;
   const trimmed = principalId.trim();
@@ -48,7 +61,11 @@ export function RoleAssignmentsManager({ list, title, description }: RoleAssignm
     }
     setError(undefined);
     try {
-      await addRoleAssignment({ list, principalId: trimmed, cell }).unwrap();
+      await addRoleAssignment({
+        list,
+        holder: grantBy === 'userName' ? { userName: trimmed } : { principalId: trimmed },
+        cell,
+      }).unwrap();
       setPrincipalId('');
     } catch (grantError) {
       setError(apiErrorMessage(grantError as ApiError));
@@ -61,7 +78,7 @@ export function RoleAssignmentsManager({ list, title, description }: RoleAssignm
     }
     setError(undefined);
     try {
-      await removeRoleAssignment({ list, principalId: revoking, cell }).unwrap();
+      await removeRoleAssignment({ list, principalId: revoking.principalId, cell }).unwrap();
     } catch (revokeError) {
       setError(apiErrorMessage(revokeError as ApiError));
     }
@@ -93,9 +110,27 @@ export function RoleAssignmentsManager({ list, title, description }: RoleAssignm
       )}
       {canChange && (
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+          <ToggleButtonGroup
+            size="small"
+            exclusive
+            value={grantBy}
+            aria-label="Grant by"
+            onChange={(_event, value: 'userName' | 'principalId' | null) => {
+              if (value !== null) {
+                setGrantBy(value);
+              }
+            }}
+          >
+            <ToggleButton value="userName" data-testid={`${list.role}-grant-by-user-name`}>
+              Username
+            </ToggleButton>
+            <ToggleButton value="principalId" data-testid={`${list.role}-grant-by-principal-id`}>
+              Principal ID
+            </ToggleButton>
+          </ToggleButtonGroup>
           <TextField
             size="small"
-            label="Principal ID"
+            label={grantBy === 'userName' ? 'Username' : 'Principal ID'}
             value={principalId}
             onChange={(event) => setPrincipalId(event.target.value)}
             slotProps={{ htmlInput: { 'data-testid': `${list.role}-principal` } }}
@@ -120,13 +155,18 @@ export function RoleAssignmentsManager({ list, title, description }: RoleAssignm
           label={title}
           testIdPrefix={list.role}
           assignments={assignments}
-          {...(canChange ? { onRevoke: setRevoking } : {})}
+          {...(canChange
+            ? {
+                onRevoke: (id: string) =>
+                  setRevoking(assignments.find((row) => row.principalId === id)),
+              }
+            : {})}
         />
       </DataStateBoundary>
       <ConfirmDialog
         open={revoking !== undefined}
         title="Revoke role"
-        message={`Revoke this role from ${revoking ?? ''}?`}
+        message={`Revoke this role from ${revoking?.displayName ?? revoking?.principalId ?? ''}?`}
         confirmLabel="Revoke"
         isBusy={isRevoking}
         onConfirm={handleRevoke}
