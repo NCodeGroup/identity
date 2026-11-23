@@ -72,17 +72,19 @@ the `Mail:Smtp` and `Mail:AmazonSes` sections.**
    and no buffer outlives its message unzeroed. `Bcc` is hidden from the headers a transport writes, and every recipient
    is in the envelope. A message that names no `Date` is dated by the host's `TimeProvider`.
 5. **SMTP.** `Mail:Smtp` holds `Host`, `Port` (587), `Tls` (`StartTls` by default, `ImplicitTls` or `None`), `UserName`
-   and `Password` (both or neither), `From`, `FromName` and `Timeout` (30 seconds). It is bound strictly and validated
-   at start
+   and `Password` (both or neither), `From`, `FromName` and `Timeout` (30 seconds). `From` is one bare address, such as
+   `noreply@example.com`, and the sender's display name comes from `FromName`, so the options validator refuses a `From`
+   that holds a display name, angle brackets or a comment. The section is bound strictly and validated at start
    ([ADR-1137](1137-configuration-binds-strictly-and-every-option-timer-period-and-retention-is-validated-at-startup.md)).
    `StartTls` refuses a server that offers no STARTTLS. `None` sends in clear, so the SMTP options validator refuses it,
    in any spelling that binds to it, unless `LocalDevelopment:Enabled` is set, for the local stack's mail catcher
    ([ADR-1370](1370-a-host-runs-the-deployment-posture-unless-configured-for-local-development-and-always-names-its-root-key-provider.md)).
    Each message opens one connection and closes it.
 6. **Amazon SES.** `Mail:AmazonSes` holds `Region`, `From`, `FromName`, `FromIdentityArn`, `ConfigurationSetName`,
-   `Tags` and `Timeout` (30 seconds). The transport writes the raw MIME once into a sensitive pooled stream, and the SDK
-   reads a read-only `MemoryStream` over that rented array. The credentials come from the default AWS chain, and the SDK
-   retries twice under its standard policy. A refusal throws SES's error code and HTTP status, never the message text.
+   `Tags` and `Timeout` (30 seconds). Its `From` is one bare address as well, and its options validator refuses any
+   other. The transport writes the raw MIME once into a sensitive pooled stream, and the SDK reads a read-only
+   `MemoryStream` over that rented array. The credentials come from the default AWS chain, and the SDK retries twice
+   under its standard policy. A refusal throws SES's error code and HTTP status, never the message text.
 7. **One transport per host.** Each adapter registers only when its section exists, through `AddMimeMailTransport`, the
    one place that adds the `MailTransportRegistration` marker, so a second adapter throws `InvalidOperationException`
    while the host is composed. Without either section nothing is registered, and every delivery fails and is logged.
