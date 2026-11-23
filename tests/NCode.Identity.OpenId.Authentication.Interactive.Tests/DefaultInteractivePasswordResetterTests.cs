@@ -1,9 +1,13 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using System.Text.Json;
 using Moq;
 using NCode.Buffers;
+using NCode.Identity.OpenId.Connections;
 using NCode.Identity.OpenId.Contexts;
+using NCode.Identity.OpenId.Persistence.DataContracts;
+using NCode.Identity.Settings;
 using Xunit;
 
 namespace NCode.Identity.OpenId.Authentication.Interactive.Tests;
@@ -13,13 +17,38 @@ public sealed class DefaultInteractivePasswordResetterTests : IDisposable
     private MockRepository MockRepository { get; } = new(MockBehavior.Strict);
     private Mock<OpenIdContext> MockContext { get; }
     private DefaultInteractivePasswordResetter Resetter { get; } = new();
+    private ResolvedConnection Connection { get; }
 
     public DefaultInteractivePasswordResetterTests()
     {
         MockContext = MockRepository.Create<OpenIdContext>();
+        Connection = CreateConnection(MockRepository);
     }
 
     public void Dispose() => MockRepository.Verify();
+
+    private static ResolvedConnection CreateConnection(MockRepository mockRepository) =>
+        new()
+        {
+            Connection = new PersistedConnection
+            {
+                TenantId = "acme",
+                ConnectionId = "connection-1",
+                Name = "local",
+                Strategy = "local",
+                DisplayName = "Username and password",
+                IsEnabled = true,
+                Options = JsonSerializer.SerializeToElement(new { store = "default" }),
+                Settings = new PersistedConnectionSettings
+                {
+                    TenantId = "acme",
+                    ConnectionId = "connection-1",
+                    Value = JsonSerializer.SerializeToElement(new { }),
+                },
+            },
+            Strategy = mockRepository.Create<IConnectionStrategy>().Object,
+            Settings = mockRepository.Create<IReadOnlySettingCollection>().Object,
+        };
 
     #region SendResetCodeAsync Tests
 
@@ -28,12 +57,14 @@ public sealed class DefaultInteractivePasswordResetterTests : IDisposable
     {
         var first = await Resetter.SendResetCodeAsync(
             MockContext.Object,
+            Connection,
             "alice",
             TestLocales.Xx,
             CancellationToken.None
         );
         var second = await Resetter.SendResetCodeAsync(
             MockContext.Object,
+            Connection,
             "alice",
             TestLocales.Xx,
             CancellationToken.None

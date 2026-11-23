@@ -17,6 +17,7 @@ internal static class TestLocales
             {
                 SignInTitle = "Xx sign-in title",
                 UsernameLabel = "Xx username",
+                ConnectionLabel = "Xx connection",
                 PasswordLabel = "Xx password",
                 SignInButton = "Xx sign-in button",
                 AuthorizeAccessTitle = "Xx authorize title",

@@ -35,6 +35,7 @@ public static class InteractiveLocales
             {
                 SignInTitle = "Sign in",
                 UsernameLabel = "Username",
+                ConnectionLabel = "Sign in with",
                 PasswordLabel = "Password",
                 SignInButton = "Sign in",
                 AuthorizeAccessTitle = "Authorize access",
@@ -100,6 +101,7 @@ public static class InteractiveLocales
             {
                 SignInTitle = "Anmelden",
                 UsernameLabel = "Benutzername",
+                ConnectionLabel = "Anmelden mit",
                 PasswordLabel = "Passwort",
                 SignInButton = "Anmelden",
                 AuthorizeAccessTitle = "Zugriff autorisieren",
@@ -170,6 +172,7 @@ public static class InteractiveLocales
             {
                 SignInTitle = "Iniciar sesión",
                 UsernameLabel = "Nombre de usuario",
+                ConnectionLabel = "Iniciar sesión con",
                 PasswordLabel = "Contraseña",
                 SignInButton = "Iniciar sesión",
                 AuthorizeAccessTitle = "Autorizar acceso",
@@ -236,6 +239,7 @@ public static class InteractiveLocales
             {
                 SignInTitle = "Se connecter",
                 UsernameLabel = "Nom d’utilisateur",
+                ConnectionLabel = "Se connecter avec",
                 PasswordLabel = "Mot de passe",
                 SignInButton = "Se connecter",
                 AuthorizeAccessTitle = "Autoriser l’accès",

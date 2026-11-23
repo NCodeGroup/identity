@@ -155,7 +155,9 @@ public class InteractiveBundleShellTests
             {
                 ReturnUrl = "/",
             },
-            forgotPasswordHref: null
+            forgotPasswordHref: null,
+            connections: [],
+            selected: null
         );
         var html = writer.WrittenSpan.ToString();
 

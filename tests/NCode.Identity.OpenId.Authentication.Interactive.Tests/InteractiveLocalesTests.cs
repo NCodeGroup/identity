@@ -33,6 +33,28 @@ public class InteractiveLocalesTests
 
     #endregion
 
+    #region ConnectionLabel Tests
+
+    [Theory]
+    [InlineData("en", "Sign in with")]
+    [InlineData("de", "Anmelden mit")]
+    [InlineData("es", "Iniciar sesión con")]
+    [InlineData("fr", "Se connecter avec")]
+    public void ConnectionLabel_Always_WordsThePickerInTheLocale(
+        string languageTag,
+        string expected
+    )
+    {
+        var locale = Assert.Single(
+            InteractiveLocales.All,
+            candidate => candidate.LanguageTag == languageTag
+        );
+
+        Assert.Equal(expected, locale.Messages.ConnectionLabel);
+    }
+
+    #endregion
+
     #region Locale Tests
 
     [Theory]
@@ -54,6 +76,7 @@ public class InteractiveLocalesTests
         [
             messages.SignInTitle,
             messages.UsernameLabel,
+            messages.ConnectionLabel,
             messages.PasswordLabel,
             messages.SignInButton,
             messages.AuthorizeAccessTitle,

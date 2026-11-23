@@ -13,6 +13,7 @@ using NCode.Buffers;
 using NCode.Identity.AspNetCore;
 using NCode.Identity.Jose;
 using NCode.Identity.Json;
+using NCode.Identity.OpenId.Authentication.Connections;
 using NCode.Identity.OpenId.Authentication.Consent;
 using NCode.Identity.OpenId.Authentication.Endpoints.Continue;
 using NCode.Identity.OpenId.Authentication.Endpoints.EndSession.Commands;
@@ -20,6 +21,7 @@ using NCode.Identity.OpenId.Authentication.Endpoints.EndSession.Messages;
 using NCode.Identity.OpenId.Authentication.Endpoints.EndSession.Models;
 using NCode.Identity.OpenId.Authentication.Sessions;
 using NCode.Identity.OpenId.Authentication.Subject;
+using NCode.Identity.OpenId.Connections;
 using NCode.Identity.OpenId.Contexts;
 using NCode.Identity.OpenId.Errors;
 using NCode.Identity.OpenId.Messages;
@@ -42,6 +44,8 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
     IInteractiveCredentialVerifier credentialVerifier,
     IPrincipalResolver principalResolver,
     IConsentService consentService,
+    ISignInConnectionService signInConnectionService,
+    IConnectionResolver connectionResolver,
     IContinueRefusalService continueRefusalService,
     IInteractivePasswordChanger passwordChanger,
     IInteractivePasswordResetter passwordResetter,
@@ -74,6 +78,7 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
     private const string PasswordResetStatus = "password_reset";
     private const string FlowQueryName = InteractiveAuthenticationPageRenderer.FlowFieldName;
     private const string ReturnUrlName = InteractiveAuthenticationPageRenderer.ReturnUrlFieldName;
+    private const string ConnectionName = InteractiveAuthenticationPageRenderer.ConnectionFieldName;
 
     // The `status` query value the sign-in code page reads back to tell the end user that a new code is sent, and the
     // `action` form value that asks the page for it; any other value verifies the code.
@@ -92,6 +97,8 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
     private IInteractiveCredentialVerifier CredentialVerifier { get; } = credentialVerifier;
     private IPrincipalResolver PrincipalResolver { get; } = principalResolver;
     private IConsentService ConsentService { get; } = consentService;
+    private ISignInConnectionService SignInConnectionService { get; } = signInConnectionService;
+    private IConnectionResolver ConnectionResolver { get; } = connectionResolver;
     private IContinueRefusalService ContinueRefusalService { get; } = continueRefusalService;
     private IInteractivePasswordChanger PasswordChanger { get; } = passwordChanger;
     private IInteractivePasswordResetter PasswordResetter { get; } = passwordResetter;
@@ -223,6 +230,7 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
         );
         var html = InteractiveHtmlResult.CreateBuffer();
         var returnUrl = query[ReturnUrlName].ToString();
+        var offered = await GetOfferedAsync(httpContext, returnUrl, httpContext.RequestAborted);
         var errorQueryValue = query[ErrorQueryName].ToString();
         var loginError = DescribeLoginError(errorQueryValue, frame.Locale.Messages);
         var statusQueryValue = query[StatusQueryName].ToString();
@@ -237,11 +245,15 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
         // The link to the forgot-password page appears only while the tenant lets its end users reset a password.
         // See ADR-1533.
         string? forgotPasswordHref = null;
-        if (IsPasswordResetEnabled(httpContext))
+        if (IsPasswordResetEnabled(httpContext, offered.Preselected))
         {
             var carriedUiLocales = query[InteractiveAuthenticationPageRenderer.UiLocalesFieldName];
             var carriedLanguageTag = LocaleSelector.GetCarriedLanguageTag(carriedUiLocales);
-            forgotPasswordHref = BuildForgotPasswordHref(returnUrl, carriedLanguageTag);
+            forgotPasswordHref = BuildForgotPasswordHref(
+                returnUrl,
+                carriedLanguageTag,
+                offered.Preselected?.Name
+            );
         }
         var form = new InteractivePageForm(tokens)
         {
@@ -249,11 +261,14 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
             ErrorMessage = loginError,
             StatusMessage = statusMessage,
         };
+        var connectionViews = ToConnectionViews(offered);
         InteractiveAuthenticationPageRenderer.RenderLoginPage(
             html,
             frame,
             form,
-            forgotPasswordHref
+            forgotPasswordHref,
+            connectionViews,
+            offered.Preselected?.Name
         );
         return new InteractiveHtmlResult(html, security.Policy);
     }
@@ -361,7 +376,11 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
             return TypedResults.Unauthorized();
         }
 
-        var emailVerification = IsEmailVerificationEnabled(httpContext);
+        var emailVerification = await IsEmailVerificationEnabledAsync(
+            httpContext,
+            principal,
+            httpContext.RequestAborted
+        );
         var meResponse = BuildMeResponse(principal, subjectId, emailVerification);
         return TypedResults.Json(meResponse);
     }
@@ -415,6 +434,7 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
         HttpContext httpContext,
         [FromForm] string? username,
         [FromForm] string? password,
+        [FromForm(Name = ConnectionName)] string? connection,
         [FromForm(Name = ReturnUrlName)] string? returnUrl,
         [FromForm(Name = InteractiveAuthenticationPageRenderer.UiLocalesFieldName)]
             string? uiLocales
@@ -435,10 +455,28 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
         }
 
         var openIdContext = httpContext.GetOpenIdContext();
+        var selection = await SignInConnectionService.SelectAsync(
+            openIdContext,
+            safeReturnUrl,
+            connection,
+            httpContext.RequestAborted
+        );
+        if (selection.Connection is not { } selectedConnection)
+        {
+            var refusedConnectionRedirect = BuildLoginRedirect(
+                httpContext,
+                safeReturnUrl,
+                "invalid_request",
+                languageTag
+            );
+            return TypedResults.Redirect(refusedConnectionRedirect);
+        }
+
         var passwordChars = password.AsSpan();
         using var passwordSecret = Secret.Create(passwordChars);
         var principal = await CredentialVerifier.VerifyCredentialAsync(
             openIdContext,
+            selectedConnection,
             username,
             passwordSecret,
             httpContext.RequestAborted
@@ -489,8 +527,8 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
         // A tenant that requires the email second factor keeps the end user, whose password is verified, in the pending
         // sign-in cookie: no session is created until the mailed code is right.
         // See ADR-1533.
-        var settings = openIdContext.Tenant.SettingsProvider.Collection;
-        if (settings.GetValue(OpenIdSettingKeys.EmailMfaRequired))
+        var connectionSettings = selectedConnection.Settings;
+        if (connectionSettings.GetValue(OpenIdSettingKeys.EmailMfaRequired))
         {
             return await BeginSignInCodeAsync(
                 httpContext,
@@ -1390,6 +1428,13 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
         );
         var html = InteractiveHtmlResult.CreateBuffer();
         var returnUrl = query[ReturnUrlName].ToString();
+        var offered = await GetOfferedAsync(httpContext, returnUrl, httpContext.RequestAborted);
+        var requestedConnection = query[ConnectionName].ToString();
+        var selectedName = offered.Offered.Any(candidate =>
+            string.Equals(candidate.Name, requestedConnection, StringComparison.Ordinal)
+        )
+            ? requestedConnection
+            : offered.Preselected?.Name;
         var errorQueryValue = query[ErrorQueryName].ToString();
         var errorMessage = DescribePasswordResetError(errorQueryValue, frame.Locale.Messages);
         var form = new InteractivePageForm(tokens)
@@ -1397,7 +1442,14 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
             ReturnUrl = returnUrl,
             ErrorMessage = errorMessage,
         };
-        InteractiveAuthenticationPageRenderer.RenderForgotPasswordPage(html, frame, form);
+        var connectionViews = ToConnectionViews(offered);
+        InteractiveAuthenticationPageRenderer.RenderForgotPasswordPage(
+            html,
+            frame,
+            form,
+            connectionViews,
+            selectedName
+        );
         return new InteractiveHtmlResult(html, security.Policy);
     }
 
@@ -1443,6 +1495,7 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
     public async ValueTask<IResult> PostForgotPasswordAsync(
         HttpContext httpContext,
         [FromForm] string? username,
+        [FromForm(Name = ConnectionName)] string? connection,
         [FromForm(Name = ReturnUrlName)] string? returnUrl,
         [FromForm(Name = InteractiveAuthenticationPageRenderer.UiLocalesFieldName)]
             string? uiLocales
@@ -1452,7 +1505,14 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
         var carriedReturnUrl = string.IsNullOrEmpty(returnUrl)
             ? null
             : ResolveSafeReturnUrl(httpContext, returnUrl);
-        if (string.IsNullOrEmpty(username))
+        var openIdContext = httpContext.GetOpenIdContext();
+        var selection = await SignInConnectionService.SelectAsync(
+            openIdContext,
+            carriedReturnUrl,
+            connection,
+            httpContext.RequestAborted
+        );
+        if (string.IsNullOrEmpty(username) || selection.Connection is not { } selectedConnection)
         {
             return RedirectToSurfacePage(
                 httpContext,
@@ -1463,10 +1523,10 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
             );
         }
 
-        var openIdContext = httpContext.GetOpenIdContext();
         var locale = SelectLocale(httpContext, languageTag);
         var flowId = await PasswordResetter.SendResetCodeAsync(
             openIdContext,
+            selectedConnection,
             username,
             locale,
             httpContext.RequestAborted
@@ -2072,24 +2132,81 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
     /// bundle.
     /// </summary>
     /// <param name="httpContext">The current request.</param>
+    /// <param name="principal">The signed-in principal, whose connection claim names the connection whose settings
+    /// decide.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
     /// <returns><see langword="true"/> when the tenant lets its end users verify their address.</returns>
     // See ADR-1533.
-    private static bool IsEmailVerificationEnabled(HttpContext httpContext)
+    private async ValueTask<bool> IsEmailVerificationEnabledAsync(
+        HttpContext httpContext,
+        ClaimsPrincipal principal,
+        CancellationToken cancellationToken
+    )
     {
-        var settings = httpContext.GetOpenIdContext().Tenant.SettingsProvider.Collection;
+        var openIdContext = httpContext.GetOpenIdContext();
+        var connectionId = principal.FindFirst(ConnectionClaimTypes.Connection)?.Value;
+        var connection = string.IsNullOrEmpty(connectionId)
+            ? null
+            : await ConnectionResolver.GetByIdOrDefaultAsync(
+                openIdContext,
+                connectionId,
+                cancellationToken
+            );
+        var settings = connection?.Settings ?? openIdContext.Tenant.SettingsProvider.Collection;
         return settings.GetValue(OpenIdSettingKeys.EmailVerificationEnabled);
     }
+
+    /// <summary>
+    /// Gets the connections the sign-in pages offer for the parked authorization request the return URL names.
+    /// </summary>
+    /// <param name="httpContext">The current request.</param>
+    /// <param name="returnUrl">The return URL the page carries, which is empty for none.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    /// <returns>The offered and the preselected connections.</returns>
+    private ValueTask<SignInConnections> GetOfferedAsync(
+        HttpContext httpContext,
+        string returnUrl,
+        CancellationToken cancellationToken
+    )
+    {
+        var openIdContext = httpContext.GetOpenIdContext();
+        var carriedReturnUrl = string.IsNullOrEmpty(returnUrl) ? null : returnUrl;
+        return SignInConnectionService.GetOfferedAsync(
+            openIdContext,
+            carriedReturnUrl,
+            cancellationToken
+        );
+    }
+
+    /// <summary>
+    /// Projects the offered connections into the name and display name the page renders.
+    /// </summary>
+    /// <param name="offered">The offered connections.</param>
+    /// <returns>The name and display name of each offered connection.</returns>
+    private static List<(string Name, string DisplayName)> ToConnectionViews(
+        SignInConnections offered
+    ) =>
+        offered
+            .Offered.Select(connection => (connection.Name, connection.Connection.DisplayName))
+            .ToList();
 
     /// <summary>
     /// Determines whether the tenant lets its end users reset a password, which the login page's link to the
     /// forgot-password page shows.
     /// </summary>
     /// <param name="httpContext">The current request.</param>
+    /// <param name="connection">The connection the page preselects, whose settings decide, or
+    /// <see langword="null"/> for the tenant's settings.</param>
     /// <returns><see langword="true"/> when the tenant lets its end users reset a password.</returns>
     // See ADR-1533.
-    private static bool IsPasswordResetEnabled(HttpContext httpContext)
+    private static bool IsPasswordResetEnabled(
+        HttpContext httpContext,
+        ResolvedConnection? connection
+    )
     {
-        var settings = httpContext.GetOpenIdContext().Tenant.SettingsProvider.Collection;
+        var settings =
+            connection?.Settings
+            ?? httpContext.GetOpenIdContext().Tenant.SettingsProvider.Collection;
         return settings.GetValue(OpenIdSettingKeys.PasswordResetEnabled);
     }
 
@@ -2099,13 +2216,26 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
     /// </summary>
     /// <param name="returnUrl">The return URL the login page carried, which is left out when it is empty.</param>
     /// <param name="languageTag">The language tag the login page carried, or <see langword="null"/>.</param>
+    /// <param name="connectionName">The name of the connection the login page preselects, or
+    /// <see langword="null"/>.</param>
     /// <returns>The address of the forgot-password page.</returns>
-    private static string BuildForgotPasswordHref(string returnUrl, string? languageTag)
+    private static string BuildForgotPasswordHref(
+        string returnUrl,
+        string? languageTag,
+        string? connectionName
+    )
     {
         var href = InteractiveAuthenticationPageRenderer.ForgotPasswordFormAction;
+        var separator = '?';
         if (!string.IsNullOrEmpty(returnUrl))
         {
-            href += $"?{ReturnUrlName}={Uri.EscapeDataString(returnUrl)}";
+            href += $"{separator}{ReturnUrlName}={Uri.EscapeDataString(returnUrl)}";
+            separator = '&';
+        }
+
+        if (!string.IsNullOrEmpty(connectionName))
+        {
+            href += $"{separator}{ConnectionName}={Uri.EscapeDataString(connectionName)}";
         }
 
         return InteractiveLocaleSelector.AppendUiLocalesQuery(href, languageTag);

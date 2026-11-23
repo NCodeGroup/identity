@@ -26,6 +26,11 @@ public sealed record InteractiveMessages
     public required string UsernameLabel { get; init; }
 
     /// <summary>
+    /// Gets the label of the field that picks the connection to sign in through.
+    /// </summary>
+    public required string ConnectionLabel { get; init; }
+
+    /// <summary>
     /// Gets the label of the password field.
     /// </summary>
     public required string PasswordLabel { get; init; }
