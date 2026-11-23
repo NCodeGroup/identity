@@ -2,15 +2,26 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using System.IO.Compression;
+using Microsoft.Extensions.Time.Testing;
 using MimeKit;
 using NCode.Buffers;
 using Xunit;
 
 namespace NCode.Identity.Mail.Mime.Tests;
 
-public class MimeMailMessagesTests : BaseTests
+public class DefaultMimeMessageFactoryTests : BaseTests
 {
     private static MailAddress DefaultFrom { get; } = new("noreply@example.com", "Example");
+
+    private FakeTimeProvider Clock { get; } =
+        new(new DateTimeOffset(2026, 11, 22, 9, 0, 0, TimeSpan.Zero));
+
+    private DefaultMimeMessageFactory Factory { get; }
+
+    public DefaultMimeMessageFactoryTests()
+    {
+        Factory = new DefaultMimeMessageFactory(Clock);
+    }
 
     private static MailAddress[] ToRecipients { get; } = [new("to@example.com", "To")];
 
@@ -20,15 +31,15 @@ public class MimeMailMessagesTests : BaseTests
     private static StreamMailContent CreateBinary(byte[] bytes, string mediaType) =>
         new(new MemoryStream(bytes), mediaType);
 
-    private static ValueTask<MimeMessage> CreateAsync(
+    private ValueTask<MimeMessage> CreateAsync(
         MailMessage message,
         CancellationToken cancellationToken = default
-    ) => MimeMailMessages.CreateAsync(message, DefaultFrom, cancellationToken);
+    ) => Factory.CreateAsync(message, DefaultFrom, cancellationToken);
 
-    private static byte[] Write(MimeMessage mimeMessage)
+    private byte[] Write(MimeMessage mimeMessage)
     {
         using var stream = new MemoryStream();
-        var options = MimeMailMessages.CreateFormatOptions();
+        var options = Factory.CreateFormatOptions();
         mimeMessage.WriteTo(options, stream);
         return stream.ToArray();
     }
@@ -134,6 +145,21 @@ public class MimeMailMessagesTests : BaseTests
         Assert.Equal(MessagePriority.Urgent, mimeMessage.Priority);
         Assert.Equal(MessageImportance.High, mimeMessage.Importance);
         Assert.Equal("custom value", mimeMessage.Headers["X-Custom"]);
+    }
+
+    [Fact]
+    public async Task CreateAsync_WithoutADate_DatesTheMessageByTheTimeProvider()
+    {
+        using var message = new MailMessage
+        {
+            Subject = "Hello",
+            To = [.. ToRecipients],
+            TextBody = CreateText("plain body"),
+        };
+
+        using var mimeMessage = await CreateAsync(message);
+
+        Assert.Equal(Clock.GetUtcNow(), mimeMessage.Date);
     }
 
     [Fact]
@@ -481,7 +507,7 @@ public class MimeMailMessagesTests : BaseTests
     [Fact]
     public void CreateFormatOptions_Always_HidesBcc()
     {
-        var options = MimeMailMessages.CreateFormatOptions();
+        var options = Factory.CreateFormatOptions();
 
         Assert.Contains(HeaderId.Bcc, options.HiddenHeaders);
         Assert.DoesNotContain(HeaderId.Bcc, FormatOptions.Default.HiddenHeaders);
