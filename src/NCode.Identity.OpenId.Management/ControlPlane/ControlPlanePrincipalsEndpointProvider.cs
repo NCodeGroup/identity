@@ -29,20 +29,6 @@ POST control-plane/v1/principals
 // See ADR-1411 and ADR-1465.
 internal sealed class ControlPlanePrincipalsEndpointProvider : IEndpointProvider
 {
-    /// <inheritdoc />
-    public void Map(IEndpointRouteBuilder endpoints)
-    {
-        var options = endpoints.ServiceProvider.GetRequiredService<IOptions<CellOptions>>();
-        if (!options.Value.IsControlPlane)
-            return;
-
-        endpoints
-            .MapPost(GlobalDirectoryProtocol.ControlPlanePrincipalsPath, FindAsync)
-            .AddEndpointGate<RouteHandlerBuilder, ControlPlaneAuthenticationGate>()
-            .WithConfidentialBodies()
-            .ExcludeFromDescription();
-    }
-
     /// <summary>
     /// Finds the summaries of the principals that the query names.
     /// </summary>
@@ -84,6 +70,9 @@ internal sealed class ControlPlanePrincipalsEndpointProvider : IEndpointProvider
     /// Determines whether the list exists and every name in it is neither <see langword="null"/> nor blank. The host's
     /// JSON binding does not enforce nullable annotations, so a body can carry either.
     /// </summary>
+    /// <param name="names">The list to check, which a body can leave <see langword="null"/>.</param>
+    /// <returns><see langword="true"/> when the list exists and every name in it is neither <see langword="null"/> nor
+    /// blank; otherwise, <see langword="false"/>.</returns>
     private static bool AreNonBlankNames(IReadOnlyList<string>? names)
     {
         if (names is null)
@@ -96,5 +85,19 @@ internal sealed class ControlPlanePrincipalsEndpointProvider : IEndpointProvider
         }
 
         return true;
+    }
+
+    /// <inheritdoc />
+    public void Map(IEndpointRouteBuilder endpoints)
+    {
+        var options = endpoints.ServiceProvider.GetRequiredService<IOptions<CellOptions>>();
+        if (!options.Value.IsControlPlane)
+            return;
+
+        endpoints
+            .MapPost(GlobalDirectoryProtocol.ControlPlanePrincipalsPath, FindAsync)
+            .AddEndpointGate<RouteHandlerBuilder, ControlPlaneAuthenticationGate>()
+            .WithConfidentialBodies()
+            .ExcludeFromDescription();
     }
 }

@@ -18,6 +18,24 @@ namespace NCode.Identity.OpenId.Management.ControlPlane;
 
 public sealed class ControlPlanePrincipalsEndpointProviderTests : IDisposable
 {
+    private const int HalfOfTheMost = ControlPlanePrincipalQuery.MaxNames / 2;
+
+    private const string BlankNamesDetail =
+        "A query's 'principalIds' and 'userNames' are lists of non-blank names.";
+
+    private static string[] Names(string prefix, int count) =>
+        [.. Enumerable.Range(0, count).Select(x => $"{prefix}{x}")];
+
+    private static List<RouteEndpoint> MapEndpoints(WebApplication app)
+    {
+        new ControlPlanePrincipalsEndpointProvider().Map(app);
+
+        return ((IEndpointRouteBuilder)app)
+            .DataSources.SelectMany(x => x.Endpoints)
+            .OfType<RouteEndpoint>()
+            .ToList();
+    }
+
     private MockRepository MockRepository { get; } = new(MockBehavior.Strict);
 
     public void Dispose() => MockRepository.Verify();
@@ -45,16 +63,6 @@ public sealed class ControlPlanePrincipalsEndpointProviderTests : IDisposable
         return builder.Build();
     }
 
-    private static List<RouteEndpoint> MapEndpoints(WebApplication app)
-    {
-        new ControlPlanePrincipalsEndpointProvider().Map(app);
-
-        return ((IEndpointRouteBuilder)app)
-            .DataSources.SelectMany(x => x.Endpoints)
-            .OfType<RouteEndpoint>()
-            .ToList();
-    }
-
     #region Map Tests
 
     [Fact]
@@ -66,9 +74,8 @@ public sealed class ControlPlanePrincipalsEndpointProviderTests : IDisposable
 
         var endpoint = Assert.Single(endpoints);
         Assert.Equal("/control-plane/v1/principals", endpoint.RoutePattern.RawText);
-        var methods = Assert.IsAssignableFrom<IHttpMethodMetadata>(
-            endpoint.Metadata.GetMetadata<IHttpMethodMetadata>()
-        );
+        var methodMetadata = endpoint.Metadata.GetMetadata<IHttpMethodMetadata>();
+        var methods = Assert.IsAssignableFrom<IHttpMethodMetadata>(methodMetadata);
         Assert.Equal([HttpMethods.Post], methods.HttpMethods);
         var exclude = endpoint.Metadata.GetMetadata<IExcludeFromDescriptionMetadata>();
         Assert.True(exclude?.ExcludeFromDescription);
@@ -78,8 +85,10 @@ public sealed class ControlPlanePrincipalsEndpointProviderTests : IDisposable
     public async Task Map_WhenTheCellIsTheControlPlane_TheRouteRunsTheAuthenticationGateBeforeTheDirectory()
     {
         await using var app = CreateApp(isControlPlane: true);
-        var endpoint = Assert.Single(MapEndpoints(app));
+        var endpoints = MapEndpoints(app);
+        var endpoint = Assert.Single(endpoints);
         var refusal = TypedResults.NotFound();
+        var refusalException = refusal.AsException("x");
         MockContextFactory
             .Setup(x =>
                 x.CreateForControlPlaneAsync(
@@ -88,7 +97,7 @@ public sealed class ControlPlanePrincipalsEndpointProviderTests : IDisposable
                     It.IsAny<CancellationToken>()
                 )
             )
-            .ThrowsAsync(refusal.AsException("x"))
+            .ThrowsAsync(refusalException)
             .Verifiable();
         var httpContext = new DefaultHttpContext { RequestServices = app.Services };
         httpContext.Request.Method = HttpMethods.Post;
@@ -123,11 +132,6 @@ public sealed class ControlPlanePrincipalsEndpointProviderTests : IDisposable
 
     #region FindAsync Tests
 
-    private const int HalfOfTheMost = ControlPlanePrincipalQuery.MaxNames / 2;
-
-    private static string[] Names(string prefix, int count) =>
-        [.. Enumerable.Range(0, count).Select(x => $"{prefix}{x}")];
-
     private async ValueTask AssertBadRequestAsync(
         ControlPlanePrincipalQuery query,
         string detail,
@@ -145,16 +149,15 @@ public sealed class ControlPlanePrincipalsEndpointProviderTests : IDisposable
         Assert.Equal(detail, problem.ProblemDetails.Detail);
     }
 
-    private const string BlankNamesDetail =
-        "A query's 'principalIds' and 'userNames' are lists of non-blank names.";
-
     [Fact]
     public async Task FindAsync_WhenTheQueryNamesTooMany_AnswersBadRequest()
     {
+        var principalIds = Names("p", HalfOfTheMost);
+        var userNames = Names("u", ControlPlanePrincipalQuery.MaxNames - HalfOfTheMost + 1);
         var query = new ControlPlanePrincipalQuery
         {
-            PrincipalIds = Names("p", HalfOfTheMost),
-            UserNames = Names("u", ControlPlanePrincipalQuery.MaxNames - HalfOfTheMost + 1),
+            PrincipalIds = principalIds,
+            UserNames = userNames,
         };
 
         await AssertBadRequestAsync(
@@ -199,10 +202,12 @@ public sealed class ControlPlanePrincipalsEndpointProviderTests : IDisposable
     [Fact]
     public async Task FindAsync_WhenTheQueryNamesTooManyAndOneIsBlank_AnswersTheBlankNameDetail()
     {
+        var halfIds = Names("p", HalfOfTheMost);
+        var userNames = Names("u", ControlPlanePrincipalQuery.MaxNames - HalfOfTheMost + 1);
         var query = new ControlPlanePrincipalQuery
         {
-            PrincipalIds = [.. Names("p", HalfOfTheMost), ""],
-            UserNames = Names("u", ControlPlanePrincipalQuery.MaxNames - HalfOfTheMost + 1),
+            PrincipalIds = [.. halfIds, ""],
+            UserNames = userNames,
         };
 
         await AssertBadRequestAsync(query, BlankNamesDetail, CancellationToken.None);
@@ -211,10 +216,12 @@ public sealed class ControlPlanePrincipalsEndpointProviderTests : IDisposable
     [Fact]
     public async Task FindAsync_WhenTheQueryNamesTheMost_AnswersTheSummaries()
     {
+        var principalIds = Names("p", HalfOfTheMost);
+        var userNames = Names("u", ControlPlanePrincipalQuery.MaxNames - HalfOfTheMost);
         var query = new ControlPlanePrincipalQuery
         {
-            PrincipalIds = Names("p", HalfOfTheMost),
-            UserNames = Names("u", ControlPlanePrincipalQuery.MaxNames - HalfOfTheMost),
+            PrincipalIds = principalIds,
+            UserNames = userNames,
         };
         IReadOnlyList<PrincipalSummaryResource> summaries = [];
         MockDirectory
