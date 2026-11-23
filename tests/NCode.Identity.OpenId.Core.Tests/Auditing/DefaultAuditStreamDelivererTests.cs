@@ -288,7 +288,11 @@ public sealed class DefaultAuditStreamDelivererTests : BaseTests
         MockStreamStore
             .Setup(x => x.GetOrDefaultAsync(StreamId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(() => CopyOfStoredStream())
-            .Verifiable(Times.AtLeastOnce);
+            .Verifiable(Times.Once);
+        // Each state write reads the state alone; the counted updates verify the writes.
+        MockStreamStore
+            .Setup(x => x.GetStateOrDefaultAsync(StreamId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(() => Copy(Stored));
 
         if (updates == 0)
             return;

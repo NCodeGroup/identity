@@ -385,7 +385,8 @@ internal sealed class DefaultAuditStreamDeliverer(
     /// <summary>
     /// Applies a change to the delivery state of a stream that this replica holds the lease of. The change is written
     /// to a state read in this unit of work, never to the one the caller holds, which carries a concurrency token that
-    /// an earlier save has replaced.
+    /// an earlier save has replaced. The read loads the state alone, never the stream's configuration or signing
+    /// secrets.
     /// </summary>
     /// <param name="handed">The state of the stream as this replica claimed it.</param>
     /// <param name="update">The change to apply to the state that was read.</param>
@@ -406,8 +407,8 @@ internal sealed class DefaultAuditStreamDeliverer(
             await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
             var store = storeManager.GetStore<IAuditStreamStore>();
 
-            var stream = await store.GetOrDefaultAsync(handed.StreamId, cancellationToken);
-            if (stream?.State is not { } current || !HoldsLease(current, handed))
+            var current = await store.GetStateOrDefaultAsync(handed.StreamId, cancellationToken);
+            if (current is null || !HoldsLease(current, handed))
             {
                 Logger.AuditStreamStateConflict(handed.StreamId, handed.TenantId);
                 return false;
