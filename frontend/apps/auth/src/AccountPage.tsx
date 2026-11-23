@@ -14,6 +14,7 @@ import {
   LOGOUT_ACTION,
   ME_ENDPOINT,
   PASSWORD_PATH,
+  RETURN_URL_FIELD,
   SESSIONS_PATH,
   resolveSurfacePath,
 } from './params.js';
@@ -141,7 +142,11 @@ export function AccountPage({
 
             <Stack component="form" method="post" action={resolveSurfacePath(LOGOUT_ACTION)}>
               <input type="hidden" name={ANTIFORGERY_FIELD} value={antiforgeryToken} />
-              <input type="hidden" name="ReturnUrl" value={resolveSurfacePath(LOGIN_ACTION)} />
+              <input
+                type="hidden"
+                name={RETURN_URL_FIELD}
+                value={resolveSurfacePath(LOGIN_ACTION)}
+              />
               <Button
                 id="logout"
                 name="logout"
