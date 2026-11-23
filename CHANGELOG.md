@@ -17,7 +17,8 @@ Until the first stable release, the [Unreleased] section describes the product a
   display name, an enabled flag, a registered strategy (`IConnectionStrategy`, `local` first), strategy options and a
   `connection`-scope settings document; the management API serves `/tenants/{tenantId}/connections` with settings and
   effective settings, the console has Connections pages, and every tenant is created with an enabled `local`
-  connection ([#931](https://github.com/NCodeGroup/identity/issues/931),
+  connection, a reserved system connection that can be disabled and not deleted. A tenant promotion carries the
+  tenant's connections ([#931](https://github.com/NCodeGroup/identity/issues/931),
   [ADR-1535](docs/decisions/1535-a-tenant-signs-users-in-through-named-connections-and-a-local-account-belongs-to-one.md)).
 
 - **Clients enable connections.** `allowed_connections` and `default_connection` decide which connections a client
@@ -4850,6 +4851,12 @@ Until the first stable release, the [Unreleased] section describes the product a
   [ADR-1370](docs/decisions/1370-a-host-runs-the-deployment-posture-unless-configured-for-local-development-and-always-names-its-root-key-provider.md)).
 
 ### Security
+
+- **A user name and an email never shadow each other.** Within one connection a local account's user name never equals
+  another account's email, and its email never equals another account's user name, so a sign-in identifier that
+  matches by user name or by email resolves to one account
+  ([#931](https://github.com/NCodeGroup/identity/issues/931),
+  [ADR-1535](docs/decisions/1535-a-tenant-signs-users-in-through-named-connections-and-a-local-account-belongs-to-one.md)).
 
 - **An identity is keyed by the connection that authenticated it.** A federated identity is unique on
   `(tenant, connection, subject)` and the connection comes from a server-owned claim, never from an upstream claim; a
