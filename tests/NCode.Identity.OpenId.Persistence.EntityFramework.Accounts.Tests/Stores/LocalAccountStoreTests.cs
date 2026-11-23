@@ -244,9 +244,12 @@ public sealed class LocalAccountStoreTests : IDisposable
     [Fact]
     public async Task GetByIdsAsync_WhenSomeIdentifiersMatch_ReturnsOnlyTheMatchingAccounts()
     {
-        await AddAndDetachAsync(CreateAccount("account-1", "alice"), CancellationToken.None);
-        await AddAndDetachAsync(CreateAccount("account-2", "bob"), CancellationToken.None);
-        await AddAndDetachAsync(CreateAccount("account-3", "carol"), CancellationToken.None);
+        var seeded1 = CreateAccount("account-1", "alice");
+        await AddAndDetachAsync(seeded1, CancellationToken.None);
+        var seeded2 = CreateAccount("account-2", "bob");
+        await AddAndDetachAsync(seeded2, CancellationToken.None);
+        var seeded3 = CreateAccount("account-3", "carol");
+        await AddAndDetachAsync(seeded3, CancellationToken.None);
 
         var loaded = await Store.GetByIdsAsync(
             ["account-1", "account-2", "missing"],
@@ -260,7 +263,8 @@ public sealed class LocalAccountStoreTests : IDisposable
     [Fact]
     public async Task GetByIdsAsync_WhenCaseDiffers_IsCaseInsensitive()
     {
-        await AddAndDetachAsync(CreateAccount("Account-1", "alice"), CancellationToken.None);
+        var seeded1 = CreateAccount("Account-1", "alice");
+        await AddAndDetachAsync(seeded1, CancellationToken.None);
 
         var loaded = await Store.GetByIdsAsync(["account-1"], CancellationToken.None);
 
@@ -283,9 +287,12 @@ public sealed class LocalAccountStoreTests : IDisposable
     [Fact]
     public async Task GetByUserNamesAsync_WhenSomeUserNamesMatch_ReturnsOnlyTheMatchingAccounts()
     {
-        await AddAndDetachAsync(CreateAccount("account-1", "alice"), CancellationToken.None);
-        await AddAndDetachAsync(CreateAccount("account-2", "bob"), CancellationToken.None);
-        await AddAndDetachAsync(CreateAccount("account-3", "carol"), CancellationToken.None);
+        var seeded1 = CreateAccount("account-1", "alice");
+        await AddAndDetachAsync(seeded1, CancellationToken.None);
+        var seeded2 = CreateAccount("account-2", "bob");
+        await AddAndDetachAsync(seeded2, CancellationToken.None);
+        var seeded3 = CreateAccount("account-3", "carol");
+        await AddAndDetachAsync(seeded3, CancellationToken.None);
 
         var loaded = await Store.GetByUserNamesAsync(
             ["alice", "bob", "nobody"],
@@ -299,7 +306,8 @@ public sealed class LocalAccountStoreTests : IDisposable
     [Fact]
     public async Task GetByUserNamesAsync_WhenCaseDiffers_IsCaseInsensitive()
     {
-        await AddAndDetachAsync(CreateAccount("account-1", "Alice"), CancellationToken.None);
+        var seeded1 = CreateAccount("account-1", "Alice");
+        await AddAndDetachAsync(seeded1, CancellationToken.None);
 
         var loaded = await Store.GetByUserNamesAsync(["alice"], CancellationToken.None);
 

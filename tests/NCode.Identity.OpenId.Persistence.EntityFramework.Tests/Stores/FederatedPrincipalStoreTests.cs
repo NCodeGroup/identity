@@ -159,9 +159,12 @@ public sealed class FederatedPrincipalStoreTests : IDisposable
     [Fact]
     public async Task GetByIdsAsync_WhenSomeIdentifiersMatch_ReturnsOnlyTheMatchingPrincipals()
     {
-        await Store.AddAsync(CreatePrincipal("principal-1"), CancellationToken.None);
-        await Store.AddAsync(CreatePrincipal("principal-2"), CancellationToken.None);
-        await Store.AddAsync(CreatePrincipal("principal-3"), CancellationToken.None);
+        var seeded1 = CreatePrincipal("principal-1");
+        await Store.AddAsync(seeded1, CancellationToken.None);
+        var seeded2 = CreatePrincipal("principal-2");
+        await Store.AddAsync(seeded2, CancellationToken.None);
+        var seeded3 = CreatePrincipal("principal-3");
+        await Store.AddAsync(seeded3, CancellationToken.None);
         await DbContext.SaveChangesAsync();
         DbContext.ChangeTracker.Clear();
 
@@ -177,7 +180,8 @@ public sealed class FederatedPrincipalStoreTests : IDisposable
     [Fact]
     public async Task GetByIdsAsync_WhenTheIdentifiersDifferInCase_MatchesThem()
     {
-        await Store.AddAsync(CreatePrincipal("Principal-1"), CancellationToken.None);
+        var seeded1 = CreatePrincipal("Principal-1");
+        await Store.AddAsync(seeded1, CancellationToken.None);
         await DbContext.SaveChangesAsync();
         DbContext.ChangeTracker.Clear();
 

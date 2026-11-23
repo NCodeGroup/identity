@@ -282,7 +282,9 @@ internal class ClientStore(
         DbContext.EnsureUnscoped($"{nameof(ClientStore)}.{nameof(GetByPrincipalsAsync)}");
 
         if (principalIds.Count == 0)
+        {
             return [];
+        }
 
         var normalizedPrincipalIds = new List<string>(principalIds.Count);
         foreach (var principalId in principalIds)

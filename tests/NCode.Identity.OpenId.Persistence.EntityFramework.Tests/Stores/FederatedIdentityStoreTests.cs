@@ -262,22 +262,19 @@ public sealed class FederatedIdentityStoreTests : IDisposable
         await SeedPrincipalAsync(secondPrincipalId, CancellationToken.None);
         await SeedPrincipalAsync(thirdPrincipalId, CancellationToken.None);
         await SeedPrincipalAsync(unrequestedPrincipalId, CancellationToken.None);
-        await Store.AddAsync(
-            CreateIdentity("identity-1", PrincipalId, Issuer, Subject),
-            CancellationToken.None
+        var seeded1 = CreateIdentity("identity-1", PrincipalId, Issuer, Subject);
+        await Store.AddAsync(seeded1, CancellationToken.None);
+        var seeded2 = CreateIdentity(
+            "identity-2",
+            PrincipalId,
+            "https://other.example",
+            "subject-2"
         );
-        await Store.AddAsync(
-            CreateIdentity("identity-2", PrincipalId, "https://other.example", "subject-2"),
-            CancellationToken.None
-        );
-        await Store.AddAsync(
-            CreateIdentity("identity-3", secondPrincipalId, Issuer, "subject-3"),
-            CancellationToken.None
-        );
-        await Store.AddAsync(
-            CreateIdentity("identity-4", unrequestedPrincipalId, Issuer, "subject-4"),
-            CancellationToken.None
-        );
+        await Store.AddAsync(seeded2, CancellationToken.None);
+        var seeded3 = CreateIdentity("identity-3", secondPrincipalId, Issuer, "subject-3");
+        await Store.AddAsync(seeded3, CancellationToken.None);
+        var seeded4 = CreateIdentity("identity-4", unrequestedPrincipalId, Issuer, "subject-4");
+        await Store.AddAsync(seeded4, CancellationToken.None);
         await DbContext.SaveChangesAsync();
 
         var loaded = await Store.GetByPrincipalsAsync(
@@ -296,14 +293,13 @@ public sealed class FederatedIdentityStoreTests : IDisposable
     public async Task GetByPrincipalsAsync_WhenTheIdentifiersDifferInCase_MatchesThem()
     {
         await SeedPrincipalAsync(PrincipalId, CancellationToken.None);
-        await Store.AddAsync(
-            CreateIdentity("identity-1", PrincipalId, Issuer, Subject),
-            CancellationToken.None
-        );
+        var seeded1 = CreateIdentity("identity-1", PrincipalId, Issuer, Subject);
+        await Store.AddAsync(seeded1, CancellationToken.None);
         await DbContext.SaveChangesAsync();
 
+        var upperCasePrincipalId = PrincipalId.ToUpperInvariant();
         var loaded = await Store.GetByPrincipalsAsync(
-            [PrincipalId.ToUpperInvariant()],
+            [upperCasePrincipalId],
             CancellationToken.None
         );
 
@@ -315,10 +311,8 @@ public sealed class FederatedIdentityStoreTests : IDisposable
     public async Task GetByPrincipalsAsync_WhenNoPrincipals_ReturnsNone()
     {
         await SeedPrincipalAsync(PrincipalId, CancellationToken.None);
-        await Store.AddAsync(
-            CreateIdentity("identity-1", PrincipalId, Issuer, Subject),
-            CancellationToken.None
-        );
+        var seeded1 = CreateIdentity("identity-1", PrincipalId, Issuer, Subject);
+        await Store.AddAsync(seeded1, CancellationToken.None);
         await DbContext.SaveChangesAsync();
 
         var loaded = await Store.GetByPrincipalsAsync([], CancellationToken.None);

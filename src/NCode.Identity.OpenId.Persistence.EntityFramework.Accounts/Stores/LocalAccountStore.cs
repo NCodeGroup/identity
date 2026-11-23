@@ -268,7 +268,14 @@ internal sealed class LocalAccountStore(
             .Where(entity => normalizedIds.Contains(entity.NormalizedLocalAccountId))
             .ToListAsync(cancellationToken);
 
-        return entities.Select(MapFromEntity).ToList();
+        var accounts = new List<PersistedLocalAccount>(entities.Count);
+        foreach (var entity in entities)
+        {
+            var account = MapFromEntity(entity);
+            accounts.Add(account);
+        }
+
+        return accounts;
     }
 
     /// <inheritdoc />
@@ -295,7 +302,14 @@ internal sealed class LocalAccountStore(
             .Where(entity => normalizedUserNames.Contains(entity.NormalizedUserName))
             .ToListAsync(cancellationToken);
 
-        return entities.Select(MapFromEntity).ToList();
+        var accounts = new List<PersistedLocalAccount>(entities.Count);
+        foreach (var entity in entities)
+        {
+            var account = MapFromEntity(entity);
+            accounts.Add(account);
+        }
+
+        return accounts;
     }
 
     /// <inheritdoc />
