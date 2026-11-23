@@ -78,8 +78,9 @@ Credentials are first-class operations, and the contract exposes no password has
 
 - `AddAsync(account, ReadOnlyMemory<byte>? password, ct)` and `SetPasswordAsync`, where the store hashes the credential
   and rotates the security stamp.
-- `VerifyCredentialAsync(connectionId, identifier, password, isRefusedAsync, ct)`, where the identifier is a
-  `LocalAccountSignInIdentifier` that the `local_account_identifier` setting allows to be an email, a user name or either.
+- `VerifyCredentialAsync(identifier, password, isRefusedAsync, cancellationToken)`, where the identifier is a
+  `LocalAccountSignInIdentifier` that carries the `ConnectionId` and that the `local_account_identifier` setting allows
+  to be an email, a user name or either.
   The store performs the comparison, may upgrade a stored hash on success, and returns a
   `LocalAccountVerificationResult`
   ([ADR-1237](1237-failed-password-attempts-are-limited-per-account-and-a-refusal-costs-what-a-wrong-password-costs.md)).

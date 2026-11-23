@@ -1452,8 +1452,8 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
     /// <summary>
     /// Serves the reset-password page, where an end user who is not signed in presents the reset code and chooses a new
     /// password. The server renders a working no-JavaScript form carrying the antiforgery token, the return URL and the
-    /// handle of the reset flow. The page is not found while the connection does not let its end users reset a
-    /// password.
+    /// handle of the reset flow. The page renders for any handle: the flow carries its connection, and the password
+    /// resetter refuses a flow whose connection does not let its end users reset a password when the form is posted.
     /// </summary>
     // See ADR-1533.
     public async ValueTask<IResult> GetResetPasswordPageAsync(HttpContext httpContext)
@@ -1547,7 +1547,8 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
     /// <c>?status=password_reset</c>, or back to the reset-password page, keeping the flow, with <c>?error=</c> and
     /// <c>invalid_request</c> for a missing field, <c>password_mismatch</c> when the confirmation differs from the new
     /// password, or the error code the credential backend reports, such as <c>invalid_code</c> or a password policy
-    /// code. The page is not found while the connection does not let its end users reset a password.
+    /// code. The answer comes from the password resetter, which refuses a flow whose connection does not let its end
+    /// users reset a password.
     /// </summary>
     // See ADR-1533.
     public async ValueTask<IResult> PostResetPasswordAsync(
