@@ -218,8 +218,9 @@ admission:
 # or ImplicitTls (port 465). amazonSes sends through the Amazon SES v2 API in region, as the role in
 # aws.webIdentity.roleArn, or without one as the pod's ambient AWS identity, such as EKS Pod Identity; only the host's
 # Deployment, which sends the mail, carries that role for Amazon SES. from is required with region and must be an
-# identity SES verifies; fromIdentityArn, configurationSetName and tags are optional, and a tag's name is letters,
-# digits, '_', '.' or '-', because it names an environment variable.
+# identity SES verifies; fromIdentityArn, configurationSetName and tags are optional, and a tag's name is letters and
+# digits joined by single '_', '.' or '-' characters and differs from every other name in more than case, because it
+# names an environment variable and configuration keys ignore case.
 mail:
   smtp:
     host: ""

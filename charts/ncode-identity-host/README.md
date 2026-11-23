@@ -1666,7 +1666,8 @@ such as EKS Pod Identity, so the chart refuses no region for the lack of one. Th
 sent from, an identity SES verifies. `mail.amazonSes.fromName` sets the sender's display name,
 `mail.amazonSes.fromIdentityArn` names the identity that authorizes a sender from another account,
 `mail.amazonSes.configurationSetName` names a configuration set, and `mail.amazonSes.tags` is a map of tags SES attaches
-to each message, at most 50, with names of `A-Z a-z 0-9 _ . -`, because each name becomes part of an environment
-variable's name, and values of `A-Z a-z 0-9 _ . @ -`. The chart refuses `region` outside the form `us-east-1` and
+to each message, at most 50, with names of letters and digits joined by single `_`, `.` or `-` characters that differ
+from each other in more than case, because each name becomes part of an environment variable's name and configuration
+keys ignore case, and values of `A-Z a-z 0-9 _ . @ -`. The chart refuses `region` outside the form `us-east-1` and
 refuses every other `mail.amazonSes.*` setting while `region` is empty. A setting beyond these, such as
 `Mail__AmazonSes__Timeout`, goes through `extraEnv`.
