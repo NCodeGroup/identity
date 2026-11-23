@@ -5,6 +5,7 @@ using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Options;
@@ -106,6 +107,17 @@ internal class TenantTransferApiEndpointHandler(
     /// <inheritdoc />
     protected override ICryptoService CryptoService { get; } = cryptoService;
 
+    /// <summary>
+    /// Gets the problem that refuses to move a tenant the deployment requires, which never leaves its cell.
+    /// </summary>
+    /// <param name="refusedAction">The refused action as a past participle, such as <c>exported</c>.</param>
+    /// <returns>The <c>409</c> <see cref="ProblemHttpResult"/>.</returns>
+    private static ProblemHttpResult RequiredTenantProblem(string refusedAction) =>
+        TypedResults.Problem(
+            detail: $"The tenant is required by the deployment (the root tenant, or the static strategy's tenant) and cannot be {refusedAction}, because it never leaves its cell.",
+            statusCode: StatusCodes.Status409Conflict
+        );
+
     /// <inheritdoc />
     public void Map(IEndpointRouteBuilder endpoints)
     {
@@ -182,10 +194,7 @@ internal class TenantTransferApiEndpointHandler(
         // issuer.
         if (TenantResolver.IsRequiredTenant(tenantId))
         {
-            return TypedResults.Problem(
-                detail: "The tenant is required by the deployment (the root tenant, or the static strategy's tenant) and cannot be released, because it never leaves its cell.",
-                statusCode: StatusCodes.Status409Conflict
-            );
+            return RequiredTenantProblem("released");
         }
 
         TenantPlacement? placement;
@@ -302,10 +311,7 @@ internal class TenantTransferApiEndpointHandler(
 
         if (TenantResolver.IsRequiredTenant(tenantId))
         {
-            return TypedResults.Problem(
-                detail: "The tenant is required by the deployment (the root tenant, or the static strategy's tenant) and cannot be exported, because it never leaves its cell.",
-                statusCode: StatusCodes.Status409Conflict
-            );
+            return RequiredTenantProblem("exported");
         }
 
         if (!tenant.IsDisabled)
