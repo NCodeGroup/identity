@@ -26,12 +26,6 @@ internal sealed class AmazonSesMailTransport(
     IOptions<AmazonSesMailTransportOptions> optionsAccessor
 ) : IMailTransport
 {
-    private IAmazonSesClientFactory ClientFactory { get; } = clientFactory;
-
-    private IMimeMessageFactory MimeMessageFactory { get; } = mimeMessageFactory;
-
-    private AmazonSesMailTransportOptions Options => optionsAccessor.Value;
-
     /// <summary>
     /// Maps an empty option value to <see langword="null"/>, so the request leaves out a field that the options leave
     /// blank.
@@ -51,6 +45,12 @@ internal sealed class AmazonSesMailTransport(
     /// <returns>The address of each mailbox.</returns>
     private static List<string> ToAddresses(List<MailAddress> addresses) =>
         addresses.Select(address => address.Address).ToList();
+
+    private IAmazonSesClientFactory ClientFactory { get; } = clientFactory;
+
+    private IMimeMessageFactory MimeMessageFactory { get; } = mimeMessageFactory;
+
+    private AmazonSesMailTransportOptions Options => optionsAccessor.Value;
 
     /// <inheritdoc />
     public async ValueTask DeliverAsync(MailMessage message, CancellationToken cancellationToken)

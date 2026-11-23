@@ -30,12 +30,6 @@ internal sealed class DefaultAmazonSesClientFactory(
 {
     private const int MaxErrorRetry = 2;
 
-    private Lazy<AmazonSimpleEmailServiceV2Client> LazyClient { get; } =
-        new(
-            () => CreateClient(optionsAccessor.Value),
-            LazyThreadSafetyMode.ExecutionAndPublication
-        );
-
     /// <summary>
     /// Creates the Amazon SES client for the configured region, with the standard retry mode, a retry limit of two and
     /// the configured timeout.
@@ -56,6 +50,12 @@ internal sealed class DefaultAmazonSesClientFactory(
         };
         return new AmazonSimpleEmailServiceV2Client(config);
     }
+
+    private Lazy<AmazonSimpleEmailServiceV2Client> LazyClient { get; } =
+        new(
+            () => CreateClient(optionsAccessor.Value),
+            LazyThreadSafetyMode.ExecutionAndPublication
+        );
 
     /// <inheritdoc />
     public IAmazonSimpleEmailServiceV2 GetClient() => LazyClient.Value;
