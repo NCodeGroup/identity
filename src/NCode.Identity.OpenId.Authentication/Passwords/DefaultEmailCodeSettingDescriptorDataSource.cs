@@ -21,6 +21,9 @@ internal class DefaultEmailCodeSettingDescriptorDataSource(INullChangeToken null
 {
     private static ImmutableArray<string> Tenants { get; } = [OpenIdSettingScopes.Tenant];
 
+    private static ImmutableArray<string> TenantsAndConnections { get; } =
+    [OpenIdSettingScopes.Tenant, OpenIdSettingScopes.Connection];
+
     private INullChangeToken NullChangeToken { get; } = nullChangeToken;
 
     /// <inheritdoc />
@@ -62,7 +65,7 @@ internal class DefaultEmailCodeSettingDescriptorDataSource(INullChangeToken null
             yield return new SettingDescriptor<bool>
             {
                 Name = OpenIdSettingNames.PasswordResetEnabled,
-                AppliesTo = Tenants,
+                AppliesTo = TenantsAndConnections,
                 Default = false,
                 IsDiscoverable = false,
                 OnMerge = SettingMerge.Replace,
@@ -73,7 +76,7 @@ internal class DefaultEmailCodeSettingDescriptorDataSource(INullChangeToken null
             yield return new SettingDescriptor<bool>
             {
                 Name = OpenIdSettingNames.EmailVerificationEnabled,
-                AppliesTo = Tenants,
+                AppliesTo = TenantsAndConnections,
                 Default = false,
                 IsDiscoverable = false,
                 OnMerge = SettingMerge.Replace,
@@ -84,7 +87,7 @@ internal class DefaultEmailCodeSettingDescriptorDataSource(INullChangeToken null
             yield return new SettingDescriptor<bool>
             {
                 Name = OpenIdSettingNames.EmailMfaRequired,
-                AppliesTo = Tenants,
+                AppliesTo = TenantsAndConnections,
                 Default = false,
                 IsDiscoverable = false,
                 OnMerge = SettingMerge.Or,

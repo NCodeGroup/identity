@@ -20,6 +20,9 @@ internal class DefaultPasswordSettingDescriptorDataSource(INullChangeToken nullC
 {
     private static ImmutableArray<string> Tenants { get; } = [OpenIdSettingScopes.Tenant];
 
+    private static ImmutableArray<string> TenantsAndConnections { get; } =
+    [OpenIdSettingScopes.Tenant, OpenIdSettingScopes.Connection];
+
     private INullChangeToken NullChangeToken { get; } = nullChangeToken;
 
     /// <inheritdoc />
@@ -36,7 +39,7 @@ internal class DefaultPasswordSettingDescriptorDataSource(INullChangeToken nullC
             yield return new SettingDescriptor<int>
             {
                 Name = OpenIdSettingNames.PasswordMinLength,
-                AppliesTo = Tenants,
+                AppliesTo = TenantsAndConnections,
                 Rule = SettingRules.Between(8, 64),
                 Default = 15,
                 IsDiscoverable = false,
@@ -49,7 +52,7 @@ internal class DefaultPasswordSettingDescriptorDataSource(INullChangeToken nullC
             yield return new SettingDescriptor<int>
             {
                 Name = OpenIdSettingNames.PasswordMaxLength,
-                AppliesTo = Tenants,
+                AppliesTo = TenantsAndConnections,
                 Rule = SettingRules.Between(64, 4096),
                 Default = 128,
                 IsDiscoverable = false,
@@ -62,7 +65,7 @@ internal class DefaultPasswordSettingDescriptorDataSource(INullChangeToken nullC
             yield return new SettingDescriptor<int>
             {
                 Name = OpenIdSettingNames.PasswordFailedAttemptsLimit,
-                AppliesTo = Tenants,
+                AppliesTo = TenantsAndConnections,
                 Rule = SettingRules.Between(1, 100),
                 Default = 10,
                 IsDiscoverable = false,
@@ -76,7 +79,7 @@ internal class DefaultPasswordSettingDescriptorDataSource(INullChangeToken nullC
             yield return new SettingDescriptor<TimeSpan>
             {
                 Name = OpenIdSettingNames.PasswordFailedAttemptsWindow,
-                AppliesTo = Tenants,
+                AppliesTo = TenantsAndConnections,
                 Rule = SettingRules.Between(windowMinimum, windowMaximum),
                 Default = TimeSpan.FromMinutes(15),
                 IsDiscoverable = false,

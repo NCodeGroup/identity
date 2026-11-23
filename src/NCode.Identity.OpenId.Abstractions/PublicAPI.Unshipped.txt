@@ -1127,3 +1127,10 @@ NCode.Identity.OpenId.Connections.LocalConnectionOptions
 NCode.Identity.OpenId.Connections.LocalConnectionOptions.LocalConnectionOptions() -> void
 NCode.Identity.OpenId.Connections.LocalConnectionOptions.Store.get -> string!
 NCode.Identity.OpenId.Connections.LocalConnectionOptions.Store.init -> void
+const NCode.Identity.OpenId.Settings.OpenIdSettingScopes.Connection = "connection" -> string!
+const NCode.Identity.OpenId.Settings.OpenIdSettingNames.AllowedConnections = "allowed_connections" -> string!
+const NCode.Identity.OpenId.Settings.OpenIdSettingNames.DefaultConnection = "default_connection" -> string!
+const NCode.Identity.OpenId.Settings.OpenIdSettingNames.LocalAccountIdentifier = "local_account_identifier" -> string!
+static NCode.Identity.OpenId.Settings.OpenIdSettingKeys.AllowedConnections.get -> NCode.Identity.Settings.SettingKey<System.Collections.Generic.IReadOnlyCollection<string!>!>
+static NCode.Identity.OpenId.Settings.OpenIdSettingKeys.DefaultConnection.get -> NCode.Identity.Settings.SettingKey<string!>
+static NCode.Identity.OpenId.Settings.OpenIdSettingKeys.LocalAccountIdentifier.get -> NCode.Identity.Settings.SettingKey<string!>

@@ -51,6 +51,12 @@ internal class DefaultSettingScopeDataSource(INullChangeToken nullChangeToken)
                 Name = OpenIdSettingScopes.ResourceServer,
                 ParentName = OpenIdSettingScopes.Tenant,
             };
+
+            yield return new SettingScopeDescriptor
+            {
+                Name = OpenIdSettingScopes.Connection,
+                ParentName = OpenIdSettingScopes.Tenant,
+            };
         }
     }
 }

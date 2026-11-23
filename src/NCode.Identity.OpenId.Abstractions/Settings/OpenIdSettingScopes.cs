@@ -40,4 +40,9 @@ public static class OpenIdSettingScopes
     /// Contains the name of the resource-server scope, beneath the tenant.
     /// </summary>
     public const string ResourceServer = "resource_server";
+
+    /// <summary>
+    /// Contains the name of the connection scope, beneath the tenant.
+    /// </summary>
+    public const string Connection = "connection";
 }

@@ -124,6 +124,24 @@ public static class OpenIdSettingNames
     public const string AlwaysIncludeAuthTime = "always_include_auth_time";
 
     /// <summary>
+    /// Contains the name of the <c>allowed_connections</c> setting: the names of the connections a client may sign end
+    /// users in through. Unset permits every enabled connection.
+    /// </summary>
+    public const string AllowedConnections = "allowed_connections";
+
+    /// <summary>
+    /// Contains the name of the <c>default_connection</c> setting: the name of the connection preselected for sign-in
+    /// when a request names none. Defaults to <c>local</c>.
+    /// </summary>
+    public const string DefaultConnection = "default_connection";
+
+    /// <summary>
+    /// Contains the name of the <c>local_account_identifier</c> setting: whether a local account is identified by an
+    /// email address, a user name or at least one of them. Defaults to <c>email_or_user_name</c>.
+    /// </summary>
+    public const string LocalAccountIdentifier = "local_account_identifier";
+
+    /// <summary>
     /// Contains the name of <c>allowed_identity_providers</c> setting.
     /// </summary>
     public const string AllowedIdentityProviders = "allowed_identity_providers";

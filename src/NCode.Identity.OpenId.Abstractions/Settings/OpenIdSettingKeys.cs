@@ -119,6 +119,23 @@ public static class OpenIdSettingKeys
         new(OpenIdSettingNames.AlwaysIncludeAuthTime);
 
     /// <summary>
+    /// Gets the <see cref="SettingKey{TValue}"/> for the 'allowed_connections' setting.
+    /// </summary>
+    public static SettingKey<IReadOnlyCollection<string>> AllowedConnections =>
+        new(OpenIdSettingNames.AllowedConnections);
+
+    /// <summary>
+    /// Gets the <see cref="SettingKey{TValue}"/> for the 'default_connection' setting.
+    /// </summary>
+    public static SettingKey<string> DefaultConnection => new(OpenIdSettingNames.DefaultConnection);
+
+    /// <summary>
+    /// Gets the <see cref="SettingKey{TValue}"/> for the 'local_account_identifier' setting.
+    /// </summary>
+    public static SettingKey<string> LocalAccountIdentifier =>
+        new(OpenIdSettingNames.LocalAccountIdentifier);
+
+    /// <summary>
     /// Gets the <see cref="SettingKey{TValue}"/> for the 'allowed_identity_providers' setting.
     /// </summary>
     public static SettingKey<IReadOnlyCollection<string>> AllowedIdentityProviders =>
