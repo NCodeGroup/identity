@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using System.Buffers;
+using Microsoft.AspNetCore.Antiforgery;
 using Xunit;
 
 namespace NCode.Identity.OpenId.Authentication.Interactive.Tests;
@@ -35,6 +36,11 @@ public class InteractiveAuthenticationPageRendererTests
         InteractiveLocale? locale = null
     ) => new(shell, surfaceBase, branding, Nonce, locale ?? TestLocales.Xx);
 
+    private static InteractivePageForm CreateForm(
+        string antiforgeryFieldName,
+        string antiforgeryToken
+    ) => new(new AntiforgeryTokenSet(antiforgeryToken, null, antiforgeryFieldName, null));
+
     #region RenderLoginPage Tests
 
     [Fact]
@@ -44,10 +50,11 @@ public class InteractiveAuthenticationPageRendererTests
         InteractiveAuthenticationPageRenderer.RenderLoginPage(
             writer,
             CreateFrame(),
-            returnUrl: "/connect/authorize",
-            antiforgeryFieldName: "__RequestVerificationToken",
-            antiforgeryToken: "token-123",
-            errorMessage: null
+            CreateForm("__RequestVerificationToken", "token-123") with
+            {
+                ReturnUrl = "/connect/authorize",
+            },
+            forgotPasswordHref: null
         );
         var html = writer.WrittenSpan.ToString();
 
@@ -74,10 +81,12 @@ public class InteractiveAuthenticationPageRendererTests
         InteractiveAuthenticationPageRenderer.RenderLoginPage(
             writer,
             CreateFrame(),
-            returnUrl: "/",
-            antiforgeryFieldName: "__RequestVerificationToken",
-            antiforgeryToken: "t",
-            errorMessage: "The username or password is incorrect."
+            CreateForm("__RequestVerificationToken", "t") with
+            {
+                ReturnUrl = "/",
+                ErrorMessage = "The username or password is incorrect.",
+            },
+            forgotPasswordHref: null
         );
         var html = writer.WrittenSpan.ToString();
 
@@ -92,10 +101,11 @@ public class InteractiveAuthenticationPageRendererTests
         InteractiveAuthenticationPageRenderer.RenderLoginPage(
             writer,
             CreateFrame(),
-            returnUrl: "\"><script>alert(1)</script>",
-            antiforgeryFieldName: "__RequestVerificationToken",
-            antiforgeryToken: "t",
-            errorMessage: null
+            CreateForm("__RequestVerificationToken", "t") with
+            {
+                ReturnUrl = "\"><script>alert(1)</script>",
+            },
+            forgotPasswordHref: null
         );
         var html = writer.WrittenSpan.ToString();
 
@@ -109,10 +119,11 @@ public class InteractiveAuthenticationPageRendererTests
         InteractiveAuthenticationPageRenderer.RenderLoginPage(
             writer,
             CreateFrame(shell: InteractiveBundleShell.TryCreate(BundleShell)),
-            returnUrl: "/",
-            antiforgeryFieldName: "__RequestVerificationToken",
-            antiforgeryToken: "t",
-            errorMessage: null
+            CreateForm("__RequestVerificationToken", "t") with
+            {
+                ReturnUrl = "/",
+            },
+            forgotPasswordHref: null
         );
         var html = writer.WrittenSpan.ToString();
 
@@ -129,10 +140,11 @@ public class InteractiveAuthenticationPageRendererTests
         InteractiveAuthenticationPageRenderer.RenderLoginPage(
             writer,
             CreateFrame(shell: InteractiveBundleShell.TryCreate(BundleShell)),
-            returnUrl: "/",
-            antiforgeryFieldName: "__RequestVerificationToken",
-            antiforgeryToken: "t",
-            errorMessage: null
+            CreateForm("__RequestVerificationToken", "t") with
+            {
+                ReturnUrl = "/",
+            },
+            forgotPasswordHref: null
         );
         var html = writer.WrittenSpan.ToString();
 
@@ -157,10 +169,12 @@ public class InteractiveAuthenticationPageRendererTests
         InteractiveAuthenticationPageRenderer.RenderLoginPage(
             writer,
             CreateFrame(),
-            returnUrl: "/",
-            antiforgeryFieldName: "__RequestVerificationToken",
-            antiforgeryToken: "t",
-            errorMessage: new string('<', 1000)
+            CreateForm("__RequestVerificationToken", "t") with
+            {
+                ReturnUrl = "/",
+                ErrorMessage = new string('<', 1000),
+            },
+            forgotPasswordHref: null
         );
         var html = writer.WrittenSpan.ToString();
 
@@ -181,10 +195,11 @@ public class InteractiveAuthenticationPageRendererTests
                 shell: InteractiveBundleShell.TryCreate(BundleShell),
                 branding: AcmeBranding
             ),
-            returnUrl: "/",
-            antiforgeryFieldName: "__RequestVerificationToken",
-            antiforgeryToken: "t",
-            errorMessage: null
+            CreateForm("__RequestVerificationToken", "t") with
+            {
+                ReturnUrl = "/",
+            },
+            forgotPasswordHref: null
         );
         var html = writer.WrittenSpan.ToString();
 
@@ -215,10 +230,11 @@ public class InteractiveAuthenticationPageRendererTests
                     null
                 )
             ),
-            returnUrl: "/",
-            antiforgeryFieldName: "__RequestVerificationToken",
-            antiforgeryToken: "t",
-            errorMessage: null
+            CreateForm("__RequestVerificationToken", "t") with
+            {
+                ReturnUrl = "/",
+            },
+            forgotPasswordHref: null
         );
         var html = writer.WrittenSpan.ToString();
 
@@ -233,10 +249,11 @@ public class InteractiveAuthenticationPageRendererTests
         InteractiveAuthenticationPageRenderer.RenderLoginPage(
             writer,
             CreateFrame(branding: AcmeBranding),
-            returnUrl: "/",
-            antiforgeryFieldName: "__RequestVerificationToken",
-            antiforgeryToken: "t",
-            errorMessage: null
+            CreateForm("__RequestVerificationToken", "t") with
+            {
+                ReturnUrl = "/",
+            },
+            forgotPasswordHref: null
         );
         var html = writer.WrittenSpan.ToString();
 
@@ -257,10 +274,11 @@ public class InteractiveAuthenticationPageRendererTests
                 shell: shell,
                 branding: new InteractiveBranding("Acme", null, faviconUrl, null, null, null, null)
             ),
-            returnUrl: "/",
-            antiforgeryFieldName: "__RequestVerificationToken",
-            antiforgeryToken: "t",
-            errorMessage: null
+            CreateForm("__RequestVerificationToken", "t") with
+            {
+                ReturnUrl = "/",
+            },
+            forgotPasswordHref: null
         );
         return writer.WrittenSpan.ToString();
     }
@@ -339,6 +357,69 @@ public class InteractiveAuthenticationPageRendererTests
         Assert.DoesNotContain("<link", html, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void RenderLoginPage_WithAForgotPasswordHref_WritesTheLink()
+    {
+        var writer = new ArrayBufferWriter<char>();
+        InteractiveAuthenticationPageRenderer.RenderLoginPage(
+            writer,
+            CreateFrame(),
+            CreateForm("__RequestVerificationToken", "t") with
+            {
+                ReturnUrl = "/",
+            },
+            forgotPasswordHref: "password/forgot?ReturnUrl=%2F&a=\"b\""
+        );
+        var html = writer.WrittenSpan.ToString();
+
+        Assert.Contains(
+            "<p><a id=\"forgot-password-link\" href=\"password/forgot?ReturnUrl=%2F&amp;a=&quot;b&quot;\">Xx forgot link</a></p>",
+            html,
+            StringComparison.Ordinal
+        );
+    }
+
+    [Fact]
+    public void RenderLoginPage_WithoutAForgotPasswordHref_WritesNoLink()
+    {
+        var writer = new ArrayBufferWriter<char>();
+        InteractiveAuthenticationPageRenderer.RenderLoginPage(
+            writer,
+            CreateFrame(),
+            CreateForm("__RequestVerificationToken", "t") with
+            {
+                ReturnUrl = "/",
+            },
+            forgotPasswordHref: null
+        );
+        var html = writer.WrittenSpan.ToString();
+
+        Assert.DoesNotContain("forgot-password-link", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void RenderLoginPage_WithAStatusMessage_WritesItAsAStatus()
+    {
+        var writer = new ArrayBufferWriter<char>();
+        InteractiveAuthenticationPageRenderer.RenderLoginPage(
+            writer,
+            CreateFrame(),
+            CreateForm("__RequestVerificationToken", "t") with
+            {
+                ReturnUrl = "/",
+                StatusMessage = "Done <b>",
+            },
+            forgotPasswordHref: null
+        );
+        var html = writer.WrittenSpan.ToString();
+
+        Assert.Contains(
+            "<p id=\"status\" role=\"status\" class=\"auth-status\">Done &lt;b&gt;</p>",
+            html,
+            StringComparison.Ordinal
+        );
+    }
+
     private static int CountOccurrences(string text, string value)
     {
         var count = 0;
@@ -363,9 +444,10 @@ public class InteractiveAuthenticationPageRendererTests
         InteractiveAuthenticationPageRenderer.RenderConsentPage(
             writer,
             CreateFrame(),
-            returnUrl: "/continue",
-            antiforgeryFieldName: "__RequestVerificationToken",
-            antiforgeryToken: "t",
+            CreateForm("__RequestVerificationToken", "t") with
+            {
+                ReturnUrl = "/continue",
+            },
             appName: "Conformance Client",
             scopes: []
         );
@@ -384,9 +466,10 @@ public class InteractiveAuthenticationPageRendererTests
         InteractiveAuthenticationPageRenderer.RenderConsentPage(
             writer,
             CreateFrame(),
-            returnUrl: "/continue",
-            antiforgeryFieldName: "__RequestVerificationToken",
-            antiforgeryToken: "t",
+            CreateForm("__RequestVerificationToken", "t") with
+            {
+                ReturnUrl = "/continue",
+            },
             appName: "App",
             scopes:
             [
@@ -420,9 +503,10 @@ public class InteractiveAuthenticationPageRendererTests
         InteractiveAuthenticationPageRenderer.RenderLogoutConfirmationPage(
             writer,
             CreateFrame(),
-            returnUrl: "/continue",
-            antiforgeryFieldName: "__RequestVerificationToken",
-            antiforgeryToken: "t"
+            CreateForm("__RequestVerificationToken", "t") with
+            {
+                ReturnUrl = "/continue",
+            }
         );
         var html = writer.WrittenSpan.ToString();
 
@@ -444,9 +528,10 @@ public class InteractiveAuthenticationPageRendererTests
         InteractiveAuthenticationPageRenderer.RenderLogoutConfirmationPage(
             writer,
             CreateFrame(),
-            returnUrl: "\"><script>alert(1)</script>",
-            antiforgeryFieldName: "__RequestVerificationToken",
-            antiforgeryToken: "t"
+            CreateForm("__RequestVerificationToken", "t") with
+            {
+                ReturnUrl = "\"><script>alert(1)</script>",
+            }
         );
         var html = writer.WrittenSpan.ToString();
 
@@ -644,6 +729,189 @@ public class InteractiveAuthenticationPageRendererTests
 
     #endregion
 
+    #region RenderForgotPasswordPage Tests
+
+    [Fact]
+    public void RenderForgotPasswordPage_Always_PostsTheUsernameToTheForgotPasswordEndpoint()
+    {
+        var writer = new ArrayBufferWriter<char>();
+        InteractiveAuthenticationPageRenderer.RenderForgotPasswordPage(
+            writer,
+            CreateFrame(),
+            CreateForm("__RequestVerificationToken", "token-123") with
+            {
+                ReturnUrl = "/continue",
+                ErrorMessage = "Xx problem",
+            }
+        );
+        var html = writer.WrittenSpan.ToString();
+
+        Assert.Contains(
+            "method=\"post\" action=\"password/forgot\"",
+            html,
+            StringComparison.Ordinal
+        );
+        Assert.Contains("<h1>Xx forgot title</h1>", html, StringComparison.Ordinal);
+        Assert.Contains("<p>Xx forgot prompt</p>", html, StringComparison.Ordinal);
+        Assert.Contains(
+            "id=\"username\" name=\"username\" type=\"text\" autocomplete=\"username\" autofocus required",
+            html,
+            StringComparison.Ordinal
+        );
+        Assert.Contains("id=\"send-code\"", html, StringComparison.Ordinal);
+        Assert.Contains(">Xx send code</button>", html, StringComparison.Ordinal);
+        Assert.Contains("role=\"alert\"", html, StringComparison.Ordinal);
+        Assert.Contains("Xx problem", html, StringComparison.Ordinal);
+        Assert.Contains("name=\"ReturnUrl\" value=\"/continue\"", html, StringComparison.Ordinal);
+        Assert.Contains(
+            "name=\"__RequestVerificationToken\" value=\"token-123\"",
+            html,
+            StringComparison.Ordinal
+        );
+    }
+
+    #endregion
+
+    #region RenderResetPasswordPage Tests
+
+    [Fact]
+    public void RenderResetPasswordPage_Always_CarriesTheFlowAndAsksForTheCodeAndTheNewPassword()
+    {
+        var writer = new ArrayBufferWriter<char>();
+        InteractiveAuthenticationPageRenderer.RenderResetPasswordPage(
+            writer,
+            CreateFrame(),
+            CreateForm("__RequestVerificationToken", "token-123") with
+            {
+                ReturnUrl = "/continue",
+            },
+            flowId: "flow-123"
+        );
+        var html = writer.WrittenSpan.ToString();
+
+        Assert.Contains(
+            "method=\"post\" action=\"password/reset\"",
+            html,
+            StringComparison.Ordinal
+        );
+        Assert.Contains("<h1>Xx reset title</h1>", html, StringComparison.Ordinal);
+        Assert.Contains("name=\"flow\" value=\"flow-123\"", html, StringComparison.Ordinal);
+        Assert.Contains(
+            "id=\"code\" name=\"code\" type=\"text\" inputmode=\"numeric\" autocomplete=\"one-time-code\" pattern=\"[0-9]{6}\" maxlength=\"6\"",
+            html,
+            StringComparison.Ordinal
+        );
+        Assert.Contains(
+            "id=\"new_password\" name=\"new_password\" type=\"password\" autocomplete=\"new-password\" required",
+            html,
+            StringComparison.Ordinal
+        );
+        Assert.Contains(
+            "id=\"confirm_password\" name=\"confirm_password\" type=\"password\" autocomplete=\"new-password\" required",
+            html,
+            StringComparison.Ordinal
+        );
+        Assert.Contains("id=\"reset-password\"", html, StringComparison.Ordinal);
+        Assert.Contains(">Xx reset button</button>", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("role=\"alert\"", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void RenderResetPasswordPage_Always_EncodesTheFlow()
+    {
+        var writer = new ArrayBufferWriter<char>();
+        InteractiveAuthenticationPageRenderer.RenderResetPasswordPage(
+            writer,
+            CreateFrame(),
+            CreateForm("__RequestVerificationToken", "t") with
+            {
+                ReturnUrl = "/",
+            },
+            flowId: "\"><script>alert(1)</script>"
+        );
+        var html = writer.WrittenSpan.ToString();
+
+        Assert.DoesNotContain("<script>alert(1)</script>", html, StringComparison.Ordinal);
+        Assert.Contains("name=\"flow\" value=\"&quot;&gt;", html, StringComparison.Ordinal);
+    }
+
+    #endregion
+
+    #region RenderSignInCodePage Tests
+
+    [Fact]
+    public void RenderSignInCodePage_Always_OffersVerifyAndResend()
+    {
+        var writer = new ArrayBufferWriter<char>();
+        InteractiveAuthenticationPageRenderer.RenderSignInCodePage(
+            writer,
+            CreateFrame(),
+            CreateForm("__RequestVerificationToken", "token-123") with
+            {
+                ErrorMessage = "Xx problem",
+                StatusMessage = "Xx sent",
+            }
+        );
+        var html = writer.WrittenSpan.ToString();
+
+        Assert.Contains("method=\"post\" action=\"login/code\"", html, StringComparison.Ordinal);
+        Assert.Contains("<h1>Xx sign-in code title</h1>", html, StringComparison.Ordinal);
+        Assert.Contains("<p>Xx sign-in code prompt</p>", html, StringComparison.Ordinal);
+        Assert.Contains("id=\"code\" name=\"code\"", html, StringComparison.Ordinal);
+        Assert.Contains(
+            "id=\"verify\" name=\"action\" value=\"verify\"",
+            html,
+            StringComparison.Ordinal
+        );
+        Assert.Contains(">Xx verify</button>", html, StringComparison.Ordinal);
+        Assert.Contains(
+            "id=\"resend\" name=\"action\" value=\"resend\" type=\"submit\" formnovalidate",
+            html,
+            StringComparison.Ordinal
+        );
+        Assert.Contains(">Xx resend</button>", html, StringComparison.Ordinal);
+        Assert.Contains("role=\"alert\"", html, StringComparison.Ordinal);
+        Assert.Contains("role=\"status\"", html, StringComparison.Ordinal);
+        Assert.Contains(
+            "name=\"__RequestVerificationToken\" value=\"token-123\"",
+            html,
+            StringComparison.Ordinal
+        );
+        Assert.Contains("name=\"ui_locales\" value=\"xx\"", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("ReturnUrl", html, StringComparison.Ordinal);
+    }
+
+    #endregion
+
+    #region Form Action Tests
+
+    // A page's <base href> names the surface, so a relative form action resolves against BasePath.
+    [Theory]
+    [InlineData(
+        InteractiveAuthenticationPageRenderer.ForgotPasswordFormAction,
+        InteractiveAuthenticationDefaults.PasswordForgotPath
+    )]
+    [InlineData(
+        InteractiveAuthenticationPageRenderer.ResetPasswordFormAction,
+        InteractiveAuthenticationDefaults.PasswordResetPath
+    )]
+    [InlineData(
+        InteractiveAuthenticationPageRenderer.SignInCodeFormAction,
+        InteractiveAuthenticationDefaults.LoginCodePath
+    )]
+    public void FormAction_Always_ResolvesAgainstTheBaseToItsRoute(string formAction, string route)
+    {
+        var baseUri = new Uri(
+            "https://op.example" + InteractiveAuthenticationDefaults.BasePath + "/"
+        );
+
+        var resolved = new Uri(baseUri, formAction);
+
+        Assert.Equal(route, resolved.AbsolutePath);
+    }
+
+    #endregion
+
     #region Locale Tests
 
     [Fact]
@@ -653,10 +921,12 @@ public class InteractiveAuthenticationPageRendererTests
         InteractiveAuthenticationPageRenderer.RenderLoginPage(
             writer,
             CreateFrame(),
-            returnUrl: "/",
-            antiforgeryFieldName: "__RequestVerificationToken",
-            antiforgeryToken: "t",
-            errorMessage: TestLocales.Xx.Messages.InvalidCredentialsError
+            CreateForm("__RequestVerificationToken", "t") with
+            {
+                ReturnUrl = "/",
+                ErrorMessage = TestLocales.Xx.Messages.InvalidCredentialsError,
+            },
+            forgotPasswordHref: null
         );
         var html = writer.WrittenSpan.ToString();
 
@@ -692,10 +962,11 @@ public class InteractiveAuthenticationPageRendererTests
         InteractiveAuthenticationPageRenderer.RenderLoginPage(
             writer,
             CreateFrame(shell: shell),
-            returnUrl: "/",
-            antiforgeryFieldName: "__RequestVerificationToken",
-            antiforgeryToken: "t",
-            errorMessage: null
+            CreateForm("__RequestVerificationToken", "t") with
+            {
+                ReturnUrl = "/",
+            },
+            forgotPasswordHref: null
         );
         var html = writer.WrittenSpan.ToString();
 
@@ -725,9 +996,10 @@ public class InteractiveAuthenticationPageRendererTests
         InteractiveAuthenticationPageRenderer.RenderConsentPage(
             writer,
             CreateFrame(),
-            returnUrl: "/",
-            antiforgeryFieldName: "__RequestVerificationToken",
-            antiforgeryToken: "t",
+            CreateForm("__RequestVerificationToken", "t") with
+            {
+                ReturnUrl = "/",
+            },
             appName: "<Acme>",
             scopes: []
         );
@@ -754,9 +1026,10 @@ public class InteractiveAuthenticationPageRendererTests
         InteractiveAuthenticationPageRenderer.RenderConsentPage(
             writer,
             CreateFrame(locale: locale),
-            returnUrl: "/",
-            antiforgeryFieldName: "__RequestVerificationToken",
-            antiforgeryToken: "t",
+            CreateForm("__RequestVerificationToken", "t") with
+            {
+                ReturnUrl = "/",
+            },
             appName: "Acme",
             scopes: []
         );
@@ -773,9 +1046,10 @@ public class InteractiveAuthenticationPageRendererTests
         InteractiveAuthenticationPageRenderer.RenderLogoutConfirmationPage(
             writer,
             CreateFrame(),
-            returnUrl: "/",
-            antiforgeryFieldName: "__RequestVerificationToken",
-            antiforgeryToken: "t"
+            CreateForm("__RequestVerificationToken", "t") with
+            {
+                ReturnUrl = "/",
+            }
         );
         var html = writer.WrittenSpan.ToString();
 

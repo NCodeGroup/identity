@@ -86,8 +86,8 @@ carries nothing else; a brand domain carries the site, docs, status page and ope
      ([#755](https://github.com/NCodeGroup/identity/issues/755)). Custom domains are a separate decision
      ([#756](https://github.com/NCodeGroup/identity/issues/756)).
 3. **The brand domain is `ncodeid.com`.** It carries the site and docs (apex and `www.`), `status.ncodeid.com`
-   (UptimeRobot), the Email Routing addresses (`security@`, `platform@`, `postmaster@`, `abuse@` and per-vendor
-   aliases) and the `security.txt` contact.
+   (UptimeRobot), the Email Routing addresses (`security@`, `platform@`, `postmaster@`, `abuse@`, `legal@`, `privacy@`,
+   `support@` and per-vendor aliases) and the `security.txt` contact.
 4. **Two redirect-only domains guard the name.** `ncodeidentity.com` and `ncodeidentity.net` redirect their apex and
    `www.` (301) to `https://ncodeid.com`, and handle no mail. `ncodegroup.com` is not the platform's: the platform's
    stacks and records never manage it.

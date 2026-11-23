@@ -170,16 +170,16 @@ The recorder states the actor explicitly for each event, so the actor does not d
 
 | `actor.type`    | `actor.id`                                 | Used by                                                                                                                                                                                   |
 | --------------- | ------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `end_user`      | The subject id                             | `authorization.granted`, `authorization.denied`, `session.created`, and `subject.authentication` on success. With no subject these events use `anonymous`.                                |
+| `end_user`      | The subject id                             | `authorization.granted`, `authorization.denied`, `session.created`, and `subject.authentication` on success; `password.change`, `email.verification` and `subject.second_factor`, and `password.reset_request` and `password.reset` when the request names a subject. With no subject these events use `anonymous`. |
 | `client`        | The client id                              | `token.issued`, `token.revoked`, `token.refresh.replay`, `token.refresh.retry`, `client.authentication` and `userinfo.accessed`. `userinfo.accessed` with no client uses `anonymous`. Also every management event a client makes acting for itself (its token's subject is the client's own principal). |
 | `administrator` | The administrator's subject id, when known | Every management event an end user makes (a rekey through the management API (`master_key.rotated`) and a tenant's root key set, removed or validated through it (`root_key.*`) included). The subject id is read with the server-default claim types, not the request tenant's setting. |
 | `system`        | None                                       | `session.terminated`, whose `details.termination_reason` says why, and the `tenant.key.*`, background `master_key.*`, background `root_key.*` and `remote_key.*` events, whose `details.reason` says why. No caller acted.         |
-| `anonymous`     | None                                       | `subject.authentication` on failure, `openid.error` and `userinfo.accessed` on `denied` with no client: the caller is not identified.                                                     |
+| `anonymous`     | None                                       | `subject.authentication` on failure, `openid.error`, `password.reset_request` and `password.reset` with no subject, and `userinfo.accessed` on `denied` with no client: the caller is not identified. |
 
 ### Resource types
 
-`session`, `tenant`, `tenant.secret`, `master_key`, `root_key` and `remote_key` are shared by the protocol and the management planes (`AuditResourceTypes`).
-The management types are `ManagementResourceTypes`, and the local-account type is `AccountManagementResourceTypes`.
+`session`, `tenant`, `tenant.secret`, `master_key`, `root_key`, `remote_key` and `local_account` are shared by the
+protocol and the management planes (`AuditResourceTypes`). The management types are `ManagementResourceTypes`.
 
 | `resources[].type`       | Entity                                                                                                                                                                 |
 | ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -199,7 +199,8 @@ The management types are `ManagementResourceTypes`, and the local-account type i
 | `initial_access_token`   | An initial access token (RFC 7591) for dynamic client registration.                                                                                                    |
 | `principal`              | An end user's federated principal.                                                                                                                                     |
 | `role_assignment`        | A role a principal holds at a resource node: an owner or an administrator of a team, tenant, client or resource server.                                                |
-| `local_account`          | A local account.                                                                                                                                                       |
+| `local_account`          | A local account, in the protocol and management planes.                                                                                                                |
+| `audit_stream`           | An audit stream of a tenant.                                                                                                                                           |
 
 ## Event catalog
 
@@ -216,7 +217,12 @@ One row for each event the library publishes. In a cell, `none` means the member
 | `authorization.granted`  | `authorization`  | `openid` | `success`            | `info`                                  | `end_user`, or `anonymous` with no subject    | none                  | none                                                                                                                                         | none                                                  |
 | `authorization.denied`   | `authorization`  | `openid` | `denied`             | `info`                                  | `end_user`, or `anonymous` with no subject    | none                  | The error code; `access_denied` by default                                                                                                   | none                                                  |
 | `client.authentication`  | `authentication` | `openid` | `failure`            | `warning`                               | `client`                                      | none                  | The error code: `invalid_client` by default, `attempt_limit_reached` at the limit of failed client authentications                           | `authentication_method`                               |
-| `subject.authentication` | `authentication` | `openid` | `success`, `failure` | `info` on success, `warning` on failure | `end_user` on success, `anonymous` on failure | none                  | Failure only: `authentication_failed`, the bearer token error's code, `subject_id_missing`, `invalid_credentials` or `attempt_limit_reached` | `attempted_username`, on a failure that presented one |
+| `subject.authentication` | `authentication` | `openid` | `success`, `failure` | `info` on success, `warning` on failure | `end_user` on success, `anonymous` on failure | none                  | Failure only: `authentication_failed`, the bearer token error's code, `subject_id_missing`, `invalid_credentials`, `second_factor_required` or `attempt_limit_reached` | `attempted_username`, on a failure that presented one |
+| `password.change`        | `authentication` | `openid` | `success`, `failure` | `info` on success, `warning` on failure | `end_user`                                    | `local_account`       | Failure only: `invalid_current_password` or a password policy code                                                                           | none                                                  |
+| `password.reset_request` | `authentication` | `openid` | `success`, `failure` | `info` on success, `warning` on failure | `end_user`, or `anonymous` with no subject    | `local_account`, when known | Failure only: `account_not_eligible` or `too_many_codes`                                                                               | `attempted_username`, on a failure                    |
+| `password.reset`         | `authentication` | `openid` | `success`, `failure` | `info` on success, `warning` on failure | `end_user`, or `anonymous` with no subject    | `local_account`, when known | Failure only: `invalid_code` or a password policy code                                                                                 | none                                                  |
+| `email.verification`     | `authentication` | `openid` | `success`, `failure` | `info` on success, `warning` on failure | `end_user`                                    | `local_account`       | Failure only: `invalid_code`                                                                                                                 | none                                                  |
+| `subject.second_factor`  | `authentication` | `openid` | `success`, `failure` | `info` on success, `warning` on failure | `end_user`                                    | `local_account`, when known | Failure only: `invalid_code`, `no_email` or `too_many_codes`                                                                           | `factor`                                              |
 | `openid.error`           | `protocol`       | `openid` | `failure`, `denied`  | `warning` on failure, `info` on denied  | `anonymous`                                   | none                  | The OAuth error code; `message` is its description and `status_code` the HTTP status                                                         | none                                                  |
 | `session.created`        | `session`        | `openid` | `success`            | `info`                                  | `end_user`                                    | `session`             | none                                                                                                                                         | none                                                  |
 | `session.terminated`     | `session`        | `openid` | `success`            | `info`                                  | `system`                                      | `session`, when known | none                                                                                                                                         | `termination_reason`                                  |
@@ -233,11 +239,17 @@ Notes on the protocol events:
   is `denied` when the code is `access_denied` and `failure` otherwise.
 - `subject.authentication` failure codes: `authentication_failed` (the session cookie could not be authenticated), the
   code of the bearer token error (such as `invalid_token`), `subject_id_missing` (the authenticated principal has no
-  subject id), `invalid_credentials` (the password grant refused the credentials) and `attempt_limit_reached` (the
-  account reached its limit of failed password attempts). The `error.message` carries the prose that describes the
-  failure. A request that presents no credentials is not audited. A failure that presented a user name, such as a
-  refused password grant, writes it as `details.attempted_username` and leaves `subject_id` absent, so `subject_id` only
-  ever holds a verified subject id.
+  subject id), `invalid_credentials` (the password grant refused the credentials), `second_factor_required` (the
+  password grant refused the request because the tenant requires a second factor the grant cannot carry) and
+  `attempt_limit_reached` (the account reached its limit of failed password attempts). The `error.message` carries the
+  prose that describes the failure. A request that presents no credentials is not audited. A failure that presented a
+  user name, such as a refused password grant, writes it as `details.attempted_username` and leaves `subject_id` absent,
+  so `subject_id` only ever holds a verified subject id.
+- The self-service events, `password.change`, `password.reset_request`, `password.reset`, `email.verification` and
+  `subject.second_factor`, come from the local-account capability's implementations of the interactive seams; none
+  writes a password, a code or an email address. An unknown username's reset request is recorded as a failure with
+  `details.attempted_username` and no subject, as a failed sign-in is, while the page the end user sees is the same. A
+  completed second factor also shows as `otp` and `mfa` in the session's `amr`.
 - `session.terminated` has no `session` resource for a subject-wide termination. `details.termination_reason` is a
   session termination reason or an extension's own name.
 - `userinfo.accessed` is published only when the `audit_userinfo_access` setting is on, for the tenant or for the
@@ -408,6 +420,7 @@ promotion's report. An export and a release are recorded in the source cell and 
 | `principal`                         | none                                                                           |
 | `role_assignment`                   | the node the role is held at (`team`, `tenant`, `client` or `resource_server`) |
 | `local_account`                     | none                                                                           |
+| `audit_stream`                      | none                                                                           |
 
 For example, `client.secret.created` lists the secret first and its client second. An initial access token is recorded as
 `initial_access_token.created`; the record never carries the token itself. A role a principal is granted or revoked is
@@ -553,6 +566,116 @@ WHERE r."TenantId" = $1
   )
 ORDER BY r."EventTime";
 ```
+
+## Exporting a tenant's records
+
+The store keeps a record for `OpenId:AuditRecords:Retention` (90 days by default), and the hosted platform keeps that
+default
+([ADR-1527](decisions/1527-the-hosted-platform-keeps-audit-records-for-90-days-and-a-customer-exports-them-through-the-management-api.md)).
+To keep a longer history, page `GET api/tenants/{tenantId}/audit-records?startTime=<from>&endTime=<to>&limit=<n>` as a
+client authorized for the tenant, passing each page's `continuationToken` back as `cursor` until a page has none. Run it
+on a schedule with each window overlapping the last one, and drop the records whose `eventId` you already hold. Each
+item carries the envelope and the whole `record`.
+
+## Streaming a tenant's records
+
+A tenant's administrator can have the tenant's records pushed to its own endpoints as they are stored, so a SIEM holds
+the history without polling the lookup
+([ADR-1534](decisions/1534-a-tenants-audit-records-stream-to-its-endpoints-read-forward-from-the-audit-store-and-signed-as-standard-webhooks.md)).
+A stream carries every record of its tenant, as the lookup does; the receiver filters.
+
+**Creating a stream.** As a client authorized for the tenant, `POST api/tenants/{tenantId}/audit-streams` with a
+`displayName` and an `endpoint`, an absolute `https` URL of at most 1,000 characters without user information or a
+fragment. The `201` response holds the `auditStream` and its `signingSecret`, which is `whsec_` followed by the base64
+of 32 random bytes. The secret is shown once, in that response: the server keeps it protected under the tenant's master
+key and reports only its `secretId` afterwards. A stream starts at its creation and carries no record stored before it.
+A tenant has at most `max_audit_streams` streams, a limit between 0 and 10 that is 2 by default and merges with `Min`,
+and creating a stream past it is a `409`, and a tenant's creates run one at a time, so the limit holds when they race; a
+create that meets another running answers `409` too, with a one-second `Retry-After`.
+`GET api/tenants/{tenantId}/audit-streams` lists the streams, and `GET`, `PATCH` (a JSON Patch document, with
+`If-Match`) and `DELETE` on `api/tenants/{tenantId}/audit-streams/{streamId}` read, change and remove one. Each change
+is recorded as an `audit_stream` change.
+
+**A delivery.** The server calls the endpoint through the guarded outbound client, which refuses a private or loopback
+address and follows no redirect. A delivery is a `POST` with `Content-Type: application/json` that carries up to
+`StreamBatchSize` records, oldest stored first, each in the shape of the lookup's items:
+
+```json
+{
+  "type": "audit_records",
+  "timestamp": "2026-11-22T20:00:00Z",
+  "data": {
+    "tenantId": "<tenant id>",
+    "records": [
+      {
+        "eventId": "<event id>",
+        "eventTime": "2026-11-22T19:58:41Z",
+        "eventName": "token.issued",
+        "eventCategory": "token",
+        "outcome": "success",
+        "severity": "info",
+        "actorType": "client",
+        "resources": [{ "type": "client", "id": "<client id>" }],
+        "record": { "...": "the whole record" }
+      }
+    ]
+  }
+}
+```
+
+A delivery carries three headers, as the Standard Webhooks specification names them:
+
+| Header              | Value                                                                                                         |
+| ------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `webhook-id`        | The `eventId` of the batch's first record                                                                     |
+| `webhook-timestamp` | The time of the send in Unix seconds                                                                          |
+| `webhook-signature` | One `v1,` entry for each secret that has not expired, each the base64 HMAC-SHA256, separated by single spaces |
+
+**Verifying the signature.** Any Standard Webhooks library verifies a delivery from the secret and the three headers. By
+hand:
+
+1. Reject the delivery when `webhook-timestamp` is more than five minutes from the receiver's clock.
+2. Join `webhook-id`, a dot, `webhook-timestamp`, a dot and the request body exactly as received, never re-serialized.
+3. Compute the HMAC-SHA256 of that content keyed by the secret's bytes, which are the base64 decoding of what follows
+   `whsec_`, and encode it as base64.
+4. Accept the delivery when the result equals, compared in constant time, what follows `v1,` in any one of the
+   space-separated signatures.
+
+**Answering.** A receiver answers `2xx` within the guarded client's attempt timeout
+(`OpenId:OutboundHttp:AttemptTimeout`, 10 seconds by default) and keeps no other contract: the server reads the status
+and never the body. The server saves a stream's position only after a `2xx`, so a replica that stops sends the last
+batch again. A delivery is therefore at least once, and a receiver deduplicates by `eventId`.
+
+**Retries and status.** Any other status, a refused connection or a timeout keeps the position, and the stream attempts
+again after `StreamRetryDelay`, which doubles with each failure in a row up to `StreamMaxRetryDelay`. The stream's
+`delivery` member reports `lastDeliveryTime`, `lastFailureTime`, `lastError` (`http_<status>`, `request_failed`,
+`timeout`, `no_signing_secret`, `signing_secret_unavailable` or `delivery_error`), `consecutiveFailures` and
+`nextAttemptTime`. A failure of one stream's delivery never stops the others, and a replica that stops releases the
+streams it holds. A stream that is disabled delivers nothing and resumes from its position when it is enabled. A stream
+that falls behind by more than the retention loses the records the prune removes.
+
+**Rotating the secret.** `POST api/tenants/{tenantId}/audit-streams/{streamId}/signing-secrets` returns a new secret in
+a `201` response, shown once as `signingSecret`. The previous secrets keep signing for 24 hours beside it, so a receiver
+adds the new secret, then drops the old one once the day has passed. A stream has at most three secrets that sign: a
+rotation while three sign answers `409`, and its `Retry-After` and `retryAfterSeconds` give the time until the oldest
+rotated secret stops signing.
+
+**Operating it.** Every replica claims the streams that are due under a lease in the audit store's database, so one
+replica sends a stream at a time and its order holds. A stream is due only once its tenant has a record ready for it, so
+an idle stream costs nothing. The options are keys of `OpenId:AuditRecords`:
+
+| Option                | Default    | Meaning                                                                                     |
+| --------------------- | ---------- | ------------------------------------------------------------------------------------------- |
+| `StreamPollInterval`  | 5 seconds  | How often each replica looks for streams that are due                                       |
+| `StreamSettleDelay`   | 1 minute   | How long a stored record waits before a stream reads it, as replicas commit late            |
+| `StreamBatchSize`     | 100        | The most records one delivery carries, at most 1,000                                        |
+| `StreamLeaseDuration` | 2 minutes  | How long a replica holds a stream it delivers, more than twice the outbound attempt timeout |
+| `StreamRetryDelay`    | 10 seconds | The delay after a stream's first failed delivery                                            |
+| `StreamMaxRetryDelay` | 1 hour     | The longest delay between attempts after failures                                           |
+| `StreamsPerPoll`      | 16         | The most due streams a replica delivers in one poll                                         |
+
+`ncode.identity.audit_stream.deliveries` and `ncode.identity.audit_stream.records` count the batches and the records
+sent ([metrics](metrics.md)).
 
 ## Incident runbook
 

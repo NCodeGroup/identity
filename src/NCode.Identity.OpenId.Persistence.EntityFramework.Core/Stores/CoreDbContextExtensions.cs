@@ -74,5 +74,13 @@ internal static class CoreDbContextExtensions
 
         public DbSet<AuditRecordResourceEntity> AuditRecordResources =>
             context.Set<AuditRecordResourceEntity>();
+
+        public DbSet<AuditStreamEntity> AuditStreams => context.Set<AuditStreamEntity>();
+
+        public DbSet<AuditStreamStateEntity> AuditStreamStates =>
+            context.Set<AuditStreamStateEntity>();
+
+        public DbSet<AuditStreamSigningSecretEntity> AuditStreamSigningSecrets =>
+            context.Set<AuditStreamSigningSecretEntity>();
     }
 }

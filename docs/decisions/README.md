@@ -142,6 +142,14 @@ The records are grouped by area; within an area they are in number order.
 | [1511](./1511-the-hosts-send-no-server-header.md) | The hosts send no Server header | Accepted |
 | [1512](./1512-an-instance-is-set-up-once-through-a-one-time-setup-token-that-creates-a-root-global-administrator.md) | An instance is set up once through a one-time setup token that creates a root global administrator | Accepted |
 | [1521](./1521-the-hosted-platform-runs-production-on-akamai-lke-in-washington-dc-and-its-lab-on-oci-oke-basic-in-phoenix.md) | The hosted platform runs production on Akamai LKE in Washington, DC, and its lab on OCI OKE Basic in Phoenix | Accepted |
+| [1524](./1524-a-dedicated-cells-capacity-rating-is-measured-by-the-repositorys-k6-test-on-dedicated-cpu-nodes.md) | A dedicated cell's capacity rating is measured by the repository's k6 test on dedicated-CPU nodes | Accepted |
+| [1525](./1525-each-cluster-and-cell-keeps-its-metrics-within-a-series-budget-on-grafana-cloud-free-then-pro.md) | Each cluster and cell keeps its metrics within a series budget, on Grafana Cloud Free and then Pro | Accepted |
+| [1526](./1526-the-platforms-cluster-secrets-reach-each-cluster-from-aws-parameter-store-through-external-secrets-operator.md) | The platform's cluster secrets reach each cluster from AWS Parameter Store through External Secrets Operator | Accepted |
+| [1527](./1527-the-hosted-platform-keeps-audit-records-for-90-days-and-a-customer-exports-them-through-the-management-api.md) | The hosted platform keeps audit records for 90 days, and a customer exports them through the management API | Accepted |
+| [1528](./1528-the-hosted-platform-sends-its-mail-through-amazon-ses-in-each-cells-region-from-mail-ncodeid-net.md) | The hosted platform sends its mail through Amazon SES in each cell's region from mail.ncodeid.net | Accepted |
+| [1529](./1529-the-hosted-platforms-terms-dpa-and-privacy-policy-are-public-documents-built-on-common-papers-standard-terms.md) | The hosted platform's terms, DPA and privacy policy are public documents built on Common Paper's standard terms | Accepted |
+| [1530](./1530-cells-on-aws-run-on-eks-from-the-published-chart-across-three-zones-with-spot-above-an-on-demand-floor.md) | Cells on AWS run on EKS from the published chart, across three zones, with spot above an on-demand floor | Accepted |
+| [1531](./1531-the-clusters-that-host-paid-cells-are-standard-lke-clusters-with-the-ha-control-plane-and-at-most-15-cells.md) | The clusters that host paid cells are standard LKE clusters with the HA control plane and at most 15 cells | Accepted |
 
 ### Settings
 
@@ -187,6 +195,7 @@ The records are grouped by area; within an area they are in number order.
 | [1519](./1519-every-microsoft-extensions-aspnet-core-and-ef-core-package-is-on-the-target-frameworks-release-band.md) | Every Microsoft.Extensions, ASP.NET Core and EF Core package is on the target framework's release band | Accepted |
 | [1520](./1520-a-caller-is-authenticated-before-its-request-body-is-read.md) | A caller is authenticated before its request body is read | Accepted |
 | [1522](./1522-an-analyzer-fails-the-build-on-a-call-await-or-object-creation-nested-in-another-calls-arguments.md) | An analyzer fails the build on a call, await or object creation nested in another call's arguments | Accepted |
+| [1523](./1523-a-replica-sheds-a-tenants-protocol-requests-once-its-in-flight-requests-fill-the-tenants-share-of-its-capacity.md) | A replica sheds a tenant's protocol requests once its in-flight requests fill the tenant's share of its capacity | Accepted |
 
 ### Management API
 
@@ -265,6 +274,7 @@ The records are grouped by area; within an area they are in number order.
 | [1365](./1365-no-url-the-server-publishes-or-compares-takes-its-origin-from-the-requests-host.md) | No URL the server publishes or compares takes its origin from the request's Host | Accepted |
 | [1399](./1399-failed-client-authentications-are-limited-per-remote-address-by-default.md) | Failed client authentications are limited per remote address by default | Accepted |
 | [1400](./1400-client-certificate-revocation-is-checked-by-configured-sources-under-the-clients-revocation-mode.md) | Client certificate revocation is checked by configured sources under the client's revocation mode | Accepted |
+| [1532](./1532-outbound-mail-is-a-port-that-composes-each-queued-message-at-delivery-for-a-replaceable-transport-with-smtp-and-amazon-ses-adapters.md) | Outbound mail is a port that composes each queued message at delivery for a replaceable transport, with SMTP and Amazon SES adapters | Accepted |
 
 ### Secrets and keys
 
@@ -343,6 +353,9 @@ The records are grouped by area; within an area they are in number order.
 | [1283](./1283-audit-records-are-cloudtrail-shaped-json-with-an-indexable-envelope.md) | Audit records are CloudTrail-shaped JSON with an indexable envelope | Accepted |
 | [1303](./1303-audit-records-are-kept-in-an-indexed-store-that-each-replica-writes-in-batches.md) | Audit records are kept in an indexed store that each replica writes in batches | Accepted |
 | [1402](./1402-the-interactive-surface-renders-in-the-locale-the-request-prefers-among-the-registered-ui-locales.md) | The interactive surface renders in the locale the request prefers among the registered UI locales | Accepted |
+| [1533](./1533-an-end-user-verifies-an-email-address-resets-a-password-and-signs-in-with-a-second-factor-through-one-time-email-codes.md) | An end user verifies an email address, resets a password and signs in with a second factor through one-time email codes | Accepted |
+| [1534](./1534-a-tenants-audit-records-stream-to-its-endpoints-read-forward-from-the-audit-store-and-signed-as-standard-webhooks.md) | A tenant's audit records stream to its endpoints, read forward from the audit store and signed as Standard Webhooks | Accepted |
+| [1535](./1535-a-tenant-signs-users-in-through-named-connections-and-a-local-account-belongs-to-one.md) | A tenant signs users in through named connections, and a local account belongs to one | Proposed |
 
 ### Frontend, BFF and browser security
 

@@ -24,6 +24,12 @@ public static class AuditResourceTypes
     public const string Session = "session";
 
     /// <summary>
+    /// The resource type code for a local account, shared by the protocol and management planes.
+    /// </summary>
+    // See ADR-1533.
+    public const string LocalAccount = "local_account";
+
+    /// <summary>
     /// An OpenID tenant, shared by the protocol plane and the management plane.
     /// </summary>
     public const string Tenant = "tenant";

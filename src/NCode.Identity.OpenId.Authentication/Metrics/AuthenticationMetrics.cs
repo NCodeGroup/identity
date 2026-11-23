@@ -43,7 +43,25 @@ internal sealed class AuthenticationMetrics
 
     internal const string TotalTimeoutScope = "total";
 
+    internal const string AdmissionShedName = "ncode.identity.admission.shed";
+
+    internal const string AuditStreamDeliveriesName = "ncode.identity.audit_stream.deliveries";
+
+    internal const string AuditStreamRecordsName = "ncode.identity.audit_stream.records";
+
+    internal const string AuditStreamResultAttribute = "ncode.identity.audit_stream.result";
+
+    internal const string DeliveredResult = "delivered";
+
+    internal const string FailedResult = "failed";
+
     private Counter<long> RateLimitingRequests { get; }
+
+    private Counter<long> AdmissionShed { get; }
+
+    private Counter<long> AuditStreamDeliveries { get; }
+
+    private Counter<long> AuditStreamRecords { get; }
 
     private Counter<long> OutboundRetries { get; }
 
@@ -57,6 +75,24 @@ internal sealed class AuthenticationMetrics
             RateLimitingRequestsName,
             unit: "{request}",
             description: "The number of requests judged against a rate-limit partition, by partition and result."
+        );
+
+        AdmissionShed = meter.CreateCounter<long>(
+            AdmissionShedName,
+            unit: "{request}",
+            description: "The number of protocol requests a replica shed because its in-flight requests filled the share of its capacity their tenant may fill, by the tenant's environment type."
+        );
+
+        AuditStreamDeliveries = meter.CreateCounter<long>(
+            AuditStreamDeliveriesName,
+            unit: "{request}",
+            description: "The number of batches of audit records the server posted to audit streams, by result."
+        );
+
+        AuditStreamRecords = meter.CreateCounter<long>(
+            AuditStreamRecordsName,
+            unit: "{record}",
+            description: "The number of audit records audit streams accepted."
         );
 
         OutboundRetries = meter.CreateCounter<long>(
@@ -112,5 +148,44 @@ internal sealed class AuthenticationMetrics
             environmentType
         );
         RateLimitingRequests.Add(1, partitionTag, resultTag, environmentTypeTag);
+    }
+
+    /// <summary>
+    /// Records that a replica shed a protocol request because its in-flight requests filled the share of its capacity
+    /// the request's tenant may fill.
+    /// </summary>
+    /// <param name="environmentType">The tenant's registered environment type, a bounded value.</param>
+    public void RequestShed(string environmentType)
+    {
+        var environmentTypeTag = new KeyValuePair<string, object?>(
+            TenantEnvironmentTypeAttribute,
+            environmentType
+        );
+        AdmissionShed.Add(1, environmentTypeTag);
+    }
+
+    /// <summary>
+    /// Records that an audit stream's endpoint accepted a batch of audit records.
+    /// </summary>
+    /// <param name="records">The number of audit records in the batch.</param>
+    // See ADR-1534.
+    public void AuditStreamDelivered(int records)
+    {
+        var resultTag = new KeyValuePair<string, object?>(
+            AuditStreamResultAttribute,
+            DeliveredResult
+        );
+        AuditStreamDeliveries.Add(1, resultTag);
+        AuditStreamRecords.Add(records);
+    }
+
+    /// <summary>
+    /// Records that a batch of audit records could not be delivered to an audit stream's endpoint.
+    /// </summary>
+    // See ADR-1534.
+    public void AuditStreamFailed()
+    {
+        var resultTag = new KeyValuePair<string, object?>(AuditStreamResultAttribute, FailedResult);
+        AuditStreamDeliveries.Add(1, resultTag);
     }
 }

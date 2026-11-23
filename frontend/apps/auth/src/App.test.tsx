@@ -95,6 +95,45 @@ describe('App account surface', () => {
   });
 });
 
+describe('App email-code surfaces', () => {
+  it('reads the flow query parameter into the reset-password page', () => {
+    const { container } = renderApp({
+      pathname: '/account/password/reset',
+      search: '?flow=handle-1&ReturnUrl=%2Fauthorize&error=invalid_code',
+      cookie: '__Host-XSRF-TOKEN=the-token',
+    });
+
+    expect(container.querySelector('form')?.getAttribute('action')).toBe('/account/password/reset');
+    expect((container.querySelector('input[name="flow"]') as HTMLInputElement).value).toBe(
+      'handle-1',
+    );
+    expect((container.querySelector('input[name="ReturnUrl"]') as HTMLInputElement).value).toBe(
+      '/authorize',
+    );
+    expect(container.textContent).toContain('The code is incorrect or has expired.');
+  });
+
+  it('renders the forgot-password page', () => {
+    const { container } = renderApp({
+      pathname: '/account/password/forgot',
+      search: '',
+      cookie: '__Host-XSRF-TOKEN=the-token',
+    });
+
+    expect(container.querySelector('#send-code')).not.toBeNull();
+  });
+
+  it('confirms the reset on the login page the host redirects to', () => {
+    const { container } = renderApp({
+      pathname: '/account/login',
+      search: '?status=password_reset',
+      cookie: '',
+    });
+
+    expect(container.textContent).toContain('Your password has been reset.');
+  });
+});
+
 describe('App branding', () => {
   it('shows the tenant logo and titles the surface with its display name', () => {
     const { container } = renderApp({
@@ -118,6 +157,19 @@ describe('App branding', () => {
 });
 
 describe('App server page', () => {
+  it('links the login page to the forgot-password page the host rendered', () => {
+    const { container } = renderApp({
+      pathname: '/account/login',
+      search: '',
+      cookie: '',
+      serverPage: { ...EMPTY_SERVER_PAGE, forgotPasswordHref: 'password/forgot' },
+    });
+
+    expect(container.querySelector('#forgot-password-link')?.getAttribute('href')).toBe(
+      'password/forgot',
+    );
+  });
+
   it('redraws the authorization error the host rendered at the protocol endpoint', () => {
     const { container } = renderApp({
       pathname: '/oauth2/authorize',

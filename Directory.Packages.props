@@ -133,6 +133,18 @@
     <PackageVersion Include="StackExchange.Redis" Version="3.4.5" />
   </ItemGroup>
 
+  <!-- Outbound mail. MailKit submits mail over SMTP with STARTTLS or implicit TLS (NCode.Identity.Mail.Smtp only), and
+       MimeKit builds a message's MIME form (NCode.Identity.Mail.Mime) (ADR-1532). -->
+  <ItemGroup>
+    <PackageVersion Include="MailKit" Version="5.0.0" />
+    <PackageVersion Include="MimeKit.Core" Version="5.0.0" />
+  </ItemGroup>
+
+  <!-- Outbound mail through Amazon SES (NCode.Identity.Mail.AmazonSes only). -->
+  <ItemGroup>
+    <PackageVersion Include="AWSSDK.SimpleEmailV2" Version="4.1.1" />
+  </ItemGroup>
+
   <!-- Root key provider (NCode.Identity.Secrets.AwsKms only). AWSSDK.SecurityToken is loaded by the AWS SDK
        at runtime to exchange a web identity token for credentials. -->
   <ItemGroup>

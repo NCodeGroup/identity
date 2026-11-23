@@ -110,6 +110,44 @@ public static class InteractiveAuthenticationDefaults
     public const string PasswordPath = "/account/password";
 
     /// <summary>
+    /// The request path of the forgot-password page, where an end user who is not signed in asks for a reset code.
+    /// </summary>
+    public const string PasswordForgotPath = "/account/password/forgot";
+
+    /// <summary>
+    /// The request path of the reset-password page, where an end user who is not signed in presents the reset code and
+    /// chooses a new password.
+    /// </summary>
+    public const string PasswordResetPath = "/account/password/reset";
+
+    /// <summary>
+    /// The request path of the sign-in code page, where an end user whose password is verified presents the code that
+    /// completes the sign-in.
+    /// </summary>
+    public const string LoginCodePath = "/account/login/code";
+
+    /// <summary>
+    /// The request path of the self-service email page, where the end user verifies their email address.
+    /// </summary>
+    public const string EmailPath = "/account/email";
+
+    /// <summary>
+    /// The request path of the JSON endpoint that returns the end user's email address and whether it is verified for
+    /// the email page.
+    /// </summary>
+    public const string EmailStatusPath = "/account/email/status";
+
+    /// <summary>
+    /// The request path the email page posts to in order to mail the end user's address a verification code.
+    /// </summary>
+    public const string EmailSendPath = "/account/email/send";
+
+    /// <summary>
+    /// The request path the email page posts to in order to verify the end user's address with the code.
+    /// </summary>
+    public const string EmailVerifyPath = "/account/email/verify";
+
+    /// <summary>
     /// The name of the JavaScript-readable cookie the login/consent pages echo back as the antiforgery request token,
     /// so the single-page surface can submit an antiforgery-protected form without the server rendering the token.
     /// </summary>
@@ -120,6 +158,18 @@ public static class InteractiveAuthenticationDefaults
     /// <c>Domain</c>), so a tenant that is served under a path gets a name qualified by that path.
     /// </summary>
     public const string SessionCookieName = "__Host-NCode.Identity.Interactive";
+
+    /// <summary>
+    /// The authentication scheme name of the cookie that holds the end user whose password is verified while the code
+    /// of the second factor is pending.
+    /// </summary>
+    public const string PendingSignInSchemeName = "NCode.Identity.Interactive.PendingSignIn";
+
+    /// <summary>
+    /// The name of the pending sign-in cookie. It is host-only (<c>__Host-</c> prefix, <c>Path=/</c>, no
+    /// <c>Domain</c>).
+    /// </summary>
+    public const string PendingSignInCookieName = "__Host-NCode.Identity.Interactive.PendingSignIn";
 
     /// <summary>
     /// The name of the antiforgery cookie of the interactive surface. It is host-only (<c>__Host-</c> prefix,

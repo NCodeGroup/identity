@@ -66,13 +66,24 @@ internal sealed class InteractiveLocaleSelector
             + Uri.EscapeDataString(languageTag);
     }
 
-    // The ui_locales preferences come first, in their order; then the Accept-Language values by descending quality,
-    // without the wildcard and the values a quality of zero rules out. The method runs on every page request, so it
-    // splits the query over spans and orders the header by insertion, which keeps the header's order among equal
-    // qualities, without LINQ.
-    private static List<string> ReadPreferences(HttpRequest request)
+    /// <summary>
+    /// Reads the language tags a request prefers: the language tag a form carried, then the <c>ui_locales</c>
+    /// preferences in their order, then the <c>Accept-Language</c> values by descending quality, without the wildcard
+    /// and the values a quality of zero rules out.
+    /// </summary>
+    /// <param name="request">The request.</param>
+    /// <param name="carriedLanguageTag">The language tag the form carried, or <see langword="null"/>.</param>
+    /// <returns>The preferred language tags, most preferred first.</returns>
+    // The method runs on every page request, so it splits the query over spans and orders the header by insertion,
+    // which keeps the header's order among equal qualities, without LINQ.
+    private static List<string> ReadPreferences(HttpRequest request, string? carriedLanguageTag)
     {
         List<string> preferences = [];
+
+        if (carriedLanguageTag is not null)
+        {
+            preferences.Add(carriedLanguageTag);
+        }
 
         foreach (var value in request.Query[OpenIdProtocol.Parameters.UiLocales])
         {
@@ -163,9 +174,30 @@ internal sealed class InteractiveLocaleSelector
     /// <param name="settings">The tenant's effective settings, or <see langword="null"/> when the request resolved no
     /// tenant.</param>
     /// <returns>The selected locale.</returns>
-    public InteractiveLocale Select(HttpContext httpContext, IReadOnlySettingCollection? settings)
+    public InteractiveLocale Select(
+        HttpContext httpContext,
+        IReadOnlySettingCollection? settings
+    ) => Select(httpContext, settings, carriedLanguageTag: null);
+
+    /// <summary>
+    /// Selects the locale for the tenant whose effective settings are <paramref name="settings"/>, or for no tenant
+    /// when they are <see langword="null"/>, preferring <paramref name="carriedLanguageTag"/>, the language tag the
+    /// form of the page the end user saw carried, to the request's own preferences. The tenant's supported locales
+    /// still bound the choice, so a carried tag the tenant does not support falls back to the request's preferences.
+    /// </summary>
+    /// <param name="httpContext">The request.</param>
+    /// <param name="settings">The tenant's effective settings, or <see langword="null"/> when the request resolved no
+    /// tenant.</param>
+    /// <param name="carriedLanguageTag">The language tag the form carried, as <see cref="GetCarriedLanguageTag"/>
+    /// returns it, or <see langword="null"/>.</param>
+    /// <returns>The selected locale.</returns>
+    public InteractiveLocale Select(
+        HttpContext httpContext,
+        IReadOnlySettingCollection? settings,
+        string? carriedLanguageTag
+    )
     {
-        var preferences = ReadPreferences(httpContext.Request);
+        var preferences = ReadPreferences(httpContext.Request, carriedLanguageTag);
         var locale = settings is null
             ? UiLocaleCatalog.Select(preferences, null, null)
             : UiLocaleCatalog.Select(settings, preferences);

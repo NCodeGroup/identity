@@ -1,8 +1,27 @@
 #nullable enable
 NCode.Identity.OpenId.Authentication.Interactive.IInteractiveCredentialVerifier
-NCode.Identity.OpenId.Authentication.Interactive.IInteractiveCredentialVerifier.VerifyCredentialAsync(NCode.Identity.OpenId.Contexts.OpenIdContext! openIdContext, string! username, string! password, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Security.Claims.ClaimsPrincipal?>
+NCode.Identity.OpenId.Authentication.Interactive.IInteractiveCredentialVerifier.VerifyCredentialAsync(NCode.Identity.OpenId.Contexts.OpenIdContext! openIdContext, string! username, NCode.Buffers.Secret<char>! password, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Security.Claims.ClaimsPrincipal?>
 NCode.Identity.OpenId.Authentication.Interactive.IInteractivePasswordChanger
-NCode.Identity.OpenId.Authentication.Interactive.IInteractivePasswordChanger.ChangePasswordAsync(NCode.Identity.OpenId.Contexts.OpenIdContext! openIdContext, System.Security.Claims.ClaimsPrincipal! principal, string! currentPassword, string! newPassword, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.Authentication.Interactive.InteractivePasswordChangeResult!>
+NCode.Identity.OpenId.Authentication.Interactive.IInteractivePasswordChanger.ChangePasswordAsync(NCode.Identity.OpenId.Contexts.OpenIdContext! openIdContext, System.Security.Claims.ClaimsPrincipal! principal, NCode.Buffers.Secret<char>! currentPassword, NCode.Buffers.Secret<char>! newPassword, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.Authentication.Interactive.InteractivePasswordChangeResult!>
+NCode.Identity.OpenId.Authentication.Interactive.IInteractiveEmailVerifier
+NCode.Identity.OpenId.Authentication.Interactive.IInteractiveEmailVerifier.GetStatusAsync(NCode.Identity.OpenId.Contexts.OpenIdContext! openIdContext, System.Security.Claims.ClaimsPrincipal! principal, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.Authentication.Interactive.InteractiveEmailStatus?>
+NCode.Identity.OpenId.Authentication.Interactive.IInteractiveEmailVerifier.SendVerificationCodeAsync(NCode.Identity.OpenId.Contexts.OpenIdContext! openIdContext, System.Security.Claims.ClaimsPrincipal! principal, NCode.Identity.OpenId.Authentication.Interactive.InteractiveLocale! locale, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.Authentication.Interactive.InteractiveEmailCodeResult!>
+NCode.Identity.OpenId.Authentication.Interactive.IInteractiveEmailVerifier.VerifyEmailAsync(NCode.Identity.OpenId.Contexts.OpenIdContext! openIdContext, System.Security.Claims.ClaimsPrincipal! principal, string! flowId, NCode.Buffers.Secret<char>! code, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.Authentication.Interactive.InteractiveEmailCodeResult!>
+NCode.Identity.OpenId.Authentication.Interactive.IInteractivePasswordResetter
+NCode.Identity.OpenId.Authentication.Interactive.IInteractivePasswordResetter.ResetPasswordAsync(NCode.Identity.OpenId.Contexts.OpenIdContext! openIdContext, string! flowId, NCode.Buffers.Secret<char>! code, NCode.Buffers.Secret<char>! newPassword, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.Authentication.Interactive.InteractivePasswordChangeResult!>
+NCode.Identity.OpenId.Authentication.Interactive.IInteractivePasswordResetter.SendResetCodeAsync(NCode.Identity.OpenId.Contexts.OpenIdContext! openIdContext, string! userName, NCode.Identity.OpenId.Authentication.Interactive.InteractiveLocale! locale, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<string!>
+NCode.Identity.OpenId.Authentication.Interactive.IInteractiveSignInCodeChallenge
+NCode.Identity.OpenId.Authentication.Interactive.IInteractiveSignInCodeChallenge.SendSignInCodeAsync(NCode.Identity.OpenId.Contexts.OpenIdContext! openIdContext, System.Security.Claims.ClaimsPrincipal! principal, NCode.Identity.OpenId.Authentication.Interactive.InteractiveLocale! locale, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.Authentication.Interactive.InteractiveEmailCodeResult!>
+NCode.Identity.OpenId.Authentication.Interactive.IInteractiveSignInCodeChallenge.VerifySignInCodeAsync(NCode.Identity.OpenId.Contexts.OpenIdContext! openIdContext, System.Security.Claims.ClaimsPrincipal! principal, string! flowId, NCode.Buffers.Secret<char>! code, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.Authentication.Interactive.InteractiveEmailCodeResult!>
+NCode.Identity.OpenId.Authentication.Interactive.InteractiveEmailCodeErrors
+NCode.Identity.OpenId.Authentication.Interactive.InteractiveEmailCodeResult
+NCode.Identity.OpenId.Authentication.Interactive.InteractiveEmailCodeResult.Error.get -> string?
+NCode.Identity.OpenId.Authentication.Interactive.InteractiveEmailCodeResult.FlowId.get -> string?
+NCode.Identity.OpenId.Authentication.Interactive.InteractiveEmailCodeResult.IsAccepted.get -> bool
+NCode.Identity.OpenId.Authentication.Interactive.InteractiveEmailStatus
+NCode.Identity.OpenId.Authentication.Interactive.InteractiveEmailStatus.Email.get -> string!
+NCode.Identity.OpenId.Authentication.Interactive.InteractiveEmailStatus.InteractiveEmailStatus(string! email, bool isVerified) -> void
+NCode.Identity.OpenId.Authentication.Interactive.InteractiveEmailStatus.IsVerified.get -> bool
 NCode.Identity.OpenId.Authentication.Interactive.InteractivePasswordChangeResult
 NCode.Identity.OpenId.Authentication.Interactive.InteractivePasswordChangeResult.Error.get -> string?
 NCode.Identity.OpenId.Authentication.Interactive.InteractivePasswordChangeResult.IsChanged.get -> bool
@@ -31,6 +50,20 @@ const NCode.Identity.OpenId.Authentication.Interactive.InteractiveAuthentication
 const NCode.Identity.OpenId.Authentication.Interactive.InteractiveAuthenticationDefaults.SessionsListPath = "/account/sessions/list" -> string!
 const NCode.Identity.OpenId.Authentication.Interactive.InteractiveAuthenticationDefaults.SessionsRevokePath = "/account/sessions/revoke" -> string!
 const NCode.Identity.OpenId.Authentication.Interactive.InteractiveAuthenticationDefaults.SessionsRevokeAllPath = "/account/sessions/revoke-all" -> string!
+const NCode.Identity.OpenId.Authentication.Interactive.InteractiveAuthenticationDefaults.EmailPath = "/account/email" -> string!
+const NCode.Identity.OpenId.Authentication.Interactive.InteractiveAuthenticationDefaults.EmailSendPath = "/account/email/send" -> string!
+const NCode.Identity.OpenId.Authentication.Interactive.InteractiveAuthenticationDefaults.EmailStatusPath = "/account/email/status" -> string!
+const NCode.Identity.OpenId.Authentication.Interactive.InteractiveAuthenticationDefaults.EmailVerifyPath = "/account/email/verify" -> string!
+const NCode.Identity.OpenId.Authentication.Interactive.InteractiveAuthenticationDefaults.LoginCodePath = "/account/login/code" -> string!
+const NCode.Identity.OpenId.Authentication.Interactive.InteractiveAuthenticationDefaults.PasswordForgotPath = "/account/password/forgot" -> string!
+const NCode.Identity.OpenId.Authentication.Interactive.InteractiveAuthenticationDefaults.PasswordResetPath = "/account/password/reset" -> string!
+const NCode.Identity.OpenId.Authentication.Interactive.InteractiveAuthenticationDefaults.PendingSignInCookieName = "__Host-NCode.Identity.Interactive.PendingSignIn" -> string!
+const NCode.Identity.OpenId.Authentication.Interactive.InteractiveAuthenticationDefaults.PendingSignInSchemeName = "NCode.Identity.Interactive.PendingSignIn" -> string!
+const NCode.Identity.OpenId.Authentication.Interactive.InteractiveEmailCodeErrors.AlreadyVerified = "already_verified" -> string!
+const NCode.Identity.OpenId.Authentication.Interactive.InteractiveEmailCodeErrors.InvalidCode = "invalid_code" -> string!
+const NCode.Identity.OpenId.Authentication.Interactive.InteractiveEmailCodeErrors.NoEmail = "no_email" -> string!
+const NCode.Identity.OpenId.Authentication.Interactive.InteractiveEmailCodeErrors.NotSupported = "not_supported" -> string!
+const NCode.Identity.OpenId.Authentication.Interactive.InteractiveEmailCodeErrors.TooManyCodes = "too_many_codes" -> string!
 const NCode.Identity.OpenId.Authentication.Interactive.InteractivePasswordChangeErrors.InvalidCurrentPassword = "invalid_current_password" -> string!
 const NCode.Identity.OpenId.Authentication.Interactive.InteractivePasswordChangeErrors.InvalidRequest = "invalid_request" -> string!
 const NCode.Identity.OpenId.Authentication.Interactive.InteractivePasswordChangeErrors.NotSupported = "not_supported" -> string!
@@ -44,6 +77,10 @@ const NCode.Identity.OpenId.Authentication.Interactive.InteractiveSettingNames.B
 const NCode.Identity.OpenId.Authentication.Interactive.InteractiveSettingNames.BrandingLogoUri = "branding_logo_uri" -> string!
 const NCode.Identity.OpenId.Authentication.Interactive.InteractiveSettingNames.BrandingPrimaryColor = "branding_primary_color" -> string!
 const NCode.Identity.OpenId.Authentication.Interactive.InteractiveSettingNames.BrandingSecondaryColor = "branding_secondary_color" -> string!
+static NCode.Identity.OpenId.Authentication.Interactive.InteractiveEmailCodeResult.NotSupported.get -> NCode.Identity.OpenId.Authentication.Interactive.InteractiveEmailCodeResult!
+static NCode.Identity.OpenId.Authentication.Interactive.InteractiveEmailCodeResult.Refused(string! error) -> NCode.Identity.OpenId.Authentication.Interactive.InteractiveEmailCodeResult!
+static NCode.Identity.OpenId.Authentication.Interactive.InteractiveEmailCodeResult.Sent(string! flowId) -> NCode.Identity.OpenId.Authentication.Interactive.InteractiveEmailCodeResult!
+static NCode.Identity.OpenId.Authentication.Interactive.InteractiveEmailCodeResult.Verified.get -> NCode.Identity.OpenId.Authentication.Interactive.InteractiveEmailCodeResult!
 static NCode.Identity.OpenId.Authentication.Interactive.InteractivePasswordChangeResult.Changed.get -> NCode.Identity.OpenId.Authentication.Interactive.InteractivePasswordChangeResult!
 static NCode.Identity.OpenId.Authentication.Interactive.InteractivePasswordChangeResult.CurrentPasswordInvalid.get -> NCode.Identity.OpenId.Authentication.Interactive.InteractivePasswordChangeResult!
 static NCode.Identity.OpenId.Authentication.Interactive.InteractivePasswordChangeResult.NotSupported.get -> NCode.Identity.OpenId.Authentication.Interactive.InteractivePasswordChangeResult!
@@ -69,20 +106,70 @@ NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.Authorizati
 NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.AuthorizationErrorTitle.init -> void
 NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.AuthorizeAccessTitle.get -> string!
 NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.AuthorizeAccessTitle.init -> void
+NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.CodeLabel.get -> string!
+NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.CodeLabel.init -> void
+NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.CodeSentStatus.get -> string!
+NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.CodeSentStatus.init -> void
+NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.ConfirmPasswordLabel.get -> string!
+NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.ConfirmPasswordLabel.init -> void
 NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.ConsentPromptFormat.get -> string!
 NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.ConsentPromptFormat.init -> void
 NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.DenyButton.get -> string!
 NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.DenyButton.init -> void
+NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.EmailCodeFailedError.get -> string!
+NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.EmailCodeFailedError.init -> void
+NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.ForgotPasswordLink.get -> string!
+NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.ForgotPasswordLink.init -> void
+NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.ForgotPasswordPrompt.get -> string!
+NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.ForgotPasswordPrompt.init -> void
+NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.ForgotPasswordTitle.get -> string!
+NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.ForgotPasswordTitle.init -> void
+NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.InvalidCodeError.get -> string!
+NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.InvalidCodeError.init -> void
 NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.InvalidCredentialsError.get -> string!
 NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.InvalidCredentialsError.init -> void
 NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.MissingCredentialsError.get -> string!
 NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.MissingCredentialsError.init -> void
+NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.MissingFieldsError.get -> string!
+NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.MissingFieldsError.init -> void
+NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.NewPasswordLabel.get -> string!
+NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.NewPasswordLabel.init -> void
+NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.NoEmailError.get -> string!
+NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.NoEmailError.init -> void
 NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.PasswordLabel.get -> string!
 NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.PasswordLabel.init -> void
+NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.PasswordMismatchError.get -> string!
+NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.PasswordMismatchError.init -> void
+NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.PasswordRefusedError.get -> string!
+NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.PasswordRefusedError.init -> void
+NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.PasswordResetMailBodyFormat.get -> string!
+NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.PasswordResetMailBodyFormat.init -> void
+NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.PasswordResetMailSubject.get -> string!
+NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.PasswordResetMailSubject.init -> void
+NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.PasswordResetStatus.get -> string!
+NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.PasswordResetStatus.init -> void
+NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.ResendCodeButton.get -> string!
+NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.ResendCodeButton.init -> void
+NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.ResetPasswordButton.get -> string!
+NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.ResetPasswordButton.init -> void
+NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.ResetPasswordPrompt.get -> string!
+NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.ResetPasswordPrompt.init -> void
+NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.ResetPasswordTitle.get -> string!
+NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.ResetPasswordTitle.init -> void
+NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.SendCodeButton.get -> string!
+NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.SendCodeButton.init -> void
 NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.SignInButton.get -> string!
 NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.SignInButton.init -> void
+NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.SignInCodePrompt.get -> string!
+NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.SignInCodePrompt.init -> void
+NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.SignInCodeTitle.get -> string!
+NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.SignInCodeTitle.init -> void
 NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.SignInFailedError.get -> string!
 NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.SignInFailedError.init -> void
+NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.SignInMailBodyFormat.get -> string!
+NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.SignInMailBodyFormat.init -> void
+NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.SignInMailSubject.get -> string!
+NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.SignInMailSubject.init -> void
 NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.SignInTitle.get -> string!
 NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.SignInTitle.init -> void
 NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.SignOutButton.get -> string!
@@ -93,5 +180,13 @@ NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.SignOutTitl
 NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.SignOutTitle.init -> void
 NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.StaySignedInButton.get -> string!
 NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.StaySignedInButton.init -> void
+NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.TooManyCodesError.get -> string!
+NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.TooManyCodesError.init -> void
 NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.UsernameLabel.get -> string!
 NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.UsernameLabel.init -> void
+NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.VerificationMailBodyFormat.get -> string!
+NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.VerificationMailBodyFormat.init -> void
+NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.VerificationMailSubject.get -> string!
+NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.VerificationMailSubject.init -> void
+NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.VerifyCodeButton.get -> string!
+NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.VerifyCodeButton.init -> void

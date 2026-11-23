@@ -13,6 +13,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using Moq;
+using NCode.Buffers;
 using NCode.Identity.OpenId.Locales;
 using NCode.Identity.OpenId.Tenants;
 using NCode.Identity.Registration;
@@ -206,11 +207,13 @@ public sealed class DefaultRegistrationTests : IDisposable
         using var serviceProvider = serviceCollection.BuildServiceProvider();
         var passwordChanger = serviceProvider.GetRequiredService<IInteractivePasswordChanger>();
 
+        using var current = Secret.Create("current".AsSpan());
+        using var replacement = Secret.Create("new".AsSpan());
         var result = await passwordChanger.ChangePasswordAsync(
             null!,
             new ClaimsPrincipal(),
-            "current",
-            "new",
+            current,
+            replacement,
             CancellationToken.None
         );
 
@@ -232,6 +235,45 @@ public sealed class DefaultRegistrationTests : IDisposable
         Assert.Equal(CookieSecurePolicy.Always, cookie.SecurePolicy);
         Assert.True(cookie.HttpOnly);
         Assert.Equal(SameSiteMode.Lax, cookie.SameSite);
+    }
+
+    [Fact]
+    public void AddInteractiveAuthentication_Always_ExpiresThePendingSignInAfterFifteenMinutes()
+    {
+        using var serviceProvider = BuildCookieServiceProvider();
+
+        var options = serviceProvider
+            .GetRequiredService<IOptionsMonitor<CookieAuthenticationOptions>>()
+            .Get(InteractiveAuthenticationDefaults.PendingSignInSchemeName);
+
+        Assert.Equal(TimeSpan.FromMinutes(15), options.ExpireTimeSpan);
+        Assert.False(options.SlidingExpiration);
+    }
+
+    [Fact]
+    public async Task AddInteractiveAuthentication_WhenTheHostNamesNoDefaultScheme_DefaultsToTheSessionCookie()
+    {
+        using var serviceProvider = BuildCookieServiceProvider();
+        var schemeProvider = serviceProvider.GetRequiredService<IAuthenticationSchemeProvider>();
+
+        var challengeScheme = await schemeProvider.GetDefaultChallengeSchemeAsync();
+        var authenticateScheme = await schemeProvider.GetDefaultAuthenticateSchemeAsync();
+
+        Assert.Equal(InteractiveAuthenticationDefaults.CookieSchemeName, challengeScheme?.Name);
+        Assert.Equal(InteractiveAuthenticationDefaults.CookieSchemeName, authenticateScheme?.Name);
+    }
+
+    [Fact]
+    public void AddInteractiveAuthentication_WhenTheHostNamesADefaultScheme_KeepsIt()
+    {
+        const string hostScheme = "host-scheme";
+        using var serviceProvider = BuildCookieServiceProvider(configureServices: services =>
+            services.Configure<AuthenticationOptions>(options => options.DefaultScheme = hostScheme)
+        );
+
+        var options = serviceProvider.GetRequiredService<IOptions<AuthenticationOptions>>().Value;
+
+        Assert.Equal(hostScheme, options.DefaultScheme);
     }
 
     [Fact]
@@ -624,7 +666,10 @@ public sealed class DefaultRegistrationTests : IDisposable
 
     #endregion
 
-    private ServiceProvider BuildCookieServiceProvider(RoutePattern? tenantRoute = null)
+    private ServiceProvider BuildCookieServiceProvider(
+        RoutePattern? tenantRoute = null,
+        Action<IServiceCollection>? configureServices = null
+    )
     {
         var configuration = new ConfigurationBuilder().Build();
         var hostEnvironment = MockRepository.Create<IHostEnvironment>();
@@ -637,6 +682,7 @@ public sealed class DefaultRegistrationTests : IDisposable
         var serviceCollection = new ServiceCollection();
         serviceCollection.AddLogging().AddRouting();
         serviceCollection.AddSingleton(tenantResolver.Object);
+        configureServices?.Invoke(serviceCollection);
         serviceCollection
             .NewBuilder<OpenIdAuthenticationLibrary>()
             .AddInteractiveAuthentication(configuration, hostEnvironment.Object);

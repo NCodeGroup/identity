@@ -69,9 +69,52 @@ public class InteractiveLocalesTests
             messages.MissingCredentialsError,
             messages.AccessDeniedError,
             messages.SignInFailedError,
+            messages.ForgotPasswordLink,
+            messages.PasswordResetStatus,
+            messages.ForgotPasswordTitle,
+            messages.ForgotPasswordPrompt,
+            messages.SendCodeButton,
+            messages.ResetPasswordTitle,
+            messages.ResetPasswordPrompt,
+            messages.CodeLabel,
+            messages.NewPasswordLabel,
+            messages.ConfirmPasswordLabel,
+            messages.ResetPasswordButton,
+            messages.SignInCodeTitle,
+            messages.SignInCodePrompt,
+            messages.VerifyCodeButton,
+            messages.ResendCodeButton,
+            messages.CodeSentStatus,
+            messages.InvalidCodeError,
+            messages.TooManyCodesError,
+            messages.PasswordMismatchError,
+            messages.PasswordRefusedError,
+            messages.NoEmailError,
+            messages.EmailCodeFailedError,
+            messages.MissingFieldsError,
+            messages.VerificationMailSubject,
+            messages.VerificationMailBodyFormat,
+            messages.PasswordResetMailSubject,
+            messages.PasswordResetMailBodyFormat,
+            messages.SignInMailSubject,
+            messages.SignInMailBodyFormat,
         ];
         Assert.All(values, value => Assert.False(string.IsNullOrWhiteSpace(value)));
         Assert.Contains("{0}", messages.ConsentPromptFormat, StringComparison.Ordinal);
+        string[] mailBodyFormats =
+        [
+            messages.VerificationMailBodyFormat,
+            messages.PasswordResetMailBodyFormat,
+            messages.SignInMailBodyFormat,
+        ];
+        Assert.All(
+            mailBodyFormats,
+            format =>
+            {
+                Assert.Contains("{0}", format, StringComparison.Ordinal);
+                Assert.Contains("{1}", format, StringComparison.Ordinal);
+            }
+        );
     }
 
     [Fact]
@@ -134,6 +177,29 @@ public class InteractiveLocalesTests
             messages.MissingCredentialsError,
             messages.AccessDeniedError,
             messages.SignInFailedError,
+            messages.ForgotPasswordLink,
+            messages.PasswordResetStatus,
+            messages.ForgotPasswordTitle,
+            messages.ForgotPasswordPrompt,
+            messages.SendCodeButton,
+            messages.ResetPasswordTitle,
+            messages.ResetPasswordPrompt,
+            messages.CodeLabel,
+            messages.NewPasswordLabel,
+            messages.ConfirmPasswordLabel,
+            messages.ResetPasswordButton,
+            messages.SignInCodeTitle,
+            messages.SignInCodePrompt,
+            messages.VerifyCodeButton,
+            messages.ResendCodeButton,
+            messages.CodeSentStatus,
+            messages.InvalidCodeError,
+            messages.TooManyCodesError,
+            messages.PasswordMismatchError,
+            messages.PasswordRefusedError,
+            messages.NoEmailError,
+            messages.EmailCodeFailedError,
+            messages.MissingFieldsError,
         ];
         Assert.All(expected, text => Assert.Contains(text, catalog, StringComparison.Ordinal));
     }

@@ -2,7 +2,14 @@ import type { BrandingConfig } from '@ncodegroup/identity-config';
 import { BrandHeader } from './BrandHeader.js';
 import { EnvironmentBanner } from './EnvironmentBanner.js';
 import { useMessages } from './i18n/LocaleContext.js';
-import { ANTIFORGERY_COOKIE, describeLoginError, getQueryParam, readCookie } from './params.js';
+import {
+  ANTIFORGERY_COOKIE,
+  FLOW_FIELD,
+  RETURN_URL_FIELD,
+  describeLoginError,
+  getQueryParam,
+  readCookie,
+} from './params.js';
 import { resolveRoute } from './routes.js';
 import { EMPTY_SERVER_PAGE, type ServerPage } from './serverPage.js';
 
@@ -38,11 +45,12 @@ export function App({
       {branding ? <BrandHeader branding={branding} /> : null}
       {resolveRoute({
         pathname,
-        returnUrl: getQueryParam(search, 'ReturnUrl') ?? '/',
+        returnUrl: getQueryParam(search, RETURN_URL_FIELD) ?? '/',
         antiforgeryToken: readCookie(cookie, ANTIFORGERY_COOKIE) ?? '',
         errorMessage: describeLoginError(getQueryParam(search, 'error'), messages),
         errorCode: getQueryParam(search, 'error'),
         status: getQueryParam(search, 'status'),
+        flow: getQueryParam(search, FLOW_FIELD),
         serverPage,
         messages,
         ...(branding ? { branding } : {}),

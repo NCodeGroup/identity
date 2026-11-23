@@ -3,6 +3,7 @@
 
 using System.Security.Claims;
 using JetBrains.Annotations;
+using NCode.Buffers;
 using NCode.Identity.OpenId.Contexts;
 
 namespace NCode.Identity.OpenId.Authentication.Interactive;
@@ -28,8 +29,10 @@ public interface IInteractivePasswordChanger
     /// lookup.</param>
     /// <param name="principal">The <see cref="ClaimsPrincipal"/> of the signed-in end user, as the cookie session
     /// carries it.</param>
-    /// <param name="currentPassword">The password the end user currently has, which proves they know it.</param>
-    /// <param name="newPassword">The password the end user chose to replace it.</param>
+    /// <param name="currentPassword">The password the end user currently has, which proves they know it. The caller
+    /// owns and disposes it.</param>
+    /// <param name="newPassword">The password the end user chose to replace it. The caller owns and disposes
+    /// it.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the
     /// asynchronous operation.</param>
     /// <returns>
@@ -38,8 +41,8 @@ public interface IInteractivePasswordChanger
     ValueTask<InteractivePasswordChangeResult> ChangePasswordAsync(
         OpenIdContext openIdContext,
         ClaimsPrincipal principal,
-        string currentPassword,
-        string newPassword,
+        Secret<char> currentPassword,
+        Secret<char> newPassword,
         CancellationToken cancellationToken
     );
 }

@@ -8,6 +8,9 @@ export const fr: Messages = {
     username: 'Nom d’utilisateur',
     password: 'Mot de passe',
     submit: 'Se connecter',
+    forgotPassword: 'Mot de passe oublié ?',
+    passwordReset:
+      'Votre mot de passe a été réinitialisé. Connectez-vous avec votre nouveau mot de passe.',
   },
   loginErrors: {
     invalidCredentials: 'Le nom d’utilisateur ou le mot de passe est incorrect.',
@@ -46,6 +49,7 @@ export const fr: Messages = {
     signOut: 'Se déconnecter',
     manageSessions: 'Gérer les sessions actives',
     changePassword: 'Changer le mot de passe',
+    verifyEmail: 'Vérifier votre adresse e-mail',
   },
   sessions: {
     title: 'Sessions actives',
@@ -93,6 +97,53 @@ export const fr: Messages = {
     passwordBlocklisted:
       'Le nouveau mot de passe est trop courant ou connu comme compromis. Choisissez-en un que vous n’utilisez nulle part ailleurs.',
     fallback: 'Le mot de passe n’a pas pu être changé. Veuillez réessayer.',
+  },
+  forgotPassword: {
+    title: 'Réinitialiser votre mot de passe',
+    prompt:
+      'Saisissez votre nom d’utilisateur. Si son compte a une adresse e-mail vérifiée, nous y enverrons un code.',
+    submit: 'Envoyer le code',
+  },
+  resetPassword: {
+    title: 'Choisir un nouveau mot de passe',
+    prompt: 'Saisissez le code reçu par e-mail et choisissez un nouveau mot de passe.',
+    code: 'Code',
+    newPassword: 'Nouveau mot de passe',
+    confirmPassword: 'Confirmer le nouveau mot de passe',
+    submit: 'Réinitialiser le mot de passe',
+  },
+  signInCode: {
+    title: 'Consultez votre messagerie',
+    prompt: 'Saisissez le code envoyé à votre adresse e-mail pour terminer la connexion.',
+    code: 'Code',
+    verify: 'Vérifier',
+    resend: 'Envoyer un nouveau code',
+    sent: 'Nous avons envoyé un nouveau code.',
+  },
+  emailCodeErrors: {
+    invalidCode: 'Le code est incorrect ou a expiré.',
+    tooManyCodes: 'Trop de codes ont été demandés. Réessayez plus tard.',
+    passwordMismatch: 'Les mots de passe ne correspondent pas.',
+    passwordRefused: 'Choisissez un autre mot de passe : celui-ci ne respecte pas les exigences.',
+    noEmail: 'Ce compte n’a pas d’adresse e-mail.',
+    alreadyVerified: 'Votre adresse e-mail est déjà vérifiée.',
+    missingFields: 'Remplissez tous les champs.',
+    fallback: 'Une erreur s’est produite. Veuillez réessayer.',
+  },
+  email: {
+    title: 'Adresse e-mail',
+    titleFor: (productName) => `Adresse e-mail de ${productName}`,
+    address: 'Adresse',
+    verified: 'Vérifiée',
+    unverified: 'Non vérifiée',
+    sendCode: 'Envoyer un code de vérification',
+    codePrompt: 'Saisissez le code envoyé à votre adresse e-mail.',
+    code: 'Code',
+    verify: 'Vérifier',
+    verifiedStatus: 'Votre adresse e-mail est vérifiée.',
+    unavailable: 'La vérification de l’adresse e-mail n’est pas disponible.',
+    loading: 'Chargement…',
+    back: 'Retour à votre compte',
   },
   environmentBanner: (label) => `Environnement ${label} — pas pour un usage en production`,
 };

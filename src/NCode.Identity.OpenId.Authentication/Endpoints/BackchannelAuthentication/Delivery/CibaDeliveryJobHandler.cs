@@ -79,7 +79,7 @@ internal sealed class CibaDeliveryJobHandler(
             );
         }
 
-        var httpClient = HttpClientFactory.CreateClient(GuardedHttpClient.Name);
+        using var httpClient = HttpClientFactory.CreateClient(GuardedHttpClient.Name);
 
         try
         {

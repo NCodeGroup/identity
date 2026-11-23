@@ -51,7 +51,7 @@ period that a timer runs on is held to the range that every .NET timer accepts.*
    `Bff`, `ManagementConsole` and `Setup` (`SetupOptions`).
 3. **The OpenID section has one owner.** `AddConfiguration` (`IdentityServerBuilderExtensions`) owns the whole OpenID
    section and rejects any other subsection with `ThrowOnUnknownSubsection`, whose error lists the recognized ones. The
-   section recognizes twelve subsections, listed in `IdentityServerBuilderExtensions.OpenIdSubsections`:
+   section recognizes thirteen subsections, listed in `IdentityServerBuilderExtensions.OpenIdSubsections`:
    - `Platform` binds `OpenIdPlatformOptions`, whose `Settings` member carries the platform settings subsection as-is
      and is watched for reloads.
    - `Tenant` binds `OpenIdTenantOptions`, which configures how a resolved tenant is materialized and cached.
@@ -60,6 +60,8 @@ period that a timer runs on is held to the range that every .NET timer accepts.*
    - `MutualTls` binds `MutualTlsForwardingOptions`.
    - `ClientCertificateRevocation`, `OutboundHttp`, `GrantRetention`, `TenantUsage`, `AuditRecords`,
      `EndedSessionTermination` and `InProcessJobDispatcher` bind the options of the same names.
+   - `Admission` binds `AdmissionOptions`, the limit on the protocol requests a replica serves at once
+     ([ADR-1523](1523-a-replica-sheds-a-tenants-protocol-requests-once-its-in-flight-requests-fill-the-tenants-share-of-its-capacity.md)).
 4. **The subsections bind in `AddConfiguration`, not in the packages that read them.** A host's chosen section name
    therefore applies to all of them. An extension adds no keys under a section the family binds, and a custom tenant
    strategy binds its own options from its own section.

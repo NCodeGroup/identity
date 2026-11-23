@@ -78,9 +78,9 @@ mapped onto the root after the groups.
 ### Cross-cutting filters live on the family's group
 
 - `OpenIdEndpointGroup`, prefixed by the tenant route
-  ([ADR-1165](1165-a-tenants-stored-issuer-is-its-single-origin-and-its-mtls-alias-a-routed-second-host.md)), installs the
-  request-environment filter and `OpenIdExceptionEndpointFilter` beside its metrics, interaction-id and rate-limit
-  filters.
+  ([ADR-1165](1165-a-tenants-stored-issuer-is-its-single-origin-and-its-mtls-alias-a-routed-second-host.md)), installs
+  the request-environment filter and `OpenIdExceptionEndpointFilter` beside its metrics, interaction-id, admission and
+  rate-limit filters.
 - `ManagementRootGroup` installs the management filters.
 - `OpenIdExceptionEndpointFilter` renders a thrown error through the endpoint's `IOpenIdEndpointExceptionHandlerMetadata`
   when it has one, and through the registered `IOpenIdExceptionHandler` otherwise. `DefaultOpenIdExceptionHandler`

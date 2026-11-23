@@ -3,6 +3,7 @@
 
 using Microsoft.Extensions.DependencyInjection;
 using NCode.Identity.Dispatch;
+using NCode.Identity.Mail;
 using Xunit;
 
 namespace NCode.Identity.Server.Tests;
@@ -26,6 +27,24 @@ public sealed class IdentityServerBuilderTests : BaseTests
             serviceCollection,
             descriptor => descriptor.ServiceType.FullName == "NCode.PropertyBag.IPropertyBagFactory"
         );
+    }
+
+    [Fact]
+    public void Constructor_Always_RegistersTheMailSenderAndItsDefaultTransport()
+    {
+        var serviceCollection = new ServiceCollection();
+
+        var builder = new IdentityServerBuilder(serviceCollection);
+
+        Assert.Contains(
+            serviceCollection,
+            descriptor => descriptor.ServiceType == typeof(IMailSender)
+        );
+        Assert.Contains(
+            serviceCollection,
+            descriptor => descriptor.ServiceType == typeof(IMailTransport)
+        );
+        Assert.NotNull(builder.MailLibraryBuilder);
     }
 
     #endregion

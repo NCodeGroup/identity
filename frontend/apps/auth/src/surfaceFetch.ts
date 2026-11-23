@@ -1,4 +1,4 @@
-import { LOGIN_ACTION, resolveSurfacePath } from './params.js';
+import { LOGIN_ACTION, RETURN_URL_FIELD, resolveSurfacePath } from './params.js';
 
 /**
  * Fetches a JSON endpoint of the surface for a page the signed-in end-user is on. A `401` means the cookie session is
@@ -14,7 +14,7 @@ export async function fetchSurfaceJson<T>(endpoint: string, returnPath: string):
   });
   if (response.status === 401) {
     window.location.assign(
-      `${resolveSurfacePath(LOGIN_ACTION)}?ReturnUrl=${encodeURIComponent(resolveSurfacePath(returnPath))}`,
+      `${resolveSurfacePath(LOGIN_ACTION)}?${RETURN_URL_FIELD}=${encodeURIComponent(resolveSurfacePath(returnPath))}`,
     );
     return null;
   }

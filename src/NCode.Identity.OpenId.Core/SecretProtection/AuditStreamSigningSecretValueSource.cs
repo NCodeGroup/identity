@@ -1,0 +1,53 @@
+// Copyright © NCode Group
+// SPDX-License-Identifier: Apache-2.0
+
+using Microsoft.Extensions.Logging;
+using NCode.Identity.OpenId.Persistence.DataContracts;
+using NCode.Identity.OpenId.Persistence.Stores;
+using NCode.Identity.OpenId.Persistence.Tenants;
+using NCode.Identity.Persistence.Stores;
+using NCode.Identity.Secrets.Persistence.Protection;
+
+namespace NCode.Identity.OpenId.SecretProtection;
+
+/// <summary>
+/// Finds the audit-stream signing secrets that master keys protect: a signing secret is encrypted under the key of its
+/// tenant, so only a tenant owner holds any.
+/// </summary>
+// See ADR-1534.
+internal sealed class AuditStreamSigningSecretValueSource(
+    IStoreManagerFactory storeManagerFactory,
+    IAmbientTenantAccessor ambientTenantAccessor,
+    ISecretProtectorProvider protectorProvider,
+    ILogger<AuditStreamSigningSecretValueSource> logger
+) : PagedProtectedValueSource(storeManagerFactory, ambientTenantAccessor, protectorProvider, logger)
+{
+    /// <inheritdoc />
+    protected override bool Handles(SecretOwner owner) => owner.TenantId is not null;
+
+    /// <inheritdoc />
+    protected override ValueTask<PagedResult<PersistedProtectedValue>> GetPageAsync(
+        IStoreManager storeManager,
+        SecretOwner owner,
+        IReadOnlyCollection<string> prefixes,
+        PageRequest page,
+        CancellationToken cancellationToken
+    ) =>
+        storeManager
+            .GetStore<IAuditStreamStore>()
+            .GetProtectedSigningSecretPageAsync(owner.OwnerId, prefixes, page, cancellationToken);
+
+    /// <inheritdoc />
+    protected override ValueTask<bool> UpdateAsync(
+        IStoreManager storeManager,
+        PersistedProtectedValue value,
+        CancellationToken cancellationToken
+    ) =>
+        storeManager
+            .GetStore<IAuditStreamStore>()
+            .UpdateProtectedSigningSecretAsync(value, cancellationToken);
+
+    /// <inheritdoc />
+    protected override SecretProtectionContext GetContext(PersistedProtectedValue value) =>
+        SecretProtectionContext.ForAuditStreamSigningSecret(value.ItemId);
+}

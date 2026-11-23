@@ -154,6 +154,17 @@ internal static partial class Log
         Exception exception
     );
 
+    [LoggerMessage(
+        EventId = EventIds.AuditStreamCreateGuardReleaseFailed,
+        Level = LogLevel.Warning,
+        Message = "The guard that serializes the audit-stream creates of tenant '{TenantId}' could not be released; it expires on its own"
+    )]
+    internal static partial void AuditStreamCreateGuardReleaseFailed(
+        this ILogger logger,
+        Exception exception,
+        string tenantId
+    );
+
     /// <summary>
     /// Logs that giving a tenant back its previous issuer in the global directory did not complete.
     /// </summary>

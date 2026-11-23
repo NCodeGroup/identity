@@ -240,6 +240,36 @@ apiReference:
   documentEnabled: false
   pageEnabled: false
 
+# Load shedding (OpenId:Admission). concurrencyLimit is the most metered protocol requests one replica serves at
+# once; a request past its tenant's share of it (admission_capacity_percent) is answered 503. Unset sheds nothing.
+admission:
+  concurrencyLimit: null
+
+# Outbound mail: the host sends through one transport, SMTP (Mail:Smtp) or Amazon SES (Mail:AmazonSes); setting both is
+# refused, and when neither is set the host sends no mail. smtp submits to the SMTP server named by host; from is
+# required with host; existingSecret names a Secret holding the keys username and password; tls is StartTls (port 587)
+# or ImplicitTls (port 465). amazonSes sends through the Amazon SES v2 API in region, as the role in
+# aws.webIdentity.roleArn, or without one as the pod's ambient AWS identity, such as EKS Pod Identity; only the host's
+# Deployment, which sends the mail, carries that role for Amazon SES. from is required with region and must be an
+# identity SES verifies; fromIdentityArn, configurationSetName and tags are optional, and a tag's name is letters and
+# digits joined by single '_', '.' or '-' characters and differs from every other name in more than case, because it
+# names an environment variable and configuration keys ignore case.
+mail:
+  smtp:
+    host: ""
+    port: 587
+    tls: StartTls
+    from: ""
+    fromName: ""
+    existingSecret: ""
+  amazonSes:
+    region: ""
+    from: ""
+    fromName: ""
+    fromIdentityArn: ""
+    configurationSetName: ""
+    tags: {}
+
 # The Postgres database (ConnectionStrings:openiddb) the pods read, as the runtime role. It also persists the Data
 # Protection key ring. Required: name either existingSecret, a Secret holding the finished Npgsql connection string, or
 # parts.existingSecret, a Secret holding the connection's parts, as a Postgres operator writes it; never both. The role
@@ -302,6 +332,15 @@ valkey:
     passwordKey: password
     ssl: false
 
+# The AWS identity of the host's pods. One IAM role serves every AWS service a pod calls, such as AWS KMS under
+# secretProtection and Amazon SES under mail.
+aws:
+  webIdentity:
+    # IAM role the host's service account assumes through the cluster's IAM OIDC identity provider.
+    roleArn: ""
+    audience: sts.amazonaws.com
+    tokenExpirationSeconds: 3600
+
 # Stored secrets and the Data Protection key ring are encrypted under a root key held outside the database; see "Secret
 # protection" in the chart's README.
 secretProtection:
@@ -316,11 +355,6 @@ secretProtection:
   awsKms:
     # ARN of the KMS key, or of an alias that names it: arn:aws:kms:<region>:<account>:alias/<name>.
     keyArn: ""
-    webIdentity:
-      # IAM role the host's service account assumes through the cluster's IAM OIDC identity provider.
-      roleArn: ""
-      audience: sts.amazonaws.com
-      tokenExpirationSeconds: 3600
   azureKeyVault:
     # Identifier of the RSA key in Key Vault or Managed HSM: https://<vault>.vault.azure.net/keys/<name>.
     keyId: ""
@@ -349,12 +383,12 @@ secretProtection:
   # Root keys that tenants bring (SecretProtection:OwnerRootKeys). Tune the validation intervals through extraEnv.
   ownerRootKeys:
     # The key wrappers a tenant may choose for its root key: aws-kms, azure-key-vault, google-cloud-kms. Empty means no
-    # tenant can bring a key. Each listed provider's workload credentials (awsKms.webIdentity,
+    # tenant can bring a key. Each listed provider's workload credentials (aws.webIdentity,
     # azureKeyVault.workloadIdentity, googleCloudKms.workloadIdentityFederation) are mounted into the pods, so the host
     # can reach the tenant's key with the deployment's own identity.
     providers: []
   # The key management services that hold tenants' keys (SecretProtection:RemoteKeyProviders). An enabled provider is
-  # registered, and the pods then carry its workload credentials (awsKms.webIdentity, azureKeyVault.workloadIdentity,
+  # registered, and the pods then carry its workload credentials (aws.webIdentity, azureKeyVault.workloadIdentity,
   # googleCloudKms.workloadIdentityFederation). Its location (region, vaultUri, keyRing) is where it creates keys, which
   # the tenant setting tenant_key_provider then selects; without one it binds keys a service already holds and creates
   # none (ADR-1474, ADR-1485).
@@ -653,16 +687,19 @@ managementConsole:
       pemSecret: ""
       # Keys a key management service holds, as for the client key ring. Each DPoP proof is then a call to the service.
       remoteKeys: {}
-  # The console's own workload identities, through which it reaches the key management services its remote keys name.
-  # Each has the shape of the server's identity of the same vendor under secretProtection and federates the console's
-  # service account. The pods carry a vendor's credentials only when a remote key names that vendor.
+  # The console's AWS identity, with the shape of the server's aws. One IAM role serves every AWS service a console pod
+  # calls.
+  aws:
+    webIdentity:
+      # IAM role the console's service account assumes through the cluster's IAM OIDC identity provider.
+      roleArn: ""
+      audience: sts.amazonaws.com
+      tokenExpirationSeconds: 3600
+  # The console's own workload identities for Azure and Google Cloud, through which it reaches the key management
+  # services its remote keys name. Each has the shape of the server's identity of the same vendor under secretProtection
+  # and federates the console's service account. The pods carry a vendor's credentials only when a remote key names that
+  # vendor.
   secretProtection:
-    awsKms:
-      webIdentity:
-        # IAM role the console's service account assumes through the cluster's IAM OIDC identity provider.
-        roleArn: ""
-        audience: sts.amazonaws.com
-        tokenExpirationSeconds: 3600
     azureKeyVault:
       workloadIdentity:
         # Entra tenant of the identity whose federated credential trusts the console's service account.

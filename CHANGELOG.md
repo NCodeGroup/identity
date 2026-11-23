@@ -160,7 +160,7 @@ Until the first stable release, the [Unreleased] section describes the product a
   (`AddLocalAccountEntityFramework()`, `AddAspNetIdentityLocalAccountStore<TUser>()` or a custom store) receives
   `IServiceBuilder<StoreManagerLibrary>`, which `AddEntityFrameworkCorePersistence<TDbContext>()` mints, and returns
   `IServiceBuilder<LocalAccountLibrary>`. `AddLocalAccountAuthentication(IServiceBuilder<LocalAccountLibrary>)` and
-  `AddLocalAccountInteractiveAuthentication(IServiceBuilder<LocalAccountLibrary>)` extend
+  `AddLocalAccountInteractiveAuthentication(IServiceBuilder<LocalAccountLibrary>, IServiceBuilder<MailLibrary>)` extend
   `IServiceBuilder<OpenIdAuthenticationLibrary>`, and `AddLocalAccountManagement(IServiceBuilder<LocalAccountLibrary>)`
   extends `IServiceBuilder<OpenIdManagementLibrary>`, each returning its receiver for chaining, for example
   `AddIdentityServer().OpenIdAuthenticationLibraryBuilder.AddLocalAccountAuthentication(localAccountStore)`
@@ -2301,9 +2301,19 @@ Until the first stable release, the [Unreleased] section describes the product a
   every other session of the principal with `password_changed` (`SessionTerminationReasons.PasswordChanged`), which
   sends back-channel logout, revokes every grant issued under no session (`GrantFilter.WithoutSession`), and keeps the
   current session and the consents. A credential backend offers the change by registering `IInteractivePasswordChanger`,
-  which returns an `InteractivePasswordChangeResult`, as the local accounts do
-  ([ADR-1230](docs/decisions/1230-an-end-user-changes-their-password-through-an-optional-seam-and-keeps-only-the-current-session.md), issue
-  [#290](https://github.com/NCodeGroup/identity/issues/290)).
+  which returns an `InteractivePasswordChangeResult`, as the local accounts do. A change, made or refused, is audited as
+  `password.change`
+  ([ADR-1230](docs/decisions/1230-an-end-user-changes-their-password-through-an-optional-seam-and-keeps-only-the-current-session.md),
+  issue [#290](https://github.com/NCodeGroup/identity/issues/290)).
+
+- **An end user resets a forgotten password and verifies an email address with a mailed code.** With
+  `password_reset_enabled`, the login page links a forgot-password page that mails a six-digit code to the account's
+  verified address and a reset page that sets the new password, ends the account's sessions and clears its failed
+  attempts; with `email_verification_enabled`, the account page verifies the account's address. Each request, reset and
+  verification is audited (`password.reset_request`, `password.reset`, `email.verification`). Codes last
+  `email_code_lifetime` (10 minutes), allow five guesses and `email_code_sends_per_hour` (5) sends
+  ([ADR-1533](docs/decisions/1533-an-end-user-verifies-an-email-address-resets-a-password-and-signs-in-with-a-second-factor-through-one-time-email-codes.md),
+  [#911](https://github.com/NCodeGroup/identity/issues/911)).
 
 - **A tenant brands its login, consent, and account pages.** The interactive surface registers the tenant settings
   `branding_display_name`, `branding_logo_uri` (absolute `https`), `branding_favicon_uri` (absolute `https`),
@@ -3430,6 +3440,21 @@ Until the first stable release, the [Unreleased] section describes the product a
   ([ADR-1164](docs/decisions/1164-replicas-share-expiring-keys-values-and-indexes-through-ports-with-in-process-and-valkey-adapters.md), issue
   [#123](https://github.com/NCodeGroup/identity/issues/123)).
 
+- **The server sends mail through a queued port and opt-in SMTP and Amazon SES transports.** `IMailSender` queues a
+  serializable model through the job dispatcher and refuses a model that no registered `IMailComposer` handles; at each
+  delivery attempt the model's composer builds the `MailMessage`, whose bodies and attachments are `MailContent` streams
+  it owns, and a registered `IMailTransport` delivers it, retrying a failed delivery. `NCode.Identity.Mail.Mime`'s
+  `IMimeMessageFactory`, which each transport registers through `AddMimeMailTransport` and takes by constructor
+  injection, builds the MIME form that both transports send and dates a message by the host's `TimeProvider`.
+  `NCode.Identity.Mail.Smtp`'s `AddSmtpMailTransport` delivers over SMTP with STARTTLS or implicit TLS from the
+  `Mail:Smtp` section, which the host chart sets as `mail.smtp`, and `NCode.Identity.Mail.AmazonSes`'s
+  `AddAmazonSesMailTransport` sends through the Amazon SES v2 API from the `Mail:AmazonSes` section, which the host
+  chart sets as `mail.amazonSes`, as the AWS role that the chart's `aws.webIdentity` gives to the pods that use AWS KMS
+  and to the host's Deployment, the one pod that sends mail. A host configures one transport, and the local stack sends
+  to Mailpit; `ncode.identity.mail.messages` counts deliveries
+  ([ADR-1532](docs/decisions/1532-outbound-mail-is-a-port-that-composes-each-queued-message-at-delivery-for-a-replaceable-transport-with-smtp-and-amazon-ses-adapters.md),
+  [#911](https://github.com/NCodeGroup/identity/issues/911)).
+
 - **`HealthCheckTags.Readiness` tags every readiness health check.** `NCode.Identity.Registration` publishes the tag
   (`"ready"`) of every health check that decides whether a replica can serve requests. The Valkey adapter tags its check
   with it and `MapHealthProbes()`'s `/health/ready` endpoint runs the checks that carry it, so a package that adds a
@@ -4502,6 +4527,38 @@ Until the first stable release, the [Unreleased] section describes the product a
   it moved to once the move completes
   ([ADR-1514](docs/decisions/1514-a-tenant-moves-between-cells-of-one-region-through-an-encrypted-export-and-import.md),
   [`docs/tenant-move.md`](docs/tenant-move.md)).
+
+- **A k6 load test rates a cell's capacity.** `benchmarks/load/token-requests.js` drives a tenant's token endpoint at
+  constant arrival rates with a generated client secret, `private_key_jwt` and a supplied client secret, and fails when
+  p95 latency, errors or dropped iterations pass their thresholds;
+  [`benchmarks/load/README.md`](benchmarks/load/README.md) gives the run that rates a dedicated cell and sets its
+  replicas' concurrency limit
+  ([ADR-1524](docs/decisions/1524-a-dedicated-cells-capacity-rating-is-measured-by-the-repositorys-k6-test-on-dedicated-cpu-nodes.md),
+  [#907](https://github.com/NCodeGroup/identity/issues/907)).
+
+- **A customer exports its tenants' audit records through the management API.**
+  [`docs/audit-records.md`](docs/audit-records.md#exporting-a-tenants-records) gives the paged export over
+  `GET api/tenants/{tenantId}/audit-records`, and the hosted platform keeps records 90 days in each cell's audit store
+  ([ADR-1527](docs/decisions/1527-the-hosted-platform-keeps-audit-records-for-90-days-and-a-customer-exports-them-through-the-management-api.md),
+  [#910](https://github.com/NCodeGroup/identity/issues/910)).
+
+- **A tenant's audit records stream to its own endpoints.** `api/tenants/{tenantId}/audit-streams` registers up to
+  `max_audit_streams` (2) HTTPS endpoints; every replica follows the audit store forward under each stream's saved
+  position and lease, posts batches of up to 100 records signed as Standard Webhooks with a `whsec_` secret that rotates
+  with a 24-hour overlap, at most three signing at once, retries with back-off, and reports each stream's delivery
+  status; `ncode.identity.audit_stream.deliveries` and `ncode.identity.audit_stream.records` count them
+  ([ADR-1534](docs/decisions/1534-a-tenants-audit-records-stream-to-its-endpoints-read-forward-from-the-audit-store-and-signed-as-standard-webhooks.md),
+  [#910](https://github.com/NCodeGroup/identity/issues/910)).
+
+- **An incident-response runbook for the hosted platform.** [`docs/incident-response.md`](docs/incident-response.md)
+  gives the severities, paging, triage, containment playbooks, customer communication, evidence and review
+  ([#913](https://github.com/NCodeGroup/identity/issues/913)).
+
+- **The hosted platform's legal documents.** [`docs/legal/`](docs/legal/README.md) holds the terms of service and the
+  data processing agreement, cover pages over Common Paper's standard terms, and the privacy policy, each a draft that
+  counsel reviews before it takes effect
+  ([ADR-1529](docs/decisions/1529-the-hosted-platforms-terms-dpa-and-privacy-policy-are-public-documents-built-on-common-papers-standard-terms.md),
+  [#912](https://github.com/NCodeGroup/identity/issues/912)).
 
 - **The host chart configures a cell.** `cell.name`, `cell.region`, `cell.kind`, `cell.cloudRegions`,
   `cell.managementUrl`, `cell.isControlPlane` and `cell.controlPlaneIssuer` set `Cell`; `backup.location` annotates the
@@ -6777,6 +6834,33 @@ Until the first stable release, the [Unreleased] section describes the product a
   [ADR-1418](docs/decisions/1418-limits-are-set-by-the-authority-above-their-scope-and-readers-learn-which-they-may-change.md),
   [#84](https://github.com/NCodeGroup/identity/issues/84),
   [#563](https://github.com/NCodeGroup/identity/issues/563)).
+
+- **A replica sheds a tenant's protocol requests once its in-flight requests fill the tenant's share of its capacity.**
+  `OpenId:Admission:ConcurrencyLimit`, set in the host chart as `admission.concurrencyLimit`, is the most metered
+  protocol requests one replica serves at once, and the tenant setting `admission_capacity_percent` (1–100, a limit
+  merged with `Min`, 100 when unset) is the share of it a tenant's requests may fill, so a tier with a smaller share is
+  shed first. A request past its tenant's share is answered `503 Service Unavailable` with `temporarily_unavailable`,
+  `Retry-After` (`OpenId:Admission:RetryAfter`, one second by default) and `Cache-Control: no-store` before any rate
+  limit or quota counts it, and is neither handled, audited nor recorded as usage; discovery and the JSON Web Key Set
+  are never shed, and `ncode.identity.admission.shed` counts what is shed. A host without a concurrency limit sheds
+  nothing
+  ([ADR-1523](docs/decisions/1523-a-replica-sheds-a-tenants-protocol-requests-once-its-in-flight-requests-fill-the-tenants-share-of-its-capacity.md),
+  [#906](https://github.com/NCodeGroup/identity/issues/906)).
+
+- **A tenant can require an email code as a second factor at sign-in.** With `email_mfa_required`, which a team can set
+  and its tenants cannot lift, a verified password leads to a code page instead of a session; the right code adds `otp`
+  and `mfa` to `amr`, an account without an address is refused, and the resource-owner password grant is refused before
+  any password is verified. A completed or failed second factor is audited as `subject.second_factor`. Codes are kept
+  only as hashes in shared state, bound to the flow that asked for them and to the address they were mailed to, spent
+  with one atomic take after every check and before their effect, and never logged; a forgot-password request answers
+  the same and does the same remote work whether or not an account exists; a failed SMTP delivery reports the server's
+  numeric status, never its reply text or the recipient; Amazon SES reports only its error code and status; a decoy
+  request's entries expire within a minute; the queued mail's model prints neither its code nor its address; a stored
+  flow that lacks a member refuses every code; passwords and codes cross the interactive surface's interfaces as
+  `Secret<char>`; `Mail:Smtp:Tls=None` is refused outside local development
+  ([ADR-1533](docs/decisions/1533-an-end-user-verifies-an-email-address-resets-a-password-and-signs-in-with-a-second-factor-through-one-time-email-codes.md),
+  [ADR-1532](docs/decisions/1532-outbound-mail-is-a-port-that-composes-each-queued-message-at-delivery-for-a-replaceable-transport-with-smtp-and-amazon-ses-adapters.md),
+  [#911](https://github.com/NCodeGroup/identity/issues/911)).
 
 - **Anonymous discovery and JSON Web Key Set requests cannot spend a tenant's daily request quota.** The two endpoints
   are not metered: they count only against the per-minute rate limits and are not recorded as `requests` usage, so no

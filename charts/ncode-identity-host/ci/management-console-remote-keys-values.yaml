@@ -36,7 +36,6 @@ managementConsole:
           curve: P-256
     dpop:
       pemSecret: identity-mgmt-dpop-key
-  secretProtection:
-    awsKms:
-      webIdentity:
-        roleArn: arn:aws:iam::111122223333:role/ncode-identity-management-console
+  aws:
+    webIdentity:
+      roleArn: arn:aws:iam::111122223333:role/ncode-identity-management-console

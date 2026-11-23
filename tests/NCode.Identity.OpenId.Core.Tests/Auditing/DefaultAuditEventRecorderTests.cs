@@ -3,11 +3,15 @@
 
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Logging.Testing;
 using Moq;
 using NCode.Identity.Events;
 using NCode.Identity.Events.Audit;
 using NCode.Identity.OpenId.Authentication.Auditing;
 using NCode.Identity.OpenId.Authentication.Clients;
+using NCode.Identity.OpenId.Authentication.Logging;
 using NCode.Identity.OpenId.Authentication.Sessions;
 using NCode.Identity.OpenId.Authentication.Tokens.Models;
 using NCode.Identity.OpenId.Contexts;
@@ -24,6 +28,16 @@ public sealed class DefaultAuditEventRecorderTests : IDisposable
     private MockRepository MockRepository { get; } = new(MockBehavior.Strict);
 
     public void Dispose() => MockRepository.Verify();
+
+    private static DefaultAuditEventRecorder CreateRecorder(
+        IEventPublisher eventPublisher,
+        ILogger<DefaultAuditEventRecorder>? logger = null
+    ) =>
+        new(
+            eventPublisher,
+            TimeProvider.System,
+            logger ?? NullLogger<DefaultAuditEventRecorder>.Instance
+        );
 
     private static DefaultHttpContext CreateHttpContext(string endpointName)
     {
@@ -78,7 +92,7 @@ public sealed class DefaultAuditEventRecorderTests : IDisposable
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
 
-        var recorder = new DefaultAuditEventRecorder(mockPublisher.Object, TimeProvider.System);
+        var recorder = CreateRecorder(mockPublisher.Object);
 
         var securityToken = new SecurityToken
         {
@@ -138,7 +152,7 @@ public sealed class DefaultAuditEventRecorderTests : IDisposable
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
 
-        var recorder = new DefaultAuditEventRecorder(mockPublisher.Object, TimeProvider.System);
+        var recorder = CreateRecorder(mockPublisher.Object);
 
         await recorder.RecordTokenRevokedAsync(
             mockContext.Object,
@@ -191,7 +205,7 @@ public sealed class DefaultAuditEventRecorderTests : IDisposable
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
 
-        var recorder = new DefaultAuditEventRecorder(mockPublisher.Object, TimeProvider.System);
+        var recorder = CreateRecorder(mockPublisher.Object);
 
         await recorder.RecordSubjectAuthenticatedAsync(
             mockContext.Object,
@@ -243,7 +257,7 @@ public sealed class DefaultAuditEventRecorderTests : IDisposable
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
 
-        var recorder = new DefaultAuditEventRecorder(mockPublisher.Object, TimeProvider.System);
+        var recorder = CreateRecorder(mockPublisher.Object);
 
         await recorder.RecordSubjectAuthenticationFailedAsync(
             mockContext.Object,
@@ -301,7 +315,7 @@ public sealed class DefaultAuditEventRecorderTests : IDisposable
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
 
-        var recorder = new DefaultAuditEventRecorder(mockPublisher.Object, TimeProvider.System);
+        var recorder = CreateRecorder(mockPublisher.Object);
 
         await recorder.RecordAuthorizationGrantedAsync(
             mockContext.Object,
@@ -350,7 +364,7 @@ public sealed class DefaultAuditEventRecorderTests : IDisposable
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
 
-        var recorder = new DefaultAuditEventRecorder(mockPublisher.Object, TimeProvider.System);
+        var recorder = CreateRecorder(mockPublisher.Object);
 
         await recorder.RecordAuthorizationDeniedAsync(
             mockContext.Object,
@@ -401,7 +415,7 @@ public sealed class DefaultAuditEventRecorderTests : IDisposable
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
 
-        var recorder = new DefaultAuditEventRecorder(mockPublisher.Object, TimeProvider.System);
+        var recorder = CreateRecorder(mockPublisher.Object);
 
         await recorder.RecordClientAuthenticationFailedAsync(
             mockContext.Object,
@@ -457,7 +471,7 @@ public sealed class DefaultAuditEventRecorderTests : IDisposable
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
 
-        var recorder = new DefaultAuditEventRecorder(mockPublisher.Object, TimeProvider.System);
+        var recorder = CreateRecorder(mockPublisher.Object);
 
         await recorder.RecordOpenIdErrorAsync(
             mockContext.Object,
@@ -504,7 +518,7 @@ public sealed class DefaultAuditEventRecorderTests : IDisposable
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
 
-        var recorder = new DefaultAuditEventRecorder(mockPublisher.Object, TimeProvider.System);
+        var recorder = CreateRecorder(mockPublisher.Object);
 
         await recorder.RecordOpenIdErrorAsync(
             mockContext.Object,
@@ -552,7 +566,7 @@ public sealed class DefaultAuditEventRecorderTests : IDisposable
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
 
-        var recorder = new DefaultAuditEventRecorder(mockPublisher.Object, TimeProvider.System);
+        var recorder = CreateRecorder(mockPublisher.Object);
 
         await recorder.RecordRefreshTokenReplayAsync(
             mockContext.Object,
@@ -607,7 +621,7 @@ public sealed class DefaultAuditEventRecorderTests : IDisposable
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
 
-        var recorder = new DefaultAuditEventRecorder(mockPublisher.Object, TimeProvider.System);
+        var recorder = CreateRecorder(mockPublisher.Object);
 
         await recorder.RecordRefreshTokenRetryAsync(
             mockContext.Object,
@@ -656,7 +670,7 @@ public sealed class DefaultAuditEventRecorderTests : IDisposable
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
 
-        var recorder = new DefaultAuditEventRecorder(mockPublisher.Object, TimeProvider.System);
+        var recorder = CreateRecorder(mockPublisher.Object);
 
         await recorder.RecordSessionCreatedAsync(
             mockContext.Object,
@@ -711,7 +725,7 @@ public sealed class DefaultAuditEventRecorderTests : IDisposable
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
 
-        var recorder = new DefaultAuditEventRecorder(mockPublisher.Object, TimeProvider.System);
+        var recorder = CreateRecorder(mockPublisher.Object);
 
         await recorder.RecordSessionTerminatedAsync(
             mockContext.Object,
@@ -769,7 +783,7 @@ public sealed class DefaultAuditEventRecorderTests : IDisposable
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
 
-        var recorder = new DefaultAuditEventRecorder(mockPublisher.Object, TimeProvider.System);
+        var recorder = CreateRecorder(mockPublisher.Object);
 
         await recorder.RecordUserInfoAccessedAsync(
             mockContext.Object,
@@ -824,7 +838,7 @@ public sealed class DefaultAuditEventRecorderTests : IDisposable
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
 
-        var recorder = new DefaultAuditEventRecorder(mockPublisher.Object, TimeProvider.System);
+        var recorder = CreateRecorder(mockPublisher.Object);
 
         await recorder.RecordUserInfoAccessDeniedAsync(
             mockContext.Object,
@@ -872,7 +886,7 @@ public sealed class DefaultAuditEventRecorderTests : IDisposable
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
 
-        var recorder = new DefaultAuditEventRecorder(mockPublisher.Object, TimeProvider.System);
+        var recorder = CreateRecorder(mockPublisher.Object);
 
         await recorder.RecordUserInfoAccessDeniedAsync(
             mockContext.Object,
@@ -894,6 +908,328 @@ public sealed class DefaultAuditEventRecorderTests : IDisposable
         Assert.Equal(OpenIdProtocol.ErrorCodes.InvalidToken, captured.Error?.Code);
         Assert.Empty(captured.ClaimNames);
         Assert.False(captured.HasAuditDetails);
+    }
+
+    #endregion
+
+    #region Self-Service Credential Tests
+
+    [Fact]
+    public async Task RecordPasswordChangedAsync_Always_PublishesSuccessAuditEventWithTheAccount()
+    {
+        var captured = await RecordAsync<PasswordChangeAuditEvent>(
+            (recorder, openIdContext) =>
+                recorder.RecordPasswordChangedAsync(openIdContext, "subject-1", "account-1")
+        );
+
+        Assert.Equal("password.change", captured.EventName);
+        Assert.Equal(AuditEventCategories.Authentication, captured.EventCategory);
+        Assert.Equal(AuditEventSources.OpenId, captured.EventSource);
+        Assert.Equal(AuditOutcome.Success, captured.Outcome);
+        Assert.Equal("tenant-1", captured.TenantId);
+        Assert.Equal("production", captured.TenantEnvironmentType);
+        Assert.Equal("subject-1", captured.SubjectId);
+        Assert.Equal("account-1", captured.LocalAccountId);
+        Assert.Equal(AuditActor.EndUser("subject-1"), captured.Actor);
+        Assert.Equal("api/authorize", captured.Request?.Endpoint);
+        Assert.Null(captured.Error);
+        Assert.Equal(7, captured.EventId.Version);
+    }
+
+    [Fact]
+    public async Task RecordPasswordChangeFailedAsync_Always_PublishesFailureAuditEventWithError()
+    {
+        var captured = await RecordAsync<PasswordChangeAuditEvent>(
+            (recorder, openIdContext) =>
+                recorder.RecordPasswordChangeFailedAsync(
+                    openIdContext,
+                    "subject-1",
+                    "account-1",
+                    "invalid_current_password",
+                    CancellationToken.None
+                )
+        );
+
+        Assert.Equal("password.change", captured.EventName);
+        Assert.Equal(AuditOutcome.Failure, captured.Outcome);
+        Assert.Equal(AuditSeverities.Warning, captured.Severity);
+        Assert.Equal("subject-1", captured.SubjectId);
+        Assert.Equal("account-1", captured.LocalAccountId);
+        Assert.Equal(AuditActor.EndUser("subject-1"), captured.Actor);
+        Assert.Equal("invalid_current_password", captured.Error?.Code);
+    }
+
+    [Fact]
+    public async Task RecordPasswordResetRequestedAsync_Always_PublishesSuccessAuditEventWithTheAccount()
+    {
+        var captured = await RecordAsync<PasswordResetRequestAuditEvent>(
+            (recorder, openIdContext) =>
+                recorder.RecordPasswordResetRequestedAsync(
+                    openIdContext,
+                    "subject-1",
+                    "account-1",
+                    CancellationToken.None
+                )
+        );
+
+        Assert.Equal("password.reset_request", captured.EventName);
+        Assert.Equal(AuditOutcome.Success, captured.Outcome);
+        Assert.Equal("subject-1", captured.SubjectId);
+        Assert.Equal("account-1", captured.LocalAccountId);
+        Assert.Equal(AuditActor.EndUser("subject-1"), captured.Actor);
+        Assert.Null(captured.AttemptedUsername);
+        Assert.Null(captured.Error);
+    }
+
+    [Fact]
+    public async Task RecordPasswordResetRequestedAsync_WithoutASubject_PublishesAnAnonymousActor()
+    {
+        var captured = await RecordAsync<PasswordResetRequestAuditEvent>(
+            (recorder, openIdContext) =>
+                recorder.RecordPasswordResetRequestedAsync(
+                    openIdContext,
+                    subjectId: null,
+                    "account-1",
+                    CancellationToken.None
+                )
+        );
+
+        Assert.Null(captured.SubjectId);
+        Assert.Equal("account-1", captured.LocalAccountId);
+        Assert.Equal(AuditActor.Anonymous, captured.Actor);
+    }
+
+    [Fact]
+    public async Task RecordPasswordResetRequestFailedAsync_Always_PublishesFailureAuditEventWithTheUserName()
+    {
+        var captured = await RecordAsync<PasswordResetRequestAuditEvent>(
+            (recorder, openIdContext) =>
+                recorder.RecordPasswordResetRequestFailedAsync(
+                    openIdContext,
+                    "account_not_eligible",
+                    "attempted-user",
+                    CancellationToken.None
+                )
+        );
+
+        Assert.Equal("password.reset_request", captured.EventName);
+        Assert.Equal(AuditOutcome.Failure, captured.Outcome);
+        Assert.Null(captured.SubjectId);
+        Assert.Null(captured.LocalAccountId);
+        Assert.Equal("attempted-user", captured.AttemptedUsername);
+        Assert.Equal(AuditActor.Anonymous, captured.Actor);
+        Assert.Equal("account_not_eligible", captured.Error?.Code);
+    }
+
+    [Fact]
+    public async Task RecordPasswordResetAsync_Always_PublishesSuccessAuditEventWithTheAccount()
+    {
+        var captured = await RecordAsync<PasswordResetAuditEvent>(
+            (recorder, openIdContext) =>
+                recorder.RecordPasswordResetAsync(openIdContext, "subject-1", "account-1")
+        );
+
+        Assert.Equal("password.reset", captured.EventName);
+        Assert.Equal(AuditOutcome.Success, captured.Outcome);
+        Assert.Equal("subject-1", captured.SubjectId);
+        Assert.Equal("account-1", captured.LocalAccountId);
+        Assert.Equal(AuditActor.EndUser("subject-1"), captured.Actor);
+        Assert.Null(captured.Error);
+    }
+
+    [Fact]
+    public async Task RecordPasswordResetFailedAsync_Always_PublishesFailureAuditEventWithError()
+    {
+        var captured = await RecordAsync<PasswordResetAuditEvent>(
+            (recorder, openIdContext) =>
+                recorder.RecordPasswordResetFailedAsync(
+                    openIdContext,
+                    subjectId: null,
+                    localAccountId: null,
+                    "invalid_code",
+                    CancellationToken.None
+                )
+        );
+
+        Assert.Equal("password.reset", captured.EventName);
+        Assert.Equal(AuditOutcome.Failure, captured.Outcome);
+        Assert.Null(captured.SubjectId);
+        Assert.Null(captured.LocalAccountId);
+        Assert.Equal(AuditActor.Anonymous, captured.Actor);
+        Assert.Equal("invalid_code", captured.Error?.Code);
+    }
+
+    [Fact]
+    public async Task RecordEmailVerifiedAsync_Always_PublishesSuccessAuditEventWithTheAccount()
+    {
+        var captured = await RecordAsync<EmailVerificationAuditEvent>(
+            (recorder, openIdContext) =>
+                recorder.RecordEmailVerifiedAsync(openIdContext, "subject-1", "account-1")
+        );
+
+        Assert.Equal("email.verification", captured.EventName);
+        Assert.Equal(AuditOutcome.Success, captured.Outcome);
+        Assert.Equal("subject-1", captured.SubjectId);
+        Assert.Equal("account-1", captured.LocalAccountId);
+        Assert.Equal(AuditActor.EndUser("subject-1"), captured.Actor);
+        Assert.Null(captured.Error);
+    }
+
+    [Fact]
+    public async Task RecordEmailVerificationFailedAsync_Always_PublishesFailureAuditEventWithError()
+    {
+        var captured = await RecordAsync<EmailVerificationAuditEvent>(
+            (recorder, openIdContext) =>
+                recorder.RecordEmailVerificationFailedAsync(
+                    openIdContext,
+                    "subject-1",
+                    "account-1",
+                    "invalid_code",
+                    CancellationToken.None
+                )
+        );
+
+        Assert.Equal("email.verification", captured.EventName);
+        Assert.Equal(AuditOutcome.Failure, captured.Outcome);
+        Assert.Equal("subject-1", captured.SubjectId);
+        Assert.Equal("account-1", captured.LocalAccountId);
+        Assert.Equal(AuditActor.EndUser("subject-1"), captured.Actor);
+        Assert.Equal("invalid_code", captured.Error?.Code);
+    }
+
+    [Fact]
+    public async Task RecordSecondFactorVerifiedAsync_Always_PublishesSuccessAuditEventWithTheFactor()
+    {
+        var captured = await RecordAsync<SecondFactorAuditEvent>(
+            (recorder, openIdContext) =>
+                recorder.RecordSecondFactorVerifiedAsync(
+                    openIdContext,
+                    "subject-1",
+                    "account-1",
+                    AuditCredentialFactors.EmailCode
+                )
+        );
+
+        Assert.Equal("subject.second_factor", captured.EventName);
+        Assert.Equal(AuditOutcome.Success, captured.Outcome);
+        Assert.Equal("subject-1", captured.SubjectId);
+        Assert.Equal("account-1", captured.LocalAccountId);
+        Assert.Equal("email_code", captured.Factor);
+        Assert.Equal(AuditActor.EndUser("subject-1"), captured.Actor);
+        Assert.Null(captured.Error);
+    }
+
+    [Fact]
+    public async Task RecordSecondFactorFailedAsync_Always_PublishesFailureAuditEventWithTheFactor()
+    {
+        var captured = await RecordAsync<SecondFactorAuditEvent>(
+            (recorder, openIdContext) =>
+                recorder.RecordSecondFactorFailedAsync(
+                    openIdContext,
+                    "subject-1",
+                    localAccountId: null,
+                    AuditCredentialFactors.EmailCode,
+                    "no_email",
+                    CancellationToken.None
+                )
+        );
+
+        Assert.Equal("subject.second_factor", captured.EventName);
+        Assert.Equal(AuditOutcome.Failure, captured.Outcome);
+        Assert.Equal("subject-1", captured.SubjectId);
+        Assert.Null(captured.LocalAccountId);
+        Assert.Equal("email_code", captured.Factor);
+        Assert.Equal(AuditActor.EndUser("subject-1"), captured.Actor);
+        Assert.Equal("no_email", captured.Error?.Code);
+    }
+
+    [Fact]
+    public async Task RecordPasswordChangedAsync_Always_PublishesOnATokenOfItsOwn()
+    {
+        var openIdContext = CreateAuthorizeContext();
+        var mockPublisher = MockRepository.Create<IEventPublisher>();
+        mockPublisher
+            .Setup(x =>
+                x.PublishAsync(
+                    It.IsAny<PasswordChangeAuditEvent>(),
+                    It.Is<CancellationToken>(token =>
+                        token.CanBeCanceled && !token.IsCancellationRequested
+                    )
+                )
+            )
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable();
+        var recorder = CreateRecorder(mockPublisher.Object);
+
+        await recorder.RecordPasswordChangedAsync(openIdContext, "subject-1", "account-1");
+    }
+
+    [Fact]
+    public async Task RecordPasswordResetAsync_WhenThePublishFails_LogsAndDoesNotThrow()
+    {
+        var openIdContext = CreateAuthorizeContext();
+        var exception = new InvalidOperationException("The publish failed.");
+        var mockPublisher = MockRepository.Create<IEventPublisher>();
+        mockPublisher
+            .Setup(x =>
+                x.PublishAsync(It.IsAny<PasswordResetAuditEvent>(), It.IsAny<CancellationToken>())
+            )
+            .Throws(exception)
+            .Verifiable();
+        var logger = new FakeLogger<DefaultAuditEventRecorder>();
+        var recorder = CreateRecorder(mockPublisher.Object, logger);
+
+        await recorder.RecordPasswordResetAsync(openIdContext, "subject-1", "account-1");
+
+        var record = Assert.Single(logger.Collector.GetSnapshot());
+        Assert.Equal(EventIds.AuditRecordPublishFailed, record.Id.Id);
+        Assert.Equal(LogLevel.Error, record.Level);
+        Assert.Same(exception, record.Exception);
+    }
+
+    private OpenIdContext CreateAuthorizeContext()
+    {
+        var mockContext = MockRepository.Create<OpenIdContext>();
+        var mockTenant = MockRepository.Create<OpenIdTenant>();
+
+        mockContext.Setup(x => x.Tenant).Returns(mockTenant.Object).Verifiable();
+        mockTenant.Setup(x => x.TenantId).Returns("tenant-1").Verifiable();
+        SetupTenantEnvironmentType(mockTenant, "production");
+        mockContext.Setup(x => x.Http).Returns(CreateHttpContext("api/authorize")).Verifiable();
+
+        return mockContext.Object;
+    }
+
+    private async ValueTask<TEvent> RecordAsync<TEvent>(
+        Func<DefaultAuditEventRecorder, OpenIdContext, ValueTask> record,
+        CancellationToken cancellationToken = default
+    )
+        where TEvent : class, IAuditEvent
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var mockContext = MockRepository.Create<OpenIdContext>();
+        var mockTenant = MockRepository.Create<OpenIdTenant>();
+        var mockPublisher = MockRepository.Create<IEventPublisher>();
+
+        mockContext.Setup(x => x.Tenant).Returns(mockTenant.Object).Verifiable();
+        mockTenant.Setup(x => x.TenantId).Returns("tenant-1").Verifiable();
+        SetupTenantEnvironmentType(mockTenant, "production");
+        mockContext.Setup(x => x.Http).Returns(CreateHttpContext("api/authorize")).Verifiable();
+
+        TEvent? captured = null;
+        mockPublisher
+            .Setup(x => x.PublishAsync(It.IsAny<TEvent>(), It.IsAny<CancellationToken>()))
+            .Callback((TEvent auditEvent, CancellationToken _) => captured = auditEvent)
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable();
+
+        var recorder = CreateRecorder(mockPublisher.Object);
+
+        await record(recorder, mockContext.Object);
+
+        Assert.NotNull(captured);
+        return captured;
     }
 
     #endregion

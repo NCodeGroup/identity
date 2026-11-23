@@ -618,13 +618,16 @@ with its encryption context, which holds a key id and an owner, never secret mat
 
 Then set `secretProtection.rootKeyProvider=aws-kms`,
 `secretProtection.awsKms.keyArn=arn:aws:kms:<region>:<account>:alias/ncode-identity-root`, and
-`secretProtection.awsKms.webIdentity.roleArn=arn:aws:iam::<account>:role/ncode-identity-root-key`;
-`ci/aws-kms-values.yaml` shows a release. The chart sets `AWS_REGION` from the key's ARN. When `roleArn` is set, it also
-mounts a projected service-account token (audience `secretProtection.awsKms.webIdentity.audience`, default
-`sts.amazonaws.com`, valid for `tokenExpirationSeconds`, at least 600) read-only at
-`/var/run/secrets/tokens/aws/token`, and sets `AWS_ROLE_ARN`, `AWS_WEB_IDENTITY_TOKEN_FILE`, and `AWS_ROLE_SESSION_NAME`
-(the release's full name). It does this only for the `aws-kms` provider, so a pod that uses another provider never
-carries AWS credentials. The pod still does not mount the default service-account token.
+`aws.webIdentity.roleArn=arn:aws:iam::<account>:role/ncode-identity-root-key`; `ci/aws-kms-values.yaml` shows a release.
+The chart sets `AWS_REGION` from the key's ARN. When `roleArn` is set, it also mounts a projected service-account token
+(audience `aws.webIdentity.audience`, default `sts.amazonaws.com`, valid for `tokenExpirationSeconds`, at least 600)
+read-only at `/var/run/secrets/tokens/aws/token`, and sets `AWS_ROLE_ARN`, `AWS_WEB_IDENTITY_TOKEN_FILE`, and
+`AWS_ROLE_SESSION_NAME` (the release's full name). It does this only for a pod that uses AWS KMS, and for the host's
+Deployment when it sends mail through Amazon SES, so a pod that uses neither never carries AWS credentials. The pod
+still does not mount the default service-account token.
+
+`aws.webIdentity` is one AWS identity for the pod: one IAM role serves every AWS service the pod calls, AWS KMS and
+Amazon SES alike, so the role's policy allows the actions of each service the pod uses.
 
 ### Azure Key Vault
 
@@ -732,7 +735,7 @@ deployment's root key.
 
 **Credentials.** The pods carry a provider's workload credentials when it is the root key provider, is listed in
 `secretProtection.ownerRootKeys.providers` or is enabled under `secretProtection.remoteKeyProviders`: for AWS KMS the
-web identity (`secretProtection.awsKms.webIdentity.roleArn`), for Azure Key Vault the workload identity
+web identity (`aws.webIdentity.roleArn`), for Azure Key Vault the workload identity
 (`secretProtection.azureKeyVault.workloadIdentity.clientId` and `tenantId`), and for Google Cloud KMS the federation
 (`secretProtection.googleCloudKms.workloadIdentityFederation.provider`), each set up as in the sections above. The
 provider's own key values (`awsKms.keyArn`, `azureKeyVault.keyId`, `googleCloudKms.keyName`) are rendered only when it
@@ -744,10 +747,9 @@ credentials of a provider that is neither.
 **What a tenant grants.** The tenant gives the deployment's identity the permission to wrap and unwrap with its one key,
 and nothing else; the server calls no other operation:
 
-- AWS KMS: the key policy allows the IAM role in `secretProtection.awsKms.webIdentity.roleArn` to call `kms:Encrypt` and
-  `kms:Decrypt` on the key, as the policy in [AWS KMS](#aws-kms) shows, including the condition on the encryption
-  context key `ncode-identity:root-context`. For a key in another AWS account, the role's own policy must also allow the
-  key.
+- AWS KMS: the key policy allows the IAM role in `aws.webIdentity.roleArn` to call `kms:Encrypt` and `kms:Decrypt` on
+  the key, as the policy in [AWS KMS](#aws-kms) shows, including the condition on the encryption context key
+  `ncode-identity:root-context`. For a key in another AWS account, the role's own policy must also allow the key.
 - Azure Key Vault: assign the deployment's identity the role "Key Vault Crypto Service Encryption User" on the key only,
   or, for a key in a Managed HSM, the local role "Managed HSM Crypto Service Encryption User" at the key's scope.
 - Google Cloud KMS: grant `roles/cloudkms.cryptoKeyEncrypterDecrypter` on the key to the federated principal, or to the
@@ -835,7 +837,7 @@ secretProtection:
 ```
 
 **Credentials.** An enabled provider reuses the credentials set up for it in the sections above, so a pod carries them:
-for AWS KMS the web identity (`secretProtection.awsKms.webIdentity.roleArn`), for Azure Key Vault the workload identity
+for AWS KMS the web identity (`aws.webIdentity.roleArn`), for Azure Key Vault the workload identity
 (`secretProtection.azureKeyVault.workloadIdentity.clientId` and `tenantId`), and for Google Cloud KMS the federation
 (`secretProtection.googleCloudKms.workloadIdentityFederation.provider`). A provider with no workload-identity values
 uses the pod's ambient identity. The chart renders such a provider on purpose, as it does a root key provider, because a
@@ -1000,10 +1002,9 @@ managementConsole:
           curve: P-256
     dpop:
       pemSecret: identity-mgmt-dpop-key
-  secretProtection:
-    awsKms:
-      webIdentity:
-        roleArn: arn:aws:iam::111122223333:role/ncode-identity-management-console
+  aws:
+    webIdentity:
+      roleArn: arn:aws:iam::111122223333:role/ncode-identity-management-console
 ```
 
 The chart renders each remote key as `KeyRings__<ring>__RemoteKeys__<kid>__Provider`, `__KeyId`, `__Algorithm`,
@@ -1013,16 +1014,16 @@ reads every key where the key's own identifier names, so the chart renders no
 `SecretProtection__RemoteKeyProviders__…` setting for it
 ([ADR-1474](../../docs/decisions/1474-a-remote-key-provider-is-described-by-data-and-reads-signs-and-decrypts-by-key-identifier.md)).
 
-**Credentials.** The console has an identity of its own under `managementConsole.secretProtection`:
-`awsKms.webIdentity`, `azureKeyVault.workloadIdentity` and `googleCloudKms.workloadIdentityFederation`, with the same
-fields and defaults as the server's `secretProtection.*` of the same names. The chart mounts them at the same paths and
-sets the same environment variables as for the server, and renders the ConfigMap `<console full name>-google-cloud`
-for a Google federation, with a checksum annotation on the pod so a change restarts it. The federated credentials trust
-the console's service account, `system:serviceaccount:<namespace>:<service account>`, where the service account is
-`managementConsole.serviceAccount.name`, or the console's full name, `<release full name>-management-console`, when
-that is empty. A value left empty means the pod's ambient identity. A console pod carries a vendor's credentials only
-when a console remote key names that vendor: the server never carries the console's identity, nor the console the
-server's.
+**Credentials.** The console has an identity of its own: `managementConsole.aws.webIdentity`, and under
+`managementConsole.secretProtection` `azureKeyVault.workloadIdentity` and `googleCloudKms.workloadIdentityFederation`,
+with the same fields and defaults as the server's `aws.webIdentity` and `secretProtection.*` of the same names. The
+chart mounts them at the same paths and sets the same environment variables as for the server, and renders the ConfigMap
+`<console full name>-google-cloud` for a Google federation, with a checksum annotation on the pod so a change restarts
+it. The federated credentials trust the console's service account,
+`system:serviceaccount:<namespace>:<service account>`, where the service account is
+`managementConsole.serviceAccount.name`, or the console's full name, `<release full name>-management-console`, when that
+is empty. A value left empty means the pod's ambient identity. A console pod carries a vendor's credentials only when a
+console remote key names that vendor: the server never carries the console's identity, nor the console the server's.
 
 **What the identity needs.** The console only reads and uses a key:
 
@@ -1666,3 +1667,45 @@ The image writes one JSON object per line to standard output, with a UTC timesta
 and its exception in one record
 ([ADR-1248](../../docs/decisions/1248-the-host-console-and-directory-images-are-chiseled-non-root-multi-arch-digest-pinned-and-log-one-line-json.md)). Set
 `Logging__Console__FormatterName=simple` in `extraEnv` to write text instead.
+
+### Load shedding
+
+`admission.concurrencyLimit` sets `OpenId:Admission:ConcurrencyLimit`, the most metered protocol requests one replica
+serves at once. A tenant's requests may fill the share of it that the tenant setting `admission_capacity_percent` gives,
+100% when unset; a request past it is answered `503` with `Retry-After`, before any rate limit counts it, and discovery
+and the JSON Web Key Set are never shed. Leave it unset, the default, to shed nothing; set it from a load test of the
+release on the nodes it runs on
+([ADR-1523](../../docs/decisions/1523-a-replica-sheds-a-tenants-protocol-requests-once-its-in-flight-requests-fill-the-tenants-share-of-its-capacity.md)).
+
+### Outbound mail
+
+`mail.smtp.*` sets the host's `Mail:Smtp` section, the SMTP server that the host mails its email codes to, such as
+Amazon SES's SMTP endpoint in the cell's region
+([ADR-1532](../../docs/decisions/1532-outbound-mail-is-a-port-that-composes-each-queued-message-at-delivery-for-a-replaceable-transport-with-smtp-and-amazon-ses-adapters.md)).
+The chart renders the section only while `mail.smtp.host` is set; unset, the host sends no mail. `mail.smtp.from` is
+required with the host and is the address every message is sent from, which the provider authorizes. `mail.smtp.port` is
+`587` by default and `mail.smtp.tls` is `StartTls` or `ImplicitTls`: the chart refuses `None`, which sends in clear.
+`mail.smtp.fromName` sets the sender's display name. `mail.smtp.existingSecret` names a Secret in the release namespace
+whose `username` and `password` keys hold the credentials the connection authenticates with; leave it empty for a server
+that needs none. The Secret is read when a pod starts. The settings reach only the host's Deployment, not the setup or
+secret protection Jobs, which send no mail, so those Jobs never hold the SMTP password. The chart refuses
+`mail.smtp.from`, `mail.smtp.fromName` or `mail.smtp.existingSecret` while `mail.smtp.host` is empty. A setting beyond
+these, such as `Mail__Smtp__Timeout`, goes through `extraEnv`.
+
+`mail.amazonSes.*` sets the host's `Mail:AmazonSes` section, which sends the host's mail through the Amazon SES v2 API
+in `mail.amazonSes.region`, the cell's AWS region, as the pod's AWS role: no password exists. The host's Deployment, the
+one pod that sends mail, carries the role in `aws.webIdentity.roleArn`, the same role that serves AWS KMS, so that role
+also needs `ses:SendEmail` and `ses:SendRawEmail` on the sending identity, because the transport sends the raw MIME
+message through the v2 `SendEmail` API (`ci/amazon-ses-values.yaml` shows a release). The setup and secret protection
+Jobs carry the role only when they use AWS KMS. Without a role, the transport signs in with the pod's ambient identity,
+such as EKS Pod Identity, so the chart refuses no region for the lack of one. The chart renders the section only while
+`mail.amazonSes.region` is set, and a host sends through one transport, so the chart refuses `mail.smtp.host` and
+`mail.amazonSes.region` together. `mail.amazonSes.from` is required with the region and is the address every message is
+sent from, an identity SES verifies. `mail.amazonSes.fromName` sets the sender's display name,
+`mail.amazonSes.fromIdentityArn` names the identity that authorizes a sender from another account,
+`mail.amazonSes.configurationSetName` names a configuration set, and `mail.amazonSes.tags` is a map of tags SES attaches
+to each message, at most 50, with names of letters and digits joined by single `_`, `.` or `-` characters that differ
+from each other in more than case, because each name becomes part of an environment variable's name and configuration
+keys ignore case, and values of `A-Z a-z 0-9 _ . @ -`. The chart refuses `region` outside the form `us-east-1` and
+refuses every other `mail.amazonSes.*` setting while `region` is empty. A setting beyond these, such as
+`Mail__AmazonSes__Timeout`, goes through `extraEnv`.
