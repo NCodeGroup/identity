@@ -92,7 +92,7 @@ function ConnectionGeneralTab({
   const [updateConnection, { isLoading }] = useUpdateConnectionMutation();
   const [displayName, setDisplayName] = useState(connection.displayName);
   const [isEnabled, setIsEnabled] = useState(connection.isEnabled);
-  const [store, setStore] = useState(connectionStore(connection));
+  const [store, setStore] = useState(() => connectionStore(connection));
   const [error, setError] = useState<string>();
   const [saved, setSaved] = useState(false);
 
