@@ -239,6 +239,84 @@ public sealed class LocalAccountStoreTests : IDisposable
 
     #endregion
 
+    #region GetByIdsAsync Tests
+
+    [Fact]
+    public async Task GetByIdsAsync_WhenSomeIdentifiersMatch_ReturnsOnlyTheMatchingAccounts()
+    {
+        await AddAndDetachAsync(CreateAccount("account-1", "alice"), CancellationToken.None);
+        await AddAndDetachAsync(CreateAccount("account-2", "bob"), CancellationToken.None);
+        await AddAndDetachAsync(CreateAccount("account-3", "carol"), CancellationToken.None);
+
+        var loaded = await Store.GetByIdsAsync(
+            ["account-1", "account-2", "missing"],
+            CancellationToken.None
+        );
+
+        var ids = loaded.Select(account => account.LocalAccountId).Order().ToList();
+        Assert.Equal(["account-1", "account-2"], ids);
+    }
+
+    [Fact]
+    public async Task GetByIdsAsync_WhenCaseDiffers_IsCaseInsensitive()
+    {
+        await AddAndDetachAsync(CreateAccount("Account-1", "alice"), CancellationToken.None);
+
+        var loaded = await Store.GetByIdsAsync(["account-1"], CancellationToken.None);
+
+        var account = Assert.Single(loaded);
+        Assert.Equal("Account-1", account.LocalAccountId);
+    }
+
+    [Fact]
+    public async Task GetByIdsAsync_WhenNoIdentifiers_ReturnsNone()
+    {
+        var loaded = await Store.GetByIdsAsync([], CancellationToken.None);
+
+        Assert.Empty(loaded);
+    }
+
+    #endregion
+
+    #region GetByUserNamesAsync Tests
+
+    [Fact]
+    public async Task GetByUserNamesAsync_WhenSomeUserNamesMatch_ReturnsOnlyTheMatchingAccounts()
+    {
+        await AddAndDetachAsync(CreateAccount("account-1", "alice"), CancellationToken.None);
+        await AddAndDetachAsync(CreateAccount("account-2", "bob"), CancellationToken.None);
+        await AddAndDetachAsync(CreateAccount("account-3", "carol"), CancellationToken.None);
+
+        var loaded = await Store.GetByUserNamesAsync(
+            ["alice", "bob", "nobody"],
+            CancellationToken.None
+        );
+
+        var ids = loaded.Select(account => account.LocalAccountId).Order().ToList();
+        Assert.Equal(["account-1", "account-2"], ids);
+    }
+
+    [Fact]
+    public async Task GetByUserNamesAsync_WhenCaseDiffers_IsCaseInsensitive()
+    {
+        await AddAndDetachAsync(CreateAccount("account-1", "Alice"), CancellationToken.None);
+
+        var loaded = await Store.GetByUserNamesAsync(["alice"], CancellationToken.None);
+
+        var account = Assert.Single(loaded);
+        Assert.Equal("Alice", account.UserName);
+    }
+
+    [Fact]
+    public async Task GetByUserNamesAsync_WhenNoUserNames_ReturnsNone()
+    {
+        var loaded = await Store.GetByUserNamesAsync([], CancellationToken.None);
+
+        Assert.Empty(loaded);
+    }
+
+    #endregion
+
     #region VerifyCredentialAsync Tests
 
     [Fact]

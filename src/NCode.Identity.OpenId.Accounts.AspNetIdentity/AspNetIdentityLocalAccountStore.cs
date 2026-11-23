@@ -359,6 +359,39 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
         return value;
     }
 
+    /// <summary>
+    /// Creates the exception that a lookup by user name throws in an unscoped scope, because a user name is unique only
+    /// within a tenant.
+    /// </summary>
+    /// <returns>The <see cref="InvalidOperationException"/> to throw.</returns>
+    private static InvalidOperationException CreateUserNameScopeException() =>
+        new(
+            "A local account is found by user name only inside a tenant scope, because a user name is unique only within a tenant."
+        );
+
+    /// <summary>
+    /// Maps each user of a list to a <see cref="PersistedLocalAccount"/>.
+    /// </summary>
+    /// <param name="userManager">The <see cref="UserManager{TUser}"/> that reads the claims and lockout.</param>
+    /// <param name="users">The stored users to map.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <returns>The local accounts that the users map to, in the order of the users.</returns>
+    private static async ValueTask<IReadOnlyList<PersistedLocalAccount>> MapAllAsync(
+        UserManager<TUser> userManager,
+        List<TUser> users,
+        CancellationToken cancellationToken
+    )
+    {
+        var accounts = new List<PersistedLocalAccount>(users.Count);
+        foreach (var user in users)
+        {
+            var account = await MapAsync(userManager, user, cancellationToken);
+            accounts.Add(account);
+        }
+
+        return accounts;
+    }
+
     private IServiceScopeFactory ServiceScopeFactory { get; } = serviceScopeFactory;
     private IStoreProvider StoreProvider { get; } = storeProvider;
     private AspNetIdentityDummyPasswordHash<TUser> DummyPasswordHash { get; } = dummyPasswordHash;
@@ -592,6 +625,59 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
 
         var user = await FindByNameAsync(userManager, userName, cancellationToken);
         return user is null ? null : await MapAsync(userManager, user, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public async ValueTask<IReadOnlyList<PersistedLocalAccount>> GetByIdsAsync(
+        IReadOnlyCollection<string> localAccountIds,
+        CancellationToken cancellationToken
+    )
+    {
+        if (localAccountIds.Count == 0)
+        {
+            return [];
+        }
+
+        await using var scope = ServiceScopeFactory.CreateAsyncScope();
+        var userManager = scope.ServiceProvider.GetRequiredService<UserManager<TUser>>();
+
+        var ids = new List<string>(localAccountIds);
+        var matchingUsers = GetTenantUsers(userManager).Where(user => ids.Contains(user.Id));
+        var users = await ToListAsync(matchingUsers, cancellationToken);
+        return await MapAllAsync(userManager, users, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public async ValueTask<IReadOnlyList<PersistedLocalAccount>> GetByUserNamesAsync(
+        IReadOnlyCollection<string> userNames,
+        CancellationToken cancellationToken
+    )
+    {
+        if (userNames.Count == 0)
+        {
+            return [];
+        }
+
+        await using var scope = ServiceScopeFactory.CreateAsyncScope();
+        var userManager = scope.ServiceProvider.GetRequiredService<UserManager<TUser>>();
+
+        // As FindByNameAsync: a user name is unique only within a tenant.
+        if (GetCurrentTenantId() is null)
+        {
+            return AmbientTenantAccessor.IsUnscoped ? throw CreateUserNameScopeException() : [];
+        }
+
+        var normalizedNames = new List<string?>(userNames.Count);
+        foreach (var userName in userNames)
+        {
+            var normalizedName = userManager.NormalizeName(userName);
+            normalizedNames.Add(normalizedName);
+        }
+
+        var matchingUsers = GetTenantUsers(userManager)
+            .Where(user => normalizedNames.Contains(user.NormalizedUserName));
+        var users = await ToListAsync(matchingUsers, cancellationToken);
+        return await MapAllAsync(userManager, users, cancellationToken);
     }
 
     /// <inheritdoc />
@@ -944,11 +1030,7 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
         var tenantId = GetCurrentTenantId();
         if (tenantId is null)
         {
-            return AmbientTenantAccessor.IsUnscoped
-                ? throw new InvalidOperationException(
-                    "A local account is found by user name only inside a tenant scope, because a user name is unique only within a tenant."
-                )
-                : null;
+            return AmbientTenantAccessor.IsUnscoped ? throw CreateUserNameScopeException() : null;
         }
 
         var user = await userManager.FindByNameAsync(userName);

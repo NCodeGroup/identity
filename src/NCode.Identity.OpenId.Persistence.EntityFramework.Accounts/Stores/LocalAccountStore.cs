@@ -245,6 +245,60 @@ internal sealed class LocalAccountStore(
     }
 
     /// <inheritdoc />
+    public async ValueTask<IReadOnlyList<PersistedLocalAccount>> GetByIdsAsync(
+        IReadOnlyCollection<string> localAccountIds,
+        CancellationToken cancellationToken
+    )
+    {
+        if (localAccountIds.Count == 0)
+        {
+            return [];
+        }
+
+        var normalizedIds = new List<string>(localAccountIds.Count);
+        foreach (var localAccountId in localAccountIds)
+        {
+            var normalizedId = Normalize(localAccountId);
+            normalizedIds.Add(normalizedId);
+        }
+
+        var entities = await Accounts
+            .Include(entity => entity.Tenant)
+            .Include(entity => entity.Claims)
+            .Where(entity => normalizedIds.Contains(entity.NormalizedLocalAccountId))
+            .ToListAsync(cancellationToken);
+
+        return entities.Select(MapFromEntity).ToList();
+    }
+
+    /// <inheritdoc />
+    public async ValueTask<IReadOnlyList<PersistedLocalAccount>> GetByUserNamesAsync(
+        IReadOnlyCollection<string> userNames,
+        CancellationToken cancellationToken
+    )
+    {
+        if (userNames.Count == 0)
+        {
+            return [];
+        }
+
+        var normalizedUserNames = new List<string>(userNames.Count);
+        foreach (var userName in userNames)
+        {
+            var normalizedUserName = Normalize(userName);
+            normalizedUserNames.Add(normalizedUserName);
+        }
+
+        var entities = await Accounts
+            .Include(entity => entity.Tenant)
+            .Include(entity => entity.Claims)
+            .Where(entity => normalizedUserNames.Contains(entity.NormalizedUserName))
+            .ToListAsync(cancellationToken);
+
+        return entities.Select(MapFromEntity).ToList();
+    }
+
+    /// <inheritdoc />
     public async ValueTask RemoveAsync(string localAccountId, CancellationToken cancellationToken)
     {
         var entity = await GetEntityByIdOrDefaultAsync(localAccountId, cancellationToken);
