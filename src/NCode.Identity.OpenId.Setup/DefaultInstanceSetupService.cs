@@ -30,7 +30,9 @@ namespace NCode.Identity.OpenId.Setup;
 /// them, and the initialized mark are staged on one store manager and saved once, so the instance is initialized
 /// exactly when its root administrator exists. The automation client is a platform-owned machine client that holds
 /// <see cref="BuiltInRoles.GlobalAdmin"/> at the platform node. Both clients are staged through
-/// <see cref="IClientCreator"/>, so each passes the same validation as a client that the management API creates.
+/// <see cref="IClientCreator"/>, so each passes the same validation as a client that the management API creates. Setup
+/// updates the singleton row that a host replica may have written for its generated token, and runs again, up to
+/// <see cref="MaxSetUpAttempts"/> times, when a replica changes that row while it runs.
 /// </summary>
 internal sealed class DefaultInstanceSetupService(
     IStoreManagerFactory storeManagerFactory,
@@ -46,6 +48,12 @@ internal sealed class DefaultInstanceSetupService(
 ) : IInstanceSetupService
 {
     private const string BffPathPrefix = "/bff";
+
+    /// <summary>
+    /// The number of attempts that <see cref="SetUpAsync"/> runs before it gives up because host replicas keep changing
+    /// the singleton setup row.
+    /// </summary>
+    internal const int MaxSetUpAttempts = 5;
 
     internal const string BffCallbackPath = BffPathPrefix + "/callback";
 
@@ -294,11 +302,62 @@ internal sealed class DefaultInstanceSetupService(
         // The platform's singleton setup row is read and written unscoped. See ADR-1018.
         using var unscopedScope = AmbientTenantAccessor.BeginUnscoped("instance setup");
 
+        var staging = new InstanceSetupStaging
+        {
+            TenantId = tenantId,
+            Issuer = issuer,
+            UserName = root.UserName,
+            Password = password,
+            Root = root,
+            ManagementConsole = consoleRegistration,
+            Automation = automationRegistration,
+        };
+
+        for (var attempt = 0; attempt < MaxSetUpAttempts; attempt++)
+        {
+            var result = await TrySetUpAsync(staging, cancellationToken);
+            if (result is not null)
+                return result;
+        }
+
+        throw new InvalidOperationException(
+            $"The instance setup row changed during each of the {MaxSetUpAttempts} setup attempts."
+        );
+    }
+
+    /// <summary>
+    /// Runs one attempt to set up the instance on a store manager of its own. The attempt returns
+    /// <see langword="null"/> when a host replica stored its setup token on the singleton row while the attempt ran, so
+    /// the caller runs another attempt.
+    /// </summary>
+    /// <param name="staging">The <see cref="InstanceSetupStaging"/> that carries the validated inputs of the
+    /// setup.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation, containing the
+    /// <see cref="InstanceSetupResult"/> of the attempt, or <see langword="null"/> when the attempt lost the singleton
+    /// row to a host replica.</returns>
+    private async ValueTask<InstanceSetupResult?> TrySetUpAsync(
+        InstanceSetupStaging staging,
+        CancellationToken cancellationToken
+    )
+    {
+        var tenantId = staging.TenantId;
+        var issuer = staging.Issuer;
+        var root = staging.Root;
+        var password = staging.Password;
+        var consoleRegistration = staging.ManagementConsole;
+        var automationRegistration = staging.Automation;
+
         await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
 
         var setupStore = storeManager.GetStore<IInstanceSetupStore>();
-        var existing = await setupStore.GetOrDefaultAsync(cancellationToken);
-        if (existing is { IsInitialized: true })
+
+        // A host replica that generates its setup token writes the same row, so setup adds the row in a unit of work of
+        // its own, where the first writer wins, and always updates it.
+        var existing =
+            await setupStore.GetOrDefaultAsync(cancellationToken)
+            ?? await InstanceSetupRecords.GetOrAddAsync(StoreManagerFactory, cancellationToken);
+        if (existing.IsInitialized)
             return CreateAlreadySetUpResult();
 
         string principalId;
@@ -312,7 +371,7 @@ internal sealed class DefaultInstanceSetupService(
         {
             var createRequest = new CreateLocalAccountRequest
             {
-                UserName = root.UserName,
+                UserName = staging.UserName,
                 DisplayName = root.DisplayName,
                 Password = password,
                 Email = root.Email,
@@ -387,7 +446,8 @@ internal sealed class DefaultInstanceSetupService(
             }
         }
 
-        var setup = existing ?? InstanceSetupRecords.Create();
+        // The row written is the one read or added above, so the update carries its concurrency token.
+        var setup = existing;
         setup.IsInitialized = true;
         setup.InitializedAt = TimeProvider.GetUtcNow();
         setup.InitializedByPrincipalId = principalId;
@@ -397,33 +457,18 @@ internal sealed class DefaultInstanceSetupService(
 
         try
         {
-            // The store reads an existing row from the database, so a row that is only staged is added, not updated,
-            // and the add copies the fields at the call.
-            if (existing is null)
-                await setupStore.AddAsync(setup, cancellationToken);
-            else
-                await setupStore.UpdateAsync(setup, cancellationToken);
-
+            await setupStore.UpdateAsync(setup, cancellationToken);
             await storeManager.SaveChangesAsync(cancellationToken);
         }
         catch (StoreConcurrencyException)
         {
-            // Another attempt marked the instance initialized between the read above and this write, so it won.
-            return CreateAlreadySetUpResult();
-        }
-        catch (Exception exception)
-            when (existing is null && exception is not OperationCanceledException)
-        {
-            // Another setup may have inserted the singleton row first. The persistence abstractions have no
-            // duplicate-key failure type, so the re-read of the row, not the exception type, decides it.
+            // The row changed between the read above and this write. Another setup marked the instance initialized, so
+            // it won; otherwise a replica stored its token in between, so the caller runs another attempt.
             var concurrent = await InstanceSetupRecords.FindAsync(
                 StoreManagerFactory,
                 cancellationToken
             );
-            if (concurrent is { IsInitialized: true })
-                return CreateAlreadySetUpResult();
-
-            throw;
+            return concurrent is { IsInitialized: true } ? CreateAlreadySetUpResult() : null;
         }
 
         Logger.RootAdministratorCreated(tenantId, principalId);
@@ -441,7 +486,7 @@ internal sealed class DefaultInstanceSetupService(
             {
                 TenantId = tenantId,
                 PrincipalId = principalId,
-                UserName = root.UserName,
+                UserName = staging.UserName,
                 DisplayName = displayName,
                 ManagementConsoleClientId = consoleClientId,
                 ManagementConsoleBaseUrl = consoleRegistration?.BaseUrl,
