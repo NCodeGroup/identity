@@ -731,6 +731,52 @@ public class BaseOwnableApiEndpointHandlerTests : IDisposable
         Assert.DoesNotContain("alice", problem.ProblemDetails.Detail);
     }
 
+    [Fact]
+    public async Task ProcessAddRoleAssignmentAsync_UnknownPrincipal_ReturnsBadRequestWithoutGrantingOrAuditing()
+    {
+        var authz = Authz(AuthorizationResult.Success());
+        var (factory, _) = StoreManager();
+        var directory = MockRepository.Create<IControlPlanePrincipalDirectory>();
+        directory
+            .Setup(x =>
+                x.FindAsync(
+                    It.Is<ControlPlanePrincipalQuery>(query =>
+                        query.PrincipalIds.SequenceEqual(new[] { "ghost-principal" })
+                    ),
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync([])
+            .Verifiable();
+        // A strict ownership service and recorder with no setup fail the test when they grant or audit.
+        var ownership = MockRepository.Create<IResourceOwnershipService>();
+        var recorder = MockRepository.Create<IManagementAuditRecorder>();
+        var node = ResourceNode.For(TenantId, ResourceNodeTypes.Client, ResourceId);
+
+        var handler = new TestHandler(
+            authz.Object,
+            factory.Object,
+            ownership.Object,
+            recorder.Object,
+            directory.Object
+        );
+        var roleList = CreateRoleList(node, RoleName, Operations.Create, Exists);
+        var result = await handler.ProcessAddRoleAssignmentAsync(
+            CreateHttpContext(),
+            roleList,
+            new AddRoleHolderRequest { PrincipalId = "ghost-principal" },
+            CancellationToken.None
+        );
+
+        var problem = Assert.IsType<ProblemHttpResult>(result);
+        Assert.Equal(StatusCodes.Status400BadRequest, problem.StatusCode);
+        Assert.Equal(
+            "No principal of the control plane has the identifier.",
+            problem.ProblemDetails.Detail
+        );
+        Assert.DoesNotContain("ghost-principal", problem.ProblemDetails.Detail);
+    }
+
     [Theory]
     [InlineData("p2", "alice")]
     [InlineData(null, null)]
@@ -1178,7 +1224,29 @@ public class BaseOwnableApiEndpointHandlerTests : IDisposable
         mock.Setup(x =>
                 x.FindAsync(It.IsAny<ControlPlanePrincipalQuery>(), It.IsAny<CancellationToken>())
             )
-            .ReturnsAsync([]);
+            .Returns(
+                (ControlPlanePrincipalQuery query, CancellationToken _) =>
+                    ValueTask.FromResult<
+                        IReadOnlyList<NCode.Identity.OpenId.Management.Contracts.PrincipalSummaryResource>
+                    >(
+                        query
+                            .PrincipalIds.Select(
+                                id => new NCode.Identity.OpenId.Management.Contracts.PrincipalSummaryResource
+                                {
+                                    PrincipalId = id,
+                                    PrincipalType = NCode
+                                        .Identity
+                                        .OpenId
+                                        .Management
+                                        .Principals
+                                        .PrincipalTypes
+                                        .Client,
+                                    DisplayName = id,
+                                }
+                            )
+                            .ToList()
+                    )
+            );
         return mock.Object;
     }
 }

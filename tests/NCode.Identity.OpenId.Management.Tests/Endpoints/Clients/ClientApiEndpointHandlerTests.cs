@@ -22,12 +22,12 @@ using NCode.Identity.OpenId.Contexts;
 using NCode.Identity.OpenId.Environments;
 using NCode.Identity.OpenId.GlobalDirectory;
 using NCode.Identity.OpenId.Management.Auditing;
-using NCode.Identity.OpenId.Management.ControlPlane;
 using NCode.Identity.OpenId.Management.Authorization;
 using NCode.Identity.OpenId.Management.Clients;
 using NCode.Identity.OpenId.Management.Contracts;
 using NCode.Identity.OpenId.Management.Contracts.Clients;
 using NCode.Identity.OpenId.Management.Contracts.Secrets;
+using NCode.Identity.OpenId.Management.ControlPlane;
 using NCode.Identity.OpenId.Management.Endpoints.Secrets;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
@@ -6020,7 +6020,29 @@ public sealed class ClientApiEndpointHandlerTests : IAsyncLifetime
         mock.Setup(x =>
                 x.FindAsync(It.IsAny<ControlPlanePrincipalQuery>(), It.IsAny<CancellationToken>())
             )
-            .ReturnsAsync([]);
+            .Returns(
+                (ControlPlanePrincipalQuery query, CancellationToken _) =>
+                    ValueTask.FromResult<
+                        IReadOnlyList<NCode.Identity.OpenId.Management.Contracts.PrincipalSummaryResource>
+                    >(
+                        query
+                            .PrincipalIds.Select(
+                                id => new NCode.Identity.OpenId.Management.Contracts.PrincipalSummaryResource
+                                {
+                                    PrincipalId = id,
+                                    PrincipalType = NCode
+                                        .Identity
+                                        .OpenId
+                                        .Management
+                                        .Principals
+                                        .PrincipalTypes
+                                        .Client,
+                                    DisplayName = id,
+                                }
+                            )
+                            .ToList()
+                    )
+            );
         return mock.Object;
     }
 }

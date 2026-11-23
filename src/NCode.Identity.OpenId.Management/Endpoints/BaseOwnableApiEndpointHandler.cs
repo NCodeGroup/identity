@@ -248,7 +248,8 @@ internal abstract class BaseOwnableApiEndpointHandler : BaseApiEndpointHandler
     /// Processes an HTTP <c>POST</c> that grants a principal one role at a resource node: authorizes the caller to
     /// perform the operation at the node, then adds the assignment and records the grant. The request names the
     /// principal by identifier or by the username of a control-plane local account. Responds <c>403</c> when the caller
-    /// lacks the operation, <c>400</c> when the request names no principal, both, or a username no principal has,
+    /// lacks the operation, <c>400</c> when the request names no principal, both, an identifier no principal of the
+    /// control plane has, or a username no principal has,
     /// <c>404</c> when the resource does not exist, <c>409</c> when the principal is a client that cannot hold the role
     /// at the node, <c>200</c> when the principal already holds the role, and <c>201</c> when the role is granted.
     /// </summary>
@@ -323,6 +324,13 @@ internal abstract class BaseOwnableApiEndpointHandler : BaseApiEndpointHandler
         {
             var described = await DescribeAsync([requestedPrincipalKey], cancellationToken);
             summary = described.GetValueOrDefault(requestedPrincipalKey);
+            if (summary is null)
+            {
+                return TypedResults.Problem(
+                    detail: "No principal of the control plane has the identifier.",
+                    statusCode: StatusCodes.Status400BadRequest
+                );
+            }
         }
 
         var principalId = summary?.PrincipalId ?? requestedPrincipalKey;
