@@ -8,6 +8,7 @@ using NCode.Identity.OpenId.Authentication.Admission;
 using NCode.Identity.OpenId.Authentication.Auditing;
 using NCode.Identity.OpenId.Authentication.ClientCertificates;
 using NCode.Identity.OpenId.Authentication.Clients;
+using NCode.Identity.OpenId.Authentication.Connections;
 using NCode.Identity.OpenId.Authentication.Consent;
 using NCode.Identity.OpenId.Authentication.Endpoints;
 using NCode.Identity.OpenId.Authentication.Messages;
@@ -66,6 +67,7 @@ public static class DefaultRegistration
                 .AddClientCertificateServices()
                 .AddClientServices()
                 .AddClientSettingServices()
+                .AddConnectionServices()
                 .AddConsentServices()
                 .AddEndpoints()
                 .AddMessageServices()

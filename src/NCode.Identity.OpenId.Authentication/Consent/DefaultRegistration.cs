@@ -20,6 +20,7 @@ internal static class DefaultRegistration
         /// <returns>The <see cref="IServiceBuilder{T}"/> instance for method chaining.</returns>
         public IServiceBuilder<OpenIdAuthenticationLibrary> AddConsentServices()
         {
+            builder.ServiceCollection.TryAddSingleton<PendingAuthorizationRequestReader>();
             builder.ServiceCollection.TryAddSingleton<IConsentService, DefaultConsentService>();
 
             return builder;

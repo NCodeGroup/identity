@@ -1930,3 +1930,12 @@ override NCode.Identity.OpenId.Authentication.Auditing.PasswordResetRequestAudit
 override NCode.Identity.OpenId.Authentication.Auditing.SecondFactorAuditEvent.EventCategory.get -> string!
 override NCode.Identity.OpenId.Authentication.Auditing.SecondFactorAuditEvent.EventName.get -> string!
 override NCode.Identity.OpenId.Authentication.Auditing.SecondFactorAuditEvent.Resources.get -> System.Collections.Generic.IReadOnlyList<NCode.Identity.Events.Audit.AuditResource!>!
+NCode.Identity.OpenId.Authentication.Connections.ISignInConnectionService
+NCode.Identity.OpenId.Authentication.Connections.ISignInConnectionService.GetOfferedAsync(NCode.Identity.OpenId.Contexts.OpenIdContext! openIdContext, string? returnUrl, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.Authentication.Connections.SignInConnections!>
+NCode.Identity.OpenId.Authentication.Connections.ISignInConnectionService.SelectAsync(NCode.Identity.OpenId.Contexts.OpenIdContext! openIdContext, string? returnUrl, string? postedName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.Connections.ConnectionSelection!>
+NCode.Identity.OpenId.Authentication.Connections.SignInConnections
+NCode.Identity.OpenId.Authentication.Connections.SignInConnections.Offered.get -> System.Collections.Generic.IReadOnlyList<NCode.Identity.OpenId.Connections.ResolvedConnection!>!
+NCode.Identity.OpenId.Authentication.Connections.SignInConnections.Offered.init -> void
+NCode.Identity.OpenId.Authentication.Connections.SignInConnections.Preselected.get -> NCode.Identity.OpenId.Connections.ResolvedConnection?
+NCode.Identity.OpenId.Authentication.Connections.SignInConnections.Preselected.init -> void
+NCode.Identity.OpenId.Authentication.Connections.SignInConnections.SignInConnections() -> void

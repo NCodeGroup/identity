@@ -26,7 +26,7 @@ public sealed class DefaultConsentServiceTests : IDisposable
     private Mock<IStoreManagerFactory> MockStoreManagerFactory { get; }
     private Mock<IStoreManager> MockStoreManager { get; }
     private Mock<IConsentStore> MockConsentStore { get; }
-    private Mock<IPersistedGrantService> MockPersistedGrantService { get; }
+    private Mock<PendingAuthorizationRequestReader> MockRequestReader { get; }
     private Mock<IAmbientTenantAccessor> MockAmbientTenantAccessor { get; }
     private Mock<IOpenIdClientResolver> MockClientResolver { get; }
     private Mock<IScopeDescriptionService> MockScopeDescriptionService { get; }
@@ -38,7 +38,9 @@ public sealed class DefaultConsentServiceTests : IDisposable
         MockStoreManagerFactory = MockRepository.Create<IStoreManagerFactory>();
         MockStoreManager = MockRepository.Create<IStoreManager>();
         MockConsentStore = MockRepository.Create<IConsentStore>();
-        MockPersistedGrantService = MockRepository.Create<IPersistedGrantService>();
+        MockRequestReader = MockRepository.Create<PendingAuthorizationRequestReader>(
+            Mock.Of<IPersistedGrantService>()
+        );
         MockAmbientTenantAccessor = MockRepository.Create<IAmbientTenantAccessor>();
         MockClientResolver = MockRepository.Create<IOpenIdClientResolver>();
         MockScopeDescriptionService = MockRepository.Create<IScopeDescriptionService>();
@@ -46,7 +48,7 @@ public sealed class DefaultConsentServiceTests : IDisposable
         Service = new DefaultConsentService(
             TimeProvider.System,
             MockStoreManagerFactory.Object,
-            MockPersistedGrantService.Object,
+            MockRequestReader.Object,
             MockAmbientTenantAccessor.Object,
             MockClientResolver.Object,
             MockScopeDescriptionService.Object

@@ -1,12 +1,7 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
-using System.Text.Json;
 using NCode.Identity.OpenId.Authentication.Clients;
-using NCode.Identity.OpenId.Authentication.Endpoints.Authorization.Messages;
-using NCode.Identity.OpenId.Authentication.Endpoints.Continue;
-using NCode.Identity.OpenId.Authentication.Endpoints.Continue.Models;
-using NCode.Identity.OpenId.Authentication.Persistence;
 using NCode.Identity.OpenId.Authentication.ResourceServers;
 using NCode.Identity.OpenId.Contexts;
 using NCode.Identity.OpenId.Persistence.DataContracts;
@@ -28,7 +23,7 @@ namespace NCode.Identity.OpenId.Authentication.Consent;
 internal class DefaultConsentService(
     TimeProvider timeProvider,
     IStoreManagerFactory storeManagerFactory,
-    IPersistedGrantService persistedGrantService,
+    PendingAuthorizationRequestReader requestReader,
     IAmbientTenantAccessor ambientTenantAccessor,
     IOpenIdClientResolver clientResolver,
     IScopeDescriptionService scopeDescriptionService
@@ -39,7 +34,7 @@ internal class DefaultConsentService(
 
     private TimeProvider TimeProvider { get; } = timeProvider;
     private IStoreManagerFactory StoreManagerFactory { get; } = storeManagerFactory;
-    private IPersistedGrantService PersistedGrantService { get; } = persistedGrantService;
+    private PendingAuthorizationRequestReader RequestReader { get; } = requestReader;
     private IAmbientTenantAccessor AmbientTenantAccessor { get; } = ambientTenantAccessor;
     private IOpenIdClientResolver ClientResolver { get; } = clientResolver;
     private IScopeDescriptionService ScopeDescriptionService { get; } = scopeDescriptionService;
@@ -199,7 +194,7 @@ internal class DefaultConsentService(
         CancellationToken cancellationToken
     )
     {
-        var authorizationRequest = await ResolvePendingRequestAsync(
+        var authorizationRequest = await RequestReader.ReadAsync(
             openIdContext,
             returnUrl,
             cancellationToken
@@ -257,46 +252,6 @@ internal class DefaultConsentService(
         await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
         var store = storeManager.GetStore<IConsentStore>();
         return await store.GetOrDefaultAsync(clientId, subjectId, cancellationToken);
-    }
-
-    private async ValueTask<IAuthorizationRequest?> ResolvePendingRequestAsync(
-        OpenIdContext openIdContext,
-        string returnUrl,
-        CancellationToken cancellationToken
-    )
-    {
-        var state = ContinueUrls.GetStateOrDefault(returnUrl);
-        if (string.IsNullOrEmpty(state))
-            return null;
-
-        var grantId = PersistedGrantService.CreateGrantId(
-            openIdContext.Tenant.TenantId,
-            OpenIdConstants.PersistedGrantTypes.Continue,
-            state
-        );
-
-        var grant = await PersistedGrantService.GetOrDefaultAsync<ContinueEnvelope>(
-            openIdContext,
-            grantId,
-            cancellationToken
-        );
-
-        if (grant is not { Status: PersistedGrantStatus.Active } active)
-            return null;
-
-        var envelope = active.Payload;
-        if (
-            !string.Equals(
-                envelope.Code,
-                OpenIdConstants.ContinueCodes.Authorization,
-                StringComparison.Ordinal
-            )
-        )
-            return null;
-
-        return envelope.PayloadJson.Deserialize<IAuthorizationRequest>(
-            openIdContext.Environment.JsonSerializerOptions
-        );
     }
 
     private static string? ResolveClientName(OpenIdClient? client) =>
