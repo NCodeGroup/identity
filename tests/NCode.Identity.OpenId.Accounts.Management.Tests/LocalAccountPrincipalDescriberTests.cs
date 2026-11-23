@@ -15,35 +15,6 @@ public sealed class LocalAccountPrincipalDescriberTests : IDisposable
 {
     private const string TenantId = "control-plane";
 
-    private MockRepository MockRepository { get; } = new(MockBehavior.Strict);
-
-    public void Dispose() => MockRepository.Verify();
-
-    private Mock<IStoreManager> MockStoreManager { get; }
-    private Mock<ILocalAccountStore> MockAccountStore { get; }
-    private Mock<IFederatedIdentityStore> MockIdentityStore { get; }
-
-    private LocalAccountPrincipalDescriber Describer { get; } = new();
-
-    public LocalAccountPrincipalDescriberTests()
-    {
-        MockStoreManager = MockRepository.Create<IStoreManager>();
-        MockAccountStore = MockRepository.Create<ILocalAccountStore>();
-        MockIdentityStore = MockRepository.Create<IFederatedIdentityStore>();
-    }
-
-    private void SetupStores()
-    {
-        MockStoreManager
-            .Setup(x => x.GetStore<ILocalAccountStore>())
-            .Returns(MockAccountStore.Object)
-            .Verifiable();
-        MockStoreManager
-            .Setup(x => x.GetStore<IFederatedIdentityStore>())
-            .Returns(MockIdentityStore.Object)
-            .Verifiable();
-    }
-
     private static bool Names(IReadOnlyCollection<string> actual, params string[] expected) =>
         actual.SequenceEqual(expected);
 
@@ -76,6 +47,35 @@ public sealed class LocalAccountPrincipalDescriberTests : IDisposable
             JoinKey = null,
             ConcurrencyToken = "identity-ct",
         };
+
+    private MockRepository MockRepository { get; } = new(MockBehavior.Strict);
+
+    public void Dispose() => MockRepository.Verify();
+
+    private Mock<IStoreManager> MockStoreManager { get; }
+    private Mock<ILocalAccountStore> MockAccountStore { get; }
+    private Mock<IFederatedIdentityStore> MockIdentityStore { get; }
+
+    private LocalAccountPrincipalDescriber Describer { get; } = new();
+
+    public LocalAccountPrincipalDescriberTests()
+    {
+        MockStoreManager = MockRepository.Create<IStoreManager>();
+        MockAccountStore = MockRepository.Create<ILocalAccountStore>();
+        MockIdentityStore = MockRepository.Create<IFederatedIdentityStore>();
+    }
+
+    private void SetupStores()
+    {
+        MockStoreManager
+            .Setup(x => x.GetStore<ILocalAccountStore>())
+            .Returns(MockAccountStore.Object)
+            .Verifiable();
+        MockStoreManager
+            .Setup(x => x.GetStore<IFederatedIdentityStore>())
+            .Returns(MockIdentityStore.Object)
+            .Verifiable();
+    }
 
     #region FindAsync Tests
 
