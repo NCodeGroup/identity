@@ -20,7 +20,6 @@ using NCode.Identity.OpenId.Management.Auditing;
 using NCode.Identity.OpenId.Management.Authorization;
 using NCode.Identity.OpenId.Management.Contracts.EncryptionKeys;
 using NCode.Identity.OpenId.Management.Contracts.Teams;
-using NCode.Identity.OpenId.Management.ControlPlane;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
 using NCode.Identity.OpenId.Settings;
@@ -105,7 +104,7 @@ public sealed class TeamRootKeyApiEndpointHandlerTests : IDisposable
             MockClientCoherenceValidator.Object,
             MockTeamClientCoherenceChecker.Object,
             MockResourceOwnershipService.Object,
-            CreatePrincipalDirectory(),
+            PrincipalDirectoryMocks.CreateDescribingEveryPrincipal().Object,
             MockManagementAuditRecorder.Object,
             NullLogger<TeamApiEndpointHandler>.Instance,
             Options.Create(new CellOptions { IsControlPlane = isControlPlane, Region = OwnRegion })
@@ -1007,36 +1006,4 @@ public sealed class TeamRootKeyApiEndpointHandlerTests : IDisposable
     }
 
     #endregion
-
-    private static IControlPlanePrincipalDirectory CreatePrincipalDirectory()
-    {
-        var mock = new Mock<IControlPlanePrincipalDirectory>();
-        mock.Setup(x =>
-                x.FindAsync(It.IsAny<ControlPlanePrincipalQuery>(), It.IsAny<CancellationToken>())
-            )
-            .Returns(
-                (ControlPlanePrincipalQuery query, CancellationToken _) =>
-                    ValueTask.FromResult<
-                        IReadOnlyList<NCode.Identity.OpenId.Management.Contracts.PrincipalSummaryResource>
-                    >(
-                        query
-                            .PrincipalIds.Select(
-                                id => new NCode.Identity.OpenId.Management.Contracts.PrincipalSummaryResource
-                                {
-                                    PrincipalId = id,
-                                    PrincipalType = NCode
-                                        .Identity
-                                        .OpenId
-                                        .Management
-                                        .Principals
-                                        .PrincipalTypes
-                                        .Client,
-                                    DisplayName = id,
-                                }
-                            )
-                            .ToList()
-                    )
-            );
-        return mock.Object;
-    }
 }

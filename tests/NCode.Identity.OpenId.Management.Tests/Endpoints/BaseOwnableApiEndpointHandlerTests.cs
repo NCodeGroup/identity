@@ -58,7 +58,7 @@ public class BaseOwnableApiEndpointHandlerTests : IDisposable
         protected override IManagementAuditRecorder ManagementAuditRecorder { get; } =
             managementAuditRecorder;
         protected override IControlPlanePrincipalDirectory ControlPlanePrincipalDirectory { get; } =
-            principalDirectory ?? CreatePrincipalDirectory();
+            principalDirectory ?? PrincipalDirectoryMocks.CreateDescribingEveryPrincipal().Object;
     }
 
     private static HttpContext CreateHttpContext() =>
@@ -1217,36 +1217,4 @@ public class BaseOwnableApiEndpointHandlerTests : IDisposable
             DisplayName = userName,
             UserName = userName,
         };
-
-    private static IControlPlanePrincipalDirectory CreatePrincipalDirectory()
-    {
-        var mock = new Mock<IControlPlanePrincipalDirectory>();
-        mock.Setup(x =>
-                x.FindAsync(It.IsAny<ControlPlanePrincipalQuery>(), It.IsAny<CancellationToken>())
-            )
-            .Returns(
-                (ControlPlanePrincipalQuery query, CancellationToken _) =>
-                    ValueTask.FromResult<
-                        IReadOnlyList<NCode.Identity.OpenId.Management.Contracts.PrincipalSummaryResource>
-                    >(
-                        query
-                            .PrincipalIds.Select(
-                                id => new NCode.Identity.OpenId.Management.Contracts.PrincipalSummaryResource
-                                {
-                                    PrincipalId = id,
-                                    PrincipalType = NCode
-                                        .Identity
-                                        .OpenId
-                                        .Management
-                                        .Principals
-                                        .PrincipalTypes
-                                        .Client,
-                                    DisplayName = id,
-                                }
-                            )
-                            .ToList()
-                    )
-            );
-        return mock.Object;
-    }
 }
