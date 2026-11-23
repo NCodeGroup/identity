@@ -10,7 +10,9 @@ namespace NCode.Identity.OpenId.Authentication.Auditing.Streams;
 
 /// <summary>
 /// Signs the delivery of a batch of audit records as the Standard Webhooks specification does: an HMAC-SHA256 over the
-/// message identifier, the timestamp and the body, so a receiver verifies the sender and rejects a replayed message.
+/// message identifier, the timestamp and the body, so a receiver verifies the sender and the body and, because the
+/// identifier and the timestamp are signed, rejects a replayed message by the timestamp's age and by an identifier it
+/// has seen.
 /// </summary>
 // See ADR-1534.
 internal static class AuditStreamSignature
@@ -24,6 +26,12 @@ internal static class AuditStreamSignature
     /// The length in bytes of an HMAC-SHA256.
     /// </summary>
     private const int HashLength = 32;
+
+    /// <summary>
+    /// The length in characters of the longest decimal text of a <see cref="long"/>, such as
+    /// <c>-9223372036854775808</c>.
+    /// </summary>
+    private const int MaxTimestampLength = 20;
 
     /// <summary>
     /// Computes the signature of a delivery.
@@ -44,7 +52,7 @@ internal static class AuditStreamSignature
     {
         ArgumentNullException.ThrowIfNull(messageId);
 
-        Span<byte> timestampBytes = stackalloc byte[20];
+        Span<byte> timestampBytes = stackalloc byte[MaxTimestampLength];
         if (
             !timestamp.TryFormat(
                 timestampBytes,
@@ -57,16 +65,12 @@ internal static class AuditStreamSignature
 
         using var hmac = IncrementalHash.CreateHMAC(HashAlgorithmName.SHA256, secret);
 
-        using (
-            SecureEncoding.UTF8.RentBytes(
-                messageId,
-                isSensitive: false,
-                out Span<byte> messageIdBytes
-            )
-        )
-        {
-            hmac.AppendData(messageIdBytes);
-        }
+        using var messageIdOwner = SecureEncoding.UTF8.RentBytes(
+            messageId,
+            isSensitive: false,
+            out Span<byte> messageIdBytes
+        );
+        hmac.AppendData(messageIdBytes);
         hmac.AppendData("."u8);
         hmac.AppendData(timestampBytes[..timestampLength]);
         hmac.AppendData("."u8);

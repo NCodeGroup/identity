@@ -154,17 +154,21 @@ internal sealed class DefaultLocalAccountEmailCodes(
     {
         using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
 
-        using (SecureEncoding.UTF8.RentBytes(flowId, isSensitive: false, out Span<byte> flowBytes))
-        {
-            hash.AppendData(flowBytes);
-        }
+        using var flowOwner = SecureEncoding.UTF8.RentBytes(
+            flowId,
+            isSensitive: false,
+            out Span<byte> flowBytes
+        );
+        hash.AppendData(flowBytes);
 
         hash.AppendData(":"u8);
 
-        using (SecureEncoding.UTF8.RentBytes(code, isSensitive: true, out Span<byte> codeBytes))
-        {
-            hash.AppendData(codeBytes);
-        }
+        using var codeOwner = SecureEncoding.UTF8.RentBytes(
+            code,
+            isSensitive: true,
+            out Span<byte> codeBytes
+        );
+        hash.AppendData(codeBytes);
 
         hash.GetHashAndReset(destination);
     }
