@@ -74,20 +74,18 @@ internal sealed class LocalAccountInteractivePasswordResetter(
         string? principalId = null;
         await using (var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken))
         {
-            account = await storeManager
-                .GetStore<ILocalAccountStore>()
-                .GetByUserNameOrDefaultAsync(userName, cancellationToken);
+            var accountStore = storeManager.GetStore<ILocalAccountStore>();
+            account = await accountStore.GetByUserNameOrDefaultAsync(userName, cancellationToken);
 
             // The principal is read for every request, by a random identifier when no account was found, so the
             // answer's timing says nothing about the account. See ADR-1533.
             var principalSubject = account?.LocalAccountId ?? CryptoService.GenerateUrlSafeKey();
-            var principal = await storeManager
-                .GetStore<IFederatedIdentityStore>()
-                .GetByIssuerSubjectAsync(
-                    AccountConstants.SelfIssuer,
-                    principalSubject,
-                    cancellationToken
-                );
+            var identityStore = storeManager.GetStore<IFederatedIdentityStore>();
+            var principal = await identityStore.GetByIssuerSubjectAsync(
+                AccountConstants.SelfIssuer,
+                principalSubject,
+                cancellationToken
+            );
             if (IsEligible(account))
             {
                 principalId = principal?.PrincipalId;
@@ -122,8 +120,9 @@ internal sealed class LocalAccountInteractivePasswordResetter(
         if (flowId is null)
         {
             // SendAsync counted the send that found the account over its limit, so the decoy only adds its flow: every
-            // path of a reset request does one increment and one add, and the sixth request's timing says nothing
-            // about the account. See ADR-1533.
+            // path of a reset request the tenant allows does one increment and one add, so the sixth request's timing
+            // says nothing about the account. A tenant that has resets off does no remote work for any username. See
+            // ADR-1533.
             var decoyFlowId = await EmailCodes.AddDecoyFlowAsync(
                 openIdContext,
                 EmailCodePurposes.ResetPassword,
@@ -172,14 +171,12 @@ internal sealed class LocalAccountInteractivePasswordResetter(
         if (match is null)
         {
             // The end user's reset is audited as the password grant's authentication is (ADR-1533).
-            await AuditEventRecorder.RecordPasswordResetFailedAsync(
+            return await RefuseInvalidCodeAsync(
                 openIdContext,
                 subjectId: null,
                 localAccountId: null,
-                InteractiveEmailCodeErrors.InvalidCode,
                 cancellationToken
             );
-            return InteractivePasswordChangeResult.Refused(InteractiveEmailCodeErrors.InvalidCode);
         }
 
         var localAccountId = match.LocalAccountId;
@@ -188,38 +185,24 @@ internal sealed class LocalAccountInteractivePasswordResetter(
 
         var accountStore = storeManager.GetStore<ILocalAccountStore>();
         var account = await accountStore.GetByIdOrDefaultAsync(localAccountId, cancellationToken);
-        if (account is not { IsEnabled: true })
-        {
-            await AuditEventRecorder.RecordPasswordResetFailedAsync(
-                openIdContext,
-                subjectId: null,
-                localAccountId: null,
-                InteractiveEmailCodeErrors.InvalidCode,
-                cancellationToken
-            );
-            return InteractivePasswordChangeResult.Refused(InteractiveEmailCodeErrors.InvalidCode);
-        }
 
         // A code authorizes nothing once the account's address differs from the one it was mailed to. See ADR-1533.
-        if (!match.IsFor(account))
+        if (account is not { IsEnabled: true } || !match.IsFor(account))
         {
-            await AuditEventRecorder.RecordPasswordResetFailedAsync(
+            return await RefuseInvalidCodeAsync(
                 openIdContext,
                 subjectId: null,
                 localAccountId: null,
-                InteractiveEmailCodeErrors.InvalidCode,
                 cancellationToken
             );
-            return InteractivePasswordChangeResult.Refused(InteractiveEmailCodeErrors.InvalidCode);
         }
 
-        var principal = await storeManager
-            .GetStore<IFederatedIdentityStore>()
-            .GetByIssuerSubjectAsync(
-                AccountConstants.SelfIssuer,
-                localAccountId,
-                cancellationToken
-            );
+        var identityStore = storeManager.GetStore<IFederatedIdentityStore>();
+        var principal = await identityStore.GetByIssuerSubjectAsync(
+            AccountConstants.SelfIssuer,
+            localAccountId,
+            cancellationToken
+        );
 
         // The new password is judged before the code is spent, so a password the policy refuses leaves the flow for
         // another try. See ADR-1236.
@@ -257,14 +240,12 @@ internal sealed class LocalAccountInteractivePasswordResetter(
         );
         if (!consumed)
         {
-            await AuditEventRecorder.RecordPasswordResetFailedAsync(
+            return await RefuseInvalidCodeAsync(
                 openIdContext,
                 principal?.PrincipalId,
                 localAccountId,
-                InteractiveEmailCodeErrors.InvalidCode,
                 cancellationToken
             );
-            return InteractivePasswordChangeResult.Refused(InteractiveEmailCodeErrors.InvalidCode);
         }
 
         // Encode the password into a pinned, zeroed-on-return buffer so it never lingers on the GC heap.
@@ -301,5 +282,30 @@ internal sealed class LocalAccountInteractivePasswordResetter(
         );
 
         return InteractivePasswordChangeResult.Changed;
+    }
+
+    /// <summary>
+    /// Records the failed reset and refuses it as an invalid code.
+    /// </summary>
+    /// <param name="openIdContext">The context of the request.</param>
+    /// <param name="subjectId">The subject identifier of the account's principal, or <see langword="null"/>.</param>
+    /// <param name="localAccountId">The identifier of the account, or <see langword="null"/>.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    /// <returns>The refusal that tells the end user the code is invalid.</returns>
+    private async ValueTask<InteractivePasswordChangeResult> RefuseInvalidCodeAsync(
+        OpenIdContext openIdContext,
+        string? subjectId,
+        string? localAccountId,
+        CancellationToken cancellationToken
+    )
+    {
+        await AuditEventRecorder.RecordPasswordResetFailedAsync(
+            openIdContext,
+            subjectId,
+            localAccountId,
+            InteractiveEmailCodeErrors.InvalidCode,
+            cancellationToken
+        );
+        return InteractivePasswordChangeResult.Refused(InteractiveEmailCodeErrors.InvalidCode);
     }
 }
