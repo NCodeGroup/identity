@@ -264,6 +264,7 @@ export type RoleHolderResource = {
   readonly assignmentId: string;
   readonly principalId: string;
   readonly roleName: string;
+  /** The control plane's summary of the principal, or `null` only when the assignment's principal no longer exists. */
   readonly principal: PrincipalSummaryResource | null;
 };
 

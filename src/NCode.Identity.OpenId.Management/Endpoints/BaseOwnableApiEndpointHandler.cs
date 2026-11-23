@@ -90,7 +90,8 @@ internal abstract class BaseOwnableApiEndpointHandler : BaseApiEndpointHandler
     /// </summary>
     /// <param name="assignment">The role assignment to map.</param>
     /// <param name="principal">
-    /// The control plane's summary of the holder, or <see langword="null"/> when no describer knows it.
+    /// The control plane's summary of the holder, or <see langword="null"/> when the control plane does not know the
+    /// principal.
     /// </param>
     /// <returns>The mapped <see cref="RoleHolderResource"/>.</returns>
     internal virtual RoleHolderResource ToRoleHolderResource(
@@ -114,7 +115,7 @@ internal abstract class BaseOwnableApiEndpointHandler : BaseApiEndpointHandler
     /// </param>
     /// <returns>
     /// A <see cref="ValueTask{TResult}"/> whose result maps each described principal's identifier to its summary; a
-    /// principal no describer knows has no entry.
+    /// principal the control plane does not know has no entry.
     /// </returns>
     private async ValueTask<IReadOnlyDictionary<string, PrincipalSummaryResource>> DescribeAsync(
         List<string> principalIds,
@@ -249,9 +250,9 @@ internal abstract class BaseOwnableApiEndpointHandler : BaseApiEndpointHandler
     /// perform the operation at the node, then adds the assignment and records the grant. The request names the
     /// principal by identifier or by the username of a control-plane local account. Responds <c>403</c> when the caller
     /// lacks the operation, <c>400</c> when the request names no principal, both, an identifier no principal of the
-    /// control plane has, or a username no principal has,
-    /// <c>404</c> when the resource does not exist, <c>409</c> when the principal is a client that cannot hold the role
-    /// at the node, <c>200</c> when the principal already holds the role, and <c>201</c> when the role is granted.
+    /// control plane has, or a username no principal has, <c>404</c> when the resource does not exist, <c>409</c> when
+    /// the principal is a client that cannot hold the role at the node, <c>200</c> when the principal already holds the
+    /// role, and <c>201</c> when the role is granted.
     /// </summary>
     /// <param name="httpContext">The <see cref="HttpContext"/> of the request.</param>
     /// <param name="roleList">The <see cref="RoleList"/> that describes the role to grant.</param>
@@ -301,7 +302,7 @@ internal abstract class BaseOwnableApiEndpointHandler : BaseApiEndpointHandler
             return ManagementProblems.ResourceNotFound();
         }
 
-        PrincipalSummaryResource? summary;
+        PrincipalSummaryResource summary;
         if (!string.IsNullOrEmpty(requestedUserName))
         {
             var userNameQuery = new ControlPlanePrincipalQuery { UserNames = [requestedUserName] };
@@ -309,31 +310,35 @@ internal abstract class BaseOwnableApiEndpointHandler : BaseApiEndpointHandler
                 userNameQuery,
                 cancellationToken
             );
-            summary = matches.FirstOrDefault(match =>
+            var userNameMatch = matches.FirstOrDefault(match =>
                 string.Equals(match.UserName, requestedUserName, StringComparison.Ordinal)
             );
-            if (summary is null)
+            if (userNameMatch is null)
             {
                 return TypedResults.Problem(
                     detail: "No principal of the control plane has the user name.",
                     statusCode: StatusCodes.Status400BadRequest
                 );
             }
+
+            summary = userNameMatch;
         }
         else
         {
             var described = await DescribeAsync([requestedPrincipalKey], cancellationToken);
-            summary = described.GetValueOrDefault(requestedPrincipalKey);
-            if (summary is null)
+            var describedSummary = described.GetValueOrDefault(requestedPrincipalKey);
+            if (describedSummary is null)
             {
                 return TypedResults.Problem(
                     detail: "No principal of the control plane has the identifier.",
                     statusCode: StatusCodes.Status400BadRequest
                 );
             }
+
+            summary = describedSummary;
         }
 
-        var principalId = summary?.PrincipalId ?? requestedPrincipalKey;
+        var principalId = summary.PrincipalId;
         var grant = await ResourceOwnershipService.AddAssignmentAsync(
             storeManager,
             node.TenantId,

@@ -31,7 +31,8 @@ public sealed class RoleHolderResource
     public required string RoleName { get; init; }
 
     /// <summary>
-    /// Gets the control plane's summary of the principal, or <see langword="null"/> when no describer knows it.
+    /// Gets the control plane's summary of the principal, or <see langword="null"/> only when the assignment's
+    /// principal no longer exists.
     /// </summary>
     public PrincipalSummaryResource? Principal { get; init; }
 }
