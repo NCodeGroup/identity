@@ -16,6 +16,7 @@ const runtime: BffRuntimeConfig = {
 
 const ada: LocalAccountResource = {
   tenantId: 'control',
+  connectionId: 'conn-1',
   localAccountId: 'ada',
   principalId: 'principal-ada',
   userName: 'ada',
@@ -63,6 +64,11 @@ function HookHarness({ owner }: { readonly owner: LocalAccountOwner }) {
       <button onClick={() => void admin.handleSubmit(values)}>submit</button>
       <button onClick={() => void admin.handleSubmit({ ...values, email: 'a@b.test' })}>
         submit-email
+      </button>
+      <button
+        onClick={() => void admin.handleSubmit({ ...values, userName: '', email: 'a@b.test' })}
+      >
+        submit-blank-user-name
       </button>
       <button onClick={() => void admin.handlePassword('secret')}>reset</button>
       <button onClick={() => void admin.handleDelete()}>delete</button>
@@ -154,6 +160,27 @@ describe('useLocalAccountAdministration', () => {
     });
   });
 
+  it('sends a blank user name as null on create and edit', async () => {
+    const calls = installFetch(() => jsonResponse(ada, 201));
+    renderHarness();
+
+    click('open-create');
+    click('submit-blank-user-name');
+
+    await waitFor(() => dialogIs('none'));
+    expect(JSON.parse(calls[0]!.body)).toMatchObject({ userName: null, email: 'a@b.test' });
+
+    click('open-edit');
+    click('submit-blank-user-name');
+
+    await waitFor(() => expect(calls).toHaveLength(2));
+    expect(JSON.parse(calls[1]!.body)).toContainEqual({
+      op: 'replace',
+      path: '/userName',
+      value: null,
+    });
+  });
+
   it('sends a given email on create', async () => {
     const calls = installFetch(() => jsonResponse(ada, 201));
     renderHarness();
@@ -183,7 +210,7 @@ describe('useLocalAccountAdministration', () => {
 
   it('edits an account through its own tenant with its concurrency token', async () => {
     const calls = installFetch(() => new Response(null, { status: 204 }));
-    renderHarness({ kind: 'tenant', tenantId: 'acme', cell: 'eu' });
+    renderHarness({ kind: 'tenant', tenantId: 'acme', connectionId: 'conn-1', cell: 'eu' });
 
     click('open-edit');
     dialogIs('edit');
@@ -192,7 +219,7 @@ describe('useLocalAccountAdministration', () => {
     await waitFor(() => dialogIs('none'));
     expect(calls).toHaveLength(1);
     expect(calls[0]).toMatchObject({ method: 'PATCH', ifMatch: 'c1' });
-    expect(calls[0]!.url).toContain('/api/tenants/control/local-accounts/ada');
+    expect(calls[0]!.url).toContain('/api/tenants/control/connections/conn-1/local-accounts/ada');
     expect(JSON.parse(calls[0]!.body)).toEqual([
       { op: 'replace', path: '/displayName', value: 'New' },
       { op: 'replace', path: '/userName', value: 'new' },
@@ -251,7 +278,9 @@ describe('useLocalAccountAdministration', () => {
 
     await waitFor(() => dialogIs('none'));
     expect(calls[0]).toMatchObject({ method: 'POST' });
-    expect(calls[0]!.url).toContain('/api/tenants/control/local-accounts/ada/password');
+    expect(calls[0]!.url).toContain(
+      '/api/tenants/control/connections/conn-1/local-accounts/ada/password',
+    );
     expect(JSON.parse(calls[0]!.body)).toEqual({ password: 'secret' });
   });
 
@@ -292,7 +321,7 @@ describe('useLocalAccountAdministration', () => {
 
     await waitFor(() => dialogIs('none'));
     expect(calls[0]).toMatchObject({ method: 'DELETE' });
-    expect(calls[0]!.url).toContain('/api/tenants/control/local-accounts/ada');
+    expect(calls[0]!.url).toContain('/api/tenants/control/connections/conn-1/local-accounts/ada');
   });
 
   it('reports a refused delete and clears the error when it reopens', async () => {
@@ -316,7 +345,7 @@ describe('useLocalAccountAdministration', () => {
 
     click('toggle-ada');
     await waitFor(() => expect(calls).toHaveLength(1));
-    expect(calls[0]!.url).toContain('/local-accounts/ada/disable');
+    expect(calls[0]!.url).toContain('/connections/conn-1/local-accounts/ada/disable');
 
     click('toggle-grace');
     await waitFor(() => expect(calls).toHaveLength(2));

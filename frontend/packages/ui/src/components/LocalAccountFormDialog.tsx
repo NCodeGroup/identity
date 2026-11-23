@@ -79,7 +79,10 @@ export function LocalAccountFormDialog({
   const showMismatch = isCreate && values.confirmPassword.length > 0 && !passwordsMatch;
   const isPasswordValid = !isCreate || (values.password.length > 0 && passwordsMatch);
   const canSubmit =
-    displayName.length > 0 && userName.length > 0 && isPasswordValid && !isSubmitting;
+    displayName.length > 0 &&
+    (userName.length > 0 || email.length > 0) &&
+    isPasswordValid &&
+    !isSubmitting;
 
   const handleSubmit = () => {
     if (!canSubmit) {
@@ -111,7 +114,6 @@ export function LocalAccountFormDialog({
             label="Username"
             value={values.userName}
             onChange={(event) => setValues((v) => ({ ...v, userName: event.target.value }))}
-            required
             fullWidth
             slotProps={{ htmlInput: { 'data-testid': 'local-account-user-name' } }}
           />

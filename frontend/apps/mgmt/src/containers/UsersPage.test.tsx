@@ -24,8 +24,20 @@ function renderPage(owner: UsersPageProps['owner'] = tenant) {
   );
 }
 
+const localConnection = {
+  tenantId: 'acme',
+  connectionId: 'conn-1',
+  concurrencyToken: 'k1',
+  name: 'local',
+  displayName: 'Username and password',
+  strategy: 'local',
+  isEnabled: true,
+  options: { store: 'default' },
+};
+
 const ada = {
   tenantId: 'acme',
+  connectionId: 'conn-1',
   localAccountId: 'a1',
   principalId: 'p1',
   userName: 'ada',
@@ -52,6 +64,9 @@ type Call = {
 
 function installFetch(handler: (url: string, method: string) => Response) {
   const calls: Call[] = [];
+  const inner = handler;
+  handler = (url, method) =>
+    url.endsWith(connectionsUrl) ? jsonResponse({ items: [localConnection] }) : inner(url, method);
   const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
     const request = input as Request;
     calls.push({
@@ -66,8 +81,9 @@ function installFetch(handler: (url: string, method: string) => Response) {
   return calls;
 }
 
-const listUrl = '/api/tenants/acme/local-accounts';
-const itemUrl = '/api/tenants/acme/local-accounts/a1';
+const connectionsUrl = '/api/tenants/acme/connections';
+const listUrl = '/api/tenants/acme/connections/conn-1/local-accounts';
+const itemUrl = '/api/tenants/acme/connections/conn-1/local-accounts/a1';
 
 function typeInto(testId: string, value: string) {
   fireEvent.change(screen.getByTestId(testId), { target: { value } });

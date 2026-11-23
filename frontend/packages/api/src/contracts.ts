@@ -370,7 +370,7 @@ export type LocalAccountResource = {
 
 /** Mirror of `CreateLocalAccountRequest`. */
 export type CreateLocalAccountRequest = {
-  readonly userName: string;
+  readonly userName: string | null;
   readonly displayName?: string;
   readonly password: string;
   readonly email?: string;
@@ -384,7 +384,7 @@ export type CreateLocalAccountRequest = {
  */
 export type UpdateLocalAccountFields = {
   readonly displayName: string;
-  readonly userName: string;
+  readonly userName: string | null;
   readonly email: string | null;
   readonly emailVerified: boolean;
 };

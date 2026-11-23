@@ -26,6 +26,14 @@ const accounts = [
     principalId: null,
     isEnabled: false,
   },
+  {
+    localAccountId: 'c3',
+    displayName: 'Cy Email',
+    userName: null,
+    email: 'cy@example.com',
+    principalId: null,
+    isEnabled: true,
+  },
 ];
 
 export const Populated: Story = { args: { accounts } };
