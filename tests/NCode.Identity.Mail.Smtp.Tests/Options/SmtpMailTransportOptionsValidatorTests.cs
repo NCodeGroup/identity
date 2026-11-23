@@ -132,6 +132,7 @@ public class SmtpMailTransportOptionsValidatorTests : BaseTests
     [InlineData("not an address")]
     [InlineData("local-part-only")]
     [InlineData("a@example.com, b@example.com")]
+    [InlineData("Jane <noreply@example.com>")]
     public void Validate_WithASenderThatIsNotOneAddress_Fails(string from)
     {
         var options = CreateOptions();
