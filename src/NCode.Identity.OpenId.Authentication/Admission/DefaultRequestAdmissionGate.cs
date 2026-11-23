@@ -21,8 +21,11 @@ internal sealed class DefaultRequestAdmissionGate(IOptions<AdmissionOptions> opt
     /// <inheritdoc />
     public bool TryEnter(int capacityPercent)
     {
-        ArgumentOutOfRangeException.ThrowIfLessThan(capacityPercent, 1);
-        ArgumentOutOfRangeException.ThrowIfGreaterThan(capacityPercent, 100);
+        ArgumentOutOfRangeException.ThrowIfLessThan(capacityPercent, AdmissionCapacity.MinPercent);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(
+            capacityPercent,
+            AdmissionCapacity.FullPercent
+        );
 
         var limit = OptionsAccessor.Value.ConcurrencyLimit;
         if (limit is null)
@@ -31,7 +34,10 @@ internal sealed class DefaultRequestAdmissionGate(IOptions<AdmissionOptions> opt
             return true;
         }
 
-        var threshold = Math.Max(1, (int)((long)limit.Value * capacityPercent / 100));
+        var threshold = Math.Max(
+            1,
+            (int)((long)limit.Value * capacityPercent / AdmissionCapacity.FullPercent)
+        );
 
         // A refused request never writes the count, so a burst that is shed never raises the count another tenant's
         // request reads. See ADR-1523.

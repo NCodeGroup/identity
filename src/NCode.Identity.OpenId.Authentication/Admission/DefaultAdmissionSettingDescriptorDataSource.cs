@@ -40,7 +40,10 @@ internal class DefaultAdmissionSettingDescriptorDataSource(INullChangeToken null
             {
                 Name = OpenIdSettingNames.AdmissionCapacityPercent,
                 AppliesTo = Tenants,
-                Rule = SettingRules.Between(1, 100),
+                Rule = SettingRules.Between(
+                    AdmissionCapacity.MinPercent,
+                    AdmissionCapacity.FullPercent
+                ),
                 IsLimit = true,
                 OnMerge = SettingMerge.Min,
             };

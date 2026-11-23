@@ -57,7 +57,7 @@ internal sealed class AdmissionEndpointFilter(
             out var percent
         )
             ? percent
-            : 100;
+            : AdmissionCapacity.FullPercent;
 
         if (!AdmissionGate.TryEnter(capacityPercent))
         {
