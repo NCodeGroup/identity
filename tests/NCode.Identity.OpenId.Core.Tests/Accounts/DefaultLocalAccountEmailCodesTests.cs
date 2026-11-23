@@ -845,6 +845,25 @@ public class DefaultLocalAccountEmailCodesTests : BaseTests
         Assert.Null(match);
     }
 
+    [Fact]
+    public async Task VerifyAsync_WhenTheFlowHasExpiredByThisReplicasClock_RefusesWithoutCountingTheGuess()
+    {
+        var mockContext = CreateContext(mockSettings: null);
+        SetupGet(Serialize(attempts: 2));
+        TimeProvider.Advance(Lifetime);
+
+        using var code = Secret.Create(Code.AsSpan());
+        var match = await EmailCodes.VerifyAsync(
+            mockContext.Object,
+            new EmailCodeFlow(Purpose, FlowId),
+            code,
+            CancellationToken.None
+        );
+
+        Assert.Null(match);
+        MockValueSet.Verify(x => x.GetAsync(FlowKey, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
     #endregion
 
     #region ConsumeAsync Tests

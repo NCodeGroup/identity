@@ -398,6 +398,14 @@ internal sealed class DefaultLocalAccountEmailCodes(
                 return null;
             }
 
+            // A flow whose expiry has passed by this replica's clock refuses every code, so a refused replace below
+            // only ever means that another guess changed the flow. See ADR-1533.
+            var now = TimeProvider.GetUtcNow();
+            if (state.ExpiresWhen <= now)
+            {
+                return null;
+            }
+
             if (state.Attempts >= MaxAttempts)
             {
                 await ValueSet.RemoveAsync(key, cancellationToken);
