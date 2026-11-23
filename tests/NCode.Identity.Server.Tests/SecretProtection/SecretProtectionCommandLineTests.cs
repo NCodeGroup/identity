@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Moq;
 using NCode.Buffers;
@@ -30,11 +31,16 @@ public class SecretProtectionCommandLineTests : BaseTests
 
     private static ServiceProvider CreateServices(
         IMasterKeyRewrapper rewrapper,
-        IStartupValidator? validator = null
+        IStartupValidator? validator = null,
+        CapturingLoggerProvider? loggerProvider = null
     )
     {
         var serviceCollection = new ServiceCollection();
-        serviceCollection.AddLogging();
+        serviceCollection.AddLogging(builder =>
+        {
+            if (loggerProvider is not null)
+                builder.AddProvider(loggerProvider);
+        });
         serviceCollection.AddSingleton(rewrapper);
         if (validator is not null)
             serviceCollection.AddSingleton(validator);
@@ -226,8 +232,9 @@ public class SecretProtectionCommandLineTests : BaseTests
     }
 
     [Fact]
-    public async Task RunAsync_AnOwnerWithNoMasterKeys_ReturnsOne()
+    public async Task RunAsync_AnOwnerWithNoMasterKeys_ReturnsOneAndLogsTheOwner()
     {
+        var loggerProvider = new CapturingLoggerProvider();
         var rewrapper = CreateStrictMock<IMasterKeyRewrapper>();
         rewrapper
             .Setup(x =>
@@ -235,12 +242,17 @@ public class SecretProtectionCommandLineTests : BaseTests
             )
             .Returns(new ValueTask<MasterKeyRewrapResult>(new MasterKeyRewrapResult(0, 0, 0, 0)))
             .Verifiable();
-        using var services = CreateServices(rewrapper.Object);
+        using var services = CreateServices(rewrapper.Object, loggerProvider: loggerProvider);
 
         var exitCode = await Parse("secret-protection", "rewrap", "--owner", "tenant:acme")
             .RunAsync(services, CancellationToken.None);
 
         Assert.Equal(1, exitCode);
+        var logged = Assert.Single(
+            loggerProvider.Logs,
+            x => x.EventId.Id == Logging.EventIds.SecretProtectionCommandOwnerHasNoMasterKeys
+        );
+        Assert.Null(logged.Exception);
     }
 
     [Fact]
@@ -312,8 +324,9 @@ public class SecretProtectionCommandLineTests : BaseTests
     [Fact]
     public async Task RunAsync_AMissingKeyFile_ReturnsOneWithoutCallingTheRewrapper()
     {
+        var loggerProvider = new CapturingLoggerProvider();
         var rewrapper = CreateStrictMock<IMasterKeyRewrapper>();
-        using var services = CreateServices(rewrapper.Object);
+        using var services = CreateServices(rewrapper.Object, loggerProvider: loggerProvider);
 
         var exitCode = await Parse(
                 "secret-protection",
@@ -325,6 +338,11 @@ public class SecretProtectionCommandLineTests : BaseTests
 
         Assert.Equal(1, exitCode);
         Assert.Empty(rewrapper.Invocations);
+        var logged = Assert.Single(
+            loggerProvider.Logs,
+            x => x.EventId.Id == Logging.EventIds.SecretProtectionRecoveryKeyUnreadable
+        );
+        Assert.IsAssignableFrom<IOException>(logged.Exception);
     }
 
     [Fact]
@@ -333,8 +351,9 @@ public class SecretProtectionCommandLineTests : BaseTests
         var path = Path.GetTempFileName();
         try
         {
+            var loggerProvider = new CapturingLoggerProvider();
             var rewrapper = CreateStrictMock<IMasterKeyRewrapper>();
-            using var services = CreateServices(rewrapper.Object);
+            using var services = CreateServices(rewrapper.Object, loggerProvider: loggerProvider);
 
             var exitCode = await Parse(
                     "secret-protection",
@@ -346,6 +365,11 @@ public class SecretProtectionCommandLineTests : BaseTests
 
             Assert.Equal(1, exitCode);
             Assert.Empty(rewrapper.Invocations);
+            var logged = Assert.Single(
+                loggerProvider.Logs,
+                x => x.EventId.Id == Logging.EventIds.SecretProtectionRecoveryKeyUnreadable
+            );
+            Assert.Null(logged.Exception);
         }
         finally
         {
@@ -360,8 +384,9 @@ public class SecretProtectionCommandLineTests : BaseTests
         try
         {
             await File.WriteAllBytesAsync(path, new byte[(64 * 1024) + 1]);
+            var loggerProvider = new CapturingLoggerProvider();
             var rewrapper = CreateStrictMock<IMasterKeyRewrapper>();
-            using var services = CreateServices(rewrapper.Object);
+            using var services = CreateServices(rewrapper.Object, loggerProvider: loggerProvider);
 
             var exitCode = await Parse(
                     "secret-protection",
@@ -373,6 +398,11 @@ public class SecretProtectionCommandLineTests : BaseTests
 
             Assert.Equal(1, exitCode);
             Assert.Empty(rewrapper.Invocations);
+            var logged = Assert.Single(
+                loggerProvider.Logs,
+                x => x.EventId.Id == Logging.EventIds.SecretProtectionRecoveryKeyUnreadable
+            );
+            Assert.Null(logged.Exception);
         }
         finally
         {
@@ -425,24 +455,30 @@ public class SecretProtectionCommandLineTests : BaseTests
     [Fact]
     public async Task RunAsync_InvalidConfiguration_ReturnsOneWithoutCallingTheRewrapper()
     {
+        var loggerProvider = new CapturingLoggerProvider();
         var rewrapper = CreateStrictMock<IMasterKeyRewrapper>();
         var validator = CreateStrictMock<IStartupValidator>();
         validator
             .Setup(x => x.Validate())
             .Throws(new OptionsValidationException("x", typeof(object), ["bad"]))
             .Verifiable();
-        using var services = CreateServices(rewrapper.Object, validator.Object);
+        using var services = CreateServices(rewrapper.Object, validator.Object, loggerProvider);
 
         var exitCode = await Parse("secret-protection", "rewrap")
             .RunAsync(services, CancellationToken.None);
 
         Assert.Equal(1, exitCode);
         Assert.Empty(rewrapper.Invocations);
+        Assert.Single(
+            loggerProvider.Logs,
+            x => x.EventId.Id == Logging.EventIds.SecretProtectionCommandConfigurationInvalid
+        );
     }
 
     [Fact]
     public async Task RunAsync_TwoOptionsTypesAreInvalid_ReturnsOneWithoutCallingTheRewrapper()
     {
+        var loggerProvider = new CapturingLoggerProvider();
         var rewrapper = CreateStrictMock<IMasterKeyRewrapper>();
         var validator = CreateStrictMock<IStartupValidator>();
         validator
@@ -454,31 +490,134 @@ public class SecretProtectionCommandLineTests : BaseTests
                 )
             )
             .Verifiable();
-        using var services = CreateServices(rewrapper.Object, validator.Object);
+        using var services = CreateServices(rewrapper.Object, validator.Object, loggerProvider);
 
         var exitCode = await Parse("secret-protection", "rewrap")
             .RunAsync(services, CancellationToken.None);
 
         Assert.Equal(1, exitCode);
         Assert.Empty(rewrapper.Invocations);
+        Assert.Single(
+            loggerProvider.Logs,
+            x => x.EventId.Id == Logging.EventIds.SecretProtectionCommandConfigurationInvalid
+        );
     }
 
     [Fact]
-    public async Task RunAsync_TheRewrapperThrows_ReturnsOne()
+    public async Task RunAsync_TheValidatorThrowsAnotherException_ReturnsOneWithoutCallingTheRewrapper()
     {
+        var loggerProvider = new CapturingLoggerProvider();
+        var failure = new InvalidOperationException("boom");
+        var rewrapper = CreateStrictMock<IMasterKeyRewrapper>();
+        var validator = CreateStrictMock<IStartupValidator>();
+        validator.Setup(x => x.Validate()).Throws(failure).Verifiable();
+        using var services = CreateServices(rewrapper.Object, validator.Object, loggerProvider);
+
+        var exitCode = await Parse("secret-protection", "rewrap")
+            .RunAsync(services, CancellationToken.None);
+
+        Assert.Equal(1, exitCode);
+        Assert.Empty(rewrapper.Invocations);
+        var logged = Assert.Single(
+            loggerProvider.Logs,
+            x => x.EventId.Id == Logging.EventIds.SecretProtectionCommandFailed
+        );
+        Assert.Same(failure, logged.Exception);
+    }
+
+    [Fact]
+    public async Task RunAsync_NoRewrapperIsRegistered_ReturnsOneAndLogsTheFailure()
+    {
+        var loggerProvider = new CapturingLoggerProvider();
+        var serviceCollection = new ServiceCollection();
+        serviceCollection.AddLogging(builder => builder.AddProvider(loggerProvider));
+        using var services = serviceCollection.BuildServiceProvider();
+
+        var exitCode = await Parse("secret-protection", "rewrap")
+            .RunAsync(services, CancellationToken.None);
+
+        Assert.Equal(1, exitCode);
+        var logged = Assert.Single(
+            loggerProvider.Logs,
+            x => x.EventId.Id == Logging.EventIds.SecretProtectionCommandFailed
+        );
+        Assert.IsType<InvalidOperationException>(logged.Exception);
+    }
+
+    [Fact]
+    public async Task RunAsync_TheRewrapperThrows_ReturnsOneAndLogsTheFailure()
+    {
+        var loggerProvider = new CapturingLoggerProvider();
+        var failure = new InvalidOperationException("boom");
         var rewrapper = CreateStrictMock<IMasterKeyRewrapper>();
         rewrapper
             .Setup(x =>
                 x.RewrapAsync(It.IsAny<MasterKeyRewrapRequest>(), It.IsAny<CancellationToken>())
             )
-            .Throws(new InvalidOperationException("boom"))
+            .Returns(() => ValueTask.FromException<MasterKeyRewrapResult>(failure))
             .Verifiable();
-        using var services = CreateServices(rewrapper.Object);
+        using var services = CreateServices(rewrapper.Object, loggerProvider: loggerProvider);
 
         var exitCode = await Parse("secret-protection", "rewrap-recovery")
             .RunAsync(services, CancellationToken.None);
 
         Assert.Equal(1, exitCode);
+        var logged = Assert.Single(
+            loggerProvider.Logs,
+            x => x.EventId.Id == Logging.EventIds.SecretProtectionCommandFailed
+        );
+        Assert.Same(failure, logged.Exception);
+    }
+
+    [Fact]
+    public async Task RunAsync_TheCallerCancels_PropagatesWithoutLogging()
+    {
+        using var cancellationTokenSource = new CancellationTokenSource();
+        var cancellationToken = cancellationTokenSource.Token;
+        await cancellationTokenSource.CancelAsync();
+
+        var loggerProvider = new CapturingLoggerProvider();
+        var cancellation = new OperationCanceledException(cancellationToken);
+        var rewrapper = CreateStrictMock<IMasterKeyRewrapper>();
+        rewrapper
+            .Setup(x => x.RewrapAsync(It.IsAny<MasterKeyRewrapRequest>(), cancellationToken))
+            .Returns(() => ValueTask.FromException<MasterKeyRewrapResult>(cancellation))
+            .Verifiable();
+        using var services = CreateServices(rewrapper.Object, loggerProvider: loggerProvider);
+
+        var thrown = await Assert.ThrowsAsync<OperationCanceledException>(async () =>
+            await Parse("secret-protection", "rewrap").RunAsync(services, cancellationToken)
+        );
+
+        Assert.Same(cancellation, thrown);
+        Assert.Empty(loggerProvider.Logs);
+    }
+
+    [Fact]
+    public async Task RunAsync_TheRewrapperFailsAfterTheCallerCancels_ReturnsOneAndLogsTheFailure()
+    {
+        using var cancellationTokenSource = new CancellationTokenSource();
+        var cancellationToken = cancellationTokenSource.Token;
+        await cancellationTokenSource.CancelAsync();
+
+        var loggerProvider = new CapturingLoggerProvider();
+        var failure = new InvalidOperationException("The database is unreachable.");
+        var rewrapper = CreateStrictMock<IMasterKeyRewrapper>();
+        rewrapper
+            .Setup(x => x.RewrapAsync(It.IsAny<MasterKeyRewrapRequest>(), cancellationToken))
+            .Returns(() => ValueTask.FromException<MasterKeyRewrapResult>(failure))
+            .Verifiable();
+        using var services = CreateServices(rewrapper.Object, loggerProvider: loggerProvider);
+
+        var exitCode = await Parse("secret-protection", "rewrap")
+            .RunAsync(services, cancellationToken);
+
+        Assert.Equal(1, exitCode);
+        var logged = Assert.Single(
+            loggerProvider.Logs,
+            x => x.EventId.Id == Logging.EventIds.SecretProtectionCommandFailed
+        );
+        Assert.Same(failure, logged.Exception);
     }
 
     #endregion

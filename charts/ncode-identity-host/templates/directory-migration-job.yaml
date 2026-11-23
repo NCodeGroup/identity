@@ -34,6 +34,7 @@ spec:
       {{- if not .Values.directory.serviceAccount.create }}
       serviceAccountName: {{ include "identity-host.directory.serviceAccountName" . }}
       {{- end }}
+      {{- include "identity-host.processNamespace" . | nindent 6 }}
       # The migration never calls the Kubernetes API. The chart's own service account does not exist yet when a first
       # install runs this hook, so the Job uses the namespace's default account unless the operator names one.
       automountServiceAccountToken: false

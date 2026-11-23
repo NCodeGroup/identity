@@ -496,6 +496,17 @@ tolerations:
 {{- end }}
 
 {{/*
+The process namespace of every pod the chart runs. The pod's containers share one process namespace, so the pod's pause
+process is PID 1 and reaps, and the .NET process is not. The .NET runtime's crash path ends a process with SIGABRT, which
+the kernel never delivers to a namespace's PID 1 when it has no handler, so a .NET process that is PID 1 hangs after an
+unhandled exception or a fail-fast instead of exiting (dotnet/runtime#112580). Each pod runs one container as the
+non-root user with every capability dropped, so no other container sees its processes.
+*/}}
+{{- define "identity-host.processNamespace" -}}
+shareProcessNamespace: true
+{{- end }}
+
+{{/*
 Whether the release uses the named key management service, as the root key provider, as a provider a tenant may bring a
 root key from (secretProtection.ownerRootKeys.providers), or as a provider that holds tenants' keys
 (enabled under secretProtection.remoteKeyProviders), so that the pod carries that provider's workload credentials. Takes

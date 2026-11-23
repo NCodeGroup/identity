@@ -1,6 +1,8 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using NCode.Identity.OpenId.GlobalDirectory.Host.Logging;
+
 namespace NCode.Identity.OpenId.GlobalDirectory.Host;
 
 /// <summary>
@@ -58,11 +60,10 @@ internal static class DirectoryMigrateCommand
     /// <param name="cancellationToken">
     /// The <see cref="CancellationToken"/> that may be used to cancel the command.
     /// </param>
-    /// <returns>The <see cref="ValueTask{TResult}"/> that represents the command, containing its exit code.</returns>
-    /// <exception cref="InvalidOperationException">
-    /// The runtime role (<c>DirectoryMigration:RuntimeRole</c>) is not configured or is not a valid role name, or the
-    /// database's migrations history records a migration this host does not hold.
-    /// </exception>
+    /// <returns>
+    /// The <see cref="ValueTask{TResult}"/> that represents the command, containing its exit code: <c>0</c> when the
+    /// database is migrated and <c>1</c> when the command fails, which it logs.
+    /// </returns>
     public static async ValueTask<int> RunAsync(
         IServiceProvider services,
         IConfiguration configuration,
@@ -72,8 +73,27 @@ internal static class DirectoryMigrateCommand
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(configuration);
 
-        var runtimeRole = DirectoryDatabase.GetRuntimeRole(configuration);
-        await DirectoryDatabase.MigrateAsync(services, runtimeRole, cancellationToken);
-        return 0;
+        var logger = services
+            .GetRequiredService<ILoggerFactory>()
+            .CreateLogger(typeof(DirectoryMigrateCommand));
+
+        try
+        {
+            var runtimeRole = DirectoryDatabase.GetRuntimeRole(configuration);
+            await DirectoryDatabase.MigrateAsync(services, runtimeRole, cancellationToken);
+            return 0;
+        }
+        // An exception that escapes Main leaves the end of the process to the runtime's crash path, which does not end
+        // a process that runs as PID 1 in its container (dotnet/runtime issue 112580), so a Job would run until its
+        // deadline. Only a cancellation the caller requested propagates; any other failure, even one after the caller
+        // cancels, is logged and ends the command with 1.
+        catch (Exception exception)
+            when (exception is not OperationCanceledException
+                || !cancellationToken.IsCancellationRequested
+            )
+        {
+            logger.DirectoryMigrateCommandFailed(exception);
+            return 1;
+        }
     }
 }

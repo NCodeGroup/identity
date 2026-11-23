@@ -1354,9 +1354,11 @@ an operator deletes it, as the command above does for the setup Secrets.
 ### Pod Security
 
 The release's namespace should enforce the `restricted` Pod Security level, which the chart's pods and Jobs are built
-for: a namespace that enforces it rejects any pod that asks for more. The example's namespace also audits and warns on
-`restricted`, and its `kustomize.toolkit.fluxcd.io/prune: disabled` annotation stops Flux from pruning the namespace,
-which would delete the release, its Secrets and its pods (`examples/flux/prerequisites/namespace.yaml`):
+for: a namespace that enforces it rejects any pod that asks for more. Every pod shares its process namespace
+(`shareProcessNamespace: true`), so the pod's pause process is PID 1 and a .NET process that crashes exits instead of
+hanging ([dotnet/runtime#112580](https://github.com/dotnet/runtime/issues/112580)). The example's namespace also audits
+and warns on `restricted`, and its `kustomize.toolkit.fluxcd.io/prune: disabled` annotation stops Flux from pruning the
+namespace, which would delete the release, its Secrets and its pods (`examples/flux/prerequisites/namespace.yaml`):
 
 ```yaml
 # The release's namespace enforces the restricted Pod Security Standard, which the chart's pods meet.

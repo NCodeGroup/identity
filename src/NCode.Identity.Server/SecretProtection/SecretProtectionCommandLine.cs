@@ -23,8 +23,8 @@ namespace NCode.Identity.Server.SecretProtection;
 /// configuration, into sensitive buffers that are zeroed when the command ends, and it exists only inside this command.
 /// </para>
 /// <para>
-/// The exit code is <c>0</c> when no master key failed, <c>1</c> otherwise or when the configuration is invalid, and
-/// <c>2</c> for a usage error.
+/// The exit code is <c>0</c> when no master key failed, <c>1</c> otherwise, when the configuration is invalid or when
+/// the command fails with an exception, which it logs, and <c>2</c> for a usage error.
 /// </para>
 /// </remarks>
 // See ADR-1408.
@@ -229,10 +229,41 @@ public sealed class SecretProtectionCommandLine
             return 2;
         }
 
-        // The command checks the same configuration the host checks when it starts.
+        try
+        {
+            if (!IsConfigurationValid(services, logger))
+                return 1;
+
+            var rewrapper = services.GetRequiredService<IMasterKeyRewrapper>();
+            return await RewrapAsync(rewrapper, logger, cancellationToken);
+        }
+        // An exception that escapes Main leaves the end of the process to the runtime's crash path, which does not end
+        // a process that runs as PID 1 in its container (dotnet/runtime issue 112580), so a Job would run until its
+        // deadline. Only a cancellation the caller requested propagates; any other failure, even one after the caller
+        // cancels, is logged and ends the command with 1.
+        catch (Exception exception)
+            when (exception is not OperationCanceledException
+                || !cancellationToken.IsCancellationRequested
+            )
+        {
+            logger.SecretProtectionCommandFailed(exception);
+            return 1;
+        }
+    }
+
+    /// <summary>
+    /// Checks the configuration that the host checks when it starts.
+    /// </summary>
+    /// <param name="services">The services of the built host.</param>
+    /// <param name="logger">The <see cref="ILogger"/> that records an invalid configuration.</param>
+    /// <returns><see langword="true"/> when the configuration is valid or the host registers no startup validator,
+    /// <see langword="false"/> when an options type is invalid, which it logs.</returns>
+    private static bool IsConfigurationValid(IServiceProvider services, ILogger logger)
+    {
         try
         {
             services.GetService<IStartupValidator>()?.Validate();
+            return true;
         }
         catch (Exception exception)
             when (exception is OptionsValidationException
@@ -244,19 +275,7 @@ public sealed class SecretProtectionCommandLine
         {
             // The startup validator throws one exception per options type, or an aggregate when several fail.
             logger.SecretProtectionCommandConfigurationInvalid(exception);
-            return 1;
-        }
-
-        var rewrapper = services.GetRequiredService<IMasterKeyRewrapper>();
-
-        try
-        {
-            return await RewrapAsync(rewrapper, logger, cancellationToken);
-        }
-        catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
-        {
-            logger.SecretProtectionCommandFailed(exception);
-            return 1;
+            return false;
         }
     }
 

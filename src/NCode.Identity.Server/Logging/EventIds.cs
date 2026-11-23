@@ -34,7 +34,7 @@ internal static class EventIds
     public const int InstanceSetupCommandUsageInvalid = Base + 18;
     public const int InstanceSetupCommandAlreadyInitialized = Base + 19;
     public const int InstanceSetupCommandRootUserNameMissing = Base + 20;
-    public const int InstanceSetupCommandFailed = Base + 21;
+    public const int InstanceSetupCommandRefused = Base + 21;
     public const int InstanceSetupCommandRootCreated = Base + 22;
     public const int InstanceSetupCommandManagementConsoleRegistered = Base + 23;
     public const int InstanceSetupCommandAutomationClientCreated = Base + 24;
@@ -45,4 +45,9 @@ internal static class EventIds
     /// control-plane cell.
     /// </summary>
     public const int InstanceSetupCommandNotOnTheControlPlane = Base + 26;
+
+    /// <summary>
+    /// Identifies the error that the setup command failed with an exception, so the instance is not set up.
+    /// </summary>
+    public const int InstanceSetupCommandFailed = Base + 27;
 }

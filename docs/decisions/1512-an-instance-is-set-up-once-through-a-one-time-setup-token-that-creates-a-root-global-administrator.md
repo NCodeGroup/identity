@@ -48,8 +48,10 @@ setup creates a root global administrator.**
    through the row's concurrency token: one stores its token, and the others log at Information that another replica
    issued it.
 3. **Setup is single use.** Creating the root administrator marks the `InstanceSetup` row initialized in the same save.
-   Once the instance is initialized, every `/setup` route answers 404 for good, and a concurrent second attempt loses on
-   the concurrency token and answers 404.
+   Once the instance is initialized, every `/setup` route answers 404 for good. Setup writes onto the singleton row that
+   a replica generating its token also writes: it adds the row in a save of its own when no writer has, where the first
+   writer wins, and marks it initialized under its concurrency token. An attempt that loses that check to a replica
+   storing its token runs again, up to five attempts, and one that loses to another setup answers 404.
 4. **The setup surface is hardened.** `/setup` answers 404 to a request that is not HTTPS, unless the host sets
    `LocalDevelopment:Enabled` and the request comes from a loopback remote address
    ([ADR-1370](1370-a-host-runs-the-deployment-posture-unless-configured-for-local-development-and-always-names-its-root-key-provider.md)).
@@ -74,9 +76,10 @@ setup creates a root global administrator.**
 6. **Setup also runs unattended.** The host's `setup` command reads `Setup:Root:UserName`, `Setup:Root:Email`,
    `Setup:Root:Password` and `Setup:Root:DisplayName` (the wizard's required field), needs no token, creates the root
    through the same service, and exits 0 when the instance is already initialized, so a Job can run it on every release.
-   The chart references an operator Secret for the token (`setup.token.existingSecret` and `setup.token.key`, passed as
-   `Setup__Token`) and offers an opt-in `setup.job` that runs the `setup` command with `Setup__Root__*` from an operator
-   Secret. The chart generates no token Secret.
+   It exits 1 when the creation is refused or fails, which it logs, so it never leaves its process running after a
+   failure. The chart references an operator Secret for the token (`setup.token.existingSecret` and `setup.token.key`,
+   passed as `Setup__Token`) and offers an opt-in `setup.job` that runs the `setup` command with `Setup__Root__*` from
+   an operator Secret. The chart generates no token Secret.
 7. **`BootstrapAdmin` is a development convenience.** The deployment safety check refuses the `BootstrapAdmin` section
    in every host that does not set `LocalDevelopment:Enabled`, like the other development seeders, so the setup token is
    the deployment path

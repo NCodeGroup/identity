@@ -99,6 +99,14 @@ release the host or the console would refuse.**
     [ADR-1485](1485-the-host-chart-enables-server-kms-vendors-and-holds-console-key-rings-under-the-consoles-identity.md)'s.
 12. **CI checks the contract.** The `Host chart` workflow runs `helm lint --strict`, renders every release under `ci/`,
     and checks that each unsafe release fails to render.
+13. **Every pod shares its process namespace.** Every pod the chart runs, Deployments and Jobs alike, sets
+    `shareProcessNamespace: true`, so the pod's pause process is PID 1 and the .NET process is not. The runtime ends a
+    process after an unhandled exception or a fail-fast through SIGABRT, which the kernel never delivers to a
+    namespace's PID 1 without a handler, so a .NET process that is PID 1 hangs until a deadline or a liveness probe
+    kills it ([dotnet/runtime#112580](https://github.com/dotnet/runtime/issues/112580)). A shared process namespace is
+    the pod's equivalent of `docker run --init`; each pod runs one non-root container with every capability dropped, so
+    sharing it exposes no other container's processes. The `Host chart` workflow fails a release that renders a pod
+    without it.
 
 ## Options considered
 
@@ -118,6 +126,8 @@ release the host or the console would refuse.**
 - A router the chart does not configure, such as a Traefik `IngressRoute`, is the operator's to add.
 - A single-replica release has downtime on each update.
 - The `Host chart` workflow fails a change that makes an unsafe release render.
+- A crash of a host, a migration, setup or rewrap Job ends its container, so Kubernetes restarts the pod or retries the
+  Job.
 - The Publish artifacts workflow publishes the chart with the images as a signed OCI artifact
   ([ADR-1505](1505-every-merge-to-main-publishes-the-host-console-and-directory-images-the-chart-and-the-openapi-document-at-one-prerelease-version.md)).
 
