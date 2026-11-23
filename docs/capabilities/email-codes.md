@@ -8,7 +8,7 @@
 | ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Status**         | Available for local accounts                                                                                                                                                                                                           |
 | **Packages**       | `NCode.Identity.Mail(.Abstractions)` (the mail port), `NCode.Identity.Mail.Smtp` (the opt-in SMTP transport), `NCode.Identity.OpenId.Authentication.Interactive` (the pages and seams), `NCode.Identity.OpenId.Accounts.Authentication` (the local-account implementations) |
-| **Key decisions**  | [ADR-1532](../decisions/1532-outbound-mail-is-a-port-that-queues-each-message-for-a-replaceable-transport-and-smtp-is-its-adapter.md), [ADR-1533](../decisions/1533-an-end-user-verifies-an-email-address-resets-a-password-and-signs-in-with-a-second-factor-through-one-time-email-codes.md) |
+| **Key decisions**  | [ADR-1532](../decisions/1532-outbound-mail-is-a-port-that-composes-each-queued-message-at-delivery-for-a-replaceable-transport-with-smtp-and-amazon-ses-adapters.md), [ADR-1533](../decisions/1533-an-end-user-verifies-an-email-address-resets-a-password-and-signs-in-with-a-second-factor-through-one-time-email-codes.md) |
 | **Operator guide** | The host README's [`## Outbound mail`](../../hosts/NCode.Identity.OpenId.Host/README.md#outbound-mail)                                                                                                                                 |
 
 ## The promises
@@ -78,7 +78,7 @@ sequenceDiagram
   [ADR-1533, Options considered](../decisions/1533-an-end-user-verifies-an-email-address-resets-a-password-and-signs-in-with-a-second-factor-through-one-time-email-codes.md#options-considered).
 - A provider's HTTP API as the default, `System.Net.Mail.SmtpClient`, sending inside the request, and a mail outbox
   table:
-  [ADR-1532, Options considered](../decisions/1532-outbound-mail-is-a-port-that-queues-each-message-for-a-replaceable-transport-and-smtp-is-its-adapter.md#options-considered).
+  [ADR-1532, Options considered](../decisions/1532-outbound-mail-is-a-port-that-composes-each-queued-message-at-delivery-for-a-replaceable-transport-with-smtp-and-amazon-ses-adapters.md#options-considered).
 
 </details>
 
@@ -150,7 +150,7 @@ and in the tenant's branding display name, and a log never writes a recipient or
 [metrics](../metrics.md#ncodeidentitymailmessages) for the delivery counter.
 
 > [!TIP]
-> [ADR-1532](../decisions/1532-outbound-mail-is-a-port-that-queues-each-message-for-a-replaceable-transport-and-smtp-is-its-adapter.md),
+> [ADR-1532](../decisions/1532-outbound-mail-is-a-port-that-composes-each-queued-message-at-delivery-for-a-replaceable-transport-with-smtp-and-amazon-ses-adapters.md),
 > `IMailSender`, `IMailTransport`, `MailDeliveryJobHandler`, `SmtpMailTransport`.
 
 ## Audit
@@ -182,7 +182,7 @@ sign-in. Nothing is recorded while a flow's setting is off. See the [audit recor
 ## Further reading
 
 - Decisions:
-  [ADR-1532](../decisions/1532-outbound-mail-is-a-port-that-queues-each-message-for-a-replaceable-transport-and-smtp-is-its-adapter.md),
+  [ADR-1532](../decisions/1532-outbound-mail-is-a-port-that-composes-each-queued-message-at-delivery-for-a-replaceable-transport-with-smtp-and-amazon-ses-adapters.md),
   [ADR-1533](../decisions/1533-an-end-user-verifies-an-email-address-resets-a-password-and-signs-in-with-a-second-factor-through-one-time-email-codes.md),
   [ADR-1528](../decisions/1528-the-hosted-platform-sends-its-mail-through-amazon-ses-in-each-cells-region-from-mail-ncodeid-net.md),
   [ADR-1230](../decisions/1230-an-end-user-changes-their-password-through-an-optional-seam-and-keeps-only-the-current-session.md),

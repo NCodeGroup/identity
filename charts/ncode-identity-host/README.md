@@ -1642,7 +1642,7 @@ release on the nodes it runs on
 
 `mail.smtp.*` sets the host's `Mail:Smtp` section, the SMTP server that the host mails its email codes to, such as
 Amazon SES's SMTP endpoint in the cell's region
-([ADR-1532](../../docs/decisions/1532-outbound-mail-is-a-port-that-queues-each-message-for-a-replaceable-transport-and-smtp-is-its-adapter.md)).
+([ADR-1532](../../docs/decisions/1532-outbound-mail-is-a-port-that-composes-each-queued-message-at-delivery-for-a-replaceable-transport-with-smtp-and-amazon-ses-adapters.md)).
 The chart renders the section only while `mail.smtp.host` is set; unset, the host sends no mail. `mail.smtp.from` is
 required with the host and is the address every message is sent from, which the provider authorizes. `mail.smtp.port` is
 `587` by default and `mail.smtp.tls` is `StartTls` or `ImplicitTls`: the chart refuses `None`, which sends in clear.

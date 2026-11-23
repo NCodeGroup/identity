@@ -131,7 +131,7 @@ server. The in-process adapter records nothing: a dictionary operation in memory
 ### `ncode.identity.mail.messages`
 
 Counter, unit `{message}`, meter `NCode.Identity.Mail`. Recorded once for each delivery attempt of a queued mail message
-([ADR-1532](decisions/1532-outbound-mail-is-a-port-that-queues-each-message-for-a-replaceable-transport-and-smtp-is-its-adapter.md)).
+([ADR-1532](decisions/1532-outbound-mail-is-a-port-that-composes-each-queued-message-at-delivery-for-a-replaceable-transport-with-smtp-and-amazon-ses-adapters.md)).
 
 | Attribute                    | Values                                                  |
 | ---------------------------- | ------------------------------------------------------- |

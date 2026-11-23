@@ -321,7 +321,7 @@ DataProtection key ring are in the same database and are purged with it.
 
 The host mails the one-time codes that verify an email address, reset a forgotten password and complete an email second
 factor. The mail goes to the SMTP server that the optional `Mail:Smtp` section names
-([ADR-1532](../../docs/decisions/1532-outbound-mail-is-a-port-that-queues-each-message-for-a-replaceable-transport-and-smtp-is-its-adapter.md)).
+([ADR-1532](../../docs/decisions/1532-outbound-mail-is-a-port-that-composes-each-queued-message-at-delivery-for-a-replaceable-transport-with-smtp-and-amazon-ses-adapters.md)).
 The section is bound strictly and validated when the host starts.
 
 | Setting              | Default       | Meaning                                                                                              |

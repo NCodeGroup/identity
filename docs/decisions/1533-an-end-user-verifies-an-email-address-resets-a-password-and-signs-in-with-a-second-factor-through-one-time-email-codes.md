@@ -16,7 +16,7 @@ Forces:
 - **An end user who forgets a password needs an administrator's reset.** A tenant also needs a second factor beyond a
   password, and an address is verified by nothing the end user can do.
 - **Mail goes through the port of**
-  [ADR-1532](1532-outbound-mail-is-a-port-that-queues-each-message-for-a-replaceable-transport-and-smtp-is-its-adapter.md).
+  [ADR-1532](1532-outbound-mail-is-a-port-that-composes-each-queued-message-at-delivery-for-a-replaceable-transport-with-smtp-and-amazon-ses-adapters.md).
   A message is queued, so a send says nothing about whether an account exists, and a code that arrives after it expires
   is useless.
 - **Shared state that every replica sees holds short-lived values and counters**
@@ -122,7 +122,7 @@ off until the tenant turns it on.**
   post-commit effects run on.
 - [ADR-1402](1402-the-interactive-surface-renders-in-the-locale-the-request-prefers-among-the-registered-ui-locales.md)
   — the locale the pages render in.
-- [ADR-1532](1532-outbound-mail-is-a-port-that-queues-each-message-for-a-replaceable-transport-and-smtp-is-its-adapter.md)
+- [ADR-1532](1532-outbound-mail-is-a-port-that-composes-each-queued-message-at-delivery-for-a-replaceable-transport-with-smtp-and-amazon-ses-adapters.md)
   — the mail port that sends a code.
 - [RFC 8176](https://www.rfc-editor.org/rfc/rfc8176) — the `otp` and `mfa` authentication method references.
 - [NIST SP 800-63B](https://pages.nist.gov/800-63-4/sp800-63b.html) — email is not an out-of-band authenticator.

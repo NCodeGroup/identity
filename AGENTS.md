@@ -134,7 +134,7 @@ compiles it, no gate runs it as tests, and a `.Tests` project of its own unit-te
 - **Infrastructure ports** — `NCode.Identity.Dispatch(.Abstractions)` (background jobs),
   `NCode.Identity.Events(.Abstractions)`, `NCode.Identity.Mail(.Abstractions)` (outbound mail) and its opt-in
   `NCode.Identity.Mail.Smtp` adapter
-  ([ADR-1532](docs/decisions/1532-outbound-mail-is-a-port-that-queues-each-message-for-a-replaceable-transport-and-smtp-is-its-adapter.md)),
+  ([ADR-1532](docs/decisions/1532-outbound-mail-is-a-port-that-composes-each-queued-message-at-delivery-for-a-replaceable-transport-with-smtp-and-amazon-ses-adapters.md)),
   `NCode.Identity.SharedState(.Abstractions)` (state every replica sees) and its opt-in
   `NCode.Identity.SharedState.Valkey` adapter
   ([ADR-1164](docs/decisions/1164-replicas-share-expiring-keys-values-and-indexes-through-ports-with-in-process-and-valkey-adapters.md))

@@ -3439,7 +3439,7 @@ Until the first stable release, the [Unreleased] section describes the product a
   `NCode.Identity.Mail.Smtp`'s `AddSmtpMailTransport` delivers over SMTP with STARTTLS or implicit TLS from the
   `Mail:Smtp` section, which the host chart sets as `mail.smtp`, and the local stack sends to Mailpit;
   `ncode.identity.mail.messages` counts deliveries
-  ([ADR-1532](docs/decisions/1532-outbound-mail-is-a-port-that-queues-each-message-for-a-replaceable-transport-and-smtp-is-its-adapter.md),
+  ([ADR-1532](docs/decisions/1532-outbound-mail-is-a-port-that-composes-each-queued-message-at-delivery-for-a-replaceable-transport-with-smtp-and-amazon-ses-adapters.md),
   [#911](https://github.com/NCodeGroup/identity/issues/911)).
 
 - **`HealthCheckTags.Readiness` tags every readiness health check.** `NCode.Identity.Registration` publishes the tag
@@ -6803,7 +6803,7 @@ Until the first stable release, the [Unreleased] section describes the product a
   numeric status, never its reply text or the recipient; a decoy request's entries expire within a minute;
   `Mail:Smtp:Tls=None` is refused outside local development
   ([ADR-1533](docs/decisions/1533-an-end-user-verifies-an-email-address-resets-a-password-and-signs-in-with-a-second-factor-through-one-time-email-codes.md),
-  [ADR-1532](docs/decisions/1532-outbound-mail-is-a-port-that-queues-each-message-for-a-replaceable-transport-and-smtp-is-its-adapter.md),
+  [ADR-1532](docs/decisions/1532-outbound-mail-is-a-port-that-composes-each-queued-message-at-delivery-for-a-replaceable-transport-with-smtp-and-amazon-ses-adapters.md),
   [#911](https://github.com/NCodeGroup/identity/issues/911)).
 
 - **Anonymous discovery and JSON Web Key Set requests cannot spend a tenant's daily request quota.** The two endpoints
