@@ -1,0 +1,4 @@
+#nullable enable
+NCode.Identity.Mail.Mime.MimeMailMessages
+static NCode.Identity.Mail.Mime.MimeMailMessages.CreateAsync(NCode.Identity.Mail.MailMessage! message, NCode.Identity.Mail.MailAddress! defaultFrom, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<MimeKit.MimeMessage!>
+static NCode.Identity.Mail.Mime.MimeMailMessages.CreateFormatOptions() -> MimeKit.FormatOptions!
