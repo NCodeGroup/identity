@@ -4,11 +4,11 @@
 using System.Security.Claims;
 using NCode.Identity.OpenId.Accounts.Stores;
 using NCode.Identity.OpenId.Authentication.Subject;
+using NCode.Identity.OpenId.Connections;
 using NCode.Identity.OpenId.Contexts;
 using NCode.Identity.OpenId.Errors;
 using NCode.Identity.OpenId.Messages;
 using NCode.Identity.OpenId.Persistence.Stores;
-using NCode.Identity.OpenId.Settings;
 using NCode.Identity.Persistence.Stores;
 using NCode.Identity.Registration.AspNetCore;
 using NCode.Mediator;
@@ -23,10 +23,15 @@ namespace NCode.Identity.OpenId.Accounts.Authentication;
 /// handlers.
 /// </summary>
 // See ADR-1229.
-internal class DefaultValidateLocalAccountSubjectHandler(IStoreManagerFactory storeManagerFactory)
-    : ICommandHandler<ValidateSubjectStandingCommand>
+internal class DefaultValidateLocalAccountSubjectHandler(
+    IStoreManagerFactory storeManagerFactory,
+    IConnectionResolver connectionResolver,
+    LocalAccountStoreCatalog catalog
+) : ICommandHandler<ValidateSubjectStandingCommand>
 {
     private IStoreManagerFactory StoreManagerFactory { get; } = storeManagerFactory;
+    private IConnectionResolver ConnectionResolver { get; } = connectionResolver;
+    private LocalAccountStoreCatalog Catalog { get; } = catalog;
 
     /// <inheritdoc />
     public async ValueTask HandleAsync(
@@ -50,7 +55,12 @@ internal class DefaultValidateLocalAccountSubjectHandler(IStoreManagerFactory st
 
         if (identities.Count == 0)
         {
-            if (AuthenticatedLocally(openIdContext, subjectAuthentication))
+            var authenticatedLocally = await AuthenticatedLocallyAsync(
+                openIdContext,
+                subjectAuthentication,
+                cancellationToken
+            );
+            if (authenticatedLocally)
             {
                 Refuse(
                     openIdContext,
@@ -62,20 +72,19 @@ internal class DefaultValidateLocalAccountSubjectHandler(IStoreManagerFactory st
             return;
         }
 
-        var accountStore = storeManager.GetStore<ILocalAccountStore>();
         foreach (var identity in identities)
         {
-            if (
-                !string.Equals(
-                    identity.Issuer,
-                    AccountConstants.SelfIssuer,
-                    StringComparison.Ordinal
-                )
-            )
+            var connection = await ConnectionResolver.GetByIdOrDefaultAsync(
+                openIdContext,
+                identity.ConnectionId,
+                cancellationToken
+            );
+            if (connection is null || !LocalAccountSignedInAccounts.IsLocal(connection))
             {
                 continue;
             }
 
+            var accountStore = Catalog.GetStore(storeManager, connection.Connection);
             var account = await accountStore.GetByIdOrDefaultAsync(
                 identity.Subject,
                 cancellationToken
@@ -93,16 +102,27 @@ internal class DefaultValidateLocalAccountSubjectHandler(IStoreManagerFactory st
     }
 
     // A principal without an identity is a local account's once its account and identity were deleted; the subject's
-    // issuer claim says whether the local accounts signed it in.
-    private static bool AuthenticatedLocally(
+    // connection claim says whether a local connection signed it in.
+    private async ValueTask<bool> AuthenticatedLocallyAsync(
         OpenIdContext openIdContext,
-        SubjectAuthentication subjectAuthentication
+        SubjectAuthentication subjectAuthentication,
+        CancellationToken cancellationToken
     )
     {
-        var settings = openIdContext.Tenant.SettingsProvider.Collection;
-        var issuerClaimType = settings.GetValue(OpenIdSettingKeys.PrincipalIssuerClaim);
-        var issuer = subjectAuthentication.Subject.FindFirstValue(issuerClaimType);
-        return string.Equals(issuer, AccountConstants.SelfIssuer, StringComparison.Ordinal);
+        var connectionId = subjectAuthentication.Subject.FindFirstValue(
+            ConnectionClaimTypes.Connection
+        );
+        if (string.IsNullOrEmpty(connectionId))
+        {
+            return false;
+        }
+
+        var connection = await ConnectionResolver.GetByIdOrDefaultAsync(
+            openIdContext,
+            connectionId,
+            cancellationToken
+        );
+        return connection is not null && LocalAccountSignedInAccounts.IsLocal(connection);
     }
 
     private static void Refuse(
