@@ -115,6 +115,11 @@ the `Mail:Smtp` and `Mail:AmazonSes` sections.**
   ([#25](https://github.com/NCodeGroup/identity/issues/25)).
 - **A static MIME builder.** Rejected: a transport can't take it by injection, a host can't replace it, and it reads
   the wall clock for a message's date.
+- **A delivery job typed by its model.** Rejected: the dispatcher finds a job's handlers by the job's type, so each
+  model would need a handler registered for it, which a capability that references only
+  `NCode.Identity.Mail.Abstractions` can't register without the implementation reference that
+  [ADR-1500](1500-every-package-names-one-capability-under-the-ncode-identity-prefix-as-an-abstractions-and-implementation-pair.md)
+  rules out.
 - **Chosen:** the queued port, composition at delivery, and the SMTP and Amazon SES adapters over a shared MIME package.
 
 ## Consequences
@@ -128,7 +133,10 @@ the `Mail:Smtp` and `Mail:AmazonSes` sections.**
   `NCode.Identity.Mail.Mime`, registers through `AddMimeMailTransport` and takes `IMimeMessageFactory` by constructor
   injection.
 - A durable dispatcher stores the model, code included, until the message is delivered, so it protects job payloads at
-  rest ([#25](https://github.com/NCodeGroup/identity/issues/25)).
+  rest ([#25](https://github.com/NCodeGroup/identity/issues/25)). The job holds its model as `object`, so such a
+  dispatcher stores the model's type with the job and reads the model back only as a type that a registered
+  `IMailComposer` names as its `ModelType`; read back by the job's declared member types alone, the model would reach
+  the handler as data that no composer handles.
 
 ## References
 
