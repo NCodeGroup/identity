@@ -149,15 +149,16 @@ internal sealed class AuditStreamDeliveryService(
 
         state.LeaseHolder = LeaseHolder;
         state.LeaseExpiryTime = TimeProvider.GetUtcNow() + Options.StreamLeaseDuration;
-        await store.UpdateStateAsync(state, cancellationToken);
 
         try
         {
+            await store.UpdateStateAsync(state, cancellationToken);
             await storeManager.SaveChangesAsync(cancellationToken);
         }
         catch (StoreConcurrencyException)
         {
-            // Another replica took the stream first.
+            // Another replica took the stream first, as the store's token check or the save
+            // found.
             return false;
         }
 

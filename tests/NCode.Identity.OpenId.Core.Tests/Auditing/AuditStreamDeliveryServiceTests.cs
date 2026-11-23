@@ -329,6 +329,39 @@ public sealed class AuditStreamDeliveryServiceTests : BaseTests
     }
 
     [Fact]
+    public async Task PollAsync_WhenTheStoreFindsTheClaimTaken_SkipsItWithoutLogging()
+    {
+        var cancellationToken = CancellationToken.None;
+        var first = CreateState("stream-1");
+        var second = CreateState("stream-2");
+        SetupStores();
+        SetupDue([first, second], cancellationToken);
+        MockAuditStreamStore
+            .Setup(x => x.UpdateStateAsync(first, cancellationToken))
+            .ThrowsAsync(new StoreConcurrencyException("conflict"))
+            .Verifiable(Times.Once);
+        MockAuditStreamStore
+            .Setup(x => x.UpdateStateAsync(second, cancellationToken))
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable(Times.Once);
+        MockStoreManager
+            .Setup(x => x.SaveChangesAsync(cancellationToken))
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable(Times.Once);
+        MockDeliverer
+            .Setup(x => x.DeliverAsync(second, cancellationToken))
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable(Times.Once);
+
+        await Service.PollAsync(cancellationToken);
+
+        Assert.DoesNotContain(
+            Logger.Collector.GetSnapshot(),
+            record => record.Id.Id == EventIds.AuditStreamDeliveryErrored
+        );
+    }
+
+    [Fact]
     public async Task PollAsync_WhenNothingIsDue_DeliversNothing()
     {
         var cancellationToken = CancellationToken.None;
