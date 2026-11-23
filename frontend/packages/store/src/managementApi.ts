@@ -164,7 +164,7 @@ async function listTenantsInEveryCell(
   });
 
   if (cells.length === 0) {
-    const result = await fetchWithBQ(pageRequest('', Object.values(cursors).join('')));
+    const result = await fetchWithBQ(pageRequest('', cursors[CONTROL_PLANE_CURSOR] ?? ''));
     if (result.error) {
       return { error: result.error };
     }

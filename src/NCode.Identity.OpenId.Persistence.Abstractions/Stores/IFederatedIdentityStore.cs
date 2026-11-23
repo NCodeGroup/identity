@@ -83,8 +83,8 @@ public interface IFederatedIdentityStore : IStore
     /// </summary>
     /// <param name="principalIds">The identifiers of the owning principals.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
-    /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation, containing the identities
-    /// owned by any of the <paramref name="principalIds"/>.</returns>
+    /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation, containing the identities owned
+    /// by any of the <paramref name="principalIds"/>.</returns>
     ValueTask<IReadOnlyList<PersistedFederatedIdentity>> GetByPrincipalsAsync(
         IReadOnlyCollection<string> principalIds,
         CancellationToken cancellationToken

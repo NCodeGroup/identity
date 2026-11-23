@@ -6,10 +6,10 @@ using JetBrains.Annotations;
 namespace NCode.Identity.OpenId.GlobalDirectory;
 
 /// <summary>
-/// Contains the audiences, scopes, endpoint paths and client identifier prefix that the global directory API and the control plane
-/// authority API share between the cells that call them and the control-plane cell that serves them, and the wait that
-/// a route asks of its caller when the directory, the control plane or the issuer of its access tokens cannot be
-/// reached.
+/// Contains the audiences, scopes, endpoint paths and client identifier prefix that the global directory API and the
+/// control plane authority API share between the cells that call them and the control-plane cell that serves them, and
+/// the wait that a route asks of its caller when the directory, the control plane or the issuer of its access tokens
+/// cannot be reached.
 /// </summary>
 [PublicAPI]
 public static class GlobalDirectoryProtocol

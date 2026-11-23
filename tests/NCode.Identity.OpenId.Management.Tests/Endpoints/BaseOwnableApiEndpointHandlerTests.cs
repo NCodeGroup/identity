@@ -715,7 +715,7 @@ public class BaseOwnableApiEndpointHandlerTests : IDisposable
     }
 
     [Fact]
-    public async Task ProcessAddRoleAssignmentAsync_ByUserName_WithADifferentCase_GrantsTheAccount()
+    public async Task ProcessAddRoleAssignmentAsync_WhenAUserNameDiffersInCase_GrantsTheAccount()
     {
         var authz = Authz(AuthorizationResult.Success());
         var (factory, manager) = StoreManager();

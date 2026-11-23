@@ -13,7 +13,8 @@ internal static class ControlPlaneUris
     /// Creates the URI of a control-plane endpoint at the origin of the control plane's issuer.
     /// </summary>
     /// <param name="cellOptions">The <see cref="CellOptions"/> that name the control plane's issuer.</param>
-    /// <param name="path">The path of the endpoint, such as <see cref="GlobalDirectoryProtocol.ControlPlaneAuthorityPath"/>.</param>
+    /// <param name="path">The path of the endpoint, such as
+    /// <see cref="GlobalDirectoryProtocol.ControlPlaneAuthorityPath"/>.</param>
     /// <returns>The absolute URI of the endpoint on the control plane's host.</returns>
     /// <exception cref="DirectoryUnavailableException">
     /// The cell does not know an absolute issuer of the control plane.
