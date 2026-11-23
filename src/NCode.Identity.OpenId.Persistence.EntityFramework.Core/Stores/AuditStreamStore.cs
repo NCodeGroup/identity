@@ -328,7 +328,7 @@ internal sealed class AuditStreamStore(
         var utcStoredBefore = storedBefore.ToUniversalTime();
         var auditRecords = DbContext.AuditRecords;
 
-        // No query filter is ignored: the caller opened an unscoped scope, which matches every tenant.
+        // The tenant query filter applies, and the unscoped scope the caller opened makes it match every tenant.
         // A stream is due only when its tenant has a record after the stream's position, in the order the stream page
         // reads (ADR-1534), so an idle stream is never due and costs no lease, unwrap or poll slot.
         var entities = await DbContext
