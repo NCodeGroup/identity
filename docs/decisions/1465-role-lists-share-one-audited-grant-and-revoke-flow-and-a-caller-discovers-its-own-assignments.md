@@ -38,10 +38,10 @@ audited; and a caller reads its own assignments, teams and tenants from `GET /ap
    `GET` reads the list, `POST` grants and `DELETE …/{principalId}` revokes.
 2. **The contracts name no role and no owner.** `GET` answers `RoleListResource { items, canChange }`. An item, and the
    answer to a grant, is `RoleHolderResource { assignmentId, principalId, roleName, principal }`, where `principal` is a
-   `PrincipalSummaryResource { principalId, principalType, displayName, userName }` or null. A grant's body is
-   `AddRoleHolderRequest`, which names exactly one of `principalId`, the one on the resource of the local account or
-   client to grant (`LocalAccountResource`, `ClientResource`), and `userName`. `RoleAssignmentResource`, which names its
-   node, serves the assignments that are read across nodes.
+   `PrincipalSummaryResource { principalId, principalType, displayName, userName }`, or null only for an assignment
+   whose principal no longer exists. A grant's body is `AddRoleHolderRequest`, which names exactly one of `principalId`,
+   the one on the resource of the local account or client to grant (`LocalAccountResource`, `ClientResource`), and
+   `userName`. `RoleAssignmentResource`, which names its node, serves the assignments that are read across nodes.
 3. **`canChange` says whether the caller's grant or revoke of the role at the node passes every refusal that does not
    depend on the principal named.** Those refusals are `Update` at the node for owners, `Create` for administrators,
    and, for a client's owners, a client the host does not manage and custody of a machine client
@@ -56,7 +56,8 @@ audited; and a caller reads its own assignments, teams and tenants from `GET /ap
 
 5. **One flow grants every role.** A `RoleList` drives it: the node, the role, the operation that authorizes, the list
    path and the check that the resource exists. The flow authorizes, then answers:
-   - `400` when the request does not name exactly one principal, or names a `userName` that no principal has;
+   - `400` when the request does not name exactly one principal, names a `userName` that no principal has, or names a
+     `principalId` that the control plane does not know, which creates no assignment;
    - `404` for a missing resource;
    - `409` when the ownership service refuses, saving and recording nothing;
    - `200` with the existing assignment when the principal already holds the role, recording nothing;
@@ -84,10 +85,14 @@ audited; and a caller reads its own assignments, teams and tenants from `GET /ap
     registered describer describes the principals it knows, and the local adapter merges their answers. The
     `local_account` describer gives an account's display name and username, and the `client` describer a client's
     identifier as its display name. A package that registers another describer adds a principal type, so
-    `PrincipalTypes` holds an open vocabulary. A principal that no describer knows has `principal: null` on its item.
-12. **A grant by name fails closed.** A `userName` resolves through the directory after the flow authorizes and the
-    resource exists, and a name that no principal has answers `400` without echoing it, so only a caller with grant
-    authority at a node can probe a username. A control plane that fails or is unreachable is a
+    `PrincipalTypes` holds an open vocabulary. The directory describes every control-plane principal: the registered
+    describers first, then each remaining principal that the federated principal store holds as `federated_user`, named
+    by its first federated identity (ordered by issuer, then subject) as `<subject> (<issuer>)`, or by its principal
+    identifier when it has none. Only an assignment whose principal no longer exists has `principal: null` on its item.
+12. **A grant fails closed.** A `userName` resolves through the directory after the flow authorizes and the resource
+    exists, and a name or a `principalId` that the control plane does not know answers `400` without echoing it, so a
+    mistyped identifier never creates an assignment that no principal holds, and only a caller with grant authority at a
+    node can probe a username. A control plane that fails or is unreachable is a
     `DirectoryUnavailableException`, which the management endpoints answer `503`, for a list and for a grant, and a name
     is never guessed.
 

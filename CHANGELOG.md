@@ -4649,9 +4649,10 @@ Until the first stable release, the [Unreleased] section describes the product a
   cannot hold the role there, and every list grants and revokes its role through one flow, so every role answers the
   same statuses and records the same audit events. Each holder carries `principal`, a `PrincipalSummaryResource`
   (`principalId`, `principalType`, `displayName`, `userName`) that the control plane resolves through
-  `IControlPlanePrincipalDirectory` from every registered `IPrincipalDescriber` (local accounts and clients), which the
-  other cells ask through `POST /control-plane/v1/principals`; a grant names its principal by `principalId` or by a
-  control-plane local account's `userName`
+  `IControlPlanePrincipalDirectory` from every registered `IPrincipalDescriber` (local accounts and clients) and then as
+  `federated_user` for a federated principal, which the other cells ask through `POST /control-plane/v1/principals`; a
+  grant names its principal by `principalId` or by a control-plane local account's `userName`, and refuses a principal
+  the control plane doesn't know with `400`
   ([ADR-1465](docs/decisions/1465-role-lists-share-one-audited-grant-and-revoke-flow-and-a-caller-discovers-its-own-assignments.md),
   [ADR-1466](docs/decisions/1466-a-client-is-its-own-principal-and-a-machine-client-acts-only-within-its-owning-node.md),
   [#623](https://github.com/NCodeGroup/identity/issues/623), [#627](https://github.com/NCodeGroup/identity/issues/627),
