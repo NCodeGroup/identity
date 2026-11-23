@@ -60,9 +60,15 @@ internal sealed class DefaultLocalAccountEmailCodes(
 
     private static TimeSpan SendsWindow { get; } = TimeSpan.FromHours(1);
 
-    // The lifetime of a decoy's counter and flow. A decoy flow refuses every code, an expired flow refuses a code with
-    // the same invalid_code, and no response reads the decoy counter, so a minute is unobservable. It keeps a flood of
-    // distinct usernames from filling shared state for an hour.
+    /// <summary>
+    /// Gets the lifetime of a decoy's counter and flow.
+    /// </summary>
+    /// <remarks>
+    /// A decoy flow refuses every code, an expired flow refuses a code with the same <c>invalid_code</c>, and no
+    /// response reads the decoy counter, so a minute is unobservable. It keeps a flood of distinct usernames from
+    /// filling shared state for an hour.
+    /// </remarks>
+    // See ADR-1533.
     internal static TimeSpan DecoyLifetime { get; } = TimeSpan.FromMinutes(1);
 
     private IExpiringValueSet ValueSet { get; } = valueSet;

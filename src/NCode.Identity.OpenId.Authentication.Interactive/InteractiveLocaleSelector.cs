@@ -66,10 +66,16 @@ internal sealed class InteractiveLocaleSelector
             + Uri.EscapeDataString(languageTag);
     }
 
-    // The language tag a form carried comes first, when there is one; then the ui_locales preferences, in their order;
-    // then the Accept-Language values by descending quality, without the wildcard and the values a quality of zero
-    // rules out. The method runs on every page request, so it splits the query over spans and orders the header by
-    // insertion, which keeps the header's order among equal qualities, without LINQ.
+    /// <summary>
+    /// Reads the language tags a request prefers: the language tag a form carried, then the <c>ui_locales</c>
+    /// preferences in their order, then the <c>Accept-Language</c> values by descending quality, without the wildcard
+    /// and the values a quality of zero rules out.
+    /// </summary>
+    /// <param name="request">The request.</param>
+    /// <param name="carriedLanguageTag">The language tag the form carried, or <see langword="null"/>.</param>
+    /// <returns>The preferred language tags, most preferred first.</returns>
+    // The method runs on every page request, so it splits the query over spans and orders the header by insertion,
+    // which keeps the header's order among equal qualities, without LINQ.
     private static List<string> ReadPreferences(HttpRequest request, string? carriedLanguageTag)
     {
         List<string> preferences = [];
