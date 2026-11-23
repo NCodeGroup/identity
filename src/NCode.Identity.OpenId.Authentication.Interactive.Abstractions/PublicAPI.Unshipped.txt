@@ -77,6 +77,7 @@ const NCode.Identity.OpenId.Authentication.Interactive.InteractiveSettingNames.B
 const NCode.Identity.OpenId.Authentication.Interactive.InteractiveSettingNames.BrandingLogoUri = "branding_logo_uri" -> string!
 const NCode.Identity.OpenId.Authentication.Interactive.InteractiveSettingNames.BrandingPrimaryColor = "branding_primary_color" -> string!
 const NCode.Identity.OpenId.Authentication.Interactive.InteractiveSettingNames.BrandingSecondaryColor = "branding_secondary_color" -> string!
+static NCode.Identity.OpenId.Authentication.Interactive.InteractiveEmailCodeResult.NotSupported.get -> NCode.Identity.OpenId.Authentication.Interactive.InteractiveEmailCodeResult!
 static NCode.Identity.OpenId.Authentication.Interactive.InteractiveEmailCodeResult.Refused(string! error) -> NCode.Identity.OpenId.Authentication.Interactive.InteractiveEmailCodeResult!
 static NCode.Identity.OpenId.Authentication.Interactive.InteractiveEmailCodeResult.Sent(string! flowId) -> NCode.Identity.OpenId.Authentication.Interactive.InteractiveEmailCodeResult!
 static NCode.Identity.OpenId.Authentication.Interactive.InteractiveEmailCodeResult.Verified.get -> NCode.Identity.OpenId.Authentication.Interactive.InteractiveEmailCodeResult!

@@ -15,9 +15,6 @@ namespace NCode.Identity.OpenId.Authentication.Interactive;
 // See ADR-1533.
 internal sealed class DefaultInteractiveEmailVerifier : IInteractiveEmailVerifier
 {
-    private static InteractiveEmailCodeResult NotSupported { get; } =
-        InteractiveEmailCodeResult.Refused(InteractiveEmailCodeErrors.NotSupported);
-
     /// <inheritdoc />
     public ValueTask<InteractiveEmailStatus?> GetStatusAsync(
         OpenIdContext openIdContext,
@@ -31,7 +28,7 @@ internal sealed class DefaultInteractiveEmailVerifier : IInteractiveEmailVerifie
         ClaimsPrincipal principal,
         InteractiveLocale locale,
         CancellationToken cancellationToken
-    ) => ValueTask.FromResult(NotSupported);
+    ) => ValueTask.FromResult(InteractiveEmailCodeResult.NotSupported);
 
     /// <inheritdoc />
     public ValueTask<InteractiveEmailCodeResult> VerifyEmailAsync(
@@ -40,5 +37,5 @@ internal sealed class DefaultInteractiveEmailVerifier : IInteractiveEmailVerifie
         string flowId,
         Secret<char> code,
         CancellationToken cancellationToken
-    ) => ValueTask.FromResult(NotSupported);
+    ) => ValueTask.FromResult(InteractiveEmailCodeResult.NotSupported);
 }

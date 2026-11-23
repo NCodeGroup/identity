@@ -15,16 +15,13 @@ namespace NCode.Identity.OpenId.Authentication.Interactive;
 // See ADR-1533.
 internal sealed class DefaultInteractiveSignInCodeChallenge : IInteractiveSignInCodeChallenge
 {
-    private static InteractiveEmailCodeResult NotSupported { get; } =
-        InteractiveEmailCodeResult.Refused(InteractiveEmailCodeErrors.NotSupported);
-
     /// <inheritdoc />
     public ValueTask<InteractiveEmailCodeResult> SendSignInCodeAsync(
         OpenIdContext openIdContext,
         ClaimsPrincipal principal,
         InteractiveLocale locale,
         CancellationToken cancellationToken
-    ) => ValueTask.FromResult(NotSupported);
+    ) => ValueTask.FromResult(InteractiveEmailCodeResult.NotSupported);
 
     /// <inheritdoc />
     public ValueTask<InteractiveEmailCodeResult> VerifySignInCodeAsync(
@@ -33,5 +30,5 @@ internal sealed class DefaultInteractiveSignInCodeChallenge : IInteractiveSignIn
         string flowId,
         Secret<char> code,
         CancellationToken cancellationToken
-    ) => ValueTask.FromResult(NotSupported);
+    ) => ValueTask.FromResult(InteractiveEmailCodeResult.NotSupported);
 }

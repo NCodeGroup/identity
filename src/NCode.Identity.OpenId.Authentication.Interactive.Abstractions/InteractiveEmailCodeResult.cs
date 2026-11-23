@@ -20,6 +20,12 @@ public sealed class InteractiveEmailCodeResult
     public static InteractiveEmailCodeResult Verified { get; } = new(null, null);
 
     /// <summary>
+    /// Gets the result for a backend that has no email code to send or verify for the end user.
+    /// </summary>
+    public static InteractiveEmailCodeResult NotSupported { get; } =
+        new(null, InteractiveEmailCodeErrors.NotSupported);
+
+    /// <summary>
     /// Creates the result for a code that is sent.
     /// </summary>
     /// <param name="flowId">The handle of the flow that the page presents back with the code.</param>
