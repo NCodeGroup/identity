@@ -118,9 +118,11 @@ a retired identifier or issuer is never reissued.**
     so its row never exists unplaced; a placement that does not take effect releases the reservation on its own bounded
     token, so the failure that ended the creation surfaces, and a failure after the placement leaves the identifier
     placed in the cell, which creating the tenant again there with the same issuer and team completes, because the
-    directory reserves and places again for the cell that holds the tenant. Creation fails closed with `503` when the
-    directory is unreachable. Serving a tenant's requests never calls the directory, because the cell's own tenant row
-    is authoritative for serving. A tenant a cell creates on demand that a strategy serves at an address (one with an
+    directory reserves and places again for the cell that holds the tenant. One service, `ITenantPlacer`, reserves and
+    places a tenant and releases a reservation whose placement does not take effect, for the management API and the
+    provisioner alike, and each of them inserts the tenant after it. Creation fails closed with `503` when the directory
+    is unreachable. Serving a tenant's requests never calls the directory, because the cell's own tenant row is
+    authoritative for serving. A tenant a cell creates on demand that a strategy serves at an address (one with an
     issuer), a static strategy's own tenant or the root tenant of a cell that is not the control plane when
     `TenantResolution:Root:Issuer` gives it one, is created the same way when the cell first creates it, and a tenant of
     the platform's own team is reserved in no team; a tenant a cell creates on demand without an issuer has no address
