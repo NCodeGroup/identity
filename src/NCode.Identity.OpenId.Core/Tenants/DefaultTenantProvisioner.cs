@@ -39,7 +39,7 @@ internal sealed class DefaultTenantProvisioner(
     IOptions<CellOptions> cellOptionsAccessor,
     IMediator mediator,
     ITeamProvisioner teamProvisioner,
-    ITenantDirectory tenantDirectory,
+    ITenantPlacer tenantPlacer,
     TimeProvider timeProvider,
     ILogger<DefaultTenantProvisioner> logger
 ) : ITenantProvisioner
@@ -59,9 +59,9 @@ internal sealed class DefaultTenantProvisioner(
     private ITeamProvisioner TeamProvisioner { get; } = teamProvisioner;
 
     /// <summary>
-    /// Gets the global directory that reserves and places a tenant this provisioner creates.
+    /// Gets the placer that reserves and places in the global directory a tenant this provisioner creates.
     /// </summary>
-    private ITenantDirectory TenantDirectory { get; } = tenantDirectory;
+    private ITenantPlacer TenantPlacer { get; } = tenantPlacer;
     private TimeProvider TimeProvider { get; } = timeProvider;
     private ILogger<DefaultTenantProvisioner> Logger { get; } = logger;
 
@@ -129,34 +129,23 @@ internal sealed class DefaultTenantProvisioner(
         );
 
         // The control-plane cell creates its root tenant without the directory, which accepts only the tokens that
-        // tenant issues; every other tenant a strategy serves is reserved, placed and inserted through the directory,
-        // as the management API creates a tenant (ADR-1160, ADR-1411).
+        // tenant issues, and a tenant no strategy serves has no address on the platform, so it holds nothing in the
+        // directory: its identifier, such as a workload cell's root tenant `root`, can be the one the directory holds
+        // for the control-plane cell's root tenant. Every other tenant a strategy serves is reserved, placed and
+        // inserted through the directory, as the management API creates a tenant (ADR-1160, ADR-1411).
         var isDirectoryTokenIssuer = RootTenantRules.IsDirectoryTokenIssuer(
             CellOptions,
             TenantResolver,
             tenantId
         );
-        if (isDirectoryTokenIssuer)
+        if (isDirectoryTokenIssuer || persistedTenant.Issuer is null)
         {
-            var concurrentRoot = await InsertOrFindConcurrentAsync(
+            var concurrent = await InsertOrFindConcurrentAsync(
                 persistedTenant,
                 storeManager,
                 cancellationToken
             );
-            return concurrentRoot ?? persistedTenant;
-        }
-
-        // A tenant no strategy serves has no address on the platform, so it holds nothing in the directory: its
-        // identifier, such as a workload cell's root tenant `root`, can be the one the directory holds for the
-        // control-plane cell's root tenant.
-        if (persistedTenant.Issuer is null)
-        {
-            var concurrentUnserved = await InsertOrFindConcurrentAsync(
-                persistedTenant,
-                storeManager,
-                cancellationToken
-            );
-            return concurrentUnserved ?? persistedTenant;
+            return concurrent ?? persistedTenant;
         }
 
         return await ReservePlaceAndInsertAsync(persistedTenant, storeManager, cancellationToken);
@@ -196,12 +185,11 @@ internal sealed class DefaultTenantProvisioner(
     }
 
     /// <summary>
-    /// Creates a tenant through the directory as a saga: reserves the tenant's identifier and issuer, places the tenant
-    /// in this cell, then inserts it, so its row never exists unplaced. A placement that does not take effect releases
-    /// the reservation on its own bounded token, and a release that fails is logged, so the failure that ended the
-    /// creation propagates; an insert that fails leaves the tenant placed in this cell, which the next creation of the
-    /// tenant in this cell completes, because the directory reserves and places again for the cell that holds the
-    /// tenant.
+    /// Creates a tenant through the directory: the placer reserves the tenant's identifier and issuer and places the
+    /// tenant in this cell, then the tenant is inserted, so its row never exists unplaced. A refusal that follows a
+    /// concurrent creator's row returns that creator's tenant; an insert that fails leaves the tenant placed in this
+    /// cell, which the next creation of the tenant in this cell completes, because the directory reserves and places
+    /// again for the cell that holds the tenant.
     /// </summary>
     private async ValueTask<PersistedTenant> ReservePlaceAndInsertAsync(
         PersistedTenant tenant,
@@ -209,18 +197,13 @@ internal sealed class DefaultTenantProvisioner(
         CancellationToken cancellationToken
     )
     {
-        // A tenant of the platform's own team is reserved in no team, because the directory holds no record of that
-        // team (ADR-1411).
-        var reservedTeamId = TenantReservationRules.GetTeamId(tenant.TeamId, RootOptions.TeamId);
-        var reservation = new TenantReservation
-        {
-            TenantId = tenant.TenantId,
-            Issuer = tenant.Issuer,
-            TeamId = reservedTeamId,
-            Cell = CellOptions.Name,
-        };
-        var reservationResult = await TenantDirectory.ReserveAsync(reservation, cancellationToken);
-        if (!reservationResult.IsReserved)
+        var placementResult = await TenantPlacer.ReserveAndPlaceAsync(
+            tenant.TenantId,
+            tenant.Issuer,
+            tenant.TeamId,
+            cancellationToken
+        );
+        if (!placementResult.IsReserved)
         {
             // Replicas race to create the same tenant. The global directory answers a concurrent creator in this cell
             // reserved, and the local directory, whose placement is the tenant's row, refuses one once its row exists;
@@ -230,55 +213,8 @@ internal sealed class DefaultTenantProvisioner(
                 return creator;
 
             throw new InvalidOperationException(
-                $"The tenant '{tenant.TenantId}' cannot be created: {reservationResult.ConflictDetail}"
+                $"The tenant '{tenant.TenantId}' cannot be created in this cell: {placementResult.ConflictDetail}"
             );
-        }
-
-        var isPlaced = false;
-        try
-        {
-            var placementRequest = new TenantPlacementRequest
-            {
-                TenantId = tenant.TenantId,
-                Issuer = tenant.Issuer,
-                Cell = CellOptions.Name,
-            };
-            var placementResult = await TenantDirectory.PlaceAsync(
-                placementRequest,
-                cancellationToken
-            );
-            if (!placementResult.IsReserved)
-            {
-                throw new InvalidOperationException(
-                    $"The tenant '{tenant.TenantId}' cannot be placed in this cell: {placementResult.ConflictDetail}"
-                );
-            }
-
-            isPlaced = true;
-        }
-        finally
-        {
-            if (!isPlaced)
-            {
-                // A placement that did not take effect releases the reservation, even when the creation was canceled,
-                // on its own token bounded as work that follows a commit, and a release that fails or outlasts its
-                // bound is logged, so the failure that ended the creation surfaces. A release frees only a tenant that
-                // is not placed, so it never frees the placement of a concurrent creator of the tenant in this cell,
-                // and a placement whose acknowledgement was lost stays for the next creation of the tenant in this
-                // cell to complete. See ADR-1351 and ADR-1411.
-                try
-                {
-                    await PostCommitWork.RunAsync(
-                        TimeProvider,
-                        TenantDirectory.ReleaseAsync,
-                        tenant.TenantId
-                    );
-                }
-                catch (Exception exception)
-                {
-                    Logger.TenantCreationReleaseFailed(tenant.TenantId, exception);
-                }
-            }
         }
 
         // The tenant's row is the creation's last write, so it never exists unplaced. An insert that fails leaves the
