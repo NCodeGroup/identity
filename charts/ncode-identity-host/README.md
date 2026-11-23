@@ -591,13 +591,15 @@ with its encryption context, which holds a key id and an owner, never secret mat
 
 Then set `secretProtection.rootKeyProvider=aws-kms`,
 `secretProtection.awsKms.keyArn=arn:aws:kms:<region>:<account>:alias/ncode-identity-root`, and
-`secretProtection.awsKms.webIdentity.roleArn=arn:aws:iam::<account>:role/ncode-identity-root-key`;
-`ci/aws-kms-values.yaml` shows a release. The chart sets `AWS_REGION` from the key's ARN. When `roleArn` is set, it also
-mounts a projected service-account token (audience `secretProtection.awsKms.webIdentity.audience`, default
-`sts.amazonaws.com`, valid for `tokenExpirationSeconds`, at least 600) read-only at
-`/var/run/secrets/tokens/aws/token`, and sets `AWS_ROLE_ARN`, `AWS_WEB_IDENTITY_TOKEN_FILE`, and `AWS_ROLE_SESSION_NAME`
-(the release's full name). It does this only for the `aws-kms` provider, so a pod that uses another provider never
-carries AWS credentials. The pod still does not mount the default service-account token.
+`aws.webIdentity.roleArn=arn:aws:iam::<account>:role/ncode-identity-root-key`; `ci/aws-kms-values.yaml` shows a release.
+The chart sets `AWS_REGION` from the key's ARN. When `roleArn` is set, it also mounts a projected service-account token
+(audience `aws.webIdentity.audience`, default `sts.amazonaws.com`, valid for `tokenExpirationSeconds`, at least 600)
+read-only at `/var/run/secrets/tokens/aws/token`, and sets `AWS_ROLE_ARN`, `AWS_WEB_IDENTITY_TOKEN_FILE`, and
+`AWS_ROLE_SESSION_NAME` (the release's full name). It does this only for a pod that uses AWS KMS, so a pod that uses
+another provider never carries AWS credentials. The pod still does not mount the default service-account token.
+
+`aws.webIdentity` is one AWS identity for the pod: one IAM role serves every AWS service the pod calls, AWS KMS and
+Amazon SES alike, so the role's policy allows the actions of each service the pod uses.
 
 ### Azure Key Vault
 
@@ -705,7 +707,7 @@ deployment's root key.
 
 **Credentials.** The pods carry a provider's workload credentials when it is the root key provider, is listed in
 `secretProtection.ownerRootKeys.providers` or is enabled under `secretProtection.remoteKeyProviders`: for AWS KMS the
-web identity (`secretProtection.awsKms.webIdentity.roleArn`), for Azure Key Vault the workload identity
+web identity (`aws.webIdentity.roleArn`), for Azure Key Vault the workload identity
 (`secretProtection.azureKeyVault.workloadIdentity.clientId` and `tenantId`), and for Google Cloud KMS the federation
 (`secretProtection.googleCloudKms.workloadIdentityFederation.provider`), each set up as in the sections above. The
 provider's own key values (`awsKms.keyArn`, `azureKeyVault.keyId`, `googleCloudKms.keyName`) are rendered only when it
@@ -717,7 +719,7 @@ credentials of a provider that is neither.
 **What a tenant grants.** The tenant gives the deployment's identity the permission to wrap and unwrap with its one key,
 and nothing else; the server calls no other operation:
 
-- AWS KMS: the key policy allows the IAM role in `secretProtection.awsKms.webIdentity.roleArn` to call `kms:Encrypt` and
+- AWS KMS: the key policy allows the IAM role in `aws.webIdentity.roleArn` to call `kms:Encrypt` and
   `kms:Decrypt` on the key, as the policy in [AWS KMS](#aws-kms) shows, including the condition on the encryption
   context key `ncode-identity:root-context`. For a key in another AWS account, the role's own policy must also allow the
   key.
@@ -808,7 +810,7 @@ secretProtection:
 ```
 
 **Credentials.** An enabled provider reuses the credentials set up for it in the sections above, so a pod carries them:
-for AWS KMS the web identity (`secretProtection.awsKms.webIdentity.roleArn`), for Azure Key Vault the workload identity
+for AWS KMS the web identity (`aws.webIdentity.roleArn`), for Azure Key Vault the workload identity
 (`secretProtection.azureKeyVault.workloadIdentity.clientId` and `tenantId`), and for Google Cloud KMS the federation
 (`secretProtection.googleCloudKms.workloadIdentityFederation.provider`). A provider with no workload-identity values
 uses the pod's ambient identity. The chart renders such a provider on purpose, as it does a root key provider, because a
@@ -973,10 +975,9 @@ managementConsole:
           curve: P-256
     dpop:
       pemSecret: identity-mgmt-dpop-key
-  secretProtection:
-    awsKms:
-      webIdentity:
-        roleArn: arn:aws:iam::111122223333:role/ncode-identity-management-console
+  aws:
+    webIdentity:
+      roleArn: arn:aws:iam::111122223333:role/ncode-identity-management-console
 ```
 
 The chart renders each remote key as `KeyRings__<ring>__RemoteKeys__<kid>__Provider`, `__KeyId`, `__Algorithm`,
@@ -986,11 +987,12 @@ reads every key where the key's own identifier names, so the chart renders no
 `SecretProtection__RemoteKeyProviders__…` setting for it
 ([ADR-1474](../../docs/decisions/1474-a-remote-key-provider-is-described-by-data-and-reads-signs-and-decrypts-by-key-identifier.md)).
 
-**Credentials.** The console has an identity of its own under `managementConsole.secretProtection`:
-`awsKms.webIdentity`, `azureKeyVault.workloadIdentity` and `googleCloudKms.workloadIdentityFederation`, with the same
-fields and defaults as the server's `secretProtection.*` of the same names. The chart mounts them at the same paths and
-sets the same environment variables as for the server, and renders the ConfigMap `<console full name>-google-cloud`
-for a Google federation, with a checksum annotation on the pod so a change restarts it. The federated credentials trust
+**Credentials.** The console has an identity of its own: `managementConsole.aws.webIdentity`, and under
+`managementConsole.secretProtection` `azureKeyVault.workloadIdentity` and `googleCloudKms.workloadIdentityFederation`,
+with the same fields and defaults as the server's `aws.webIdentity` and `secretProtection.*` of the same names. The
+chart mounts them at the same paths and sets the same environment variables as for the server, and renders the
+ConfigMap `<console full name>-google-cloud` for a Google federation, with a checksum annotation on the pod so a change
+restarts it. The federated credentials trust
 the console's service account, `system:serviceaccount:<namespace>:<service account>`, where the service account is
 `managementConsole.serviceAccount.name`, or the console's full name, `<release full name>-management-console`, when
 that is empty. A value left empty means the pod's ambient identity. A console pod carries a vendor's credentials only

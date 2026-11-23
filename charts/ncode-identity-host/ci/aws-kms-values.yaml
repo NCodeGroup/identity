@@ -14,11 +14,12 @@ database:
 migrations:
   database:
     existingSecret: identity-database-owner
+aws:
+  webIdentity:
+    roleArn: arn:aws:iam::111122223333:role/ncode-identity-root-key
 secretProtection:
   rootKeyProvider: aws-kms
   awsKms:
     keyArn: arn:aws:kms:us-west-2:111122223333:alias/ncode-identity-root
-    webIdentity:
-      roleArn: arn:aws:iam::111122223333:role/ncode-identity-root-key
   recovery:
     publicKeyConfigMap: identity-recovery-key

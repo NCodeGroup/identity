@@ -508,7 +508,7 @@ a dict with the chart context as root and the key management service name as nam
 The workload credentials of the host, as YAML that the kmsCredentials helpers take as a dict (after fromYaml): name is
 the component's full name, awsKms, azureKeyVault and googleCloudKms are "true" or empty by whether the component uses
 that service, and webIdentity, workloadIdentity and workloadIdentityFederation are its identity values in the shapes of
-secretProtection.awsKms.webIdentity, secretProtection.azureKeyVault.workloadIdentity and
+aws.webIdentity, secretProtection.azureKeyVault.workloadIdentity and
 secretProtection.googleCloudKms.workloadIdentityFederation. Takes the chart context.
 */}}
 {{- define "identity-host.kmsCredentials.server" -}}
@@ -517,7 +517,7 @@ awsKms: {{ include "identity-host.usesKeyManagementService" (dict "root" . "name
 azureKeyVault: {{ include "identity-host.usesKeyManagementService" (dict "root" . "name" "azure-key-vault") | quote }}
 googleCloudKms: {{ include "identity-host.usesKeyManagementService" (dict "root" . "name" "google-cloud-kms") | quote }}
 webIdentity:
-  {{- toYaml .Values.secretProtection.awsKms.webIdentity | nindent 2 }}
+  {{- toYaml .Values.aws.webIdentity | nindent 2 }}
 workloadIdentity:
   {{- toYaml .Values.secretProtection.azureKeyVault.workloadIdentity | nindent 2 }}
 workloadIdentityFederation:
@@ -1117,7 +1117,7 @@ service's workload credentials. Takes a dict with the chart context as root and 
 {{/*
 The workload credentials of the management console, as YAML in the shape that kmsCredentials.server renders: the
 console's full name, whether a remote key of the console names each service, and the console's own identity values from
-managementConsole.secretProtection. Takes the chart context.
+managementConsole.aws and managementConsole.secretProtection. Takes the chart context.
 */}}
 {{- define "identity-host.kmsCredentials.managementConsole" -}}
 name: {{ include "identity-host.managementConsole.fullname" . | quote }}
@@ -1125,7 +1125,7 @@ awsKms: {{ include "identity-host.managementConsole.usesKeyManagementService" (d
 azureKeyVault: {{ include "identity-host.managementConsole.usesKeyManagementService" (dict "root" . "name" "azure-key-vault") | quote }}
 googleCloudKms: {{ include "identity-host.managementConsole.usesKeyManagementService" (dict "root" . "name" "google-cloud-kms") | quote }}
 webIdentity:
-  {{- toYaml .Values.managementConsole.secretProtection.awsKms.webIdentity | nindent 2 }}
+  {{- toYaml .Values.managementConsole.aws.webIdentity | nindent 2 }}
 workloadIdentity:
   {{- toYaml .Values.managementConsole.secretProtection.azureKeyVault.workloadIdentity | nindent 2 }}
 workloadIdentityFederation:

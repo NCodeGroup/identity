@@ -16,13 +16,13 @@ database:
 migrations:
   database:
     existingSecret: identity-database-owner
+aws:
+  webIdentity:
+    roleArn: arn:aws:iam::111122223333:role/ncode-identity-bound-keys
 secretProtection:
   rootKeyProvider: local
   local:
     keySecret: identity-root-key
-  awsKms:
-    webIdentity:
-      roleArn: arn:aws:iam::111122223333:role/ncode-identity-bound-keys
   azureKeyVault:
     workloadIdentity:
       tenantId: 11111111-2222-3333-4444-555555555555

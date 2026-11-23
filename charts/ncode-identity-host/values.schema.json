@@ -809,6 +809,15 @@
         }
       }
     },
+    "aws": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "webIdentity": {
+          "$ref": "#/definitions/awsWebIdentity"
+        }
+      }
+    },
     "secretProtection": {
       "type": "object",
       "additionalProperties": false,
@@ -837,9 +846,6 @@
           "properties": {
             "keyArn": {
               "type": "string"
-            },
-            "webIdentity": {
-              "$ref": "#/definitions/awsWebIdentity"
             }
           }
         },
@@ -1598,19 +1604,19 @@
             }
           }
         },
+        "aws": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "webIdentity": {
+              "$ref": "#/definitions/awsWebIdentity"
+            }
+          }
+        },
         "secretProtection": {
           "type": "object",
           "additionalProperties": false,
           "properties": {
-            "awsKms": {
-              "type": "object",
-              "additionalProperties": false,
-              "properties": {
-                "webIdentity": {
-                  "$ref": "#/definitions/awsWebIdentity"
-                }
-              }
-            },
             "azureKeyVault": {
               "type": "object",
               "additionalProperties": false,

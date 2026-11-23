@@ -64,10 +64,12 @@ identity of its own in the server's shapes.**
 6. **No provider section for the console.** The chart renders no `SecretProtection__RemoteKeyProviders__*` for the
    console: the console host registers every vendor without a location and reads each key where its identifier names
    it.
-7. **The console has its own workload identity.** `managementConsole.secretProtection.awsKms.webIdentity`,
-   `.azureKeyVault.workloadIdentity` and `.googleCloudKms.workloadIdentityFederation` mirror the `secretProtection.*`
-   values of the same names. A console pod carries a vendor's credentials only when a console remote key names that
-   vendor, and server pods never carry the console's. An empty identity leaves the vendor's ambient identity in force.
+7. **The console has its own workload identity.** `managementConsole.aws.webIdentity`,
+   `managementConsole.secretProtection.azureKeyVault.workloadIdentity` and
+   `managementConsole.secretProtection.googleCloudKms.workloadIdentityFederation` mirror the server's `aws.webIdentity`
+   and `secretProtection.*` values of the same names; one IAM role serves every AWS service a pod calls. A console pod
+   carries a vendor's credentials only when a console remote key names that vendor, and server pods never carry the
+   console's. An empty identity leaves the vendor's ambient identity in force.
    The Google credential configuration is the ConfigMap `<console full name>-google-cloud`.
 8. **One rendering for both components.** The `identity-host.kmsCredentials.*` helpers render credential env, mounts,
    volumes, the Google credential configuration and the half-set checks from one dict: the full name, the vendors in

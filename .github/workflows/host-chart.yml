@@ -376,7 +376,7 @@ jobs:
       - name: Register a remote key provider and carry its credentials only when it is enabled
         run: |
           base="$CHART/ci/single-replica-values.yaml"
-          role="secretProtection.awsKms.webIdentity.roleArn=arn:aws:iam::111122223333:role/x"
+          role="aws.webIdentity.roleArn=arn:aws:iam::111122223333:role/x"
           aws="secretProtection.remoteKeyProviders.awsKms"
           expect() {
             local rendered="$1"; shift
@@ -965,7 +965,7 @@ jobs:
           # A console whose keys are all PEM Secrets carries no identity, whatever its identity values say.
           pem=$(helm template release "$CHART" --values "$CHART/ci/management-console-values.yaml" \
             --show-only templates/management-console-deployment.yaml \
-            --set managementConsole.secretProtection.awsKms.webIdentity.roleArn=arn:aws:iam::111122223333:role/x)
+            --set managementConsole.aws.webIdentity.roleArn=arn:aws:iam::111122223333:role/x)
           reject "$pem" 'AWS_ROLE_ARN' 'RemoteKeyProviders'
 
   # Rendering cannot prove what only a cluster does: cert-manager issuing the certificates, Traefik reading the
