@@ -90,6 +90,8 @@ NCode.Identity.OpenId.GlobalDirectory.ITenantDirectory.PlaceAsync(NCode.Identity
 NCode.Identity.OpenId.GlobalDirectory.ITenantDirectory.ReleaseAsync(string! tenantId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 NCode.Identity.OpenId.GlobalDirectory.ITenantDirectory.ReserveAsync(NCode.Identity.OpenId.GlobalDirectory.TenantReservation! reservation, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.GlobalDirectory.ReservationResult!>
 NCode.Identity.OpenId.GlobalDirectory.ITenantDirectory.RetireAsync(NCode.Identity.OpenId.GlobalDirectory.TenantRetirement! retirement, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+NCode.Identity.OpenId.GlobalDirectory.ITenantPlacer
+NCode.Identity.OpenId.GlobalDirectory.ITenantPlacer.ReserveAndPlaceAsync(string! tenantId, string? issuer, string! teamId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.GlobalDirectory.ReservationResult!>
 NCode.Identity.OpenId.GlobalDirectory.MoveOfferResult
 NCode.Identity.OpenId.GlobalDirectory.MoveOfferResult.ConflictDetail.get -> string?
 NCode.Identity.OpenId.GlobalDirectory.MoveOfferResult.IsOffered.get -> bool
