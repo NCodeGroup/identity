@@ -19,6 +19,8 @@ public sealed class LocalAccountStoreTransferTests : IDisposable
     private const string AccountB = "account-b";
     private const string UserA = "alice";
     private const string UserB = "bob";
+    private const string ConnectionA = "tenant-a-local";
+    private const string ConnectionB = "tenant-b-local";
 
     private static byte[] Password { get; } = "correct horse battery staple"u8.ToArray();
 
@@ -70,6 +72,7 @@ public sealed class LocalAccountStoreTransferTests : IDisposable
         new()
         {
             TenantId = tenantId,
+            ConnectionId = TestOpenIdDbContextSetup.LocalConnectionId(tenantId),
             LocalAccountId = localAccountId,
             UserName = userName,
             DisplayName = "Alice Example",
@@ -128,7 +131,7 @@ public sealed class LocalAccountStoreTransferTests : IDisposable
         await AddAsync(CreateAccount(TenantB, AccountB, UserB), CancellationToken.None);
 
         Accessor.TenantId = TenantA;
-        var records = await Store.ExportAsync(CancellationToken.None);
+        var records = await Store.ExportAsync(ConnectionA, CancellationToken.None);
 
         var record = Assert.Single(records);
         Assert.Equal(AccountA, record.LocalAccountId);
@@ -151,7 +154,7 @@ public sealed class LocalAccountStoreTransferTests : IDisposable
     {
         await AddAsync(CreateAccount(TenantA, AccountA, UserA), CancellationToken.None);
 
-        var records = await Store.ExportAsync(CancellationToken.None);
+        var records = await Store.ExportAsync(ConnectionA, CancellationToken.None);
 
         Assert.Empty(records);
     }
@@ -167,15 +170,15 @@ public sealed class LocalAccountStoreTransferTests : IDisposable
         Accessor.TenantId = TenantA;
         var before = await Store.GetByIdOrDefaultAsync(AccountA, CancellationToken.None);
         Assert.NotNull(before);
-        var records = await Store.ExportAsync(CancellationToken.None);
+        var records = await Store.ExportAsync(ConnectionA, CancellationToken.None);
         DbContext.ChangeTracker.Clear();
 
         Accessor.TenantId = TenantB;
-        await Store.ImportAsync(records, CancellationToken.None);
+        await Store.ImportAsync(ConnectionB, records, CancellationToken.None);
         await SaveAndDetachAsync(CancellationToken.None);
 
         var result = await Store.VerifyCredentialAsync(
-            UserA,
+            new LocalAccountSignInIdentifier { ConnectionId = ConnectionB, UserName = UserA },
             Password,
             NotRefused,
             CancellationToken.None
@@ -186,7 +189,7 @@ public sealed class LocalAccountStoreTransferTests : IDisposable
         Assert.Equal("tenant-b", result.Account.TenantId);
         Assert.Equal("Alice Example", result.Account.DisplayName);
         var wrong = await Store.VerifyCredentialAsync(
-            UserA,
+            new LocalAccountSignInIdentifier { ConnectionId = ConnectionB, UserName = UserA },
             "another long passphrase"u8.ToArray(),
             NotRefused,
             CancellationToken.None
@@ -203,11 +206,11 @@ public sealed class LocalAccountStoreTransferTests : IDisposable
             CancellationToken.None
         );
         Accessor.TenantId = TenantA;
-        var records = await Store.ExportAsync(CancellationToken.None);
+        var records = await Store.ExportAsync(ConnectionA, CancellationToken.None);
         DbContext.ChangeTracker.Clear();
 
         Accessor.TenantId = TenantB;
-        await Store.ImportAsync(records, CancellationToken.None);
+        await Store.ImportAsync(ConnectionB, records, CancellationToken.None);
         await SaveAndDetachAsync(CancellationToken.None);
 
         var account = await Store.GetByIdOrDefaultAsync(AccountA, CancellationToken.None);
@@ -240,7 +243,7 @@ public sealed class LocalAccountStoreTransferTests : IDisposable
         };
 
         Accessor.TenantId = TenantB;
-        await Store.ImportAsync([record], CancellationToken.None);
+        await Store.ImportAsync(ConnectionB, [record], CancellationToken.None);
         await SaveAndDetachAsync(CancellationToken.None);
 
         var entity = await DbContext
@@ -248,7 +251,9 @@ public sealed class LocalAccountStoreTransferTests : IDisposable
             .SingleAsync(x => x.LocalAccountId == AccountA, CancellationToken.None);
         Assert.Equal("alice", entity.NormalizedUserName);
         Assert.Equal("alice@example.com", entity.NormalizedEmail);
-        Assert.NotNull(await Store.GetByUserNameOrDefaultAsync("ALICE", CancellationToken.None));
+        Assert.NotNull(
+            await Store.GetByUserNameOrDefaultAsync(ConnectionB, "ALICE", CancellationToken.None)
+        );
     }
 
     [Fact]
@@ -273,7 +278,7 @@ public sealed class LocalAccountStoreTransferTests : IDisposable
         };
 
         await Assert.ThrowsAsync<InvalidOperationException>(async () =>
-            await Store.ImportAsync([record], CancellationToken.None)
+            await Store.ImportAsync(ConnectionB, [record], CancellationToken.None)
         );
     }
 
@@ -292,12 +297,12 @@ public sealed class LocalAccountStoreTransferTests : IDisposable
         await AddAsync(CreateAccount(TenantB, AccountB, UserB), CancellationToken.None);
 
         Accessor.TenantId = TenantA;
-        await Store.RemoveAllAsync(CancellationToken.None);
+        await Store.RemoveAllAsync(ConnectionA, CancellationToken.None);
         await SaveAndDetachAsync(CancellationToken.None);
 
-        Assert.Empty(await Store.ExportAsync(CancellationToken.None));
+        Assert.Empty(await Store.ExportAsync(ConnectionA, CancellationToken.None));
         Accessor.TenantId = TenantB;
-        var remaining = Assert.Single(await Store.ExportAsync(CancellationToken.None));
+        var remaining = Assert.Single(await Store.ExportAsync(ConnectionB, CancellationToken.None));
         Assert.Equal(AccountB, remaining.LocalAccountId);
     }
 

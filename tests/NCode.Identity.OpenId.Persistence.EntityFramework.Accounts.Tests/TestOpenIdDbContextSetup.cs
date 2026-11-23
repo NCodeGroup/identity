@@ -116,6 +116,47 @@ internal static class TestOpenIdDbContextSetup
         };
         dbContext.Set<TenantEntity>().Add(entity);
         dbContext.SaveChanges();
+        dbContext.SeedConnection(keyGenerator, entity, LocalConnectionId(tenantId), "local");
+        return entity;
+    }
+
+    /// <summary>
+    /// Gets the identifier of the <c>local</c> connection that <see cref="SeedTenant"/> seeds for the tenant.
+    /// </summary>
+    public static string LocalConnectionId(string tenantId) => $"{tenantId}-local";
+
+    /// <summary>
+    /// Seeds a minimal local connection of the tenant directly into the context and saves it. Returns the seeded
+    /// connection entity.
+    /// </summary>
+    public static ConnectionEntity SeedConnection(
+        this OpenIdDbContext dbContext,
+        ISurrogateKeyGenerator keyGenerator,
+        TenantEntity tenant,
+        string connectionId,
+        string name
+    )
+    {
+        var entity = new ConnectionEntity
+        {
+            Id = keyGenerator.CreateKey(),
+            TenantId = tenant.Id,
+            Tenant = tenant,
+            NormalizedTenantId = tenant.NormalizedTenantId,
+            ConnectionId = connectionId,
+            NormalizedConnectionId = connectionId.ToLowerInvariant(),
+            Name = name,
+            NormalizedName = name.ToLowerInvariant(),
+            Strategy = "local",
+            DisplayName = name,
+            IsEnabled = true,
+            OptionsJson = JsonElement.Parse("""{"store":"default"}"""),
+            SettingsJson = JsonSerializer.SerializeToElement(new Dictionary<string, object>()),
+            ConcurrencyToken = string.Empty,
+            SettingsConcurrencyToken = string.Empty,
+        };
+        dbContext.Set<ConnectionEntity>().Add(entity);
+        dbContext.SaveChanges();
         return entity;
     }
 }

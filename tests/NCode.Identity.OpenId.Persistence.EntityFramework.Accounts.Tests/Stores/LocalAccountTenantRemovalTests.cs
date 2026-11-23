@@ -73,6 +73,7 @@ public sealed class LocalAccountTenantRemovalTests : IDisposable
         new()
         {
             TenantId = tenantId,
+            ConnectionId = TestOpenIdDbContextSetup.LocalConnectionId(tenantId),
             LocalAccountId = localAccountId,
             UserName = userName,
             DisplayName = "Alice Example",
