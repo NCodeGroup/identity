@@ -670,6 +670,151 @@ public sealed class AuditStreamStoreTests : IDisposable
 
     #endregion
 
+    #region UpdateProtectedSigningSecretAsync Tests
+
+    [Fact]
+    public async Task UpdateProtectedSigningSecretAsync_Always_WritesTheValueAndRotatesTheStreamToken()
+    {
+        await AddAsync(
+            CreateStream(
+                "stream-1",
+                secrets:
+                [
+                    CreateSecret("secret-1", "key-1:aaa"),
+                    CreateSecret("secret-2", "key-1:bbb"),
+                ]
+            ),
+            CancellationToken.None
+        );
+        AmbientTenantAccessor.UseTenant(TenantA);
+        var before = await GetAsync("stream-1", CancellationToken.None);
+        var value = new PersistedProtectedValue
+        {
+            RecordId = "stream-1",
+            ItemId = "secret-1",
+            ProtectedValue = "key-2:rewrapped",
+            ConcurrencyToken = before.ConcurrencyToken,
+        };
+
+        var updated = false;
+        await WriteAsync(
+            async store =>
+                updated = await store.UpdateProtectedSigningSecretAsync(
+                    value,
+                    CancellationToken.None
+                ),
+            CancellationToken.None
+        );
+
+        var after = await GetAsync("stream-1", CancellationToken.None);
+        var secrets = after
+            .SigningSecrets.OrderBy(secret => secret.SecretId, StringComparer.Ordinal)
+            .Select(secret => $"{secret.SecretId}:{secret.ProtectedValue}")
+            .ToList();
+        string[] expected = ["secret-1:key-2:rewrapped", "secret-2:key-1:bbb"];
+        Assert.True(updated);
+        Assert.Equal(expected, secrets);
+        Assert.NotEqual(before.ConcurrencyToken, after.ConcurrencyToken);
+    }
+
+    [Fact]
+    public async Task UpdateProtectedSigningSecretAsync_WithAStaleConcurrencyToken_Throws()
+    {
+        await AddAsync(
+            CreateStream(
+                "stream-1",
+                secrets:
+                [
+                    CreateSecret("secret-1", "key-1:aaa"),
+                    CreateSecret("secret-2", "key-1:bbb"),
+                ]
+            ),
+            CancellationToken.None
+        );
+        AmbientTenantAccessor.UseTenant(TenantA);
+        var value = new PersistedProtectedValue
+        {
+            RecordId = "stream-1",
+            ItemId = "secret-1",
+            ProtectedValue = "key-2:rewrapped",
+            ConcurrencyToken = "stale",
+        };
+
+        await Assert.ThrowsAsync<StoreConcurrencyException>(async () =>
+            await WriteAsync(
+                async store =>
+                    await store.UpdateProtectedSigningSecretAsync(value, CancellationToken.None),
+                CancellationToken.None
+            )
+        );
+    }
+
+    [Fact]
+    public async Task UpdateProtectedSigningSecretAsync_ForAnUnknownSecret_ReturnsFalse()
+    {
+        await AddAsync(
+            CreateStream(
+                "stream-1",
+                secrets:
+                [
+                    CreateSecret("secret-1", "key-1:aaa"),
+                    CreateSecret("secret-2", "key-1:bbb"),
+                ]
+            ),
+            CancellationToken.None
+        );
+        AmbientTenantAccessor.UseTenant(TenantA);
+        var before = await GetAsync("stream-1", CancellationToken.None);
+        var value = new PersistedProtectedValue
+        {
+            RecordId = "stream-1",
+            ItemId = "secret-9",
+            ProtectedValue = "key-2:rewrapped",
+            ConcurrencyToken = before.ConcurrencyToken,
+        };
+
+        var updated = await ReadAsync(
+            store => store.UpdateProtectedSigningSecretAsync(value, CancellationToken.None),
+            CancellationToken.None
+        );
+
+        Assert.False(updated);
+    }
+
+    [Fact]
+    public async Task UpdateProtectedSigningSecretAsync_ForAnUnknownStream_ReturnsFalse()
+    {
+        await AddAsync(
+            CreateStream(
+                "stream-1",
+                secrets:
+                [
+                    CreateSecret("secret-1", "key-1:aaa"),
+                    CreateSecret("secret-2", "key-1:bbb"),
+                ]
+            ),
+            CancellationToken.None
+        );
+        AmbientTenantAccessor.UseTenant(TenantA);
+        var before = await GetAsync("stream-1", CancellationToken.None);
+        var value = new PersistedProtectedValue
+        {
+            RecordId = "stream-9",
+            ItemId = "secret-1",
+            ProtectedValue = "key-2:rewrapped",
+            ConcurrencyToken = before.ConcurrencyToken,
+        };
+
+        var updated = await ReadAsync(
+            store => store.UpdateProtectedSigningSecretAsync(value, CancellationToken.None),
+            CancellationToken.None
+        );
+
+        Assert.False(updated);
+    }
+
+    #endregion
+
     private sealed class TestAmbientTenantAccessor : IAmbientTenantAccessor
     {
         public string? TenantId { get; private set; }
