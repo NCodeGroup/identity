@@ -27,4 +27,10 @@ public static class SecretProtectionPurposes
     /// The purpose of the payload of a persisted grant.
     /// </summary>
     public const string GrantPayload = "grant-payload";
+
+    /// <summary>
+    /// The purpose of an audit stream's signing secret, which the server reads back to sign each delivery.
+    /// </summary>
+    // See ADR-1534.
+    public const string AuditStreamSigningSecret = "audit-stream-signing-secret";
 }

@@ -20,6 +20,7 @@ internal static class ManagementOpenApiTags
             OpenIdConstants.EndpointTags.Clients,
             OpenIdConstants.EndpointTags.Grants,
             OpenIdConstants.EndpointTags.AuditRecords,
+            OpenIdConstants.EndpointTags.AuditStreams,
             OpenIdConstants.EndpointTags.Sessions,
             OpenIdConstants.EndpointTags.ClientGrants,
             OpenIdConstants.EndpointTags.ResourceServers,

@@ -18,8 +18,9 @@ internal static class DefaultRegistration
     extension(IServiceBuilder<OpenIdAuthenticationLibrary> builder)
     {
         /// <summary>
-        /// Configures the password policy, its built-in blocklists, the password attempt limiter, and the password
-        /// setting descriptors. A deployment adds a blocklist by registering another <see cref="IPasswordBlocklist"/>.
+        /// Configures the password policy, its built-in blocklists, the password attempt limiter, the password setting
+        /// descriptors and the email-code setting descriptors. A deployment adds a blocklist by registering another
+        /// <see cref="IPasswordBlocklist"/>.
         /// </summary>
         /// <returns>The <see cref="IServiceBuilder{T}"/> instance for method chaining.</returns>
         public IServiceBuilder<OpenIdAuthenticationLibrary> AddPasswordServices()
@@ -47,6 +48,11 @@ internal static class DefaultRegistration
                 DefaultPasswordSettingDescriptorDataSource
             >();
             serviceCollection.TryAddEnumerable(settingDataSource);
+            var emailCodeSettingDataSource = ServiceDescriptor.Singleton<
+                ICollectionDataSource<SettingDescriptor>,
+                DefaultEmailCodeSettingDescriptorDataSource
+            >();
+            serviceCollection.TryAddEnumerable(emailCodeSettingDataSource);
 
             return builder;
         }

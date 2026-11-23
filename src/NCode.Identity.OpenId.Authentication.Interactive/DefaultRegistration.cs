@@ -38,6 +38,12 @@ public static class DefaultRegistration
     private const string ConfigurationSectionName = "InteractiveAuthentication";
     private const string AntiforgeryHeaderName = "X-XSRF-TOKEN";
 
+    /// <summary>
+    /// Gets how long an end user whose password is verified may take to present the mailed code.
+    /// </summary>
+    // See ADR-1533.
+    private static TimeSpan PendingSignInLifetime { get; } = TimeSpan.FromMinutes(15);
+
     // The index of the registered IUiLocale instance whose tag is languageTag, compared without regard to case as
     // BCP 47 tags are, or -1 when none is registered.
     private static int FindUiLocale(IServiceCollection serviceCollection, string languageTag)
@@ -299,6 +305,24 @@ public static class DefaultRegistration
                 DefaultInteractivePasswordChanger
             >();
 
+            // A credential backend that holds email addresses replaces this default, which supports nothing.
+            serviceCollection.TryAddSingleton<
+                IInteractivePasswordResetter,
+                DefaultInteractivePasswordResetter
+            >();
+
+            // A credential backend that holds email addresses replaces this default, which supports nothing.
+            serviceCollection.TryAddSingleton<
+                IInteractiveEmailVerifier,
+                DefaultInteractiveEmailVerifier
+            >();
+
+            // A credential backend that holds email addresses replaces this default, which supports nothing.
+            serviceCollection.TryAddSingleton<
+                IInteractiveSignInCodeChallenge,
+                DefaultInteractiveSignInCodeChallenge
+            >();
+
             // The branding settings join the descriptor catalog only where the surface that shows them is registered.
             var settingDescriptorDataSource = ServiceDescriptor.Singleton<
                 ICollectionDataSource<SettingDescriptor>,
@@ -349,8 +373,12 @@ public static class DefaultRegistration
                 antiforgery.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
             });
 
-            // Register the cookie as a NAMED scheme only; it must not become the host's default authenticate scheme,
-            // which the bearer-oriented subject-authentication seam (userinfo/introspection) resolves by default.
+            // The session cookie is the host's default scheme only when the host names none; the pending sign-in
+            // scheme is never a default. Two registered schemes leave no implicit default, so the post-configuration
+            // names the session scheme and a host's own default keeps its place.
+            serviceCollection.PostConfigure<AuthenticationOptions>(options =>
+                options.DefaultScheme ??= InteractiveAuthenticationDefaults.CookieSchemeName
+            );
             serviceCollection
                 .AddAuthentication()
                 .AddCookie(
@@ -365,6 +393,22 @@ public static class DefaultRegistration
                         cookie.Cookie.HttpOnly = true;
                         cookie.Cookie.SameSite = SameSiteMode.Lax;
                         cookie.SlidingExpiration = true;
+                    }
+                )
+                // Holds an end user whose password is verified while the sign-in waits for the email code (ADR-1533);
+                // it is never a session.
+                .AddCookie(
+                    InteractiveAuthenticationDefaults.PendingSignInSchemeName,
+                    cookie =>
+                    {
+                        cookie.Cookie.Name =
+                            InteractiveAuthenticationDefaults.PendingSignInCookieName;
+                        cookie.Cookie.Path = "/";
+                        cookie.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+                        cookie.Cookie.HttpOnly = true;
+                        cookie.Cookie.SameSite = SameSiteMode.Strict;
+                        cookie.ExpireTimeSpan = PendingSignInLifetime;
+                        cookie.SlidingExpiration = false;
                     }
                 );
 
@@ -384,6 +428,17 @@ public static class DefaultRegistration
                             context.RedirectUri = BuildLoginRedirectUri(context, surfacePaths);
                             return redirectToLogin(context);
                         };
+                    }
+                );
+
+            serviceCollection
+                .AddOptions<CookieAuthenticationOptions>(
+                    InteractiveAuthenticationDefaults.PendingSignInSchemeName
+                )
+                .Configure<InteractiveSurfacePaths>(
+                    (cookie, surfacePaths) =>
+                    {
+                        cookie.CookieManager = new InteractiveSessionCookieManager(surfacePaths);
                     }
                 );
 

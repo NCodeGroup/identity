@@ -1,13 +1,17 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using System.Diagnostics.CodeAnalysis;
+using Microsoft.Extensions.Logging;
 using NCode.Identity.Events;
 using NCode.Identity.Events.Audit;
 using NCode.Identity.OpenId.Authentication.Clients;
+using NCode.Identity.OpenId.Authentication.Logging;
 using NCode.Identity.OpenId.Authentication.Tokens.Models;
 using NCode.Identity.OpenId.Contexts;
 using NCode.Identity.OpenId.Messages;
 using NCode.Identity.OpenId.Settings;
+using NCode.Identity.Persistence;
 
 namespace NCode.Identity.OpenId.Authentication.Auditing;
 
@@ -15,11 +19,15 @@ namespace NCode.Identity.OpenId.Authentication.Auditing;
 /// Provides the default implementation of <see cref="IAuditEventRecorder"/> that derives the audit
 /// envelope from the ambient request context and publishes through the event seam.
 /// </summary>
-internal class DefaultAuditEventRecorder(IEventPublisher eventPublisher, TimeProvider timeProvider)
-    : IAuditEventRecorder
+internal class DefaultAuditEventRecorder(
+    IEventPublisher eventPublisher,
+    TimeProvider timeProvider,
+    ILogger<DefaultAuditEventRecorder> logger
+) : IAuditEventRecorder
 {
     private IEventPublisher EventPublisher { get; } = eventPublisher;
     private TimeProvider TimeProvider { get; } = timeProvider;
+    private ILogger<DefaultAuditEventRecorder> Logger { get; } = logger;
 
     private static AuditRequest CreateRequest(OpenIdContext openIdContext) =>
         AuditRequestFactory.Create(openIdContext.Http);
@@ -433,5 +441,326 @@ internal class DefaultAuditEventRecorder(IEventPublisher eventPublisher, TimePro
         };
 
         return EventPublisher.PublishAsync(auditEvent, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    [SuppressMessage(
+        "Design",
+        "NCID0003",
+        Justification = "The work follows a committed change and runs on its own bounded token, so no caller can pass a token that drops it (ADR-1351)."
+    )]
+    public ValueTask RecordPasswordChangedAsync(
+        OpenIdContext openIdContext,
+        string subjectId,
+        string localAccountId
+    )
+    {
+        var now = TimeProvider.GetUtcNow();
+        var auditEvent = new PasswordChangeAuditEvent
+        {
+            EventId = Guid.CreateVersion7(now),
+            EventTime = now,
+            EventSource = AuditEventSources.OpenId,
+            TenantId = openIdContext.Tenant.TenantId,
+            TenantEnvironmentType = GetTenantEnvironmentType(openIdContext),
+            SubjectId = subjectId,
+            Actor = AuditActor.EndUser(subjectId),
+            Request = CreateRequest(openIdContext),
+            Outcome = AuditOutcome.Success,
+            LocalAccountId = localAccountId,
+        };
+
+        return PublishAfterCommitAsync(auditEvent);
+    }
+
+    /// <inheritdoc />
+    public ValueTask RecordPasswordChangeFailedAsync(
+        OpenIdContext openIdContext,
+        string subjectId,
+        string localAccountId,
+        string errorCode,
+        CancellationToken cancellationToken
+    )
+    {
+        var now = TimeProvider.GetUtcNow();
+        var auditEvent = new PasswordChangeAuditEvent
+        {
+            EventId = Guid.CreateVersion7(now),
+            EventTime = now,
+            EventSource = AuditEventSources.OpenId,
+            TenantId = openIdContext.Tenant.TenantId,
+            TenantEnvironmentType = GetTenantEnvironmentType(openIdContext),
+            SubjectId = subjectId,
+            Actor = AuditActor.EndUser(subjectId),
+            Request = CreateRequest(openIdContext),
+            Outcome = AuditOutcome.Failure,
+            Error = new AuditError(errorCode),
+            LocalAccountId = localAccountId,
+        };
+
+        return EventPublisher.PublishAsync(auditEvent, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public ValueTask RecordPasswordResetRequestedAsync(
+        OpenIdContext openIdContext,
+        string? subjectId,
+        string localAccountId,
+        CancellationToken cancellationToken
+    )
+    {
+        var now = TimeProvider.GetUtcNow();
+        var auditEvent = new PasswordResetRequestAuditEvent
+        {
+            EventId = Guid.CreateVersion7(now),
+            EventTime = now,
+            EventSource = AuditEventSources.OpenId,
+            TenantId = openIdContext.Tenant.TenantId,
+            TenantEnvironmentType = GetTenantEnvironmentType(openIdContext),
+            SubjectId = subjectId,
+            Actor = subjectId is null ? AuditActor.Anonymous : AuditActor.EndUser(subjectId),
+            Request = CreateRequest(openIdContext),
+            Outcome = AuditOutcome.Success,
+            LocalAccountId = localAccountId,
+        };
+
+        return EventPublisher.PublishAsync(auditEvent, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public ValueTask RecordPasswordResetRequestFailedAsync(
+        OpenIdContext openIdContext,
+        string errorCode,
+        string attemptedUsername,
+        CancellationToken cancellationToken
+    )
+    {
+        var now = TimeProvider.GetUtcNow();
+        var auditEvent = new PasswordResetRequestAuditEvent
+        {
+            EventId = Guid.CreateVersion7(now),
+            EventTime = now,
+            EventSource = AuditEventSources.OpenId,
+            TenantId = openIdContext.Tenant.TenantId,
+            TenantEnvironmentType = GetTenantEnvironmentType(openIdContext),
+            Actor = AuditActor.Anonymous,
+            Request = CreateRequest(openIdContext),
+            Outcome = AuditOutcome.Failure,
+            Error = new AuditError(errorCode),
+            AttemptedUsername = attemptedUsername,
+        };
+
+        return EventPublisher.PublishAsync(auditEvent, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    [SuppressMessage(
+        "Design",
+        "NCID0003",
+        Justification = "The work follows a committed change and runs on its own bounded token, so no caller can pass a token that drops it (ADR-1351)."
+    )]
+    public ValueTask RecordPasswordResetAsync(
+        OpenIdContext openIdContext,
+        string? subjectId,
+        string localAccountId
+    )
+    {
+        var now = TimeProvider.GetUtcNow();
+        var auditEvent = new PasswordResetAuditEvent
+        {
+            EventId = Guid.CreateVersion7(now),
+            EventTime = now,
+            EventSource = AuditEventSources.OpenId,
+            TenantId = openIdContext.Tenant.TenantId,
+            TenantEnvironmentType = GetTenantEnvironmentType(openIdContext),
+            SubjectId = subjectId,
+            Actor = subjectId is null ? AuditActor.Anonymous : AuditActor.EndUser(subjectId),
+            Request = CreateRequest(openIdContext),
+            Outcome = AuditOutcome.Success,
+            LocalAccountId = localAccountId,
+        };
+
+        return PublishAfterCommitAsync(auditEvent);
+    }
+
+    /// <inheritdoc />
+    public ValueTask RecordPasswordResetFailedAsync(
+        OpenIdContext openIdContext,
+        string? subjectId,
+        string? localAccountId,
+        string errorCode,
+        CancellationToken cancellationToken
+    )
+    {
+        var now = TimeProvider.GetUtcNow();
+        var auditEvent = new PasswordResetAuditEvent
+        {
+            EventId = Guid.CreateVersion7(now),
+            EventTime = now,
+            EventSource = AuditEventSources.OpenId,
+            TenantId = openIdContext.Tenant.TenantId,
+            TenantEnvironmentType = GetTenantEnvironmentType(openIdContext),
+            SubjectId = subjectId,
+            Actor = subjectId is null ? AuditActor.Anonymous : AuditActor.EndUser(subjectId),
+            Request = CreateRequest(openIdContext),
+            Outcome = AuditOutcome.Failure,
+            Error = new AuditError(errorCode),
+            LocalAccountId = localAccountId,
+        };
+
+        return EventPublisher.PublishAsync(auditEvent, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    [SuppressMessage(
+        "Design",
+        "NCID0003",
+        Justification = "The work follows a committed change and runs on its own bounded token, so no caller can pass a token that drops it (ADR-1351)."
+    )]
+    public ValueTask RecordEmailVerifiedAsync(
+        OpenIdContext openIdContext,
+        string subjectId,
+        string localAccountId
+    )
+    {
+        var now = TimeProvider.GetUtcNow();
+        var auditEvent = new EmailVerificationAuditEvent
+        {
+            EventId = Guid.CreateVersion7(now),
+            EventTime = now,
+            EventSource = AuditEventSources.OpenId,
+            TenantId = openIdContext.Tenant.TenantId,
+            TenantEnvironmentType = GetTenantEnvironmentType(openIdContext),
+            SubjectId = subjectId,
+            Actor = AuditActor.EndUser(subjectId),
+            Request = CreateRequest(openIdContext),
+            Outcome = AuditOutcome.Success,
+            LocalAccountId = localAccountId,
+        };
+
+        return PublishAfterCommitAsync(auditEvent);
+    }
+
+    /// <inheritdoc />
+    public ValueTask RecordEmailVerificationFailedAsync(
+        OpenIdContext openIdContext,
+        string subjectId,
+        string localAccountId,
+        string errorCode,
+        CancellationToken cancellationToken
+    )
+    {
+        var now = TimeProvider.GetUtcNow();
+        var auditEvent = new EmailVerificationAuditEvent
+        {
+            EventId = Guid.CreateVersion7(now),
+            EventTime = now,
+            EventSource = AuditEventSources.OpenId,
+            TenantId = openIdContext.Tenant.TenantId,
+            TenantEnvironmentType = GetTenantEnvironmentType(openIdContext),
+            SubjectId = subjectId,
+            Actor = AuditActor.EndUser(subjectId),
+            Request = CreateRequest(openIdContext),
+            Outcome = AuditOutcome.Failure,
+            Error = new AuditError(errorCode),
+            LocalAccountId = localAccountId,
+        };
+
+        return EventPublisher.PublishAsync(auditEvent, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    [SuppressMessage(
+        "Design",
+        "NCID0003",
+        Justification = "The work follows a committed change and runs on its own bounded token, so no caller can pass a token that drops it (ADR-1351)."
+    )]
+    public ValueTask RecordSecondFactorVerifiedAsync(
+        OpenIdContext openIdContext,
+        string subjectId,
+        string? localAccountId,
+        string factor
+    )
+    {
+        var now = TimeProvider.GetUtcNow();
+        var auditEvent = new SecondFactorAuditEvent
+        {
+            EventId = Guid.CreateVersion7(now),
+            EventTime = now,
+            EventSource = AuditEventSources.OpenId,
+            TenantId = openIdContext.Tenant.TenantId,
+            TenantEnvironmentType = GetTenantEnvironmentType(openIdContext),
+            SubjectId = subjectId,
+            Actor = AuditActor.EndUser(subjectId),
+            Request = CreateRequest(openIdContext),
+            Outcome = AuditOutcome.Success,
+            LocalAccountId = localAccountId,
+            Factor = factor,
+        };
+
+        return PublishAfterCommitAsync(auditEvent);
+    }
+
+    /// <inheritdoc />
+    public ValueTask RecordSecondFactorFailedAsync(
+        OpenIdContext openIdContext,
+        string subjectId,
+        string? localAccountId,
+        string factor,
+        string errorCode,
+        CancellationToken cancellationToken
+    )
+    {
+        var now = TimeProvider.GetUtcNow();
+        var auditEvent = new SecondFactorAuditEvent
+        {
+            EventId = Guid.CreateVersion7(now),
+            EventTime = now,
+            EventSource = AuditEventSources.OpenId,
+            TenantId = openIdContext.Tenant.TenantId,
+            TenantEnvironmentType = GetTenantEnvironmentType(openIdContext),
+            SubjectId = subjectId,
+            Actor = AuditActor.EndUser(subjectId),
+            Request = CreateRequest(openIdContext),
+            Outcome = AuditOutcome.Failure,
+            Error = new AuditError(errorCode),
+            LocalAccountId = localAccountId,
+            Factor = factor,
+        };
+
+        return EventPublisher.PublishAsync(auditEvent, cancellationToken);
+    }
+
+    /// <summary>
+    /// Publishes an audit record that follows a committed change on one bounded token of its own, so the request's
+    /// cancellation never drops it. A failure, its timeout included, is logged and never turns a committed change into
+    /// an error response.
+    /// </summary>
+    /// <typeparam name="TEvent">The type of the audit record to publish.</typeparam>
+    /// <param name="auditEvent">The audit record to publish.</param>
+    /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation.</returns>
+    // See ADR-1351.
+    [SuppressMessage(
+        "Design",
+        "NCID0003",
+        Justification = "The work follows a committed change and runs on its own bounded token, so no caller can pass a token that drops it (ADR-1351)."
+    )]
+    private async ValueTask PublishAfterCommitAsync<TEvent>(TEvent auditEvent)
+        where TEvent : AuditEvent
+    {
+        try
+        {
+            await PostCommitWork.RunAsync(
+                TimeProvider,
+                static (state, cancellationToken) =>
+                    state.EventPublisher.PublishAsync(state.AuditEvent, cancellationToken),
+                (EventPublisher: EventPublisher, AuditEvent: auditEvent)
+            );
+        }
+        catch (Exception exception)
+        {
+            var auditEventName = auditEvent.GetType().Name;
+            Logger.AuditRecordPublishFailed(exception, auditEventName);
+        }
     }
 }

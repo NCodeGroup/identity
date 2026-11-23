@@ -177,7 +177,8 @@ pipeline runs, with the test user's password kept as a secret.
 | Homelab: the developer's own hardware, already running | $0 |
 | AWS KMS root keys, one per deployment (2 × $1, plus $1 for each of a key's first two yearly rotations) | ~$2–3 |
 | AWS S3 for OpenTofu state and backups | ~$1 |
-| GitHub, Cloudflare DNS, Let's Encrypt, Grafana Cloud Free, the Azure credit, and OCI Email Delivery if it sends the platform's mail (Cloudflare Email Sending costs $5; [§13](#13-open-decisions)) | $0 |
+| GitHub, Cloudflare DNS, Let's Encrypt, Grafana Cloud Free and the Azure credit | $0 |
+| Amazon SES for the platform's mail, at $0.10 per 1,000 emails _(verify)_ | ~$0 |
 | Domains (prepaid for ten years at registration) | $0 |
 | **Total** | **~$98–99** |
 
@@ -200,7 +201,7 @@ node adds ~$7.30. Watch Grafana Cloud's free 10k active series across production
 | Root key (ADR-1235)                            | AWS KMS (the platform's account)              | $1 per key per month (plus $1 for each of the first two yearly rotations) and $0.03 per 10,000 requests, 20,000 requests per month free _(verify)_ |
 | Key Vault experiments, ephemeral conformance   | Azure via the Visual Studio credit            | $50/month, dev/test only ([§8](#8-devtest-and-conformance-on-azure-visual-studio-credit))                               |
 | Inbound email (`security@`, vendor accounts)   | Cloudflare Email Routing                      | Free; receive-and-forward only (sending needs Workers Paid)                                                              |
-| Outbound email (provider open, [§13](#13-open-decisions)) | OCI Email Delivery or Cloudflare Email Sending ([§10](#10-pre-launch-considerations)) | OCI: 3,000 emails/month; Cloudflare: needs Workers Paid ($5/month) |
+| Outbound email ([§10](#10-pre-launch-considerations)) | Amazon SES in the cell's AWS region ([ADR-1528](decisions/1528-the-hosted-platform-sends-its-mail-through-amazon-ses-in-each-cells-region-from-mail-ncodeid-net.md)) | No free allowance assumed: $0.10 per 1,000 emails _(verify)_ |
 
 ## 2. Reference architecture
 
@@ -431,7 +432,7 @@ A platform is a global directory over independent cells.
 
 ## 3. Compute sizing
 
-No production load data exists yet, so these are **planning estimates**; confirm with a load test (see below).
+These are **planning estimates** from the hardware and the code; the load test below confirms them.
 
 | Component                                    | Replicas                     | CPU request | Memory request / limit |
 | -------------------------------------------- | ---------------------------- | ----------- | ---------------------- |
@@ -462,10 +463,12 @@ No production load data exists yet, so these are **planning estimates**; confirm
   connection string ([ADR-1164](decisions/1164-replicas-share-expiring-keys-values-and-indexes-through-ports-with-in-process-and-valkey-adapters.md)); the
   in-process job dispatcher does not coordinate across nodes (issue [#25](https://github.com/NCodeGroup/identity/issues/25)).
 
-**Measure before buying:** run the host (`NCode.Identity.OpenId.Host`) with `dotnet-counters` attached, drive the token
-endpoint with k6 (`client_credentials` and authorization-code flows), and record working set and CPU-ms per request; set
-requests/limits from those numbers. Run it once on dedicated-CPU nodes as well, to rate the capacity a dedicated cell
-commits to ([§12](#12-shared-and-dedicated-cells)).
+**Measure before buying:** the k6 load test in [`benchmarks/load/`](../benchmarks/load/README.md) drives a tenant's
+token endpoint with generated-secret, `private_key_jwt` and supplied-secret client credentials, and `dotnet-counters` on
+the host records working set and CPU per request; set requests and limits from those numbers. A dedicated cell's
+capacity rating and each replica's `OpenId:Admission:ConcurrencyLimit` come from a run on its dedicated-CPU nodes, which
+records them in this section
+([ADR-1524](decisions/1524-a-dedicated-cells-capacity-rating-is-measured-by-the-repositorys-k6-test-on-dedicated-cpu-nodes.md)).
 
 ### Capacity of the launch cluster
 
@@ -848,15 +851,24 @@ the stacks and components is [#87](https://github.com/NCodeGroup/identity/issues
   ([ADR-1132](decisions/1132-platform-infrastructure-code-is-public-on-github-and-its-state-and-backups-live-in-aws.md)).
   A restore drill before launch and quarterly; written RPO / RTO targets
   ([#845](https://github.com/NCodeGroup/identity/issues/845)).
-- **Cluster secrets** never sit in Git as plaintext: SOPS + age (free) or External Secrets Operator syncing from the key
-  vault ([#909](https://github.com/NCodeGroup/identity/issues/909)).
-- **Alerting:** Grafana Cloud alerts on token-endpoint error rate and p95 latency, certificate expiry, database
-  connections and replication lag, and node/disk pressure; on-call via Grafana IRM's free tier; a public status page
-  (`status.ncodeid.com`, UptimeRobot free).
+- **Cluster secrets** never sit in Git, plain or encrypted: each cluster's External Secrets Operator reads them from AWS
+  Systems Manager Parameter Store, in the cell's AWS region under a KMS key of the cell's own, through web identity
+  federation, and OpenTofu writes a secret it generates there without keeping it in state
+  ([ADR-1526](decisions/1526-the-platforms-cluster-secrets-reach-each-cluster-from-aws-parameter-store-through-external-secrets-operator.md)).
+- **Alerting:** Grafana Cloud alerts on token-endpoint error rate and p95 latency, shed requests
+  (`ncode.identity.admission.shed`), certificate expiry, database connections and replication lag, and node/disk
+  pressure; on-call via Grafana IRM's free tier, paging as the [incident-response runbook](incident-response.md) says; a
+  public status page (`status.ncodeid.com`, UptimeRobot free). Each cluster keeps its metrics within 1,500 active series
+  and each cell within 2,000, on Grafana Cloud Free while only the developer plan runs and on Pro from the first paid
+  plan
+  ([ADR-1525](decisions/1525-each-cluster-and-cell-keeps-its-metrics-within-a-series-budget-on-grafana-cloud-free-then-pro.md)).
 - **Audit events**
-  ([ADR-1047](decisions/1047-observation-is-a-fault-isolated-event-seam-that-audit-specializes-and-protocol-errors-reach-once.md)):
-  their retention and customer export are open ([#910](https://github.com/NCodeGroup/identity/issues/910)), and they
-  contain PII.
+  ([ADR-1047](decisions/1047-observation-is-a-fault-isolated-event-seam-that-audit-specializes-and-protocol-errors-reach-once.md))
+  contain personal data: each cell's audit store keeps them 90 days, its logs for the Grafana Cloud plan's log retention
+  and its encrypted backups up to 13 months, and a customer exports its tenants' records through the management API or
+  streams them to its own endpoints
+  ([ADR-1527](decisions/1527-the-hosted-platform-keeps-audit-records-for-90-days-and-a-customer-exports-them-through-the-management-api.md),
+  [ADR-1534](decisions/1534-a-tenants-audit-records-stream-to-its-endpoints-read-forward-from-the-audit-store-and-signed-as-standard-webhooks.md)).
 - **Cost guardrails:** billing alerts on every vendor, an Azure budget alert, and bandwidth-overage alerts.
 
 **Security hardening:**
@@ -877,27 +889,32 @@ the stacks and components is [#87](https://github.com/NCodeGroup/identity/issues
   third-party hosts (the status page and the site host) serve its subdomains. An RFC 9116 `/.well-known/security.txt`
   points to [`SECURITY.md`](../SECURITY.md).
 
-**Business and legal (before onboarding customers):** privacy policy, terms and a DPA
-([#912](https://github.com/NCodeGroup/identity/issues/912)), and a subprocessor list (Akamai and the Aiven service
-behind its managed PostgreSQL, Cloudflare, Grafana Labs, AWS, and Oracle when OCI Email Delivery sends the platform's
-mail, listed per region in [#859](https://github.com/NCodeGroup/identity/issues/859)); data residency is US-only (one US
-region) — EU customers need a regional cell
+**Business and legal (before onboarding customers):** the [terms of service](legal/terms-of-service.md), the
+[data processing agreement](legal/data-processing-agreement.md) and the [privacy policy](legal/privacy-policy.md), built
+on Common Paper's standard terms and reviewed by counsel before they take effect
+([ADR-1529](decisions/1529-the-hosted-platforms-terms-dpa-and-privacy-policy-are-public-documents-built-on-common-papers-standard-terms.md)),
+and a subprocessor list (Akamai and the Aiven service behind its managed PostgreSQL, Cloudflare, Grafana Labs, and AWS,
+whose Amazon SES also sends the platform's mail, listed per region in
+[#859](https://github.com/NCodeGroup/identity/issues/859)); data residency is US-only (one US region) — EU customers
+need a regional cell
 ([ADR-1411](decisions/1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md));
 an SLA no higher than a single-datacenter platform supports (~99.9%), until cells run across availability zones
-([§11](#11-growth-path-aws)); an incident-response runbook ([#913](https://github.com/NCodeGroup/identity/issues/913)).
+([§11](#11-growth-path-aws)); the [incident-response runbook](incident-response.md).
 
-**Outbound email:** verification, password reset, and email MFA need a sending provider
-([#911](https://github.com/NCodeGroup/identity/issues/911)) — OCI Email Delivery (3,000 emails/month free) or Cloudflare
-Email Sending (Workers Paid, $5/month; its SMTP endpoint also lets the owner reply as `security@` from an existing
-mailbox). Transactional mail sends only from `mail.ncodeid.net`, which isolates its reputation; add the provider's SPF
-include and DKIM keys, and keep DMARC at `p=reject`.
+**Outbound email:** verification, password reset and email MFA send through Amazon SES in the cell's AWS region
+(`us-east-1` for production) from `mail.ncodeid.net`, through the host's Amazon SES transport, as the cell's AWS role,
+with Easy DKIM, a custom MAIL FROM domain so SPF aligns as well, and DMARC at `p=reject`. SES charges $0.10 per 1,000
+emails _(verify)_ and adds no subprocessor, because AWS already is one
+([ADR-1528](decisions/1528-the-hosted-platform-sends-its-mail-through-amazon-ses-in-each-cells-region-from-mail-ncodeid-net.md)).
 
 ## 11. Growth path: AWS
 
-Which cells move to AWS, when, and in which shape is open ([§13](#13-open-decisions)); this section informs it. AWS is
-not the starting point, because it costs more at the entry size, but it is where the platform grows once revenue pays
-for it. The platform runs in AWS from the start: its OpenTofu state, its backups and the KMS root keys of production and
-the lab live in a dedicated AWS account
+Which cells move to AWS, when, and in which shape is decided in
+[ADR-1530](decisions/1530-cells-on-aws-run-on-eks-from-the-published-chart-across-three-zones-with-spot-above-an-on-demand-floor.md):
+a cell on AWS runs the published chart on EKS in `us-east-1`, across three availability zones, with spot capacity above
+an on-demand floor. This section holds the analysis behind it. AWS is not the starting point, because it costs more at
+the entry size, but it is where the platform grows once revenue pays for it. The platform runs in AWS from the start:
+its OpenTofu state, its backups and the KMS root keys of production and the lab live in a dedicated AWS account
 ([ADR-1132](decisions/1132-platform-infrastructure-code-is-public-on-github-and-its-state-and-backups-live-in-aws.md),
 [ADR-1235](decisions/1235-stored-secrets-and-grant-payloads-are-protected-by-a-key-hierarchy-under-an-external-root-key.md)).
 
@@ -1140,7 +1157,11 @@ Inside one cell, every tenant shares the same process threads, the password-hash
 rate limits and quotas are **ceilings, not reservations**: they stop one tenant from taking too much, but they set
 nothing aside for anyone. Shared-vCPU nodes can also be slowed by other customers of the cloud vendor on the same
 physical host (CPU steal). So guaranteed capacity exists only where nothing in the request path is shared and the CPU is
-dedicated.
+dedicated. Under load, each replica sheds free tenants' requests first: the free tier's `admission_capacity_percent` of
+60 lets free requests fill at most 60% of a replica's `OpenId:Admission:ConcurrencyLimit`, so the rest serves paid
+tenants
+([ADR-1523](decisions/1523-a-replica-sheds-a-tenants-protocol-requests-once-its-in-flight-requests-fill-the-tenants-share-of-its-capacity.md)).
+That orders who is refused first; it still reserves nothing for any one tenant.
 
 ### Kinds of cells and where they run
 
@@ -1148,9 +1169,9 @@ From the least to the most isolated; infrastructure costs are Akamai list prices
 
 | Cell | Customers | Placement | What it can promise | Infrastructure |
 |---|---|---|---|---|
-| **Shared cell** | Many, free and entry plans | A shared node pool | Best effort; limits and quotas protect against noisy neighbors | Part of the production cluster |
+| **Shared cell** | Many, free and entry plans | A shared node pool | Best effort; limits and quotas protect against noisy neighbors, and free traffic is shed before paid traffic | Part of the production cluster |
 | **Paid-only shared cell** | Many, paid plans only | Its own node pool; cluster B once the paying base grows | Headroom, not a reservation: run at ≤50% utilization, with no free tenants able to load it | ~$75–110/mo (a 3-node pool and its own 3-node PostgreSQL) |
-| **Dedicated cell on a shared cluster** | One | Its own dedicated-CPU node pool on the paid cells' cluster | Committed throughput at a stated p95 latency; 99.9% availability | ~$150–250/mo (3 dedicated-CPU nodes, a 3-node PostgreSQL, its own NodeBalancer, KMS and backups) |
+| **Dedicated cell on a shared cluster** | One | Its own dedicated-CPU node pool on the paid cells' cluster | Its capacity rating at p95 ≤ 200 ms for machine-to-machine token requests ([ADR-1524](decisions/1524-a-dedicated-cells-capacity-rating-is-measured-by-the-repositorys-k6-test-on-dedicated-cpu-nodes.md)); 99.9% availability | ~$150–250/mo (3 dedicated-CPU nodes, a 3-node PostgreSQL, its own NodeBalancer, KMS and backups) |
 | **Dedicated cluster** | One | Its own cluster, optionally in its own datacenter or region | As above, plus its own maintenance windows and region | ~$220–350/mo (the above plus an HA control plane) |
 | **Sovereign cell** | One | A separate cloud account, possibly the customer's, possibly a separate operator | Contractual | The customer's account |
 
@@ -1215,16 +1236,17 @@ pods: ~10 of its own (the identity server ×3, Valkey with a replica and Sentine
 every node runs (the CNI, kube-proxy, the CSI driver, a monitoring agent). So on standard LKE the **pod limit binds
 first**: one cluster holds roughly **35–40 dedicated cells**, against about 75 by the node limit.
 
-**Growing past one cluster.**
+**Growing past one cluster**, decided in
+[ADR-1531](decisions/1531-the-clusters-that-host-paid-cells-are-standard-lke-clusters-with-the-ha-control-plane-and-at-most-15-cells.md):
 
-1. **Cap cells per cluster below the limits**, for blast radius rather than capacity — for example 10–20 dedicated
-   cells. Every cell on a cluster shares its control plane, add-ons, upgrades and cluster-admin credentials.
-2. **Add clusters B1, B2, … as the cap is reached.** Placement is a platform choice and a cell moves between clusters
-   without changing its tenants (above), so adding clusters needs no product change.
-3. **Consider LKE Enterprise for the paid clusters once it is offered in the region:** a dedicated HA control plane, 500
-   nodes and 5,000 pods, VPC-isolated pod networking, Premium NodeBalancers, longer Kubernetes version support and full
-   control over when upgrades start. It is in limited availability through Akamai sales, at an extra monthly fee
-   _(verify)_.
+1. **At most 15 cells per cluster**, for blast radius rather than capacity: every cell on a cluster shares its control
+   plane, add-ons, upgrades and cluster-admin credentials, and 15 dedicated cells use about 330 pods, a third of the pod
+   limit.
+2. **Clusters B1, B2, … as each reaches the cap**, each created with the HA control plane. A new cell goes on the newest
+   cluster with room. Placement is a platform choice and a cell moves between clusters without changing its tenants
+   (above), so adding clusters needs no product change.
+3. **Standard LKE, not LKE Enterprise.** Enterprise's larger limits don't move a cap set by blast radius, and its own
+   control plane and upgrade control are what a dedicated cluster sells.
 
 **Upgrades.** A Kubernetes version upgrade covers the whole cluster and recycles every node pool, so it touches every
 dedicated cell on it. Each cell needs its pod disruption budget and spread replicas to ride through it. A dedicated cell
@@ -1276,33 +1298,19 @@ sovereignty and bank exit plans ask for a regional, sovereign or dedicated cell 
 | Gap | Tracked by |
 |---|---|
 | A dedicated cell's tenants need DNS records that take precedence over the wildcard | [#755](https://github.com/NCodeGroup/identity/issues/755) |
-| A shared cell has no priority by plan: under load, nothing sheds free traffic before paid traffic | [#906](https://github.com/NCodeGroup/identity/issues/906) |
-| No capacity rating for a dedicated cell, because there is no load-test data on dedicated-CPU nodes | [#907](https://github.com/NCodeGroup/identity/issues/907) ([§3](#3-compute-sizing)) |
-| Telemetry per cell can outgrow Grafana Cloud's free 10k active series | [#908](https://github.com/NCodeGroup/identity/issues/908) |
+| A dedicated cell's capacity rating comes from the load test's run on its dedicated-CPU nodes, which [§3](#3-compute-sizing) records | [ADR-1524](decisions/1524-a-dedicated-cells-capacity-rating-is-measured-by-the-repositorys-k6-test-on-dedicated-cpu-nodes.md) |
 | Infrastructure automation that stamps out one cell, with its node pool, database and DNS, and manages the fleet | [#845](https://github.com/NCodeGroup/identity/issues/845) |
 
 ## 13. Open decisions
 
 Everything else on this page is decided in the record its section names.
 
-1. **When to place cells on AWS, and in which shape** — EKS with spot above an on-demand floor, or ECS on Fargate, which
-   runs outside the chart and so needs its own record
-   ([ADR-1133](decisions/1133-the-hosted-platform-runs-only-the-published-artifacts-it-offers-self-hosters.md)); see
-   [§11](#11-growth-path-aws) and [#914](https://github.com/NCodeGroup/identity/issues/914).
-2. **The fleet model** — the cell inventory, the cell module, the release channels and the version-skew rule, where
+1. **The fleet model** — the cell inventory, the cell module, the release channels and the version-skew rule, where
    fleet telemetry lives, and operator access, recorded before the fleet is built
    ([#845](https://github.com/NCodeGroup/identity/issues/845)).
-3. **A shared cell's priority by plan, each cell's telemetry budget and a dedicated cell's capacity rating** — under
-   load nothing sheds free traffic before paid traffic, each cell adds series toward Grafana Cloud's free 10k active
-   series, and a capacity rating needs a load test on dedicated-CPU nodes
-   ([#906](https://github.com/NCodeGroup/identity/issues/906),
-   [#908](https://github.com/NCodeGroup/identity/issues/908), [#907](https://github.com/NCodeGroup/identity/issues/907);
-   [§3](#3-compute-sizing), [Gaps for dedicated cells](#gaps-for-dedicated-cells)).
-4. **The launch work** — what [§10](#10-pre-launch-considerations) lists under Operations, Security hardening, Business
-   and legal, and Outbound email, among them the restore drill's RPO and RTO targets
-   ([#845](https://github.com/NCodeGroup/identity/issues/845)), audit-event retention and customer export
-   ([#910](https://github.com/NCodeGroup/identity/issues/910)), and the outbound email provider
-   ([#911](https://github.com/NCodeGroup/identity/issues/911)).
-5. **How the clusters that host paid cells scale** — the cap on cells per cluster, and whether those clusters run LKE
-   Enterprise once Akamai offers it in their region ([#915](https://github.com/NCodeGroup/identity/issues/915);
-   [The cluster that hosts paid cells](#the-cluster-that-hosts-paid-cells)).
+2. **The launch work** — what [§10](#10-pre-launch-considerations) lists under Operations, Security hardening, Business
+   and legal, and Outbound email that is still to build, among them the restore drill's RPO and RTO targets
+   ([#845](https://github.com/NCodeGroup/identity/issues/845)), a dedicated cell's first capacity rating
+   ([ADR-1524](decisions/1524-a-dedicated-cells-capacity-rating-is-measured-by-the-repositorys-k6-test-on-dedicated-cpu-nodes.md))
+   and counsel's review of the [legal documents](legal/README.md)
+   ([ADR-1529](decisions/1529-the-hosted-platforms-terms-dpa-and-privacy-policy-are-public-documents-built-on-common-papers-standard-terms.md)).

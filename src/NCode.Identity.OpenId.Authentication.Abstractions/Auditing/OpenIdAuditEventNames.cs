@@ -72,4 +72,34 @@ public static class OpenIdAuditEventNames
     /// refusing them; published only for a tenant or client that opts in to UserInfo access auditing.
     /// </summary>
     public const string UserInfoAccessed = "userinfo.accessed";
+
+    /// <summary>
+    /// An end user changed, or failed to change, the password of their account on the self-service surface.
+    /// </summary>
+    // See ADR-1533.
+    public const string PasswordChange = "password.change";
+
+    /// <summary>
+    /// An end user asked for a password reset code.
+    /// </summary>
+    // See ADR-1533.
+    public const string PasswordResetRequest = "password.reset_request";
+
+    /// <summary>
+    /// An end user reset, or failed to reset, a forgotten password with a code.
+    /// </summary>
+    // See ADR-1533.
+    public const string PasswordReset = "password.reset";
+
+    /// <summary>
+    /// An end user verified, or failed to verify, their account's email address with a code.
+    /// </summary>
+    // See ADR-1533.
+    public const string EmailVerification = "email.verification";
+
+    /// <summary>
+    /// An end user completed, or failed, a second factor at sign-in.
+    /// </summary>
+    // See ADR-1533.
+    public const string SecondFactor = "subject.second_factor";
 }

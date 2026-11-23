@@ -1,0 +1,108 @@
+#nullable enable
+abstract NCode.Identity.Mail.MailComposer<TModel>.ComposeAsync(TModel! model, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.Mail.MailMessage!>
+abstract NCode.Identity.Mail.MailContent.CreateReadStreamAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.IO.Stream!>
+abstract NCode.Identity.Mail.MailContent.IsReusable.get -> bool
+const NCode.Identity.Mail.MailTransferEncodings.Base64 = "base64" -> string!
+const NCode.Identity.Mail.MailTransferEncodings.Binary = "binary" -> string!
+const NCode.Identity.Mail.MailTransferEncodings.EightBit = "8bit" -> string!
+const NCode.Identity.Mail.MailTransferEncodings.QuotedPrintable = "quoted-printable" -> string!
+const NCode.Identity.Mail.MailTransferEncodings.SevenBit = "7bit" -> string!
+NCode.Identity.Mail.IMailComposer
+NCode.Identity.Mail.IMailComposer.ComposeAsync(object! model, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.Mail.MailMessage!>
+NCode.Identity.Mail.IMailComposer.ModelType.get -> System.Type!
+NCode.Identity.Mail.IMailSender
+NCode.Identity.Mail.IMailSender.SendAsync<TModel>(TModel! model, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+NCode.Identity.Mail.IMailTransport
+NCode.Identity.Mail.IMailTransport.DeliverAsync(NCode.Identity.Mail.MailMessage! message, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+NCode.Identity.Mail.MailAddress
+NCode.Identity.Mail.MailAddress.Address.get -> string!
+NCode.Identity.Mail.MailAddress.DisplayName.get -> string?
+NCode.Identity.Mail.MailAddress.MailAddress(string! address, string? displayName = null) -> void
+NCode.Identity.Mail.MailAttachment
+NCode.Identity.Mail.MailAttachment.Content.get -> NCode.Identity.Mail.MailContent!
+NCode.Identity.Mail.MailAttachment.Content.init -> void
+NCode.Identity.Mail.MailAttachment.ContentId.get -> string?
+NCode.Identity.Mail.MailAttachment.ContentId.init -> void
+NCode.Identity.Mail.MailAttachment.Description.get -> string?
+NCode.Identity.Mail.MailAttachment.Description.init -> void
+NCode.Identity.Mail.MailAttachment.FileName.get -> string?
+NCode.Identity.Mail.MailAttachment.FileName.init -> void
+NCode.Identity.Mail.MailAttachment.MailAttachment() -> void
+NCode.Identity.Mail.MailComposer<TModel>
+NCode.Identity.Mail.MailComposer<TModel>.MailComposer() -> void
+NCode.Identity.Mail.MailComposer<TModel>.ModelType.get -> System.Type!
+NCode.Identity.Mail.MailContent
+NCode.Identity.Mail.MailContent.Charset.get -> string?
+NCode.Identity.Mail.MailContent.Dispose() -> void
+NCode.Identity.Mail.MailContent.DisposeAsync() -> System.Threading.Tasks.ValueTask
+NCode.Identity.Mail.MailContent.LoadIntoBufferAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+NCode.Identity.Mail.MailContent.MailContent(string! mediaType, string? charset) -> void
+NCode.Identity.Mail.MailContent.MediaType.get -> string!
+NCode.Identity.Mail.MailContent.ReadAsStreamAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.IO.Stream!>
+NCode.Identity.Mail.MailContent.TransferEncoding.get -> string?
+NCode.Identity.Mail.MailContent.TransferEncoding.init -> void
+NCode.Identity.Mail.MailHeader
+NCode.Identity.Mail.MailHeader.MailHeader(string! name, string! value) -> void
+NCode.Identity.Mail.MailHeader.Name.get -> string!
+NCode.Identity.Mail.MailHeader.Value.get -> string!
+NCode.Identity.Mail.MailImportance
+NCode.Identity.Mail.MailImportance.High = 2 -> NCode.Identity.Mail.MailImportance
+NCode.Identity.Mail.MailImportance.Low = 1 -> NCode.Identity.Mail.MailImportance
+NCode.Identity.Mail.MailImportance.Normal = 0 -> NCode.Identity.Mail.MailImportance
+NCode.Identity.Mail.MailLibrary
+NCode.Identity.Mail.MailLibrary.MailLibrary() -> void
+NCode.Identity.Mail.MailMessage
+NCode.Identity.Mail.MailMessage.Attachments.get -> System.Collections.Generic.List<NCode.Identity.Mail.MailAttachment!>!
+NCode.Identity.Mail.MailMessage.Attachments.init -> void
+NCode.Identity.Mail.MailMessage.Bcc.get -> System.Collections.Generic.List<NCode.Identity.Mail.MailAddress!>!
+NCode.Identity.Mail.MailMessage.Bcc.init -> void
+NCode.Identity.Mail.MailMessage.Cc.get -> System.Collections.Generic.List<NCode.Identity.Mail.MailAddress!>!
+NCode.Identity.Mail.MailMessage.Cc.init -> void
+NCode.Identity.Mail.MailMessage.Date.get -> System.DateTimeOffset?
+NCode.Identity.Mail.MailMessage.Date.init -> void
+NCode.Identity.Mail.MailMessage.Dispose() -> void
+NCode.Identity.Mail.MailMessage.DisposeAsync() -> System.Threading.Tasks.ValueTask
+NCode.Identity.Mail.MailMessage.From.get -> NCode.Identity.Mail.MailAddress?
+NCode.Identity.Mail.MailMessage.From.init -> void
+NCode.Identity.Mail.MailMessage.FromDisplayName.get -> string?
+NCode.Identity.Mail.MailMessage.FromDisplayName.init -> void
+NCode.Identity.Mail.MailMessage.Headers.get -> System.Collections.Generic.List<NCode.Identity.Mail.MailHeader!>!
+NCode.Identity.Mail.MailMessage.Headers.init -> void
+NCode.Identity.Mail.MailMessage.HtmlBody.get -> NCode.Identity.Mail.MailContent?
+NCode.Identity.Mail.MailMessage.HtmlBody.init -> void
+NCode.Identity.Mail.MailMessage.Importance.get -> NCode.Identity.Mail.MailImportance
+NCode.Identity.Mail.MailMessage.Importance.init -> void
+NCode.Identity.Mail.MailMessage.InReplyTo.get -> string?
+NCode.Identity.Mail.MailMessage.InReplyTo.init -> void
+NCode.Identity.Mail.MailMessage.LinkedResources.get -> System.Collections.Generic.List<NCode.Identity.Mail.MailAttachment!>!
+NCode.Identity.Mail.MailMessage.LinkedResources.init -> void
+NCode.Identity.Mail.MailMessage.MailMessage() -> void
+NCode.Identity.Mail.MailMessage.MessageId.get -> string?
+NCode.Identity.Mail.MailMessage.MessageId.init -> void
+NCode.Identity.Mail.MailMessage.Priority.get -> NCode.Identity.Mail.MailPriority
+NCode.Identity.Mail.MailMessage.Priority.init -> void
+NCode.Identity.Mail.MailMessage.References.get -> System.Collections.Generic.List<string!>!
+NCode.Identity.Mail.MailMessage.References.init -> void
+NCode.Identity.Mail.MailMessage.ReplyTo.get -> System.Collections.Generic.List<NCode.Identity.Mail.MailAddress!>!
+NCode.Identity.Mail.MailMessage.ReplyTo.init -> void
+NCode.Identity.Mail.MailMessage.Sender.get -> NCode.Identity.Mail.MailAddress?
+NCode.Identity.Mail.MailMessage.Sender.init -> void
+NCode.Identity.Mail.MailMessage.Subject.get -> string!
+NCode.Identity.Mail.MailMessage.Subject.init -> void
+NCode.Identity.Mail.MailMessage.TextBody.get -> NCode.Identity.Mail.MailContent?
+NCode.Identity.Mail.MailMessage.TextBody.init -> void
+NCode.Identity.Mail.MailMessage.To.get -> System.Collections.Generic.List<NCode.Identity.Mail.MailAddress!>!
+NCode.Identity.Mail.MailMessage.To.init -> void
+NCode.Identity.Mail.MailPriority
+NCode.Identity.Mail.MailPriority.NonUrgent = 1 -> NCode.Identity.Mail.MailPriority
+NCode.Identity.Mail.MailPriority.Normal = 0 -> NCode.Identity.Mail.MailPriority
+NCode.Identity.Mail.MailPriority.Urgent = 2 -> NCode.Identity.Mail.MailPriority
+NCode.Identity.Mail.MailTransferEncodings
+NCode.Identity.Mail.MailTransportRegistration
+NCode.Identity.Mail.MailTransportRegistration.MailTransportRegistration(string! name) -> void
+NCode.Identity.Mail.MailTransportRegistration.Name.get -> string!
+NCode.Identity.Mail.StreamMailContent
+NCode.Identity.Mail.StreamMailContent.StreamMailContent(System.IO.Stream! stream, string! mediaType, string? charset = null) -> void
+override NCode.Identity.Mail.StreamMailContent.IsReusable.get -> bool
+virtual NCode.Identity.Mail.MailContent.Dispose(bool disposing) -> void
+virtual NCode.Identity.Mail.MailContent.DisposeAsyncCore() -> System.Threading.Tasks.ValueTask

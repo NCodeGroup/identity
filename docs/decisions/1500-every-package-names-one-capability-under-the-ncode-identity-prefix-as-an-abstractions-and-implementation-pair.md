@@ -39,7 +39,7 @@ any package may reference.**
 3. **Implementations depend on abstractions.** An implementation references `*.Abstractions`, foundation packages and
    the composition builders `NCode.Identity.Registration` and `NCode.Identity.Registration.AspNetCore`, and collaborates
    with other capabilities through abstractions resolved from DI. Apart from the composition roots and hosts below and
-   the layered reference of decision 4, an implementation project references no other implementation project. It
+   the layered references of decision 4, an implementation project references no other implementation project. It
    registers with `TryAdd*` from its `DefaultRegistration`, and its default type is named per
    [project-template ADR-0105](project-template/0105-the-canonical-implementation-is-named-defaultfoo.md). The
    composition roots (`AddIdentityServer()` in `NCode.Identity.Server`, `NCode.Identity.Bff.Server` and
@@ -49,12 +49,14 @@ any package may reference.**
    composition root hands the opt-in implementations it does not reference what only it knows through options in their
    `.Abstractions` packages: the server names its cell's name in `SharedStateOptions` and its cloud regions in
    `KeyResidencyOptions`, which the Valkey adapter and the AWS and Google Cloud key management service adapters apply.
-4. **The one layered reference.** An Entity Framework slice references the Entity Framework framework it plugs into
-   ([ADR-1052](1052-entity-framework-persistence-is-a-reusable-framework-that-domain-slices-plug-into.md)). Every other
-   collaboration between implementations is through abstractions resolved from DI:
-   `NCode.Identity.OpenId.Authentication` uses the OpenID core's services through `NCode.Identity.OpenId.Abstractions`,
-   and the Entity Framework accounts slice uses the `IPasswordHasher` that a host registers with
-   `AddDefaultPasswordHasher()` from `NCode.Identity.OpenId.Accounts`.
+4. **The layered references.** An Entity Framework slice references the Entity Framework framework it plugs into
+   ([ADR-1052](1052-entity-framework-persistence-is-a-reusable-framework-that-domain-slices-plug-into.md)). A mail
+   transport that submits MIME references `NCode.Identity.Mail.Mime`, registers through its `AddMimeMailTransport` and
+   takes its `IMimeMessageFactory`, which builds the MIME form of a mail message that the SMTP and Amazon SES
+   transports share, by constructor injection. Every other collaboration between implementations is through
+   abstractions resolved from DI: `NCode.Identity.OpenId.Authentication` uses the OpenID core's services through
+   `NCode.Identity.OpenId.Abstractions`, and the Entity Framework accounts slice uses the `IPasswordHasher` that a host
+   registers with `AddDefaultPasswordHasher()` from `NCode.Identity.OpenId.Accounts`.
 5. **Foundation packages.** `NCode.Identity.Json`, `NCode.Identity.Jwk`, `NCode.Identity.Time` and
    `NCode.Identity.AspNetCore(.Abstractions)` may be referenced by any package. A foundation package references only
    `NCode.Identity.Registration` and other foundation packages, and a new one needs a second package of the family that

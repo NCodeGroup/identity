@@ -131,4 +131,16 @@ public static class OpenIdMaxLengths
     /// </summary>
     // See ADR-1411.
     public const int CellName = 32;
+
+    /// <summary>
+    /// Gets the max length of the description of an audit stream's last failed delivery.
+    /// </summary>
+    // See ADR-1534.
+    public const int AuditStreamError = 100;
+
+    /// <summary>
+    /// Gets the max length of the identifier of a replica that holds an audit stream's lease.
+    /// </summary>
+    // See ADR-1534.
+    public const int ReplicaId = 64;
 }

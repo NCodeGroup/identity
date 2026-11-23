@@ -317,6 +317,58 @@ The script auto-detects Docker or Podman and removes the `ncode-identity-openidd
 `docker volume rm ncode-identity-openiddb-data`). This is the only reset needed — the provisioned signing keys and the
 DataProtection key ring are in the same database and are purged with it.
 
+## Outbound mail
+
+The host mails the one-time codes that verify an email address, reset a forgotten password and complete an email second
+factor. The mail goes to the SMTP server that the optional `Mail:Smtp` section names, or through Amazon SES when the
+`Mail:AmazonSes` section exists, as set out below
+([ADR-1532](../../docs/decisions/1532-outbound-mail-is-a-port-that-composes-each-queued-message-at-delivery-for-a-replaceable-transport-with-smtp-and-amazon-ses-adapters.md)).
+Each section is bound strictly and validated when the host starts.
+
+| Setting              | Default       | Meaning                                                                                              |
+|----------------------|---------------|------------------------------------------------------------------------------------------------------|
+| `Mail:Smtp:Host`     | none          | The SMTP server's host name; required when the section exists                                        |
+| `Mail:Smtp:Port`     | `587`         | The server's port, between 1 and 65535                                                               |
+| `Mail:Smtp:Tls`      | `StartTls`    | `StartTls` refuses a server that offers no STARTTLS, `ImplicitTls` connects over TLS, `None` is clear |
+| `Mail:Smtp:UserName` | none          | The user the connection authenticates as; set with `Password` or not at all                          |
+| `Mail:Smtp:Password` | none          | The password the connection authenticates with; set with `UserName` or not at all                    |
+| `Mail:Smtp:From`     | none          | The address every message is sent from, which the provider authorizes; required                      |
+| `Mail:Smtp:FromName` | none          | The display name of the sender                                                                       |
+| `Mail:Smtp:Timeout`  | 30 seconds    | How long a connection or a command waits for the server, between one second and five minutes         |
+
+The host sends through Amazon SES instead when the optional `Mail:AmazonSes` section exists. It is bound strictly and
+validated when the host starts, and its credentials come from the default AWS chain, such as a pod's web identity.
+
+| Setting                               | Default    | Meaning                                                                                           |
+|---------------------------------------|------------|---------------------------------------------------------------------------------------------------|
+| `Mail:AmazonSes:Region`               | none       | The AWS region, such as `us-east-1`, whose Amazon SES endpoint sends the mail; required           |
+| `Mail:AmazonSes:From`                 | none       | The address every message is sent from, which a verified Amazon SES identity authorizes; required |
+| `Mail:AmazonSes:FromName`             | none       | The display name of the sender                                                                    |
+| `Mail:AmazonSes:FromIdentityArn`      | none       | The ARN of the Amazon SES identity that authorizes the sender when it belongs to another account  |
+| `Mail:AmazonSes:ConfigurationSetName` | none       | The configuration set every message is sent with, 1 to 64 letters, digits, underscores or hyphens |
+| `Mail:AmazonSes:Tags:<name>`          | none       | A tag every message is sent with, at most 50, each name and value 1 to 256 characters             |
+| `Mail:AmazonSes:Timeout`              | 30 seconds | How long a call to Amazon SES waits, between one second and five minutes                          |
+
+A host configures one transport: setting both `Mail:Smtp` and `Mail:AmazonSes` fails the host at start. Without either
+section the host registers no transport: every delivery fails and is logged, and no mail is sent, so leave the three
+settings below off. `Tls=None` sends in clear and exists for the local stack's Mailpit; only a host with
+`LocalDevelopment:Enabled` uses it, and the SMTP options validator and the Helm chart refuse it otherwise. The host
+queues each mail's model through the job dispatcher and composes the message at each delivery attempt, so the in-process
+dispatcher loses the models a stopping replica holds ([#25](https://github.com/NCodeGroup/identity/issues/25)).
+
+A tenant turns the flows on with these tenant settings, each under `OpenId:Platform:Settings`:
+
+| Setting                      | Default    | Merge     | Meaning                                                                              |
+|------------------------------|------------|-----------|--------------------------------------------------------------------------------------|
+| `password_reset_enabled`     | `false`    | `Replace` | The login page links "Forgot your password?" and a local account resets by email code |
+| `email_verification_enabled` | `false`    | `Replace` | The account page links the email page, which verifies the account's address           |
+| `email_mfa_required`         | `false`    | `Or`      | A local account's sign-in is completed with an email code; a tenant can't lift a team's |
+| `email_code_lifetime`        | 10 minutes | `Min`     | How long a code is accepted, between 1 minute and 1 hour                              |
+| `email_code_sends_per_hour`  | `5`        | `Min`     | The most codes one account receives in an hour for one purpose, between 1 and 20      |
+
+See [Email Codes](../../docs/capabilities/email-codes.md). The Helm chart sets the sections through `mail.smtp.*` and
+`mail.amazonSes.*`; see the [chart's README](../../charts/ncode-identity-host/README.md#outbound-mail).
+
 ## API reference
 
 The host serves its OpenAPI document at `/openapi/v1.json` and its Scalar API reference page at `/scalar/v1`, each

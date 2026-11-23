@@ -104,6 +104,12 @@ public static class OpenIdSettingNames
     public const string AcrValuesSupported = "acr_values_supported";
 
     /// <summary>
+    /// Contains the name of the <c>admission_capacity_percent</c> setting: the share, in percent, of a replica's
+    /// request capacity that a tenant's protocol requests may fill before the replica sheds them. Unset means 100.
+    /// </summary>
+    public const string AdmissionCapacityPercent = "admission_capacity_percent";
+
+    /// <summary>
     /// Contains the name of the <c>default_acr</c> setting: the baseline <c>acr</c> value the authorization server
     /// asserts for a single-factor authentication event when no stronger authentication context applies. Unset means
     /// no baseline (the <c>acr</c> claim is omitted unless a stronger context — such as multi-factor — is resolved).
@@ -1169,6 +1175,44 @@ public static class OpenIdSettingNames
     /// counted from the first one, are kept.
     /// </summary>
     public const string PasswordFailedAttemptsWindow = "password_failed_attempts_window";
+
+    /// <summary>
+    /// Contains the name of the <c>password_reset_enabled</c> setting: whether a local account's password may be reset
+    /// with a one-time code mailed to its verified email address. Defaults to <see langword="false"/>.
+    /// </summary>
+    public const string PasswordResetEnabled = "password_reset_enabled";
+
+    /// <summary>
+    /// Contains the name of the <c>email_code_lifetime</c> setting: how long a one-time code mailed to an email address
+    /// is accepted.
+    /// </summary>
+    public const string EmailCodeLifetime = "email_code_lifetime";
+
+    /// <summary>
+    /// Contains the name of the <c>email_code_sends_per_hour</c> setting: the most one-time codes that may be mailed in
+    /// one hour for one account and purpose.
+    /// </summary>
+    public const string EmailCodeSendsPerHour = "email_code_sends_per_hour";
+
+    /// <summary>
+    /// Contains the name of the <c>email_mfa_required</c> setting: whether a local account's sign-in must be completed
+    /// with a one-time code mailed to the account's email address. Defaults to <see langword="false"/>.
+    /// </summary>
+    public const string EmailMfaRequired = "email_mfa_required";
+
+    /// <summary>
+    /// Contains the name of the <c>email_verification_enabled</c> setting: whether a local account may verify its email
+    /// address with a one-time code. Defaults to <see langword="false"/>.
+    /// </summary>
+    public const string EmailVerificationEnabled = "email_verification_enabled";
+
+    /// <summary>
+    /// Contains the name of the <c>max_audit_streams</c> setting: the most audit streams a tenant may have; a creation
+    /// that would exceed it is refused. Between 0 and 10; defaults to 2. It is a limit on the tenant scope: the
+    /// administrators above the tenant set it, and a tenant can only lower it.
+    /// </summary>
+    // See ADR-1534.
+    public const string MaxAuditStreams = "max_audit_streams";
 
     /// <summary>
     /// Contains the name of the <c>max_tenants</c> setting: the most tenants a team may hold; a creation that would

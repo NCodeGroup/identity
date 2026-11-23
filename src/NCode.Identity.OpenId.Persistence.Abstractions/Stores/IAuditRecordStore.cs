@@ -44,6 +44,21 @@ public interface IAuditRecordStore : IStore
     );
 
     /// <summary>
+    /// Gets a tenant's records stored after a position, oldest first by the time the store stored them and then by
+    /// event identifier, and stored before a time, so a reader follows the store forward.
+    /// </summary>
+    /// <param name="request">The tenant, the position to read after, the time to read up to and the greatest number of
+    /// records.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation, containing the page and the
+    /// position of its last record.</returns>
+    // See ADR-1534.
+    ValueTask<AuditRecordStreamPage> GetStreamPageAsync(
+        AuditRecordStreamRequest request,
+        CancellationToken cancellationToken
+    );
+
+    /// <summary>
     /// Removes, when the unit of work is saved, up to <paramref name="limit"/> of the records of events that occurred
     /// before <paramref name="time"/>, the end of the records' retention.
     /// </summary>

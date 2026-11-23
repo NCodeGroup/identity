@@ -52,6 +52,11 @@
         <Project Path="src/NCode.Identity.Jwk/NCode.Identity.Jwk.csproj" />
         <Project Path="src/NCode.Identity.Jwt.Abstractions/NCode.Identity.Jwt.Abstractions.csproj" />
         <Project Path="src/NCode.Identity.Jwt/NCode.Identity.Jwt.csproj" />
+        <Project Path="src/NCode.Identity.Mail.Abstractions/NCode.Identity.Mail.Abstractions.csproj" />
+        <Project Path="src/NCode.Identity.Mail.AmazonSes/NCode.Identity.Mail.AmazonSes.csproj" />
+        <Project Path="src/NCode.Identity.Mail.Mime/NCode.Identity.Mail.Mime.csproj" />
+        <Project Path="src/NCode.Identity.Mail.Smtp/NCode.Identity.Mail.Smtp.csproj" />
+        <Project Path="src/NCode.Identity.Mail/NCode.Identity.Mail.csproj" />
         <Project Path="src/NCode.Identity.ManagementConsole/NCode.Identity.ManagementConsole.csproj" />
         <Project Path="src/NCode.Identity.OpenId.Abstractions/NCode.Identity.OpenId.Abstractions.csproj" />
         <Project Path="src/NCode.Identity.OpenId.Accounts.Abstractions/NCode.Identity.OpenId.Accounts.Abstractions.csproj" />
@@ -128,6 +133,11 @@
         <Project Path="tests/NCode.Identity.Jose.Tests/NCode.Identity.Jose.Tests.csproj" />
         <Project Path="tests/NCode.Identity.Jwk.Tests/NCode.Identity.Jwk.Tests.csproj" />
         <Project Path="tests/NCode.Identity.Jwt.Tests/NCode.Identity.Jwt.Tests.csproj" />
+        <Project Path="tests/NCode.Identity.Mail.Abstractions.Tests/NCode.Identity.Mail.Abstractions.Tests.csproj" />
+        <Project Path="tests/NCode.Identity.Mail.AmazonSes.Tests/NCode.Identity.Mail.AmazonSes.Tests.csproj" />
+        <Project Path="tests/NCode.Identity.Mail.Mime.Tests/NCode.Identity.Mail.Mime.Tests.csproj" />
+        <Project Path="tests/NCode.Identity.Mail.Smtp.Tests/NCode.Identity.Mail.Smtp.Tests.csproj" />
+        <Project Path="tests/NCode.Identity.Mail.Tests/NCode.Identity.Mail.Tests.csproj" />
         <Project Path="tests/NCode.Identity.ManagementConsole.Tests/NCode.Identity.ManagementConsole.Tests.csproj" />
         <Project Path="tests/NCode.Identity.OpenId.Accounts.AspNetIdentity.EntityFrameworkCore.Tests/NCode.Identity.OpenId.Accounts.AspNetIdentity.EntityFrameworkCore.Tests.csproj" />
         <Project Path="tests/NCode.Identity.OpenId.Accounts.AspNetIdentity.Tests/NCode.Identity.OpenId.Accounts.AspNetIdentity.Tests.csproj" />

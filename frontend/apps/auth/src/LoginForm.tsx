@@ -3,12 +3,19 @@ import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import CardContent from '@mui/material/CardContent';
+import Link from '@mui/material/Link';
 import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import { TenantCard } from '@ncodegroup/identity-ui';
 import { useLocale } from './i18n/LocaleContext.js';
-import { ANTIFORGERY_FIELD, LOGIN_ACTION, UI_LOCALES_FIELD, resolveSurfacePath } from './params.js';
+import {
+  ANTIFORGERY_FIELD,
+  LOGIN_ACTION,
+  RETURN_URL_FIELD,
+  UI_LOCALES_FIELD,
+  resolveSurfacePath,
+} from './params.js';
 import { writeCarriedValue } from './serverPage.js';
 
 export type LoginFormProps = {
@@ -18,6 +25,10 @@ export type LoginFormProps = {
   readonly antiforgeryToken: string;
   /** A human-readable error to show above the form, or `null` when none. */
   readonly errorMessage?: string | null;
+  /** A human-readable status to show above the form, such as a completed password reset, or `null` when none. */
+  readonly statusMessage?: string | null;
+  /** The address of the forgot-password page to link to, or `null` when the tenant offers no password reset. */
+  readonly forgotPasswordHref?: string | null;
   /** The product/tenant display name shown in the heading. */
   readonly productName?: string;
   /**
@@ -37,6 +48,8 @@ export function LoginForm({
   returnUrl,
   antiforgeryToken,
   errorMessage,
+  statusMessage,
+  forgotPasswordHref,
   productName,
   carriedValues,
   focusedFieldId,
@@ -77,9 +90,11 @@ export function LoginForm({
               {productName ? messages.login.titleFor(productName) : messages.login.title}
             </Typography>
 
+            {statusMessage ? <Alert severity="success">{statusMessage}</Alert> : null}
+
             {errorMessage ? <Alert severity="error">{errorMessage}</Alert> : null}
 
-            <input type="hidden" name="ReturnUrl" value={returnUrl} />
+            <input type="hidden" name={RETURN_URL_FIELD} value={returnUrl} />
             <input type="hidden" name={ANTIFORGERY_FIELD} value={antiforgeryToken} />
             {pageLanguage ? (
               <input type="hidden" name={UI_LOCALES_FIELD} value={pageLanguage} />
@@ -117,6 +132,12 @@ export function LoginForm({
             >
               {messages.login.submit}
             </Button>
+
+            {forgotPasswordHref ? (
+              <Link id="forgot-password-link" href={forgotPasswordHref}>
+                {messages.login.forgotPassword}
+              </Link>
+            ) : null}
           </Stack>
         </CardContent>
       </TenantCard>

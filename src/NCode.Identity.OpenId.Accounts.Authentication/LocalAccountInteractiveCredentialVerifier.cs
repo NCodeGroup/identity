@@ -35,7 +35,7 @@ internal sealed class LocalAccountInteractiveCredentialVerifier(
     public async ValueTask<ClaimsPrincipal?> VerifyCredentialAsync(
         OpenIdContext openIdContext,
         string username,
-        string password,
+        Secret<char> password,
         CancellationToken cancellationToken
     )
     {
@@ -77,13 +77,14 @@ internal sealed class LocalAccountInteractiveCredentialVerifier(
     private async ValueTask<LocalAccountVerificationResult> VerifyCredentialsAsync(
         OpenIdContext openIdContext,
         string username,
-        string password,
+        Secret<char> password,
         CancellationToken cancellationToken
     )
     {
         // Encode the password into a pinned, zeroed-on-return buffer so the credential never lingers on the GC heap.
+        var passwordChars = password.Reveal();
         using var owner = SecureEncoding.UTF8.RentBytes(
-            password,
+            passwordChars,
             isSensitive: true,
             out Memory<byte> buffer
         );

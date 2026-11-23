@@ -57,4 +57,14 @@ public readonly record struct SecretProtectionContext
     /// <returns>The <see cref="SecretProtectionContext"/> for the grant payload.</returns>
     public static SecretProtectionContext ForGrantPayload(string hashedKey) =>
         new(SecretProtectionPurposes.GrantPayload, hashedKey);
+
+    /// <summary>
+    /// Creates the context for the signing secret of a single audit stream. The item identifier is the identifier of
+    /// the signing secret.
+    /// </summary>
+    /// <param name="secretId">The identifier of the audit stream's signing secret.</param>
+    /// <returns>The <see cref="SecretProtectionContext"/> for the audit stream's signing secret.</returns>
+    // See ADR-1534.
+    public static SecretProtectionContext ForAuditStreamSigningSecret(string secretId) =>
+        new(SecretProtectionPurposes.AuditStreamSigningSecret, secretId);
 }

@@ -20,6 +20,8 @@ export type ServerPage = {
   readonly focusedFieldId: string | null;
   /** The authorization error the page reports, or `null` when it reports none. */
   readonly authorizationError: ServerAuthorizationError | null;
+  /** The address of the login page's forgot-password link, or `null` when the page has none. */
+  readonly forgotPasswordHref: string | null;
 };
 
 /** The state of a page that has no input and reports no error. */
@@ -28,6 +30,7 @@ export const EMPTY_SERVER_PAGE: ServerPage = {
   clearedScopes: [],
   focusedFieldId: null,
   authorizationError: null,
+  forgotPasswordHref: null,
 };
 
 const CARRIED_INPUT_TYPES: ReadonlySet<string> = new Set(['text', 'email', 'password']);
@@ -67,7 +70,10 @@ export function readServerPage(container: HTMLElement, activeElement: Element | 
       }
     : null;
 
-  return { fieldValues, clearedScopes, focusedFieldId, authorizationError };
+  const forgotPasswordHref =
+    container.querySelector('#forgot-password-link')?.getAttribute('href') ?? null;
+
+  return { fieldValues, clearedScopes, focusedFieldId, authorizationError, forgotPasswordHref };
 }
 
 /**

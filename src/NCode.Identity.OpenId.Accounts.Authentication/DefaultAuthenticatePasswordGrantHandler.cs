@@ -10,6 +10,7 @@ using NCode.Identity.OpenId.Authentication.Passwords;
 using NCode.Identity.OpenId.Authentication.Subject;
 using NCode.Identity.OpenId.Contexts;
 using NCode.Identity.OpenId.PrincipalResolution;
+using NCode.Identity.OpenId.Settings;
 using NCode.Identity.Persistence.Stores;
 using NCode.Mediator;
 
@@ -23,7 +24,8 @@ namespace NCode.Identity.OpenId.Accounts.Authentication;
 /// <c>NCode.Identity.OpenId.Authentication</c> handler reports the grant as unsupported when this capability is absent.
 /// A store that rejects the credentials yields a failed (not unsupported) result, so the two cases stay distinct. A
 /// password for an account that reached its limit of failed attempts is verified against the store's dummy hash and
-/// refused, as a wrong one is.
+/// refused, as a wrong one is. A tenant that requires the email second factor refuses the grant before any password is
+/// verified, because the grant carries no second factor.
 /// </summary>
 internal class DefaultAuthenticatePasswordGrantHandler(
     IStoreManagerFactory storeManagerFactory,
@@ -35,7 +37,12 @@ internal class DefaultAuthenticatePasswordGrantHandler(
     internal const string InvalidCredentialsErrorCode = "invalid_credentials";
     internal const string AttemptLimitReachedErrorCode = "attempt_limit_reached";
 
+    internal const string SecondFactorRequiredErrorCode = "second_factor_required";
+
     internal const string InvalidCredentialsReason = "The provided credentials are invalid.";
+
+    internal const string SecondFactorRequiredReason =
+        "The tenant requires a second factor, which the password grant cannot carry.";
 
     internal const string AttemptLimitReachedReason =
         "The account has reached its limit of failed password attempts.";
@@ -62,6 +69,21 @@ internal class DefaultAuthenticatePasswordGrantHandler(
         var password = tokenRequest.Password;
         if (string.IsNullOrEmpty(username) || string.IsNullOrEmpty(password))
         {
+            return Failed();
+        }
+
+        // The password grant carries no second factor, so a tenant that requires one refuses it before any password is
+        // verified (ADR-1533).
+        var settings = openIdContext.Tenant.SettingsProvider.Collection;
+        if (settings.GetValue(OpenIdSettingKeys.EmailMfaRequired))
+        {
+            await AuditEventRecorder.RecordSubjectAuthenticationFailedAsync(
+                openIdContext,
+                SecondFactorRequiredErrorCode,
+                SecondFactorRequiredReason,
+                username,
+                cancellationToken
+            );
             return Failed();
         }
 

@@ -1,4 +1,4 @@
-# 1523. A tenant signs users in through named connections, and a local account belongs to one
+# 1535. A tenant signs users in through named connections, and a local account belongs to one
 
 - **Status:** Proposed
 - **Date:** 2026-11-22

@@ -153,4 +153,15 @@ internal static partial class Log
         string secretId,
         Exception exception
     );
+
+    [LoggerMessage(
+        EventId = EventIds.AuditStreamCreateGuardReleaseFailed,
+        Level = LogLevel.Warning,
+        Message = "The guard that serializes the audit-stream creates of tenant '{TenantId}' could not be released; it expires on its own"
+    )]
+    internal static partial void AuditStreamCreateGuardReleaseFailed(
+        this ILogger logger,
+        Exception exception,
+        string tenantId
+    );
 }

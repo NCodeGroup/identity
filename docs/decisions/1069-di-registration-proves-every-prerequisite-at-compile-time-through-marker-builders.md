@@ -71,9 +71,12 @@ A registration encodes all its prerequisites in the type system and checks nothi
   returned, used only as a compile-time witness. `AddOpenIdCoreLibrary(claimsBuilder, cryptographyBuilder)` extends
   `IServiceBuilder<SettingsLibrary>`. `AddLocalAccountAuthentication`, `AddLocalAccountInteractiveAuthentication` and
   `AddLocalAccountManagement` take `IServiceBuilder<LocalAccountLibrary>`; the first two extend
-  `IServiceBuilder<OpenIdAuthenticationLibrary>` and the third extends `IServiceBuilder<OpenIdManagementLibrary>`. The
-  method is uncallable without the argument, and it returns its receiver builder so the chain continues on the primary
-  library.
+  `IServiceBuilder<OpenIdAuthenticationLibrary>` and the third extends `IServiceBuilder<OpenIdManagementLibrary>`.
+  `AddLocalAccountInteractiveAuthentication` also takes `IServiceBuilder<MailLibrary>`, the proof that its email codes
+  have a sender
+  ([ADR-1533](1533-an-end-user-verifies-an-email-address-resets-a-password-and-signs-in-with-a-second-factor-through-one-time-email-codes.md)).
+  The method is uncallable without the arguments, and it returns its receiver builder so the chain continues on the
+  primary library.
 - **A marker value is never the witness,** because anyone can `default` an empty struct and a marker instance proves
   nothing. Only a minted builder is unforgeable, so every prerequisite registration returns its builder, even a
   dependency-inverted store.

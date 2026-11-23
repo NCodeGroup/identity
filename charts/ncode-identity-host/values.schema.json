@@ -605,6 +605,146 @@
         }
       }
     },
+    "admission": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "concurrencyLimit": {
+          "type": ["integer", "null"],
+          "minimum": 1
+        }
+      }
+    },
+    "mail": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "smtp": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "host": {
+              "type": "string"
+            },
+            "port": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 65535
+            },
+            "tls": {
+              "enum": ["StartTls", "ImplicitTls"]
+            },
+            "from": {
+              "type": "string"
+            },
+            "fromName": {
+              "type": "string"
+            },
+            "existingSecret": {
+              "type": "string"
+            }
+          },
+          "if": {
+            "properties": {
+              "host": {
+                "minLength": 1
+              }
+            },
+            "required": ["host"]
+          },
+          "then": {
+            "properties": {
+              "from": {
+                "minLength": 3
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "from": {
+                "maxLength": 0
+              },
+              "fromName": {
+                "maxLength": 0
+              },
+              "existingSecret": {
+                "maxLength": 0
+              }
+            }
+          }
+        },
+        "amazonSes": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "region": {
+              "type": "string",
+              "pattern": "^([a-z]{2}(-[a-z]+)+-\\d+)?$"
+            },
+            "from": {
+              "type": "string"
+            },
+            "fromName": {
+              "type": "string"
+            },
+            "fromIdentityArn": {
+              "type": "string",
+              "pattern": "^(arn:aws[a-z-]*:ses:[a-z0-9-]+:\\d{12}:identity/\\S+)?$"
+            },
+            "configurationSetName": {
+              "type": "string",
+              "pattern": "^([A-Za-z0-9_-]{1,64})?$"
+            },
+            "tags": {
+              "type": "object",
+              "maxProperties": 50,
+              "propertyNames": {
+                "pattern": "^[A-Za-z0-9]+([._-][A-Za-z0-9]+)*$",
+                "maxLength": 256
+              },
+              "additionalProperties": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9_.@-]{1,256}$"
+              }
+            }
+          },
+          "if": {
+            "properties": {
+              "region": {
+                "minLength": 1
+              }
+            },
+            "required": ["region"]
+          },
+          "then": {
+            "properties": {
+              "from": {
+                "minLength": 3
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "from": {
+                "maxLength": 0
+              },
+              "fromName": {
+                "maxLength": 0
+              },
+              "fromIdentityArn": {
+                "maxLength": 0
+              },
+              "configurationSetName": {
+                "maxLength": 0
+              },
+              "tags": {
+                "maxProperties": 0
+              }
+            }
+          }
+        }
+      }
+    },
     "database": {
       "type": "object",
       "additionalProperties": false,
@@ -739,6 +879,15 @@
         }
       }
     },
+    "aws": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "webIdentity": {
+          "$ref": "#/definitions/awsWebIdentity"
+        }
+      }
+    },
     "secretProtection": {
       "type": "object",
       "additionalProperties": false,
@@ -767,9 +916,6 @@
           "properties": {
             "keyArn": {
               "type": "string"
-            },
-            "webIdentity": {
-              "$ref": "#/definitions/awsWebIdentity"
             }
           }
         },
@@ -1528,19 +1674,19 @@
             }
           }
         },
+        "aws": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "webIdentity": {
+              "$ref": "#/definitions/awsWebIdentity"
+            }
+          }
+        },
         "secretProtection": {
           "type": "object",
           "additionalProperties": false,
           "properties": {
-            "awsKms": {
-              "type": "object",
-              "additionalProperties": false,
-              "properties": {
-                "webIdentity": {
-                  "$ref": "#/definitions/awsWebIdentity"
-                }
-              }
-            },
             "azureKeyVault": {
               "type": "object",
               "additionalProperties": false,

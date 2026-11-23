@@ -4,6 +4,7 @@ abstract NCode.Identity.OpenId.Management.Endpoints.ManagementApiEndpointHandler
 const NCode.Identity.OpenId.Management.Auditing.ManagementAuditEventNames.GrantRevoked = "grant.revoked" -> string!
 const NCode.Identity.OpenId.Management.Auditing.ManagementAuditEventNames.GrantsRevokedBulk = "grant.revoked.bulk" -> string!
 const NCode.Identity.OpenId.Management.Auditing.ManagementAuditEventNames.SessionsRevoked = "session.revoked.admin" -> string!
+const NCode.Identity.OpenId.Management.Auditing.ManagementResourceTypes.AuditStream = "audit_stream" -> string!
 const NCode.Identity.OpenId.Management.Auditing.ManagementResourceTypes.Client = "client" -> string!
 const NCode.Identity.OpenId.Management.Auditing.ManagementResourceTypes.ClientSecret = "client.secret" -> string!
 const NCode.Identity.OpenId.Management.Auditing.ManagementResourceTypes.InitialAccessToken = "initial_access_token" -> string!
@@ -40,6 +41,7 @@ const NCode.Identity.OpenId.Management.Endpoints.ManagementApiEndpointHandler.Ma
 const NCode.Identity.OpenId.Management.Endpoints.ManagementEndpointGroups.Root = "api" -> string!
 const NCode.Identity.OpenId.Management.Endpoints.ManagementEndpointGroups.Tenant = "api/tenant" -> string!
 const NCode.Identity.OpenId.Management.ManagementApiDefaults.RoutePrefix = "/api" -> string!
+NCode.Identity.OpenId.Management.Auditing.AuditStreamChangedAuditEvent
 NCode.Identity.OpenId.Management.Auditing.ClientChangedAuditEvent
 NCode.Identity.OpenId.Management.Auditing.ClientSecretChangedAuditEvent
 NCode.Identity.OpenId.Management.Auditing.GrantRevokedAuditEvent
@@ -56,6 +58,72 @@ NCode.Identity.OpenId.Management.Auditing.SessionsRevokedAuditEvent.RevokedCount
 NCode.Identity.OpenId.Management.Auditing.SessionsRevokedAuditEvent.SessionId.get -> string?
 NCode.Identity.OpenId.Management.Auditing.SessionsRevokedAuditEvent.SessionId.init -> void
 NCode.Identity.OpenId.Management.Auditing.InitialAccessTokenCreatedAuditEvent
+NCode.Identity.OpenId.Management.Contracts.AuditStreams.AuditStreamDeliveryResource
+NCode.Identity.OpenId.Management.Contracts.AuditStreams.AuditStreamDeliveryResource.AuditStreamDeliveryResource() -> void
+NCode.Identity.OpenId.Management.Contracts.AuditStreams.AuditStreamDeliveryResource.ConsecutiveFailures.get -> int
+NCode.Identity.OpenId.Management.Contracts.AuditStreams.AuditStreamDeliveryResource.ConsecutiveFailures.init -> void
+NCode.Identity.OpenId.Management.Contracts.AuditStreams.AuditStreamDeliveryResource.LastDeliveryTime.get -> System.DateTimeOffset?
+NCode.Identity.OpenId.Management.Contracts.AuditStreams.AuditStreamDeliveryResource.LastDeliveryTime.init -> void
+NCode.Identity.OpenId.Management.Contracts.AuditStreams.AuditStreamDeliveryResource.LastError.get -> string?
+NCode.Identity.OpenId.Management.Contracts.AuditStreams.AuditStreamDeliveryResource.LastError.init -> void
+NCode.Identity.OpenId.Management.Contracts.AuditStreams.AuditStreamDeliveryResource.LastFailureTime.get -> System.DateTimeOffset?
+NCode.Identity.OpenId.Management.Contracts.AuditStreams.AuditStreamDeliveryResource.LastFailureTime.init -> void
+NCode.Identity.OpenId.Management.Contracts.AuditStreams.AuditStreamDeliveryResource.NextAttemptTime.get -> System.DateTimeOffset
+NCode.Identity.OpenId.Management.Contracts.AuditStreams.AuditStreamDeliveryResource.NextAttemptTime.init -> void
+NCode.Identity.OpenId.Management.Contracts.AuditStreams.AuditStreamResource
+NCode.Identity.OpenId.Management.Contracts.AuditStreams.AuditStreamResource.AuditStreamResource() -> void
+NCode.Identity.OpenId.Management.Contracts.AuditStreams.AuditStreamResource.CreatedTime.get -> System.DateTimeOffset
+NCode.Identity.OpenId.Management.Contracts.AuditStreams.AuditStreamResource.CreatedTime.init -> void
+NCode.Identity.OpenId.Management.Contracts.AuditStreams.AuditStreamResource.Delivery.get -> NCode.Identity.OpenId.Management.Contracts.AuditStreams.AuditStreamDeliveryResource!
+NCode.Identity.OpenId.Management.Contracts.AuditStreams.AuditStreamResource.Delivery.init -> void
+NCode.Identity.OpenId.Management.Contracts.AuditStreams.AuditStreamResource.DisplayName.get -> string!
+NCode.Identity.OpenId.Management.Contracts.AuditStreams.AuditStreamResource.DisplayName.init -> void
+NCode.Identity.OpenId.Management.Contracts.AuditStreams.AuditStreamResource.Endpoint.get -> string!
+NCode.Identity.OpenId.Management.Contracts.AuditStreams.AuditStreamResource.Endpoint.init -> void
+NCode.Identity.OpenId.Management.Contracts.AuditStreams.AuditStreamResource.IsEnabled.get -> bool
+NCode.Identity.OpenId.Management.Contracts.AuditStreams.AuditStreamResource.IsEnabled.init -> void
+NCode.Identity.OpenId.Management.Contracts.AuditStreams.AuditStreamResource.SigningSecrets.get -> System.Collections.Generic.IReadOnlyList<NCode.Identity.OpenId.Management.Contracts.AuditStreams.AuditStreamSigningSecretResource!>!
+NCode.Identity.OpenId.Management.Contracts.AuditStreams.AuditStreamResource.SigningSecrets.init -> void
+NCode.Identity.OpenId.Management.Contracts.AuditStreams.AuditStreamResource.StreamId.get -> string!
+NCode.Identity.OpenId.Management.Contracts.AuditStreams.AuditStreamResource.StreamId.init -> void
+NCode.Identity.OpenId.Management.Contracts.AuditStreams.AuditStreamSigningSecretResource
+NCode.Identity.OpenId.Management.Contracts.AuditStreams.AuditStreamSigningSecretResource.AuditStreamSigningSecretResource() -> void
+NCode.Identity.OpenId.Management.Contracts.AuditStreams.AuditStreamSigningSecretResource.CreatedTime.get -> System.DateTimeOffset
+NCode.Identity.OpenId.Management.Contracts.AuditStreams.AuditStreamSigningSecretResource.CreatedTime.init -> void
+NCode.Identity.OpenId.Management.Contracts.AuditStreams.AuditStreamSigningSecretResource.ExpiryTime.get -> System.DateTimeOffset?
+NCode.Identity.OpenId.Management.Contracts.AuditStreams.AuditStreamSigningSecretResource.ExpiryTime.init -> void
+NCode.Identity.OpenId.Management.Contracts.AuditStreams.AuditStreamSigningSecretResource.SecretId.get -> string!
+NCode.Identity.OpenId.Management.Contracts.AuditStreams.AuditStreamSigningSecretResource.SecretId.init -> void
+NCode.Identity.OpenId.Management.Contracts.AuditStreams.CreateAuditStreamRequest
+NCode.Identity.OpenId.Management.Contracts.AuditStreams.CreateAuditStreamRequest.CreateAuditStreamRequest() -> void
+NCode.Identity.OpenId.Management.Contracts.AuditStreams.CreateAuditStreamRequest.DisplayName.get -> string!
+NCode.Identity.OpenId.Management.Contracts.AuditStreams.CreateAuditStreamRequest.DisplayName.set -> void
+NCode.Identity.OpenId.Management.Contracts.AuditStreams.CreateAuditStreamRequest.Endpoint.get -> string!
+NCode.Identity.OpenId.Management.Contracts.AuditStreams.CreateAuditStreamRequest.Endpoint.set -> void
+NCode.Identity.OpenId.Management.Contracts.AuditStreams.CreateAuditStreamRequest.IsEnabled.get -> bool
+NCode.Identity.OpenId.Management.Contracts.AuditStreams.CreateAuditStreamRequest.IsEnabled.set -> void
+NCode.Identity.OpenId.Management.Contracts.AuditStreams.CreatedAuditStreamResource
+NCode.Identity.OpenId.Management.Contracts.AuditStreams.CreatedAuditStreamResource.AuditStream.get -> NCode.Identity.OpenId.Management.Contracts.AuditStreams.AuditStreamResource!
+NCode.Identity.OpenId.Management.Contracts.AuditStreams.CreatedAuditStreamResource.AuditStream.init -> void
+NCode.Identity.OpenId.Management.Contracts.AuditStreams.CreatedAuditStreamResource.CreatedAuditStreamResource() -> void
+NCode.Identity.OpenId.Management.Contracts.AuditStreams.CreatedAuditStreamResource.SigningSecret.get -> NCode.Identity.OpenId.Management.Contracts.AuditStreams.CreatedAuditStreamSigningSecretResource!
+NCode.Identity.OpenId.Management.Contracts.AuditStreams.CreatedAuditStreamResource.SigningSecret.init -> void
+NCode.Identity.OpenId.Management.Contracts.AuditStreams.CreatedAuditStreamSigningSecretResource
+NCode.Identity.OpenId.Management.Contracts.AuditStreams.CreatedAuditStreamSigningSecretResource.CreatedAuditStreamSigningSecretResource() -> void
+NCode.Identity.OpenId.Management.Contracts.AuditStreams.CreatedAuditStreamSigningSecretResource.CreatedTime.get -> System.DateTimeOffset
+NCode.Identity.OpenId.Management.Contracts.AuditStreams.CreatedAuditStreamSigningSecretResource.CreatedTime.init -> void
+NCode.Identity.OpenId.Management.Contracts.AuditStreams.CreatedAuditStreamSigningSecretResource.SecretId.get -> string!
+NCode.Identity.OpenId.Management.Contracts.AuditStreams.CreatedAuditStreamSigningSecretResource.SecretId.init -> void
+NCode.Identity.OpenId.Management.Contracts.AuditStreams.CreatedAuditStreamSigningSecretResource.SigningSecret.get -> string!
+NCode.Identity.OpenId.Management.Contracts.AuditStreams.CreatedAuditStreamSigningSecretResource.SigningSecret.init -> void
+NCode.Identity.OpenId.Management.Contracts.AuditStreams.UpdateAuditStreamRequest
+NCode.Identity.OpenId.Management.Contracts.AuditStreams.UpdateAuditStreamRequest.DisplayName.get -> string!
+NCode.Identity.OpenId.Management.Contracts.AuditStreams.UpdateAuditStreamRequest.DisplayName.set -> void
+NCode.Identity.OpenId.Management.Contracts.AuditStreams.UpdateAuditStreamRequest.Endpoint.get -> string!
+NCode.Identity.OpenId.Management.Contracts.AuditStreams.UpdateAuditStreamRequest.Endpoint.set -> void
+NCode.Identity.OpenId.Management.Contracts.AuditStreams.UpdateAuditStreamRequest.IsEnabled.get -> bool
+NCode.Identity.OpenId.Management.Contracts.AuditStreams.UpdateAuditStreamRequest.IsEnabled.set -> void
+NCode.Identity.OpenId.Management.Contracts.AuditStreams.UpdateAuditStreamRequest.UpdateAuditStreamRequest() -> void
 NCode.Identity.OpenId.Management.Contracts.Capabilities.AlgorithmCapabilityResource
 NCode.Identity.OpenId.Management.Contracts.Capabilities.AlgorithmCapabilityResource.AlgorithmCapabilityResource() -> void
 NCode.Identity.OpenId.Management.Contracts.Capabilities.AlgorithmCapabilityResource.Code.get -> string!
@@ -349,6 +417,7 @@ NCode.Identity.OpenId.Management.Promotions.TenantPromotionContext.Errors.get ->
 NCode.Identity.OpenId.Management.Promotions.TenantPromotionContext.Notes.get -> System.Collections.Generic.IReadOnlyList<NCode.Identity.OpenId.Management.Contracts.Tenants.TenantPromotionNoteResource!>!
 override NCode.Identity.OpenId.Management.Auditing.InitialAccessTokenCreatedAuditEvent.ResourceType.get -> string!
 NCode.Identity.OpenId.Management.Auditing.IManagementAuditRecorder
+NCode.Identity.OpenId.Management.Auditing.IManagementAuditRecorder.RecordAuditStreamChangedAsync(Microsoft.AspNetCore.Http.HttpContext! httpContext, string! tenantId, string! streamId, string! changeType, System.Text.Json.JsonElement? resourceValues) -> System.Threading.Tasks.ValueTask
 NCode.Identity.OpenId.Management.Auditing.IManagementAuditRecorder.RecordClientChangedAsync(Microsoft.AspNetCore.Http.HttpContext! httpContext, string! tenantId, string! clientId, string! changeType, System.Text.Json.JsonElement? resourceValues) -> System.Threading.Tasks.ValueTask
 NCode.Identity.OpenId.Management.Auditing.IManagementAuditRecorder.RecordClientSecretChangedAsync(Microsoft.AspNetCore.Http.HttpContext! httpContext, string! tenantId, string! clientId, string! secretId, string! changeType, System.Text.Json.JsonElement? resourceValues) -> System.Threading.Tasks.ValueTask
 NCode.Identity.OpenId.Management.Auditing.IManagementAuditRecorder.RecordGrantRevokedAsync(Microsoft.AspNetCore.Http.HttpContext! httpContext, string! tenantId, string? subjectId, string? clientId, string? grantType) -> System.Threading.Tasks.ValueTask
@@ -964,6 +1033,7 @@ NCode.Identity.OpenId.Management.ManagementError.StatusCode.init -> void
 NCode.Identity.OpenId.Management.OpenIdManagementLibrary
 NCode.Identity.OpenId.Management.OpenIdManagementLibrary.OpenIdManagementLibrary() -> void
 NCode.Identity.OpenId.Management.Operations
+override NCode.Identity.OpenId.Management.Auditing.AuditStreamChangedAuditEvent.ResourceType.get -> string!
 override NCode.Identity.OpenId.Management.Auditing.ClientChangedAuditEvent.ResourceType.get -> string!
 override NCode.Identity.OpenId.Management.Auditing.ClientSecretChangedAuditEvent.ResourceType.get -> string!
 override NCode.Identity.OpenId.Management.Auditing.GrantRevokedAuditEvent.EventCategory.get -> string!

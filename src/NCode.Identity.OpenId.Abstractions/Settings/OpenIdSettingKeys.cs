@@ -102,6 +102,12 @@ public static class OpenIdSettingKeys
         new(OpenIdSettingNames.AcrValuesSupported);
 
     /// <summary>
+    /// Gets the <see cref="SettingKey{TValue}"/> for the 'admission_capacity_percent' setting.
+    /// </summary>
+    public static SettingKey<int> AdmissionCapacityPercent =>
+        new(OpenIdSettingNames.AdmissionCapacityPercent);
+
+    /// <summary>
     /// Gets the <see cref="SettingKey{TValue}"/> for the 'default_acr' setting.
     /// </summary>
     public static SettingKey<string> DefaultAcr => new(OpenIdSettingNames.DefaultAcr);
@@ -587,6 +593,12 @@ public static class OpenIdSettingKeys
     /// Gets the <see cref="SettingKey{TValue}"/> for the 'environment_name' setting.
     /// </summary>
     public static SettingKey<string> EnvironmentName => new(OpenIdSettingNames.EnvironmentName);
+
+    /// <summary>
+    /// Gets the <see cref="SettingKey{TValue}"/> for the 'max_audit_streams' setting: the most audit streams a tenant
+    /// may have.
+    /// </summary>
+    public static SettingKey<int> MaxAuditStreams => new(OpenIdSettingNames.MaxAuditStreams);
 
     /// <summary>
     /// Gets the <see cref="SettingKey{TValue}"/> for the 'max_tenants' setting: the most tenants a team may hold.
@@ -1148,6 +1160,35 @@ public static class OpenIdSettingKeys
     /// </summary>
     public static SettingKey<TimeSpan> PasswordFailedAttemptsWindow =>
         new(OpenIdSettingNames.PasswordFailedAttemptsWindow);
+
+    /// <summary>
+    /// Gets the <see cref="SettingKey{TValue}"/> for the 'password_reset_enabled' setting.
+    /// </summary>
+    public static SettingKey<bool> PasswordResetEnabled =>
+        new(OpenIdSettingNames.PasswordResetEnabled);
+
+    /// <summary>
+    /// Gets the <see cref="SettingKey{TValue}"/> for the 'email_code_lifetime' setting.
+    /// </summary>
+    public static SettingKey<TimeSpan> EmailCodeLifetime =>
+        new(OpenIdSettingNames.EmailCodeLifetime);
+
+    /// <summary>
+    /// Gets the <see cref="SettingKey{TValue}"/> for the 'email_code_sends_per_hour' setting.
+    /// </summary>
+    public static SettingKey<int> EmailCodeSendsPerHour =>
+        new(OpenIdSettingNames.EmailCodeSendsPerHour);
+
+    /// <summary>
+    /// Gets the <see cref="SettingKey{TValue}"/> for the 'email_mfa_required' setting.
+    /// </summary>
+    public static SettingKey<bool> EmailMfaRequired => new(OpenIdSettingNames.EmailMfaRequired);
+
+    /// <summary>
+    /// Gets the <see cref="SettingKey{TValue}"/> for the 'email_verification_enabled' setting.
+    /// </summary>
+    public static SettingKey<bool> EmailVerificationEnabled =>
+        new(OpenIdSettingNames.EmailVerificationEnabled);
 
     /// <summary>
     /// Gets the <see cref="SettingKey{TValue}"/> for the 'client_authentication_failed_attempts_limit' setting.

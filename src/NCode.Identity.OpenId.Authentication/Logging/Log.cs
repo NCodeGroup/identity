@@ -737,4 +737,63 @@ internal static partial class Log
         string reason,
         Exception exception
     );
+
+    // See ADR-1534.
+    [LoggerMessage(
+        EventId = EventIds.AuditStreamDeliveryFailed,
+        Level = LogLevel.Warning,
+        Message = "Audit stream {StreamId} of tenant {TenantId} failed to deliver its records: {Error}."
+    )]
+    internal static partial void AuditStreamDeliveryFailed(
+        this ILogger logger,
+        string streamId,
+        string tenantId,
+        string error,
+        Exception? exception
+    );
+
+    // See ADR-1534.
+    [LoggerMessage(
+        EventId = EventIds.AuditStreamStateConflict,
+        Level = LogLevel.Information,
+        Message = "Audit stream {StreamId} of tenant {TenantId} lost its lease or was removed while it was delivered; this replica stops delivering it."
+    )]
+    internal static partial void AuditStreamStateConflict(
+        this ILogger logger,
+        string streamId,
+        string tenantId
+    );
+
+    // See ADR-1534.
+    [LoggerMessage(
+        EventId = EventIds.AuditStreamPollFailed,
+        Level = LogLevel.Error,
+        Message = "Audit streams could not be delivered; delivery runs again at the next interval."
+    )]
+    internal static partial void AuditStreamPollFailed(this ILogger logger, Exception exception);
+
+    // See ADR-1534.
+    [LoggerMessage(
+        EventId = EventIds.AuditStreamDeliveryErrored,
+        Level = LogLevel.Error,
+        Message = "Audit stream {StreamId} of tenant {TenantId} could not be delivered; it is attempted again after its retry delay."
+    )]
+    internal static partial void AuditStreamDeliveryErrored(
+        this ILogger logger,
+        string streamId,
+        string tenantId,
+        Exception exception
+    );
+
+    // See ADR-1351.
+    [LoggerMessage(
+        EventId = EventIds.AuditRecordPublishFailed,
+        Level = LogLevel.Error,
+        Message = "The audit record {AuditEventName} could not be published after its change was committed."
+    )]
+    internal static partial void AuditRecordPublishFailed(
+        this ILogger logger,
+        Exception exception,
+        string auditEventName
+    );
 }

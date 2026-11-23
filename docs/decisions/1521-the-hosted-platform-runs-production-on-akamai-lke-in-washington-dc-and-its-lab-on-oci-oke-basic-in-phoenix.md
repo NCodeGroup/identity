@@ -64,9 +64,9 @@ cluster; the lab runs on OCI OKE Basic in Phoenix inside the free allowance; AWS
 5. **Shared foundations.** AWS `us-west-2` holds state, backups and vendor tokens (ADR-1132); Cloudflare hosts DNS
    (ADR-1495); GitHub holds source, CI and images (ADR-1133).
 6. **Growth path.** A cell moves to AWS when a customer needs several availability zones, PrivateLink, Marketplace
-   billing or a higher SLA, and the paid shared cell moves when the paid plans need it. Its shape, EKS or ECS on
-   Fargate, is decided when the first cell is placed there ([#914](https://github.com/NCodeGroup/identity/issues/914));
-   ECS runs outside the chart, so it needs its own record.
+   billing or a higher SLA, and the paid shared cell moves when the paid plans need it. It runs the published chart on
+   EKS across three availability zones
+   ([ADR-1530](1530-cells-on-aws-run-on-eks-from-the-published-chart-across-three-zones-with-spot-above-an-on-demand-floor.md)).
 
 ## Options considered
 
@@ -116,9 +116,9 @@ cluster; the lab runs on OCI OKE Basic in Phoenix inside the free allowance; AWS
 - The lab is arm64 with CloudNativePG and production is amd64 with managed PostgreSQL, so the images are multi-arch
   ([ADR-1248](1248-the-host-console-and-directory-images-are-chiseled-non-root-multi-arch-digest-pinned-and-log-one-line-json.md))
   and each release is verified on the `canary` tenant (ADR-1495).
-- The subprocessors are Akamai (with Aiven behind its managed PostgreSQL), Cloudflare, Grafana Labs, AWS, and Oracle
-  when OCI Email Delivery sends the platform's mail ([#859](https://github.com/NCodeGroup/identity/issues/859),
-  [#911](https://github.com/NCodeGroup/identity/issues/911)).
+- The subprocessors are Akamai (with Aiven behind its managed PostgreSQL), Cloudflare, Grafana Labs and AWS, whose
+  Amazon SES also sends the platform's mail ([#859](https://github.com/NCodeGroup/identity/issues/859),
+  [ADR-1528](1528-the-hosted-platform-sends-its-mail-through-amazon-ses-in-each-cells-region-from-mail-ncodeid-net.md)).
 - The hosting analysis keeps the sizing, the capacity, the chosen vendors' prices and the AWS growth path.
 
 ## References
@@ -145,10 +145,11 @@ cluster; the lab runs on OCI OKE Basic in Phoenix inside the free allowance; AWS
   cells and the global directory.
 - [ADR-1495](1495-the-hosted-platform-runs-customer-environments-as-tenants-on-production-under-the-ncodeid-net-platform-domain.md):
   the environment model and the platform's domains.
+- [ADR-1530](1530-cells-on-aws-run-on-eks-from-the-published-chart-across-three-zones-with-spot-above-an-on-demand-floor.md):
+  the shape of a cell on AWS.
 - Issues [#87](https://github.com/NCodeGroup/identity/issues/87),
   [#132](https://github.com/NCodeGroup/identity/issues/132), [#177](https://github.com/NCodeGroup/identity/issues/177),
-  [#845](https://github.com/NCodeGroup/identity/issues/845), [#859](https://github.com/NCodeGroup/identity/issues/859),
-  [#911](https://github.com/NCodeGroup/identity/issues/911) and
-  [#914](https://github.com/NCodeGroup/identity/issues/914).
+  [#845](https://github.com/NCodeGroup/identity/issues/845) and
+  [#859](https://github.com/NCodeGroup/identity/issues/859).
 - Akamai: [HA control plane](https://techdocs.akamai.com/cloud-computing/docs/high-availability-ha-control-plane-on-lke)
   page.

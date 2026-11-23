@@ -139,6 +139,7 @@ NCode.Identity.Server.IIdentityServerBuilder.ClaimsLibraryBuilder.get -> NCode.I
 NCode.Identity.Server.IIdentityServerBuilder.CryptographyLibraryBuilder.get -> NCode.Identity.Registration.IServiceBuilder<NCode.Identity.Cryptography.CryptographyLibrary>!
 NCode.Identity.Server.IIdentityServerBuilder.JoseLibraryBuilder.get -> NCode.Identity.Registration.IServiceBuilder<NCode.Identity.Jose.JoseLibrary>!
 NCode.Identity.Server.IIdentityServerBuilder.JwtLibraryBuilder.get -> NCode.Identity.Registration.IServiceBuilder<NCode.Identity.Jwt.JwtLibrary>!
+NCode.Identity.Server.IIdentityServerBuilder.MailLibraryBuilder.get -> NCode.Identity.Registration.IServiceBuilder<NCode.Identity.Mail.MailLibrary>!
 NCode.Identity.Server.IIdentityServerBuilder.OpenIdAuthenticationLibraryBuilder.get -> NCode.Identity.Registration.IServiceBuilder<NCode.Identity.OpenId.Authentication.OpenIdAuthenticationLibrary>!
 NCode.Identity.Server.IIdentityServerBuilder.OpenIdClientLibraryBuilder.get -> NCode.Identity.Registration.IServiceBuilder<NCode.Identity.OpenId.Client.OpenIdClientLibrary>!
 NCode.Identity.Server.IIdentityServerBuilder.OpenIdCoreLibraryBuilder.get -> NCode.Identity.Registration.IServiceBuilder<NCode.Identity.OpenId.OpenIdCoreLibrary>!

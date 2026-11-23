@@ -1,0 +1,972 @@
+// Copyright © NCode Group
+// SPDX-License-Identifier: Apache-2.0
+
+using System.Diagnostics.CodeAnalysis;
+using System.Security.Cryptography;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using NCode.Buffers;
+using NCode.Identity.AspNetCore;
+using NCode.Identity.Cryptography;
+using NCode.Identity.Events.Audit;
+using NCode.Identity.OpenId.Contexts;
+using NCode.Identity.OpenId.Management.Auditing;
+using NCode.Identity.OpenId.Management.Authorization;
+using NCode.Identity.OpenId.Management.Contracts;
+using NCode.Identity.OpenId.Management.Contracts.AuditStreams;
+using NCode.Identity.OpenId.Management.Logging;
+using NCode.Identity.OpenId.Persistence;
+using NCode.Identity.OpenId.Persistence.DataContracts;
+using NCode.Identity.OpenId.Persistence.Stores;
+using NCode.Identity.OpenId.Settings;
+using NCode.Identity.Persistence;
+using NCode.Identity.Persistence.Stores;
+using NCode.Identity.Registration.AspNetCore;
+using NCode.Identity.Secrets.Persistence.Protection;
+using NCode.Identity.SharedState;
+using NCode.Mediator;
+using SystemTextJsonPatch;
+using SystemTextJsonPatch.Exceptions;
+
+namespace NCode.Identity.OpenId.Management.Endpoints.AuditStreams;
+
+/*
+
+GET    api/tenants/{tenantId}/audit-streams
+POST   api/tenants/{tenantId}/audit-streams
+GET    api/tenants/{tenantId}/audit-streams/{streamId}
+PATCH  api/tenants/{tenantId}/audit-streams/{streamId}
+DELETE api/tenants/{tenantId}/audit-streams/{streamId}
+
+POST   api/tenants/{tenantId}/audit-streams/{streamId}/signing-secrets
+
+*/
+
+/// <summary>
+/// Provides the API endpoints for managing a tenant's audit streams: the HTTPS endpoints that receive the tenant's
+/// audit records as they are stored, each signed with a secret that the tenant verifies the deliveries with. A signing
+/// secret's value is returned once, when the stream is created or the secret is rotated, and never again.
+/// </summary>
+// See ADR-1534.
+internal class AuditStreamApiEndpointHandler(
+    IStoreManagerFactory storeManagerFactory,
+    IAuthorizationService authorizationService,
+    ICryptoService cryptoService,
+    ISecretProtectorProvider secretProtectorProvider,
+    IOpenIdContextFactory openIdContextFactory,
+    IManagementAuditRecorder managementAuditRecorder,
+    IExpiringValueSet expiringValueSet,
+    TimeProvider timeProvider,
+    ILogger<AuditStreamApiEndpointHandler> logger
+) : BaseApiEndpointHandler, IEndpointProvider
+{
+    private const string SigningSecretPrefix = "whsec_";
+    private const int SigningSecretByteLength = 32;
+    private const int SigningSecretTextLength = (SigningSecretByteLength + 2) / 3 * 4;
+    private const string CreateGuardKeyPurpose = "audit-stream-create";
+    private const int CreateGuardOwnerLength = 16;
+
+    /// <summary>
+    /// The most signing secrets of a stream that sign at once: the current one and two rotated ones in their overlap.
+    /// </summary>
+    private const int MaxSigningSecrets = 3;
+
+    private static TimeSpan SigningSecretOverlap { get; } = TimeSpan.FromHours(24);
+    private static TimeSpan CreateGuardLifetime { get; } = TimeSpan.FromSeconds(30);
+
+    /// <summary>
+    /// Gets how long a create that meets another one running waits, because a create holds the guard only while it
+    /// counts and inserts.
+    /// </summary>
+    private static TimeSpan CreateGuardRetryAfter { get; } = TimeSpan.FromSeconds(1);
+
+    /// <summary>
+    /// Gets the location of an audit stream, which the create and rotate-signing-secret routes answer with.
+    /// </summary>
+    /// <param name="tenantId">The identifier of the OpenID Tenant.</param>
+    /// <param name="streamId">The identifier of the audit stream.</param>
+    /// <returns>The location of the audit stream.</returns>
+    private static string GetStreamLocation(string tenantId, string streamId) =>
+        $"/tenants/{tenantId}/audit-streams/{streamId}";
+
+    /// <summary>
+    /// Gets how long a rotation waits before it may add a signing secret: nothing while fewer than the most signing
+    /// secrets sign, and otherwise the time until the earliest of the secrets that sign stops signing.
+    /// </summary>
+    /// <param name="stream">The audit stream to rotate.</param>
+    /// <param name="now">The current time.</param>
+    /// <returns>
+    /// The time to wait, or <see langword="null"/> when the stream has room for another signing secret.
+    /// </returns>
+    private static TimeSpan? GetRotationWait(PersistedAuditStream stream, DateTimeOffset now)
+    {
+        var count = 0;
+        DateTimeOffset? earliestExpiry = null;
+        foreach (var secret in stream.SigningSecrets)
+        {
+            if (secret.ExpiryTime is { } expiryTime)
+            {
+                if (expiryTime <= now)
+                {
+                    continue;
+                }
+
+                if (earliestExpiry is not { } earliest || expiryTime < earliest)
+                {
+                    earliestExpiry = expiryTime;
+                }
+            }
+
+            count++;
+        }
+
+        if (count < MaxSigningSecrets)
+        {
+            return null;
+        }
+
+        return earliestExpiry is { } expiry ? expiry - now : SigningSecretOverlap;
+    }
+
+    /// <summary>
+    /// Judges the writable members of an audit stream, naming each field that is refused in a validation problem.
+    /// </summary>
+    /// <param name="displayName">The display name to judge.</param>
+    /// <param name="endpoint">The endpoint to judge.</param>
+    /// <returns>The validation problem, or <see langword="null"/> when every member is accepted.</returns>
+    private static ValidationProblem? GetValidationProblemOrDefault(
+        string? displayName,
+        string? endpoint
+    )
+    {
+        var errors = new Dictionary<string, string[]>(StringComparer.Ordinal);
+
+        var displayNameError = GetDisplayNameErrorOrDefault(displayName);
+        if (displayNameError is not null)
+        {
+            errors["displayName"] = [displayNameError];
+        }
+
+        var endpointError = GetEndpointErrorOrDefault(endpoint);
+        if (endpointError is not null)
+        {
+            errors["endpoint"] = [endpointError];
+        }
+
+        if (errors.Count == 0)
+        {
+            return null;
+        }
+
+        var messages = errors.Values.SelectMany(values => values);
+        var detail = string.Join(" ", messages);
+        return TypedResults.ValidationProblem(
+            errors,
+            detail: detail,
+            title: "The audit stream is invalid."
+        );
+    }
+
+    /// <summary>
+    /// Judges the display name of an audit stream, which must be present, not too long and free of control characters.
+    /// </summary>
+    /// <param name="displayName">The display name to judge.</param>
+    /// <returns>The message that names why it is refused, or <see langword="null"/> when it is accepted.</returns>
+    private static string? GetDisplayNameErrorOrDefault(string? displayName)
+    {
+        if (string.IsNullOrWhiteSpace(displayName))
+        {
+            return "'displayName' must not be empty.";
+        }
+
+        if (displayName.Length > OpenIdMaxLengths.DisplayName)
+        {
+            return $"'displayName' must be at most {OpenIdMaxLengths.DisplayName} characters.";
+        }
+
+        return displayName.Any(char.IsControl)
+            ? "'displayName' must not contain control characters."
+            : null;
+    }
+
+    /// <summary>
+    /// Judges the endpoint of an audit stream, which must be an absolute https URL of a bounded length that carries
+    /// neither user information nor a fragment.
+    /// </summary>
+    /// <param name="endpoint">The endpoint to judge.</param>
+    /// <returns>The message that names why it is refused, or <see langword="null"/> when it is accepted.</returns>
+    private static string? GetEndpointErrorOrDefault(string? endpoint)
+    {
+        if (endpoint is { Length: > OpenIdMaxLengths.UrlValue })
+        {
+            return $"'endpoint' must be at most {OpenIdMaxLengths.UrlValue} characters.";
+        }
+
+        if (!AbsoluteUri.TryParseHttps(endpoint, out var uri))
+        {
+            return "'endpoint' must be an absolute https URL.";
+        }
+
+        if (uri.UserInfo.Length > 0)
+        {
+            return "'endpoint' must not carry user information.";
+        }
+
+        return endpoint.Contains('#') ? "'endpoint' must not carry a fragment." : null;
+    }
+
+    private IStoreManagerFactory StoreManagerFactory { get; } = storeManagerFactory;
+    private ISecretProtectorProvider SecretProtectorProvider { get; } = secretProtectorProvider;
+    private IOpenIdContextFactory OpenIdContextFactory { get; } = openIdContextFactory;
+    private IManagementAuditRecorder ManagementAuditRecorder { get; } = managementAuditRecorder;
+    private IExpiringValueSet ExpiringValueSet { get; } = expiringValueSet;
+    private TimeProvider TimeProvider { get; } = timeProvider;
+    private ILogger Logger { get; } = logger;
+
+    /// <inheritdoc />
+    protected override IAuthorizationService AuthorizationService { get; } = authorizationService;
+
+    /// <inheritdoc />
+    protected override ICryptoService CryptoService { get; } = cryptoService;
+
+    /// <inheritdoc />
+    public void Map(IEndpointRouteBuilder endpoints)
+    {
+        var auditStreams = endpoints
+            .MapGroup("/audit-streams")
+            .WithTags(OpenIdConstants.EndpointTags.AuditStreams);
+
+        auditStreams
+            .MapGet("", ListAsync)
+            .Produces<CollectionResource<AuditStreamResource>>()
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status401Unauthorized)
+            .ProducesProblem(StatusCodes.Status403Forbidden);
+        // The response reveals a secret once, so no cache may keep it (ADR-1050).
+        auditStreams
+            .MapPost("", CreateAsync)
+            .Produces<CreatedAuditStreamResource>(StatusCodes.Status201Created)
+            .ProducesValidationProblem()
+            .ProducesProblem(StatusCodes.Status401Unauthorized)
+            .ProducesProblem(StatusCodes.Status403Forbidden)
+            .ProducesProblem(StatusCodes.Status409Conflict)
+            .ProducesProblem(StatusCodes.Status412PreconditionFailed)
+            .ProducesProblem(StatusCodes.Status415UnsupportedMediaType)
+            .WithNoStore();
+        auditStreams
+            .MapGet("/{streamId}", GetAsync)
+            .Produces<AuditStreamResource>()
+            .ProducesProblem(StatusCodes.Status401Unauthorized)
+            .ProducesProblem(StatusCodes.Status403Forbidden)
+            .ProducesProblem(StatusCodes.Status404NotFound);
+        auditStreams
+            .MapPatch("/{streamId}", UpdateAsync)
+            .Produces<AuditStreamResource>()
+            .ProducesValidationProblem()
+            .ProducesProblem(StatusCodes.Status401Unauthorized)
+            .ProducesProblem(StatusCodes.Status403Forbidden)
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status412PreconditionFailed)
+            .ProducesProblem(StatusCodes.Status415UnsupportedMediaType);
+        auditStreams
+            .MapDelete("/{streamId}", DeleteAsync)
+            .Produces(StatusCodes.Status204NoContent)
+            .ProducesProblem(StatusCodes.Status401Unauthorized)
+            .ProducesProblem(StatusCodes.Status403Forbidden)
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status412PreconditionFailed);
+        // The response reveals a secret once, so no cache may keep it (ADR-1050).
+        auditStreams
+            .MapPost("/{streamId}/signing-secrets", RotateSigningSecretAsync)
+            .Produces<CreatedAuditStreamSigningSecretResource>(StatusCodes.Status201Created)
+            .ProducesProblem(StatusCodes.Status401Unauthorized)
+            .ProducesProblem(StatusCodes.Status403Forbidden)
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status409Conflict)
+            .ProducesProblem(StatusCodes.Status412PreconditionFailed)
+            .WithNoStore();
+    }
+
+    /// <summary>
+    /// Maps a <see cref="PersistedAuditStream"/> to its <see cref="AuditStreamResource"/> representation, which never
+    /// carries the value of a signing secret.
+    /// </summary>
+    /// <param name="stream">The <see cref="PersistedAuditStream"/> to map.</param>
+    /// <returns>The mapped <see cref="AuditStreamResource"/>.</returns>
+    internal virtual AuditStreamResource ToAuditStreamResource(PersistedAuditStream stream)
+    {
+        var delivery = stream.State is { } state
+            ? new AuditStreamDeliveryResource
+            {
+                LastDeliveryTime = state.LastDeliveryTime,
+                LastFailureTime = state.LastFailureTime,
+                LastError = state.LastError,
+                ConsecutiveFailures = state.ConsecutiveFailures,
+                NextAttemptTime = state.NextAttemptTime,
+            }
+            : new AuditStreamDeliveryResource
+            {
+                ConsecutiveFailures = 0,
+                NextAttemptTime = stream.CreatedTime,
+            };
+
+        return new AuditStreamResource
+        {
+            StreamId = stream.StreamId,
+            DisplayName = stream.DisplayName,
+            Endpoint = stream.Endpoint,
+            IsEnabled = stream.IsEnabled,
+            CreatedTime = stream.CreatedTime,
+            SigningSecrets =
+            [
+                .. stream.SigningSecrets.Select(secret => new AuditStreamSigningSecretResource
+                {
+                    SecretId = secret.SecretId,
+                    CreatedTime = secret.CreatedTime,
+                    ExpiryTime = secret.ExpiryTime,
+                }),
+            ],
+            Delivery = delivery,
+        };
+    }
+
+    /// <summary>
+    /// Lists the audit streams of a tenant.
+    /// </summary>
+    /// <param name="httpContext">The <see cref="HttpContext"/> for the current request.</param>
+    /// <param name="tenantId">The identifier of the OpenID Tenant.</param>
+    /// <param name="cursor">The opaque continuation token from a previous page, or <c>null</c> for the first
+    /// page.</param>
+    /// <param name="limit">The maximum number of audit streams to return on the page.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <response code="200">A page of audit streams.</response>
+    [EndpointName("api/audit-streams/list")]
+    internal virtual async ValueTask<IResult> ListAsync(
+        HttpContext httpContext,
+        [FromRoute] string tenantId,
+        [FromQuery] string? cursor,
+        [FromQuery] int? limit,
+        CancellationToken cancellationToken
+    )
+    {
+        var effectiveLimit = NormalizeLimit(limit);
+
+        var tenantScope = TenantScopeResource.For(tenantId);
+        return await ProcessListAsync(
+            httpContext,
+            tenantScope,
+            async () =>
+            {
+                await using var storeManager = await StoreManagerFactory.CreateAsync(
+                    cancellationToken
+                );
+                var store = storeManager.GetStore<IAuditStreamStore>();
+                var pageRequest = new PageRequest { Cursor = cursor, Limit = effectiveLimit };
+                return await store.GetPageAsync(pageRequest, cancellationToken);
+            },
+            ToAuditStreamResource,
+            cancellationToken
+        );
+    }
+
+    /// <summary>
+    /// Creates an audit stream with its first signing secret. The secret's value is returned exactly once.
+    /// </summary>
+    /// <param name="httpContext">The <see cref="HttpContext"/> for the current request.</param>
+    /// <param name="tenantId">The identifier of the OpenID Tenant.</param>
+    /// <param name="request">The request that describes the audit stream.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <response code="201">The created audit stream, including its first signing secret's one-time value.</response>
+    /// <response code="400">The display name is empty, longer than 300 characters or holds a control character, or the
+    /// endpoint is not an absolute <c>https</c> URL of at most 1,000 characters without user information or a
+    /// fragment.</response>
+    /// <response code="409">The tenant holds its maximum number of audit streams, or another of its creates is
+    /// running.</response>
+    [EndpointName("api/audit-streams/create")]
+    internal virtual async ValueTask<IResult> CreateAsync(
+        HttpContext httpContext,
+        [FromRoute] string tenantId,
+        [FromBody] CreateAuditStreamRequest request,
+        CancellationToken cancellationToken
+    )
+    {
+        var tenantScope = TenantScopeResource.For(tenantId);
+        var authorizationFailure = await GetAuthorizationFailureAsync(
+            httpContext,
+            tenantScope,
+            Operations.Create,
+            cancellationToken
+        );
+        if (authorizationFailure is not null)
+        {
+            return authorizationFailure;
+        }
+
+        var validationProblem = GetValidationProblemOrDefault(
+            request.DisplayName,
+            request.Endpoint
+        );
+        if (validationProblem is not null)
+        {
+            return validationProblem;
+        }
+
+        var (canonicalTenantId, maxAuditStreams) = await ReadCreateLimitAsync(
+            httpContext,
+            tenantId,
+            cancellationToken
+        );
+
+        // The stores match a tenant by its lower-cased identifier, so the guard is keyed by the canonical one, which
+        // every spelling of the route's segment shares. See ADR-1534.
+        var guardKey = ExpiringKeys.Create(CreateGuardKeyPurpose, canonicalTenantId);
+        var guardExpiry = TimeProvider.GetUtcNow() + CreateGuardLifetime;
+        using var ownerRental = BufferFactory.Rent(
+            CreateGuardOwnerLength,
+            isSensitive: false,
+            out Memory<byte> owner
+        );
+        CryptoService.GenerateBytes(owner.Span);
+        var guardTaken = await ExpiringValueSet.TryAddAsync(
+            guardKey,
+            owner,
+            guardExpiry,
+            cancellationToken
+        );
+        if (!guardTaken)
+        {
+            var problem = new ProblemDetails
+            {
+                Status = StatusCodes.Status409Conflict,
+                Detail = "Another audit stream of the tenant is being created; try again.",
+            };
+            return RetryAfterProblem.Create(httpContext, CreateGuardRetryAfter, problem);
+        }
+
+        try
+        {
+            await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
+            var store = storeManager.GetStore<IAuditStreamStore>();
+
+            var count = await store.CountAsync(cancellationToken);
+            if (count >= maxAuditStreams)
+            {
+                return TypedResults.Problem(
+                    detail: $"The tenant holds its maximum of {maxAuditStreams} audit streams.",
+                    statusCode: StatusCodes.Status409Conflict
+                );
+            }
+
+            var createdTime = TimeProvider.GetUtcNow();
+            var streamId = CryptoService.GenerateResourceId();
+            var (signingSecret, signingSecretValue) = await CreateSigningSecretAsync(
+                tenantId,
+                createdTime,
+                cancellationToken
+            );
+
+            var stream = new PersistedAuditStream
+            {
+                TenantId = tenantId,
+                StreamId = streamId,
+                DisplayName = request.DisplayName,
+                Endpoint = request.Endpoint,
+                IsEnabled = request.IsEnabled,
+                CreatedTime = createdTime,
+                ConcurrencyToken = string.Empty,
+                SigningSecrets = [signingSecret],
+            };
+
+            await store.AddAsync(stream, cancellationToken);
+            await storeManager.SaveChangesAsync(cancellationToken);
+
+            var streamResource = ToAuditStreamResource(stream);
+            var streamValues = ToResourceValues(streamResource);
+            await ManagementAuditRecorder.RecordAuditStreamChangedAsync(
+                httpContext,
+                tenantId,
+                streamId,
+                ResourceChangeTypes.Created,
+                streamValues
+            );
+
+            httpContext.Response.Headers.ETag = ManagementEntityTags.Format(
+                stream.ConcurrencyToken
+            );
+            var createdResource = new CreatedAuditStreamResource
+            {
+                AuditStream = streamResource,
+                SigningSecret = new CreatedAuditStreamSigningSecretResource
+                {
+                    SecretId = signingSecret.SecretId,
+                    SigningSecret = signingSecretValue,
+                    CreatedTime = signingSecret.CreatedTime,
+                },
+            };
+            var location = GetStreamLocation(tenantId, streamId);
+            return TypedResults.Created(location, createdResource);
+        }
+        finally
+        {
+            // Only the create that holds the guard removes it, on a token bounded as work after a commit is, and a
+            // failed release is logged, because the guard expires on its own. See ADR-1534 and ADR-1351.
+            await ReleaseCreateGuardAsync(tenantId, guardKey, owner);
+        }
+    }
+
+    /// <summary>
+    /// Releases the guard that serializes the audit-stream creates of a tenant, only when <paramref name="owner"/>
+    /// still holds it, and logs a failure instead of throwing it.
+    /// </summary>
+    /// <param name="tenantId">The identifier of the OpenID Tenant.</param>
+    /// <param name="guardKey">The key of the guard.</param>
+    /// <param name="owner">The bytes that the create wrote as the guard's value.</param>
+    /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation.</returns>
+    [SuppressMessage(
+        "Design",
+        "NCID0003",
+        Justification = "The release follows the create and runs on its own bounded token, so no caller can pass a token that drops it (ADR-1351)."
+    )]
+    private async ValueTask ReleaseCreateGuardAsync(
+        string tenantId,
+        string guardKey,
+        ReadOnlyMemory<byte> owner
+    )
+    {
+        try
+        {
+            await PostCommitWork.RunAsync(
+                TimeProvider,
+                static async (state, cancellationToken) =>
+                {
+                    await state.ExpiringValueSet.TryRemoveAsync(
+                        state.GuardKey,
+                        state.Owner,
+                        cancellationToken
+                    );
+                },
+                (ExpiringValueSet, GuardKey: guardKey, Owner: owner)
+            );
+        }
+        catch (Exception exception)
+        {
+            Logger.AuditStreamCreateGuardReleaseFailed(exception, tenantId);
+        }
+    }
+
+    /// <summary>
+    /// Gets an audit stream.
+    /// </summary>
+    /// <param name="httpContext">The <see cref="HttpContext"/> for the current request.</param>
+    /// <param name="tenantId">The identifier of the OpenID Tenant.</param>
+    /// <param name="streamId">The identifier of the audit stream.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <response code="200">The requested audit stream, without the value of any signing secret.</response>
+    /// <response code="404">The audit stream does not exist.</response>
+    [EndpointName("api/audit-streams/get")]
+    internal virtual async ValueTask<IResult> GetAsync(
+        HttpContext httpContext,
+        [FromRoute] string tenantId,
+        [FromRoute] string streamId,
+        CancellationToken cancellationToken
+    )
+    {
+        var tenantScope = TenantScopeResource.For(tenantId);
+        return await ProcessGetAsync(
+            httpContext,
+            tenantScope,
+            Operations.Read,
+            async token =>
+            {
+                await using var storeManager = await StoreManagerFactory.CreateAsync(token);
+                var store = storeManager.GetStore<IAuditStreamStore>();
+                return await store.GetOrDefaultAsync(streamId, token);
+            },
+            stream =>
+            {
+                // The stored stream carries its concurrency token without the interface that emits the entity tag.
+                httpContext.Response.Headers.ETag = ManagementEntityTags.Format(
+                    stream.ConcurrencyToken
+                );
+                return ToAuditStreamResource(stream);
+            },
+            cancellationToken
+        );
+    }
+
+    /// <summary>
+    /// Updates an audit stream's display name, endpoint and enabled flag.
+    /// </summary>
+    /// <param name="httpContext">The <see cref="HttpContext"/> for the current request.</param>
+    /// <param name="tenantId">The identifier of the OpenID Tenant.</param>
+    /// <param name="streamId">The identifier of the audit stream.</param>
+    /// <param name="request">The JSON Patch document that modifies the audit stream.</param>
+    /// <param name="ifMatch">The <c>If-Match</c> header that names the entity tag the update applies to.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <response code="200">The updated audit stream.</response>
+    /// <response code="400">The JSON Patch document cannot be applied, or the patched stream is invalid as for a
+    /// create.</response>
+    /// <response code="404">The audit stream does not exist.</response>
+    /// <response code="412">The supplied <c>If-Match</c> header does not match the current audit stream's entity tag,
+    /// or is malformed.</response>
+    [EndpointName("api/audit-streams/update")]
+    internal virtual async ValueTask<IResult> UpdateAsync(
+        HttpContext httpContext,
+        [FromRoute] string tenantId,
+        [FromRoute] string streamId,
+        [FromBody] JsonPatchDocument<UpdateAuditStreamRequest> request,
+        [FromHeader(Name = "If-Match")] string? ifMatch,
+        CancellationToken cancellationToken
+    )
+    {
+        var tenantScope = TenantScopeResource.For(tenantId);
+        var authorizationFailure = await GetAuthorizationFailureAsync(
+            httpContext,
+            tenantScope,
+            Operations.Update,
+            cancellationToken
+        );
+        if (authorizationFailure is not null)
+        {
+            return authorizationFailure;
+        }
+
+        await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
+        var store = storeManager.GetStore<IAuditStreamStore>();
+
+        var stream = await store.GetOrDefaultAsync(streamId, cancellationToken);
+        if (stream is null)
+        {
+            return ManagementProblems.ResourceNotFound();
+        }
+
+        var preconditionError = ManagementEntityTags.GetIfMatchErrorOrDefault(
+            ifMatch,
+            stream.ConcurrencyToken,
+            "audit stream"
+        );
+        if (preconditionError is not null)
+        {
+            return ToErrorResult(preconditionError);
+        }
+
+        var model = new UpdateAuditStreamRequest
+        {
+            DisplayName = stream.DisplayName,
+            Endpoint = stream.Endpoint,
+            IsEnabled = stream.IsEnabled,
+        };
+
+        try
+        {
+            request.ApplyTo(model);
+        }
+        catch (JsonPatchException exception)
+        {
+            Logger.JsonPatchFailed(exception);
+            return TypedResults.Problem(
+                detail: "The JSON Patch document could not be applied.",
+                statusCode: StatusCodes.Status400BadRequest
+            );
+        }
+
+        var validationProblem = GetValidationProblemOrDefault(model.DisplayName, model.Endpoint);
+        if (validationProblem is not null)
+        {
+            return validationProblem;
+        }
+
+        stream.DisplayName = model.DisplayName;
+        stream.Endpoint = model.Endpoint;
+        stream.IsEnabled = model.IsEnabled;
+
+        // A lost race throws StoreConcurrencyException, which the route group answers with 412 (ADR-1012).
+        await store.UpdateAsync(stream, cancellationToken);
+        await storeManager.SaveChangesAsync(cancellationToken);
+
+        // The save gives the stored stream a fresh concurrency token, which the stream read before the save lacks.
+        var updated = await store.GetOrDefaultAsync(streamId, cancellationToken);
+        if (updated is null)
+        {
+            return ManagementProblems.ResourceNotFound();
+        }
+
+        var updatedResource = ToAuditStreamResource(updated);
+        var updatedValues = ToResourceValues(updatedResource);
+        await ManagementAuditRecorder.RecordAuditStreamChangedAsync(
+            httpContext,
+            tenantId,
+            streamId,
+            ResourceChangeTypes.Updated,
+            updatedValues
+        );
+
+        httpContext.Response.Headers.ETag = ManagementEntityTags.Format(updated.ConcurrencyToken);
+        return TypedResults.Json(updatedResource);
+    }
+
+    /// <summary>
+    /// Deletes an audit stream with its signing secrets and delivery state.
+    /// </summary>
+    /// <param name="httpContext">The <see cref="HttpContext"/> for the current request.</param>
+    /// <param name="tenantId">The identifier of the OpenID Tenant.</param>
+    /// <param name="streamId">The identifier of the audit stream.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <response code="204">The audit stream was deleted.</response>
+    /// <response code="404">The audit stream does not exist.</response>
+    [EndpointName("api/audit-streams/delete")]
+    internal virtual async ValueTask<IResult> DeleteAsync(
+        HttpContext httpContext,
+        [FromRoute] string tenantId,
+        [FromRoute] string streamId,
+        CancellationToken cancellationToken
+    )
+    {
+        var tenantScope = TenantScopeResource.For(tenantId);
+        var authorizationFailure = await GetAuthorizationFailureAsync(
+            httpContext,
+            tenantScope,
+            Operations.Delete,
+            cancellationToken
+        );
+        if (authorizationFailure is not null)
+        {
+            return authorizationFailure;
+        }
+
+        await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
+        var store = storeManager.GetStore<IAuditStreamStore>();
+
+        var stream = await store.GetOrDefaultAsync(streamId, cancellationToken);
+        if (stream is null)
+        {
+            return ManagementProblems.ResourceNotFound();
+        }
+
+        var streamResource = ToAuditStreamResource(stream);
+        var streamValues = ToResourceValues(streamResource);
+
+        var removed = await store.RemoveAsync(streamId, cancellationToken);
+        if (!removed)
+        {
+            return ManagementProblems.ResourceNotFound();
+        }
+
+        await storeManager.SaveChangesAsync(cancellationToken);
+
+        await ManagementAuditRecorder.RecordAuditStreamChangedAsync(
+            httpContext,
+            tenantId,
+            streamId,
+            ResourceChangeTypes.Deleted,
+            streamValues
+        );
+
+        return TypedResults.NoContent();
+    }
+
+    /// <summary>
+    /// Rotates an audit stream's signing secret: adds a new secret and lets every secret that has no expiry sign for 24
+    /// more hours, so a receiver verifies with either while it switches. The new secret's value is returned exactly
+    /// once.
+    /// </summary>
+    /// <param name="httpContext">The <see cref="HttpContext"/> for the current request.</param>
+    /// <param name="tenantId">The identifier of the OpenID Tenant.</param>
+    /// <param name="streamId">The identifier of the audit stream.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <response code="201">The new signing secret, including its one-time value.</response>
+    /// <response code="404">The audit stream does not exist.</response>
+    /// <response code="409">The stream has three signing secrets that sign, its maximum, until the oldest rotated one stops signing.</response>
+    [EndpointName("api/audit-streams/rotate-signing-secret")]
+    internal virtual async ValueTask<IResult> RotateSigningSecretAsync(
+        HttpContext httpContext,
+        [FromRoute] string tenantId,
+        [FromRoute] string streamId,
+        CancellationToken cancellationToken
+    )
+    {
+        var tenantScope = TenantScopeResource.For(tenantId);
+        var authorizationFailure = await GetAuthorizationFailureAsync(
+            httpContext,
+            tenantScope,
+            Operations.Update,
+            cancellationToken
+        );
+        if (authorizationFailure is not null)
+        {
+            return authorizationFailure;
+        }
+
+        await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
+        var store = storeManager.GetStore<IAuditStreamStore>();
+
+        var stream = await store.GetOrDefaultAsync(streamId, cancellationToken);
+        if (stream is null)
+        {
+            return ManagementProblems.ResourceNotFound();
+        }
+
+        var now = TimeProvider.GetUtcNow();
+        if (GetRotationWait(stream, now) is { } wait)
+        {
+            var overlapHours = (int)SigningSecretOverlap.TotalHours;
+            var problem = new ProblemDetails
+            {
+                Status = StatusCodes.Status409Conflict,
+                Detail =
+                    $"The audit stream has {MaxSigningSecrets} signing secrets that sign, its maximum; a rotated secret stops signing {overlapHours} hours after its rotation.",
+            };
+            return RetryAfterProblem.Create(httpContext, wait, problem);
+        }
+
+        var (signingSecret, signingSecretValue) = await CreateSigningSecretAsync(
+            tenantId,
+            now,
+            cancellationToken
+        );
+
+        var signingSecrets = new List<PersistedAuditStreamSigningSecret>(
+            stream.SigningSecrets.Count + 1
+        );
+        foreach (var existing in stream.SigningSecrets)
+        {
+            if (existing.ExpiryTime is { } expiryTime && expiryTime <= now)
+            {
+                continue;
+            }
+
+            existing.ExpiryTime ??= now.Add(SigningSecretOverlap);
+            signingSecrets.Add(existing);
+        }
+
+        signingSecrets.Add(signingSecret);
+        stream.SigningSecrets = signingSecrets;
+
+        // A lost race throws StoreConcurrencyException, which the route group answers with 412 (ADR-1012).
+        await store.UpdateAsync(stream, cancellationToken);
+        await storeManager.SaveChangesAsync(cancellationToken);
+
+        var streamResource = ToAuditStreamResource(stream);
+        var streamValues = ToResourceValues(streamResource);
+        await ManagementAuditRecorder.RecordAuditStreamChangedAsync(
+            httpContext,
+            tenantId,
+            streamId,
+            ResourceChangeTypes.Updated,
+            streamValues
+        );
+
+        var createdResource = new CreatedAuditStreamSigningSecretResource
+        {
+            SecretId = signingSecret.SecretId,
+            SigningSecret = signingSecretValue,
+            CreatedTime = signingSecret.CreatedTime,
+        };
+        var location = GetStreamLocation(tenantId, streamId);
+        return TypedResults.Created(location, createdResource);
+    }
+
+    /// <summary>
+    /// Reads the canonical identifier of the addressed tenant and the most audit streams it may hold, from a context of
+    /// that tenant.
+    /// </summary>
+    /// <param name="httpContext">The <see cref="HttpContext"/> of the request.</param>
+    /// <param name="tenantId">The identifier of the addressed tenant.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <returns>
+    /// The tenant's canonical identifier, which the route's segment may spell in another case, and the most audit
+    /// streams the tenant may hold.
+    /// </returns>
+    private async ValueTask<(string TenantId, int MaxAuditStreams)> ReadCreateLimitAsync(
+        HttpContext httpContext,
+        string tenantId,
+        CancellationToken cancellationToken
+    )
+    {
+        var mediator = httpContext.RequestServices.GetRequiredService<IMediator>();
+        await using var openIdContext = await OpenIdContextFactory.CreateForTenantAsync(
+            httpContext,
+            tenantId,
+            mediator,
+            cancellationToken
+        );
+
+        var settings = openIdContext.Tenant.SettingsProvider.Collection;
+        return (
+            openIdContext.Tenant.TenantId,
+            settings.GetValue(OpenIdSettingKeys.MaxAuditStreams)
+        );
+    }
+
+    /// <summary>
+    /// Generates a signing secret of 32 random bytes and protects it under the tenant owner's master key. The bytes are
+    /// zeroed once they are protected.
+    /// </summary>
+    /// <param name="tenantId">The identifier of the tenant that owns the stream.</param>
+    /// <param name="createdTime">The time to record as the creation time of the secret.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <returns>
+    /// The stored secret, and the <c>whsec_</c> text of the secret that the caller sees once.
+    /// </returns>
+    private async ValueTask<(
+        PersistedAuditStreamSigningSecret SigningSecret,
+        string SigningSecretValue
+    )> CreateSigningSecretAsync(
+        string tenantId,
+        DateTimeOffset createdTime,
+        CancellationToken cancellationToken
+    )
+    {
+        var secretId = CryptoService.GenerateResourceId();
+
+        var owner = SecretOwner.ForTenant(tenantId);
+        var protector = await SecretProtectorProvider.GetProtectorAsync(
+            owner,
+            [],
+            cancellationToken
+        );
+
+        Span<byte> secretBytes = stackalloc byte[SigningSecretByteLength];
+        try
+        {
+            CryptoService.GenerateBytes(secretBytes);
+
+            var context = SecretProtectionContext.ForAuditStreamSigningSecret(secretId);
+            var protectedValue = protector.ProtectToString(secretBytes, context);
+            var signingSecretValue = string.Create(
+                SigningSecretPrefix.Length + SigningSecretTextLength,
+                (ReadOnlySpan<byte>)secretBytes,
+                static (chars, bytes) =>
+                {
+                    SigningSecretPrefix.CopyTo(chars);
+                    var text = chars[SigningSecretPrefix.Length..];
+                    if (
+                        !Convert.TryToBase64Chars(bytes, text, out var written)
+                        || written != text.Length
+                    )
+                        throw new InvalidOperationException(
+                            "The signing secret does not fit its buffer."
+                        );
+                }
+            );
+
+            var signingSecret = new PersistedAuditStreamSigningSecret
+            {
+                SecretId = secretId,
+                ProtectedValue = protectedValue,
+                CreatedTime = createdTime,
+            };
+            return (signingSecret, signingSecretValue);
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(secretBytes);
+        }
+    }
+}
