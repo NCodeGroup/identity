@@ -243,14 +243,16 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
             var carriedLanguageTag = LocaleSelector.GetCarriedLanguageTag(carriedUiLocales);
             forgotPasswordHref = BuildForgotPasswordHref(returnUrl, carriedLanguageTag);
         }
+        var form = new InteractivePageForm(tokens)
+        {
+            ReturnUrl = returnUrl,
+            ErrorMessage = loginError,
+            StatusMessage = statusMessage,
+        };
         InteractiveAuthenticationPageRenderer.RenderLoginPage(
             html,
             frame,
-            returnUrl,
-            tokens.FormFieldName,
-            tokens.RequestToken ?? string.Empty,
-            loginError,
-            statusMessage,
+            form,
             forgotPasswordHref
         );
         return new InteractiveHtmlResult(html, security.Policy);
@@ -313,15 +315,8 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
             security,
             httpContext.RequestAborted
         );
-        InteractiveAuthenticationPageRenderer.RenderConsentPage(
-            html,
-            frame,
-            rawReturnUrl,
-            tokens.FormFieldName,
-            tokens.RequestToken ?? string.Empty,
-            appName,
-            scopes
-        );
+        var form = new InteractivePageForm(tokens) { ReturnUrl = rawReturnUrl };
+        InteractiveAuthenticationPageRenderer.RenderConsentPage(html, frame, form, appName, scopes);
         return new InteractiveHtmlResult(html, security.Policy);
     }
 
@@ -507,7 +502,6 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
         // authorize request resolves the same session and the `sid` claim can be emitted into issued tokens.
         return await CompleteSignInAsync(
             httpContext,
-            openIdContext,
             principal,
             safeReturnUrl,
             httpContext.RequestAborted
@@ -518,19 +512,18 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
     /// Creates the end user's session, signs the principal in with the session cookie and redirects to the return URL.
     /// </summary>
     /// <param name="httpContext">The current request.</param>
-    /// <param name="openIdContext">The context of the tenant and environment the request is for.</param>
     /// <param name="principal">The principal whose sign-in is complete.</param>
     /// <param name="safeReturnUrl">The return URL, which is local to the server.</param>
     /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
     /// <returns>The redirect to the return URL.</returns>
     private async ValueTask<IResult> CompleteSignInAsync(
         HttpContext httpContext,
-        OpenIdContext openIdContext,
         ClaimsPrincipal principal,
         string safeReturnUrl,
         CancellationToken cancellationToken
     )
     {
+        var openIdContext = httpContext.GetOpenIdContext();
         await EstablishSessionAsync(openIdContext, principal, cancellationToken);
 
         await httpContext.SignInAsync(
@@ -893,13 +886,8 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
             security,
             httpContext.RequestAborted
         );
-        InteractiveAuthenticationPageRenderer.RenderLogoutConfirmationPage(
-            html,
-            frame,
-            returnUrl,
-            tokens.FormFieldName,
-            tokens.RequestToken ?? string.Empty
-        );
+        var form = new InteractivePageForm(tokens) { ReturnUrl = returnUrl };
+        InteractiveAuthenticationPageRenderer.RenderLogoutConfirmationPage(html, frame, form);
         return new InteractiveHtmlResult(html, security.Policy);
     }
 
@@ -1400,14 +1388,12 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
         var returnUrl = query[ReturnUrlName].ToString();
         var errorQueryValue = query[ErrorQueryName].ToString();
         var errorMessage = DescribePasswordResetError(errorQueryValue, frame.Locale.Messages);
-        InteractiveAuthenticationPageRenderer.RenderForgotPasswordPage(
-            html,
-            frame,
-            returnUrl,
-            tokens.FormFieldName,
-            tokens.RequestToken ?? string.Empty,
-            errorMessage
-        );
+        var form = new InteractivePageForm(tokens)
+        {
+            ReturnUrl = returnUrl,
+            ErrorMessage = errorMessage,
+        };
+        InteractiveAuthenticationPageRenderer.RenderForgotPasswordPage(html, frame, form);
         return new InteractiveHtmlResult(html, security.Policy);
     }
 
@@ -1434,15 +1420,12 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
         var flowId = query[FlowQueryName].ToString();
         var errorQueryValue = query[ErrorQueryName].ToString();
         var errorMessage = DescribePasswordResetError(errorQueryValue, frame.Locale.Messages);
-        InteractiveAuthenticationPageRenderer.RenderResetPasswordPage(
-            html,
-            frame,
-            returnUrl,
-            flowId,
-            tokens.FormFieldName,
-            tokens.RequestToken ?? string.Empty,
-            errorMessage
-        );
+        var form = new InteractivePageForm(tokens)
+        {
+            ReturnUrl = returnUrl,
+            ErrorMessage = errorMessage,
+        };
+        InteractiveAuthenticationPageRenderer.RenderResetPasswordPage(html, frame, form, flowId);
         return new InteractiveHtmlResult(html, security.Policy);
     }
 
@@ -1777,14 +1760,12 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
         )
             ? frame.Locale.Messages.CodeSentStatus
             : null;
-        InteractiveAuthenticationPageRenderer.RenderSignInCodePage(
-            html,
-            frame,
-            tokens.FormFieldName,
-            tokens.RequestToken ?? string.Empty,
-            errorMessage,
-            statusMessage
-        );
+        var form = new InteractivePageForm(tokens)
+        {
+            ErrorMessage = errorMessage,
+            StatusMessage = statusMessage,
+        };
+        InteractiveAuthenticationPageRenderer.RenderSignInCodePage(html, frame, form);
         return new InteractiveHtmlResult(html, security.Policy);
     }
 
@@ -1932,7 +1913,6 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
 
         var completed = await CompleteSignInAsync(
             httpContext,
-            openIdContext,
             principal,
             returnUrl,
             httpContext.RequestAborted

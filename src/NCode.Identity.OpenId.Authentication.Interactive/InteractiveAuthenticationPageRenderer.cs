@@ -100,22 +100,13 @@ internal static class InteractiveAuthenticationPageRenderer
     /// </summary>
     /// <param name="writer">The buffer the page is written to.</param>
     /// <param name="frame">The document the page is written into.</param>
-    /// <param name="returnUrl">The URL the form carries so the end-user returns to it once signed in.</param>
-    /// <param name="antiforgeryFieldName">The name of the form field that carries the antiforgery token.</param>
-    /// <param name="antiforgeryToken">The antiforgery token the form carries.</param>
-    /// <param name="errorMessage">The message shown above the form, or <see langword="null"/> for none.</param>
-    /// <param name="statusMessage">The message shown above the form as a status, or <see langword="null"/> for
-    /// none.</param>
+    /// <param name="form">The form the page posts.</param>
     /// <param name="forgotPasswordHref">The address of the forgot-password page the form links to, or
     /// <see langword="null"/> for no link.</param>
     public static void RenderLoginPage(
         IBufferWriter<char> writer,
         InteractivePageFrame frame,
-        string returnUrl,
-        string antiforgeryFieldName,
-        string antiforgeryToken,
-        string? errorMessage,
-        string? statusMessage,
+        InteractivePageForm form,
         string? forgotPasswordHref
     )
     {
@@ -126,9 +117,9 @@ internal static class InteractiveAuthenticationPageRenderer
         Write(writer, "<main class=\"auth-card\"><form method=\"post\" action=\"login\"><h1>");
         WriteEncoded(writer, messages.SignInTitle);
         Write(writer, "</h1>");
-        WriteError(writer, errorMessage);
-        WriteStatus(writer, statusMessage);
-        WriteHiddenFields(writer, returnUrl, antiforgeryFieldName, antiforgeryToken, locale);
+        WriteError(writer, form.ErrorMessage);
+        WriteStatus(writer, form.StatusMessage);
+        WriteHiddenFields(writer, form, locale);
         Write(writer, "<p><label for=\"username\">");
         WriteEncoded(writer, messages.UsernameLabel);
         Write(
@@ -164,17 +155,11 @@ internal static class InteractiveAuthenticationPageRenderer
     /// </summary>
     /// <param name="writer">The buffer the page is written to.</param>
     /// <param name="frame">The document the page is written into.</param>
-    /// <param name="returnUrl">The URL the form carries so the end-user returns to it once signed in.</param>
-    /// <param name="antiforgeryFieldName">The name of the form field that carries the antiforgery token.</param>
-    /// <param name="antiforgeryToken">The antiforgery token the form carries.</param>
-    /// <param name="errorMessage">The message shown above the form, or <see langword="null"/> for none.</param>
+    /// <param name="form">The form the page posts.</param>
     public static void RenderForgotPasswordPage(
         IBufferWriter<char> writer,
         InteractivePageFrame frame,
-        string returnUrl,
-        string antiforgeryFieldName,
-        string antiforgeryToken,
-        string? errorMessage
+        InteractivePageForm form
     )
     {
         var locale = frame.Locale;
@@ -188,8 +173,8 @@ internal static class InteractiveAuthenticationPageRenderer
         );
         WriteEncoded(writer, messages.ForgotPasswordTitle);
         Write(writer, "</h1>");
-        WriteError(writer, errorMessage);
-        WriteHiddenFields(writer, returnUrl, antiforgeryFieldName, antiforgeryToken, locale);
+        WriteError(writer, form.ErrorMessage);
+        WriteHiddenFields(writer, form, locale);
         Write(writer, "<p>");
         WriteEncoded(writer, messages.ForgotPasswordPrompt);
         Write(writer, "</p><p><label for=\"username\">");
@@ -212,19 +197,13 @@ internal static class InteractiveAuthenticationPageRenderer
     /// </summary>
     /// <param name="writer">The buffer the page is written to.</param>
     /// <param name="frame">The document the page is written into.</param>
-    /// <param name="returnUrl">The URL the form carries so the end-user returns to it once signed in.</param>
+    /// <param name="form">The form the page posts.</param>
     /// <param name="flowId">The handle of the reset flow the form carries.</param>
-    /// <param name="antiforgeryFieldName">The name of the form field that carries the antiforgery token.</param>
-    /// <param name="antiforgeryToken">The antiforgery token the form carries.</param>
-    /// <param name="errorMessage">The message shown above the form, or <see langword="null"/> for none.</param>
     public static void RenderResetPasswordPage(
         IBufferWriter<char> writer,
         InteractivePageFrame frame,
-        string returnUrl,
-        string flowId,
-        string antiforgeryFieldName,
-        string antiforgeryToken,
-        string? errorMessage
+        InteractivePageForm form,
+        string flowId
     )
     {
         var locale = frame.Locale;
@@ -238,8 +217,8 @@ internal static class InteractiveAuthenticationPageRenderer
         );
         WriteEncoded(writer, messages.ResetPasswordTitle);
         Write(writer, "</h1>");
-        WriteError(writer, errorMessage);
-        WriteHiddenFields(writer, returnUrl, antiforgeryFieldName, antiforgeryToken, locale);
+        WriteError(writer, form.ErrorMessage);
+        WriteHiddenFields(writer, form, locale);
         Write(writer, "<input type=\"hidden\" name=\"" + FlowFieldName + "\" value=\"");
         WriteEncoded(writer, flowId);
         Write(writer, "\" /><p>");
@@ -283,18 +262,11 @@ internal static class InteractiveAuthenticationPageRenderer
     /// </summary>
     /// <param name="writer">The buffer the page is written to.</param>
     /// <param name="frame">The document the page is written into.</param>
-    /// <param name="antiforgeryFieldName">The name of the form field that carries the antiforgery token.</param>
-    /// <param name="antiforgeryToken">The antiforgery token the form carries.</param>
-    /// <param name="errorMessage">The message shown above the form, or <see langword="null"/> for none.</param>
-    /// <param name="statusMessage">The message shown above the form as a status, or <see langword="null"/> for
-    /// none.</param>
+    /// <param name="form">The form the page posts.</param>
     public static void RenderSignInCodePage(
         IBufferWriter<char> writer,
         InteractivePageFrame frame,
-        string antiforgeryFieldName,
-        string antiforgeryToken,
-        string? errorMessage,
-        string? statusMessage
+        InteractivePageForm form
     )
     {
         var locale = frame.Locale;
@@ -308,13 +280,10 @@ internal static class InteractiveAuthenticationPageRenderer
         );
         WriteEncoded(writer, messages.SignInCodeTitle);
         Write(writer, "</h1>");
-        WriteError(writer, errorMessage);
-        WriteStatus(writer, statusMessage);
-        Write(writer, "<input type=\"hidden\" name=\"");
-        WriteEncoded(writer, antiforgeryFieldName);
-        Write(writer, "\" value=\"");
-        WriteEncoded(writer, antiforgeryToken);
-        Write(writer, "\" /><input type=\"hidden\" name=\"" + UiLocalesFieldName + "\" value=\"");
+        WriteError(writer, form.ErrorMessage);
+        WriteStatus(writer, form.StatusMessage);
+        WriteAntiforgeryField(writer, form);
+        Write(writer, "<input type=\"hidden\" name=\"" + UiLocalesFieldName + "\" value=\"");
         WriteEncoded(writer, locale.LanguageTag);
         Write(writer, "\" /><p>");
         WriteEncoded(writer, messages.SignInCodePrompt);
@@ -350,17 +319,13 @@ internal static class InteractiveAuthenticationPageRenderer
     /// </summary>
     /// <param name="writer">The buffer the page is written to.</param>
     /// <param name="frame">The document the page is written into.</param>
-    /// <param name="returnUrl">The URL the form carries so the request resumes once consent is given.</param>
-    /// <param name="antiforgeryFieldName">The name of the form field that carries the antiforgery token.</param>
-    /// <param name="antiforgeryToken">The antiforgery token the form carries.</param>
+    /// <param name="form">The form the page posts.</param>
     /// <param name="appName">The name of the application that requests access.</param>
     /// <param name="scopes">The requested scopes, each presented as a checkbox.</param>
     public static void RenderConsentPage(
         IBufferWriter<char> writer,
         InteractivePageFrame frame,
-        string returnUrl,
-        string antiforgeryFieldName,
-        string antiforgeryToken,
+        InteractivePageForm form,
         string appName,
         IReadOnlyList<ScopeView> scopes
     )
@@ -382,7 +347,7 @@ internal static class InteractiveAuthenticationPageRenderer
             WriteEncoded(writer, label);
             Write(writer, "</label></p>");
         }
-        WriteHiddenFields(writer, returnUrl, antiforgeryFieldName, antiforgeryToken, locale);
+        WriteHiddenFields(writer, form, locale);
         Write(
             writer,
             "<button id=\"consent-deny\" name=\"action\" value=\"deny\" type=\"submit\">"
@@ -403,15 +368,11 @@ internal static class InteractiveAuthenticationPageRenderer
     /// </summary>
     /// <param name="writer">The buffer the page is written to.</param>
     /// <param name="frame">The document the page is written into.</param>
-    /// <param name="returnUrl">The URL the form carries so the logout resumes once it is confirmed.</param>
-    /// <param name="antiforgeryFieldName">The name of the form field that carries the antiforgery token.</param>
-    /// <param name="antiforgeryToken">The antiforgery token the form carries.</param>
+    /// <param name="form">The form the page posts.</param>
     public static void RenderLogoutConfirmationPage(
         IBufferWriter<char> writer,
         InteractivePageFrame frame,
-        string returnUrl,
-        string antiforgeryFieldName,
-        string antiforgeryToken
+        InteractivePageForm form
     )
     {
         var locale = frame.Locale;
@@ -425,7 +386,7 @@ internal static class InteractiveAuthenticationPageRenderer
         Write(writer, "</h1><p>");
         WriteEncoded(writer, messages.SignOutQuestion);
         Write(writer, "</p>");
-        WriteHiddenFields(writer, returnUrl, antiforgeryFieldName, antiforgeryToken, locale);
+        WriteHiddenFields(writer, form, locale);
         Write(
             writer,
             "<button id=\"logout-cancel\" name=\"action\" value=\"cancel\" type=\"submit\">"
@@ -567,22 +528,38 @@ internal static class InteractiveAuthenticationPageRenderer
         WriteEncoded(writer, afterPlaceholder);
     }
 
+    /// <summary>
+    /// Writes the hidden inputs a form posts: its return URL, its antiforgery token and the language tag of its page.
+    /// </summary>
+    /// <param name="writer">The buffer the inputs are written to.</param>
+    /// <param name="form">The form that carries the return URL and the antiforgery token.</param>
+    /// <param name="locale">The language of the page, which the post carries back.</param>
     private static void WriteHiddenFields(
         IBufferWriter<char> writer,
-        string returnUrl,
-        string antiforgeryFieldName,
-        string antiforgeryToken,
+        InteractivePageForm form,
         InteractiveLocale locale
     )
     {
         Write(writer, "<input type=\"hidden\" name=\"ReturnUrl\" value=\"");
-        WriteEncoded(writer, returnUrl);
-        Write(writer, "\" /><input type=\"hidden\" name=\"");
-        WriteEncoded(writer, antiforgeryFieldName);
-        Write(writer, "\" value=\"");
-        WriteEncoded(writer, antiforgeryToken);
-        Write(writer, "\" /><input type=\"hidden\" name=\"" + UiLocalesFieldName + "\" value=\"");
+        WriteEncoded(writer, form.ReturnUrl);
+        Write(writer, "\" />");
+        WriteAntiforgeryField(writer, form);
+        Write(writer, "<input type=\"hidden\" name=\"" + UiLocalesFieldName + "\" value=\"");
         WriteEncoded(writer, locale.LanguageTag);
+        Write(writer, "\" />");
+    }
+
+    /// <summary>
+    /// Writes the hidden input that carries a form's antiforgery token.
+    /// </summary>
+    /// <param name="writer">The buffer the input is written to.</param>
+    /// <param name="form">The form whose antiforgery token set the input carries.</param>
+    private static void WriteAntiforgeryField(IBufferWriter<char> writer, InteractivePageForm form)
+    {
+        Write(writer, "<input type=\"hidden\" name=\"");
+        WriteEncoded(writer, form.Antiforgery.FormFieldName);
+        Write(writer, "\" value=\"");
+        WriteEncoded(writer, form.Antiforgery.RequestToken ?? string.Empty);
         Write(writer, "\" />");
     }
 
