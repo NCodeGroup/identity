@@ -720,7 +720,8 @@ cell's identity as resource attributes.
 The outbound mail environment of the host container: the SMTP server, the sender and the credentials' Secret
 references, or the Amazon SES region, the sender and its tags. Only the pods that send mail receive it, the host's
 Deployment, so no Job holds the SMTP password. Renders nothing when mail.smtp.host and mail.amazonSes.region are empty,
-and refuses both set, because a host sends through one transport.
+and refuses both set, because a host sends through one transport. It refuses two tag names that differ only in case,
+because configuration keys ignore case.
 */}}
 {{- define "identity-host.mailEnv" -}}
 {{- if and .Values.mail.smtp.host .Values.mail.amazonSes.region }}
@@ -743,7 +744,13 @@ and refuses both set, because a host sends through one transport.
 - name: Mail__AmazonSes__ConfigurationSetName
   value: {{ . | quote }}
 {{- end }}
+{{- $tagNames := dict }}
 {{- range $key, $value := .Values.mail.amazonSes.tags }}
+{{- $lowerKey := lower $key }}
+{{- if hasKey $tagNames $lowerKey }}
+{{- fail (printf "mail.amazonSes.tags names %s and another tag that differs from it only in case; configuration keys ignore case, so one would replace the other." $key) }}
+{{- end }}
+{{- $_ := set $tagNames $lowerKey true }}
 - name: {{ printf "Mail__AmazonSes__Tags__%s" $key | quote }}
   value: {{ $value | quote }}
 {{- end }}

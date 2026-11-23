@@ -153,6 +153,9 @@ jobs:
           refuse --set mail.amazonSes.region=US-EAST --set mail.amazonSes.from=a@example.com
           # A tag's name becomes part of an environment variable's name, which Kubernetes 1.30 and 1.31 refuse with an '@'.
           refuse --set mail.amazonSes.region=us-east-1 --set mail.amazonSes.from=a@example.com --set 'mail.amazonSes.tags.team@x=y'
+          # Configuration reads '__' in a tag's name as a section separator, and its keys ignore case.
+          refuse --set mail.amazonSes.region=us-east-1 --set mail.amazonSes.from=a@example.com --set 'mail.amazonSes.tags.a__b=y'
+          refuse --set mail.amazonSes.region=us-east-1 --set mail.amazonSes.from=a@example.com --set mail.amazonSes.tags.Cell=a --set mail.amazonSes.tags.cell=b
           # The setup Job reads the root administrator from a Secret, and a setup token Secret needs the key to read.
           refuse --set setup.job.enabled=true
           refuse --set setup.token.existingSecret=s --set setup.token.key=

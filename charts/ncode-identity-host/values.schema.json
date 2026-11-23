@@ -699,7 +699,8 @@
               "type": "object",
               "maxProperties": 50,
               "propertyNames": {
-                "pattern": "^[A-Za-z0-9_.-]{1,256}$"
+                "pattern": "^[A-Za-z0-9]+([._-][A-Za-z0-9]+)*$",
+                "maxLength": 256
               },
               "additionalProperties": {
                 "type": "string",
