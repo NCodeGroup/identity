@@ -52,6 +52,7 @@ spec:
       {{- end }}
     spec:
       serviceAccountName: {{ include "identity-host.serviceAccountName" . }}
+      {{- include "identity-host.processNamespace" . | nindent 6 }}
       # The host never calls the Kubernetes API.
       automountServiceAccountToken: false
       {{- with include "identity-host.imagePullSecrets" . }}
