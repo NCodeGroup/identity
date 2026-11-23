@@ -399,6 +399,33 @@ public sealed class DefaultSetupTokenServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task EnsureTokenAsync_WhenSetupInitializedTheInstanceFirst_LogsNothing()
+    {
+        TimeProvider.Advance(TimeSpan.FromMinutes(5));
+        var stale = CreateRow();
+        var otherIssuedAt = ProcessClock.StartedAt.AddMinutes(2);
+        var other = CreateRow(StoredToken, otherIssuedAt, otherIssuedAt.AddHours(1), isInitialized: true);
+        SetupStoreManagers(Times.Exactly(3));
+        var reads = 0;
+        MockInstanceSetupStore
+            .Setup(x => x.GetOrDefaultAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(() => ++reads == 1 ? stale : other)
+            .Verifiable(Times.Exactly(2));
+        MockInstanceSetupStore
+            .Setup(x =>
+                x.UpdateAsync(
+                    It.Is<PersistedInstanceSetup>(item => ReferenceEquals(item, stale)),
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .Returns(() => ValueTask.FromException(new StoreConcurrencyException()))
+            .Verifiable(Times.Once());
+        var service = CreateService();
+
+        await service.EnsureTokenAsync(CancellationToken.None);
+    }
+
+    [Fact]
     public async Task EnsureTokenAsync_WhenRowIsAbsent_AddsAnUninitializedRowThenIssuesTheToken()
     {
         TimeProvider.Advance(TimeSpan.FromMinutes(5));
