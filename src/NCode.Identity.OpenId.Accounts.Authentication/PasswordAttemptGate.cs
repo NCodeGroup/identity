@@ -3,6 +3,7 @@
 
 using NCode.Identity.OpenId.Accounts.Stores;
 using NCode.Identity.OpenId.Authentication.Passwords;
+using NCode.Identity.OpenId.Connections;
 using NCode.Identity.OpenId.Contexts;
 
 namespace NCode.Identity.OpenId.Accounts.Authentication;
@@ -14,31 +15,34 @@ namespace NCode.Identity.OpenId.Accounts.Authentication;
 // See ADR-1237.
 internal sealed class PasswordAttemptGate(
     IPasswordAttemptLimiter passwordAttemptLimiter,
-    OpenIdContext openIdContext
+    OpenIdContext openIdContext,
+    ResolvedConnection connection
 )
 {
     private IPasswordAttemptLimiter PasswordAttemptLimiter { get; } = passwordAttemptLimiter;
     private OpenIdContext OpenIdContext { get; } = openIdContext;
+    private ResolvedConnection Connection { get; } = connection;
     private bool IsAsked { get; set; }
     private bool IsRefused { get; set; }
 
     /// <summary>
-    /// Asks whether the account that holds the specified user name reached its limit of failed password attempts. A
+    /// Asks whether the account that the specified account key names reached its limit of failed password attempts. A
     /// caller passes this function as the <c>isRefusedAsync</c> argument of the store's verification.
     /// </summary>
-    /// <param name="userName">The user name that the store holds for the account, or the submitted one when no account
-    /// has it.</param>
+    /// <param name="accountKey">The identifier of the account the store found, or the submitted identifier when no
+    /// account matches.</param>
     /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
     /// <returns><c>true</c> when the account reached its limit; otherwise, <c>false</c>.</returns>
     public async ValueTask<bool> IsRefusedAsync(
-        string userName,
+        string accountKey,
         CancellationToken cancellationToken
     )
     {
         IsAsked = true;
         IsRefused = await PasswordAttemptLimiter.IsLimitReachedAsync(
             OpenIdContext,
-            userName,
+            Connection,
+            accountKey,
             cancellationToken
         );
         return IsRefused;
@@ -66,7 +70,7 @@ internal sealed class PasswordAttemptGate(
         {
             return new LocalAccountVerificationResult
             {
-                UserName = result.UserName,
+                AccountKey = result.AccountKey,
                 IsRefused = true,
             };
         }
