@@ -13,8 +13,9 @@ namespace NCode.Identity.OpenId.Connections;
 
 /// <summary>
 /// Seeds the <c>local</c> connection, a username-and-password connection over the default local-account store, into
-/// every tenant. The handler is idempotent: it creates the connection only when it is absent (ADR-1535).
+/// every tenant. The handler is idempotent: it creates the connection only when it is absent.
 /// </summary>
+// See ADR-1535.
 internal sealed class LocalConnectionSeedHandler(ICryptoService cryptoService)
     : ICommandHandler<SeedTenantCommand>,
         ISupportMediatorPriority

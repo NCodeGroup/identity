@@ -16,10 +16,11 @@ internal static class DefaultRegistration
     extension(IServiceBuilder<OpenIdCoreLibrary> builder)
     {
         /// <summary>
-        /// Configures the connection strategy catalog and the connection resolver (ADR-1535). A strategy is a
+        /// Configures the connection strategy catalog and the connection resolver. A strategy is a
         /// registered <see cref="IConnectionStrategy"/>, one class per strategy.
         /// </summary>
         /// <returns>The <see cref="IServiceBuilder{T}"/> instance for method chaining.</returns>
+        // See ADR-1535.
         public IServiceBuilder<OpenIdCoreLibrary> AddConnectionServices()
         {
             var serviceCollection = builder.ServiceCollection;

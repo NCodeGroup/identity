@@ -11,8 +11,9 @@ namespace NCode.Identity.OpenId.Authentication.Connections;
 
 /// <summary>
 /// Provides a default implementation of <see cref="ISignInConnectionService"/> that offers the client's allowed
-/// connections whose strategy verifies a password (ADR-1535).
+/// connections whose strategy verifies a password.
 /// </summary>
+// See ADR-1535.
 internal class DefaultSignInConnectionService(
     PendingAuthorizationRequestReader requestReader,
     IOpenIdClientResolver clientResolver,
