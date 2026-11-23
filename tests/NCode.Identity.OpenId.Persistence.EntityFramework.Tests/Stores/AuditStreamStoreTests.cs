@@ -263,6 +263,60 @@ public sealed class AuditStreamStoreTests : IDisposable
 
     #endregion
 
+    #region GetStateOrDefaultAsync Tests
+
+    [Fact]
+    public async Task GetStateOrDefaultAsync_Always_ReturnsTheStoredState()
+    {
+        await AddAsync(CreateStream("stream-1"), CancellationToken.None);
+        var stream = await GetAsync("stream-1", CancellationToken.None);
+        var expected = Assert.IsType<PersistedAuditStreamState>(stream.State);
+
+        var state = await ReadAsync(
+            store => store.GetStateOrDefaultAsync("stream-1", CancellationToken.None),
+            CancellationToken.None
+        );
+
+        Assert.NotNull(state);
+        Assert.Equal(TenantA, state.TenantId);
+        Assert.Equal("stream-1", state.StreamId);
+        Assert.Equal(expected.PositionStoredTime, state.PositionStoredTime);
+        Assert.Equal(expected.PositionEventId, state.PositionEventId);
+        Assert.Equal(expected.NextAttemptTime, state.NextAttemptTime);
+        Assert.Equal(expected.ConcurrencyToken, state.ConcurrencyToken);
+    }
+
+    [Fact]
+    public async Task GetStateOrDefaultAsync_WithTheSameStreamIdInAnotherTenant_ReturnsThisTenantsState()
+    {
+        await AddAsync(CreateStream("stream-1", TenantA), CancellationToken.None);
+        await AddAsync(CreateStream("stream-1", TenantB), CancellationToken.None);
+        AmbientTenantAccessor.UseTenant(TenantB);
+
+        var state = await ReadAsync(
+            store => store.GetStateOrDefaultAsync("stream-1", CancellationToken.None),
+            CancellationToken.None
+        );
+
+        Assert.Equal(TenantB, Assert.IsType<PersistedAuditStreamState>(state).TenantId);
+    }
+
+    [Fact]
+    public async Task GetStateOrDefaultAsync_ForAnotherTenantsStream_ReturnsNull()
+    {
+        await AddAsync(CreateStream("stream-b", TenantB), CancellationToken.None);
+        AmbientTenantAccessor.UseTenant(TenantA);
+
+        var state = await ReadAsync(
+            store => store.GetStateOrDefaultAsync("stream-b", CancellationToken.None),
+            CancellationToken.None
+        );
+
+        Assert.Null(state);
+    }
+
+    #endregion
+
     #region GetPageAsync Tests
 
     // The page follows the surrogate keys, which the sequential generator mints in the order the streams are added.
