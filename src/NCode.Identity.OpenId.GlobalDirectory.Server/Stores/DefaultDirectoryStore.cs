@@ -292,12 +292,12 @@ internal sealed class DefaultDirectoryStore(
 
                 if (existing is not null)
                 {
-                    // A reservation that runs again after its commit's acknowledgement is lost finds its own
-                    // record: the calling cell holds it for the same issuer and team, and no placement has
-                    // consumed it.
+                    // A creation that runs again finds its own record: the calling cell holds it for the same
+                    // issuer and team, reserved or placed. A creation runs again after the acknowledgement of its
+                    // reservation or its placement is lost, or after its insert failed, and the cell writes the
+                    // tenant's row last, so it completes the tenant the directory holds for it (ADR-1411).
                     if (
-                        existing.State == TenantRecord.StateReserved
-                        && string.Equals(existing.Cell, reservation.Cell, StringComparison.Ordinal)
+                        string.Equals(existing.Cell, reservation.Cell, StringComparison.Ordinal)
                         && string.Equals(
                             existing.NormalizedIssuer,
                             normalizedIssuer,

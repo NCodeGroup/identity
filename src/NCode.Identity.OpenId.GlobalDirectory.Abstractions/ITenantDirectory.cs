@@ -17,8 +17,10 @@ public interface ITenantDirectory
     /// Reserves the tenant identifier and, when the tenant has one, its issuer for a tenant about to be created; a
     /// tenant without an issuer is reserved by its identifier alone. The reservation is refused when another tenant
     /// holds the identifier or the issuer, when either is retired, or when the team already holds the most tenants its
-    /// <c>max_tenants</c> setting allows. Reserving again for the cell, issuer and team of a reservation that is held
-    /// and not yet placed succeeds, so a reservation that runs again after it took effect is not refused.
+    /// <c>max_tenants</c> setting allows. Reserving again for the cell, issuer and team that hold the tenant, reserved
+    /// or placed, succeeds, so a creation that runs again after its reservation or its placement took effect is not
+    /// refused; the cell inserts the tenant's row after the placement, so it finds the row of a creation that completed
+    /// before it reserves again.
     /// </summary>
     /// <param name="reservation">The <see cref="TenantReservation"/> describing the identifiers to reserve.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
@@ -30,10 +32,10 @@ public interface ITenantDirectory
 
     /// <summary>
     /// Places a tenant that the placement's cell reserved under the placement's issuer, or under none when the
-    /// placement names none, once the cell holds the tenant's row. The placement is refused when nothing reserved the
-    /// tenant, when the tenant is retired, or when the reservation belongs to another cell or issuer; placing a tenant
-    /// already placed in that cell under that issuer succeeds. The directory takes the placement's region from the
-    /// cell's registration.
+    /// placement names none, before the cell inserts the tenant's row, so the row never exists unplaced. The placement
+    /// is refused when nothing reserved the tenant, when the tenant is retired, or when the reservation belongs to
+    /// another cell or issuer; placing a tenant already placed in that cell under that issuer succeeds. The directory
+    /// takes the placement's region from the cell's registration.
     /// </summary>
     /// <param name="placement">The <see cref="TenantPlacementRequest"/> to record.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>

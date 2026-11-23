@@ -9,10 +9,10 @@ namespace NCode.Identity.OpenId.Integration.Tests.Infrastructure;
 /// An <see cref="ITenantDirectory"/> over a dictionary, which hosts that stand for different cells of one region share,
 /// so a tenant that one cell placed is placed in the directory every other cell asks. It follows the rules of the
 /// global directory: identifiers and issuers compare without regard to case, a retired identifier is never reissued,
-/// only the tenant that gave up an issuer takes it back, a reservation or a move that runs again after it took effect
-/// succeeds, <see cref="OfferMoveAsync"/> records the offer of a placed tenant to another registered cell of its
-/// region, and <see cref="MoveAsync"/> moves the tenant only on that unexpired offer. A tenant without an issuer is
-/// reserved and placed by its identifier alone.
+/// only the tenant that gave up an issuer takes it back, a reservation that runs again for the cell that holds the
+/// tenant, reserved or placed, and a move that runs again after it took effect succeed, <see cref="OfferMoveAsync"/>
+/// records the offer of a placed tenant to another registered cell of its region, and <see cref="MoveAsync"/> moves the
+/// tenant only on that unexpired offer. A tenant without an issuer is reserved and placed by its identifier alone.
 /// </summary>
 public sealed class InMemoryTenantDirectory : ITenantDirectory
 {
@@ -58,10 +58,10 @@ public sealed class InMemoryTenantDirectory : ITenantDirectory
 
             if (Tenants.TryGetValue(reservation.TenantId, out var existing))
             {
-                // A reservation that runs again after its commit's acknowledgement is lost finds its own record.
+                // A creation that runs again finds its own record, reserved or placed, because the cell writes the
+                // tenant's row last.
                 if (
-                    !existing.IsPlaced
-                    && string.Equals(existing.Cell, reservation.Cell, StringComparison.Ordinal)
+                    string.Equals(existing.Cell, reservation.Cell, StringComparison.Ordinal)
                     && string.Equals(
                         existing.Issuer,
                         reservation.Issuer,
