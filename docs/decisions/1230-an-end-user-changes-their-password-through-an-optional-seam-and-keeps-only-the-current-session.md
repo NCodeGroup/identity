@@ -20,11 +20,11 @@ credential it was issued under.
 user but the current one and revokes every grant that was issued under no session.**
 
 1. **A seam changes the password, and the surface registers one that reports no support.**
-   `IInteractivePasswordChanger.ChangePasswordAsync(OpenIdContext, ClaimsPrincipal, string currentPassword, string
-   newPassword, CancellationToken)` returns `ValueTask<InteractivePasswordChangeResult>`.
-   `AddInteractiveAuthentication` registers `DefaultInteractivePasswordChanger`, which always reports `NotSupported`,
-   with `TryAddSingleton`, and `AddLocalAccountInteractiveAuthentication` replaces it with
-   `LocalAccountInteractivePasswordChanger` whatever the order of the two calls.
+   `IInteractivePasswordChanger.ChangePasswordAsync(OpenIdContext, ClaimsPrincipal, Secret<char> currentPassword,
+   Secret<char> newPassword, CancellationToken)` returns `ValueTask<InteractivePasswordChangeResult>`, and the caller
+   owns and disposes both secrets. `AddInteractiveAuthentication` registers `DefaultInteractivePasswordChanger`, which
+   always reports `NotSupported`, with `TryAddSingleton`, and `AddLocalAccountInteractiveAuthentication` replaces it
+   with `LocalAccountInteractivePasswordChanger` whatever the order of the two calls.
 2. **The result is a sealed class that carries the page's error code.** `InteractivePasswordChangeResult` has
    `Changed`, `NotSupported`, `CurrentPasswordInvalid`, `Refused(error)`, `Error` and `IsChanged`
    (`[MemberNotNullWhen(false, nameof(Error))]`). `Refused` carries a code of the backend's own, such as the password
