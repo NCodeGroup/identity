@@ -271,7 +271,7 @@ public sealed class DefaultAuditStreamDelivererTests : BaseTests
             .Verifiable();
     }
 
-    private void SetupStores(int updates)
+    private void SetupStores(int updates, Exception? readFailure = null)
     {
         MockStoreManagerFactory
             .Setup(x => x.CreateAsync(It.IsAny<CancellationToken>()))
@@ -285,10 +285,17 @@ public sealed class DefaultAuditStreamDelivererTests : BaseTests
             .Setup(x => x.DisposeAsync())
             .Returns(ValueTask.CompletedTask)
             .Verifiable(Times.AtLeastOnce);
-        MockStreamStore
-            .Setup(x => x.GetOrDefaultAsync(StreamId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(() => CopyOfStoredStream())
-            .Verifiable(Times.Once);
+        var read = MockStreamStore.Setup(x =>
+            x.GetOrDefaultAsync(StreamId, It.IsAny<CancellationToken>())
+        );
+        if (readFailure is null)
+        {
+            read.ReturnsAsync(() => CopyOfStoredStream()).Verifiable(Times.Once);
+        }
+        else
+        {
+            read.ThrowsAsync(readFailure).Verifiable(Times.Once);
+        }
         // Each state write reads the state alone; the counted updates verify the writes.
         MockStreamStore
             .Setup(x => x.GetStateOrDefaultAsync(StreamId, It.IsAny<CancellationToken>()))
@@ -803,6 +810,26 @@ public sealed class DefaultAuditStreamDelivererTests : BaseTests
 
         Assert.Equal(position, Stored.PositionStoredTime);
         Assert.Equal(0, Stored.ConsecutiveFailures);
+        Assert.Null(Stored.LeaseHolder);
+        Assert.Null(Stored.LeaseExpiryTime);
+    }
+
+    [Fact]
+    public async Task DeliverAsync_WhenTheHostStopsDuringTheFirstRead_ReleasesTheLeaseAndRethrows()
+    {
+        using var cancellationSource = new CancellationTokenSource();
+        await cancellationSource.CancelAsync();
+        SetupScope();
+        SetupStores(
+            updates: 1,
+            readFailure: new OperationCanceledException(cancellationSource.Token)
+        );
+        var handed = Copy(Stored);
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            Deliverer.DeliverAsync(handed, cancellationSource.Token).AsTask()
+        );
+
         Assert.Null(Stored.LeaseHolder);
         Assert.Null(Stored.LeaseExpiryTime);
     }

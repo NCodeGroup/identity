@@ -125,21 +125,22 @@ internal sealed class DefaultAuditStreamDeliverer(
 
         using var tenantScope = AmbientTenantAccessor.BeginScope(state.TenantId);
 
-        var stream = await ReadStreamAsync(state.StreamId, cancellationToken);
-        if (stream?.State is not { } current || !HoldsLease(current, state))
-        {
-            Logger.AuditStreamStateConflict(state.StreamId, state.TenantId);
-            return;
-        }
-
-        if (!stream.IsEnabled)
-        {
-            await TrySaveStateAsync(state, ReleaseLease, cancellationToken);
-            return;
-        }
-
+        // A stop at any point after the claim hands the lease back, the first read included. See ADR-1534.
         try
         {
+            var stream = await ReadStreamAsync(state.StreamId, cancellationToken);
+            if (stream?.State is not { } current || !HoldsLease(current, state))
+            {
+                Logger.AuditStreamStateConflict(state.StreamId, state.TenantId);
+                return;
+            }
+
+            if (!stream.IsEnabled)
+            {
+                await TrySaveStateAsync(state, ReleaseLease, cancellationToken);
+                return;
+            }
+
             UnprotectedSigningSecrets unprotected;
             try
             {
