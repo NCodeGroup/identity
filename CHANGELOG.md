@@ -532,9 +532,10 @@ Until the first stable release, the [Unreleased] section describes the product a
 
 - **The host has a Helm chart.** `charts/ncode-identity-host` deploys `NCode.Identity.OpenId.Host` on Kubernetes 1.30 or
   later under the restricted Pod Security Standard: non-root, read-only root filesystem, no capabilities, and no default
-  service-account token (a cloud root-key provider gets only the projected token its workload identity exchanges). The
-  startup and liveness probes call `/health/live` and the readiness probe calls `/health/ready`, each over HTTPS and
-  sending an allowed `Host` header, and a `preStop` sleep drains each pod before shutdown. The chart ships a
+  service-account token (a cloud root-key provider gets only the projected token its workload identity exchanges). Every
+  pod shares its process namespace, so the pause process is PID 1 and a .NET process that crashes exits instead of
+  hanging. The startup and liveness probes call `/health/live` and the readiness probe calls `/health/ready`, each over
+  HTTPS and sending an allowed `Host` header, and a `preStop` sleep drains each pod before shutdown. The chart ships a
   PodDisruptionBudget and an optional `Ingress`, and its server pods carry `app.kubernetes.io/component: server`, so the
   Service and PodDisruptionBudget never select the migration Job. The pods serve HTTPS from a certificate that a
   cert-manager `Certificate` issues, by default from a private CA the chart creates (`backendTls`), or from a Secret the
@@ -549,25 +550,23 @@ Until the first stable release, the [Unreleased] section describes the product a
   public key as a ConfigMap, never passed as values. The chart takes no bootstrap-administrator values: the setup token
   is an existing Secret (`setup.token.existingSecret` and `setup.token.key`) that the pods read as `Setup__Token`, and
   `setup.job` is an opt-in Job that runs the host's `setup` command once per release. Rendering fails for a release the
-  host would refuse to start (an empty or wildcard `allowedHosts`, a missing database Secret or one named in both
-  forms, a `StaticSingle` issuer that is not `https`, a missing or incomplete root key provider, `ephemeral`, a local
-  provider without its Secret, a release with no recovery decision, a `setup.token.existingSecret` without its key, an
-  enabled `setup.job` without its Secret or a missing `database.runtimeRole`), in any `environment`, for more than one
-  replica without Valkey, and for
-  unknown values. Without Valkey the chart uses the `Recreate` deployment strategy, which waits for the old pod to
-  terminate before starting the next, so it never runs two replicas at once. The `Host chart` CI workflow lints the
-  chart, renders each example release, and checks that each unsafe release is refused; the workflow also installs the
-  chart with the management console in a kind cluster, behind Traefik and behind an Envoy Gateway, and proves the pods
-  are Ready over HTTPS, that the controller and the Gateway's `BackendTLSPolicy` verify their certificate, that the pods
-  require the controller's or the Gateway's client certificate, and that a controller or a policy holding the wrong CA
-  is refused
+  host would refuse to start (an empty or wildcard `allowedHosts`, a missing database Secret or one named in both forms,
+  a `StaticSingle` issuer that is not `https`, a missing or incomplete root key provider, `ephemeral`, a local provider
+  without its Secret, a release with no recovery decision, a `setup.token.existingSecret` without its key, an enabled
+  `setup.job` without its Secret or a missing `database.runtimeRole`), in any `environment`, for more than one replica
+  without Valkey, and for unknown values. Without Valkey the chart uses the `Recreate` deployment strategy, which waits
+  for the old pod to terminate before starting the next, so it never runs two replicas at once. The `Host chart` CI
+  workflow lints the chart, renders each example release, and checks that each unsafe release is refused; the workflow
+  also installs the chart with the management console in a kind cluster, behind Traefik and behind an Envoy Gateway, and
+  proves the pods are Ready over HTTPS, that the controller and the Gateway's `BackendTLSPolicy` verify their
+  certificate, that the pods require the controller's or the Gateway's client certificate, and that a controller or a
+  policy holding the wrong CA is refused
   ([ADR-1458](docs/decisions/1458-the-host-chart-deploys-the-server-and-an-opt-in-management-console-and-refuses-unsafe-releases.md),
   [ADR-1506](docs/decisions/1506-the-ingress-controller-holds-a-client-certificate-the-pods-can-require-and-never-read-as-an-end-clients.md),
   [ADR-1507](docs/decisions/1507-the-host-chart-routes-to-its-https-only-pods-through-gateway-api-a-traefik-ingress-or-the-operators-own-ingress.md),
   [ADR-1512](docs/decisions/1512-an-instance-is-set-up-once-through-a-one-time-setup-token-that-creates-a-root-global-administrator.md)
   and issues [#792](https://github.com/NCodeGroup/identity/issues/792),
-  [#796](https://github.com/NCodeGroup/identity/issues/796),
-  [#797](https://github.com/NCodeGroup/identity/issues/797),
+  [#796](https://github.com/NCodeGroup/identity/issues/796), [#797](https://github.com/NCodeGroup/identity/issues/797),
   [#776](https://github.com/NCodeGroup/identity/issues/776) and
   [#777](https://github.com/NCodeGroup/identity/issues/777)).
 

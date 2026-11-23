@@ -74,6 +74,20 @@ jobs:
             echo "::endgroup::"
           done
 
+      # A .NET process that is PID 1 hangs after an unhandled exception (dotnet/runtime#112580), so every pod shares its
+      # process namespace and the pod's pause process is PID 1.
+      - name: Run every pod with a shared process namespace
+        run: |
+          for values in "$CHART"/ci/*-values.yaml; do
+            rendered=$(helm template release "$CHART" --values "$values")
+            pods=$(grep -c -E '^\s+containers:$' <<< "$rendered" || true)
+            shared=$(grep -c -E '^\s+shareProcessNamespace: true$' <<< "$rendered" || true)
+            if [ "$pods" -ne "$shared" ]; then
+              echo "::error::$values renders a pod without shareProcessNamespace: true"
+              exit 1
+            fi
+          done
+
       - name: Refuse each unsafe release
         run: |
           base="$CHART/ci/single-replica-values.yaml"
