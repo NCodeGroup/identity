@@ -36,6 +36,12 @@ internal sealed class DefaultAmazonSesClientFactory(
             LazyThreadSafetyMode.ExecutionAndPublication
         );
 
+    /// <summary>
+    /// Creates the Amazon SES client for the configured region, with the standard retry mode, a retry limit of two and
+    /// the configured timeout.
+    /// </summary>
+    /// <param name="options">The options that name the region and the timeout.</param>
+    /// <returns>The new <see cref="AmazonSimpleEmailServiceV2Client"/>.</returns>
     private static AmazonSimpleEmailServiceV2Client CreateClient(
         AmazonSesMailTransportOptions options
     )

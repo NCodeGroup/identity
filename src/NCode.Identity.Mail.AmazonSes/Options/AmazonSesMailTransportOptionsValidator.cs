@@ -20,20 +20,40 @@ internal sealed partial class AmazonSesMailTransportOptionsValidator
 
     private static TimeSpan MaxTimeout { get; } = TimeSpan.FromMinutes(5);
 
+    /// <summary>
+    /// Gets the pattern of an AWS region name, such as <c>us-east-1</c>: two lowercase letters, one or more hyphenated
+    /// lowercase words and a number.
+    /// </summary>
+    /// <returns>The <see cref="Regex"/> that matches a whole region name.</returns>
     // '\z' rather than '$', which also matches before a trailing newline, and ASCII classes rather than '\d', which
     // accepts any Unicode digit.
     [GeneratedRegex(@"^[a-z]{2}(-[a-z]+)+-[0-9]+\z", RegexOptions.CultureInvariant)]
     private static partial Regex RegionPattern();
 
+    /// <summary>
+    /// Gets the pattern of the ARN of an Amazon SES identity: the <c>arn</c> prefix with an AWS partition, the
+    /// <c>ses</c> service, a region, a twelve-digit account number and an <c>identity/</c> resource that has no
+    /// whitespace.
+    /// </summary>
+    /// <returns>The <see cref="Regex"/> that matches a whole identity ARN.</returns>
     [GeneratedRegex(
         @"^arn:aws[a-z-]*:ses:[a-z0-9-]+:[0-9]{12}:identity/\S+\z",
         RegexOptions.CultureInvariant
     )]
     private static partial Regex IdentityArnPattern();
 
+    /// <summary>
+    /// Gets the pattern of the name of a configuration set: one to 64 letters, digits, underscores or hyphens.
+    /// </summary>
+    /// <returns>The <see cref="Regex"/> that matches a whole configuration set name.</returns>
     [GeneratedRegex(@"^[A-Za-z0-9_-]{1,64}\z", RegexOptions.CultureInvariant)]
     private static partial Regex ConfigurationSetNamePattern();
 
+    /// <summary>
+    /// Gets the pattern of the name or the value of a message tag: one to 256 letters, digits, underscores, periods, at
+    /// signs or hyphens.
+    /// </summary>
+    /// <returns>The <see cref="Regex"/> that matches a whole tag name or tag value.</returns>
     [GeneratedRegex(@"^[A-Za-z0-9_.@-]{1,256}\z", RegexOptions.CultureInvariant)]
     private static partial Regex TagPattern();
 

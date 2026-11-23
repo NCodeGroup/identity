@@ -23,6 +23,11 @@ internal sealed class MailDeliveryMetrics
 
     private Counter<long> Messages { get; }
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="MailDeliveryMetrics"/> class, which creates the meter and its
+    /// counter of delivered and failed messages.
+    /// </summary>
+    /// <param name="meterFactory">The factory that creates the <see cref="MailMetrics.MeterName"/> meter.</param>
     public MailDeliveryMetrics(IMeterFactory meterFactory)
     {
         var meter = meterFactory.Create(MailMetrics.MeterName);

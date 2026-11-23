@@ -29,8 +29,23 @@ internal sealed class AmazonSesMailTransport(
 
     private AmazonSesMailTransportOptions Options => optionsAccessor.Value;
 
+    /// <summary>
+    /// Maps an empty option value to <see langword="null"/>, so the request leaves out a field that the options leave
+    /// blank.
+    /// </summary>
+    /// <param name="value">The option value, or <see langword="null"/> for none.</param>
+    /// <returns>
+    /// <see langword="null"/> when <paramref name="value"/> is <see langword="null"/> or empty; otherwise
+    /// <paramref name="value"/>.
+    /// </returns>
     private static string? NullIfEmpty(string? value) => string.IsNullOrEmpty(value) ? null : value;
 
+    /// <summary>
+    /// Lists the addresses of the mailboxes, in order and without their display names, as the envelope of the request
+    /// holds them.
+    /// </summary>
+    /// <param name="addresses">The mailboxes to list.</param>
+    /// <returns>The address of each mailbox.</returns>
     private static List<string> ToAddresses(List<MailAddress> addresses) =>
         addresses.Select(address => address.Address).ToList();
 

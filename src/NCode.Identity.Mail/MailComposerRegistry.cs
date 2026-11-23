@@ -34,6 +34,14 @@ internal sealed class MailComposerRegistry(IEnumerable<IMailComposer> composers)
         );
     }
 
+    /// <summary>
+    /// Indexes the composers by the model type each one composes.
+    /// </summary>
+    /// <param name="composers">The registered composers.</param>
+    /// <returns>The composers, keyed by <see cref="IMailComposer.ModelType"/>.</returns>
+    /// <exception cref="InvalidOperationException">
+    /// Thrown when more than one composer is registered for the same model type.
+    /// </exception>
     private static FrozenDictionary<Type, IMailComposer> CreateComposers(
         IEnumerable<IMailComposer> composers
     )

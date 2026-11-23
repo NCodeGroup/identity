@@ -58,6 +58,12 @@ public sealed class MailAddress
     /// </summary>
     public string? DisplayName { get; }
 
+    /// <summary>
+    /// Checks whether a value holds a control character: a character from U+0000 to U+001F, or U+007F.
+    /// </summary>
+    /// <param name="value">The value to check.</param>
+    /// <returns><see langword="true"/> when the value holds a control character; otherwise
+    /// <see langword="false"/>.</returns>
     private static bool HasControlCharacter(string value) =>
         value.AsSpan().ContainsAnyInRange('\u0000', '\u001F') || value.Contains('\u007F');
 }
