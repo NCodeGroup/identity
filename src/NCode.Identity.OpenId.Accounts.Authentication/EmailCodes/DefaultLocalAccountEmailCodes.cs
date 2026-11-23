@@ -71,6 +71,140 @@ internal sealed class DefaultLocalAccountEmailCodes(
     // See ADR-1533.
     internal static TimeSpan DecoyLifetime { get; } = TimeSpan.FromMinutes(1);
 
+    /// <summary>
+    /// Creates the key a flow's state is stored under, which names the tenant, the purpose and the flow.
+    /// </summary>
+    /// <param name="tenantId">The identifier of the tenant the flow belongs to.</param>
+    /// <param name="purpose">The purpose of the code the flow mails.</param>
+    /// <param name="flowId">The identifier of the flow.</param>
+    /// <returns>The key of the flow.</returns>
+    internal static string CreateFlowKey(string tenantId, string purpose, string flowId) =>
+        ExpiringKeys.Create(FlowKeyPurpose, tenantId, purpose, flowId);
+
+    /// <summary>
+    /// Draws a code and hashes it together with the flow it belongs to. The six digits of the code live only in a stack
+    /// buffer that is cleared before this method returns.
+    /// </summary>
+    /// <param name="flowId">The identifier of the flow the code belongs to.</param>
+    /// <param name="code">The code that was drawn.</param>
+    /// <returns>The SHA-256 hash of the flow and the code.</returns>
+    private static EmailCodeHash CreateCode(string flowId, out int code)
+    {
+        code = RandomNumberGenerator.GetInt32(CodeUpperBound);
+
+        Span<char> digits = stackalloc char[CodeDigits];
+        try
+        {
+            var formatted = new EmailCodeText(code).TryFormat(
+                digits,
+                out var written,
+                format: default,
+                CultureInfo.InvariantCulture
+            );
+            if (!formatted || written != CodeDigits)
+            {
+                throw new InvalidOperationException("The code does not format as six digits.");
+            }
+
+            var codeHash = default(EmailCodeHash);
+            HashCode(flowId, digits, codeHash);
+            return codeHash;
+        }
+        finally
+        {
+            digits.Clear();
+        }
+    }
+
+    /// <summary>
+    /// Selects the subject and the body format of the mail of a code by its purpose.
+    /// </summary>
+    /// <param name="purpose">The purpose of the code, one of the <see cref="EmailCodePurposes"/>.</param>
+    /// <param name="messages">The messages of the locale that word the mail.</param>
+    /// <returns>The subject and the composite format of the body.</returns>
+    private static (string Subject, string BodyFormat) SelectMail(
+        string purpose,
+        InteractiveMessages messages
+    ) =>
+        purpose switch
+        {
+            EmailCodePurposes.VerifyEmail => (
+                messages.VerificationMailSubject,
+                messages.VerificationMailBodyFormat
+            ),
+            EmailCodePurposes.ResetPassword => (
+                messages.PasswordResetMailSubject,
+                messages.PasswordResetMailBodyFormat
+            ),
+            EmailCodePurposes.SignIn => (messages.SignInMailSubject, messages.SignInMailBodyFormat),
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(purpose),
+                purpose,
+                "The purpose is not one of the email code purposes."
+            ),
+        };
+
+    /// <summary>
+    /// Hashes a code together with the flow it belongs to, so the state of a flow holds the hash and never the code.
+    /// </summary>
+    /// <param name="flowId">The identifier of the flow the code belongs to.</param>
+    /// <param name="code">The code.</param>
+    /// <param name="destination">The buffer that receives the SHA-256 hash of the flow and the code.</param>
+    internal static void HashCode(string flowId, ReadOnlySpan<char> code, Span<byte> destination)
+    {
+        using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+
+        using (SecureEncoding.UTF8.RentBytes(flowId, isSensitive: false, out Span<byte> flowBytes))
+        {
+            hash.AppendData(flowBytes);
+        }
+
+        hash.AppendData(":"u8);
+
+        using (SecureEncoding.UTF8.RentBytes(code, isSensitive: true, out Span<byte> codeBytes))
+        {
+            hash.AppendData(codeBytes);
+        }
+
+        hash.GetHashAndReset(destination);
+    }
+
+    /// <summary>
+    /// Writes the state of a flow as JSON into a buffer.
+    /// </summary>
+    /// <param name="state">The state to write.</param>
+    /// <param name="buffer">The buffer that receives the JSON.</param>
+    private static void WriteState(EmailCodeState state, IBufferWriter<byte> buffer)
+    {
+        using var writer = new Utf8JsonWriter(buffer);
+        JsonSerializer.Serialize(writer, state, EmailCodeJsonContext.Default.EmailCodeState);
+    }
+
+    /// <summary>
+    /// Hashes an identifier, lowercased, so a counter key never holds the identifier itself.
+    /// </summary>
+    /// <param name="identifier">The identifier to hash.</param>
+    /// <returns>The hexadecimal SHA-256 hash of the lowercased identifier.</returns>
+    private static string HashIdentifier(string identifier)
+    {
+        using var charsOwner = BufferFactory.Rent<char>(
+            identifier.Length,
+            isSensitive: false,
+            out Span<char> lowered
+        );
+        var written = identifier.AsSpan().ToLowerInvariant(lowered);
+
+        using var bytesOwner = SecureEncoding.UTF8.RentBytes(
+            lowered[..written],
+            isSensitive: false,
+            out Span<byte> bytes
+        );
+
+        Span<byte> digest = stackalloc byte[SHA256.HashSizeInBytes];
+        SHA256.HashData(bytes, digest);
+        return Convert.ToHexString(digest);
+    }
+
     private IExpiringValueSet ValueSet { get; } = valueSet;
     private IExpiringCounterSet CounterSet { get; } = counterSet;
     private IMailSender MailSender { get; } = mailSender;
@@ -309,139 +443,5 @@ internal sealed class DefaultLocalAccountEmailCodes(
         var key = CreateFlowKey(openIdContext.Tenant.TenantId, purpose, flowId);
         var taken = await ValueSet.TryTakeAsync(key, cancellationToken);
         return taken is not null;
-    }
-
-    /// <summary>
-    /// Creates the key a flow's state is stored under, which names the tenant, the purpose and the flow.
-    /// </summary>
-    /// <param name="tenantId">The identifier of the tenant the flow belongs to.</param>
-    /// <param name="purpose">The purpose of the code the flow mails.</param>
-    /// <param name="flowId">The identifier of the flow.</param>
-    /// <returns>The key of the flow.</returns>
-    internal static string CreateFlowKey(string tenantId, string purpose, string flowId) =>
-        ExpiringKeys.Create(FlowKeyPurpose, tenantId, purpose, flowId);
-
-    /// <summary>
-    /// Draws a code and hashes it together with the flow it belongs to. The six digits of the code live only in a stack
-    /// buffer that is cleared before this method returns.
-    /// </summary>
-    /// <param name="flowId">The identifier of the flow the code belongs to.</param>
-    /// <param name="code">The code that was drawn.</param>
-    /// <returns>The SHA-256 hash of the flow and the code.</returns>
-    private static EmailCodeHash CreateCode(string flowId, out int code)
-    {
-        code = RandomNumberGenerator.GetInt32(CodeUpperBound);
-
-        Span<char> digits = stackalloc char[CodeDigits];
-        try
-        {
-            var formatted = new EmailCodeText(code).TryFormat(
-                digits,
-                out var written,
-                format: default,
-                CultureInfo.InvariantCulture
-            );
-            if (!formatted || written != CodeDigits)
-            {
-                throw new InvalidOperationException("The code does not format as six digits.");
-            }
-
-            var codeHash = default(EmailCodeHash);
-            HashCode(flowId, digits, codeHash);
-            return codeHash;
-        }
-        finally
-        {
-            digits.Clear();
-        }
-    }
-
-    /// <summary>
-    /// Selects the subject and the body format of the mail of a code by its purpose.
-    /// </summary>
-    /// <param name="purpose">The purpose of the code, one of the <see cref="EmailCodePurposes"/>.</param>
-    /// <param name="messages">The messages of the locale that word the mail.</param>
-    /// <returns>The subject and the composite format of the body.</returns>
-    private static (string Subject, string BodyFormat) SelectMail(
-        string purpose,
-        InteractiveMessages messages
-    ) =>
-        purpose switch
-        {
-            EmailCodePurposes.VerifyEmail => (
-                messages.VerificationMailSubject,
-                messages.VerificationMailBodyFormat
-            ),
-            EmailCodePurposes.ResetPassword => (
-                messages.PasswordResetMailSubject,
-                messages.PasswordResetMailBodyFormat
-            ),
-            EmailCodePurposes.SignIn => (messages.SignInMailSubject, messages.SignInMailBodyFormat),
-            _ => throw new ArgumentOutOfRangeException(
-                nameof(purpose),
-                purpose,
-                "The purpose is not one of the email code purposes."
-            ),
-        };
-
-    /// <summary>
-    /// Hashes a code together with the flow it belongs to, so the state of a flow holds the hash and never the code.
-    /// </summary>
-    /// <param name="flowId">The identifier of the flow the code belongs to.</param>
-    /// <param name="code">The code.</param>
-    /// <param name="destination">The buffer that receives the SHA-256 hash of the flow and the code.</param>
-    internal static void HashCode(string flowId, ReadOnlySpan<char> code, Span<byte> destination)
-    {
-        using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
-
-        using (SecureEncoding.UTF8.RentBytes(flowId, isSensitive: false, out Span<byte> flowBytes))
-        {
-            hash.AppendData(flowBytes);
-        }
-
-        hash.AppendData(":"u8);
-
-        using (SecureEncoding.UTF8.RentBytes(code, isSensitive: true, out Span<byte> codeBytes))
-        {
-            hash.AppendData(codeBytes);
-        }
-
-        hash.GetHashAndReset(destination);
-    }
-
-    /// <summary>
-    /// Writes the state of a flow as JSON into a buffer.
-    /// </summary>
-    /// <param name="state">The state to write.</param>
-    /// <param name="buffer">The buffer that receives the JSON.</param>
-    private static void WriteState(EmailCodeState state, IBufferWriter<byte> buffer)
-    {
-        using var writer = new Utf8JsonWriter(buffer);
-        JsonSerializer.Serialize(writer, state, EmailCodeJsonContext.Default.EmailCodeState);
-    }
-
-    /// <summary>
-    /// Hashes an identifier, lowercased, so a counter key never holds the identifier itself.
-    /// </summary>
-    /// <param name="identifier">The identifier to hash.</param>
-    /// <returns>The hexadecimal SHA-256 hash of the lowercased identifier.</returns>
-    private static string HashIdentifier(string identifier)
-    {
-        using var charsOwner = BufferFactory.Rent<char>(
-            identifier.Length,
-            isSensitive: false,
-            out Span<char> lowered
-        );
-        var written = identifier.AsSpan().ToLowerInvariant(lowered);
-
-        using var bytesOwner = SecureEncoding.UTF8.RentBytes(
-            lowered[..written],
-            isSensitive: false,
-            out Span<byte> bytes
-        );
-
-        Span<byte> digest = stackalloc byte[SHA256.HashSizeInBytes];
-        SHA256.HashData(bytes, digest);
-        return Convert.ToHexString(digest);
     }
 }

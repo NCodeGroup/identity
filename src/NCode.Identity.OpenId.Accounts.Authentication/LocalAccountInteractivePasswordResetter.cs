@@ -39,14 +39,6 @@ internal sealed class LocalAccountInteractivePasswordResetter(
 {
     private const string AccountNotEligible = "account_not_eligible";
 
-    private IStoreManagerFactory StoreManagerFactory { get; } = storeManagerFactory;
-    private IPasswordPolicy PasswordPolicy { get; } = passwordPolicy;
-    private ILocalAccountEmailCodes EmailCodes { get; } = emailCodes;
-    private ICryptoService CryptoService { get; } = cryptoService;
-    private IPostCommitSecurityEffects PostCommitSecurityEffects { get; } =
-        postCommitSecurityEffects;
-    private IAuditEventRecorder AuditEventRecorder { get; } = auditEventRecorder;
-
     /// <summary>
     /// Determines whether an account may be sent a password reset code, which holds only for an enabled account whose
     /// email address is verified.
@@ -55,6 +47,14 @@ internal sealed class LocalAccountInteractivePasswordResetter(
     /// <returns><see langword="true"/> when the account may be sent a code.</returns>
     private static bool IsEligible([NotNullWhen(true)] PersistedLocalAccount? account) =>
         account is { IsEnabled: true, EmailVerified: true, Email: { Length: > 0 } };
+
+    private IStoreManagerFactory StoreManagerFactory { get; } = storeManagerFactory;
+    private IPasswordPolicy PasswordPolicy { get; } = passwordPolicy;
+    private ILocalAccountEmailCodes EmailCodes { get; } = emailCodes;
+    private ICryptoService CryptoService { get; } = cryptoService;
+    private IPostCommitSecurityEffects PostCommitSecurityEffects { get; } =
+        postCommitSecurityEffects;
+    private IAuditEventRecorder AuditEventRecorder { get; } = auditEventRecorder;
 
     /// <inheritdoc />
     public async ValueTask<string> SendResetCodeAsync(

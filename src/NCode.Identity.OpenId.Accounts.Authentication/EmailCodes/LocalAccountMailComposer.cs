@@ -21,37 +21,6 @@ internal sealed class LocalAccountMailComposer : MailComposer<LocalAccountCodeMa
 
     private const string BodyCharset = "utf-8";
 
-    /// <inheritdoc />
-    public override ValueTask<MailMessage> ComposeAsync(
-        LocalAccountCodeMail model,
-        CancellationToken cancellationToken
-    )
-    {
-        ArgumentNullException.ThrowIfNull(model);
-
-        var to = new MailAddress(model.To);
-        var stream = BufferFactory.CreatePooledStream(isSensitive: true);
-        try
-        {
-            WriteBody(stream, model);
-            stream.Position = 0;
-
-            var message = new MailMessage
-            {
-                To = [to],
-                FromDisplayName = model.FromDisplayName,
-                Subject = model.Subject,
-                TextBody = new StreamMailContent(stream, MediaTypeNames.Text.Plain, BodyCharset),
-            };
-            return ValueTask.FromResult(message);
-        }
-        catch
-        {
-            stream.Dispose();
-            throw;
-        }
-    }
-
     /// <summary>
     /// Writes the body of a mail as UTF-8 into a stream. The text is formatted into a sensitive buffer that doubles
     /// until the body fits.
@@ -103,6 +72,37 @@ internal sealed class LocalAccountMailComposer : MailComposer<LocalAccountCodeMa
         catch (CultureNotFoundException)
         {
             return CultureInfo.InvariantCulture;
+        }
+    }
+
+    /// <inheritdoc />
+    public override ValueTask<MailMessage> ComposeAsync(
+        LocalAccountCodeMail model,
+        CancellationToken cancellationToken
+    )
+    {
+        ArgumentNullException.ThrowIfNull(model);
+
+        var to = new MailAddress(model.To);
+        var stream = BufferFactory.CreatePooledStream(isSensitive: true);
+        try
+        {
+            WriteBody(stream, model);
+            stream.Position = 0;
+
+            var message = new MailMessage
+            {
+                To = [to],
+                FromDisplayName = model.FromDisplayName,
+                Subject = model.Subject,
+                TextBody = new StreamMailContent(stream, MediaTypeNames.Text.Plain, BodyCharset),
+            };
+            return ValueTask.FromResult(message);
+        }
+        catch
+        {
+            stream.Dispose();
+            throw;
         }
     }
 }
