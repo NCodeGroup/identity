@@ -1,6 +1,7 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using System.Globalization;
 using NCode.Identity.OpenId.Accounts.Authentication.EmailCodes;
 using NCode.Identity.OpenId.Authentication.Interactive;
 using Xunit;
@@ -111,6 +112,30 @@ public class LocalAccountMailComposerTests
 
         Assert.Equal("Acme", message.FromDisplayName);
         Assert.Equal("Sign in 123456 within 2 minutes", message.TextBody);
+    }
+
+    [Fact]
+    public void Compose_ForATagWithoutCultureData_WordsTheMailInTheInvariantCulture()
+    {
+        var locale = CreateLocale() with { LanguageTag = "not a culture" };
+
+        var message = LocalAccountMailComposer.Compose(
+            EmailCodePurposes.VerifyEmail,
+            To,
+            Code,
+            TimeSpan.FromMinutes(10),
+            locale,
+            fromDisplayName: null
+        );
+
+        var expectedBody = string.Format(
+            CultureInfo.InvariantCulture,
+            locale.Messages.VerificationMailBodyFormat,
+            Code,
+            10
+        );
+        Assert.Equal(expectedBody, message.TextBody);
+        Assert.Equal("Verify 123456 within 10 minutes", message.TextBody);
     }
 
     #endregion
