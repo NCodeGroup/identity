@@ -49,7 +49,10 @@ Until the first stable release, the [Unreleased] section describes the product a
   `docs/first-deployed-instance.md`, naming the setup token Secret only when the token was configured. The root
   administrator is a local account in the control-plane tenant holding `GlobalAdmin` at the platform node; the account,
   its identity, that role assignment and the initialized mark of the `InstanceSetup` row are saved together, so one
-  setup creates one root. `NCode.Identity.OpenId.Setup.Abstractions` holds `SetupOptions` (the `Setup` section: `Token`,
+  setup creates one root. Setup marks the `InstanceSetup` row that a replica generating its setup token also writes: it
+  adds the row in a save of its own when no writer has, updates it under its concurrency token, runs again, up to five
+  attempts, when a replica stored its token in between, and answers that the instance is already set up when another
+  setup initialized it. `NCode.Identity.OpenId.Setup.Abstractions` holds `SetupOptions` (the `Setup` section: `Token`,
   at least 32 characters or unset to have the host generate one; `GeneratedTokenLifetime`, 1 hour by default and between
   1 minute and 24 hours; `BundleRootPath`, `/app/setup` in the host image; and `Root` with `UserName`, `DisplayName`
   (the username when unset), `Email` and `Password`, where `UserName` and `Password` are set both or neither), the wire
@@ -71,18 +74,20 @@ Until the first stable release, the [Unreleased] section describes the product a
   `Setup__Wizard__ManagementConsole__ClientId` when `managementConsole.enabled` is true, and then refuses to render with
   an empty `setup.managementConsole.clientId` ([#777](https://github.com/NCodeGroup/identity/issues/777),
   [#829](https://github.com/NCodeGroup/identity/issues/829), [#830](https://github.com/NCodeGroup/identity/issues/830),
+  [#937](https://github.com/NCodeGroup/identity/issues/937),
   [ADR-1512](docs/decisions/1512-an-instance-is-set-up-once-through-a-one-time-setup-token-that-creates-a-root-global-administrator.md)).
 
-- **The host's `setup` command creates the root administrator without a browser.** `NCode.Identity.OpenId.Host.dll
-  setup` reads `Setup:Root:UserName`, `Setup:Root:Email` and `Setup:Root:Password`, needs no setup token, creates the
-  root administrator through the same `IInstanceSetupService` as the wizard, and exits without starting the server. It
-  exits `0` when it creates the root administrator or the instance is already initialized, `1` when the creation fails
-  and `2` on a usage error, when the cell is not the control plane, or when the configuration lacks the username or the
-  password, so a Job can run it on every
-  release. It also registers the console's client from `Setup:ManagementConsole` and, from `Setup:Automation`
-  (`ClientId`, `Jwks`), a platform-owned `client_credentials` automation client that authenticates with `private_key_jwt`
-  and holds `GlobalAdmin`, so an unattended install manages the instance without the development bootstrap client; both
-  clients are saved with the root administrator ([#777](https://github.com/NCodeGroup/identity/issues/777),
+- **The host's `setup` command creates the root administrator without a browser.**
+  `NCode.Identity.OpenId.Host.dll setup` reads `Setup:Root:UserName`, `Setup:Root:Email` and `Setup:Root:Password`,
+  needs no setup token, creates the root administrator through the same `IInstanceSetupService` as the wizard, and exits
+  without starting the server. It exits `0` when it creates the root administrator or the instance is already
+  initialized, `1` when the creation is refused or fails, which it logs, and `2` on a usage error, when the cell is not
+  the control plane, or when the configuration lacks the username or the password, so a Job can run it on every release.
+  It also registers the console's client from `Setup:ManagementConsole` and, from `Setup:Automation` (`ClientId`,
+  `Jwks`), a platform-owned `client_credentials` automation client that authenticates with `private_key_jwt` and holds
+  `GlobalAdmin`, so an unattended install manages the instance without the development bootstrap client; both clients
+  are saved with the root administrator ([#777](https://github.com/NCodeGroup/identity/issues/777),
+  [#937](https://github.com/NCodeGroup/identity/issues/937),
   [ADR-1512](docs/decisions/1512-an-instance-is-set-up-once-through-a-one-time-setup-token-that-creates-a-root-global-administrator.md)).
 
 - **Instance setup stages the root administrator in the control-plane tenant's scope.** The wizard and the `setup`
@@ -4417,41 +4422,42 @@ Until the first stable release, the [Unreleased] section describes the product a
   exactly one of which is set, and its `migrate` command applies the migrations, grants the runtime role that
   `DirectoryMigration:RuntimeRole` names the data access it needs, and refuses a database whose migrations history
   records a migration the host does not hold, with the recovery of dropping and recreating the directory's database. The
-  change feed holds each team's and the platform's latest change, each carrying the whole document or the retire, so it
-  stays bounded by the number of teams and a cell reading from the start reads every current document. A team's change
-  always follows the latest change of each of its ancestors: each publish of a team lists every published team beneath
-  it again, parents first, so a team published before its parent follows it. A page of changes holds at most 768 KiB of
-  documents (`DirectoryLimits.MaxChangePageBytes`) and at least one change, so a page fits the 1 MiB that a cell reads
-  from one response. The host accepts unbound bearer tokens of the control-plane cell's issuer
-  (`DirectoryServer:Issuer`) for the audience `urn:ncode:directory` and the scope `directory`, and refuses a token that
-  carries a `cnf` claim. A request that arrives while that issuer cannot be reached is answered `503` with `Retry-After`
-  and the same wait in the problem's `retryAfterSeconds`. Each cell authenticates as the machine client `cell-{name}` of
-  the control-plane cell's root tenant (`private_key_jwt`; `Directory:ClientId` and `Directory:KeyRing`, whose keys
-  `KeyRings:{name}` holds), which `POST /api/platform/clients` registers with a requested `clientId` and its `jwks`. A
-  cell's token request to the control plane ends after `Directory:TokenRequestTimeout` (30 seconds), and a failed
-  request is remembered for `Directory:TokenFailureCacheDuration` (5 seconds). The directory takes platform and team
-  writes only from the control-plane cell (`DirectoryServer:ControlPlaneCell`) and authorizes each tenant write against
-  the tenant's stored record in the transaction that writes it: the cell that holds the tenant and the control-plane
-  cell write it, and only the control-plane cell retires a tenant the directory has no record of; a cell registers only
-  itself, with a management URL that is an absolute `https` URL (or `http` in local development) with no user
-  information, query or fragment, and asks to move a tenant only into itself. It holds the control-plane cell's root
-  tenant, which `DirectoryServer:ControlPlaneTenantId` names, placed in that cell under `DirectoryServer:Issuer`: before
-  every reservation and issuer change it ensures that tenant's record, so no other cell reserves its identifier or its
-  issuer. A write that runs again after its commit's acknowledgement is lost recognizes its own committed result: a
-  cell's tenant reservation for the same issuer and team, placed or not, a team reservation that is not yet published,
-  and a move of a tenant already placed in the target cell each succeed again. A placement's region is the region its
-  cell registered, and the retired-issuer lookup is `GET /directory/v1/retired-issuers?issuer=`, beside the tenant
-  routes, so `GET /directory/v1/tenants/{tenantId}` reads the placement of a tenant of any valid identifier,
-  `retired-issuers` included. A tenant without an issuer is reserved, placed and retired by its identifier alone. The
-  directory refuses a tenant or team identifier that the cells' identifier rule refuses (1 to 63 lowercase letters,
-  digits or hyphens that start and end with a letter or digit, a host label); a tenant issuer that is not an absolute
-  `https` URL (or `http` on a loopback host) with no user information, query or fragment; a team document that lacks its
-  settings or its root keys, or a platform document that lacks its settings; a team or platform document whose settings
-  are not a JSON object; a team or platform document whose JSON exceeds 64 KiB (`422`,
-  `DirectoryLimits.MaxDocumentBytes`); and a team document that would nest a team deeper than eight levels, the bound of
-  a cell's team tree. A stored team or platform document whose settings are missing or not a JSON object, `null`
-  included, fails the tenant-limit check, which refuses the reservation, and a cell's remote directory adapter fails
-  closed on a document that lacks its settings or its root keys.
+  command exits `0` when it migrates and `1` when it fails, which it logs. The change feed holds each team's and the
+  platform's latest change, each carrying the whole document or the retire, so it stays bounded by the number of teams
+  and a cell reading from the start reads every current document. A team's change always follows the latest change of
+  each of its ancestors: each publish of a team lists every published team beneath it again, parents first, so a team
+  published before its parent follows it. A page of changes holds at most 768 KiB of documents
+  (`DirectoryLimits.MaxChangePageBytes`) and at least one change, so a page fits the 1 MiB that a cell reads from one
+  response. The host accepts unbound bearer tokens of the control-plane cell's issuer (`DirectoryServer:Issuer`) for the
+  audience `urn:ncode:directory` and the scope `directory`, and refuses a token that carries a `cnf` claim. A request
+  that arrives while that issuer cannot be reached is answered `503` with `Retry-After` and the same wait in the
+  problem's `retryAfterSeconds`. Each cell authenticates as the machine client `cell-{name}` of the control-plane cell's
+  root tenant (`private_key_jwt`; `Directory:ClientId` and `Directory:KeyRing`, whose keys `KeyRings:{name}` holds),
+  which `POST /api/platform/clients` registers with a requested `clientId` and its `jwks`. A cell's token request to the
+  control plane ends after `Directory:TokenRequestTimeout` (30 seconds), and a failed request is remembered for
+  `Directory:TokenFailureCacheDuration` (5 seconds). The directory takes platform and team writes only from the
+  control-plane cell (`DirectoryServer:ControlPlaneCell`) and authorizes each tenant write against the tenant's stored
+  record in the transaction that writes it: the cell that holds the tenant and the control-plane cell write it, and only
+  the control-plane cell retires a tenant the directory has no record of; a cell registers only itself, with a
+  management URL that is an absolute `https` URL (or `http` in local development) with no user information, query or
+  fragment, and asks to move a tenant only into itself. It holds the control-plane cell's root tenant, which
+  `DirectoryServer:ControlPlaneTenantId` names, placed in that cell under `DirectoryServer:Issuer`: before every
+  reservation and issuer change it ensures that tenant's record, so no other cell reserves its identifier or its issuer.
+  A write that runs again after its commit's acknowledgement is lost recognizes its own committed result: a cell's
+  tenant reservation for the same issuer and team, placed or not, a team reservation that is not yet published, and a
+  move of a tenant already placed in the target cell each succeed again. A placement's region is the region its cell
+  registered, and the retired-issuer lookup is `GET /directory/v1/retired-issuers?issuer=`, beside the tenant routes, so
+  `GET /directory/v1/tenants/{tenantId}` reads the placement of a tenant of any valid identifier, `retired-issuers`
+  included. A tenant without an issuer is reserved, placed and retired by its identifier alone. The directory refuses a
+  tenant or team identifier that the cells' identifier rule refuses (1 to 63 lowercase letters, digits or hyphens that
+  start and end with a letter or digit, a host label); a tenant issuer that is not an absolute `https` URL (or `http` on
+  a loopback host) with no user information, query or fragment; a team document that lacks its settings or its root
+  keys, or a platform document that lacks its settings; a team or platform document whose settings are not a JSON
+  object; a team or platform document whose JSON exceeds 64 KiB (`422`, `DirectoryLimits.MaxDocumentBytes`); and a team
+  document that would nest a team deeper than eight levels, the bound of a cell's team tree. A stored team or platform
+  document whose settings are missing or not a JSON object, `null` included, fails the tenant-limit check, which refuses
+  the reservation, and a cell's remote directory adapter fails closed on a document that lacks its settings or its root
+  keys.
 
 - **The control plane serves every cell.** The control-plane cell owns platform and team authority, setup and the team
   root keys; every other cell reaches it through remote adapters that fail closed. `IManagementTokenValidator` validates
