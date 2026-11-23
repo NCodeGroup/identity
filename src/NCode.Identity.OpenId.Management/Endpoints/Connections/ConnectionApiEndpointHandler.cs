@@ -1,6 +1,7 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using System.Text.Json.Nodes;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -35,6 +36,10 @@ POST   api/tenants/{tenantId}/connections
 GET    api/tenants/{tenantId}/connections/{connectionId}
 PATCH  api/tenants/{tenantId}/connections/{connectionId}
 DELETE api/tenants/{tenantId}/connections/{connectionId}
+GET    api/tenants/{tenantId}/connections/{connectionId}/settings
+GET    api/tenants/{tenantId}/connections/{connectionId}/settings/limits
+PATCH  api/tenants/{tenantId}/connections/{connectionId}/settings
+GET    api/tenants/{tenantId}/connections/{connectionId}/effective-settings
 
 */
 
@@ -49,6 +54,8 @@ internal class ConnectionApiEndpointHandler(
     IConnectionValidator connectionValidator,
     IEnumerable<IConnectionDependentSource> dependentSources,
     ISettingSerializer settingSerializer,
+    ISettingScopeCollectionProvider settingScopeCollectionProvider,
+    IEffectiveSettingsResolver effectiveSettingsResolver,
     ICryptoService cryptoService,
     IManagementAuditRecorder managementAuditRecorder,
     ILogger<ConnectionApiEndpointHandler> logger
@@ -58,6 +65,11 @@ internal class ConnectionApiEndpointHandler(
     private IConnectionValidator ConnectionValidator { get; } = connectionValidator;
     private IEnumerable<IConnectionDependentSource> DependentSources { get; } = dependentSources;
     private ISettingSerializer SettingSerializer { get; } = settingSerializer;
+
+    private ISettingScopeCollectionProvider SettingScopeCollectionProvider { get; } =
+        settingScopeCollectionProvider;
+    private IEffectiveSettingsResolver EffectiveSettingsResolver { get; } =
+        effectiveSettingsResolver;
     private IManagementAuditRecorder ManagementAuditRecorder { get; } = managementAuditRecorder;
     private ILogger Logger { get; } = logger;
 
@@ -112,6 +124,34 @@ internal class ConnectionApiEndpointHandler(
             .ProducesProblem(StatusCodes.Status404NotFound)
             .ProducesProblem(StatusCodes.Status409Conflict)
             .ProducesProblem(StatusCodes.Status412PreconditionFailed);
+
+        connections
+            .MapGet("/{connectionId}/settings", GetSettingsAsync)
+            .Produces<ConnectionSettingsResource>()
+            .ProducesProblem(StatusCodes.Status401Unauthorized)
+            .ProducesProblem(StatusCodes.Status403Forbidden)
+            .ProducesProblem(StatusCodes.Status404NotFound);
+        connections
+            .MapGet("/{connectionId}/settings/limits", GetSettingLimitsAsync)
+            .Produces<SettingLimitsResource>()
+            .ProducesProblem(StatusCodes.Status401Unauthorized)
+            .ProducesProblem(StatusCodes.Status403Forbidden)
+            .ProducesProblem(StatusCodes.Status404NotFound);
+        connections
+            .MapPatch("/{connectionId}/settings", UpdateSettingsAsync)
+            .Produces(StatusCodes.Status204NoContent)
+            .ProducesValidationProblem()
+            .ProducesProblem(StatusCodes.Status401Unauthorized)
+            .ProducesProblem(StatusCodes.Status403Forbidden)
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status412PreconditionFailed)
+            .ProducesProblem(StatusCodes.Status415UnsupportedMediaType);
+        connections
+            .MapGet("/{connectionId}/effective-settings", GetEffectiveSettingsAsync)
+            .Produces<ConnectionEffectiveSettingsResource>()
+            .ProducesProblem(StatusCodes.Status401Unauthorized)
+            .ProducesProblem(StatusCodes.Status403Forbidden)
+            .ProducesProblem(StatusCodes.Status404NotFound);
     }
 
     /// <summary>
@@ -506,5 +546,332 @@ internal class ConnectionApiEndpointHandler(
         );
 
         return TypedResults.NoContent();
+    }
+
+    // Settings
+
+    /// <summary>
+    /// Maps a <see cref="PersistedConnectionSettings"/> to its <see cref="ConnectionSettingsResource"/>
+    /// representation.
+    /// </summary>
+    /// <param name="settings">The <see cref="PersistedConnectionSettings"/> to map.</param>
+    /// <returns>The mapped <see cref="ConnectionSettingsResource"/>.</returns>
+    internal virtual ConnectionSettingsResource ToConnectionSettingsResource(
+        PersistedConnectionSettings settings
+    ) =>
+        new()
+        {
+            TenantId = settings.TenantId,
+            ConnectionId = settings.ConnectionId,
+            ConcurrencyToken = settings.ConcurrencyToken,
+            Settings = settings.Value,
+        };
+
+    /// <summary>
+    /// Maps a connection and its effective settings to their <see cref="ConnectionEffectiveSettingsResource"/>
+    /// representation, which lists only the settings that apply within a connection.
+    /// </summary>
+    /// <param name="connection">The <see cref="PersistedConnection"/> the settings belong to.</param>
+    /// <param name="settings">The effective settings of the connection.</param>
+    /// <returns>The mapped <see cref="ConnectionEffectiveSettingsResource"/>.</returns>
+    internal virtual ConnectionEffectiveSettingsResource ToConnectionEffectiveSettingsResource(
+        PersistedConnection connection,
+        IReadOnlySettingCollection settings
+    ) =>
+        new()
+        {
+            TenantId = connection.TenantId,
+            ConnectionId = connection.ConnectionId,
+            Settings = ToEffectiveSettingsElement(
+                settings,
+                SettingScopeCollectionProvider.Collection,
+                OpenIdSettingScopes.Connection
+            ),
+        };
+
+    /// <summary>
+    /// Merges a connection's persisted settings onto the addressed tenant's effective settings, producing the same
+    /// effective <see cref="IReadOnlySettingCollection"/> that a sign-in through the connection reads: the team's
+    /// effective settings, the tenant's and then the connection's persisted overrides. A document that cannot be
+    /// honored fails naming its owner.
+    /// </summary>
+    /// <param name="tenantId">The identifier of the OpenID Tenant.</param>
+    /// <param name="connection">The connection whose settings are merged.</param>
+    /// <param name="storeManager">The <see cref="IStoreManager"/> that reads the tenant.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <returns>The effective settings, or <c>null</c> when the tenant does not exist.</returns>
+    /// <exception cref="UnreadableSettingsException">The connection's document, the tenant's or its team's cannot be
+    /// honored.</exception>
+    // See ADR-1149, ADR-1204 and ADR-1245.
+    internal virtual async ValueTask<IReadOnlySettingCollection?> MergeConnectionSettingsAsync(
+        string tenantId,
+        PersistedConnection connection,
+        IStoreManager storeManager,
+        CancellationToken cancellationToken
+    )
+    {
+        var tenant = await storeManager
+            .GetStore<ITenantStore>()
+            .GetOrDefaultAsync(tenantId, cancellationToken);
+        if (tenant is null)
+        {
+            return null;
+        }
+
+        var teamEffective = await EffectiveSettingsResolver.ResolveTeamAsync(
+            tenant.TeamId,
+            cancellationToken
+        );
+        var tenantEffective = EffectiveSettingsResolver.ResolveStored(
+            teamEffective,
+            OpenIdSettingScopes.Tenant,
+            tenantId,
+            tenant.Settings.Value
+        );
+        return EffectiveSettingsResolver.ResolveStored(
+            tenantEffective,
+            OpenIdSettingScopes.Connection,
+            connection.ConnectionId,
+            connection.Settings.Value
+        );
+    }
+
+    /// <summary>
+    /// Gets a connection's persisted settings.
+    /// </summary>
+    /// <param name="httpContext">The <see cref="HttpContext"/> for the current request.</param>
+    /// <param name="tenantId">The identifier of the OpenID Tenant.</param>
+    /// <param name="connectionId">The identifier of the connection.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <response code="200">The connection's settings.</response>
+    /// <response code="404">The connection does not exist.</response>
+    [EndpointName("api/connections/settings/get")]
+    internal virtual async ValueTask<IResult> GetSettingsAsync(
+        HttpContext httpContext,
+        [FromRoute] string tenantId,
+        [FromRoute] string connectionId,
+        CancellationToken cancellationToken
+    )
+    {
+        var tenantScope = TenantScopeResource.For(tenantId);
+        return await ProcessGetAsync(
+            httpContext,
+            tenantScope,
+            Operations.Read,
+            async token =>
+            {
+                await using var storeManager = await StoreManagerFactory.CreateAsync(token);
+                var store = storeManager.GetStore<IConnectionStore>();
+                var connection = await store.GetOrDefaultAsync(connectionId, token);
+                return connection?.Settings;
+            },
+            ToConnectionSettingsResource,
+            cancellationToken
+        );
+    }
+
+    /// <summary>
+    /// Gets the limits a connection's settings carry and whether the caller may set them: whether it holds update
+    /// authority over the connection's tenant.
+    /// </summary>
+    /// <param name="httpContext">The <see cref="HttpContext"/> for the current request.</param>
+    /// <param name="tenantId">The identifier of the OpenID Tenant.</param>
+    /// <param name="connectionId">The identifier of the connection.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <response code="200">The connection's setting limits.</response>
+    /// <response code="404">The connection does not exist.</response>
+    // See ADR-1418.
+    [EndpointName("api/connections/settings/limits/get")]
+    internal virtual async ValueTask<IResult> GetSettingLimitsAsync(
+        HttpContext httpContext,
+        [FromRoute] string tenantId,
+        [FromRoute] string connectionId,
+        CancellationToken cancellationToken
+    )
+    {
+        var tenantNode = ResourceNode.For(tenantId, ResourceNodeTypes.Tenant, tenantId);
+
+        async ValueTask<ResourceNode?> ReadNodeAboveAsync(CancellationToken token)
+        {
+            await using var storeManager = await StoreManagerFactory.CreateAsync(token);
+            var store = storeManager.GetStore<IConnectionStore>();
+            var connection = await store.GetOrDefaultAsync(connectionId, token);
+            return connection is null ? null : tenantNode;
+        }
+
+        var limitNames = SettingSerializer.GetLimits(OpenIdSettingScopes.Connection);
+
+        return await ProcessGetSettingLimitsAsync(
+            httpContext,
+            tenantNode,
+            limitNames,
+            ReadNodeAboveAsync,
+            cancellationToken
+        );
+    }
+
+    /// <summary>
+    /// Updates a connection's persisted settings via a JSON Patch document.
+    /// </summary>
+    /// <param name="httpContext">The <see cref="HttpContext"/> for the current request.</param>
+    /// <param name="tenantId">The identifier of the OpenID Tenant.</param>
+    /// <param name="connectionId">The identifier of the connection.</param>
+    /// <param name="request">The JSON Patch document that modifies the settings.</param>
+    /// <param name="ifMatch">The <c>If-Match</c> header that names the entity tag the update applies to.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <response code="204">The settings were updated.</response>
+    /// <response code="400">The JSON Patch document cannot be applied to the settings, or the patched settings are not valid for a connection.</response>
+    /// <response code="404">The connection does not exist.</response>
+    /// <response code="412">The supplied <c>If-Match</c> header does not match the current settings' entity tag, or is malformed.</response>
+    [EndpointName("api/connections/settings/update")]
+    internal virtual async ValueTask<IResult> UpdateSettingsAsync(
+        HttpContext httpContext,
+        [FromRoute] string tenantId,
+        [FromRoute] string connectionId,
+        [FromBody] JsonPatchDocument<JsonObject> request,
+        [FromHeader(Name = "If-Match")] string? ifMatch,
+        CancellationToken cancellationToken
+    )
+    {
+        var tenantScope = TenantScopeResource.For(tenantId);
+        var authorizationFailure = await GetAuthorizationFailureAsync(
+            httpContext,
+            tenantScope,
+            Operations.Update,
+            cancellationToken
+        );
+        if (authorizationFailure is not null)
+        {
+            return authorizationFailure;
+        }
+
+        await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
+        var store = storeManager.GetStore<IConnectionStore>();
+
+        var connection = await store.GetOrDefaultAsync(connectionId, cancellationToken);
+        var settings = connection?.Settings;
+        if (settings is null)
+        {
+            return ManagementProblems.ResourceNotFound();
+        }
+
+        var preconditionError = ManagementEntityTags.GetIfMatchErrorOrDefault(
+            ifMatch,
+            settings.ConcurrencyToken,
+            "settings"
+        );
+        if (preconditionError is not null)
+        {
+            return ToErrorResult(preconditionError);
+        }
+
+        var jsonObject = ToJsonObject(settings.Value);
+
+        try
+        {
+            request.ApplyTo(jsonObject);
+        }
+        catch (JsonPatchException exception)
+        {
+            Logger.JsonPatchFailed(exception);
+            return TypedResults.Problem(
+                detail: "The JSON Patch document could not be applied.",
+                statusCode: StatusCodes.Status400BadRequest
+            );
+        }
+
+        var settingsValue = SerializeToElement(jsonObject);
+        var jsonOptions = httpContext.GetOpenIdContext().Environment.JsonSerializerOptions;
+        var settingErrors = SettingSerializer.ValidateSettings(
+            settingsValue,
+            OpenIdSettingScopes.Connection,
+            jsonOptions
+        );
+        if (settingErrors.Count > 0)
+        {
+            return SettingsValidationProblem(settingErrors);
+        }
+
+        var changedLimits = SettingSerializer.GetChangedLimits(settings.Value, settingsValue);
+        var authorityAbove = ResourceNode.For(tenantId, ResourceNodeTypes.Tenant, tenantId);
+        var limitRefusal = await GetLimitChangeRefusalOrDefaultAsync(
+            httpContext,
+            changedLimits,
+            authorityAbove,
+            cancellationToken
+        );
+        if (limitRefusal is not null)
+        {
+            return limitRefusal;
+        }
+
+        settings.Value = settingsValue;
+        await store.UpdateSettingsAsync(settings, cancellationToken);
+        await storeManager.SaveChangesAsync(cancellationToken);
+
+        var settingsResource = ToConnectionSettingsResource(settings);
+        var settingsValues = ToResourceValues(settingsResource);
+        await ManagementAuditRecorder.RecordConnectionChangedAsync(
+            httpContext,
+            tenantId,
+            connectionId,
+            ResourceChangeTypes.SettingsUpdated,
+            settingsValues
+        );
+
+        httpContext.Response.Headers.ETag = ManagementEntityTags.Format(settings.ConcurrencyToken);
+        return TypedResults.NoContent();
+    }
+
+    /// <summary>
+    /// Gets a connection's effective (merged) settings.
+    /// </summary>
+    /// <param name="httpContext">The <see cref="HttpContext"/> for the current request.</param>
+    /// <param name="tenantId">The identifier of the OpenID Tenant.</param>
+    /// <param name="connectionId">The identifier of the connection.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <response code="200">The connection's effective settings.</response>
+    /// <response code="404">The connection or its tenant does not exist.</response>
+    [EndpointName("api/connections/effective-settings/get")]
+    internal virtual async ValueTask<IResult> GetEffectiveSettingsAsync(
+        HttpContext httpContext,
+        [FromRoute] string tenantId,
+        [FromRoute] string connectionId,
+        CancellationToken cancellationToken
+    )
+    {
+        var tenantScope = TenantScopeResource.For(tenantId);
+
+        // The settings are resolved only after authorization, so a caller who may not read them learns nothing about a
+        // document that cannot be honored. A null read is the absent connection or the absent tenant, answered 404.
+        // See ADR-1245.
+        return await ProcessGetAsync(
+            httpContext,
+            tenantScope,
+            Operations.Read,
+            async token =>
+            {
+                await using var storeManager = await StoreManagerFactory.CreateAsync(token);
+                var store = storeManager.GetStore<IConnectionStore>();
+
+                var connection = await store.GetOrDefaultAsync(connectionId, token);
+                if (connection is null)
+                {
+                    return null;
+                }
+
+                var effectiveSettings = await MergeConnectionSettingsAsync(
+                    tenantId,
+                    connection,
+                    storeManager,
+                    token
+                );
+                return effectiveSettings is null
+                    ? null
+                    : ToConnectionEffectiveSettingsResource(connection, effectiveSettings);
+            },
+            resource => resource,
+            cancellationToken
+        );
     }
 }

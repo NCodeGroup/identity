@@ -3,6 +3,7 @@
 
 using System.Security.Claims;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
@@ -22,6 +23,7 @@ using NCode.Identity.OpenId.Settings;
 using NCode.Identity.Persistence.Stores;
 using NCode.Identity.Settings;
 using SystemTextJsonPatch;
+using SystemTextJsonPatch.Operations;
 
 namespace NCode.Identity.OpenId.Management.Endpoints.Connections;
 
@@ -40,6 +42,8 @@ public sealed class ConnectionApiEndpointHandlerTests : IDisposable
     private Mock<IConnectionValidator> MockValidator { get; }
     private Mock<IConnectionDependentSource> MockDependentSource { get; }
     private Mock<ISettingSerializer> MockSettingSerializer { get; }
+    private Mock<ISettingScopeCollectionProvider> MockSettingScopeCollectionProvider { get; }
+    private Mock<IEffectiveSettingsResolver> MockEffectiveSettingsResolver { get; }
     private Mock<IManagementAuditRecorder> MockManagementAuditRecorder { get; }
     private FakeCryptoService CryptoService { get; }
     private ConnectionApiEndpointHandler Handler { get; }
@@ -54,6 +58,9 @@ public sealed class ConnectionApiEndpointHandlerTests : IDisposable
         MockValidator = MockRepository.Create<IConnectionValidator>();
         MockDependentSource = MockRepository.Create<IConnectionDependentSource>();
         MockSettingSerializer = MockRepository.Create<ISettingSerializer>();
+        MockSettingScopeCollectionProvider =
+            MockRepository.Create<ISettingScopeCollectionProvider>();
+        MockEffectiveSettingsResolver = MockRepository.Create<IEffectiveSettingsResolver>();
         MockManagementAuditRecorder = MockRepository.Create<IManagementAuditRecorder>();
         CryptoService = new FakeCryptoService();
 
@@ -63,6 +70,8 @@ public sealed class ConnectionApiEndpointHandlerTests : IDisposable
             MockValidator.Object,
             [MockDependentSource.Object],
             MockSettingSerializer.Object,
+            MockSettingScopeCollectionProvider.Object,
+            MockEffectiveSettingsResolver.Object,
             CryptoService,
             MockManagementAuditRecorder.Object,
             NullLogger<ConnectionApiEndpointHandler>.Instance
@@ -696,6 +705,325 @@ public sealed class ConnectionApiEndpointHandlerTests : IDisposable
 
     #endregion
 
+    #region Settings Tests
+
+    private void SetupConnectionLimits(params string[] limits) =>
+        MockSettingSerializer
+            .Setup(x => x.GetLimits(OpenIdSettingScopes.Connection))
+            .Returns(limits)
+            .Verifiable();
+
+    private void SetupNoChangedLimits() =>
+        MockSettingSerializer
+            .Setup(x => x.GetChangedLimits(It.IsAny<JsonElement>(), It.IsAny<JsonElement>()))
+            .Returns([])
+            .Verifiable();
+
+    [Fact]
+    public async Task GetSettingsAsync_WhenAuthorized_ReturnsTheSettings()
+    {
+        SetupAuthorization(AuthorizationResult.Success());
+        SetupStore();
+        SetupGetConnection(CreateConnection());
+
+        var result = await Handler.GetSettingsAsync(
+            CreateHttpContext(),
+            TenantId,
+            ConnectionId,
+            CancellationToken.None
+        );
+
+        var json = Assert.IsType<JsonHttpResult<ConnectionSettingsResource>>(result);
+        Assert.Equal(ConnectionId, json.Value?.ConnectionId);
+    }
+
+    [Fact]
+    public async Task GetSettingsAsync_WhenTheConnectionIsMissing_ReturnsNotFound()
+    {
+        SetupAuthorization(AuthorizationResult.Success());
+        SetupStore();
+        SetupGetConnection(null);
+
+        var result = await Handler.GetSettingsAsync(
+            CreateHttpContext(),
+            TenantId,
+            ConnectionId,
+            CancellationToken.None
+        );
+
+        var problem = Assert.IsType<ProblemHttpResult>(result);
+        Assert.Equal(StatusCodes.Status404NotFound, problem.StatusCode);
+    }
+
+    [Fact]
+    public async Task GetSettingLimitsAsync_WhenTheCallerMayUpdateTheTenant_ReportsCanChange()
+    {
+        SetupConnectionLimits(OpenIdSettingNames.PasswordMinLength);
+        SetupAuthorization(AuthorizationResult.Success());
+        SetupStore();
+        SetupGetConnection(CreateConnection());
+
+        var result = await Handler.GetSettingLimitsAsync(
+            CreateHttpContext(),
+            TenantId,
+            ConnectionId,
+            CancellationToken.None
+        );
+
+        var json = Assert.IsType<JsonHttpResult<SettingLimitsResource>>(result);
+        Assert.Equal([OpenIdSettingNames.PasswordMinLength], json.Value?.Names);
+        Assert.True(json.Value?.CanChange);
+    }
+
+    [Fact]
+    public async Task GetSettingLimitsAsync_WhenTheConnectionIsMissing_ReturnsNotFound()
+    {
+        SetupConnectionLimits(OpenIdSettingNames.PasswordMinLength);
+        SetupAuthorization(AuthorizationResult.Success());
+        SetupStore();
+        SetupGetConnection(null);
+
+        var result = await Handler.GetSettingLimitsAsync(
+            CreateHttpContext(),
+            TenantId,
+            ConnectionId,
+            CancellationToken.None
+        );
+
+        var problem = Assert.IsType<ProblemHttpResult>(result);
+        Assert.Equal(StatusCodes.Status404NotFound, problem.StatusCode);
+    }
+
+    [Fact]
+    public async Task UpdateSettingsAsync_WhenTheSettingsAreValid_UpdatesAndAudits()
+    {
+        SetupAuthorization(AuthorizationResult.Success());
+        SetupStore();
+        SetupSave();
+        SetupValidSettings();
+        SetupNoChangedLimits();
+        SetupGetConnection(CreateConnection());
+        MockConnectionStore
+            .Setup(x =>
+                x.UpdateSettingsAsync(
+                    It.Is<PersistedConnectionSettings>(settings =>
+                        settings.Value.GetProperty("password_min_length").GetInt32() == 12
+                    ),
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable();
+        SetupRecorder(ConnectionId, ResourceChangeTypes.SettingsUpdated);
+        var patch = new JsonPatchDocument<JsonObject>();
+        patch.Operations.Add(
+            new Operation<JsonObject>("add", "/password_min_length", from: null, value: 12)
+        );
+
+        var result = await Handler.UpdateSettingsAsync(
+            CreateHttpContext(),
+            TenantId,
+            ConnectionId,
+            patch,
+            ifMatch: null,
+            CancellationToken.None
+        );
+
+        Assert.IsType<NoContent>(result);
+    }
+
+    [Fact]
+    public async Task UpdateSettingsAsync_WhenASettingDoesNotApplyToAConnection_ReturnsValidationProblem()
+    {
+        SetupAuthorization(AuthorizationResult.Success());
+        SetupStore();
+        SetupGetConnection(CreateConnection());
+        MockSettingSerializer
+            .Setup(x =>
+                x.ValidateSettings(
+                    It.IsAny<JsonElement>(),
+                    OpenIdSettingScopes.Connection,
+                    It.IsAny<JsonSerializerOptions>()
+                )
+            )
+            .Returns([
+                new SettingError("require_pkce", "'require_pkce' does not apply to a connection."),
+            ])
+            .Verifiable();
+        var patch = new JsonPatchDocument<JsonObject>();
+        patch.Operations.Add(
+            new Operation<JsonObject>("add", "/require_pkce", from: null, value: true)
+        );
+
+        // Strict mocks: no UpdateSettingsAsync setup, so a write would fail the test.
+        var result = await Handler.UpdateSettingsAsync(
+            CreateHttpContext(),
+            TenantId,
+            ConnectionId,
+            patch,
+            ifMatch: null,
+            CancellationToken.None
+        );
+
+        var problem = Assert.IsType<ValidationProblem>(result);
+        Assert.Equal(StatusCodes.Status400BadRequest, problem.StatusCode);
+        Assert.Equal(["require_pkce"], problem.ProblemDetails.Errors.Keys);
+    }
+
+    [Fact]
+    public async Task UpdateSettingsAsync_WhenTheEntityTagIsStale_ReturnsPreconditionFailed()
+    {
+        SetupAuthorization(AuthorizationResult.Success());
+        SetupStore();
+        SetupGetConnection(CreateConnection());
+
+        var result = await Handler.UpdateSettingsAsync(
+            CreateHttpContext(),
+            TenantId,
+            ConnectionId,
+            new JsonPatchDocument<JsonObject>(),
+            ManagementEntityTags.Format("stale-settings-ct"),
+            CancellationToken.None
+        );
+
+        var problem = Assert.IsType<ProblemHttpResult>(result);
+        Assert.Equal(StatusCodes.Status412PreconditionFailed, problem.StatusCode);
+    }
+
+    [Fact]
+    public async Task UpdateSettingsAsync_WhenTheConnectionIsMissing_ReturnsNotFound()
+    {
+        SetupAuthorization(AuthorizationResult.Success());
+        SetupStore();
+        SetupGetConnection(null);
+
+        var result = await Handler.UpdateSettingsAsync(
+            CreateHttpContext(),
+            TenantId,
+            ConnectionId,
+            new JsonPatchDocument<JsonObject>(),
+            ifMatch: null,
+            CancellationToken.None
+        );
+
+        var problem = Assert.IsType<ProblemHttpResult>(result);
+        Assert.Equal(StatusCodes.Status404NotFound, problem.StatusCode);
+    }
+
+    [Fact]
+    public async Task GetEffectiveSettingsAsync_NarrowsTheTenantsSettingsWithTheConnectionsOwn()
+    {
+        SetupAuthorization(AuthorizationResult.Success());
+        SetupStore();
+        SetupGetConnection(CreateConnection());
+        var mockTenantStore = MockRepository.Create<ITenantStore>();
+        MockStoreManager
+            .Setup(x => x.GetStore<ITenantStore>())
+            .Returns(mockTenantStore.Object)
+            .Verifiable();
+        var tenant = new PersistedTenantBuilder
+        {
+            TenantId = TenantId,
+            Settings = JsonSerializer.SerializeToElement(
+                new Dictionary<string, object> { ["password_min_length"] = 8 }
+            ),
+        }.Build();
+        mockTenantStore
+            .Setup(x => x.GetOrDefaultAsync(TenantId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(tenant)
+            .Verifiable();
+
+        var passwordMinLength = new SettingDescriptor<int>
+        {
+            Name = "password_min_length",
+            AppliesTo = ["tenant", "connection"],
+        };
+        var requirePkce = new SettingDescriptor<bool>
+        {
+            Name = "require_pkce",
+            AppliesTo = ["client"],
+        };
+        IReadOnlyCollection<Setting> effectiveScopeSettings =
+        [
+            passwordMinLength.Create(12),
+            requirePkce.Create(true),
+        ];
+        var effectiveSettings = new Mock<ISettingCollection>(MockBehavior.Loose);
+        effectiveSettings
+            .Setup(x => x.GetEnumerator())
+            .Returns(() => effectiveScopeSettings.GetEnumerator());
+        var teamSettings = MockRepository.Create<IReadOnlySettingCollection>().Object;
+        var tenantSettings = MockRepository.Create<IReadOnlySettingCollection>().Object;
+        MockEffectiveSettingsResolver
+            .Setup(x => x.ResolveTeamAsync(tenant.TeamId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(teamSettings)
+            .Verifiable();
+        MockEffectiveSettingsResolver
+            .Setup(x =>
+                x.ResolveStored(
+                    teamSettings,
+                    OpenIdSettingScopes.Tenant,
+                    TenantId,
+                    It.IsAny<JsonElement>()
+                )
+            )
+            .Returns(tenantSettings)
+            .Verifiable();
+        MockEffectiveSettingsResolver
+            .Setup(x =>
+                x.ResolveStored(
+                    tenantSettings,
+                    OpenIdSettingScopes.Connection,
+                    ConnectionId,
+                    It.IsAny<JsonElement>()
+                )
+            )
+            .Returns(effectiveSettings.Object)
+            .Verifiable();
+        var mockScopes = MockRepository.Create<ISettingScopeCollection>();
+        mockScopes
+            .Setup(x => x.AppliesWithin(passwordMinLength, OpenIdSettingScopes.Connection))
+            .Returns(true)
+            .Verifiable();
+        mockScopes
+            .Setup(x => x.AppliesWithin(requirePkce, OpenIdSettingScopes.Connection))
+            .Returns(false)
+            .Verifiable();
+        MockSettingScopeCollectionProvider
+            .Setup(x => x.Collection)
+            .Returns(mockScopes.Object)
+            .Verifiable();
+
+        var result = await Handler.GetEffectiveSettingsAsync(
+            CreateHttpContext(),
+            TenantId,
+            ConnectionId,
+            CancellationToken.None
+        );
+
+        var json = Assert.IsType<JsonHttpResult<ConnectionEffectiveSettingsResource>>(result);
+        Assert.Equal(12, json.Value!.Settings.GetProperty("password_min_length").GetInt32());
+        Assert.False(json.Value.Settings.TryGetProperty("require_pkce", out _));
+    }
+
+    [Fact]
+    public async Task GetEffectiveSettingsAsync_WhenForbidden_ReturnsForbidWithoutReadingTheConnection()
+    {
+        SetupAuthorization(AuthorizationResult.Failed());
+
+        var result = await Handler.GetEffectiveSettingsAsync(
+            CreateHttpContext(),
+            TenantId,
+            ConnectionId,
+            CancellationToken.None
+        );
+
+        var problem = Assert.IsType<ProblemHttpResult>(result);
+        Assert.Equal(StatusCodes.Status403Forbidden, problem.StatusCode);
+    }
+
+    #endregion
+
     #region Map Tests
 
     [Theory]
@@ -704,6 +1032,14 @@ public sealed class ConnectionApiEndpointHandlerTests : IDisposable
     [InlineData("GET", "/connections/{connectionId}", new[] { 401, 403, 404 })]
     [InlineData("PATCH", "/connections/{connectionId}", new[] { 400, 401, 403, 404, 412, 415 })]
     [InlineData("DELETE", "/connections/{connectionId}", new[] { 401, 403, 404, 409, 412 })]
+    [InlineData("GET", "/connections/{connectionId}/settings", new[] { 401, 403, 404 })]
+    [InlineData("GET", "/connections/{connectionId}/settings/limits", new[] { 401, 403, 404 })]
+    [InlineData(
+        "PATCH",
+        "/connections/{connectionId}/settings",
+        new[] { 400, 401, 403, 404, 412, 415 }
+    )]
+    [InlineData("GET", "/connections/{connectionId}/effective-settings", new[] { 401, 403, 404 })]
     public async Task Map_Always_DeclaresAndDescribesEveryProblemARouteAnswers(
         string httpMethod,
         string routePattern,
