@@ -20,4 +20,9 @@ public static class PrincipalTypes
     /// A client acting as itself.
     /// </summary>
     public const string Client = "client";
+
+    /// <summary>
+    /// A principal of the control plane that signs in only through federated identities, with no describer of its own.
+    /// </summary>
+    public const string FederatedUser = "federated_user";
 }

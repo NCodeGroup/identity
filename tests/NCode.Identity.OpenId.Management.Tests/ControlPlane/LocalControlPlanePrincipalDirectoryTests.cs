@@ -3,6 +3,8 @@
 
 using NCode.Identity.OpenId.Management.Contracts;
 using NCode.Identity.OpenId.Management.Principals;
+using NCode.Identity.OpenId.Persistence.DataContracts;
+using NCode.Identity.OpenId.Persistence.Stores;
 using NCode.Identity.OpenId.Persistence.Tenants;
 using NCode.Identity.OpenId.Tenants;
 using NCode.Identity.Persistence.Stores;
@@ -125,6 +127,132 @@ public sealed class LocalControlPlanePrincipalDirectoryTests : IDisposable
                 Assert.Equal("Other", summary.DisplayName);
             }
         );
+    }
+
+    private (
+        Mock<IFederatedPrincipalStore> Principals,
+        Mock<IFederatedIdentityStore> Identities
+    ) SetupFederatedStores()
+    {
+        var principals = MockRepository.Create<IFederatedPrincipalStore>();
+        var identities = MockRepository.Create<IFederatedIdentityStore>();
+        MockStoreManager
+            .Setup(x => x.GetStore<IFederatedPrincipalStore>())
+            .Returns(principals.Object);
+        MockStoreManager
+            .Setup(x => x.GetStore<IFederatedIdentityStore>())
+            .Returns(identities.Object);
+        return (principals, identities);
+    }
+
+    private static PersistedFederatedPrincipal CreateFederatedPrincipal(string principalId) =>
+        new()
+        {
+            TenantId = RootTenantId,
+            PrincipalId = principalId,
+            ConcurrencyToken = "token",
+        };
+
+    private static PersistedFederatedIdentity CreateFederatedIdentity(
+        string principalId,
+        string issuer,
+        string subject
+    ) =>
+        new()
+        {
+            TenantId = RootTenantId,
+            FederatedIdentityId = $"{issuer}|{subject}",
+            PrincipalId = principalId,
+            Issuer = issuer,
+            Subject = subject,
+            JoinKey = null,
+            ConcurrencyToken = "token",
+        };
+
+    [Fact]
+    public async Task FindAsync_FederatedFallback_DescribesAnUnknownPrincipalByItsFirstIdentity()
+    {
+        SetupScope();
+        var (principals, identities) = SetupFederatedStores();
+        var query = new ControlPlanePrincipalQuery { PrincipalIds = ["p1", "p1"] };
+        var describer = CreateDescriber(query);
+        principals
+            .Setup(x => x.GetOrDefaultAsync("p1", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(CreateFederatedPrincipal("p1"))
+            .Verifiable();
+        identities
+            .Setup(x => x.GetByPrincipalAsync("p1", It.IsAny<CancellationToken>()))
+            .ReturnsAsync([
+                CreateFederatedIdentity("p1", "https://b.example", "a"),
+                CreateFederatedIdentity("p1", "https://a.example", "z"),
+                CreateFederatedIdentity("p1", "https://a.example", "y"),
+            ])
+            .Verifiable();
+        var directory = CreateDirectory(describer.Object);
+
+        var result = await directory.FindAsync(query, CancellationToken.None);
+
+        var summary = Assert.Single(result);
+        Assert.Equal("p1", summary.PrincipalId);
+        Assert.Equal(PrincipalTypes.FederatedUser, summary.PrincipalType);
+        Assert.Equal("y (https://a.example)", summary.DisplayName);
+        Assert.Null(summary.UserName);
+    }
+
+    [Fact]
+    public async Task FindAsync_FederatedFallback_NamesAPrincipalWithoutIdentitiesByItsId()
+    {
+        SetupScope();
+        var (principals, identities) = SetupFederatedStores();
+        var query = new ControlPlanePrincipalQuery { PrincipalIds = ["p1"] };
+        var describer = CreateDescriber(query);
+        principals
+            .Setup(x => x.GetOrDefaultAsync("p1", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(CreateFederatedPrincipal("p1"))
+            .Verifiable();
+        identities
+            .Setup(x => x.GetByPrincipalAsync("p1", It.IsAny<CancellationToken>()))
+            .ReturnsAsync([])
+            .Verifiable();
+        var directory = CreateDirectory(describer.Object);
+
+        var result = await directory.FindAsync(query, CancellationToken.None);
+
+        var summary = Assert.Single(result);
+        Assert.Equal(PrincipalTypes.FederatedUser, summary.PrincipalType);
+        Assert.Equal("p1", summary.DisplayName);
+    }
+
+    [Fact]
+    public async Task FindAsync_FederatedFallback_SkipsAPrincipalADescriberKnows()
+    {
+        SetupScope();
+        var query = new ControlPlanePrincipalQuery { PrincipalIds = ["p1"] };
+        var describer = CreateDescriber(query, CreateSummary("p1", "Alice"));
+        var directory = CreateDirectory(describer.Object);
+
+        var result = await directory.FindAsync(query, CancellationToken.None);
+
+        var summary = Assert.Single(result);
+        Assert.Equal(PrincipalTypes.LocalAccount, summary.PrincipalType);
+    }
+
+    [Fact]
+    public async Task FindAsync_FederatedFallback_SkipsAnUnknownPrincipal()
+    {
+        SetupScope();
+        var (principals, _) = SetupFederatedStores();
+        var query = new ControlPlanePrincipalQuery { PrincipalIds = ["missing"] };
+        var describer = CreateDescriber(query);
+        principals
+            .Setup(x => x.GetOrDefaultAsync("missing", It.IsAny<CancellationToken>()))
+            .ReturnsAsync((PersistedFederatedPrincipal?)null)
+            .Verifiable();
+        var directory = CreateDirectory(describer.Object);
+
+        var result = await directory.FindAsync(query, CancellationToken.None);
+
+        Assert.Empty(result);
     }
 
     [Fact]
