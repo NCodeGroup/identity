@@ -9,6 +9,7 @@ using Microsoft.Extensions.Options;
 using NCode.Identity.Cryptography;
 using NCode.Identity.OpenId.Accounts.Management;
 using NCode.Identity.OpenId.Accounts.Management.Contracts;
+using NCode.Identity.OpenId.Connections;
 using NCode.Identity.OpenId.Management;
 using NCode.Identity.OpenId.Management.Endpoints.Clients;
 using NCode.Identity.OpenId.Persistence;
@@ -25,7 +26,7 @@ namespace NCode.Identity.OpenId.Setup;
 
 /// <summary>
 /// Provides a default implementation of <see cref="IInstanceSetupService"/>. The root administrator is a local account
-/// in the control-plane tenant that holds <see cref="BuiltInRoles.GlobalAdmin"/> at the platform node. The account, its
+/// in the <c>local</c> connection of the control-plane tenant that holds <see cref="BuiltInRoles.GlobalAdmin"/> at the platform node. The account, its
 /// identity, the role assignment, the management console's client and the automation client when the request carries
 /// them, and the initialized mark are staged on one store manager and saved once, so the instance is initialized
 /// exactly when its root administrator exists. The automation client is a platform-owned machine client that holds
@@ -319,9 +320,24 @@ internal sealed class DefaultInstanceSetupService(
                 EmailVerified = false,
                 IsEnabled = true,
             };
+            var connection = await storeManager
+                .GetStore<IConnectionStore>()
+                .GetByNameOrDefaultAsync(ConnectionDefaults.Name, cancellationToken);
+            if (connection is null)
+            {
+                return new InstanceSetupResult
+                {
+                    Error = CreateError(
+                        StatusCodes.Status500InternalServerError,
+                        $"The control-plane tenant has no '{ConnectionDefaults.Name}' connection."
+                    ),
+                };
+            }
+
             var creation = await LocalAccountCreator.StageAsync(
                 storeManager,
                 tenantId,
+                connection,
                 createRequest,
                 cancellationToken
             );

@@ -37,6 +37,7 @@ public class DeveloperInteractiveSeedHandlerTests : BaseTests
             TimeProvider.System,
             CreateSeededClientValidator(),
             CreateSeededLocalAccountValidator(),
+            LocalConnectionTestData.CreateCatalog(),
             logger ?? CreateStrictMock<ILogger<DeveloperInteractiveSeedHandler>>().Object
         );
 
@@ -51,6 +52,7 @@ public class DeveloperInteractiveSeedHandlerTests : BaseTests
             TimeProvider.System,
             CreateAcceptingSeededClientValidator(),
             CreateSeededLocalAccountValidator(),
+            LocalConnectionTestData.CreateCatalog(),
             logger ?? CreateStrictMock<ILogger<DeveloperInteractiveSeedHandler>>().Object
         );
 
@@ -376,6 +378,7 @@ public class DeveloperInteractiveSeedHandlerTests : BaseTests
                 mockEnvironmentProvider.Object
             ),
             CreateSeededLocalAccountValidator(),
+            LocalConnectionTestData.CreateCatalog(),
             CreateStrictMock<ILogger<DeveloperInteractiveSeedHandler>>().Object
         );
 
@@ -466,6 +469,7 @@ public class DeveloperInteractiveSeedHandlerTests : BaseTests
                 mockValidator.Object
             ),
             CreateSeededLocalAccountValidator(),
+            LocalConnectionTestData.CreateCatalog(),
             CreateStrictMock<ILogger<DeveloperInteractiveSeedHandler>>().Object
         );
 
@@ -528,30 +532,50 @@ public class DeveloperInteractiveSeedHandlerTests : BaseTests
             )
             .Verifiable();
 
+        var connection = LocalConnectionTestData.CreateConnection(WorkloadTenantId);
+        mockResolver
+            .Setup(x =>
+                x.ResolveStored(
+                    tenantSettings,
+                    OpenIdSettingScopes.Connection,
+                    connection.ConnectionId,
+                    It.IsAny<JsonElement>()
+                )
+            )
+            .Returns(CreateLooseMock<ISettingCollection>().Object)
+            .Verifiable();
+
         var options = new DeveloperInteractiveSeedOptions
         {
             TenantId = WorkloadTenantId,
             AdminPassword = "short",
         };
+        var mockAccountStore = CreateStrictMock<ILocalAccountStore>();
         var handler = new DeveloperInteractiveSeedHandler(
             options,
             CreateStrictMock<IClientKeyImporter>().Object,
             TimeProvider.System,
             CreateSeededClientValidator(),
             CreateSeededLocalAccountValidator(mockResolver.Object, mockPolicy.Object),
+            LocalConnectionTestData.CreateCatalog(mockAccountStore.Object),
             CreateStrictMock<ILogger<DeveloperInteractiveSeedHandler>>().Object
         );
 
         // No AddAsync setup: the strict store refuses an account that would be stored.
-        var mockAccountStore = CreateStrictMock<ILocalAccountStore>();
         mockAccountStore
-            .Setup(x => x.GetByUserNameOrDefaultAsync("admin", It.IsAny<CancellationToken>()))
+            .Setup(x =>
+                x.GetByUserNameOrDefaultAsync(
+                    LocalConnectionTestData.ConnectionId,
+                    "admin",
+                    It.IsAny<CancellationToken>()
+                )
+            )
             .ReturnsAsync((PersistedLocalAccount?)null)
             .Verifiable();
         var mockStoreManager = CreateStrictMock<IStoreManager>();
         mockStoreManager
-            .Setup(x => x.GetStore<ILocalAccountStore>())
-            .Returns(mockAccountStore.Object)
+            .Setup(x => x.GetStore<IConnectionStore>())
+            .Returns(LocalConnectionTestData.CreateConnectionStore(connection))
             .Verifiable();
 
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
@@ -591,23 +615,43 @@ public class DeveloperInteractiveSeedHandlerTests : BaseTests
             .ReturnsAsync(PasswordPolicyResult.Accepted)
             .Verifiable();
 
+        var connection = LocalConnectionTestData.CreateConnection(WorkloadTenantId);
+        mockResolver
+            .Setup(x =>
+                x.ResolveStored(
+                    tenantSettings,
+                    OpenIdSettingScopes.Connection,
+                    connection.ConnectionId,
+                    It.IsAny<JsonElement>()
+                )
+            )
+            .Returns(CreateLooseMock<ISettingCollection>().Object)
+            .Verifiable();
+
         var options = new DeveloperInteractiveSeedOptions
         {
             TenantId = WorkloadTenantId,
             AdminPassword = "a-sufficiently-long-password",
         };
+        var mockAccountStore = CreateStrictMock<ILocalAccountStore>();
         var handler = new DeveloperInteractiveSeedHandler(
             options,
             CreateStrictMock<IClientKeyImporter>().Object,
             TimeProvider.System,
             CreateSeededClientValidator(),
             CreateSeededLocalAccountValidator(mockResolver.Object, mockPolicy.Object),
+            LocalConnectionTestData.CreateCatalog(mockAccountStore.Object),
             CreateStrictMock<ILogger<DeveloperInteractiveSeedHandler>>().Object
         );
 
-        var mockAccountStore = CreateStrictMock<ILocalAccountStore>();
         mockAccountStore
-            .Setup(x => x.GetByUserNameOrDefaultAsync("admin", It.IsAny<CancellationToken>()))
+            .Setup(x =>
+                x.GetByUserNameOrDefaultAsync(
+                    LocalConnectionTestData.ConnectionId,
+                    "admin",
+                    It.IsAny<CancellationToken>()
+                )
+            )
             .ReturnsAsync((PersistedLocalAccount?)null)
             .Verifiable();
         PersistedLocalAccount? captured = null;
@@ -627,8 +671,8 @@ public class DeveloperInteractiveSeedHandlerTests : BaseTests
             .Verifiable();
         var mockStoreManager = CreateStrictMock<IStoreManager>();
         mockStoreManager
-            .Setup(x => x.GetStore<ILocalAccountStore>())
-            .Returns(mockAccountStore.Object)
+            .Setup(x => x.GetStore<IConnectionStore>())
+            .Returns(LocalConnectionTestData.CreateConnectionStore(connection))
             .Verifiable();
 
         await handler.HandleAsync(
@@ -637,6 +681,7 @@ public class DeveloperInteractiveSeedHandlerTests : BaseTests
         );
 
         Assert.NotNull(captured);
+        Assert.Equal(connection.ConnectionId, captured.ConnectionId);
         Assert.Equal("admin", captured.UserName);
         Assert.Equal(captured.UserName, captured.DisplayName);
     }

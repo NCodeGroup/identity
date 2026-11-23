@@ -41,6 +41,7 @@ public class SeededLocalAccountValidatorTests : BaseTests
         new()
         {
             TenantId = TenantId,
+            ConnectionId = LocalConnectionTestData.ConnectionId,
             LocalAccountId = "account-1",
             UserName = "admin",
             DisplayName = "admin",
@@ -65,18 +66,31 @@ public class SeededLocalAccountValidatorTests : BaseTests
             .Returns(tenantSettings)
             .Verifiable();
 
-        return tenantSettings;
+        var connectionSettings = CreateLooseMock<ISettingCollection>().Object;
+        MockEffectiveSettingsResolver
+            .Setup(x =>
+                x.ResolveStored(
+                    tenantSettings,
+                    OpenIdSettingScopes.Connection,
+                    LocalConnectionTestData.ConnectionId,
+                    It.IsAny<JsonElement>()
+                )
+            )
+            .Returns(connectionSettings)
+            .Verifiable();
+
+        return connectionSettings;
     }
 
     private void SetupPolicy(
-        IReadOnlySettingCollection tenantSettings,
+        IReadOnlySettingCollection connectionSettings,
         PasswordPolicyResult result
     ) =>
         MockPasswordPolicy
             .Setup(x =>
                 x.ValidateAsync(
                     It.Is<PasswordPolicyContext>(c =>
-                        c.Settings == tenantSettings
+                        c.Settings == connectionSettings
                         && c.UserName == "admin"
                         && c.Email == "admin@localhost"
                     ),
@@ -94,12 +108,13 @@ public class SeededLocalAccountValidatorTests : BaseTests
     [Fact]
     public async Task EnsureCanBeSeededAsync_WhenThePolicyAcceptsThePassword_Completes()
     {
-        var tenantSettings = SetupTenantResolution();
-        SetupPolicy(tenantSettings, PasswordPolicyResult.Accepted);
+        var connectionSettings = SetupTenantResolution();
+        SetupPolicy(connectionSettings, PasswordPolicyResult.Accepted);
 
         await Validator.EnsureCanBeSeededAsync(
             "developer administrator",
             CreateTenant(),
+            LocalConnectionTestData.CreateConnection(TenantId),
             CreateAccount(),
             "dev-admin-password",
             CancellationToken.None
@@ -109,9 +124,9 @@ public class SeededLocalAccountValidatorTests : BaseTests
     [Fact]
     public async Task EnsureCanBeSeededAsync_WhenThePolicyRefusesThePassword_ThrowsNamingTheAccount()
     {
-        var tenantSettings = SetupTenantResolution();
+        var connectionSettings = SetupTenantResolution();
         SetupPolicy(
-            tenantSettings,
+            connectionSettings,
             PasswordPolicyResult.Rejected(
                 PasswordPolicyErrors.TooShort,
                 "The password must have at least 15 characters."
@@ -122,6 +137,7 @@ public class SeededLocalAccountValidatorTests : BaseTests
             await Validator.EnsureCanBeSeededAsync(
                 "developer administrator",
                 CreateTenant(),
+                LocalConnectionTestData.CreateConnection(TenantId),
                 CreateAccount(),
                 "short",
                 CancellationToken.None

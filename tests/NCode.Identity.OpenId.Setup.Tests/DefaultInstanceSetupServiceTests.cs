@@ -9,9 +9,11 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Time.Testing;
 using NCode.Identity.Cryptography;
+using NCode.Identity.Json;
 using NCode.Identity.OpenId.Accounts.DataContracts;
 using NCode.Identity.OpenId.Accounts.Management;
 using NCode.Identity.OpenId.Accounts.Management.Contracts;
+using NCode.Identity.OpenId.Connections;
 using NCode.Identity.OpenId.Management;
 using NCode.Identity.OpenId.Management.Endpoints.Clients;
 using NCode.Identity.OpenId.Persistence;
@@ -44,6 +46,7 @@ public sealed class DefaultInstanceSetupServiceTests : IDisposable
     private Mock<IStoreManager> MockStoreManager { get; }
     private Mock<IInstanceSetupStore> MockInstanceSetupStore { get; }
     private Mock<IRoleAssignmentStore> MockRoleAssignmentStore { get; }
+    private Mock<IConnectionStore> MockConnectionStore { get; }
     private Mock<ITenantResolver> MockTenantResolver { get; }
     private Mock<IServiceScopeFactory> MockServiceScopeFactory { get; }
     private Mock<IServiceScope> MockServiceScope { get; }
@@ -64,6 +67,7 @@ public sealed class DefaultInstanceSetupServiceTests : IDisposable
         MockStoreManagerFactory = MockRepository.Create<IStoreManagerFactory>();
         MockStoreManager = MockRepository.Create<IStoreManager>();
         MockInstanceSetupStore = MockRepository.Create<IInstanceSetupStore>();
+        MockConnectionStore = MockRepository.Create<IConnectionStore>();
         MockRoleAssignmentStore = MockRepository.Create<IRoleAssignmentStore>();
         MockTenantResolver = MockRepository.Create<ITenantResolver>();
         MockServiceScopeFactory = MockRepository.Create<IServiceScopeFactory>();
@@ -234,6 +238,7 @@ public sealed class DefaultInstanceSetupServiceTests : IDisposable
             Account = new PersistedLocalAccount
             {
                 TenantId = TenantId,
+                ConnectionId = "local-connection-id",
                 LocalAccountId = "account-1",
                 UserName = UserName,
                 DisplayName = displayName,
@@ -306,11 +311,48 @@ public sealed class DefaultInstanceSetupServiceTests : IDisposable
         MockTenantScope.Setup(x => x.Dispose()).Verifiable(Times.Once());
     }
 
+    private static PersistedConnection CreateLocalConnection() =>
+        new()
+        {
+            TenantId = TenantId,
+            ConnectionId = "local-connection-id",
+            Name = ConnectionDefaults.Name,
+            Strategy = ConnectionStrategyNames.Local,
+            DisplayName = "Username and password",
+            IsEnabled = true,
+            Options = JsonSerializer.SerializeToElement(
+                new LocalConnectionOptions { Store = LocalAccountStoreNames.Default }
+            ),
+            Settings = new PersistedConnectionSettings
+            {
+                TenantId = TenantId,
+                ConnectionId = "local-connection-id",
+                Value = JsonElements.EmptyObject,
+            },
+        };
+
+    private void SetupConnection(PersistedConnection? connection)
+    {
+        MockStoreManager
+            .Setup(x => x.GetStore<IConnectionStore>())
+            .Returns(MockConnectionStore.Object)
+            .Verifiable(Times.Once());
+        MockConnectionStore
+            .Setup(x =>
+                x.GetByNameOrDefaultAsync(ConnectionDefaults.Name, It.IsAny<CancellationToken>())
+            )
+            .ReturnsAsync(connection)
+            .Verifiable(Times.Once());
+    }
+
     private void SetupCreator(
         LocalAccountCreation creation,
         Action<CreateLocalAccountRequest>? onStaged = null
     )
     {
+        var connection = CreateLocalConnection();
+        SetupConnection(connection);
+
         MockAmbientTenantAccessor
             .Setup(x => x.BeginScope(TenantId))
             .Callback(() => CallLog.Add("staging scope"))
@@ -326,6 +368,7 @@ public sealed class DefaultInstanceSetupServiceTests : IDisposable
                 x.StageAsync(
                     MockStoreManager.Object,
                     TenantId,
+                    connection,
                     It.Is<CreateLocalAccountRequest>(request =>
                         request.UserName == UserName
                         && request.Password == Password
@@ -336,8 +379,14 @@ public sealed class DefaultInstanceSetupServiceTests : IDisposable
                     It.IsAny<CancellationToken>()
                 )
             )
-            .Callback<IStoreManager, string, CreateLocalAccountRequest, CancellationToken>(
-                (_, _, request, _) =>
+            .Callback<
+                IStoreManager,
+                string,
+                PersistedConnection,
+                CreateLocalAccountRequest,
+                CancellationToken
+            >(
+                (_, _, _, request, _) =>
                 {
                     CallLog.Add("account");
                     onStaged?.Invoke(request);
@@ -697,6 +746,26 @@ public sealed class DefaultInstanceSetupServiceTests : IDisposable
         Assert.False(result.Succeeded);
         Assert.Equal(StatusCodes.Status404NotFound, result.Error.StatusCode);
         Assert.Equal("The instance is already set up.", result.Error.Detail);
+    }
+
+    [Fact]
+    public async Task SetUpAsync_WhenTheLocalConnectionIsAbsent_ReturnsServerErrorAndStagesNothing()
+    {
+        SetupTenantScope();
+        SetupStoreManagers(1);
+        SetupInstanceSetupStore(1);
+        SetupRead(null);
+        SetupConnection(null);
+        MockAmbientTenantAccessor
+            .Setup(x => x.BeginScope(TenantId))
+            .Returns(MockStagingScope.Object)
+            .Verifiable(Times.Once());
+        MockStagingScope.Setup(x => x.Dispose()).Verifiable(Times.Once());
+
+        var result = await CreateService().SetUpAsync(CreateRequest(), CancellationToken.None);
+
+        Assert.False(result.Succeeded);
+        Assert.Equal(StatusCodes.Status500InternalServerError, result.Error.StatusCode);
     }
 
     [Fact]

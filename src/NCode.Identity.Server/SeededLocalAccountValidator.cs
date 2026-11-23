@@ -10,7 +10,7 @@ namespace NCode.Identity.Server;
 
 /// <summary>
 /// Checks the password of a local account that a configuration seeder is about to create, so a seeder stores no
-/// password that the tenant's password policy refuses.
+/// password that the connection's password policy refuses.
 /// </summary>
 // See ADR-1236.
 internal sealed class SeededLocalAccountValidator(
@@ -24,10 +24,11 @@ internal sealed class SeededLocalAccountValidator(
 
     /// <summary>
     /// Ensures that the password of a local account a seeder is about to create meets the password policy of the
-    /// tenant the account is seeded into.
+    /// connection the account is seeded into, resolved through its tenant's.
     /// </summary>
     /// <param name="accountKind">The kind of account the seeder creates, which names the account in the error.</param>
     /// <param name="tenant">The tenant the account is seeded into.</param>
+    /// <param name="connection">The local connection the account is seeded into.</param>
     /// <param name="account">The local account the seeder is about to create.</param>
     /// <param name="password">The password the seeder is about to set.</param>
     /// <param name="cancellationToken">A <see cref="CancellationToken"/> for the operation.</param>
@@ -36,6 +37,7 @@ internal sealed class SeededLocalAccountValidator(
     public async ValueTask EnsureCanBeSeededAsync(
         string accountKind,
         PersistedTenant tenant,
+        PersistedConnection connection,
         PersistedLocalAccount account,
         string password,
         CancellationToken cancellationToken
@@ -51,11 +53,18 @@ internal sealed class SeededLocalAccountValidator(
             tenant.Settings.Value
         );
 
+        var connectionSettings = EffectiveSettingsResolver.ResolveStored(
+            tenantSettings,
+            OpenIdSettingScopes.Connection,
+            connection.ConnectionId,
+            connection.Settings.Value
+        );
+
         var passwordMemory = password.AsMemory();
         var policyContext = new PasswordPolicyContext
         {
-            Settings = tenantSettings,
-            UserName = account.UserName,
+            Settings = connectionSettings,
+            UserName = account.UserName ?? string.Empty,
             Email = account.Email,
         };
         var result = await PasswordPolicy.ValidateAsync(
