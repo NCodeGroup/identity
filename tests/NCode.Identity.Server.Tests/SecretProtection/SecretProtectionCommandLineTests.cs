@@ -464,6 +464,37 @@ public class SecretProtectionCommandLineTests : BaseTests
     }
 
     [Fact]
+    public async Task RunAsync_TheValidatorThrowsAnotherException_ReturnsOneWithoutCallingTheRewrapper()
+    {
+        var rewrapper = CreateStrictMock<IMasterKeyRewrapper>();
+        var validator = CreateStrictMock<IStartupValidator>();
+        validator
+            .Setup(x => x.Validate())
+            .Throws(new InvalidOperationException("boom"))
+            .Verifiable();
+        using var services = CreateServices(rewrapper.Object, validator.Object);
+
+        var exitCode = await Parse("secret-protection", "rewrap")
+            .RunAsync(services, CancellationToken.None);
+
+        Assert.Equal(1, exitCode);
+        Assert.Empty(rewrapper.Invocations);
+    }
+
+    [Fact]
+    public async Task RunAsync_NoRewrapperIsRegistered_ReturnsOne()
+    {
+        var serviceCollection = new ServiceCollection();
+        serviceCollection.AddLogging();
+        using var services = serviceCollection.BuildServiceProvider();
+
+        var exitCode = await Parse("secret-protection", "rewrap")
+            .RunAsync(services, CancellationToken.None);
+
+        Assert.Equal(1, exitCode);
+    }
+
+    [Fact]
     public async Task RunAsync_TheRewrapperThrows_ReturnsOne()
     {
         var rewrapper = CreateStrictMock<IMasterKeyRewrapper>();
