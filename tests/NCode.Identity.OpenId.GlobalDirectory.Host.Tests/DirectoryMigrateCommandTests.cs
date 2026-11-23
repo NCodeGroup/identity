@@ -1,8 +1,10 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using NCode.Identity.OpenId.GlobalDirectory.Server;
 using Xunit;
 
 namespace NCode.Identity.OpenId.GlobalDirectory.Host.Tests;
@@ -147,5 +149,71 @@ public sealed class DirectoryMigrateCommandTests
         Assert.Contains(RuntimeRoleKey, exception.Message, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task RunAsync_WhenTheCallerCancels_PropagatesWithoutLogging()
+    {
+        using var cancellationTokenSource = new CancellationTokenSource();
+        await cancellationTokenSource.CancelAsync();
+        var cancellationToken = cancellationTokenSource.Token;
+        var cancellation = new OperationCanceledException(cancellationToken);
+        await using var services = new ServiceCollection()
+            .AddFakeLogging()
+            .AddSingleton<IDbContextFactory<DirectoryDbContext>>(
+                new FailingDbContextFactory(cancellation)
+            )
+            .BuildServiceProvider();
+        var configuration = CreateConfiguration((RuntimeRoleKey, "directory_app"));
+
+        var thrown = await Assert.ThrowsAsync<OperationCanceledException>(async () =>
+            await DirectoryMigrateCommand.RunAsync(services, configuration, cancellationToken)
+        );
+
+        Assert.Same(cancellation, thrown);
+        Assert.Empty(services.GetFakeLogCollector().GetSnapshot());
+    }
+
+    [Fact]
+    public async Task RunAsync_WhenTheDatabaseFailsAfterTheCallerCancels_ReturnsOneAndLogsTheFailure()
+    {
+        using var cancellationTokenSource = new CancellationTokenSource();
+        await cancellationTokenSource.CancelAsync();
+        var cancellationToken = cancellationTokenSource.Token;
+        var failure = new InvalidOperationException("The database is unreachable.");
+        await using var services = new ServiceCollection()
+            .AddFakeLogging()
+            .AddSingleton<IDbContextFactory<DirectoryDbContext>>(
+                new FailingDbContextFactory(failure)
+            )
+            .BuildServiceProvider();
+        var configuration = CreateConfiguration((RuntimeRoleKey, "directory_app"));
+
+        var exitCode = await DirectoryMigrateCommand.RunAsync(
+            services,
+            configuration,
+            cancellationToken
+        );
+
+        Assert.Equal(1, exitCode);
+        var record = Assert.Single(services.GetFakeLogCollector().GetSnapshot());
+        Assert.Equal(Logging.EventIds.DirectoryMigrateCommandFailed, record.Id.Id);
+        Assert.Same(failure, record.Exception);
+    }
+
     #endregion
+
+    /// <summary>
+    /// A <see cref="IDbContextFactory{TContext}"/> whose asynchronous creation fails with a given exception.
+    /// </summary>
+    /// <param name="exception">The exception that <see cref="CreateDbContextAsync"/> fails with.</param>
+    private sealed class FailingDbContextFactory(Exception exception)
+        : IDbContextFactory<DirectoryDbContext>
+    {
+        /// <inheritdoc />
+        public DirectoryDbContext CreateDbContext() => throw new NotSupportedException();
+
+        /// <inheritdoc />
+        public Task<DirectoryDbContext> CreateDbContextAsync(
+            CancellationToken cancellationToken = default
+        ) => Task.FromException<DirectoryDbContext>(exception);
+    }
 }

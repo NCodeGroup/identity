@@ -85,8 +85,12 @@ internal static class DirectoryMigrateCommand
         }
         // An exception that escapes Main leaves the end of the process to the runtime's crash path, which does not end
         // a process that runs as PID 1 in its container (dotnet/runtime issue 112580), so a Job would run until its
-        // deadline.
-        catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
+        // deadline. Only a cancellation the caller requested propagates; any other failure, even one after the caller
+        // cancels, is logged and ends the command with 1.
+        catch (Exception exception)
+            when (exception is not OperationCanceledException
+                || !cancellationToken.IsCancellationRequested
+            )
         {
             logger.DirectoryMigrateCommandFailed(exception);
             return 1;
