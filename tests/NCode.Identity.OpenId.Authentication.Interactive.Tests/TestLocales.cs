@@ -52,6 +52,8 @@ internal static class TestLocales
                 TooManyCodesError = "Xx too many codes",
                 PasswordMismatchError = "Xx password mismatch",
                 PasswordRefusedError = "Xx password refused",
+                NoEmailError = "Xx no email",
+                EmailCodeFailedError = "Xx email code failed",
                 VerificationMailSubject = "Xx verification subject",
                 VerificationMailBodyFormat = "Xx verification {0} {1}",
                 PasswordResetMailSubject = "Xx reset subject",

@@ -194,6 +194,8 @@ export function describeLoginError(error: string | null, messages: Messages): st
       return messages.loginErrors.invalidRequest;
     case 'access_denied':
       return messages.loginErrors.accessDenied;
+    case 'too_many_codes':
+      return messages.emailCodeErrors.tooManyCodes;
     default:
       return messages.loginErrors.fallback;
   }

@@ -8,7 +8,8 @@ namespace NCode.Identity.OpenId.Authentication.Interactive;
 /// <summary>
 /// The text of the pages the interactive surface renders on the server, and of the mail it sends, in one locale: the
 /// no-JavaScript login, consent, logout confirmation and authorization error pages, and the messages the login page
-/// shows for a sign-in that fails. Every value is written HTML-encoded, so a message holds plain text.
+/// shows for a sign-in that fails. Every page value is written HTML-encoded, so a message holds plain text; the mail
+/// subjects and body formats are plain text the mail carries as they are.
 /// </summary>
 // See ADR-1402.
 [PublicAPI]
@@ -199,6 +200,16 @@ public sealed record InteractiveMessages
     /// Gets the message shown when the password policy refuses the new password.
     /// </summary>
     public required string PasswordRefusedError { get; init; }
+
+    /// <summary>
+    /// Gets the message the sign-in code page shows when the account has no email address.
+    /// </summary>
+    public required string NoEmailError { get; init; }
+
+    /// <summary>
+    /// Gets the message the sign-in code page shows for any other failure.
+    /// </summary>
+    public required string EmailCodeFailedError { get; init; }
 
     /// <summary>
     /// Gets the subject of the mail that carries an email verification code.

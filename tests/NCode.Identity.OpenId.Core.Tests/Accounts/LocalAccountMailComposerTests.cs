@@ -56,6 +56,8 @@ public class LocalAccountMailComposerTests
                 TooManyCodesError = "TooManyCodesError",
                 PasswordMismatchError = "PasswordMismatchError",
                 PasswordRefusedError = "PasswordRefusedError",
+                NoEmailError = "NoEmailError",
+                EmailCodeFailedError = "EmailCodeFailedError",
                 VerificationMailSubject = "Verify subject",
                 VerificationMailBodyFormat = "Verify {0} within {1} minutes",
                 PasswordResetMailSubject = "Reset subject",

@@ -115,6 +115,8 @@ NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.ConsentProm
 NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.ConsentPromptFormat.init -> void
 NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.DenyButton.get -> string!
 NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.DenyButton.init -> void
+NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.EmailCodeFailedError.get -> string!
+NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.EmailCodeFailedError.init -> void
 NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.ForgotPasswordLink.get -> string!
 NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.ForgotPasswordLink.init -> void
 NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.ForgotPasswordPrompt.get -> string!
@@ -129,6 +131,8 @@ NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.MissingCred
 NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.MissingCredentialsError.init -> void
 NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.NewPasswordLabel.get -> string!
 NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.NewPasswordLabel.init -> void
+NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.NoEmailError.get -> string!
+NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.NoEmailError.init -> void
 NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.PasswordLabel.get -> string!
 NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.PasswordLabel.init -> void
 NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.PasswordMismatchError.get -> string!

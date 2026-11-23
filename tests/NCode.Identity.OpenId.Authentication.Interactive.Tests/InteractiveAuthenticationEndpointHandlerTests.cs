@@ -575,4 +575,68 @@ public class InteractiveAuthenticationEndpointHandlerTests
     }
 
     #endregion
+
+    #region DescribeLoginError Tests
+
+    [Fact]
+    public void DescribeLoginError_WhenTooManyCodes_ReturnsTheTooManyCodesMessage()
+    {
+        var messages = TestLocales.Xx.Messages;
+
+        var result = InteractiveAuthenticationEndpointHandler.DescribeLoginError(
+            InteractiveEmailCodeErrors.TooManyCodes,
+            messages
+        );
+
+        Assert.Equal(messages.TooManyCodesError, result);
+    }
+
+    #endregion
+
+    #region DescribeSignInCodeError Tests
+
+    [Fact]
+    public void DescribeSignInCodeError_WhenTheAccountHasNoEmail_ReturnsTheNoEmailMessage()
+    {
+        var messages = TestLocales.Xx.Messages;
+
+        var result = InteractiveAuthenticationEndpointHandler.DescribeSignInCodeError(
+            InteractiveEmailCodeErrors.NoEmail,
+            messages
+        );
+
+        Assert.Equal(messages.NoEmailError, result);
+    }
+
+    [Fact]
+    public void DescribeSignInCodeError_ForAnUnknownCode_ReturnsTheGenericMessage()
+    {
+        var messages = TestLocales.Xx.Messages;
+
+        var result = InteractiveAuthenticationEndpointHandler.DescribeSignInCodeError(
+            "boom",
+            messages
+        );
+
+        Assert.Equal(messages.EmailCodeFailedError, result);
+    }
+
+    #endregion
+
+    #region DescribePasswordResetError Tests
+
+    [Fact]
+    public void DescribePasswordResetError_ForAnUnknownCode_ReturnsTheRefusedPasswordMessage()
+    {
+        var messages = TestLocales.Xx.Messages;
+
+        var result = InteractiveAuthenticationEndpointHandler.DescribePasswordResetError(
+            "password_too_short",
+            messages
+        );
+
+        Assert.Equal(messages.PasswordRefusedError, result);
+    }
+
+    #endregion
 }

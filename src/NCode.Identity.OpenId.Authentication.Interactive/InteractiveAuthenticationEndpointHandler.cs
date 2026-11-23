@@ -1328,7 +1328,7 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
         var html = InteractiveHtmlResult.CreateBuffer();
         var returnUrl = query[ReturnUrlName].ToString();
         var errorQueryValue = query[ErrorQueryName].ToString();
-        var errorMessage = DescribeEmailCodeError(errorQueryValue, frame.Locale.Messages);
+        var errorMessage = DescribePasswordResetError(errorQueryValue, frame.Locale.Messages);
         InteractiveAuthenticationPageRenderer.RenderForgotPasswordPage(
             html,
             frame,
@@ -1367,7 +1367,7 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
         var returnUrl = query[ReturnUrlName].ToString();
         var flowId = query[FlowQueryName].ToString();
         var errorQueryValue = query[ErrorQueryName].ToString();
-        var errorMessage = DescribeEmailCodeError(errorQueryValue, frame.Locale.Messages);
+        var errorMessage = DescribePasswordResetError(errorQueryValue, frame.Locale.Messages);
         InteractiveAuthenticationPageRenderer.RenderResetPasswordPage(
             html,
             frame,
@@ -1724,7 +1724,7 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
         );
         var html = InteractiveHtmlResult.CreateBuffer();
         var errorQueryValue = query[ErrorQueryName].ToString();
-        var errorMessage = DescribeEmailCodeError(errorQueryValue, frame.Locale.Messages);
+        var errorMessage = DescribeSignInCodeError(errorQueryValue, frame.Locale.Messages);
         var statusQueryValue = query[StatusQueryName].ToString();
         var statusMessage = string.Equals(
             statusQueryValue,
@@ -2020,9 +2020,13 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
         return InteractiveLocaleSelector.AppendUiLocalesQuery(href, languageTag);
     }
 
-    // Maps the codes the email-code pages receive to their messages; a code the page does not know is a password the
-    // policy refused, since that is the only other error the reset page receives.
-    private static string? DescribeEmailCodeError(string? error, InteractiveMessages messages) =>
+    /// <summary>
+    /// Maps the error code the forgot-password and reset-password pages receive to the page's message for it.
+    /// </summary>
+    internal static string? DescribePasswordResetError(
+        string? error,
+        InteractiveMessages messages
+    ) =>
         error switch
         {
             null or "" => null,
@@ -2030,7 +2034,23 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
             InteractiveEmailCodeErrors.TooManyCodes => messages.TooManyCodesError,
             InteractivePasswordChangeErrors.PasswordMismatch => messages.PasswordMismatchError,
             InteractivePasswordChangeErrors.InvalidRequest => messages.MissingCredentialsError,
+            // The password policy's codes are an open vocabulary, so any other code the reset post answers is a
+            // refused password.
             _ => messages.PasswordRefusedError,
+        };
+
+    /// <summary>
+    /// Maps the error code the sign-in code page receives to the page's message for it.
+    /// </summary>
+    internal static string? DescribeSignInCodeError(string? error, InteractiveMessages messages) =>
+        error switch
+        {
+            null or "" => null,
+            InteractiveEmailCodeErrors.InvalidCode => messages.InvalidCodeError,
+            InteractiveEmailCodeErrors.TooManyCodes => messages.TooManyCodesError,
+            InteractivePasswordChangeErrors.InvalidRequest => messages.MissingCredentialsError,
+            InteractiveEmailCodeErrors.NoEmail => messages.NoEmailError,
+            _ => messages.EmailCodeFailedError,
         };
 
     // Redirects to a page of the surface with the query values that are set, in a page that renders in the locale the
@@ -2165,13 +2185,14 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
     }
 
     // Mirrors the apps/auth describeLoginError mapping so the no-JS login form shows the same messages.
-    private static string? DescribeLoginError(string? error, InteractiveMessages messages) =>
+    internal static string? DescribeLoginError(string? error, InteractiveMessages messages) =>
         error switch
         {
             null or "" => null,
             "invalid_credentials" => messages.InvalidCredentialsError,
             "invalid_request" => messages.MissingCredentialsError,
             OpenIdProtocol.ErrorCodes.AccessDenied => messages.AccessDeniedError,
+            InteractiveEmailCodeErrors.TooManyCodes => messages.TooManyCodesError,
             _ => messages.SignInFailedError,
         };
 

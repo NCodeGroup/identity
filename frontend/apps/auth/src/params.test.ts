@@ -194,6 +194,7 @@ describe('describeLoginError', () => {
     expect(describeLoginError('invalid_credentials', en)).toMatch(/incorrect/i);
     expect(describeLoginError('invalid_request', en)).toMatch(/username and a password/i);
     expect(describeLoginError('access_denied', en)).toMatch(/cannot sign in/i);
+    expect(describeLoginError('too_many_codes', en)).toBe(en.emailCodeErrors.tooManyCodes);
     expect(describeLoginError('boom', en)).toMatch(/failed/i);
   });
 });
