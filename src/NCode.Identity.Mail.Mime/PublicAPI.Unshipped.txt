@@ -6,6 +6,3 @@ NCode.Identity.Mail.Mime.DefaultRegistration.extension(NCode.Identity.Registrati
 NCode.Identity.Mail.Mime.IMimeMessageFactory
 NCode.Identity.Mail.Mime.IMimeMessageFactory.CreateAsync(NCode.Identity.Mail.MailMessage! message, NCode.Identity.Mail.MailAddress! defaultFrom, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<MimeKit.MimeMessage!>
 NCode.Identity.Mail.Mime.IMimeMessageFactory.CreateFormatOptions() -> MimeKit.FormatOptions!
-NCode.Identity.Mail.Mime.MimeMailMessages
-static NCode.Identity.Mail.Mime.MimeMailMessages.CreateAsync(NCode.Identity.Mail.MailMessage! message, NCode.Identity.Mail.MailAddress! defaultFrom, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<MimeKit.MimeMessage!>
-static NCode.Identity.Mail.Mime.MimeMailMessages.CreateFormatOptions() -> MimeKit.FormatOptions!
