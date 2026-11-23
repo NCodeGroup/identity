@@ -2,6 +2,7 @@
 {{- include "identity-host.backendTls.validate" . }}
 {{- $valkey := include "identity-host.valkeyEnabled" . }}
 {{- $googleCloudCredentials := include "identity-host.kmsCredentials.googleCloudCredentialConfiguration" (include "identity-host.kmsCredentials.server" . | fromYaml) }}
+{{- $mailCredentials := include "identity-host.kmsCredentials.mail" . | fromYaml }}
 {{- $backupAnnotations := include "identity-host.backupAnnotations" . | trim }}
 {{- $probeHost := include "identity-host.probeHost" . }}
 apiVersion: apps/v1
@@ -87,6 +88,9 @@ spec:
             {{- with include "identity-host.mailEnv" . }}
             {{- . | trim | nindent 12 }}
             {{- end }}
+            {{- with include "identity-host.kmsCredentials.awsEnv" $mailCredentials }}
+            {{- . | trim | nindent 12 }}
+            {{- end }}
             {{- with include "identity-host.directoryClientEnv" . }}
             {{- . | trim | nindent 12 }}
             {{- end }}
@@ -157,12 +161,18 @@ spec:
             {{- with include "identity-host.directoryClientVolumeMounts" . }}
             {{- . | trim | nindent 12 }}
             {{- end }}
+            {{- with include "identity-host.kmsCredentials.volumeMounts" $mailCredentials }}
+            {{- . | trim | nindent 12 }}
+            {{- end }}
             - name: backend-tls
               mountPath: /etc/ncode-identity/tls
               readOnly: true
       volumes:
         {{- include "identity-host.hostVolumes" . | trim | nindent 8 }}
         {{- with include "identity-host.directoryClientVolumes" . }}
+        {{- . | trim | nindent 8 }}
+        {{- end }}
+        {{- with include "identity-host.kmsCredentials.volumes" $mailCredentials }}
         {{- . | trim | nindent 8 }}
         {{- end }}
         - name: backend-tls

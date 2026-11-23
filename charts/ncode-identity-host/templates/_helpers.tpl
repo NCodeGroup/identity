@@ -507,15 +507,13 @@ a dict with the chart context as root and the key management service name as nam
 {{/*
 The workload credentials of the host, as YAML that the kmsCredentials helpers take as a dict (after fromYaml): name is
 the component's full name, awsKms, azureKeyVault and googleCloudKms are "true" or empty by whether the component uses
-that service, amazonSes is "true" when the release sends mail through Amazon SES, and webIdentity, workloadIdentity and
-workloadIdentityFederation are its identity values in the shapes of
+that service, and webIdentity, workloadIdentity and workloadIdentityFederation are its identity values in the shapes of
 aws.webIdentity, secretProtection.azureKeyVault.workloadIdentity and
 secretProtection.googleCloudKms.workloadIdentityFederation. Takes the chart context.
 */}}
 {{- define "identity-host.kmsCredentials.server" -}}
 name: {{ include "identity-host.fullname" . | quote }}
 awsKms: {{ include "identity-host.usesKeyManagementService" (dict "root" . "name" "aws-kms") | quote }}
-amazonSes: {{ ternary "true" "" (not (empty .Values.mail.amazonSes.region)) | quote }}
 azureKeyVault: {{ include "identity-host.usesKeyManagementService" (dict "root" . "name" "azure-key-vault") | quote }}
 googleCloudKms: {{ include "identity-host.usesKeyManagementService" (dict "root" . "name" "google-cloud-kms") | quote }}
 webIdentity:
@@ -524,6 +522,25 @@ workloadIdentity:
   {{- toYaml .Values.secretProtection.azureKeyVault.workloadIdentity | nindent 2 }}
 workloadIdentityFederation:
   {{- toYaml .Values.secretProtection.googleCloudKms.workloadIdentityFederation | nindent 2 }}
+{{- end }}
+
+{{/*
+The AWS workload credentials that the host's Deployment adds to send mail through Amazon SES, as YAML in the shape
+kmsCredentials.server renders: amazonSes is "true" when mail.amazonSes.region is set and the server's credentials do not
+already carry the AWS identity for AWS KMS, and every other service is empty. Only the Deployment sends mail, so the
+setup and secret protection Jobs carry the AWS identity only for AWS KMS. Takes the chart context.
+*/}}
+{{- define "identity-host.kmsCredentials.mail" -}}
+{{- $server := include "identity-host.kmsCredentials.server" . | fromYaml }}
+name: {{ $server.name | quote }}
+awsKms: ""
+amazonSes: {{ ternary "true" "" (and (not (empty .Values.mail.amazonSes.region)) (empty $server.awsKms)) | quote }}
+azureKeyVault: ""
+googleCloudKms: ""
+webIdentity:
+  {{- toYaml .Values.aws.webIdentity | nindent 2 }}
+workloadIdentity: {}
+workloadIdentityFederation: {}
 {{- end }}
 
 {{/*
@@ -545,7 +562,8 @@ kmsCredentials.volumes projects. Takes the dict that kmsCredentials.server rende
 
 {{/*
 The AWS web identity environment entries: the SDK exchanges the projected token for short-lived credentials of the role.
-Empty unless the component uses AWS KMS or Amazon SES and names a role. Takes the dict that kmsCredentials.server renders.
+Empty unless the component uses AWS KMS or Amazon SES and names a role. Takes the dict that kmsCredentials.server or
+kmsCredentials.mail renders.
 */}}
 {{- define "identity-host.kmsCredentials.awsEnv" -}}
 {{- $awsWebIdentityRoot := "/var/run/secrets/tokens/aws" }}
@@ -600,7 +618,7 @@ federation. Takes the dict that kmsCredentials.server renders.
 
 {{/*
 The volume mounts of the AWS, Azure and Google workload credentials, each present only when the component uses that
-service with an identity. Takes the dict that kmsCredentials.server renders.
+service with an identity. Takes the dict that kmsCredentials.server or kmsCredentials.mail renders.
 */}}
 {{- define "identity-host.kmsCredentials.volumeMounts" -}}
 {{- $awsWebIdentityRoot := "/var/run/secrets/tokens/aws" }}
@@ -625,7 +643,7 @@ service with an identity. Takes the dict that kmsCredentials.server renders.
 
 {{/*
 The volumes of the AWS, Azure and Google workload credentials, each present only when the component uses that service
-with an identity. Takes the dict that kmsCredentials.server renders.
+with an identity. Takes the dict that kmsCredentials.server or kmsCredentials.mail renders.
 */}}
 {{- define "identity-host.kmsCredentials.volumes" -}}
 {{- if and (or .awsKms .amazonSes) .webIdentity.roleArn }}
