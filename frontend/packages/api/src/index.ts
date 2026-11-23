@@ -113,6 +113,7 @@ export {
   type RoleOwner,
   type SecretOwner,
 } from './owner.js';
+export { PRINCIPAL_TYPES } from './principalTypes.js';
 export {
   isPlatformScope,
   LIST_TAG,
