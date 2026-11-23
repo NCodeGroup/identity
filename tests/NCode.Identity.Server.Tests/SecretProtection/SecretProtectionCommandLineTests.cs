@@ -232,8 +232,9 @@ public class SecretProtectionCommandLineTests : BaseTests
     }
 
     [Fact]
-    public async Task RunAsync_AnOwnerWithNoMasterKeys_ReturnsOne()
+    public async Task RunAsync_AnOwnerWithNoMasterKeys_ReturnsOneAndLogsTheOwner()
     {
+        var loggerProvider = new CapturingLoggerProvider();
         var rewrapper = CreateStrictMock<IMasterKeyRewrapper>();
         rewrapper
             .Setup(x =>
@@ -241,12 +242,17 @@ public class SecretProtectionCommandLineTests : BaseTests
             )
             .Returns(new ValueTask<MasterKeyRewrapResult>(new MasterKeyRewrapResult(0, 0, 0, 0)))
             .Verifiable();
-        using var services = CreateServices(rewrapper.Object);
+        using var services = CreateServices(rewrapper.Object, loggerProvider: loggerProvider);
 
         var exitCode = await Parse("secret-protection", "rewrap", "--owner", "tenant:acme")
             .RunAsync(services, CancellationToken.None);
 
         Assert.Equal(1, exitCode);
+        var logged = Assert.Single(
+            loggerProvider.Logs,
+            x => x.EventId.Id == Logging.EventIds.SecretProtectionCommandOwnerHasNoMasterKeys
+        );
+        Assert.Null(logged.Exception);
     }
 
     [Fact]
@@ -318,8 +324,9 @@ public class SecretProtectionCommandLineTests : BaseTests
     [Fact]
     public async Task RunAsync_AMissingKeyFile_ReturnsOneWithoutCallingTheRewrapper()
     {
+        var loggerProvider = new CapturingLoggerProvider();
         var rewrapper = CreateStrictMock<IMasterKeyRewrapper>();
-        using var services = CreateServices(rewrapper.Object);
+        using var services = CreateServices(rewrapper.Object, loggerProvider: loggerProvider);
 
         var exitCode = await Parse(
                 "secret-protection",
@@ -331,6 +338,11 @@ public class SecretProtectionCommandLineTests : BaseTests
 
         Assert.Equal(1, exitCode);
         Assert.Empty(rewrapper.Invocations);
+        var logged = Assert.Single(
+            loggerProvider.Logs,
+            x => x.EventId.Id == Logging.EventIds.SecretProtectionRecoveryKeyUnreadable
+        );
+        Assert.IsAssignableFrom<IOException>(logged.Exception);
     }
 
     [Fact]
@@ -339,8 +351,9 @@ public class SecretProtectionCommandLineTests : BaseTests
         var path = Path.GetTempFileName();
         try
         {
+            var loggerProvider = new CapturingLoggerProvider();
             var rewrapper = CreateStrictMock<IMasterKeyRewrapper>();
-            using var services = CreateServices(rewrapper.Object);
+            using var services = CreateServices(rewrapper.Object, loggerProvider: loggerProvider);
 
             var exitCode = await Parse(
                     "secret-protection",
@@ -352,6 +365,11 @@ public class SecretProtectionCommandLineTests : BaseTests
 
             Assert.Equal(1, exitCode);
             Assert.Empty(rewrapper.Invocations);
+            var logged = Assert.Single(
+                loggerProvider.Logs,
+                x => x.EventId.Id == Logging.EventIds.SecretProtectionRecoveryKeyUnreadable
+            );
+            Assert.Null(logged.Exception);
         }
         finally
         {
@@ -366,8 +384,9 @@ public class SecretProtectionCommandLineTests : BaseTests
         try
         {
             await File.WriteAllBytesAsync(path, new byte[(64 * 1024) + 1]);
+            var loggerProvider = new CapturingLoggerProvider();
             var rewrapper = CreateStrictMock<IMasterKeyRewrapper>();
-            using var services = CreateServices(rewrapper.Object);
+            using var services = CreateServices(rewrapper.Object, loggerProvider: loggerProvider);
 
             var exitCode = await Parse(
                     "secret-protection",
@@ -379,6 +398,11 @@ public class SecretProtectionCommandLineTests : BaseTests
 
             Assert.Equal(1, exitCode);
             Assert.Empty(rewrapper.Invocations);
+            var logged = Assert.Single(
+                loggerProvider.Logs,
+                x => x.EventId.Id == Logging.EventIds.SecretProtectionRecoveryKeyUnreadable
+            );
+            Assert.Null(logged.Exception);
         }
         finally
         {
