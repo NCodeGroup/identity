@@ -9,7 +9,7 @@ import type {
 } from '@ncodegroup/identity-api';
 import type { BffRuntimeConfig, OpenIdRuntimeConfig } from '@ncodegroup/identity-config';
 import { createAppStore, type AppStore } from './store.js';
-import { managementApi, pagedItems } from './managementApi.js';
+import { managementApi, pagedItems, pagedTenants } from './managementApi.js';
 
 const runtime: BffRuntimeConfig = {
   kind: 'bff',
@@ -2753,7 +2753,7 @@ describe('managementApi across cells', () => {
     );
 
     expect(fetches.calls).toEqual(['GET /api/teams/acme/tenants']);
-    expect(result.data).toEqual({ items: [tenant('a')], unavailableCells: [] });
+    expect(pagedTenants(result.data)).toEqual({ items: [tenant('a')], unavailableCells: [] });
   });
 
   it('listTenants refuses a surface its BFF does not serve without calling a cell', async () => {
@@ -2813,7 +2813,7 @@ describe('managementApi across cells', () => {
       'GET /cells/eu-1/api/teams/acme/tenants',
       'GET /cells/us-1/api/teams/acme/tenants',
     ]);
-    expect(result.data).toEqual({
+    expect(pagedTenants(result.data)).toEqual({
       items: [
         { ...tenant('a'), cell: 'eu-1' },
         { ...tenant('b'), cell: 'eu-1' },
@@ -2836,7 +2836,7 @@ describe('managementApi across cells', () => {
     );
 
     expect(result.error).toBeUndefined();
-    expect(result.data).toEqual({
+    expect(pagedTenants(result.data)).toEqual({
       items: [{ ...tenant('c'), cell: 'us-1' }],
       unavailableCells: ['eu-1'],
     });
@@ -3921,5 +3921,49 @@ describe('paged collections', () => {
   it('flattens the items of every page', () => {
     expect(pagedItems({ pages: [{ items: [1, 2] }, { items: [3] }] })).toEqual([1, 2, 3]);
     expect(pagedItems(undefined)).toEqual([]);
+  });
+});
+
+describe('tenant pages', () => {
+  const tenant = (tenantId: string) => ({ tenantId, teamId: 'acme' });
+  const cellStore = () =>
+    createAppStore({ config: { runtime: { ...runtime, cells: ['eu-1', 'us-1'] } } });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  it('asks every cell for its first page and only the cells with a cursor for the next', async () => {
+    const calls: string[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = (input as Request).url;
+        calls.push(url);
+        if (url.includes('/cells/eu-1/')) {
+          return url.includes('cursor=t1')
+            ? jsonResponse({ items: [tenant('b')] })
+            : jsonResponse({ items: [tenant('a')], continuationToken: 't1' });
+        }
+        return jsonResponse({ items: [tenant('c')] });
+      }),
+    );
+    const store = cellStore();
+    const arg = { teamId: 'acme' };
+
+    const first = await store.dispatch(managementApi.endpoints.listTenants.initiate(arg));
+    const next = await store.dispatch(
+      managementApi.endpoints.listTenants.initiate(arg, { direction: 'forward' }),
+    );
+
+    expect([...calls].sort()).toEqual([
+      'https://api.test/cells/eu-1/api/teams/acme/tenants',
+      'https://api.test/cells/eu-1/api/teams/acme/tenants?cursor=t1',
+      'https://api.test/cells/us-1/api/teams/acme/tenants',
+    ]);
+    expect(first.hasNextPage).toBe(true);
+    expect(next.hasNextPage).toBe(false);
+    expect(pagedTenants(next.data).items.map((t) => t.tenantId)).toEqual(['a', 'c', 'b']);
   });
 });

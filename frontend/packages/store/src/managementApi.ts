@@ -126,36 +126,62 @@ export type CellTenantsResource = {
   readonly unavailableCells: readonly string[];
 };
 
+/**
+ * One page of the tenants of every cell. `cursors` maps each answering cell that has more tenants to its cursor, keyed
+ * `''` for the control plane when no cell is named; it is empty on the last page.
+ */
+export type CellTenantsPage = CellTenantsResource & {
+  readonly cursors: Readonly<Record<string, string>>;
+};
+
 /** The answer of one call of a query: its data or its error. */
 type CellQueryResult = { data?: unknown; error?: FetchBaseQueryError | undefined };
 
+/** The key of the control plane's cursor when no cell is named. */
+const CONTROL_PLANE_CURSOR = '';
+
 /**
- * Lists the tenants at `url` in every cell the console forwards to and merges them, each tagged with its cell. A cell
- * that fails is reported as unavailable. With no named cell the control plane answers alone, and its failure fails the
- * query.
+ * Lists one page of the tenants at `url` in every cell the console forwards to and merges them, each tagged with its
+ * cell. `cursors` is empty for the first page, which asks every cell; otherwise only the cells it names are asked, each
+ * with its cursor. A cell that fails is reported as unavailable. With no named cell the control plane answers alone,
+ * and its failure fails the query.
  */
 async function listTenantsInEveryCell(
   cells: readonly string[],
   url: string,
+  cursors: Readonly<Record<string, string>>,
   fetchWithBQ: (args: CellFetchArgs) => CellQueryResult | PromiseLike<CellQueryResult>,
 ): Promise<
-  | { data: CellTenantsResource; error?: undefined }
-  | { error: FetchBaseQueryError; data?: undefined }
+  { data: CellTenantsPage; error?: undefined } | { error: FetchBaseQueryError; data?: undefined }
 > {
+  const firstPage = Object.keys(cursors).length === 0;
+  const pageRequest = (cell: string, key: string): CellFetchArgs => ({
+    ...withParams(url, firstPage ? {} : { cursor: cursors[key] ?? '' }),
+    ...(cell ? { cell } : {}),
+  });
+
   if (cells.length === 0) {
-    const result = await fetchWithBQ({ url });
+    const result = await fetchWithBQ(pageRequest('', CONTROL_PLANE_CURSOR));
     if (result.error) {
       return { error: result.error };
     }
-    const { items } = result.data as CollectionResource<TenantResource>;
-    return { data: { items, unavailableCells: [] } };
+    const { items, continuationToken } = result.data as CollectionResource<TenantResource>;
+    return {
+      data: {
+        items,
+        unavailableCells: [],
+        cursors: continuationToken ? { [CONTROL_PLANE_CURSOR]: continuationToken } : {},
+      },
+    };
   }
 
+  const asked = firstPage ? cells : cells.filter((cell) => cell in cursors);
   const results = await Promise.all(
-    cells.map(async (cell) => ({ cell, result: await fetchWithBQ({ url, cell }) })),
+    asked.map(async (cell) => ({ cell, result: await fetchWithBQ(pageRequest(cell, cell)) })),
   );
   const items: CellTenantResource[] = [];
   const unavailableCells: string[] = [];
+  const nextCursors: Record<string, string> = {};
   for (const { cell, result } of results) {
     if (result.error) {
       unavailableCells.push(cell);
@@ -163,9 +189,20 @@ async function listTenantsInEveryCell(
     }
     const collection = result.data as CollectionResource<TenantResource>;
     items.push(...collection.items.map((tenant) => ({ ...tenant, cell })));
+    if (collection.continuationToken) {
+      nextCursors[cell] = collection.continuationToken;
+    }
   }
-  return { data: { items, unavailableCells } };
+  return { data: { items, unavailableCells, cursors: nextCursors } };
 }
+
+/** The tenants of every page read so far and the distinct cells that failed to answer a page. */
+export const pagedTenants = (
+  data: { readonly pages: readonly CellTenantsPage[] } | undefined,
+): CellTenantsResource => ({
+  items: data?.pages.flatMap((page) => page.items) ?? [],
+  unavailableCells: [...new Set(data?.pages.flatMap((page) => page.unavailableCells) ?? [])],
+});
 
 /** The names of the cells the console forwards to, from the loaded runtime configuration. */
 const runtimeCells = (api: { getState: () => unknown }): readonly string[] => {
@@ -252,8 +289,19 @@ export const managementApi = createApi({
     }),
     // The caller's tenants in every cell, merged (see listTenantsInEveryCell).
     listCallerTenants: build.query<CellTenantsResource, void>({
-      queryFn: (_arg, api, _extraOptions, fetchWithBQ) =>
-        listTenantsInEveryCell(runtimeCells(api), 'api/me/tenants', fetchWithBQ),
+      queryFn: async (_arg, api, _extraOptions, fetchWithBQ) => {
+        const result = await listTenantsInEveryCell(
+          runtimeCells(api),
+          'api/me/tenants',
+          {},
+          fetchWithBQ,
+        );
+        if (result.error) {
+          return { error: result.error };
+        }
+        const { items, unavailableCells } = result.data;
+        return { data: { items, unavailableCells } };
+      },
       providesTags: [{ type: 'Caller', id: callerTag }],
     }),
     listCells: build.query<CellResource[], void>({
@@ -353,18 +401,28 @@ export const managementApi = createApi({
       },
       keepUnusedDataFor: 0,
     }),
-    // The tenants of one team in every cell, merged (see listTenantsInEveryCell); each tenant's own tag lives in the
-    // platform scope, where its id is unique.
-    listTenants: build.query<CellTenantsResource, { teamId: string }>({
-      queryFn: ({ teamId }, api, _extraOptions, fetchWithBQ) =>
+    // The tenants of one team in every cell, merged a page at a time (see listTenantsInEveryCell); each tenant's own
+    // tag lives in the platform scope, where its id is unique.
+    listTenants: build.infiniteQuery<
+      CellTenantsPage,
+      { teamId: string },
+      Readonly<Record<string, string>>
+    >({
+      infiniteQueryOptions: {
+        initialPageParam: {},
+        getNextPageParam: (page) =>
+          Object.keys(page.cursors).length > 0 ? page.cursors : undefined,
+      },
+      queryFn: ({ queryArg: { teamId }, pageParam }, api, _extraOptions, fetchWithBQ) =>
         listTenantsInEveryCell(
           runtimeCells(api),
           `api/teams/${encodeURIComponent(teamId)}/tenants`,
+          pageParam,
           fetchWithBQ,
         ),
       providesTags: (result, _error, { teamId }) => [
         { type: 'Tenant' as const, id: teamTag(teamId, LIST_TAG) },
-        ...(result?.items ?? []).map((t) => ({
+        ...pagedTenants(result).items.map((t) => ({
           type: 'Tenant' as const,
           id: platformTag(t.tenantId),
         })),
@@ -1270,7 +1328,7 @@ export const {
   useGetCallerQuery,
   useListCallerTeamsQuery,
   useListCallerTenantsQuery,
-  useListTenantsQuery,
+  useListTenantsInfiniteQuery,
   useGetTenantQuery,
   useGetTenantAddressQuery,
   useLazyGetTenantConfigurationQuery,

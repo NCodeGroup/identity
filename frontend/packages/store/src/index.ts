@@ -29,7 +29,7 @@ export {
   useListTeamsInfiniteQuery,
   useGetTeamQuery,
   useGetTeamUsageQuery,
-  useListTenantsQuery,
+  useListTenantsInfiniteQuery,
   useCreateTeamMutation,
   useUpdateTeamMutation,
   useDeleteTeamMutation,
@@ -91,6 +91,7 @@ export {
   useListChildTeamsInfiniteQuery,
   useCreateChildTeamMutation,
   pagedItems,
+  pagedTenants,
   type CellTenantResource,
   type LocalAccountOwner,
 } from './managementApi.js';
