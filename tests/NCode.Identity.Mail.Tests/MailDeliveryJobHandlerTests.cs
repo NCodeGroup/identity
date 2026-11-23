@@ -123,5 +123,27 @@ public class MailDeliveryJobHandlerTests : BaseTests
         Assert.DoesNotContain(BodyText, record.Message);
     }
 
+    [Fact]
+    public async Task HandleAsync_WhenTheCallerCancels_PropagatesWithoutCountingOrLogging()
+    {
+        using var cancellationTokenSource = new CancellationTokenSource();
+        var cancellationToken = cancellationTokenSource.Token;
+        await cancellationTokenSource.CancelAsync();
+
+        var cancellation = new OperationCanceledException(cancellationToken);
+        MockTransport
+            .Setup(x => x.DeliverAsync(Message, cancellationToken))
+            .Throws(cancellation)
+            .Verifiable();
+
+        var thrown = await Assert.ThrowsAsync<OperationCanceledException>(async () =>
+            await Handler.HandleAsync(Job, Context, cancellationToken)
+        );
+
+        Assert.Same(cancellation, thrown);
+        Assert.Empty(MessagesCollector.GetMeasurementSnapshot());
+        Assert.Empty(Logger.Collector.GetSnapshot());
+    }
+
     #endregion
 }

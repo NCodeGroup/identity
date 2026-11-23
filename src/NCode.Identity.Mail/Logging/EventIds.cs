@@ -14,5 +14,8 @@ internal static class EventIds
 {
     private const int Base = 32000;
 
+    /// <summary>
+    /// Identifies the warning that an attempt to deliver a mail message failed.
+    /// </summary>
     public const int MailDeliveryFailed = Base + 1;
 }
