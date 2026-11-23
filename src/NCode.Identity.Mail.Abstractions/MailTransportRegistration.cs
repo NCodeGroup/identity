@@ -6,26 +6,24 @@ using JetBrains.Annotations;
 namespace NCode.Identity.Mail;
 
 /// <summary>
-/// Marks that a mail transport is registered, so that a host registers only one.
+/// Marks that a mail transport is registered, so that a host registers only one. A name that is null or empty is
+/// refused.
 /// </summary>
+/// <param name="name">
+/// The name of the transport, such as the name of its configuration section, which must not be empty.
+/// </param>
 // See ADR-1532.
 [PublicAPI]
-public sealed class MailTransportRegistration
+public sealed class MailTransportRegistration(string name)
 {
-    /// <summary>
-    /// Initializes a new instance of the <see cref="MailTransportRegistration"/> class.
-    /// </summary>
-    /// <param name="name">The name of the transport, such as the name of its configuration section.</param>
-    /// <exception cref="ArgumentException">Thrown when <paramref name="name"/> is empty.</exception>
-    public MailTransportRegistration(string name)
-    {
-        ArgumentException.ThrowIfNullOrEmpty(name);
-
-        Name = name;
-    }
-
     /// <summary>
     /// Gets the name of the transport.
     /// </summary>
-    public string Name { get; }
+    public string Name { get; } =
+        string.IsNullOrEmpty(name)
+            ? throw new ArgumentException(
+                "The name of the transport must not be empty.",
+                nameof(name)
+            )
+            : name;
 }
