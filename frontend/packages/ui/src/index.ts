@@ -12,6 +12,7 @@ export { TenantCard, type TenantCardProps } from './components/TenantCard.js';
 export { HazardBand, type HazardBandProps } from './components/HazardBand.js';
 export { ScopeBadge, type ScopeBadgeProps, type ScopeKind } from './components/ScopeBadge.js';
 export { DataStateBoundary, type DataStateBoundaryProps } from './components/DataStateBoundary.js';
+export { LoadMoreButton, type LoadMoreButtonProps } from './components/LoadMoreButton.js';
 export {
   UnavailableCellsAlert,
   type UnavailableCellsAlertProps,
