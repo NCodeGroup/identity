@@ -126,6 +126,7 @@ export const es: Messages = {
     passwordRefused: 'Elija otra contraseña: esta no cumple los requisitos.',
     noEmail: 'Esta cuenta no tiene dirección de correo.',
     alreadyVerified: 'Su dirección de correo ya está verificada.',
+    missingFields: 'Complete todos los campos.',
     fallback: 'Algo salió mal. Inténtelo de nuevo.',
   },
   email: {

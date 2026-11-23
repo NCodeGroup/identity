@@ -132,6 +132,7 @@ export type Messages = {
     readonly passwordRefused: string;
     readonly noEmail: string;
     readonly alreadyVerified: string;
+    readonly missingFields: string;
     readonly fallback: string;
   };
   readonly email: {

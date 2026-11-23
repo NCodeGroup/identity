@@ -127,6 +127,7 @@ export const de: Messages = {
     passwordRefused: 'Wählen Sie ein anderes Passwort: Dieses erfüllt die Anforderungen nicht.',
     noEmail: 'Dieses Konto hat keine E-Mail-Adresse.',
     alreadyVerified: 'Ihre E-Mail-Adresse ist bereits bestätigt.',
+    missingFields: 'Füllen Sie alle Felder aus.',
     fallback: 'Etwas ist schiefgelaufen. Bitte versuchen Sie es erneut.',
   },
   email: {

@@ -241,7 +241,7 @@ export function describeEmailCodeError(error: string | null, messages: Messages)
     case 'already_verified':
       return messages.emailCodeErrors.alreadyVerified;
     case 'invalid_request':
-      return messages.loginErrors.invalidRequest;
+      return messages.emailCodeErrors.missingFields;
     case 'password_too_short':
     case 'password_too_long':
     case 'password_blocklisted':

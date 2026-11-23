@@ -125,6 +125,7 @@ export const en: Messages = {
     passwordRefused: 'Choose a different password: this one does not meet the requirements.',
     noEmail: 'This account has no email address.',
     alreadyVerified: 'Your email address is already verified.',
+    missingFields: 'Fill in every field.',
     fallback: 'Something went wrong. Please try again.',
   },
   email: {

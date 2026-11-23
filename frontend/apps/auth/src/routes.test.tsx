@@ -116,7 +116,7 @@ describe('resolveRoute', () => {
       pathname: '/account/password/forgot',
       errorCode: 'invalid_request',
     });
-    expect(screen.getByRole('alert')).toHaveTextContent(en.loginErrors.invalidRequest);
+    expect(screen.getByRole('alert')).toHaveTextContent(en.emailCodeErrors.missingFields);
   });
 
   it('renders the reset-password surface for the reset-password path, carrying the flow', () => {

@@ -243,7 +243,7 @@ describe('describeEmailCodeError', () => {
   });
 
   it('maps a missing field to the login message for it', () => {
-    expect(describeEmailCodeError('invalid_request', en)).toBe(en.loginErrors.invalidRequest);
+    expect(describeEmailCodeError('invalid_request', en)).toBe(en.emailCodeErrors.missingFields);
   });
 
   it('maps the password policy codes through the change-password messages', () => {
