@@ -151,6 +151,8 @@ jobs:
           refuse --set mail.smtp.host=smtp.example.com --set mail.smtp.from=a@example.com --set mail.amazonSes.region=us-east-1 --set mail.amazonSes.from=a@example.com
           refuse --set mail.amazonSes.from=a@example.com
           refuse --set mail.amazonSes.region=US-EAST --set mail.amazonSes.from=a@example.com
+          # A tag's name becomes part of an environment variable's name, which Kubernetes 1.30 and 1.31 refuse with an '@'.
+          refuse --set mail.amazonSes.region=us-east-1 --set mail.amazonSes.from=a@example.com --set 'mail.amazonSes.tags.team@x=y'
           # The setup Job reads the root administrator from a Secret, and a setup token Secret needs the key to read.
           refuse --set setup.job.enabled=true
           refuse --set setup.token.existingSecret=s --set setup.token.key=
