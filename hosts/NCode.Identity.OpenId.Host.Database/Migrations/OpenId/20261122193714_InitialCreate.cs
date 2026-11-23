@@ -354,6 +354,7 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                     LocalAccountId = table.Column<string>(type: "character varying(300)", unicode: false, maxLength: 300, nullable: false),
                     NormalizedLocalAccountId = table.Column<string>(type: "character varying(300)", unicode: false, maxLength: 300, nullable: false),
                     UserName = table.Column<string>(type: "character varying(300)", unicode: false, maxLength: 300, nullable: false),
+                    DisplayName = table.Column<string>(type: "character varying(300)", maxLength: 300, nullable: false),
                     NormalizedUserName = table.Column<string>(type: "character varying(300)", unicode: false, maxLength: 300, nullable: false),
                     Email = table.Column<string>(type: "character varying(300)", maxLength: 300, nullable: true),
                     NormalizedEmail = table.Column<string>(type: "character varying(300)", unicode: false, maxLength: 300, nullable: true),

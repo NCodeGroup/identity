@@ -240,10 +240,21 @@ describe('fetchConsoleKeySet', () => {
 });
 
 describe('createRoot', () => {
-  const request = { token: 't0ken', userName: 'root', email: 'root@example.test', password: 'pw' };
+  const request = {
+    token: 't0ken',
+    displayName: 'Root Admin',
+    userName: 'root',
+    email: 'root@example.test',
+    password: 'pw',
+  };
 
   it('posts the request as JSON to the relative root endpoint and returns the created root', async () => {
-    const created = { tenantId: 'tenant', principalId: 'principal', userName: 'root' };
+    const created = {
+      tenantId: 'tenant',
+      principalId: 'principal',
+      displayName: 'Root Admin',
+      userName: 'root',
+    };
     const fetchMock = stubFetch(json(201, created));
 
     const result = await createRoot(request);
@@ -268,6 +279,7 @@ describe('createRoot', () => {
     const created = {
       tenantId: 'tenant',
       principalId: 'principal',
+      displayName: 'Root Admin',
       userName: 'root',
       managementConsoleClientId: 'mgmt-console',
     };

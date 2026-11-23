@@ -97,6 +97,7 @@ public sealed class AspNetIdentityLocalAccountStoreEntityFrameworkTests : IAsync
             TenantId = string.Empty,
             LocalAccountId = LocalAccountId,
             UserName = UserName,
+            DisplayName = "Alice Example",
             Email = "alice@example.com",
             EmailVerified = true,
             IsEnabled = isEnabled,

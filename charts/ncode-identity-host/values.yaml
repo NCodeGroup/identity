@@ -401,6 +401,8 @@ setup:
     userNameKey: userName
     # The key of the root administrator's email address in existingSecret. The key may be absent from the Secret.
     emailKey: email
+    # The key of the root administrator's display name in existingSecret. The key may be absent from the Secret.
+    displayNameKey: displayName
     # The key of the root administrator's password in existingSecret.
     passwordKey: password
     backoffLimit: 2

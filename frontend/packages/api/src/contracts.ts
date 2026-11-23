@@ -350,6 +350,48 @@ export type UpdateClientFields = {
   readonly isDisabled: boolean;
 };
 
+/**
+ * Mirror of `LocalAccountResource`. `principalId` is the account's principal, which role assignments name, or `null`
+ * when it has none.
+ */
+export type LocalAccountResource = {
+  readonly tenantId: string;
+  readonly localAccountId: string;
+  readonly principalId: string | null;
+  readonly userName: string;
+  readonly displayName: string;
+  readonly email: string | null;
+  readonly emailVerified: boolean;
+  readonly isEnabled: boolean;
+  readonly concurrencyToken: string;
+};
+
+/** Mirror of `CreateLocalAccountRequest`. */
+export type CreateLocalAccountRequest = {
+  readonly userName: string;
+  readonly displayName?: string;
+  readonly password: string;
+  readonly email?: string;
+  readonly emailVerified?: boolean;
+  readonly isEnabled?: boolean;
+};
+
+/**
+ * The mutable local-account fields a JSON Patch may modify. The store turns this into a `replace`-only JSON Patch
+ * document; keys match the server's wire property names.
+ */
+export type UpdateLocalAccountFields = {
+  readonly displayName: string;
+  readonly userName: string;
+  readonly email: string | null;
+  readonly emailVerified: boolean;
+};
+
+/** Mirror of `ResetLocalAccountPasswordRequest`. */
+export type ResetLocalAccountPasswordRequest = {
+  readonly password: string;
+};
+
 /** Mirror of `ScopeResource` — a scope (a permission, in Auth0 terms) owned by a resource server. */
 export type ScopeResource = {
   readonly value: string;

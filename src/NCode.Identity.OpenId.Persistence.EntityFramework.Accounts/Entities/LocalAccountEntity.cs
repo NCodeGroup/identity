@@ -44,6 +44,9 @@ internal sealed class LocalAccountEntity : ISupportTenantEntity, ISupportConcurr
     [MaxLength(AccountMaxLengths.UserName)]
     public required string UserName { get; set; }
 
+    [MaxLength(AccountMaxLengths.DisplayName)]
+    public required string DisplayName { get; set; }
+
     [Unicode(false)]
     [MaxLength(AccountMaxLengths.UserName)]
     public required string NormalizedUserName { get; set; }

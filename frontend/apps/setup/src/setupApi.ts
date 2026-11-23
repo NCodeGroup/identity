@@ -18,6 +18,7 @@ export interface ManagementConsoleRegistration {
 /** The body of `POST ./api/root`. */
 export interface CreateRootRequest {
   readonly token: string;
+  readonly displayName: string;
   readonly userName: string;
   readonly email?: string;
   readonly password: string;
@@ -28,6 +29,7 @@ export interface CreateRootRequest {
 export interface CreatedRoot {
   readonly tenantId: string;
   readonly principalId: string;
+  readonly displayName: string;
   readonly userName: string;
   /** The `client_id` of the management console's client the instance registered, when the request asked for one. */
   readonly managementConsoleClientId?: string;

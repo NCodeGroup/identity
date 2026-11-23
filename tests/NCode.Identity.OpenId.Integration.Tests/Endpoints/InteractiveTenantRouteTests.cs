@@ -740,6 +740,7 @@ public class InteractiveTenantRouteTests
                     TenantId = tenantId,
                     LocalAccountId = Guid.NewGuid().ToString("N"),
                     UserName = UserName,
+                    DisplayName = UserName,
                     Email = null,
                     EmailVerified = false,
                     IsEnabled = true,

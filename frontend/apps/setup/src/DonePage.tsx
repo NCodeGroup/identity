@@ -34,7 +34,7 @@ export const FIRST_INSTANCE_DOCS_URL =
  * The last page of the setup wizard: it confirms the root administrator and lists the configuration that remains.
  */
 export function DonePage({ root, tokenSource }: DonePageProps) {
-  const { userName, tenantId, managementConsoleClientId } = root;
+  const { displayName, userName, tenantId, managementConsoleClientId } = root;
   const [copiedLabel, setCopiedLabel] = useState<string | undefined>(undefined);
 
   async function copy({ label, url }: Address): Promise<void> {
@@ -51,6 +51,13 @@ export function DonePage({ root, tokenSource }: DonePageProps) {
       <Typography variant="h5" component="h1">
         The instance is set up
       </Typography>
+
+      <Stack>
+        <Typography variant="caption" color="text.secondary">
+          Display name
+        </Typography>
+        <Typography>{displayName}</Typography>
+      </Stack>
 
       <Typography>
         The root administrator <strong>{userName}</strong> exists in the tenant{' '}

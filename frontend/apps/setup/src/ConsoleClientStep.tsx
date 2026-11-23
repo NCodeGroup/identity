@@ -177,6 +177,7 @@ export function ConsoleClientStep({
     setSubmitting(true);
     const result = await createRoot({
       token,
+      displayName: account.displayName,
       userName: account.userName,
       ...(account.email ? { email: account.email } : {}),
       password: account.password,

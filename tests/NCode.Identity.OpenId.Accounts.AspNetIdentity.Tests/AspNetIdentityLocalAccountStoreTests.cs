@@ -176,6 +176,7 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
             TenantId = string.Empty,
             LocalAccountId = LocalAccountId,
             UserName = UserName,
+            DisplayName = "Alice Example",
             Email = "alice@example.com",
             EmailVerified = true,
             IsEnabled = isEnabled,
@@ -864,6 +865,23 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
     }
 
     [Fact]
+    public async Task AddAsync_StoresTheDisplayNameOnTheUser()
+    {
+        var (store, userManager) = CreateStore();
+        TestTenantUser? created = null;
+        userManager
+            .Setup(x => x.CreateAsync(It.IsAny<TestTenantUser>()))
+            .Callback<TestTenantUser>(user => created = user)
+            .ReturnsAsync(IdentityResult.Success)
+            .Verifiable();
+
+        await store.AddAsync(CreateAccount(), password: null, CancellationToken.None);
+
+        Assert.NotNull(created);
+        Assert.Equal("Alice Example", created.DisplayName);
+    }
+
+    [Fact]
     public async Task AddAsync_WhenDisabled_LocksOutUser()
     {
         var (store, userManager) = CreateStore();
@@ -994,6 +1012,35 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
 
         // Confirmation is applied after SetEmailAsync (which resets it).
         Assert.True(user.EmailConfirmed);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_StoresTheDisplayNameOnTheUser()
+    {
+        var (store, userManager) = CreateStore();
+        var user = CreateUser();
+        SetupUsers(userManager, user);
+        userManager
+            .Setup(x => x.SetUserNameAsync(user, UserName))
+            .ReturnsAsync(IdentityResult.Success)
+            .Verifiable();
+        userManager
+            .Setup(x => x.SetEmailAsync(user, "alice@example.com"))
+            .ReturnsAsync(IdentityResult.Success)
+            .Verifiable();
+        userManager.SetupGet(x => x.SupportsUserLockout).Returns(true).Verifiable();
+        userManager
+            .Setup(x => x.SetLockoutEndDateAsync(user, null))
+            .ReturnsAsync(IdentityResult.Success)
+            .Verifiable();
+        userManager
+            .Setup(x => x.UpdateAsync(user))
+            .ReturnsAsync(IdentityResult.Success)
+            .Verifiable();
+
+        await store.UpdateAsync(CreateAccount(), CancellationToken.None);
+
+        Assert.Equal("Alice Example", user.DisplayName);
     }
 
     [Fact]
@@ -1176,6 +1223,7 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
         {
             LocalAccountId = LocalAccountId,
             UserName = UserName,
+            DisplayName = "Alice Example",
             NormalizedUserName = UserName,
             Email = null,
             NormalizedEmail = null,
@@ -1210,6 +1258,7 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
         {
             LocalAccountId = LocalAccountId,
             UserName = UserName,
+            DisplayName = "Alice Example",
             NormalizedUserName = UserName,
             Email = null,
             NormalizedEmail = null,
@@ -1248,6 +1297,7 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
         {
             LocalAccountId = LocalAccountId,
             UserName = UserName,
+            DisplayName = "Alice Example",
             NormalizedUserName = UserName,
             Email = null,
             NormalizedEmail = null,

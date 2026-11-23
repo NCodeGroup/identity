@@ -199,6 +199,7 @@ internal sealed class SetupApiHandler(
             Root = new SetupRootOptions
             {
                 UserName = request.UserName,
+                DisplayName = request.DisplayName,
                 Email = request.Email,
                 Password = request.Password,
             },

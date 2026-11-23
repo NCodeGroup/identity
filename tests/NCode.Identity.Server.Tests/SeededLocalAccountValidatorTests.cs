@@ -43,6 +43,7 @@ public class SeededLocalAccountValidatorTests : BaseTests
             TenantId = TenantId,
             LocalAccountId = "account-1",
             UserName = "admin",
+            DisplayName = "admin",
             Email = "admin@localhost",
             EmailVerified = true,
             IsEnabled = true,
