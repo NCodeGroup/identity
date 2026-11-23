@@ -4,7 +4,10 @@
 using System.Text.Json;
 using NCode.Identity.OpenId.Accounts.DataContracts;
 using NCode.Identity.OpenId.Accounts.Stores;
+using NCode.Identity.OpenId.Connections;
 using NCode.Identity.OpenId.Management.Transfers;
+using NCode.Identity.OpenId.Persistence.DataContracts;
+using NCode.Identity.OpenId.Persistence.Stores;
 using NCode.Identity.OpenId.Persistence.Tenants;
 using NCode.Identity.Persistence.Stores;
 
@@ -14,25 +17,40 @@ namespace NCode.Identity.OpenId.Accounts.Management.Transfers;
 public sealed class LocalAccountTenantTransferContributorTests : IDisposable
 {
     private const string TenantId = "tenant-1";
+    private const string FirstConnectionId = "connection-1";
+    private const string SecondConnectionId = "connection-2";
+    private const string OtherStrategyConnectionId = "connection-3";
 
     private MockRepository MockRepository { get; } = new(MockBehavior.Strict);
     private Mock<IStoreManagerFactory> MockStoreManagerFactory { get; }
     private Mock<IStoreManager> MockStoreManager { get; }
+    private Mock<IConnectionStore> MockConnectionStore { get; }
     private Mock<ILocalAccountTransferStore> MockTransferStore { get; }
     private Mock<IAmbientTenantAccessor> MockAmbientTenantAccessor { get; }
+    private LocalAccountStoreCatalog Catalog { get; }
 
     public LocalAccountTenantTransferContributorTests()
     {
         MockStoreManagerFactory = MockRepository.Create<IStoreManagerFactory>();
         MockStoreManager = MockRepository.Create<IStoreManager>();
+        MockConnectionStore = MockRepository.Create<IConnectionStore>();
         MockTransferStore = MockRepository.Create<ILocalAccountTransferStore>();
         MockAmbientTenantAccessor = MockRepository.Create<IAmbientTenantAccessor>();
+
+        Catalog = new LocalAccountStoreCatalog([
+            new LocalAccountStoreRegistration
+            {
+                Name = "default",
+                CreateStore = _ => MockRepository.Create<ILocalAccountStore>().Object,
+                CreateTransferStore = _ => MockTransferStore.Object,
+            },
+        ]);
     }
 
     public void Dispose() => MockRepository.Verify();
 
     private LocalAccountTenantTransferContributor CreateContributor() =>
-        new(MockStoreManagerFactory.Object, MockAmbientTenantAccessor.Object);
+        new(MockStoreManagerFactory.Object, MockAmbientTenantAccessor.Object, Catalog);
 
     #region Helpers
 
@@ -44,8 +62,8 @@ public sealed class LocalAccountTenantTransferContributorTests : IDisposable
             .Verifiable();
         MockStoreManager.Setup(x => x.DisposeAsync()).Returns(ValueTask.CompletedTask).Verifiable();
         MockStoreManager
-            .Setup(x => x.GetStore<ILocalAccountTransferStore>())
-            .Returns(MockTransferStore.Object)
+            .Setup(x => x.GetStore<IConnectionStore>())
+            .Returns(MockConnectionStore.Object)
             .Verifiable();
 
         var scope = MockRepository.Create<IDisposable>();
@@ -63,6 +81,43 @@ public sealed class LocalAccountTenantTransferContributorTests : IDisposable
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
     }
+
+    private void SetupAllConnections(params PersistedConnection[] connections)
+    {
+        MockConnectionStore
+            .Setup(x => x.GetAllAsync(CancellationToken.None))
+            .ReturnsAsync(connections)
+            .Verifiable();
+    }
+
+    private void SetupConnection(PersistedConnection connection)
+    {
+        MockConnectionStore
+            .Setup(x => x.GetOrDefaultAsync(connection.ConnectionId, CancellationToken.None))
+            .ReturnsAsync(connection)
+            .Verifiable();
+    }
+
+    private static PersistedConnection CreateConnection(
+        string connectionId,
+        string strategy = ConnectionStrategyNames.Local
+    ) =>
+        new()
+        {
+            TenantId = TenantId,
+            ConnectionId = connectionId,
+            Name = connectionId,
+            Strategy = strategy,
+            DisplayName = "Username and password",
+            IsEnabled = true,
+            Options = JsonSerializer.SerializeToElement(new { store = "default" }),
+            Settings = new PersistedConnectionSettings
+            {
+                TenantId = TenantId,
+                ConnectionId = connectionId,
+                Value = JsonSerializer.SerializeToElement(new { }),
+            },
+        };
 
     private static LocalAccountTransferRecord CreateRecord(
         string localAccountId,
@@ -113,40 +168,69 @@ public sealed class LocalAccountTenantTransferContributorTests : IDisposable
     #region ExportAsync Tests
 
     [Fact]
-    public async Task ExportAsync_WhenTheTenantHasAccounts_WritesTheStoreRecords()
+    public async Task ExportAsync_WhenTheTenantHasAccounts_WritesTheStoreRecordsByConnection()
     {
         SetupStoreManager();
+        SetupAllConnections(
+            CreateConnection(FirstConnectionId),
+            CreateConnection(SecondConnectionId)
+        );
         MockTransferStore
-            .Setup(x => x.ExportAsync(CancellationToken.None))
+            .Setup(x => x.ExportAsync(FirstConnectionId, CancellationToken.None))
             .ReturnsAsync([CreateRecord("account-1", "alice", "hash-1")])
+            .Verifiable();
+        MockTransferStore
+            .Setup(x => x.ExportAsync(SecondConnectionId, CancellationToken.None))
+            .ReturnsAsync([CreateRecord("account-2", "bob", null)])
             .Verifiable();
 
         var section = await CreateContributor().ExportAsync(TenantId, CancellationToken.None);
 
         Assert.Equal("local-accounts", section.Name);
-        Assert.Equal(JsonValueKind.Array, section.Json.ValueKind);
+        Assert.Equal(JsonValueKind.Object, section.Json.ValueKind);
+        Assert.Equal(2, section.Json.EnumerateObject().Count());
 
-        var record = Assert.Single(section.Json.EnumerateArray());
-        Assert.Equal("account-1", record.GetProperty("localAccountId").GetString());
-        Assert.Equal("alice", record.GetProperty("userName").GetString());
-        Assert.Equal("hash-1", record.GetProperty("passwordHash").GetString());
-        Assert.Equal("stamp-account-1", record.GetProperty("securityStamp").GetString());
-        Assert.Equal("name", record.GetProperty("claims")[0].GetProperty("type").GetString());
+        var first = Assert.Single(section.Json.GetProperty(FirstConnectionId).EnumerateArray());
+        Assert.Equal("account-1", first.GetProperty("localAccountId").GetString());
+        Assert.Equal("alice", first.GetProperty("userName").GetString());
+        Assert.Equal("hash-1", first.GetProperty("passwordHash").GetString());
+        Assert.Equal("stamp-account-1", first.GetProperty("securityStamp").GetString());
+        Assert.Equal("name", first.GetProperty("claims")[0].GetProperty("type").GetString());
+
+        var second = Assert.Single(section.Json.GetProperty(SecondConnectionId).EnumerateArray());
+        Assert.Equal("account-2", second.GetProperty("localAccountId").GetString());
     }
 
     [Fact]
-    public async Task ExportAsync_WhenTheTenantHasNoAccounts_WritesAnEmptyArray()
+    public async Task ExportAsync_WhenAConnectionIsNotLocal_LeavesItOut()
     {
         SetupStoreManager();
+        SetupAllConnections(
+            CreateConnection(FirstConnectionId),
+            CreateConnection(OtherStrategyConnectionId, strategy: "other")
+        );
         MockTransferStore
-            .Setup(x => x.ExportAsync(CancellationToken.None))
+            .Setup(x => x.ExportAsync(FirstConnectionId, CancellationToken.None))
             .ReturnsAsync([])
             .Verifiable();
 
         var section = await CreateContributor().ExportAsync(TenantId, CancellationToken.None);
 
-        Assert.Equal(JsonValueKind.Array, section.Json.ValueKind);
-        Assert.Equal(0, section.Json.GetArrayLength());
+        var property = Assert.Single(section.Json.EnumerateObject());
+        Assert.Equal(FirstConnectionId, property.Name);
+        Assert.Equal(0, property.Value.GetArrayLength());
+    }
+
+    [Fact]
+    public async Task ExportAsync_WhenTheTenantHasNoConnections_WritesAnEmptyObject()
+    {
+        SetupStoreManager();
+        SetupAllConnections();
+
+        var section = await CreateContributor().ExportAsync(TenantId, CancellationToken.None);
+
+        Assert.Equal(JsonValueKind.Object, section.Json.ValueKind);
+        Assert.Empty(section.Json.EnumerateObject());
     }
 
     #endregion
@@ -158,40 +242,72 @@ public sealed class LocalAccountTenantTransferContributorTests : IDisposable
     {
         await Assert.ThrowsAsync<ArgumentException>(async () =>
             await CreateContributor()
-                .ImportAsync(TenantId, CreateSection("[]", "core"), CancellationToken.None)
+                .ImportAsync(TenantId, CreateSection("{}", "core"), CancellationToken.None)
         );
     }
 
     [Fact]
-    public async Task ImportAsync_WhenTheSectionIsNotAnArray_Throws()
+    public async Task ImportAsync_WhenTheSectionIsNotAnObject_Throws()
     {
         await Assert.ThrowsAsync<InvalidOperationException>(async () =>
             await CreateContributor()
-                .ImportAsync(TenantId, CreateSection("{}"), CancellationToken.None)
+                .ImportAsync(TenantId, CreateSection("[]"), CancellationToken.None)
         );
     }
 
     [Fact]
-    public async Task ImportAsync_WhenTheSectionHoldsRecords_WritesThemAndReturnsNoRemoteKeys()
+    public async Task ImportAsync_WhenTheSectionNamesAnUnknownConnection_Throws()
+    {
+        SetupStoreManager();
+        MockConnectionStore
+            .Setup(x => x.GetOrDefaultAsync("unknown", CancellationToken.None))
+            .ReturnsAsync((PersistedConnection?)null)
+            .Verifiable();
+
+        await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await CreateContributor()
+                .ImportAsync(TenantId, CreateSection("""{"unknown":[]}"""), CancellationToken.None)
+        );
+    }
+
+    [Fact]
+    public async Task ImportAsync_WhenTheSectionHoldsRecords_WritesThemPerConnectionAndReturnsNoRemoteKeys()
     {
         SetupStoreManager();
         SetupSaveChanges();
+        SetupConnection(CreateConnection(FirstConnectionId));
+        SetupConnection(CreateConnection(SecondConnectionId));
 
         var exported = new[]
         {
             CreateRecord("account-1", "alice", "hash-1"),
             CreateRecord("account-2", "bob", null),
         };
-        List<LocalAccountTransferRecord>? imported = null;
+        List<LocalAccountTransferRecord>? firstImported = null;
+        List<LocalAccountTransferRecord>? secondImported = null;
         MockTransferStore
             .Setup(x =>
                 x.ImportAsync(
+                    FirstConnectionId,
                     It.IsAny<IReadOnlyList<LocalAccountTransferRecord>>(),
                     CancellationToken.None
                 )
             )
-            .Callback<IReadOnlyList<LocalAccountTransferRecord>, CancellationToken>(
-                (records, _) => imported = [.. records]
+            .Callback<string, IReadOnlyList<LocalAccountTransferRecord>, CancellationToken>(
+                (_, records, _) => firstImported = [.. records]
+            )
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable();
+        MockTransferStore
+            .Setup(x =>
+                x.ImportAsync(
+                    SecondConnectionId,
+                    It.IsAny<IReadOnlyList<LocalAccountTransferRecord>>(),
+                    CancellationToken.None
+                )
+            )
+            .Callback<string, IReadOnlyList<LocalAccountTransferRecord>, CancellationToken>(
+                (_, records, _) => secondImported = [.. records]
             )
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
@@ -200,7 +316,11 @@ public sealed class LocalAccountTenantTransferContributorTests : IDisposable
         {
             Name = "local-accounts",
             Json = JsonSerializer.SerializeToElement(
-                exported,
+                new Dictionary<string, LocalAccountTransferRecord[]>
+                {
+                    [FirstConnectionId] = [exported[0]],
+                    [SecondConnectionId] = [exported[1]],
+                },
                 new JsonSerializerOptions(JsonSerializerDefaults.Web)
             ),
         };
@@ -209,10 +329,9 @@ public sealed class LocalAccountTenantTransferContributorTests : IDisposable
             .ImportAsync(TenantId, section, CancellationToken.None);
 
         Assert.Empty(result.RemoteKeys);
-        Assert.NotNull(imported);
-        Assert.Equal(2, imported.Count);
 
-        var first = imported[0];
+        Assert.NotNull(firstImported);
+        var first = Assert.Single(firstImported);
         Assert.Equal("account-1", first.LocalAccountId);
         Assert.Equal("ALICE", first.NormalizedUserName);
         Assert.Equal("hash-1", first.PasswordHash);
@@ -223,28 +342,20 @@ public sealed class LocalAccountTenantTransferContributorTests : IDisposable
         Assert.Equal("name", claim.Type);
         Assert.Equal("alice", claim.Value);
 
-        var second = imported[1];
+        Assert.NotNull(secondImported);
+        var second = Assert.Single(secondImported);
         Assert.Equal("account-2", second.LocalAccountId);
         Assert.Null(second.PasswordHash);
     }
 
     [Fact]
-    public async Task ImportAsync_WhenTheSectionHoldsNoRecords_WritesNothingAndReturnsNoRemoteKeys()
+    public async Task ImportAsync_WhenTheSectionHoldsNoConnections_WritesNothingAndReturnsNoRemoteKeys()
     {
         SetupStoreManager();
         SetupSaveChanges();
-        MockTransferStore
-            .Setup(x =>
-                x.ImportAsync(
-                    It.Is<IReadOnlyList<LocalAccountTransferRecord>>(records => records.Count == 0),
-                    CancellationToken.None
-                )
-            )
-            .Returns(ValueTask.CompletedTask)
-            .Verifiable();
 
         var result = await CreateContributor()
-            .ImportAsync(TenantId, CreateSection("[]"), CancellationToken.None);
+            .ImportAsync(TenantId, CreateSection("{}"), CancellationToken.None);
 
         Assert.Empty(result.RemoteKeys);
     }
@@ -257,29 +368,35 @@ public sealed class LocalAccountTenantTransferContributorTests : IDisposable
     public async Task ImportAsync_AfterExportAsync_CarriesTheRecordsUnchanged()
     {
         var record = CreateRecord("account-1", "alice", "hash-1");
+        var connection = CreateConnection(FirstConnectionId);
 
         SetupStoreManager();
+        SetupAllConnections(connection);
         MockTransferStore
-            .Setup(x => x.ExportAsync(CancellationToken.None))
+            .Setup(x => x.ExportAsync(FirstConnectionId, CancellationToken.None))
             .ReturnsAsync([record])
             .Verifiable();
         var section = await CreateContributor().ExportAsync(TenantId, CancellationToken.None);
 
         MockStoreManagerFactory.Reset();
         MockStoreManager.Reset();
+        MockConnectionStore.Reset();
+        MockTransferStore.Reset();
         MockAmbientTenantAccessor.Reset();
         SetupStoreManager();
         SetupSaveChanges();
+        SetupConnection(connection);
         LocalAccountTransferRecord? imported = null;
         MockTransferStore
             .Setup(x =>
                 x.ImportAsync(
+                    FirstConnectionId,
                     It.IsAny<IReadOnlyList<LocalAccountTransferRecord>>(),
                     CancellationToken.None
                 )
             )
-            .Callback<IReadOnlyList<LocalAccountTransferRecord>, CancellationToken>(
-                (records, _) => imported = Assert.Single(records)
+            .Callback<string, IReadOnlyList<LocalAccountTransferRecord>, CancellationToken>(
+                (_, records, _) => imported = Assert.Single(records)
             )
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
@@ -308,12 +425,21 @@ public sealed class LocalAccountTenantTransferContributorTests : IDisposable
     #region RemoveAsync Tests
 
     [Fact]
-    public async Task RemoveAsync_Always_RemovesEveryAccountOfTheTenantAndSaves()
+    public async Task RemoveAsync_Always_RemovesEveryAccountOfEveryLocalConnectionAndSaves()
     {
         SetupStoreManager();
         SetupSaveChanges();
+        SetupAllConnections(
+            CreateConnection(FirstConnectionId),
+            CreateConnection(SecondConnectionId),
+            CreateConnection(OtherStrategyConnectionId, strategy: "other")
+        );
         MockTransferStore
-            .Setup(x => x.RemoveAllAsync(CancellationToken.None))
+            .Setup(x => x.RemoveAllAsync(FirstConnectionId, CancellationToken.None))
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable();
+        MockTransferStore
+            .Setup(x => x.RemoveAllAsync(SecondConnectionId, CancellationToken.None))
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
 

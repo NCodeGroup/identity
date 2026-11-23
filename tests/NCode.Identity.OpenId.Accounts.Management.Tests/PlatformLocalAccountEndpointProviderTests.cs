@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Options;
 using NCode.Identity.Cryptography;
+using NCode.Identity.OpenId.Accounts.Stores;
 using NCode.Identity.OpenId.Authentication.Passwords;
 using NCode.Identity.OpenId.Authentication.Sessions;
 using NCode.Identity.OpenId.Authentication.Subject;
@@ -39,10 +40,12 @@ public sealed class PlatformLocalAccountEndpointProviderTests : IDisposable
             effectiveSettingsResolver,
             passwordPolicy
         );
+        var localAccountStoreCatalog = new LocalAccountStoreCatalog([]);
         var creator = new DefaultLocalAccountCreator(
             validator,
             cryptoService,
-            localAccountPasswords
+            localAccountPasswords,
+            localAccountStoreCatalog
         );
 
         var storeManagerFactory = MockRepository.Create<IStoreManagerFactory>().Object;
@@ -63,7 +66,8 @@ public sealed class PlatformLocalAccountEndpointProviderTests : IDisposable
             openIdContextFactory,
             localAccountPasswords,
             postCommitSecurityEffects,
-            ambientTenantAccessor
+            ambientTenantAccessor,
+            localAccountStoreCatalog
         );
 
         var cellOptions = new CellOptions { IsControlPlane = isControlPlane };
