@@ -25,6 +25,12 @@ internal sealed class AuditStreamStore(
     OpenIdDbContext openIdDbContext
 ) : CoreBaseStore<PersistedAuditStream, AuditStreamEntity>, IAuditStreamStore
 {
+    /// <summary>
+    /// The message of the concurrency exception that a stale write to a stream throws.
+    /// </summary>
+    private const string StreamConflictMessage =
+        "The audit stream has been modified by another process. Please reload and try again.";
+
     /// <inheritdoc />
     protected override IStoreProvider StoreProvider { get; } = storeProvider;
 
@@ -254,9 +260,7 @@ internal sealed class AuditStreamStore(
             )
         )
         {
-            throw new StoreConcurrencyException(
-                "The audit stream has been modified by another process. Please reload and try again."
-            );
+            throw new StoreConcurrencyException(StreamConflictMessage);
         }
 
         streamEntity.DisplayName = stream.DisplayName;
@@ -368,9 +372,11 @@ internal sealed class AuditStreamStore(
     {
         var normalizedTenantId = Normalize(state.TenantId);
         var streamId = state.StreamId;
+        // The tenant's unique normalized identifier, the stream's unique tenant and identifier, and the state's unique
+        // stream key each have an index, so the lookup seeks.
         var stateEntity = await DbContext
             .AuditStreamStates.Where(entity =>
-                entity.NormalizedTenantId == normalizedTenantId
+                entity.AuditStream.Tenant.NormalizedTenantId == normalizedTenantId
                 && entity.AuditStream.StreamId == streamId
             )
             .SingleOrDefaultAsync(cancellationToken);
@@ -494,9 +500,7 @@ internal sealed class AuditStreamStore(
             )
         )
         {
-            throw new StoreConcurrencyException(
-                "The audit stream has been modified by another process. Please reload and try again."
-            );
+            throw new StoreConcurrencyException(StreamConflictMessage);
         }
 
         var secretEntity = streamEntity.SigningSecrets.SingleOrDefault(secret =>

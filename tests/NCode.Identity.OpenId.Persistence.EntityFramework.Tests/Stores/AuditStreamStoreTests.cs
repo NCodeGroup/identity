@@ -515,6 +515,32 @@ public sealed class AuditStreamStoreTests : IDisposable
     }
 
     [Fact]
+    public async Task UpdateStateAsync_WithTheSameStreamIdInAnotherTenant_UpdatesOnlyThisTenantsState()
+    {
+        await AddAsync(CreateStream("stream-1", TenantA), CancellationToken.None);
+        await AddAsync(CreateStream("stream-1", TenantB), CancellationToken.None);
+        AmbientTenantAccessor.UseTenant(TenantA);
+
+        await UpdateStateAsync(
+            "stream-1",
+            state => state.ConsecutiveFailures = 3,
+            CancellationToken.None
+        );
+
+        var tenantAStream = await GetAsync("stream-1", CancellationToken.None);
+        AmbientTenantAccessor.UseTenant(TenantB);
+        var tenantBStream = await GetAsync("stream-1", CancellationToken.None);
+        Assert.Equal(
+            3,
+            Assert.IsType<PersistedAuditStreamState>(tenantAStream.State).ConsecutiveFailures
+        );
+        Assert.Equal(
+            0,
+            Assert.IsType<PersistedAuditStreamState>(tenantBStream.State).ConsecutiveFailures
+        );
+    }
+
+    [Fact]
     public async Task UpdateStateAsync_WithAStaleConcurrencyToken_Throws()
     {
         await AddAsync(CreateStream("stream-1"), CancellationToken.None);
