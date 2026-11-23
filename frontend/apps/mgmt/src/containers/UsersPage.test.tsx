@@ -120,6 +120,55 @@ describe('UsersPage (list states)', () => {
   });
 });
 
+describe('UsersPage (drill-in)', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('opens a user', async () => {
+    installFetch((url) => {
+      if (url.endsWith(listUrl)) {
+        return jsonResponse({ items: [ada] });
+      }
+      if (url.endsWith('/claims')) {
+        return jsonResponse({
+          tenantId: 'acme',
+          localAccountId: 'a1',
+          claims: [],
+          concurrencyToken: 'cl1',
+        });
+      }
+      if (url.endsWith('/metadata')) {
+        return jsonResponse({
+          tenantId: 'acme',
+          localAccountId: 'a1',
+          principalId: 'p1',
+          profileMetadata: null,
+          systemMetadata: null,
+          concurrencyToken: 'm1',
+        });
+      }
+      throw new Error(`Unexpected ${url}`);
+    });
+
+    renderPage();
+    fireEvent.click(await screen.findByTestId('local-account-row-a1'));
+
+    expect(await screen.findByTestId('local-account-detail-back')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Ada Lovelace' })).toBeInTheDocument();
+    expect(screen.queryByTestId('create-local-account')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId('local-account-detail-back'));
+
+    expect(await screen.findByTestId('local-account-row-a1')).toBeInTheDocument();
+    expect(screen.getByTestId('create-local-account')).toBeInTheDocument();
+  });
+});
+
 describe('UsersPage (paging)', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
