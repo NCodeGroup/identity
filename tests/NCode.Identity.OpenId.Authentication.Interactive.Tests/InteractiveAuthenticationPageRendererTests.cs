@@ -883,6 +883,35 @@ public class InteractiveAuthenticationPageRendererTests
 
     #endregion
 
+    #region Form Action Tests
+
+    // A page's <base href> names the surface, so a relative form action resolves against BasePath.
+    [Theory]
+    [InlineData(
+        InteractiveAuthenticationPageRenderer.ForgotPasswordFormAction,
+        InteractiveAuthenticationDefaults.PasswordForgotPath
+    )]
+    [InlineData(
+        InteractiveAuthenticationPageRenderer.ResetPasswordFormAction,
+        InteractiveAuthenticationDefaults.PasswordResetPath
+    )]
+    [InlineData(
+        InteractiveAuthenticationPageRenderer.SignInCodeFormAction,
+        InteractiveAuthenticationDefaults.LoginCodePath
+    )]
+    public void FormAction_Always_ResolvesAgainstTheBaseToItsRoute(string formAction, string route)
+    {
+        var baseUri = new Uri(
+            "https://op.example" + InteractiveAuthenticationDefaults.BasePath + "/"
+        );
+
+        var resolved = new Uri(baseUri, formAction);
+
+        Assert.Equal(route, resolved.AbsolutePath);
+    }
+
+    #endregion
+
     #region Locale Tests
 
     [Fact]
