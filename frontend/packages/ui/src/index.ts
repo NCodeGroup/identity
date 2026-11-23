@@ -44,6 +44,11 @@ export {
   type ResourceServerRow,
   type ResourceServerTableProps,
 } from './components/ResourceServerTable.js';
+export {
+  ConnectionTable,
+  type ConnectionRow,
+  type ConnectionTableProps,
+} from './components/ConnectionTable.js';
 export { ScopeTable, type ScopeRow, type ScopeTableProps } from './components/ScopeTable.js';
 export {
   RoleAssignmentTable,
@@ -121,6 +126,13 @@ export {
   type ResourceServerFormDialogProps,
   type ResourceServerFormValues,
 } from './components/ResourceServerFormDialog.js';
+export {
+  ConnectionFormDialog,
+  emptyConnectionFormValues,
+  isValidConnectionName,
+  type ConnectionFormDialogProps,
+  type ConnectionFormValues,
+} from './components/ConnectionFormDialog.js';
 export {
   ScopeFormDialog,
   emptyScopeFormValues,
