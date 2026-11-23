@@ -1,6 +1,7 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using System.Diagnostics.CodeAnalysis;
 using System.Security.Cryptography;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
@@ -10,6 +11,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using NCode.Buffers;
 using NCode.Identity.AspNetCore;
 using NCode.Identity.Cryptography;
 using NCode.Identity.Events.Audit;
@@ -23,6 +25,7 @@ using NCode.Identity.OpenId.Persistence;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
 using NCode.Identity.OpenId.Settings;
+using NCode.Identity.Persistence;
 using NCode.Identity.Persistence.Stores;
 using NCode.Identity.Registration.AspNetCore;
 using NCode.Identity.Secrets.Persistence.Protection;
@@ -67,6 +70,7 @@ internal class AuditStreamApiEndpointHandler(
     private const int SigningSecretByteLength = 32;
     private const int SigningSecretTextLength = (SigningSecretByteLength + 2) / 3 * 4;
     private const string CreateGuardKeyPurpose = "audit-stream-create";
+    private const int CreateGuardOwnerLength = 16;
 
     private static TimeSpan SigningSecretOverlap { get; } = TimeSpan.FromHours(24);
     private static TimeSpan CreateGuardLifetime { get; } = TimeSpan.FromSeconds(30);
@@ -283,9 +287,15 @@ internal class AuditStreamApiEndpointHandler(
 
         var guardKey = ExpiringKeys.Create(CreateGuardKeyPurpose, tenantId);
         var guardExpiry = TimeProvider.GetUtcNow() + CreateGuardLifetime;
+        using var ownerRental = BufferFactory.Rent(
+            CreateGuardOwnerLength,
+            isSensitive: false,
+            out Memory<byte> owner
+        );
+        CryptoService.GenerateBytes(owner.Span);
         var guardTaken = await ExpiringValueSet.TryAddAsync(
             guardKey,
-            ReadOnlyMemory<byte>.Empty,
+            owner,
             guardExpiry,
             cancellationToken
         );
@@ -362,9 +372,49 @@ internal class AuditStreamApiEndpointHandler(
         }
         finally
         {
-            // The guard is released even when the caller went away, and it expires on its own if the replica stops.
-            // See ADR-1534.
-            await ExpiringValueSet.RemoveAsync(guardKey, CancellationToken.None);
+            // Only the create that holds the guard removes it, on a token bounded as work after a commit is, and a
+            // failed release is logged, because the guard expires on its own. See ADR-1534 and ADR-1351.
+            await ReleaseCreateGuardAsync(tenantId, guardKey, owner);
+        }
+    }
+
+    /// <summary>
+    /// Releases the guard that serializes the audit-stream creates of a tenant, only when <paramref name="owner"/>
+    /// still holds it, and logs a failure instead of throwing it.
+    /// </summary>
+    /// <param name="tenantId">The identifier of the OpenID Tenant.</param>
+    /// <param name="guardKey">The key of the guard.</param>
+    /// <param name="owner">The bytes that the create wrote as the guard's value.</param>
+    /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation.</returns>
+    [SuppressMessage(
+        "Design",
+        "NCID0003",
+        Justification = "The release follows the create and runs on its own bounded token, so no caller can pass a token that drops it (ADR-1351)."
+    )]
+    private async ValueTask ReleaseCreateGuardAsync(
+        string tenantId,
+        string guardKey,
+        ReadOnlyMemory<byte> owner
+    )
+    {
+        try
+        {
+            await PostCommitWork.RunAsync(
+                TimeProvider,
+                static async (state, cancellationToken) =>
+                {
+                    await state.ExpiringValueSet.TryRemoveAsync(
+                        state.GuardKey,
+                        state.Owner,
+                        cancellationToken
+                    );
+                },
+                (ExpiringValueSet, GuardKey: guardKey, Owner: owner)
+            );
+        }
+        catch (Exception exception)
+        {
+            Logger.AuditStreamCreateGuardReleaseFailed(exception, tenantId);
         }
     }
 

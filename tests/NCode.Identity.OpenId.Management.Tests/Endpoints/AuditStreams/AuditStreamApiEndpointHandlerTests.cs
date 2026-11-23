@@ -173,13 +173,31 @@ public sealed class AuditStreamApiEndpointHandlerTests : IDisposable
     private static string CreateGuardKey { get; } =
         ExpiringKeys.Create("audit-stream-create", TenantId);
 
+    private static bool IsGuardOwner(ReadOnlyMemory<byte> value)
+    {
+        if (value.Length != 16)
+        {
+            return false;
+        }
+
+        foreach (var b in value.Span)
+        {
+            if (b != SecretByte)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     private void SetupCreateGuard(bool taken)
     {
         MockExpiringValueSet
             .Setup(x =>
                 x.TryAddAsync(
                     CreateGuardKey,
-                    It.Is<ReadOnlyMemory<byte>>(value => value.IsEmpty),
+                    It.Is<ReadOnlyMemory<byte>>(value => IsGuardOwner(value)),
                     Start.AddSeconds(30),
                     It.IsAny<CancellationToken>()
                 )
@@ -191,8 +209,14 @@ public sealed class AuditStreamApiEndpointHandlerTests : IDisposable
     private void SetupCreateGuardRelease()
     {
         MockExpiringValueSet
-            .Setup(x => x.RemoveAsync(CreateGuardKey, CancellationToken.None))
-            .Returns(ValueTask.CompletedTask)
+            .Setup(x =>
+                x.TryRemoveAsync(
+                    CreateGuardKey,
+                    It.Is<ReadOnlyMemory<byte>>(value => IsGuardOwner(value)),
+                    It.Is<CancellationToken>(token => token.CanBeCanceled)
+                )
+            )
+            .ReturnsAsync(true)
             .Verifiable();
     }
 
@@ -583,10 +607,11 @@ public sealed class AuditStreamApiEndpointHandlerTests : IDisposable
         SetupStore();
         SetupProtector();
         SetupSave();
+        var counts = 0;
         MockAuditStreamStore
-            .SetupSequence(x => x.CountAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(2)
-            .ReturnsAsync(1);
+            .Setup(x => x.CountAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(() => ++counts == 1 ? 2 : 1)
+            .Verifiable(Times.Exactly(2));
         MockAuditStreamStore
             .Setup(x => x.AddAsync(It.IsAny<PersistedAuditStream>(), It.IsAny<CancellationToken>()))
             .Returns(ValueTask.CompletedTask)
@@ -615,9 +640,60 @@ public sealed class AuditStreamApiEndpointHandlerTests : IDisposable
         Assert.Equal(StatusCodes.Status409Conflict, problem.StatusCode);
         Assert.IsType<Created<CreatedAuditStreamResource>>(afterTheLimit);
         MockExpiringValueSet.Verify(
-            x => x.RemoveAsync(CreateGuardKey, CancellationToken.None),
+            x =>
+                x.TryRemoveAsync(
+                    CreateGuardKey,
+                    It.Is<ReadOnlyMemory<byte>>(value => IsGuardOwner(value)),
+                    It.Is<CancellationToken>(token => token.CanBeCanceled)
+                ),
             Times.Exactly(2)
         );
+    }
+
+    [Fact]
+    public async Task CreateAsync_WhenTheGuardReleaseFails_StillReturnsCreated()
+    {
+        CryptoService.ResourceIds.Enqueue(NewStreamId);
+        CryptoService.ResourceIds.Enqueue(NewSecretId);
+        SetupAuthorization(AuthorizationResult.Success());
+        SetupTenantContext(maxAuditStreams: 2);
+        SetupCreateGuard(taken: true);
+        MockExpiringValueSet
+            .Setup(x =>
+                x.TryRemoveAsync(
+                    CreateGuardKey,
+                    It.Is<ReadOnlyMemory<byte>>(value => IsGuardOwner(value)),
+                    It.Is<CancellationToken>(token => token.CanBeCanceled)
+                )
+            )
+            .ThrowsAsync(new InvalidOperationException("release failed"))
+            .Verifiable();
+        SetupStore();
+        SetupProtector();
+        SetupSave();
+        MockAuditStreamStore
+            .Setup(x => x.CountAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(1)
+            .Verifiable();
+        MockAuditStreamStore
+            .Setup(x => x.AddAsync(It.IsAny<PersistedAuditStream>(), It.IsAny<CancellationToken>()))
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable();
+        SetupRecorder(NewStreamId, ResourceChangeTypes.Created);
+        var request = new CreateAuditStreamRequest
+        {
+            DisplayName = "Warehouse",
+            Endpoint = "https://example.com/audit",
+        };
+
+        var result = await Handler.CreateAsync(
+            CreateHttpContext(),
+            TenantId,
+            request,
+            CancellationToken.None
+        );
+
+        Assert.IsType<Created<CreatedAuditStreamResource>>(result);
     }
 
     [Fact]
