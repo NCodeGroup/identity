@@ -73,7 +73,7 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
     // names the forgot-password and reset-password pages carry.
     private const string PasswordResetStatus = "password_reset";
     private const string FlowQueryName = InteractiveAuthenticationPageRenderer.FlowFieldName;
-    private const string ReturnUrlName = "ReturnUrl";
+    private const string ReturnUrlName = InteractiveAuthenticationPageRenderer.ReturnUrlFieldName;
 
     // The `status` query value the sign-in code page reads back to tell the end user that a new code is sent, and the
     // `action` form value that asks the page for it; any other value verifies the code.
@@ -401,11 +401,15 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
     }
 
     /// <summary>
-    /// Verifies the posted credentials through the registered verifier and, on success, signs in the cookie session
-    /// and redirects to the validated local return URL; on failure it redirects back to the login page with an error.
-    /// An end user whose standing is refused, such as a blocked principal or a disabled account, signs in nowhere: no
+    /// Verifies the posted credentials through the registered verifier and, on success, signs in the cookie session and
+    /// redirects to the validated local return URL; on failure it redirects back to the login page with an error. An
+    /// end user whose standing is refused, such as a blocked principal or a disabled account, signs in nowhere: no
     /// session is created, and the parked authorization request the return URL names is answered with the refusal,
-    /// otherwise the login page shows it.
+    /// otherwise the login page shows it. A tenant that requires the email second factor holds the end user whose
+    /// password is verified in the pending sign-in cookie instead, mails a code and redirects to the sign-in code page;
+    /// when the account has been sent the most codes the tenant allows, it redirects back to the login page with
+    /// <c>?error=too_many_codes</c>, and an account that cannot receive a code is refused as one whose standing is
+    /// refused.
     /// </summary>
     public async ValueTask<IResult> PostLoginAsync(
         HttpContext httpContext,
@@ -742,7 +746,7 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
     /// </summary>
     public async ValueTask<IResult> PostConsentAsync(
         HttpContext httpContext,
-        [FromForm] string? action,
+        [FromForm(Name = InteractiveAuthenticationPageRenderer.ActionFieldName)] string? action,
         [FromForm(Name = ReturnUrlName)] string? returnUrl,
         [FromForm(Name = InteractiveAuthenticationPageRenderer.UiLocalesFieldName)]
             string? uiLocales
@@ -898,7 +902,7 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
     /// </summary>
     public async ValueTask<IResult> PostLogoutConfirmationAsync(
         HttpContext httpContext,
-        [FromForm] string? action,
+        [FromForm(Name = InteractiveAuthenticationPageRenderer.ActionFieldName)] string? action,
         [FromForm(Name = ReturnUrlName)] string? returnUrl,
         [FromForm(Name = InteractiveAuthenticationPageRenderer.UiLocalesFieldName)]
             string? uiLocales
@@ -2106,6 +2110,9 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
             InteractiveEmailCodeErrors.TooManyCodes => messages.TooManyCodesError,
             InteractivePasswordChangeErrors.PasswordMismatch => messages.PasswordMismatchError,
             InteractivePasswordChangeErrors.InvalidRequest => messages.MissingFieldsError,
+            // DefaultInteractivePasswordResetter answers it when no backend holds passwords, which is no refused
+            // password.
+            InteractivePasswordChangeErrors.NotSupported => messages.EmailCodeFailedError,
             // The password policy's codes are an open vocabulary, so any other code the reset post answers is a
             // refused password.
             _ => messages.PasswordRefusedError,

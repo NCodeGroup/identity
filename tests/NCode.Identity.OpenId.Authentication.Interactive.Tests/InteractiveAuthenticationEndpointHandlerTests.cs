@@ -603,6 +603,19 @@ public sealed class InteractiveAuthenticationEndpointHandlerTests : IDisposable
         Assert.Equal(messages.MissingFieldsError, result);
     }
 
+    [Fact]
+    public void DescribePasswordResetError_ForAResetTheBackendDoesNotSupport_ReturnsTheGenericMessage()
+    {
+        var messages = TestLocales.Xx.Messages;
+
+        var result = InteractiveAuthenticationEndpointHandler.DescribePasswordResetError(
+            InteractivePasswordChangeErrors.NotSupported,
+            messages
+        );
+
+        Assert.Equal(messages.EmailCodeFailedError, result);
+    }
+
     #endregion
 
     #region Helpers
