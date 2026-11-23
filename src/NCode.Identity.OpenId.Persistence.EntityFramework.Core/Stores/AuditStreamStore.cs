@@ -336,9 +336,7 @@ internal sealed class AuditStreamStore(
         // A stream is due only when its tenant has a record after the stream's position, in the order the stream page
         // reads (ADR-1534), so an idle stream is never due and costs no lease, unwrap or poll slot.
         var entities = await DbContext
-            .AuditStreamStates.Include(entity => entity.Tenant)
-            .Include(entity => entity.AuditStream)
-            .Where(entity =>
+            .AuditStreamStates.Where(entity =>
                 entity.AuditStream.IsEnabled
                 && entity.NextAttemptTime <= utcNow
                 && (entity.LeaseExpiryTime == null || entity.LeaseExpiryTime <= utcNow)
@@ -357,11 +355,15 @@ internal sealed class AuditStreamStore(
             .OrderBy(entity => entity.NextAttemptTime)
             .ThenBy(entity => entity.Id)
             .Take(limit)
+            .Select(entity => new
+            {
+                State = entity,
+                entity.Tenant.TenantId,
+                entity.AuditStream.StreamId,
+            })
             .ToListAsync(cancellationToken);
 
-        return entities
-            .Select(entity => MapState(entity, entity.Tenant.TenantId, entity.AuditStream.StreamId))
-            .ToList();
+        return entities.Select(due => MapState(due.State, due.TenantId, due.StreamId)).ToList();
     }
 
     /// <inheritdoc />
