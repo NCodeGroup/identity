@@ -6,7 +6,7 @@ using MailKit.Net.Smtp;
 using MailKit.Security;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using MimeKit;
+using NCode.Identity.Mail.Mime;
 using NCode.Identity.Mail.Smtp.Facades;
 using NCode.Identity.Mail.Smtp.Logging;
 using NCode.Identity.Mail.Smtp.Options;
@@ -45,43 +45,19 @@ internal sealed class SmtpMailTransport(
             ),
         };
 
-    private MimeMessage CreateMimeMessage(MailMessage message)
-    {
-        var options = Options;
-
-        var mimeMessage = new MimeMessage();
-
-        var fromDisplayName = message.FromDisplayName ?? options.FromName ?? string.Empty;
-        var fromAddress = new MailboxAddress(fromDisplayName, options.From);
-        mimeMessage.From.Add(fromAddress);
-
-        var toAddress = MailboxAddress.Parse(message.To);
-        mimeMessage.To.Add(toAddress);
-        mimeMessage.Subject = message.Subject;
-        mimeMessage.Headers.Add("Auto-Submitted", "auto-generated");
-
-        var textPart = new TextPart("plain") { Text = message.TextBody };
-        if (message.HtmlBody is null)
-        {
-            mimeMessage.Body = textPart;
-        }
-        else
-        {
-            var htmlPart = new TextPart("html") { Text = message.HtmlBody };
-            var alternative = new MultipartAlternative { textPart, htmlPart };
-            mimeMessage.Body = alternative;
-        }
-
-        return mimeMessage;
-    }
-
     /// <inheritdoc />
     public async ValueTask DeliverAsync(MailMessage message, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(message);
 
         var options = Options;
-        var mimeMessage = CreateMimeMessage(message);
+        var defaultFrom = new MailAddress(options.From, options.FromName);
+        using var mimeMessage = await MimeMailMessages.CreateAsync(
+            message,
+            defaultFrom,
+            cancellationToken
+        );
+        var formatOptions = MimeMailMessages.CreateFormatOptions();
 
         using var client = ClientFactory.Create();
         client.Timeout = (int)options.Timeout.TotalMilliseconds;
@@ -97,7 +73,7 @@ internal sealed class SmtpMailTransport(
                 await client.AuthenticateAsync(options.UserName, password, cancellationToken);
             }
 
-            await client.SendAsync(mimeMessage, cancellationToken);
+            await client.SendAsync(formatOptions, mimeMessage, cancellationToken);
         }
         catch (SmtpCommandException exception)
         {

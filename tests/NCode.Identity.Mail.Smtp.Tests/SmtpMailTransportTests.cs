@@ -8,6 +8,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MimeKit;
 using Moq;
+using NCode.Buffers;
 using NCode.Identity.Mail.Smtp.Facades;
 using NCode.Identity.Mail.Smtp.Logging;
 using NCode.Identity.Mail.Smtp.Options;
@@ -31,10 +32,12 @@ public class SmtpMailTransportTests : BaseTests
     private MailMessage Message { get; } =
         new()
         {
-            To = "user@example.org",
+            To = [new MailAddress("user@example.org")],
             Subject = "Your code",
-            TextBody = "Your code is 123456.",
+            TextBody = CreateContent("Your code is 123456.", "text/plain"),
         };
+
+    private sealed record SentMail(MimeMessage Message, string Wire);
 
     public SmtpMailTransportTests()
     {
@@ -49,6 +52,17 @@ public class SmtpMailTransportTests : BaseTests
             LoggerMock.Object
         );
     }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+            Message.Dispose();
+
+        base.Dispose(disposing);
+    }
+
+    private static StreamMailContent CreateContent(string text, string mediaType) =>
+        new(new MemoryStream(SecureEncoding.UTF8.GetBytes(text)), mediaType, "utf-8");
 
     private void SetupConnection(SecureSocketOptions expectedSocketOptions, int port = 587)
     {
@@ -68,11 +82,28 @@ public class SmtpMailTransportTests : BaseTests
         ClientMock.Setup(x => x.Dispose()).Verifiable();
     }
 
-    private void SetupSend(Action<MimeMessage> capture)
+    private void SetupSend(Action<SentMail> capture)
     {
         ClientMock
-            .Setup(x => x.SendAsync(It.IsAny<ISendRequest>(), CancellationToken.None))
-            .Callback<ISendRequest, CancellationToken>((request, _) => capture(request.Message))
+            .Setup(x =>
+                x.SendAsync(
+                    It.IsAny<FormatOptions>(),
+                    It.IsAny<ISendRequest>(),
+                    CancellationToken.None
+                )
+            )
+            .Callback<FormatOptions, ISendRequest, CancellationToken>(
+                (formatOptions, request, cancellationToken) =>
+                {
+                    // The MIME message is disposed when the delivery ends, so the capture reads what was written.
+                    using var stream = new MemoryStream();
+                    request.Message.WriteTo(formatOptions, stream, cancellationToken);
+                    var wire = SecureEncoding.UTF8.GetString(stream.ToArray());
+                    stream.Position = 0;
+                    var parsed = MimeMessage.Load(stream, cancellationToken);
+                    capture(new SentMail(parsed, wire));
+                }
+            )
             .ReturnsAsync(new SendResult("250 queued", [], []))
             .Verifiable();
         ClientMock
@@ -154,22 +185,23 @@ public class SmtpMailTransportTests : BaseTests
     {
         TransportOptions.FromName = "NCode Identity";
         SetupConnection(SecureSocketOptions.StartTls);
-        MimeMessage? sent = null;
-        SetupSend(mimeMessage => sent = mimeMessage);
+        SentMail? sent = null;
+        SetupSend(mail => sent = mail);
 
         await Transport.DeliverAsync(Message, CancellationToken.None);
 
         Assert.NotNull(sent);
-        var from = Assert.IsType<MailboxAddress>(Assert.Single(sent.From));
+        var mimeMessage = sent.Message;
+        var from = Assert.IsType<MailboxAddress>(Assert.Single(mimeMessage.From));
         Assert.Equal("noreply@example.com", from.Address);
         Assert.Equal("NCode Identity", from.Name);
-        var to = Assert.IsType<MailboxAddress>(Assert.Single(sent.To));
+        var to = Assert.IsType<MailboxAddress>(Assert.Single(mimeMessage.To));
         Assert.Equal("user@example.org", to.Address);
-        Assert.Equal("Your code", sent.Subject);
-        var body = Assert.IsType<TextPart>(sent.Body);
+        Assert.Equal("Your code", mimeMessage.Subject);
+        var body = Assert.IsType<TextPart>(mimeMessage.Body);
         Assert.True(body.IsPlain);
         Assert.Equal("Your code is 123456.", body.Text);
-        Assert.Equal("auto-generated", sent.Headers["Auto-Submitted"]);
+        Assert.Equal("auto-generated", mimeMessage.Headers["Auto-Submitted"]);
     }
 
     [Fact]
@@ -177,20 +209,20 @@ public class SmtpMailTransportTests : BaseTests
     {
         TransportOptions.FromName = "NCode Identity";
         SetupConnection(SecureSocketOptions.StartTls);
-        MimeMessage? sent = null;
-        SetupSend(mimeMessage => sent = mimeMessage);
-        var message = new MailMessage
+        SentMail? sent = null;
+        SetupSend(mail => sent = mail);
+        using var message = new MailMessage
         {
-            To = "user@example.org",
+            To = [new MailAddress("user@example.org")],
             FromDisplayName = "Acme Accounts",
             Subject = "Your code",
-            TextBody = "Your code is 123456.",
+            TextBody = CreateContent("Your code is 123456.", "text/plain"),
         };
 
         await Transport.DeliverAsync(message, CancellationToken.None);
 
         Assert.NotNull(sent);
-        var from = Assert.IsType<MailboxAddress>(Assert.Single(sent.From));
+        var from = Assert.IsType<MailboxAddress>(Assert.Single(sent.Message.From));
         Assert.Equal("Acme Accounts", from.Name);
         Assert.Equal("noreply@example.com", from.Address);
     }
@@ -199,20 +231,20 @@ public class SmtpMailTransportTests : BaseTests
     public async Task DeliverAsync_WithAnHtmlBody_SendsBothAlternatives()
     {
         SetupConnection(SecureSocketOptions.StartTls);
-        MimeMessage? sent = null;
-        SetupSend(mimeMessage => sent = mimeMessage);
-        var message = new MailMessage
+        SentMail? sent = null;
+        SetupSend(mail => sent = mail);
+        using var message = new MailMessage
         {
-            To = "user@example.org",
+            To = [new MailAddress("user@example.org")],
             Subject = "Your code",
-            TextBody = "Your code is 123456.",
-            HtmlBody = "<p>Your code is <b>123456</b>.</p>",
+            TextBody = CreateContent("Your code is 123456.", "text/plain"),
+            HtmlBody = CreateContent("<p>Your code is <b>123456</b>.</p>", "text/html"),
         };
 
         await Transport.DeliverAsync(message, CancellationToken.None);
 
         Assert.NotNull(sent);
-        var alternative = Assert.IsType<MultipartAlternative>(sent.Body);
+        var alternative = Assert.IsType<MultipartAlternative>(sent.Message.Body);
         Assert.Equal(2, alternative.Count);
         var plain = Assert.IsType<TextPart>(alternative[0]);
         Assert.True(plain.IsPlain);
@@ -220,6 +252,27 @@ public class SmtpMailTransportTests : BaseTests
         var html = Assert.IsType<TextPart>(alternative[1]);
         Assert.True(html.IsHtml);
         Assert.Equal("<p>Your code is <b>123456</b>.</p>", html.Text);
+    }
+
+    [Fact]
+    public async Task DeliverAsync_Always_HidesBccFromTheHeaders()
+    {
+        SetupConnection(SecureSocketOptions.StartTls);
+        SentMail? sent = null;
+        SetupSend(mail => sent = mail);
+        using var message = new MailMessage
+        {
+            To = [new MailAddress("user@example.org")],
+            Bcc = [new MailAddress("hidden@example.net")],
+            Subject = "Your code",
+            TextBody = CreateContent("Your code is 123456.", "text/plain"),
+        };
+
+        await Transport.DeliverAsync(message, CancellationToken.None);
+
+        Assert.NotNull(sent);
+        Assert.DoesNotContain("hidden@example.net", sent.Wire);
+        Assert.Contains("user@example.org", sent.Wire);
     }
 
     [Fact]
@@ -234,7 +287,13 @@ public class SmtpMailTransportTests : BaseTests
             reply
         );
         ClientMock
-            .Setup(x => x.SendAsync(It.IsAny<ISendRequest>(), CancellationToken.None))
+            .Setup(x =>
+                x.SendAsync(
+                    It.IsAny<FormatOptions>(),
+                    It.IsAny<ISendRequest>(),
+                    CancellationToken.None
+                )
+            )
             .ThrowsAsync(refusal)
             .Verifiable();
 
@@ -283,7 +342,13 @@ public class SmtpMailTransportTests : BaseTests
     {
         SetupConnection(SecureSocketOptions.StartTls);
         ClientMock
-            .Setup(x => x.SendAsync(It.IsAny<ISendRequest>(), CancellationToken.None))
+            .Setup(x =>
+                x.SendAsync(
+                    It.IsAny<FormatOptions>(),
+                    It.IsAny<ISendRequest>(),
+                    CancellationToken.None
+                )
+            )
             .ReturnsAsync(new SendResult("250 queued", [], []))
             .Verifiable();
         const string reply = "<user@example.org>: connection closed by the server";

@@ -29,6 +29,9 @@ public static class DefaultRegistration
         /// </summary>
         /// <param name="configuration">The <see cref="IConfiguration"/> holding the <c>Mail:Smtp</c> section.</param>
         /// <returns>The same <see cref="IServiceBuilder{T}"/> so that calls can be chained.</returns>
+        /// <exception cref="InvalidOperationException">
+        /// Thrown when the section exists and another mail transport is already registered.
+        /// </exception>
         [PublicAPI]
         public IServiceBuilder<MailLibrary> AddSmtpMailTransport(IConfiguration configuration)
         {
@@ -40,6 +43,22 @@ public static class DefaultRegistration
                 return builder;
 
             var serviceCollection = builder.ServiceCollection;
+
+            var registered = serviceCollection.FirstOrDefault(descriptor =>
+                descriptor.ServiceType == typeof(MailTransportRegistration)
+            );
+            if (registered is not null)
+            {
+                var registeredName =
+                    (registered.ImplementationInstance as MailTransportRegistration)?.Name
+                    ?? "(unknown)";
+                throw new InvalidOperationException(
+                    $"The mail transport '{registeredName}' is registered; configure one of 'Mail:Smtp' and 'Mail:AmazonSes'."
+                );
+            }
+
+            var marker = new MailTransportRegistration(SmtpMailTransportOptions.SectionName);
+            serviceCollection.AddSingleton(marker);
 
             // The validator refuses clear-text submission unless the host is configured for local development
             // (ADR-1532, ADR-1370).

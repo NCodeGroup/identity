@@ -80,6 +80,55 @@ public class DefaultRegistrationTests : BaseTests
     }
 
     [Fact]
+    public void AddSmtpMailTransport_WhenAnotherTransportIsRegistered_Throws()
+    {
+        var serviceCollection = new ServiceCollection();
+        serviceCollection.AddLogging();
+        serviceCollection.AddSingleton(TransportRegisteredBefore);
+        serviceCollection.AddSingleton(HostEnvironment);
+        serviceCollection.AddSingleton(new MailTransportRegistration("Mail:AmazonSes"));
+        var configuration = CreateConfiguration(
+            ("Mail:Smtp:Host", "smtp.example.com"),
+            ("Mail:Smtp:From", "noreply@example.com")
+        );
+
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+            serviceCollection.NewBuilder<MailLibrary>().AddSmtpMailTransport(configuration)
+        );
+
+        Assert.Equal(
+            "The mail transport 'Mail:AmazonSes' is registered; configure one of 'Mail:Smtp' and 'Mail:AmazonSes'.",
+            exception.Message
+        );
+    }
+
+    [Fact]
+    public async Task AddSmtpMailTransport_WithTheSection_RegistersTheTransportMarker()
+    {
+        var serviceCollection = AddSmtpMailTransport(
+            CreateConfiguration(
+                ("Mail:Smtp:Host", "smtp.example.com"),
+                ("Mail:Smtp:From", "noreply@example.com")
+            )
+        );
+
+        await using var provider = serviceCollection.BuildServiceProvider();
+
+        var registration = provider.GetRequiredService<MailTransportRegistration>();
+        Assert.Equal("Mail:Smtp", registration.Name);
+    }
+
+    [Fact]
+    public async Task AddSmtpMailTransport_WithoutTheSection_RegistersNoTransportMarker()
+    {
+        var serviceCollection = AddSmtpMailTransport(CreateConfiguration());
+
+        await using var provider = serviceCollection.BuildServiceProvider();
+
+        Assert.Empty(provider.GetServices<MailTransportRegistration>());
+    }
+
+    [Fact]
     public async Task AddSmtpMailTransport_WithTheSection_RegistersTheValidator()
     {
         var serviceCollection = AddSmtpMailTransport(
