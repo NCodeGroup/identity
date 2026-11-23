@@ -22,6 +22,7 @@ using NCode.Identity.OpenId.Management.Auditing;
 using NCode.Identity.OpenId.Management.Authorization;
 using NCode.Identity.OpenId.Management.Contracts;
 using NCode.Identity.OpenId.Management.Contracts.Teams;
+using NCode.Identity.OpenId.Management.ControlPlane;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
 using NCode.Identity.OpenId.Settings;
@@ -62,6 +63,7 @@ public sealed class TeamApiEndpointHandlerTests : IDisposable
     private Mock<IResourceOwnershipService> MockResourceOwnershipService { get; }
     private Mock<IManagementAuditRecorder> MockManagementAuditRecorder { get; }
     private Mock<IMediator> MockMediator { get; }
+    private Mock<IControlPlanePrincipalDirectory> MockPrincipalDirectory { get; }
     private TeamApiEndpointHandler Handler { get; }
 
     public TeamApiEndpointHandlerTests()
@@ -85,6 +87,7 @@ public sealed class TeamApiEndpointHandlerTests : IDisposable
         MockResourceOwnershipService = MockRepository.Create<IResourceOwnershipService>();
         MockManagementAuditRecorder = MockRepository.Create<IManagementAuditRecorder>();
         MockMediator = MockRepository.Create<IMediator>();
+        MockPrincipalDirectory = MockRepository.Create<IControlPlanePrincipalDirectory>();
 
         Handler = CreateHandler(isControlPlane: true);
     }
@@ -105,7 +108,7 @@ public sealed class TeamApiEndpointHandlerTests : IDisposable
             MockClientCoherenceValidator.Object,
             MockTeamClientCoherenceChecker.Object,
             MockResourceOwnershipService.Object,
-            PrincipalDirectoryMocks.CreateDescribingEveryPrincipal().Object,
+            MockPrincipalDirectory.Object,
             MockManagementAuditRecorder.Object,
             NullLogger<TeamApiEndpointHandler>.Instance,
             Options.Create(new CellOptions { IsControlPlane = isControlPlane })
@@ -3236,6 +3239,7 @@ public sealed class TeamApiEndpointHandlerTests : IDisposable
     [Fact]
     public async Task ListOwnersAsync_WhenAuthorized_ReturnsTheTeamsOwners()
     {
+        PrincipalDirectoryMocks.SetupDescribingEveryPrincipal(MockPrincipalDirectory);
         SetupAuthorization(AuthorizationResult.Success());
         SetupStore();
         SetupTeam(CreateTeam());
@@ -3268,6 +3272,7 @@ public sealed class TeamApiEndpointHandlerTests : IDisposable
     [Fact]
     public async Task ListOwnersAsync_AsksForUpdateOnTheTeamNode()
     {
+        PrincipalDirectoryMocks.SetupDescribingEveryPrincipal(MockPrincipalDirectory);
         var captured = CaptureAuthorization();
         SetupStore();
         SetupTeam(CreateTeam());
@@ -3296,6 +3301,7 @@ public sealed class TeamApiEndpointHandlerTests : IDisposable
     [Fact]
     public async Task ListOwnersAsync_WhenTheCallerMayOnlyReadTheTeam_ReportsItMayNotChangeTheOwners()
     {
+        PrincipalDirectoryMocks.SetupDescribingEveryPrincipal(MockPrincipalDirectory);
         SetupAuthorization(AuthorizationResult.Success());
         SetupAuthorization(Operations.Update, AuthorizationResult.Failed());
         SetupStore();
@@ -3345,6 +3351,7 @@ public sealed class TeamApiEndpointHandlerTests : IDisposable
     [Fact]
     public async Task AddOwnerAsync_RequestsUpdateOnTheTeamNode()
     {
+        PrincipalDirectoryMocks.SetupDescribingEveryPrincipal(MockPrincipalDirectory);
         var captured = CaptureAuthorization();
         SetupStore();
         SetupTeam(CreateTeam());
@@ -3420,6 +3427,7 @@ public sealed class TeamApiEndpointHandlerTests : IDisposable
     [Fact]
     public async Task AddOwnerAsync_WhenAuthorized_ReturnsCreatedBeneathTheTeamsOwners()
     {
+        PrincipalDirectoryMocks.SetupDescribingEveryPrincipal(MockPrincipalDirectory);
         SetupAuthorization(AuthorizationResult.Success());
         SetupStore();
         SetupTeam(CreateTeam());
@@ -3460,6 +3468,7 @@ public sealed class TeamApiEndpointHandlerTests : IDisposable
     [Fact]
     public async Task AddOwnerAsync_WhenThePrincipalCannotHoldTheRole_ReturnsConflictWithoutSavingOrRecording()
     {
+        PrincipalDirectoryMocks.SetupDescribingEveryPrincipal(MockPrincipalDirectory);
         SetupAuthorization(AuthorizationResult.Success());
         SetupStore();
         SetupTeam(CreateTeam());
@@ -3568,6 +3577,7 @@ public sealed class TeamApiEndpointHandlerTests : IDisposable
     [Fact]
     public async Task ListAdminsAsync_WhenAuthorized_ReturnsTheTeamAdminAssignments()
     {
+        PrincipalDirectoryMocks.SetupDescribingEveryPrincipal(MockPrincipalDirectory);
         SetupAuthorization(AuthorizationResult.Success());
         SetupStore();
         SetupTeam(CreateTeam());
@@ -3600,6 +3610,7 @@ public sealed class TeamApiEndpointHandlerTests : IDisposable
     [Fact]
     public async Task ListAdminsAsync_WhenTheCallerMayCreateAtTheTeam_ReportsItMayChangeTheAdministrators()
     {
+        PrincipalDirectoryMocks.SetupDescribingEveryPrincipal(MockPrincipalDirectory);
         SetupAuthorization(AuthorizationResult.Success());
         SetupStore();
         SetupTeam(CreateTeam());
@@ -3631,6 +3642,7 @@ public sealed class TeamApiEndpointHandlerTests : IDisposable
     [Fact]
     public async Task ListAdminsAsync_WhenTheCallerMayNotCreateAtTheTeam_ReportsItMayNotChangeTheAdministrators()
     {
+        PrincipalDirectoryMocks.SetupDescribingEveryPrincipal(MockPrincipalDirectory);
         SetupAuthorization(AuthorizationResult.Success());
         SetupAuthorization(Operations.Create, AuthorizationResult.Failed());
         SetupStore();
@@ -3697,6 +3709,7 @@ public sealed class TeamApiEndpointHandlerTests : IDisposable
     [Fact]
     public async Task AddAdminAsync_WhenAuthorized_AssignsTheTeamAdminRoleAndReturnsCreated()
     {
+        PrincipalDirectoryMocks.SetupDescribingEveryPrincipal(MockPrincipalDirectory);
         SetupAuthorization(AuthorizationResult.Success());
         SetupStore();
         SetupTeam(CreateTeam());
@@ -3737,6 +3750,7 @@ public sealed class TeamApiEndpointHandlerTests : IDisposable
     [Fact]
     public async Task AddAdminAsync_RequestsCreateOnTheTeamNode()
     {
+        PrincipalDirectoryMocks.SetupDescribingEveryPrincipal(MockPrincipalDirectory);
         object? authorizedResource = null;
         IAuthorizationRequirement[] requirements = [];
         SetupAuthorizationCapture(
@@ -3786,6 +3800,7 @@ public sealed class TeamApiEndpointHandlerTests : IDisposable
     [Fact]
     public async Task AddAdminAsync_WhenAdded_RecordsACreatedRoleAssignmentAtTheTeam()
     {
+        PrincipalDirectoryMocks.SetupDescribingEveryPrincipal(MockPrincipalDirectory);
         SetupAuthorization(AuthorizationResult.Success());
         SetupStore();
         SetupTeam(CreateTeam());
@@ -3830,6 +3845,7 @@ public sealed class TeamApiEndpointHandlerTests : IDisposable
     [Fact]
     public async Task AddAdminAsync_WhenAlreadyHeld_ReturnsOkAndRecordsNothing()
     {
+        PrincipalDirectoryMocks.SetupDescribingEveryPrincipal(MockPrincipalDirectory);
         SetupAuthorization(AuthorizationResult.Success());
         SetupStore();
         SetupTeam(CreateTeam());
@@ -3869,6 +3885,7 @@ public sealed class TeamApiEndpointHandlerTests : IDisposable
     [Fact]
     public async Task AddAdminAsync_WhenThePrincipalCannotHoldTheRole_ReturnsConflictWithoutSavingOrRecording()
     {
+        PrincipalDirectoryMocks.SetupDescribingEveryPrincipal(MockPrincipalDirectory);
         SetupAuthorization(AuthorizationResult.Success());
         SetupStore();
         SetupTeam(CreateTeam());
