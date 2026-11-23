@@ -131,6 +131,7 @@
         <Project Path="tests/NCode.Identity.Jose.Tests/NCode.Identity.Jose.Tests.csproj" />
         <Project Path="tests/NCode.Identity.Jwk.Tests/NCode.Identity.Jwk.Tests.csproj" />
         <Project Path="tests/NCode.Identity.Jwt.Tests/NCode.Identity.Jwt.Tests.csproj" />
+        <Project Path="tests/NCode.Identity.Mail.Abstractions.Tests/NCode.Identity.Mail.Abstractions.Tests.csproj" />
         <Project Path="tests/NCode.Identity.Mail.Smtp.Tests/NCode.Identity.Mail.Smtp.Tests.csproj" />
         <Project Path="tests/NCode.Identity.Mail.Tests/NCode.Identity.Mail.Tests.csproj" />
         <Project Path="tests/NCode.Identity.ManagementConsole.Tests/NCode.Identity.ManagementConsole.Tests.csproj" />

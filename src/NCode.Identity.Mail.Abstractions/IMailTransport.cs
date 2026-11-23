@@ -14,7 +14,8 @@ namespace NCode.Identity.Mail;
 public interface IMailTransport
 {
     /// <summary>
-    /// Delivers <paramref name="message"/> to the mail provider.
+    /// Delivers <paramref name="message"/> to the mail provider. The caller owns the message and disposes it, so the
+    /// transport never does.
     /// </summary>
     /// <param name="message">The message to deliver.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
