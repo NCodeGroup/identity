@@ -697,6 +697,40 @@ cell's identity as resource attributes.
 {{- end }}
 
 {{/*
+The outbound mail environment of the host container: the SMTP server, the sender and the credentials' Secret
+references. Only the pods that send mail receive it, the host's Deployment, so no Job holds the SMTP password. Renders
+nothing when mail.smtp.host is empty.
+*/}}
+{{- define "identity-host.mailEnv" -}}
+{{- if .Values.mail.smtp.host }}
+- name: Mail__Smtp__Host
+  value: {{ .Values.mail.smtp.host | quote }}
+- name: Mail__Smtp__Port
+  value: {{ .Values.mail.smtp.port | quote }}
+- name: Mail__Smtp__Tls
+  value: {{ .Values.mail.smtp.tls | quote }}
+- name: Mail__Smtp__From
+  value: {{ .Values.mail.smtp.from | quote }}
+{{- with .Values.mail.smtp.fromName }}
+- name: Mail__Smtp__FromName
+  value: {{ . | quote }}
+{{- end }}
+{{- with .Values.mail.smtp.existingSecret }}
+- name: Mail__Smtp__UserName
+  valueFrom:
+    secretKeyRef:
+      name: {{ . | quote }}
+      key: username
+- name: Mail__Smtp__Password
+  valueFrom:
+    secretKeyRef:
+      name: {{ . | quote }}
+      key: password
+{{- end }}
+{{- end }}
+{{- end }}
+
+{{/*
 The pod annotation that names where the cell's backups are kept, for the pods that own a database: those of the host,
 the directory and their migration Jobs. Renders nothing when backup.location is empty.
 */}}
@@ -762,32 +796,6 @@ same configuration the pods it rewraps keys for read.
 {{- if .Values.admission.concurrencyLimit }}
 - name: OpenId__Admission__ConcurrencyLimit
   value: {{ .Values.admission.concurrencyLimit | quote }}
-{{- end }}
-{{- if .Values.mail.smtp.host }}
-- name: Mail__Smtp__Host
-  value: {{ .Values.mail.smtp.host | quote }}
-- name: Mail__Smtp__Port
-  value: {{ .Values.mail.smtp.port | quote }}
-- name: Mail__Smtp__Tls
-  value: {{ .Values.mail.smtp.tls | quote }}
-- name: Mail__Smtp__From
-  value: {{ .Values.mail.smtp.from | quote }}
-{{- with .Values.mail.smtp.fromName }}
-- name: Mail__Smtp__FromName
-  value: {{ . | quote }}
-{{- end }}
-{{- with .Values.mail.smtp.existingSecret }}
-- name: Mail__Smtp__UserName
-  valueFrom:
-    secretKeyRef:
-      name: {{ . | quote }}
-      key: username
-- name: Mail__Smtp__Password
-  valueFrom:
-    secretKeyRef:
-      name: {{ . | quote }}
-      key: password
-{{- end }}
 {{- end }}
 {{ include "identity-host.databaseEnv" (dict "scope" .Values.database "defaults" .Values.database) | trim }}
 {{- if $valkey }}

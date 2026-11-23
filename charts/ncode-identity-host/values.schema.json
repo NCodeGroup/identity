@@ -658,6 +658,19 @@
                 "minLength": 3
               }
             }
+          },
+          "else": {
+            "properties": {
+              "from": {
+                "maxLength": 0
+              },
+              "fromName": {
+                "maxLength": 0
+              },
+              "existingSecret": {
+                "maxLength": 0
+              }
+            }
           }
         }
       }

@@ -1647,5 +1647,7 @@ required with the host and is the address every message is sent from, which the 
 `587` by default and `mail.smtp.tls` is `StartTls` or `ImplicitTls`: the chart refuses `None`, which sends in clear.
 `mail.smtp.fromName` sets the sender's display name. `mail.smtp.existingSecret` names a Secret in the release namespace
 whose `username` and `password` keys hold the credentials the connection authenticates with; leave it empty for a server
-that needs none. The Secret is read when a pod starts. A setting beyond these, such as `Mail__Smtp__Timeout`, goes
-through `extraEnv`.
+that needs none. The Secret is read when a pod starts. The settings reach only the host's Deployment, not the setup or
+secret protection Jobs, which send no mail, so those Jobs never hold the SMTP password. The chart refuses
+`mail.smtp.from`, `mail.smtp.fromName` or `mail.smtp.existingSecret` while `mail.smtp.host` is empty. A setting beyond
+these, such as `Mail__Smtp__Timeout`, goes through `extraEnv`.
