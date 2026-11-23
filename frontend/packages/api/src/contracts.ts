@@ -399,6 +399,48 @@ export type UpdateLocalAccountFields = {
   readonly emailVerified: boolean;
 };
 
+/** Mirror of `LocalAccountClaim` — one profile claim of a local account. */
+export type LocalAccountClaim = {
+  readonly type: string;
+  readonly value: string;
+};
+
+/** Mirror of `LocalAccountClaimsResource` — a local account's full set of profile claims. */
+export type LocalAccountClaimsResource = {
+  readonly tenantId: string;
+  readonly localAccountId: string;
+  readonly claims: readonly LocalAccountClaim[];
+  readonly concurrencyToken: string;
+};
+
+/**
+ * Mirror of `LocalAccountMetadataResource` — a local account's server-owned metadata bags, which live on its owning
+ * principal. `profileMetadata` is owner-updatable and `systemMetadata` is server-controlled; both are free-form JSON
+ * objects. The `concurrencyToken` is the owning principal's.
+ */
+export type LocalAccountMetadataResource = {
+  readonly tenantId: string;
+  readonly localAccountId: string;
+  readonly principalId: string;
+  readonly profileMetadata: unknown;
+  readonly systemMetadata: unknown;
+  readonly concurrencyToken: string;
+};
+
+/** Mirror of `SetLocalAccountClaimsRequest` — the replacement profile claims. */
+export type SetLocalAccountClaimsRequest = {
+  readonly claims: readonly LocalAccountClaim[];
+};
+
+/**
+ * Mirror of `SetLocalAccountMetadataRequest`. A bag left out keeps its current value; one given replaces it as a
+ * free-form JSON object.
+ */
+export type SetLocalAccountMetadataRequest = {
+  readonly profileMetadata?: Readonly<Record<string, unknown>>;
+  readonly systemMetadata?: Readonly<Record<string, unknown>>;
+};
+
 /** Mirror of `ResetLocalAccountPasswordRequest`. */
 export type ResetLocalAccountPasswordRequest = {
   readonly password: string;

@@ -42,6 +42,8 @@ import {
   type GrantResource,
   type GrantRevocationResult,
   type ImportRemoteSecretRequest,
+  type LocalAccountClaimsResource,
+  type LocalAccountMetadataResource,
   type LocalAccountResource,
   type MachineClientOwner,
   type ManagementCapabilitiesResource,
@@ -49,6 +51,8 @@ import {
   type RoleHolderResource,
   type PromoteTenantRequest,
   type ResetLocalAccountPasswordRequest,
+  type SetLocalAccountClaimsRequest,
+  type SetLocalAccountMetadataRequest,
   type PublicKeyResource,
   type ResourceServerResource,
   type RoleList,
@@ -245,6 +249,10 @@ const localAccountItem = (
     url: `api/tenants/${encodeURIComponent(tenantId)}/local-accounts/${encodeURIComponent(localAccountId)}${suffix}`,
     method,
   });
+
+/** The path of one tenant local account. */
+const localAccountPath = (tenantId: string, localAccountId: string): string =>
+  `api/tenants/${encodeURIComponent(tenantId)}/local-accounts/${encodeURIComponent(localAccountId)}`;
 
 // The caller's own access spans scopes, so each mutation that can change where it holds a role invalidates it.
 const callerTag = 'me';
@@ -835,6 +843,66 @@ export const managementApi = createApi({
         { type: 'LocalAccount', id: tenantTag(tenantId, localAccountId) },
       ],
     }),
+    getLocalAccountClaims: build.query<
+      LocalAccountClaimsResource,
+      WithCell<{ tenantId: string; localAccountId: string }>
+    >({
+      query: ({ tenantId, localAccountId, cell }) =>
+        inCell(cell, `${localAccountPath(tenantId, localAccountId)}/claims`),
+      providesTags: (_result, _error, { tenantId, localAccountId }) => [
+        { type: 'LocalAccount', id: tenantTag(tenantId, localAccountId) },
+      ],
+    }),
+    getLocalAccountMetadata: build.query<
+      LocalAccountMetadataResource,
+      WithCell<{ tenantId: string; localAccountId: string }>
+    >({
+      query: ({ tenantId, localAccountId, cell }) =>
+        inCell(cell, `${localAccountPath(tenantId, localAccountId)}/metadata`),
+      providesTags: (_result, _error, { tenantId, localAccountId }) => [
+        { type: 'LocalAccount', id: tenantTag(tenantId, localAccountId) },
+      ],
+    }),
+    setLocalAccountClaims: build.mutation<
+      LocalAccountClaimsResource,
+      WithCell<{
+        tenantId: string;
+        localAccountId: string;
+        concurrencyToken: string;
+        body: SetLocalAccountClaimsRequest;
+      }>
+    >({
+      query: ({ tenantId, localAccountId, concurrencyToken, body, cell }) =>
+        inCell(cell, {
+          url: `${localAccountPath(tenantId, localAccountId)}/claims`,
+          method: 'PUT',
+          body,
+          headers: { 'If-Match': concurrencyToken },
+        }),
+      invalidatesTags: (_result, _error, { tenantId, localAccountId }) => [
+        { type: 'LocalAccount', id: tenantTag(tenantId, localAccountId) },
+      ],
+    }),
+    setLocalAccountMetadata: build.mutation<
+      LocalAccountMetadataResource,
+      WithCell<{
+        tenantId: string;
+        localAccountId: string;
+        concurrencyToken: string;
+        body: SetLocalAccountMetadataRequest;
+      }>
+    >({
+      query: ({ tenantId, localAccountId, concurrencyToken, body, cell }) =>
+        inCell(cell, {
+          url: `${localAccountPath(tenantId, localAccountId)}/metadata`,
+          method: 'PATCH',
+          body,
+          headers: { 'If-Match': concurrencyToken },
+        }),
+      invalidatesTags: (_result, _error, { tenantId, localAccountId }) => [
+        { type: 'LocalAccount', id: tenantTag(tenantId, localAccountId) },
+      ],
+    }),
     listResourceServers: build.infiniteQuery<
       CollectionResource<ResourceServerResource>,
       WithCell<{ tenantId: string }>,
@@ -1363,6 +1431,10 @@ export const {
   useEnableLocalAccountMutation,
   useDisableLocalAccountMutation,
   useResetLocalAccountPasswordMutation,
+  useGetLocalAccountClaimsQuery,
+  useGetLocalAccountMetadataQuery,
+  useSetLocalAccountClaimsMutation,
+  useSetLocalAccountMetadataMutation,
   useCreateResourceServerMutation,
   useUpdateResourceServerMutation,
   useDeleteResourceServerMutation,

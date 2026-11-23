@@ -3881,6 +3881,77 @@ describe('managementApi local accounts', () => {
   );
 });
 
+describe('local account profile', () => {
+  const path = '/api/tenants/acme/local-accounts/la%2F1';
+
+  it('getLocalAccountClaims and getLocalAccountMetadata GET their routes, in the cell when given', async () => {
+    const captured = mockFetch(new Response('{}', { status: 200 }));
+    const store = createStore();
+
+    await store.dispatch(
+      managementApi.endpoints.getLocalAccountClaims.initiate({
+        tenantId: 'acme',
+        localAccountId: 'la/1',
+        cell: undefined,
+      }),
+    );
+    await store.dispatch(
+      managementApi.endpoints.getLocalAccountMetadata.initiate({
+        tenantId: 'acme',
+        localAccountId: 'la/1',
+        cell: 'eu-1',
+      }),
+    );
+
+    expect(captured[0]?.method).toBe('GET');
+    expect(captured[0]?.url).toBe(`https://api.test${path}/claims`);
+    expect(captured[1]?.method).toBe('GET');
+    expect(captured[1]?.url).toBe(`https://api.test/cells/eu-1${path}/metadata`);
+  });
+
+  it('setLocalAccountClaims PUTs the claims with If-Match', async () => {
+    const captured = mockFetch(new Response('{}', { status: 200 }));
+    const store = createStore();
+
+    await store.dispatch(
+      managementApi.endpoints.setLocalAccountClaims.initiate({
+        tenantId: 'acme',
+        localAccountId: 'la/1',
+        concurrencyToken: 'c1',
+        body: { claims: [{ type: 'locale', value: 'en' }] },
+        cell: 'eu-1',
+      }),
+    );
+
+    expect(captured[0]?.method).toBe('PUT');
+    expect(captured[0]?.url).toBe(`https://api.test/cells/eu-1${path}/claims`);
+    expect(captured[0]?.ifMatch).toBe('c1');
+    expect(JSON.parse(captured[0]?.body ?? '{}')).toEqual({
+      claims: [{ type: 'locale', value: 'en' }],
+    });
+  });
+
+  it('setLocalAccountMetadata PATCHes the metadata bags with If-Match', async () => {
+    const captured = mockFetch(new Response('{}', { status: 200 }));
+    const store = createStore();
+
+    await store.dispatch(
+      managementApi.endpoints.setLocalAccountMetadata.initiate({
+        tenantId: 'acme',
+        localAccountId: 'la/1',
+        concurrencyToken: 'p1',
+        body: { profileMetadata: { theme: 'dark' } },
+        cell: undefined,
+      }),
+    );
+
+    expect(captured[0]?.method).toBe('PATCH');
+    expect(captured[0]?.url).toBe(`https://api.test${path}/metadata`);
+    expect(captured[0]?.ifMatch).toBe('p1');
+    expect(JSON.parse(captured[0]?.body ?? '{}')).toEqual({ profileMetadata: { theme: 'dark' } });
+  });
+});
+
 describe('paged collections', () => {
   afterEach(() => {
     vi.restoreAllMocks();
