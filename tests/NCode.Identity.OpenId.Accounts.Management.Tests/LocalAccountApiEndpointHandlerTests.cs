@@ -46,6 +46,78 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
     private const string Password = "a-long-unlisted-passphrase";
     private const string PrincipalIdNotChecked = "<principal id not checked>";
 
+    private static ManagementError CreateForbiddenError() =>
+        new()
+        {
+            StatusCode = StatusCodes.Status403Forbidden,
+            Detail = "The caller is not authorized.",
+        };
+
+    // The audit's values are the serialized resource; when the principal id is checked, a null expectation matches an
+    // absent or null principalId.
+    private static bool HasPrincipalId(JsonElement? resourceValues, string? expectedPrincipalId)
+    {
+        if (
+            resourceValues is not { } values
+            || !values.TryGetProperty("principalId", out var principalId)
+            || principalId.ValueKind == JsonValueKind.Null
+        )
+        {
+            return expectedPrincipalId is null;
+        }
+
+        return principalId.ValueKind == JsonValueKind.String
+            && principalId.GetString() == expectedPrincipalId;
+    }
+
+    private static PersistedLocalAccount CreateAccount(string localAccountId = LocalAccountId) =>
+        new()
+        {
+            TenantId = TenantId,
+            LocalAccountId = localAccountId,
+            DisplayName = DisplayName,
+            UserName = UserName,
+            Email = null,
+            EmailVerified = false,
+            IsEnabled = true,
+            Claims = [],
+            ConcurrencyToken = "account-ct",
+        };
+
+    private static JsonPatchDocument<UpdateLocalAccountRequest> CreatePatch()
+    {
+        var patch = new JsonPatchDocument<UpdateLocalAccountRequest>();
+        patch.Replace(x => x.UserName, UserName);
+        return patch;
+    }
+
+    private static PersistedFederatedPrincipal CreatePrincipal() =>
+        new()
+        {
+            TenantId = TenantId,
+            PrincipalId = "principal-1",
+            ConcurrencyToken = "principal-ct",
+        };
+
+    private static PersistedTenant CreateTenant() =>
+        new PersistedTenantBuilder
+        {
+            TenantId = TenantId,
+            TeamId = TeamId,
+            Issuer = "https://op.example/tenant-1",
+        }.Build();
+
+    private static HttpContext CreateHttpContext()
+    {
+        var serviceCollection = new ServiceCollection();
+        serviceCollection.AddSingleton(Mock.Of<IMediator>());
+        return new DefaultHttpContext
+        {
+            User = new ClaimsPrincipal(new ClaimsIdentity(authenticationType: "test")),
+            RequestServices = serviceCollection.BuildServiceProvider(),
+        };
+    }
+
     private MockRepository MockRepository { get; }
     private Mock<IStoreManagerFactory> MockStoreManagerFactory { get; }
     private Mock<IStoreManager> MockStoreManager { get; }
@@ -158,13 +230,6 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
             .ReturnsAsync(error)
             .Verifiable();
     }
-
-    private static ManagementError CreateForbiddenError() =>
-        new()
-        {
-            StatusCode = StatusCodes.Status403Forbidden,
-            Detail = "The caller is not authorized.",
-        };
 
     // Mocks the store manager and reads the account; the store manager is only created once authorization succeeded.
     private void SetupAccount(PersistedLocalAccount? account)
@@ -329,23 +394,6 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
             .Verifiable();
     }
 
-    // The audit's values are the serialized resource; when the principal id is checked, a null expectation matches an
-    // absent or null principalId.
-    private static bool HasPrincipalId(JsonElement? resourceValues, string? expectedPrincipalId)
-    {
-        if (
-            resourceValues is not { } values
-            || !values.TryGetProperty("principalId", out var principalId)
-            || principalId.ValueKind == JsonValueKind.Null
-        )
-        {
-            return expectedPrincipalId is null;
-        }
-
-        return principalId.ValueKind == JsonValueKind.String
-            && principalId.GetString() == expectedPrincipalId;
-    }
-
     private void SetupAuditRecorded(
         string resourceId = LocalAccountId,
         string? expectedPrincipalId = PrincipalIdNotChecked
@@ -402,35 +450,6 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
             .ReturnsAsync(AuthorizationResult.Success())
             .Verifiable();
 
-    private static PersistedLocalAccount CreateAccount(string localAccountId = LocalAccountId) =>
-        new()
-        {
-            TenantId = TenantId,
-            LocalAccountId = localAccountId,
-            DisplayName = DisplayName,
-            UserName = UserName,
-            Email = null,
-            EmailVerified = false,
-            IsEnabled = true,
-            Claims = [],
-            ConcurrencyToken = "account-ct",
-        };
-
-    private static JsonPatchDocument<UpdateLocalAccountRequest> CreatePatch()
-    {
-        var patch = new JsonPatchDocument<UpdateLocalAccountRequest>();
-        patch.Replace(x => x.UserName, UserName);
-        return patch;
-    }
-
-    private static PersistedFederatedPrincipal CreatePrincipal() =>
-        new()
-        {
-            TenantId = TenantId,
-            PrincipalId = "principal-1",
-            ConcurrencyToken = "principal-ct",
-        };
-
     // Resolves the account's self-issued identity and its principal through one store manager.
     private void SetupPrincipal(PersistedFederatedPrincipal principal)
     {
@@ -470,25 +489,6 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
                 new ManagementError { StatusCode = StatusCodes.Status409Conflict, Detail = "stop" }
             )
             .Verifiable();
-    }
-
-    private static PersistedTenant CreateTenant() =>
-        new PersistedTenantBuilder
-        {
-            TenantId = TenantId,
-            TeamId = TeamId,
-            Issuer = "https://op.example/tenant-1",
-        }.Build();
-
-    private static HttpContext CreateHttpContext()
-    {
-        var serviceCollection = new ServiceCollection();
-        serviceCollection.AddSingleton(Mock.Of<IMediator>());
-        return new DefaultHttpContext
-        {
-            User = new ClaimsPrincipal(new ClaimsIdentity(authenticationType: "test")),
-            RequestServices = serviceCollection.BuildServiceProvider(),
-        };
     }
 
     private HttpContext CreateControlPlaneHttpContext()
@@ -860,7 +860,8 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
     public async Task SetClaimsAsync_WithAStaleIfMatch_Returns412AndWritesNothing()
     {
         SetupAuthorizeUpdate(error: null);
-        SetupAccount(CreateAccount());
+        var account = CreateAccount();
+        SetupAccount(account);
         var httpContext = CreateHttpContext();
         httpContext.Request.Headers.IfMatch = "stale-ct";
 
@@ -882,7 +883,8 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
     public async Task SetClaimsAsync_WithAMatchingIfMatch_ReplacesTheClaims()
     {
         SetupAuthorizeUpdate(error: null);
-        SetupAccount(CreateAccount());
+        var account = CreateAccount();
+        SetupAccount(account);
         MockLocalAccountStore
             .Setup(x =>
                 x.ReplaceClaimsAsync(
@@ -937,7 +939,8 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
     public async Task SetMetadataAsync_WithAStaleIfMatch_Returns412AndWritesNothing()
     {
         SetupAuthorizeUpdate(error: null);
-        SetupPrincipal(CreatePrincipal());
+        var principal = CreatePrincipal();
+        SetupPrincipal(principal);
         var httpContext = CreateHttpContext();
         httpContext.Request.Headers.IfMatch = "stale-ct";
 

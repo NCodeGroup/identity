@@ -862,7 +862,6 @@ internal class LocalAccountApiEndpointHandler(
     /// <response code="204">The claims were replaced.</response>
     /// <response code="400">The claims include the reserved <c>name</c> claim, which is the account's display name.</response>
     /// <response code="404">The local account does not exist.</response>
-    /// <response code="412">The <c>If-Match</c> header does not match the local account's current entity tag.</response>
     internal virtual async ValueTask<IResult> SetClaimsAsync(
         HttpContext httpContext,
         [FromRoute] string tenantId,
@@ -961,7 +960,6 @@ internal class LocalAccountApiEndpointHandler(
     /// </summary>
     /// <response code="204">The metadata was set.</response>
     /// <response code="404">The local account does not exist, or it has no principal.</response>
-    /// <response code="412">The <c>If-Match</c> header does not match the metadata's current entity tag.</response>
     internal virtual async ValueTask<IResult> SetMetadataAsync(
         HttpContext httpContext,
         [FromRoute] string tenantId,
