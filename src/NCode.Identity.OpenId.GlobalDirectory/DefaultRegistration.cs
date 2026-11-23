@@ -108,6 +108,10 @@ public static class DefaultRegistration
                 IControlPlaneAuthority,
                 RemoteControlPlaneAuthority
             >(ControlPlaneServiceKeys.Remote);
+            serviceCollection.TryAddKeyedSingleton<
+                IControlPlanePrincipalDirectory,
+                RemoteControlPlanePrincipalDirectory
+            >(ControlPlaneServiceKeys.Remote);
 
             // The start check refuses an unusable control-plane issuer before the cell registers with the directory.
             var startupCheck = ServiceDescriptor.Singleton<

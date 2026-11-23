@@ -20,6 +20,11 @@ internal static class DirectoryClientDefaults
     internal const string AuthorityPath = "/control-plane/v1/authority";
 
     /// <summary>
+    /// The path of the control-plane principals endpoint, relative to the origin of the control-plane cell's issuer.
+    /// </summary>
+    internal const string PrincipalsPath = "/control-plane/v1/principals";
+
+    /// <summary>
     /// The most bytes that a directory response may carry.
     /// </summary>
     internal const int MaxResponseBytes = 1024 * 1024;
