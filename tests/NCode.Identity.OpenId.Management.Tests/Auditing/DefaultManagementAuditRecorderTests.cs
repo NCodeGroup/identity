@@ -1222,6 +1222,63 @@ public sealed class DefaultManagementAuditRecorderTests : IDisposable
 
     #endregion
 
+    #region RecordConnectionChangedAsync Tests
+
+    [Fact]
+    public async Task RecordConnectionChangedAsync_PublishesConnectionChangedAuditEventWithSnapshot()
+    {
+        var mockPublisher = MockRepository.Create<IEventPublisher>();
+
+        ConnectionChangedAuditEvent? captured = null;
+        mockPublisher
+            .Setup(x =>
+                x.PublishAsync(
+                    It.IsAny<ConnectionChangedAuditEvent>(),
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .Callback(
+                (ConnectionChangedAuditEvent auditEvent, CancellationToken _) =>
+                    captured = auditEvent
+            )
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable();
+
+        var recorder = CreateRecorder(mockPublisher.Object);
+
+        var httpContext = CreateHttpContext("admin-1");
+        var resourceValues = JsonSerializer.SerializeToElement(
+            new { displayName = "Username and password" }
+        );
+
+        await recorder.RecordConnectionChangedAsync(
+            httpContext,
+            "tenant-1",
+            "connection-1",
+            ResourceChangeTypes.Updated,
+            resourceValues
+        );
+
+        Assert.NotNull(captured);
+        Assert.Equal("connection.updated", captured.EventName);
+        Assert.Equal(AuditEventSources.Management, captured.EventSource);
+        Assert.Equal(ManagementResourceTypes.Connection, captured.ResourceType);
+        Assert.Equal(ResourceChangeTypes.Updated, captured.ChangeType);
+        Assert.Equal(AuditOutcome.Success, captured.Outcome);
+        Assert.Equal("tenant-1", captured.TenantId);
+        Assert.Equal("connection-1", captured.ResourceId);
+        Assert.Equal(AuditActorTypes.Administrator, captured.Actor.Type);
+        Assert.Equal("admin-1", captured.Actor.Id);
+        Assert.Equal(7, captured.EventId.Version);
+        Assert.Equal(
+            [new AuditResource(ManagementResourceTypes.Connection, "connection-1")],
+            captured.Resources
+        );
+        Assert.NotNull(captured.ResourceValues);
+    }
+
+    #endregion
+
     #region RecordAuditStreamChangedAsync Tests
 
     [Fact]

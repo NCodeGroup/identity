@@ -54,6 +54,11 @@ public static class ManagementResourceTypes
     public const string ResourceServer = "resource_server";
 
     /// <summary>
+    /// A tenant's connection, a named resource of a registered strategy that end users sign in through.
+    /// </summary>
+    public const string Connection = "connection";
+
+    /// <summary>
     /// A scope belonging to a resource server.
     /// </summary>
     public const string ResourceServerScope = "resource_server.scope";
