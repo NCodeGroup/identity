@@ -70,27 +70,7 @@ internal sealed class LocalAccountInteractivePasswordResetter(
             return CryptoService.GenerateUrlSafeKey();
         }
 
-        PersistedLocalAccount? account;
-        string? principalId = null;
-        await using (var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken))
-        {
-            var accountStore = storeManager.GetStore<ILocalAccountStore>();
-            account = await accountStore.GetByUserNameOrDefaultAsync(userName, cancellationToken);
-
-            // The principal is read for every request, by a random identifier when no account was found, so the
-            // answer's timing says nothing about the account. See ADR-1533.
-            var principalSubject = account?.LocalAccountId ?? CryptoService.GenerateUrlSafeKey();
-            var identityStore = storeManager.GetStore<IFederatedIdentityStore>();
-            var principal = await identityStore.GetByIssuerSubjectAsync(
-                AccountConstants.SelfIssuer,
-                principalSubject,
-                cancellationToken
-            );
-            if (IsEligible(account))
-            {
-                principalId = principal?.PrincipalId;
-            }
-        }
+        var (account, principalId) = await ReadResetCandidateAsync(userName, cancellationToken);
 
         // The end user's request is audited as the password grant's authentication is (ADR-1533).
         if (!IsEligible(account))
@@ -307,5 +287,39 @@ internal sealed class LocalAccountInteractivePasswordResetter(
             cancellationToken
         );
         return InteractivePasswordChangeResult.Refused(InteractiveEmailCodeErrors.InvalidCode);
+    }
+
+    /// <summary>
+    /// Reads the account a reset request names and its principal in a unit of work of its own, which ends before a code
+    /// is mailed. The principal is read for every request, by a random identifier when no account was found, so the
+    /// answer's timing says nothing about the account.
+    /// </summary>
+    /// <param name="userName">The user name the end user named.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    /// <returns>
+    /// The account, or <see langword="null"/> when there is none, and the identifier of its principal when the account
+    /// may be sent a code, otherwise <see langword="null"/>.
+    /// </returns>
+    private async ValueTask<(
+        PersistedLocalAccount? Account,
+        string? PrincipalId
+    )> ReadResetCandidateAsync(string userName, CancellationToken cancellationToken)
+    {
+        await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
+
+        var accountStore = storeManager.GetStore<ILocalAccountStore>();
+        var account = await accountStore.GetByUserNameOrDefaultAsync(userName, cancellationToken);
+
+        // The principal is read for every request, by a random identifier when no account was found, so the
+        // answer's timing says nothing about the account. See ADR-1533.
+        var principalSubject = account?.LocalAccountId ?? CryptoService.GenerateUrlSafeKey();
+        var identityStore = storeManager.GetStore<IFederatedIdentityStore>();
+        var principal = await identityStore.GetByIssuerSubjectAsync(
+            AccountConstants.SelfIssuer,
+            principalSubject,
+            cancellationToken
+        );
+
+        return (account, IsEligible(account) ? principal?.PrincipalId : null);
     }
 }
