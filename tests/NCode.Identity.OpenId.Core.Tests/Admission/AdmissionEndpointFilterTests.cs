@@ -228,9 +228,10 @@ public sealed class AdmissionEndpointFilterTests : BaseTests
         SetupCapacityPercent(60);
         SetupEnvironmentType();
         MockGate.Setup(x => x.TryEnter(60)).Returns(false).Verifiable();
+        // The error is the value-provider shim the testing conventions allow as a loose mock.
         var mockError = CreateLooseMock<IOpenIdError>();
         mockError.SetupAllProperties();
-        var mockErrorFactory = CreateLooseMock<IOpenIdErrorFactory>();
+        var mockErrorFactory = CreateStrictMock<IOpenIdErrorFactory>();
         mockErrorFactory
             .Setup(x => x.Create(OpenIdProtocol.ErrorCodes.TemporarilyUnavailable))
             .Returns(mockError.Object)
