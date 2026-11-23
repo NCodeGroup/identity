@@ -79,9 +79,8 @@ public sealed class ControlPlaneAdapterRegistrationTests : IDisposable
         Assert.IsType<LocalControlPlaneAuthority>(
             serviceProvider.GetRequiredService<IControlPlaneAuthority>()
         );
-        Assert.IsType<LocalControlPlanePrincipalDirectory>(
-            serviceProvider.GetRequiredService<IControlPlanePrincipalDirectory>()
-        );
+        var directory = serviceProvider.GetRequiredService<IControlPlanePrincipalDirectory>();
+        Assert.IsType<LocalControlPlanePrincipalDirectory>(directory);
     }
 
     [Fact]
@@ -100,10 +99,8 @@ public sealed class ControlPlaneAdapterRegistrationTests : IDisposable
             MockRemoteAuthority.Object,
             serviceProvider.GetRequiredService<IControlPlaneAuthority>()
         );
-        Assert.Same(
-            MockRemoteDirectory.Object,
-            serviceProvider.GetRequiredService<IControlPlanePrincipalDirectory>()
-        );
+        var directory = serviceProvider.GetRequiredService<IControlPlanePrincipalDirectory>();
+        Assert.Same(MockRemoteDirectory.Object, directory);
     }
 
     [Fact]
@@ -120,9 +117,8 @@ public sealed class ControlPlaneAdapterRegistrationTests : IDisposable
         Assert.IsType<LocalControlPlaneAuthority>(
             serviceProvider.GetRequiredService<IControlPlaneAuthority>()
         );
-        Assert.IsType<LocalControlPlanePrincipalDirectory>(
-            serviceProvider.GetRequiredService<IControlPlanePrincipalDirectory>()
-        );
+        var directory = serviceProvider.GetRequiredService<IControlPlanePrincipalDirectory>();
+        Assert.IsType<LocalControlPlanePrincipalDirectory>(directory);
     }
 
     #endregion

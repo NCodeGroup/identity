@@ -442,8 +442,12 @@ public class BaseOwnableApiEndpointHandlerTests : IDisposable
     [Fact]
     public async Task ProcessListRoleAssignmentsAsync_WhenSomeHoldersAreKnown_NamesThemAndLeavesTheUnknownOneNull()
     {
-        var authz = Authz(AuthorizationResult.Success());
+        var authorized = AuthorizationResult.Success();
+        var authz = Authz(authorized);
         var (factory, manager) = StoreManager();
+        var holder1 = Owner("p1", "a1");
+        var holder2 = Owner("p2", "a2");
+        var holder3 = Owner("p1", "a3");
         var ownership = MockRepository.Create<IResourceOwnershipService>();
         ownership
             .Setup(x =>
@@ -455,8 +459,14 @@ public class BaseOwnableApiEndpointHandlerTests : IDisposable
                     It.IsAny<CancellationToken>()
                 )
             )
-            .ReturnsAsync([Owner("p1", "a1"), Owner("p2", "a2"), Owner("p1", "a3")])
+            .ReturnsAsync([holder1, holder2, holder3])
             .Verifiable();
+        var aliceSummary = PrincipalDirectoryMocks.CreateSummary(
+            "p1",
+            PrincipalTypes.LocalAccount,
+            "alice",
+            "alice"
+        );
         var directory = MockRepository.Create<IControlPlanePrincipalDirectory>();
         directory
             .Setup(x =>
@@ -468,7 +478,7 @@ public class BaseOwnableApiEndpointHandlerTests : IDisposable
                     It.IsAny<CancellationToken>()
                 )
             )
-            .ReturnsAsync([Summary("p1", "alice")])
+            .ReturnsAsync([aliceSummary])
             .Verifiable();
         var node = ResourceNode.For(TenantId, ResourceNodeTypes.Client, ResourceId);
 
@@ -476,12 +486,12 @@ public class BaseOwnableApiEndpointHandlerTests : IDisposable
             authz.Object,
             factory.Object,
             ownership.Object,
-            MockRepository.Create<IManagementAuditRecorder>().Object,
-            directory.Object
+            directory: directory.Object
         );
+        var httpContext = CreateHttpContext();
         var roleList = CreateRoleList(node, BuiltInRoles.Owner, Operations.Update, Exists);
         var result = await handler.ProcessListRoleAssignmentsAsync(
-            CreateHttpContext(),
+            httpContext,
             roleList,
             (_, _) => ValueTask.FromResult(true),
             CancellationToken.None
@@ -498,7 +508,8 @@ public class BaseOwnableApiEndpointHandlerTests : IDisposable
     [Fact]
     public async Task ProcessListRoleAssignmentsAsync_WhenNoOneHoldsTheRole_NamesNobodyWithoutAskingTheDirectory()
     {
-        var authz = Authz(AuthorizationResult.Success());
+        var authorized = AuthorizationResult.Success();
+        var authz = Authz(authorized);
         var (factory, manager) = StoreManager();
         var ownership = MockRepository.Create<IResourceOwnershipService>();
         ownership
@@ -521,12 +532,12 @@ public class BaseOwnableApiEndpointHandlerTests : IDisposable
             authz.Object,
             factory.Object,
             ownership.Object,
-            MockRepository.Create<IManagementAuditRecorder>().Object,
-            directory.Object
+            directory: directory.Object
         );
+        var httpContext = CreateHttpContext();
         var roleList = CreateRoleList(node, BuiltInRoles.Owner, Operations.Update, Exists);
         var result = await handler.ProcessListRoleAssignmentsAsync(
-            CreateHttpContext(),
+            httpContext,
             roleList,
             (_, _) => ValueTask.FromResult(true),
             CancellationToken.None
@@ -647,12 +658,25 @@ public class BaseOwnableApiEndpointHandlerTests : IDisposable
     [Fact]
     public async Task ProcessAddRoleAssignmentAsync_WhenAUserNameIsNamed_ResolvesThePrincipalAndGrants()
     {
-        var authz = Authz(AuthorizationResult.Success());
+        var authorized = AuthorizationResult.Success();
+        var authz = Authz(authorized);
         var (factory, manager) = StoreManager();
         manager
             .Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()))
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
+        var bobSummary = PrincipalDirectoryMocks.CreateSummary(
+            "p9",
+            PrincipalTypes.LocalAccount,
+            "bob",
+            "bob"
+        );
+        var aliceSummary = PrincipalDirectoryMocks.CreateSummary(
+            "p2",
+            PrincipalTypes.LocalAccount,
+            "alice",
+            "alice"
+        );
         var directory = MockRepository.Create<IControlPlanePrincipalDirectory>();
         directory
             .Setup(x =>
@@ -664,8 +688,9 @@ public class BaseOwnableApiEndpointHandlerTests : IDisposable
                     It.IsAny<CancellationToken>()
                 )
             )
-            .ReturnsAsync([Summary("p9", "bob"), Summary("p2", "alice")])
+            .ReturnsAsync([bobSummary, aliceSummary])
             .Verifiable();
+        var assignment = Assignment("p2", RoleName, "a2");
         var ownership = MockRepository.Create<IResourceOwnershipService>();
         ownership
             .Setup(x =>
@@ -679,13 +704,7 @@ public class BaseOwnableApiEndpointHandlerTests : IDisposable
                     It.IsAny<CancellationToken>()
                 )
             )
-            .ReturnsAsync(
-                new RoleAssignmentGrant
-                {
-                    Assignment = Assignment("p2", RoleName, "a2"),
-                    IsAdded = true,
-                }
-            )
+            .ReturnsAsync(new RoleAssignmentGrant { Assignment = assignment, IsAdded = true })
             .Verifiable();
         var captured = new List<RoleAssignmentChangedAuditEvent>();
         var recorder = Recorder(captured);
@@ -698,9 +717,10 @@ public class BaseOwnableApiEndpointHandlerTests : IDisposable
             recorder.Object,
             directory.Object
         );
+        var httpContext = CreateHttpContext();
         var roleList = CreateRoleList(node, RoleName, Operations.Create, Exists);
         var result = await handler.ProcessAddRoleAssignmentAsync(
-            CreateHttpContext(),
+            httpContext,
             roleList,
             new AddRoleHolderRequest { UserName = "alice" },
             CancellationToken.None
@@ -717,12 +737,19 @@ public class BaseOwnableApiEndpointHandlerTests : IDisposable
     [Fact]
     public async Task ProcessAddRoleAssignmentAsync_WhenAUserNameDiffersInCase_GrantsTheAccount()
     {
-        var authz = Authz(AuthorizationResult.Success());
+        var authorized = AuthorizationResult.Success();
+        var authz = Authz(authorized);
         var (factory, manager) = StoreManager();
         manager
             .Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()))
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
+        var aliceSummary = PrincipalDirectoryMocks.CreateSummary(
+            "p2",
+            PrincipalTypes.LocalAccount,
+            "alice",
+            "alice"
+        );
         var directory = MockRepository.Create<IControlPlanePrincipalDirectory>();
         directory
             .Setup(x =>
@@ -734,8 +761,9 @@ public class BaseOwnableApiEndpointHandlerTests : IDisposable
                     It.IsAny<CancellationToken>()
                 )
             )
-            .ReturnsAsync([Summary("p2", "alice")])
+            .ReturnsAsync([aliceSummary])
             .Verifiable();
+        var assignment = Assignment("p2", RoleName, "a2");
         var ownership = MockRepository.Create<IResourceOwnershipService>();
         ownership
             .Setup(x =>
@@ -749,13 +777,7 @@ public class BaseOwnableApiEndpointHandlerTests : IDisposable
                     It.IsAny<CancellationToken>()
                 )
             )
-            .ReturnsAsync(
-                new RoleAssignmentGrant
-                {
-                    Assignment = Assignment("p2", RoleName, "a2"),
-                    IsAdded = true,
-                }
-            )
+            .ReturnsAsync(new RoleAssignmentGrant { Assignment = assignment, IsAdded = true })
             .Verifiable();
         var captured = new List<RoleAssignmentChangedAuditEvent>();
         var recorder = Recorder(captured);
@@ -768,9 +790,10 @@ public class BaseOwnableApiEndpointHandlerTests : IDisposable
             recorder.Object,
             directory.Object
         );
+        var httpContext = CreateHttpContext();
         var roleList = CreateRoleList(node, RoleName, Operations.Create, Exists);
         var result = await handler.ProcessAddRoleAssignmentAsync(
-            CreateHttpContext(),
+            httpContext,
             roleList,
             new AddRoleHolderRequest { UserName = "Alice" },
             CancellationToken.None
@@ -785,14 +808,21 @@ public class BaseOwnableApiEndpointHandlerTests : IDisposable
     [Fact]
     public async Task ProcessAddRoleAssignmentAsync_WhenNoPrincipalHasTheUserName_ReturnsBadRequestWithoutGranting()
     {
-        var authz = Authz(AuthorizationResult.Success());
+        var authorized = AuthorizationResult.Success();
+        var authz = Authz(authorized);
         var (factory, _) = StoreManager();
+        var bobSummary = PrincipalDirectoryMocks.CreateSummary(
+            "p9",
+            PrincipalTypes.LocalAccount,
+            "bob",
+            "bob"
+        );
         var directory = MockRepository.Create<IControlPlanePrincipalDirectory>();
         directory
             .Setup(x =>
                 x.FindAsync(It.IsAny<ControlPlanePrincipalQuery>(), It.IsAny<CancellationToken>())
             )
-            .ReturnsAsync([Summary("p9", "bob")])
+            .ReturnsAsync([bobSummary])
             .Verifiable();
         // A strict ownership service with no setup fails the test when it grants.
         var ownership = MockRepository.Create<IResourceOwnershipService>();
@@ -802,12 +832,12 @@ public class BaseOwnableApiEndpointHandlerTests : IDisposable
             authz.Object,
             factory.Object,
             ownership.Object,
-            MockRepository.Create<IManagementAuditRecorder>().Object,
-            directory.Object
+            directory: directory.Object
         );
+        var httpContext = CreateHttpContext();
         var roleList = CreateRoleList(node, RoleName, Operations.Create, Exists);
         var result = await handler.ProcessAddRoleAssignmentAsync(
-            CreateHttpContext(),
+            httpContext,
             roleList,
             new AddRoleHolderRequest { UserName = "alice" },
             CancellationToken.None
@@ -825,7 +855,8 @@ public class BaseOwnableApiEndpointHandlerTests : IDisposable
     [Fact]
     public async Task ProcessAddRoleAssignmentAsync_WhenThePrincipalIsUnknown_ReturnsBadRequestWithoutGrantingOrAuditing()
     {
-        var authz = Authz(AuthorizationResult.Success());
+        var authorized = AuthorizationResult.Success();
+        var authz = Authz(authorized);
         var (factory, _) = StoreManager();
         var directory = MockRepository.Create<IControlPlanePrincipalDirectory>();
         directory
@@ -851,9 +882,10 @@ public class BaseOwnableApiEndpointHandlerTests : IDisposable
             recorder.Object,
             directory.Object
         );
+        var httpContext = CreateHttpContext();
         var roleList = CreateRoleList(node, RoleName, Operations.Create, Exists);
         var result = await handler.ProcessAddRoleAssignmentAsync(
-            CreateHttpContext(),
+            httpContext,
             roleList,
             new AddRoleHolderRequest { PrincipalId = "ghost-principal" },
             CancellationToken.None
@@ -871,16 +903,18 @@ public class BaseOwnableApiEndpointHandlerTests : IDisposable
     [Fact]
     public async Task ProcessAddRoleAssignmentAsync_WhenBothAreNamed_ReturnsBadRequestWithoutOpeningTheStore()
     {
-        var authz = Authz(AuthorizationResult.Success());
+        var authorized = AuthorizationResult.Success();
+        var authz = Authz(authorized);
         // A request that names both or neither never opens the store.
         var factory = MockRepository.Create<IStoreManagerFactory>();
         var ownership = MockRepository.Create<IResourceOwnershipService>();
         var node = ResourceNode.For(TenantId, ResourceNodeTypes.Client, ResourceId);
 
         var handler = CreateHandler(authz.Object, factory.Object, ownership.Object);
+        var httpContext = CreateHttpContext();
         var roleList = CreateRoleList(node, RoleName, Operations.Create, Exists);
         var result = await handler.ProcessAddRoleAssignmentAsync(
-            CreateHttpContext(),
+            httpContext,
             roleList,
             new AddRoleHolderRequest { PrincipalId = "p2", UserName = "alice" },
             CancellationToken.None
@@ -897,16 +931,18 @@ public class BaseOwnableApiEndpointHandlerTests : IDisposable
     [Fact]
     public async Task ProcessAddRoleAssignmentAsync_WhenNeitherIsNamed_ReturnsBadRequestWithoutOpeningTheStore()
     {
-        var authz = Authz(AuthorizationResult.Success());
+        var authorized = AuthorizationResult.Success();
+        var authz = Authz(authorized);
         // A request that names both or neither never opens the store.
         var factory = MockRepository.Create<IStoreManagerFactory>();
         var ownership = MockRepository.Create<IResourceOwnershipService>();
         var node = ResourceNode.For(TenantId, ResourceNodeTypes.Client, ResourceId);
 
         var handler = CreateHandler(authz.Object, factory.Object, ownership.Object);
+        var httpContext = CreateHttpContext();
         var roleList = CreateRoleList(node, RoleName, Operations.Create, Exists);
         var result = await handler.ProcessAddRoleAssignmentAsync(
-            CreateHttpContext(),
+            httpContext,
             roleList,
             new AddRoleHolderRequest { PrincipalId = null, UserName = null },
             CancellationToken.None
@@ -1326,13 +1362,4 @@ public class BaseOwnableApiEndpointHandlerTests : IDisposable
     }
 
     #endregion
-
-    private static PrincipalSummaryResource Summary(string principalId, string userName) =>
-        new()
-        {
-            PrincipalId = principalId,
-            PrincipalType = PrincipalTypes.LocalAccount,
-            DisplayName = userName,
-            UserName = userName,
-        };
 }
