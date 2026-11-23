@@ -46,6 +46,19 @@ public interface IFederatedPrincipalStore : IStore
     );
 
     /// <summary>
+    /// Gets the federated principals that have any of the specified identifiers, in one call; an identifier no
+    /// principal has contributes none.
+    /// </summary>
+    /// <param name="principalIds">The opaque identifiers of the principals.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation, containing the matching
+    /// <see cref="PersistedFederatedPrincipal"/> instances in no particular order.</returns>
+    ValueTask<IReadOnlyList<PersistedFederatedPrincipal>> GetByIdsAsync(
+        IReadOnlyCollection<string> principalIds,
+        CancellationToken cancellationToken
+    );
+
+    /// <summary>
     /// Removes a federated principal from the store, together with the consents and grants of the principal in its
     /// tenant. The role assignments the principal holds, in every tenant, are removed with
     /// <see cref="IRoleAssignmentStore.RemoveByPrincipalAsync"/>.
