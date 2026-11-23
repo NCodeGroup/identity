@@ -86,6 +86,7 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
             TenantId = string.Empty,
             LocalAccountId = user.Id,
             UserName = userName,
+            DisplayName = user.DisplayName,
             Email = user.Email,
             EmailVerified = user.EmailConfirmed,
             SecurityStamp = securityStamp,
@@ -398,6 +399,7 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
             Id = account.LocalAccountId,
             TenantId = GetRequiredTenantId(),
             UserName = account.UserName,
+            DisplayName = account.DisplayName,
             Email = account.Email,
             EmailConfirmed = account.EmailVerified,
         };
@@ -454,6 +456,7 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
         var emailSet = await userManager.SetEmailAsync(user, account.Email);
         ThrowIfFailed(emailSet, "update the email");
         user.EmailConfirmed = account.EmailVerified;
+        user.DisplayName = account.DisplayName;
 
         if (account.IsEnabled)
         {
@@ -719,6 +722,7 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
                 LocalAccountId = user.Id,
                 UserName = userName,
                 NormalizedUserName = normalizedUserName,
+                DisplayName = user.DisplayName,
                 Email = user.Email,
                 NormalizedEmail = user.NormalizedEmail,
                 EmailVerified = user.EmailConfirmed,
@@ -775,6 +779,7 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
                 Id = record.LocalAccountId,
                 TenantId = tenantId,
                 UserName = record.UserName,
+                DisplayName = record.DisplayName,
                 Email = record.Email,
                 EmailConfirmed = record.EmailVerified,
             };

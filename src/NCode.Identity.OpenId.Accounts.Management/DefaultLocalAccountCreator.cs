@@ -32,15 +32,16 @@ internal sealed class DefaultLocalAccountCreator(
         CancellationToken cancellationToken
     )
     {
-        var error = await LocalAccountValidator.ValidateCreateAsync(
-            request.UserName,
-            storeManager,
-            cancellationToken
-        );
-        if (error is not null)
+        var claimTypes = (request.Claims ?? []).Select(claim => claim.Type);
+        var reservedClaimError = LocalAccountClaimRules.GetReservedClaimErrorOrDefault(claimTypes);
+        if (reservedClaimError is not null)
         {
-            return new LocalAccountCreation { Error = error };
+            return new LocalAccountCreation { Error = reservedClaimError };
         }
+
+        var displayName = string.IsNullOrWhiteSpace(request.DisplayName)
+            ? request.UserName
+            : request.DisplayName.Trim();
 
         var localAccountId = CryptoService.GenerateResourceId();
         var principalId = CryptoService.GenerateResourceId();
@@ -49,6 +50,7 @@ internal sealed class DefaultLocalAccountCreator(
         {
             TenantId = tenantId,
             LocalAccountId = localAccountId,
+            DisplayName = displayName,
             UserName = request.UserName,
             Email = request.Email,
             EmailVerified = request.EmailVerified,
@@ -64,6 +66,16 @@ internal sealed class DefaultLocalAccountCreator(
                 ?? [],
             ConcurrencyToken = string.Empty,
         };
+
+        var error = await LocalAccountValidator.ValidateCreateAsync(
+            account,
+            storeManager,
+            cancellationToken
+        );
+        if (error is not null)
+        {
+            return new LocalAccountCreation { Error = error };
+        }
 
         var passwordError = await LocalAccountPasswords.ValidateAsync(
             storeManager,

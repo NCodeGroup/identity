@@ -127,6 +127,13 @@ Core section 5.4) and `DefaultValidateLocalAccountSubjectHandler`
 ([ADR-1229](1229-a-blocked-disabled-or-deleted-end-user-loses-its-sessions-and-is-refused-with-access-denied.md)), which refuses a
 subject whose account is disabled or gone.
 
+### A local account has a display name
+
+Every local account has a required display name of at most 300 characters, which defaults to its user name when the
+account is created. It is the only source of the account's `name` claim in the cookie principal, the password-grant
+subject and UserInfo, and a `name` profile claim is refused. The ASP.NET Core Identity adapter stores it through
+`ITenantBoundUser.DisplayName`.
+
 ### Borrowed from ASP.NET Core Identity
 
 ASP.NET Core Identity is the reference for shape and lessons. The family borrows store segregation, the `SecurityStamp`

@@ -36,6 +36,11 @@ public sealed class LocalAccountResource : ISupportTenantId, ISupportConcurrency
     public required string UserName { get; init; }
 
     /// <summary>
+    /// Gets the account's display name, the source of its <c>name</c> claim.
+    /// </summary>
+    public required string DisplayName { get; init; }
+
+    /// <summary>
     /// Gets the account's email address, or <c>null</c> when none is recorded.
     /// </summary>
     public required string? Email { get; init; }

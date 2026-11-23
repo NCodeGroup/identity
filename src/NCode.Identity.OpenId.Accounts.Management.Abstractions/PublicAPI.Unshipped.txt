@@ -7,9 +7,9 @@ NCode.Identity.OpenId.Accounts.Management.ILocalAccountValidator
 NCode.Identity.OpenId.Accounts.Management.ILocalAccountValidator.AuthorizeCreateAsync(System.Security.Claims.ClaimsPrincipal! user, string! tenantId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.Management.ManagementError?>
 NCode.Identity.OpenId.Accounts.Management.ILocalAccountValidator.AuthorizeUpdateAsync(System.Security.Claims.ClaimsPrincipal! user, string! tenantId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.Management.ManagementError?>
 NCode.Identity.OpenId.Accounts.Management.ILocalAccountValidator.AuthorizeDeleteAsync(System.Security.Claims.ClaimsPrincipal! user, string! tenantId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.Management.ManagementError?>
-NCode.Identity.OpenId.Accounts.Management.ILocalAccountValidator.ValidateCreateAsync(string! userName, NCode.Identity.Persistence.Stores.IStoreManager! storeManager, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.Management.ManagementError?>
-NCode.Identity.OpenId.Accounts.Management.ILocalAccountValidator.ValidateDeleteAsync(string! localAccountId, NCode.Identity.Persistence.Stores.IStoreManager! storeManager, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.Management.ManagementError?>
-NCode.Identity.OpenId.Accounts.Management.ILocalAccountValidator.ValidateUpdateAsync(string! localAccountId, string! userName, string! concurrencyToken, string? ifMatch, NCode.Identity.Persistence.Stores.IStoreManager! storeManager, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.Management.ManagementError?>
+NCode.Identity.OpenId.Accounts.Management.ILocalAccountValidator.ValidateCreateAsync(NCode.Identity.OpenId.Accounts.DataContracts.PersistedLocalAccount! account, NCode.Identity.Persistence.Stores.IStoreManager! storeManager, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.Management.ManagementError?>
+NCode.Identity.OpenId.Accounts.Management.ILocalAccountValidator.ValidateDeleteAsync(NCode.Identity.OpenId.Accounts.DataContracts.PersistedLocalAccount! account, NCode.Identity.Persistence.Stores.IStoreManager! storeManager, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.Management.ManagementError?>
+NCode.Identity.OpenId.Accounts.Management.ILocalAccountValidator.ValidateUpdateAsync(NCode.Identity.OpenId.Accounts.DataContracts.PersistedLocalAccount! account, NCode.Identity.OpenId.Accounts.Management.Contracts.UpdateLocalAccountRequest! model, string? ifMatch, NCode.Identity.Persistence.Stores.IStoreManager! storeManager, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.Management.ManagementError?>
 NCode.Identity.OpenId.Accounts.Management.LocalAccountCreation
 NCode.Identity.OpenId.Accounts.Management.LocalAccountCreation.Account.get -> NCode.Identity.OpenId.Accounts.DataContracts.PersistedLocalAccount?
 NCode.Identity.OpenId.Accounts.Management.LocalAccountCreation.Account.init -> void
@@ -23,6 +23,8 @@ NCode.Identity.OpenId.Accounts.Management.Contracts.CreateLocalAccountRequest
 NCode.Identity.OpenId.Accounts.Management.Contracts.CreateLocalAccountRequest.CreateLocalAccountRequest() -> void
 NCode.Identity.OpenId.Accounts.Management.Contracts.CreateLocalAccountRequest.Claims.get -> System.Collections.Generic.IReadOnlyList<NCode.Identity.OpenId.Accounts.Management.Contracts.LocalAccountClaim!>?
 NCode.Identity.OpenId.Accounts.Management.Contracts.CreateLocalAccountRequest.Claims.init -> void
+NCode.Identity.OpenId.Accounts.Management.Contracts.CreateLocalAccountRequest.DisplayName.get -> string?
+NCode.Identity.OpenId.Accounts.Management.Contracts.CreateLocalAccountRequest.DisplayName.init -> void
 NCode.Identity.OpenId.Accounts.Management.Contracts.CreateLocalAccountRequest.Email.get -> string?
 NCode.Identity.OpenId.Accounts.Management.Contracts.CreateLocalAccountRequest.Email.init -> void
 NCode.Identity.OpenId.Accounts.Management.Contracts.CreateLocalAccountRequest.EmailVerified.get -> bool
@@ -70,6 +72,8 @@ NCode.Identity.OpenId.Accounts.Management.Contracts.LocalAccountMetadataResource
 NCode.Identity.OpenId.Accounts.Management.Contracts.LocalAccountResource
 NCode.Identity.OpenId.Accounts.Management.Contracts.LocalAccountResource.ConcurrencyToken.get -> string!
 NCode.Identity.OpenId.Accounts.Management.Contracts.LocalAccountResource.ConcurrencyToken.init -> void
+NCode.Identity.OpenId.Accounts.Management.Contracts.LocalAccountResource.DisplayName.get -> string!
+NCode.Identity.OpenId.Accounts.Management.Contracts.LocalAccountResource.DisplayName.init -> void
 NCode.Identity.OpenId.Accounts.Management.Contracts.LocalAccountResource.Email.get -> string?
 NCode.Identity.OpenId.Accounts.Management.Contracts.LocalAccountResource.Email.init -> void
 NCode.Identity.OpenId.Accounts.Management.Contracts.LocalAccountResource.EmailVerified.get -> bool
@@ -100,6 +104,8 @@ NCode.Identity.OpenId.Accounts.Management.Contracts.SetLocalAccountMetadataReque
 NCode.Identity.OpenId.Accounts.Management.Contracts.SetLocalAccountMetadataRequest.SystemMetadata.get -> System.Text.Json.JsonElement?
 NCode.Identity.OpenId.Accounts.Management.Contracts.SetLocalAccountMetadataRequest.SystemMetadata.init -> void
 NCode.Identity.OpenId.Accounts.Management.Contracts.UpdateLocalAccountRequest
+NCode.Identity.OpenId.Accounts.Management.Contracts.UpdateLocalAccountRequest.DisplayName.get -> string!
+NCode.Identity.OpenId.Accounts.Management.Contracts.UpdateLocalAccountRequest.DisplayName.set -> void
 NCode.Identity.OpenId.Accounts.Management.Contracts.UpdateLocalAccountRequest.Email.get -> string?
 NCode.Identity.OpenId.Accounts.Management.Contracts.UpdateLocalAccountRequest.Email.set -> void
 NCode.Identity.OpenId.Accounts.Management.Contracts.UpdateLocalAccountRequest.EmailVerified.get -> bool

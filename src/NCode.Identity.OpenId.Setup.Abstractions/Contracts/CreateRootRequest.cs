@@ -27,6 +27,11 @@ public sealed class CreateRootRequest
     public required string UserName { get; init; }
 
     /// <summary>
+    /// Gets the root administrator's display name, or <c>null</c> to use the username.
+    /// </summary>
+    public string? DisplayName { get; init; }
+
+    /// <summary>
     /// Gets the root administrator's email address, or <c>null</c> when none is recorded.
     /// </summary>
     public string? Email { get; init; }

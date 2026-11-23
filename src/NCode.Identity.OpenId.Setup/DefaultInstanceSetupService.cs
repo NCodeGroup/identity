@@ -302,6 +302,7 @@ internal sealed class DefaultInstanceSetupService(
             return CreateAlreadySetUpResult();
 
         string principalId;
+        string displayName;
         string? consoleClientId = null;
         string? automationClientId = null;
 
@@ -312,6 +313,7 @@ internal sealed class DefaultInstanceSetupService(
             var createRequest = new CreateLocalAccountRequest
             {
                 UserName = root.UserName,
+                DisplayName = root.DisplayName,
                 Password = password,
                 Email = root.Email,
                 EmailVerified = false,
@@ -327,6 +329,7 @@ internal sealed class DefaultInstanceSetupService(
                 return new InstanceSetupResult { Error = creation.Error };
 
             principalId = creation.PrincipalId;
+            displayName = creation.Account.DisplayName;
 
             await StageGlobalAdminAsync(storeManager, tenantId, principalId, cancellationToken);
 
@@ -439,6 +442,7 @@ internal sealed class DefaultInstanceSetupService(
                 TenantId = tenantId,
                 PrincipalId = principalId,
                 UserName = root.UserName,
+                DisplayName = displayName,
                 ManagementConsoleClientId = consoleClientId,
                 ManagementConsoleBaseUrl = consoleRegistration?.BaseUrl,
                 Issuer = issuer,

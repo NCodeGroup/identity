@@ -2,6 +2,7 @@
 const NCode.Identity.OpenId.Accounts.AccountConstants.SelfIssuer = "urn:ncode:identity:local-account" -> string!
 const NCode.Identity.OpenId.Accounts.AccountMaxLengths.ClaimType = 300 -> int
 const NCode.Identity.OpenId.Accounts.AccountMaxLengths.ClaimValue = 2000 -> int
+const NCode.Identity.OpenId.Accounts.AccountMaxLengths.DisplayName = 300 -> int
 const NCode.Identity.OpenId.Accounts.AccountMaxLengths.Email = 300 -> int
 const NCode.Identity.OpenId.Accounts.AccountMaxLengths.NormalizedEmail = 364 -> int
 const NCode.Identity.OpenId.Accounts.AccountMaxLengths.NormalizedUserName = 364 -> int
@@ -23,6 +24,8 @@ NCode.Identity.OpenId.Accounts.DataContracts.PersistedLocalAccount.Claims.get ->
 NCode.Identity.OpenId.Accounts.DataContracts.PersistedLocalAccount.Claims.set -> void
 NCode.Identity.OpenId.Accounts.DataContracts.PersistedLocalAccount.ConcurrencyToken.get -> string!
 NCode.Identity.OpenId.Accounts.DataContracts.PersistedLocalAccount.ConcurrencyToken.set -> void
+NCode.Identity.OpenId.Accounts.DataContracts.PersistedLocalAccount.DisplayName.get -> string!
+NCode.Identity.OpenId.Accounts.DataContracts.PersistedLocalAccount.DisplayName.set -> void
 NCode.Identity.OpenId.Accounts.DataContracts.PersistedLocalAccount.Email.get -> string?
 NCode.Identity.OpenId.Accounts.DataContracts.PersistedLocalAccount.Email.set -> void
 NCode.Identity.OpenId.Accounts.DataContracts.PersistedLocalAccount.EmailVerified.get -> bool
@@ -61,6 +64,8 @@ NCode.Identity.OpenId.Accounts.Stores.ILocalAccountTransferStore.ExportAsync(Sys
 NCode.Identity.OpenId.Accounts.Stores.ILocalAccountTransferStore.ImportAsync(System.Collections.Generic.IReadOnlyList<NCode.Identity.OpenId.Accounts.Stores.LocalAccountTransferRecord!>! records, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 NCode.Identity.OpenId.Accounts.Stores.ILocalAccountTransferStore.RemoveAllAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 NCode.Identity.OpenId.Accounts.Stores.ITenantBoundUser
+NCode.Identity.OpenId.Accounts.Stores.ITenantBoundUser.DisplayName.get -> string!
+NCode.Identity.OpenId.Accounts.Stores.ITenantBoundUser.DisplayName.set -> void
 NCode.Identity.OpenId.Accounts.Stores.ITenantBoundUser.TenantId.get -> string!
 NCode.Identity.OpenId.Accounts.Stores.ITenantBoundUser.TenantId.set -> void
 NCode.Identity.OpenId.Accounts.Stores.LocalAccountTransferRecord
@@ -68,6 +73,8 @@ NCode.Identity.OpenId.Accounts.Stores.LocalAccountTransferRecord.AccessFailedCou
 NCode.Identity.OpenId.Accounts.Stores.LocalAccountTransferRecord.AccessFailedCount.init -> void
 NCode.Identity.OpenId.Accounts.Stores.LocalAccountTransferRecord.Claims.get -> System.Collections.Generic.IReadOnlyList<NCode.Identity.OpenId.Accounts.DataContracts.PersistedLocalAccountClaim!>!
 NCode.Identity.OpenId.Accounts.Stores.LocalAccountTransferRecord.Claims.init -> void
+NCode.Identity.OpenId.Accounts.Stores.LocalAccountTransferRecord.DisplayName.get -> string!
+NCode.Identity.OpenId.Accounts.Stores.LocalAccountTransferRecord.DisplayName.init -> void
 NCode.Identity.OpenId.Accounts.Stores.LocalAccountTransferRecord.Email.get -> string?
 NCode.Identity.OpenId.Accounts.Stores.LocalAccountTransferRecord.Email.init -> void
 NCode.Identity.OpenId.Accounts.Stores.LocalAccountTransferRecord.EmailVerified.get -> bool

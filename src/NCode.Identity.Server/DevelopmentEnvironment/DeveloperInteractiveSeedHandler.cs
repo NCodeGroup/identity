@@ -358,6 +358,7 @@ internal sealed class DeveloperInteractiveSeedHandler(
             TenantId = context.TenantId,
             LocalAccountId = Guid.NewGuid().ToString("N"),
             UserName = username,
+            DisplayName = username,
             Email = Options.AdminEmail,
             EmailVerified = true,
             IsEnabled = true,

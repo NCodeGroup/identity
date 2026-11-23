@@ -4,6 +4,8 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
+using NCode.Identity.OpenId.Accounts.DataContracts;
+using NCode.Identity.OpenId.Accounts.Management.Contracts;
 using NCode.Identity.OpenId.Accounts.Stores;
 using NCode.Identity.OpenId.Management;
 using NCode.Identity.OpenId.Management.Authorization;
@@ -19,6 +21,99 @@ internal class DefaultLocalAccountValidator(IAuthorizationService authorizationS
     : DefaultResourceValidator(authorizationService),
         ILocalAccountValidator
 {
+    /// <summary>
+    /// Checks the username, which identifies the account at sign-in, so it is required and bounded.
+    /// </summary>
+    /// <param name="userName">The proposed username.</param>
+    /// <returns>A <see cref="ManagementError"/> describing the refusal, or <c>null</c> when valid.</returns>
+    private static ManagementError? GetUserNameErrorOrDefault(string? userName)
+    {
+        if (string.IsNullOrWhiteSpace(userName))
+        {
+            return new ManagementError
+            {
+                StatusCode = StatusCodes.Status400BadRequest,
+                Detail = "The username is required.",
+            };
+        }
+
+        if (userName.Length > AccountMaxLengths.UserName)
+        {
+            return new ManagementError
+            {
+                StatusCode = StatusCodes.Status400BadRequest,
+                Detail = $"The username must be at most {AccountMaxLengths.UserName} characters.",
+            };
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Checks the display name, which is the source of the account's name claim, so it is required and bounded.
+    /// </summary>
+    /// <param name="displayName">The proposed display name, already trimmed.</param>
+    /// <returns>A <see cref="ManagementError"/> describing the refusal, or <c>null</c> when valid.</returns>
+    private static ManagementError? GetDisplayNameErrorOrDefault(string? displayName)
+    {
+        if (string.IsNullOrWhiteSpace(displayName))
+        {
+            return new ManagementError
+            {
+                StatusCode = StatusCodes.Status400BadRequest,
+                Detail = "The display name is required.",
+            };
+        }
+
+        if (displayName.Length > AccountMaxLengths.DisplayName)
+        {
+            return new ManagementError
+            {
+                StatusCode = StatusCodes.Status400BadRequest,
+                Detail =
+                    $"The display name must be at most {AccountMaxLengths.DisplayName} characters.",
+            };
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Checks that the username is unique within the tenant; a match against a different account (or any account, on
+    /// create) conflicts.
+    /// </summary>
+    /// <param name="storeManager">The <see cref="IStoreManager"/> for the current unit of work.</param>
+    /// <param name="userName">The proposed username.</param>
+    /// <param name="localAccountId">The identifier of the account being updated, or <c>null</c> on create.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <returns>A <see cref="ManagementError"/> describing the conflict, or <c>null</c> when the username is
+    /// free.</returns>
+    private static async ValueTask<ManagementError?> CheckUserNameAvailableAsync(
+        IStoreManager storeManager,
+        string userName,
+        string? localAccountId,
+        CancellationToken cancellationToken
+    )
+    {
+        var existing = await storeManager
+            .GetStore<ILocalAccountStore>()
+            .GetByUserNameOrDefaultAsync(userName, cancellationToken);
+
+        if (
+            existing is not null
+            && !string.Equals(existing.LocalAccountId, localAccountId, StringComparison.Ordinal)
+        )
+        {
+            return new ManagementError
+            {
+                StatusCode = StatusCodes.Status409Conflict,
+                Detail = "A local account with the specified username already exists.",
+            };
+        }
+
+        return null;
+    }
+
     /// <inheritdoc />
     public ValueTask<ManagementError?> AuthorizeCreateAsync(
         ClaimsPrincipal user,
@@ -75,22 +170,33 @@ internal class DefaultLocalAccountValidator(IAuthorizationService authorizationS
 
     /// <inheritdoc />
     public ValueTask<ManagementError?> ValidateCreateAsync(
-        string userName,
+        PersistedLocalAccount account,
         IStoreManager storeManager,
         CancellationToken cancellationToken
-    ) =>
-        CheckUserNameAvailableAsync(
+    )
+    {
+        if (GetUserNameErrorOrDefault(account.UserName) is { } userNameError)
+        {
+            return ValueTask.FromResult<ManagementError?>(userNameError);
+        }
+
+        if (GetDisplayNameErrorOrDefault(account.DisplayName) is { } displayNameError)
+        {
+            return ValueTask.FromResult<ManagementError?>(displayNameError);
+        }
+
+        return CheckUserNameAvailableAsync(
             storeManager,
-            userName,
+            account.UserName,
             localAccountId: null,
             cancellationToken
         );
+    }
 
     /// <inheritdoc />
     public ValueTask<ManagementError?> ValidateUpdateAsync(
-        string localAccountId,
-        string userName,
-        string concurrencyToken,
+        PersistedLocalAccount account,
+        UpdateLocalAccountRequest model,
         string? ifMatch,
         IStoreManager storeManager,
         CancellationToken cancellationToken
@@ -99,7 +205,7 @@ internal class DefaultLocalAccountValidator(IAuthorizationService authorizationS
         if (
             ManagementEntityTags.GetIfMatchErrorOrDefault(
                 ifMatch,
-                concurrencyToken,
+                account.ConcurrencyToken,
                 "local account"
             ) is
             { } preconditionError
@@ -108,45 +214,28 @@ internal class DefaultLocalAccountValidator(IAuthorizationService authorizationS
             return ValueTask.FromResult<ManagementError?>(preconditionError);
         }
 
+        if (GetUserNameErrorOrDefault(model.UserName) is { } userNameError)
+        {
+            return ValueTask.FromResult<ManagementError?>(userNameError);
+        }
+
+        if (GetDisplayNameErrorOrDefault(model.DisplayName) is { } displayNameError)
+        {
+            return ValueTask.FromResult<ManagementError?>(displayNameError);
+        }
+
         return CheckUserNameAvailableAsync(
             storeManager,
-            userName,
-            localAccountId,
+            model.UserName,
+            account.LocalAccountId,
             cancellationToken
         );
     }
 
     /// <inheritdoc />
     public ValueTask<ManagementError?> ValidateDeleteAsync(
-        string localAccountId,
+        PersistedLocalAccount account,
         IStoreManager storeManager,
         CancellationToken cancellationToken
     ) => ValueTask.FromResult<ManagementError?>(null);
-
-    // A username is unique within the tenant; a match against a different account (or any account, on create) conflicts.
-    private static async ValueTask<ManagementError?> CheckUserNameAvailableAsync(
-        IStoreManager storeManager,
-        string userName,
-        string? localAccountId,
-        CancellationToken cancellationToken
-    )
-    {
-        var existing = await storeManager
-            .GetStore<ILocalAccountStore>()
-            .GetByUserNameOrDefaultAsync(userName, cancellationToken);
-
-        if (
-            existing is not null
-            && !string.Equals(existing.LocalAccountId, localAccountId, StringComparison.Ordinal)
-        )
-        {
-            return new ManagementError
-            {
-                StatusCode = StatusCodes.Status409Conflict,
-                Detail = "A local account with the specified username already exists.",
-            };
-        }
-
-        return null;
-    }
 }

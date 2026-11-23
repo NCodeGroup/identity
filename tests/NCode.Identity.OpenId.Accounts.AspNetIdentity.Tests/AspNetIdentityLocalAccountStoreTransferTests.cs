@@ -92,6 +92,7 @@ public sealed class AspNetIdentityLocalAccountStoreTransferTests : IAsyncLifetim
             TenantId = string.Empty,
             LocalAccountId = localAccountId,
             UserName = userName,
+            DisplayName = "Alice Example",
             Email = $"{userName}@example.com",
             EmailVerified = true,
             IsEnabled = isEnabled,
@@ -108,6 +109,7 @@ public sealed class AspNetIdentityLocalAccountStoreTransferTests : IAsyncLifetim
         {
             LocalAccountId = localAccountId,
             UserName = userName,
+            DisplayName = "Imported Account",
             NormalizedUserName = userName,
             Email = null,
             NormalizedEmail = null,

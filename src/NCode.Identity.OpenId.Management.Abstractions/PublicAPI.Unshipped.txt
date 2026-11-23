@@ -37,6 +37,7 @@ const NCode.Identity.OpenId.Management.Contracts.Tenants.TenantPromotionNoteCode
 const NCode.Identity.OpenId.Management.Contracts.Tenants.TenantPromotionNoteCodes.HostManaged = "host_managed" -> string!
 const NCode.Identity.OpenId.Management.Endpoints.ManagementApiEndpointHandler.DefaultPageSize = 50 -> int
 const NCode.Identity.OpenId.Management.Endpoints.ManagementApiEndpointHandler.MaxPageSize = 100 -> int
+const NCode.Identity.OpenId.Management.Endpoints.ManagementEndpointGroups.Root = "api" -> string!
 const NCode.Identity.OpenId.Management.Endpoints.ManagementEndpointGroups.Tenant = "api/tenant" -> string!
 const NCode.Identity.OpenId.Management.ManagementApiDefaults.RoutePrefix = "/api" -> string!
 NCode.Identity.OpenId.Management.Auditing.ClientChangedAuditEvent

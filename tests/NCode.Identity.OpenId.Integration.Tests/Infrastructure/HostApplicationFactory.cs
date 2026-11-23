@@ -277,6 +277,7 @@ public class HostApplicationFactory : WebApplicationFactory<HostApiMarker>
                 TenantId = TenantId,
                 LocalAccountId = localAccountId,
                 UserName = localAccountId,
+                DisplayName = localAccountId,
                 Email = null,
                 EmailVerified = false,
                 IsEnabled = true,
@@ -1141,8 +1142,59 @@ public class HostApplicationFactory : WebApplicationFactory<HostApiMarker>
     /// password hash matches <paramref name="password"/>. Returns the generated <c>LocalAccountId</c> (the subject of
     /// the account's self-issued federated identity).
     /// </summary>
-    public async ValueTask<string> SeedLocalAccountAsync(
+    public ValueTask<string> SeedLocalAccountAsync(
         string userName,
+        string password,
+        string? email,
+        bool emailVerified,
+        CancellationToken cancellationToken
+    ) =>
+        SeedLocalAccountCoreAsync(
+            userName,
+            userName,
+            password,
+            email,
+            emailVerified,
+            cancellationToken
+        );
+
+    /// <summary>
+    /// Ensures the tenant exists and seeds an enabled local account with the given display name, whose stored password
+    /// hash matches <paramref name="password"/>. Returns the generated <c>LocalAccountId</c> (the subject of the
+    /// account's self-issued federated identity).
+    /// </summary>
+    /// <param name="userName">The account's username.</param>
+    /// <param name="displayName">The account's display name.</param>
+    /// <param name="password">The password the stored hash matches.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    public ValueTask<string> SeedLocalAccountWithDisplayNameAsync(
+        string userName,
+        string displayName,
+        string password,
+        CancellationToken cancellationToken
+    ) =>
+        SeedLocalAccountCoreAsync(
+            userName,
+            displayName,
+            password,
+            email: null,
+            emailVerified: false,
+            cancellationToken
+        );
+
+    /// <summary>
+    /// Ensures the tenant exists and seeds an enabled local account with the given display name and email address,
+    /// whose stored password hash matches <paramref name="password"/>. Returns the generated <c>LocalAccountId</c>.
+    /// </summary>
+    /// <param name="userName">The account's username.</param>
+    /// <param name="displayName">The account's display name.</param>
+    /// <param name="password">The password the stored hash matches.</param>
+    /// <param name="email">The account's email address, or <see langword="null"/>.</param>
+    /// <param name="emailVerified">Whether the email address is verified.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    private async ValueTask<string> SeedLocalAccountCoreAsync(
+        string userName,
+        string displayName,
         string password,
         string? email,
         bool emailVerified,
@@ -1167,6 +1219,7 @@ public class HostApplicationFactory : WebApplicationFactory<HostApiMarker>
                 TenantId = TenantId,
                 LocalAccountId = localAccountId,
                 UserName = userName,
+                DisplayName = displayName,
                 Email = email,
                 EmailVerified = emailVerified,
                 IsEnabled = true,

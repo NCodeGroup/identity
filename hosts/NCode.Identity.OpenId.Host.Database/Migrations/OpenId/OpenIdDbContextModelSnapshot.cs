@@ -71,6 +71,11 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                         .IsUnicode(false)
                         .HasColumnType("character varying(50)");
 
+                    b.Property<string>("DisplayName")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
                     b.Property<string>("Email")
                         .HasMaxLength(300)
                         .HasColumnType("character varying(300)");

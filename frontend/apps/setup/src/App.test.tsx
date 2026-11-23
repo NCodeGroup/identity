@@ -54,6 +54,7 @@ async function enterAcceptedToken(token: string): Promise<void> {
 }
 
 function submitAccount(): void {
+  fill(/^Display name/, 'Root Admin');
   fill(/^User name/, 'root');
   fill(/^Password/, 'a long passphrase!');
   fill(/^Confirm password/, 'a long passphrase!');
@@ -253,7 +254,13 @@ describe('App', () => {
     vi.mocked(getStatus).mockResolvedValue(READY);
     vi.mocked(createRoot).mockResolvedValue({
       kind: 'created',
-      root: { tenantId: 't', principalId: 'p', userName: 'root', ...ROOT_ADDRESSES },
+      root: {
+        tenantId: 't',
+        principalId: 'p',
+        displayName: 'Root Admin',
+        userName: 'root',
+        ...ROOT_ADDRESSES,
+      },
     } satisfies CreateRootResult);
     renderApp();
 
@@ -269,6 +276,7 @@ describe('App', () => {
     expect(screen.queryByText('Remove the setup token Secret.')).not.toBeInTheDocument();
     expect(createRoot).toHaveBeenCalledExactlyOnceWith({
       token: 'the-token',
+      displayName: 'Root Admin',
       userName: 'root',
       password: 'a long passphrase!',
     });
@@ -281,6 +289,7 @@ describe('App', () => {
       root: {
         tenantId: 't',
         principalId: 'p',
+        displayName: 'Root Admin',
         userName: 'root',
         managementConsoleClientId: 'mgmt-console',
         managementConsoleBaseUrl: 'https://console.example.test',
@@ -291,6 +300,7 @@ describe('App', () => {
     renderApp();
 
     await enterAcceptedToken('the-token');
+    fill(/^Display name/, 'Root Admin');
     fill(/^User name/, 'root');
     fill(/^Password/, 'a long passphrase!');
     fill(/^Confirm password/, 'a long passphrase!');
@@ -315,6 +325,7 @@ describe('App', () => {
     ).toBeInTheDocument();
     expect(createRoot).toHaveBeenCalledExactlyOnceWith({
       token: 'the-token',
+      displayName: 'Root Admin',
       userName: 'root',
       password: 'a long passphrase!',
       managementConsole: {
@@ -335,6 +346,7 @@ describe('App', () => {
     renderApp();
 
     await enterAcceptedToken('the-token');
+    fill(/^Display name/, 'Root Admin');
     fill(/^User name/, 'root');
     fill(/^Password/, 'a long passphrase!');
     fill(/^Confirm password/, 'a long passphrase!');

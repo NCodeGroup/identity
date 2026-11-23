@@ -320,7 +320,8 @@ public class ConformanceSeedHandlerTests : SecretProtectionTestBase
         var claims = captured.Claims.ToDictionary(claim => claim.Type, claim => claim.Value);
         Assert.Equal("Conformance", claims[JoseClaimNames.Payload.GivenName]);
         Assert.Equal("User", claims[JoseClaimNames.Payload.FamilyName]);
-        Assert.Equal("Conformance User", claims[JoseClaimNames.Payload.Name]);
+        Assert.Equal("Conformance User", captured.DisplayName);
+        Assert.DoesNotContain(JoseClaimNames.Payload.Name, claims.Keys);
     }
 
     [Fact]

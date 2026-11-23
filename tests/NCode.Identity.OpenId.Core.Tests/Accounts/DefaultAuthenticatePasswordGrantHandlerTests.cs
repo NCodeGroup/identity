@@ -122,6 +122,7 @@ public class DefaultAuthenticatePasswordGrantHandlerTests : BaseTests
             TenantId = TenantId,
             LocalAccountId = LocalAccountId,
             UserName = UserName,
+            DisplayName = "Display Name",
             Email = null,
             EmailVerified = false,
             IsEnabled = isEnabled,
