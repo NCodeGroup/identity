@@ -51,9 +51,10 @@ any package may reference.**
    `KeyResidencyOptions`, which the Valkey adapter and the AWS and Google Cloud key management service adapters apply.
 4. **The layered references.** An Entity Framework slice references the Entity Framework framework it plugs into
    ([ADR-1052](1052-entity-framework-persistence-is-a-reusable-framework-that-domain-slices-plug-into.md)). A mail
-   transport that submits MIME references `NCode.Identity.Mail.Mime`, the MIME form of a mail message that the SMTP and
-   Amazon SES transports share. Every other collaboration between implementations is through abstractions resolved from
-   DI: `NCode.Identity.OpenId.Authentication` uses the OpenID core's services through
+   transport that submits MIME references `NCode.Identity.Mail.Mime`, registers through its `AddMimeMailTransport` and
+   takes its `IMimeMessageFactory`, which builds the MIME form of a mail message that the SMTP and Amazon SES
+   transports share, by constructor injection. Every other collaboration between implementations is through
+   abstractions resolved from DI: `NCode.Identity.OpenId.Authentication` uses the OpenID core's services through
    `NCode.Identity.OpenId.Abstractions`, and the Entity Framework accounts slice uses the `IPasswordHasher` that a host
    registers with `AddDefaultPasswordHasher()` from `NCode.Identity.OpenId.Accounts`.
 5. **Foundation packages.** `NCode.Identity.Json`, `NCode.Identity.Jwk`, `NCode.Identity.Time` and

@@ -144,21 +144,22 @@ the model through the job dispatcher and returns. At each delivery attempt the m
 code is a number until a sensitive buffer writes it, `IMailTransport` delivers the message, and the handler disposes it.
 A delivery is tried four times, backing off from five seconds to one minute, so a code still arrives within its
 lifetime. A message's bodies and attachments are `MailContent`, streams that the message owns and never byte arrays or
-strings, and `NCode.Identity.Mail.Mime` builds the MIME form that both transports send. `NCode.Identity.Mail.Smtp` is
-the transport a host opts into with the `Mail:Smtp` section, and `NCode.Identity.Mail.AmazonSes` is the one it opts into
-with the `Mail:AmazonSes` section, which sends through the Amazon SES v2 API as the pod's AWS role and reports a refusal
-as its error code and status only; a host configures one of them. Without a transport section the default transport
-refuses every message, each failed delivery is logged, and a tenant keeps the three settings off. The sender address
-belongs to the transport, because the provider authorizes it. `Tls` is `StartTls` or `ImplicitTls`, and `None` sends in
-clear, so the SMTP options validator refuses it, in any spelling that binds to it, unless `LocalDevelopment:Enabled` is
-set, for the local stack's mail catcher. The mail is worded in every shipped locale and in the tenant's branding display
-name, and a log never writes a recipient or a body. See [metrics](../metrics.md#ncodeidentitymailmessages) for the
-delivery counter.
+strings, and `NCode.Identity.Mail.Mime`'s `IMimeMessageFactory`, which each transport takes by constructor injection,
+builds the MIME form that both transports send and dates a message by the host's `TimeProvider`.
+`NCode.Identity.Mail.Smtp` is the transport a host opts into with the `Mail:Smtp` section, and
+`NCode.Identity.Mail.AmazonSes` is the one it opts into with the `Mail:AmazonSes` section, which sends through the
+Amazon SES v2 API as the pod's AWS role and reports a refusal as its error code and status only; a host configures one
+of them. Without a transport section the default transport refuses every message, each failed delivery is logged, and a
+tenant keeps the three settings off. The sender address belongs to the transport, because the provider authorizes it.
+`Tls` is `StartTls` or `ImplicitTls`, and `None` sends in clear, so the SMTP options validator refuses it, in any
+spelling that binds to it, unless `LocalDevelopment:Enabled` is set, for the local stack's mail catcher. The mail is
+worded in every shipped locale and in the tenant's branding display name, and a log never writes a recipient or a body.
+See [metrics](../metrics.md#ncodeidentitymailmessages) for the delivery counter.
 
 > [!TIP]
 > [ADR-1532](../decisions/1532-outbound-mail-is-a-port-that-composes-each-queued-message-at-delivery-for-a-replaceable-transport-with-smtp-and-amazon-ses-adapters.md),
-> `IMailSender`, `IMailComposer`, `IMailTransport`, `MailDeliveryJobHandler`, `SmtpMailTransport`,
-> `AmazonSesMailTransport`.
+> `IMailSender`, `IMailComposer`, `IMailTransport`, `MailDeliveryJobHandler`, `IMimeMessageFactory`,
+> `SmtpMailTransport`, `AmazonSesMailTransport`.
 
 ## Audit
 

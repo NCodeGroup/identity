@@ -36,10 +36,13 @@ the `Mail:Smtp` and `Mail:AmazonSes` sections.**
    `StreamMailContent`, `MailAttachment`, `MailTransferEncodings`, `IMailSender`, `IMailComposer`,
    `MailComposer<TModel>`, `IMailTransport` and `MailTransportRegistration`. `NCode.Identity.Mail` holds
    `AddMailServices()`, the default sender, the composer registry, the delivery job and its handler, the metrics, and a
-   default transport that refuses every message until a host registers one. `NCode.Identity.Mail.Mime` builds the MIME
-   form of a message over MimeKit for every transport that submits MIME. `NCode.Identity.Mail.Smtp` holds
-   `AddSmtpMailTransport` over MailKit, and `NCode.Identity.Mail.AmazonSes` holds `AddAmazonSesMailTransport` over the
-   AWS SDK's Amazon SES v2 client. Each transport is an opt-in adapter, as the Valkey adapter is
+   default transport that refuses every message until a host registers one. `NCode.Identity.Mail.Mime` holds
+   `IMimeMessageFactory`, which builds the MIME form of a message over MimeKit for every transport that submits MIME,
+   its default, and `AddMimeMailTransport<TTransport>`, which registers such a transport as the host's one transport
+   with the factory and the `TimeProvider` that dates its messages; each transport takes the factory by constructor
+   injection. `NCode.Identity.Mail.Smtp` holds `AddSmtpMailTransport` over MailKit, and `NCode.Identity.Mail.AmazonSes`
+   holds `AddAmazonSesMailTransport` over the AWS SDK's Amazon SES v2 client. Each transport is an opt-in adapter, as
+   the Valkey adapter is
    ([ADR-1164](1164-replicas-share-expiring-keys-values-and-indexes-through-ports-with-in-process-and-valkey-adapters.md)).
 2. **The message.** A `MailMessage` is a send-only request that owns its content, and whoever delivers it disposes it.
    Its addresses are `From`, `FromDisplayName`, `Sender`, `ReplyTo`, `To`, `Cc` and `Bcc`. Its headers are `Subject`,
@@ -67,7 +70,7 @@ the `Mail:Smtp` and `Mail:AmazonSes` sections.**
    is explicit: the one the content names, else quoted-printable for text and base64 for everything else. Content that
    can't seek is buffered once into a sensitive pooled stream, so each attempt and each transport reads the same bytes
    and no buffer outlives its message unzeroed. `Bcc` is hidden from the headers a transport writes, and every recipient
-   is in the envelope.
+   is in the envelope. A message that names no `Date` is dated by the host's `TimeProvider`.
 5. **SMTP.** `Mail:Smtp` holds `Host`, `Port` (587), `Tls` (`StartTls` by default, `ImplicitTls` or `None`), `UserName`
    and `Password` (both or neither), `From`, `FromName` and `Timeout` (30 seconds). It is bound strictly and validated
    at start
@@ -80,9 +83,9 @@ the `Mail:Smtp` and `Mail:AmazonSes` sections.**
    `Tags` and `Timeout` (30 seconds). The transport writes the raw MIME once into a sensitive pooled stream, and the SDK
    reads a read-only `MemoryStream` over that rented array. The credentials come from the default AWS chain, and the SDK
    retries twice under its standard policy. A refusal throws SES's error code and HTTP status, never the message text.
-7. **One transport per host.** Each adapter registers only when its section exists and adds a
-   `MailTransportRegistration` marker, so a second adapter throws `InvalidOperationException` while the host is
-   composed. Without either section nothing is registered, and every delivery fails and is logged.
+7. **One transport per host.** Each adapter registers only when its section exists, through `AddMimeMailTransport`, the
+   one place that adds the `MailTransportRegistration` marker, so a second adapter throws `InvalidOperationException`
+   while the host is composed. Without either section nothing is registered, and every delivery fails and is logged.
 8. **Telemetry.** `ncode.identity.mail.messages` counts messages by `ncode.identity.mail.result` (`delivered`, `failed`)
    on the meter `NCode.Identity.Mail`
    ([ADR-1197](1197-telemetry-has-one-owner-per-signal-bounded-attributes-and-spans-that-mirror-their-histograms.md)). A
@@ -92,7 +95,9 @@ the `Mail:Smtp` and `Mail:AmazonSes` sections.**
    afterwards is logged by its exception type and the delivery is neither failed nor repeated.
 9. **The hosts.** The host chart's `mail.smtp` values set the `Mail:Smtp` section, with its credentials from a Secret,
    and refuse `None`; its `mail.amazonSes` values set the `Mail:AmazonSes` section; and it refuses both set together.
-   `aws.webIdentity` gives the pod the AWS role that Amazon SES and AWS KMS use. The local stack sends to Mailpit.
+   `aws.webIdentity` gives the AWS role that AWS KMS and Amazon SES use to the pods that use AWS KMS and to the host's
+   Deployment, the one pod that sends mail; without a role, the transport signs in with the pod's ambient identity,
+   such as EKS Pod Identity. The local stack sends to Mailpit.
 
 ## Options considered
 
@@ -108,6 +113,8 @@ the `Mail:Smtp` and `Mail:AmazonSes` sections.**
   exists.
 - **A mail outbox table.** Rejected: the durable dispatcher is the one durable queue for every job
   ([#25](https://github.com/NCodeGroup/identity/issues/25)).
+- **A static MIME builder.** Rejected: a transport can't take it by injection, a host can't replace it, and it reads
+  the wall clock for a message's date.
 - **Chosen:** the queued port, composition at delivery, and the SMTP and Amazon SES adapters over a shared MIME package.
 
 ## Consequences
@@ -118,7 +125,8 @@ the `Mail:Smtp` and `Mail:AmazonSes` sections.**
   mail credential
   ([ADR-1528](1528-the-hosted-platform-sends-its-mail-through-amazon-ses-in-each-cells-region-from-mail-ncodeid-net.md)).
 - A producer adds a serializable model and a composer for it, and a new transport that submits MIME references
-  `NCode.Identity.Mail.Mime`.
+  `NCode.Identity.Mail.Mime`, registers through `AddMimeMailTransport` and takes `IMimeMessageFactory` by constructor
+  injection.
 - A durable dispatcher stores the model, code included, until the message is delivered, so it protects job payloads at
   rest ([#25](https://github.com/NCodeGroup/identity/issues/25)).
 
