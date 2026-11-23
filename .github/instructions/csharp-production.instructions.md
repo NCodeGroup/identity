@@ -296,6 +296,12 @@ than inlining the rationale.
   `ConfigureKestrel(k => k.ConfigureHttpsDefaults(...))` call that holds every HTTPS default, such as the reference
   host's `AllowAnyClientCertificate()` for mutual TLS
   ([ADR-1202](../../docs/decisions/1202-fapi-1-0-advanced-is-a-registered-profile-and-only-a-request-objects-parameters-count.md)).
+- 👁 **A host command reports every failure as its exit code.** A command that a host's entry point dispatches (`setup`,
+  `secret-protection`, the directory host's `migrate`) catches every exception while its cancellation token is not
+  cancelled, logs it at Error and returns `1`, so `Main` returns and the process ends. An exception that escapes `Main`
+  leaves the end of the process to the runtime's crash path, which does not end a process that runs as PID 1 in its
+  container, as the hosts' images run `dotnet`
+  ([dotnet/runtime#112580](https://github.com/dotnet/runtime/issues/112580)), so a Job would run until its deadline.
 - 👁 **A host maps its probes with `MapHealthProbes()`** (`NCode.Identity.AspNetCore`), and a package tags a check a replica cannot serve without with `HealthCheckTags.Readiness` (`NCode.Identity.Registration`) ([ADR-1456](../../docs/decisions/1456-the-hosts-map-their-health-probes-through-one-general-helper.md)).
 - 👁 **A host registers HTTP logging with `AddGuardedHttpLogging()` and calls `UseHttpLogging()` right after
   `UseRouting()`** (`NCode.Identity.AspNetCore`). Nothing sets a body, query or trailer field or allow-lists a
@@ -1400,6 +1406,7 @@ MethodImplOptions.AggressiveOptimization)]`, manual unrolling of tiny fixed-coun
     | `33000`–`33999` | `NCode.Identity.Mail.Smtp`                          |
     | `34000`–`34999` | `NCode.Identity.Mail.Mime`                          |
     | `35000`–`35999` | `NCode.Identity.Mail.AmazonSes`                     |
+    | `36000`–`36999` | `NCode.Identity.OpenId.GlobalDirectory.Host`        |
 
 ### Metrics
 
