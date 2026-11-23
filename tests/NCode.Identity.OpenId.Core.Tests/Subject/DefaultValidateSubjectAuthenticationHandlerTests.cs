@@ -199,6 +199,16 @@ public class DefaultValidateSubjectAuthenticationHandlerTests : BaseTests
         return new ParameterCollection([parameter], cloneParameters: false);
     }
 
+    private static IParameterCollection CreateConnectionParameters(string connection)
+    {
+        var parameter = new Parameter<string>(
+            new ParameterDescriptor(OpenIdCommonParameters.Connection),
+            OpenIdCommonParameters.Connection.Parser,
+            connection
+        );
+        return new ParameterCollection([parameter], cloneParameters: false);
+    }
+
     private ResolvedConnection SetupConnection(string connectionId, string name, bool isEnabled)
     {
         var resolved = new ResolvedConnection
@@ -377,6 +387,59 @@ public class DefaultValidateSubjectAuthenticationHandlerTests : BaseTests
         SetupTenant(mockContext, mockTenant);
 
         await Handler.HandleAsync(command, CancellationToken.None);
+
+        Assert.False(disposition.HasError);
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenRequestedConnectionParameterDiffersInCase_Succeeds()
+    {
+        SetupConnection("c1", "local", isEnabled: true);
+        var subject = CreateSubjectAuthentication(TenantId, CreateSubjectWithConnection("c1"));
+        var parameters = CreateConnectionParameters("LOCAL");
+        var (command, disposition, mockContext, mockTenant) = CreateCommand(
+            subject,
+            initialError: null,
+            parameters
+        );
+        SetupTenant(mockContext, mockTenant);
+
+        await Handler.HandleAsync(command, CancellationToken.None);
+
+        Assert.False(disposition.HasError);
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenRequestedConnectionParameterDiffersInName_SetsAccessDeniedError()
+    {
+        SetupConnection("c1", "local", isEnabled: true);
+        var subject = CreateSubjectAuthentication(TenantId, CreateSubjectWithConnection("c1"));
+        var parameters = CreateConnectionParameters("other");
+        var (command, disposition, mockContext, mockTenant) = CreateCommand(
+            subject,
+            initialError: null,
+            parameters
+        );
+        SetupTenant(mockContext, mockTenant);
+
+        await Handler.HandleAsync(command, CancellationToken.None);
+
+        Assert.True(disposition.HasError);
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenAllowedConnectionDiffersInCase_Succeeds()
+    {
+        SetupConnection("c1", "local", isEnabled: true);
+        var subject = CreateSubjectAuthentication(TenantId, CreateSubjectWithConnection("c1"));
+        var (command, disposition, mockContext, mockTenant) = CreateCommand(
+            subject,
+            initialError: null,
+            allowedConnections: ["LOCAL"]
+        );
+        SetupTenant(mockContext, mockTenant);
+
+        await Handler.HandleAsync(command with { OpenIdRequest = null }, CancellationToken.None);
 
         Assert.False(disposition.HasError);
     }

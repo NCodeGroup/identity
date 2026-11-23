@@ -267,7 +267,9 @@ internal class DefaultValidateSubjectAuthenticationHandler(
             return true;
         }
 
-        return connection is not null && allowed.Contains(connection.Name, StringComparer.Ordinal);
+        // a connection name is compared as the connection store compares it: case-insensitively
+        return connection is not null
+            && allowed.Contains(connection.Name, StringComparer.OrdinalIgnoreCase);
     }
 
     private static bool IsRequestedConnectionValid(
@@ -291,10 +293,11 @@ internal class DefaultValidateSubjectAuthenticationHandler(
             connectionParameter,
             acrValues ?? []
         );
+        // a connection name is compared as the connection store compares it: case-insensitively
         return requestedName is null
             || (
                 connection is not null
-                && string.Equals(requestedName, connection.Name, StringComparison.Ordinal)
+                && string.Equals(requestedName, connection.Name, StringComparison.OrdinalIgnoreCase)
             );
     }
 
