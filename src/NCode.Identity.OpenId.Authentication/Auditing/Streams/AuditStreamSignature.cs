@@ -1,6 +1,7 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using System.Buffers.Text;
 using System.Globalization;
 using System.Security.Cryptography;
 using NCode.Buffers;
@@ -18,6 +19,11 @@ internal static class AuditStreamSignature
     /// The prefix of a signature that names the scheme.
     /// </summary>
     internal const string Version = "v1";
+
+    /// <summary>
+    /// The length in bytes of an HMAC-SHA256.
+    /// </summary>
+    private const int HashLength = 32;
 
     /// <summary>
     /// Computes the signature of a delivery.
@@ -38,14 +44,47 @@ internal static class AuditStreamSignature
     {
         ArgumentNullException.ThrowIfNull(messageId);
 
-        var timestampText = timestamp.ToString(CultureInfo.InvariantCulture);
-        var prefix = SecureEncoding.UTF8.GetBytes($"{messageId}.{timestampText}.");
+        Span<byte> timestampBytes = stackalloc byte[20];
+        if (
+            !timestamp.TryFormat(
+                timestampBytes,
+                out var timestampLength,
+                default,
+                CultureInfo.InvariantCulture
+            )
+        )
+            throw new InvalidOperationException("The timestamp does not fit its buffer.");
 
         using var hmac = IncrementalHash.CreateHMAC(HashAlgorithmName.SHA256, secret);
-        hmac.AppendData(prefix);
-        hmac.AppendData(body);
-        var hash = hmac.GetHashAndReset();
 
-        return $"{Version},{Convert.ToBase64String(hash)}";
+        using (
+            SecureEncoding.UTF8.RentBytes(
+                messageId,
+                isSensitive: false,
+                out Span<byte> messageIdBytes
+            )
+        )
+        {
+            hmac.AppendData(messageIdBytes);
+        }
+        hmac.AppendData("."u8);
+        hmac.AppendData(timestampBytes[..timestampLength]);
+        hmac.AppendData("."u8);
+        hmac.AppendData(body);
+
+        Span<byte> hash = stackalloc byte[HashLength];
+        hmac.GetHashAndReset(hash);
+
+        var signatureLength = Version.Length + 1 + Base64.GetMaxEncodedToUtf8Length(HashLength);
+        return string.Create(
+            signatureLength,
+            (ReadOnlySpan<byte>)hash,
+            static (chars, h) =>
+            {
+                Version.CopyTo(chars);
+                chars[Version.Length] = ',';
+                Convert.TryToBase64Chars(h, chars[(Version.Length + 1)..], out _);
+            }
+        );
     }
 }

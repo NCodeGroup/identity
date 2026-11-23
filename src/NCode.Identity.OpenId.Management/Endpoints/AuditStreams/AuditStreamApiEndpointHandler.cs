@@ -65,6 +65,7 @@ internal class AuditStreamApiEndpointHandler(
 {
     private const string SigningSecretPrefix = "whsec_";
     private const int SigningSecretByteLength = 32;
+    private const int SigningSecretTextLength = (SigningSecretByteLength + 2) / 3 * 4;
     private const string CreateGuardKeyPurpose = "audit-stream-create";
 
     private static TimeSpan SigningSecretOverlap { get; } = TimeSpan.FromHours(24);
@@ -726,7 +727,15 @@ internal class AuditStreamApiEndpointHandler(
 
             var context = SecretProtectionContext.ForAuditStreamSigningSecret(secretId);
             var protectedValue = protector.ProtectToString(secretBytes, context);
-            var signingSecretValue = SigningSecretPrefix + Convert.ToBase64String(secretBytes);
+            var signingSecretValue = string.Create(
+                SigningSecretPrefix.Length + SigningSecretTextLength,
+                (ReadOnlySpan<byte>)secretBytes,
+                static (chars, bytes) =>
+                {
+                    SigningSecretPrefix.CopyTo(chars);
+                    Convert.TryToBase64Chars(bytes, chars[SigningSecretPrefix.Length..], out _);
+                }
+            );
 
             var signingSecret = new PersistedAuditStreamSigningSecret
             {

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using System.Text.Json;
+using NCode.Buffers;
 using NCode.Identity.OpenId.Authentication.Auditing.Streams;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using Xunit;
@@ -59,8 +60,9 @@ public class AuditStreamPayloadWriterTests
 
     private static JsonElement WriteAndParse(PersistedAuditRecord record)
     {
-        var body = AuditStreamPayloadWriter.Write(TenantId, [record], Timestamp);
-        return JsonSerializer.Deserialize<JsonElement>(body);
+        using var buffer = BufferFactory.CreateContiguousBufferWriter(isSensitive: false);
+        AuditStreamPayloadWriter.Write(buffer, TenantId, [record], Timestamp);
+        return JsonSerializer.Deserialize<JsonElement>(buffer.WrittenSpan);
     }
 
     #region Write Tests

@@ -1,8 +1,8 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using System.Buffers;
 using System.Text.Json;
-using NCode.Buffers;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 
 namespace NCode.Identity.OpenId.Authentication.Auditing.Streams;
@@ -22,42 +22,39 @@ internal static class AuditStreamPayloadWriter
     /// <summary>
     /// Writes the body of a delivery as UTF-8 JSON.
     /// </summary>
+    /// <param name="destination">The writer that receives the UTF-8 bytes of the body.</param>
     /// <param name="tenantId">The identifier of the tenant whose records are delivered.</param>
     /// <param name="records">The records to deliver, in the order the store stored them.</param>
     /// <param name="timestamp">The time of the delivery.</param>
-    /// <returns>The UTF-8 bytes of the body.</returns>
-    public static byte[] Write(
+    public static void Write(
+        IBufferWriter<byte> destination,
         string tenantId,
         IReadOnlyList<PersistedAuditRecord> records,
         DateTimeOffset timestamp
     )
     {
+        ArgumentNullException.ThrowIfNull(destination);
         ArgumentException.ThrowIfNullOrEmpty(tenantId);
         ArgumentNullException.ThrowIfNull(records);
 
-        using var buffer = BufferFactory.CreateContiguousBufferWriter(isSensitive: false);
+        using var writer = new Utf8JsonWriter(destination);
 
-        using (var writer = new Utf8JsonWriter(buffer))
+        writer.WriteStartObject();
+        writer.WriteString("type", EnvelopeType);
+        writer.WriteString("timestamp", timestamp.UtcDateTime);
+
+        writer.WriteStartObject("data");
+        writer.WriteString("tenantId", tenantId);
+
+        writer.WriteStartArray("records");
+        foreach (var record in records)
         {
-            writer.WriteStartObject();
-            writer.WriteString("type", EnvelopeType);
-            writer.WriteString("timestamp", timestamp.UtcDateTime);
-
-            writer.WriteStartObject("data");
-            writer.WriteString("tenantId", tenantId);
-
-            writer.WriteStartArray("records");
-            foreach (var record in records)
-            {
-                WriteRecord(writer, record);
-            }
-            writer.WriteEndArray();
-
-            writer.WriteEndObject();
-            writer.WriteEndObject();
+            WriteRecord(writer, record);
         }
+        writer.WriteEndArray();
 
-        return buffer.WrittenSpan.ToArray();
+        writer.WriteEndObject();
+        writer.WriteEndObject();
     }
 
     /// <summary>

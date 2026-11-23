@@ -418,18 +418,24 @@ internal sealed class DefaultAuditStreamDeliverer(
         var timestamp = TimeProvider.GetUtcNow();
         var unixTime = timestamp.ToUnixTimeSeconds();
         var messageId = page.Items[0].EventId.ToString("D");
-        var body = AuditStreamPayloadWriter.Write(tenantId, page.Items, timestamp);
+        using var body = BufferFactory.CreateContiguousBufferWriter(isSensitive: false);
+        AuditStreamPayloadWriter.Write(body, tenantId, page.Items, timestamp);
         var signatures = new List<string>(secrets.Count);
         for (var index = 0; index < secrets.Count; index++)
         {
-            var signature = AuditStreamSignature.Sign(secrets[index], messageId, unixTime, body);
+            var signature = AuditStreamSignature.Sign(
+                secrets[index],
+                messageId,
+                unixTime,
+                body.WrittenSpan
+            );
             signatures.Add(signature);
         }
 
         var signatureHeader = string.Join(' ', signatures);
         var timestampHeader = unixTime.ToString(CultureInfo.InvariantCulture);
 
-        using var content = new ByteArrayContent(body);
+        using var content = new ReadOnlyMemoryContent(body.WrittenMemory);
         content.Headers.ContentType = new MediaTypeHeaderValue(JsonContentType);
 
         using var request = new HttpRequestMessage(HttpMethod.Post, stream.Endpoint)
