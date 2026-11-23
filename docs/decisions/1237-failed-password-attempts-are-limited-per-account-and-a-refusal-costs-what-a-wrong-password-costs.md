@@ -54,10 +54,11 @@ name.**
    `DefaultPasswordAttemptLimiter` is registered by `AddPasswordServices()`. The limiter sits above
    `ILocalAccountStore`, so it applies to every store.
 2. **One counter holds the failures of one account.** The key is `ExpiringKeys.Create("password-attempts", tenantId,
-   digest)`, where the digest is the SHA-256 of the length-prefixed UTF-8 bytes of the folded user name, so the shared
-   state holds no user name. The folding is `Normalize(NormalizationForm.FormKC)`, then `ToUpperInvariant()`, then
-   `ToLowerInvariant()`. The counted name is the one the store holds for the submitted one, which the lookup of the
-   verification itself finds, or the submitted name when no account has it. The store compares names in its database,
+   connectionId, digest)`, so attempts are counted per `(tenant, connection, account)`. The digest is the SHA-256 of the
+   length-prefixed UTF-8 bytes of the account key, so the shared state holds no user name. The account key is the found
+   account's `LocalAccountId`, or the submitted identifier, folded, when no account matches. The folding is
+   `Normalize(NormalizationForm.FormKC)`, then `ToUpperInvariant()`, then `ToLowerInvariant()`. The lookup of the
+   verification itself finds the account. The store compares names in its database,
    whose collation can match spellings that differ in .NET, such as a trailing space under a padding collation or an
    accent under an accent-insensitive one, so every spelling that matches an account shares that account's count. The
    folding gives the spellings of a name that no account has one count as well: the Entity Framework store lower-cases a
@@ -95,7 +96,8 @@ name.**
    the refusal as a failed subject authentication with the reason `attempt_limit_reached`, so an operator tells it from a
    wrong password and the client cannot. `DefaultPasswordAttemptLimiter` logs `PasswordAttemptLimitReached` at
    `Information` with the tenant's identifier and the limit each time it refuses a password, and never the user name.
-8. **Two tenant settings set the limit.** Both apply to tenants and neither is discoverable
+8. **Two settings set the limit.** Both apply to tenants and connections, a sign-in reads them from the settings of
+   its connection, and neither is discoverable
    ([ADR-1140](1140-setting-values-are-validated-against-their-domain-not-only-their-type.md)).
    - `password_failed_attempts_limit` is an `int` between 1 and 100 that defaults to 10, and merges with `Min`, so a
      narrower scope may only lower it. 100 is the most that NIST allows.

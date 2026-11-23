@@ -56,7 +56,7 @@ A ceiling is a limit that a narrower scope can lower and never raise.
   ([ADR-1220](1220-an-end-user-session-is-a-grant-keyed-by-its-sid-bounded-by-idle-and-absolute-lifetimes.md)).
 - Toggles such as `allow_loopback_redirect`, `request_parameter_supported` and `claims_parameter_supported` merge as
   `And`.
-- Capability lists (the `*_supported` settings, `redirect_uri_kinds_supported` and `allowed_identity_providers`)
+- Capability lists (the `*_supported` settings, `redirect_uri_kinds_supported` and `allowed_connections`, a list of connection names)
   merge as `Intersect`. `claims_supported` is the exception: it is advisory, merges as `Replace`, and restricts the
   claims returned only when `claims_supported_is_strict` is set.
 

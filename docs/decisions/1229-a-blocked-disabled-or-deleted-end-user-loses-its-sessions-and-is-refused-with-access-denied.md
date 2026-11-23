@@ -6,13 +6,13 @@
 
 ## Context
 
-A local account is a self-issued connection of a federated principal
+A local account is the identity of a federated principal in a `local`-strategy connection
 ([ADR-1051](1051-a-local-account-belongs-to-one-local-connection-behind-a-named-pluggable-store-seam.md)), and the sessions,
 grants and consents of the end user are keyed by the principal's identifier
 ([ADR-1035](1035-an-end-user-is-one-tenant-scoped-principal-that-every-authentication-entry-point-resolves-to.md)).
 Four forces shape what happens when an end user is blocked, disabled or deleted:
 
-- Deleting a local account removes the account, its self-issued identity and, with its last identity, the principal and
+- Deleting a local account removes the account, its connection identity and, with its last identity, the principal and
   its role assignments ([ADR-1212](1212-deleting-a-client-resource-server-principal-or-tenant-removes-what-it-owns.md)).
   The sessions, refresh tokens and consents of the principal would remain, and disabling an account would keep all of
   them. A refresh token of a deleted or disabled account would be redeemed until it expired (issue
@@ -49,11 +49,11 @@ includes, that the interactive sign-in sends before it creates a session, and wh
    `SubjectValidationFailed`; a missing principal is not refused.
 4. **A disabled or deleted account blocks its principal through every connection.**
    `DefaultValidateLocalAccountSubjectHandler`, in `NCode.Identity.OpenId.Accounts.Authentication`, reads the identities
-   of the principal. With none, it refuses only a subject whose claim of the type named by the tenant setting
-   `principal_issuer_claim` is `AccountConstants.SelfIssuer`. For each self-issued identity it reads the account with
-   `ILocalAccountStore.GetByIdOrDefaultAsync` and refuses a missing or disabled account. It leaves every other subject
-   alone, including one that has only external identities, and logs nothing, because the accounts packages have no band
-   of event identifiers.
+   of the principal. A subject signed in through an unknown or disabled connection is refused, and so is one whose
+   connection the client's `allowed_connections` does not list. For each identity of a `local`-strategy connection it
+   reads the account, from the connection's named store, with `ILocalAccountStore.GetByIdOrDefaultAsync` and refuses a
+   missing or disabled account. It leaves every other subject alone, including one that has only identities of other
+   strategies, and logs nothing, because the accounts packages have no band of event identifiers.
 5. **The interactive sign-in validates the standing before it creates a session.** It sends the command after it
    resolves the principal, and a refusal creates neither a session nor a cookie.
 6. **A refusal answers the parked authorization request.** When the `ReturnUrl` names a parked authorization request,
@@ -91,9 +91,9 @@ includes, that the interactive sign-in sends before it creates a session, and wh
       writes `IsBlocked = false` when it changes, ends no session and restores no revoked grant.
     - Disabling an account (`SetEnabledAsync(isEnabled: false)` of `LocalAccountApiEndpointHandler`) ends the
       principal's sessions with `SessionTerminationReasons.AccountDisabled`, `account_disabled`, when the account has a
-      self-issued identity. Enabling does nothing.
+      connection identity. Enabling does nothing.
     - An administrator's password reset (`ResetPasswordAsync`) ends the sessions of the principal of the account's
-      self-issued identity with `SessionTerminationReasons.PasswordReset`, `password_reset`. The security stamp is not
+      connection identity with `SessionTerminationReasons.PasswordReset`, `password_reset`. The security stamp is not
       consulted.
     - Deleting an account (`DeleteLocalAccountAsync`) ends the sessions with `SessionTerminationReasons.AccountDeleted`,
       `account_deleted`, before it removes anything, then removes the account, the identity, and the principal when that
