@@ -345,37 +345,38 @@ public sealed class DefaultInstanceSetupServiceTests : IDisposable
             },
         };
 
-    private void SetupConnection(PersistedConnection? connection)
+    private void SetupConnection(PersistedConnection? connection, int times = 1)
     {
         MockStoreManager
             .Setup(x => x.GetStore<IConnectionStore>())
             .Returns(MockConnectionStore.Object)
-            .Verifiable(Times.Once());
+            .Verifiable(Times.Exactly(times));
         MockConnectionStore
             .Setup(x =>
                 x.GetByNameOrDefaultAsync(ConnectionDefaults.Name, It.IsAny<CancellationToken>())
             )
             .ReturnsAsync(connection)
-            .Verifiable(Times.Once());
+            .Verifiable(Times.Exactly(times));
     }
 
     private void SetupCreator(
         LocalAccountCreation creation,
-        Action<CreateLocalAccountRequest>? onStaged = null
+        Action<CreateLocalAccountRequest>? onStaged = null,
+        int times = 1
     )
     {
         var connection = CreateLocalConnection();
-        SetupConnection(connection);
+        SetupConnection(connection, times);
 
         MockAmbientTenantAccessor
             .Setup(x => x.BeginScope(TenantId))
             .Callback(() => CallLog.Add("staging scope"))
             .Returns(MockStagingScope.Object)
-            .Verifiable(Times.Once());
+            .Verifiable(Times.Exactly(times));
         MockStagingScope
             .Setup(x => x.Dispose())
             .Callback(() => CallLog.Add("staging scope ended"))
-            .Verifiable(Times.Once());
+            .Verifiable(Times.Exactly(times));
 
         MockLocalAccountCreator
             .Setup(x =>
@@ -407,7 +408,7 @@ public sealed class DefaultInstanceSetupServiceTests : IDisposable
                 }
             )
             .ReturnsAsync(creation)
-            .Verifiable(Times.Once());
+            .Verifiable(Times.Exactly(times));
     }
 
     private void SetupAssignment(Action<PersistedRoleAssignment> onAdded, int assignments = 1)
@@ -443,7 +444,7 @@ public sealed class DefaultInstanceSetupServiceTests : IDisposable
         if (exception is null)
             setup.Returns(ValueTask.CompletedTask).Verifiable(Times.Once());
         else
-            setup.Throws(exception).Verifiable(Times.Once());
+            setup.Returns(() => ValueTask.FromException(exception)).Verifiable(Times.Once());
     }
 
     private void SetupAdd(Action<PersistedInstanceSetup> onAdded)
@@ -457,24 +458,27 @@ public sealed class DefaultInstanceSetupServiceTests : IDisposable
             .Verifiable(Times.Once());
     }
 
-    private void SetupReadSequence(PersistedInstanceSetup? first, PersistedInstanceSetup? second)
+    private void SetupReads(params PersistedInstanceSetup?[] rows)
     {
+        var reads = 0;
         MockInstanceSetupStore
-            .SetupSequence(x => x.GetOrDefaultAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(first)
-            .ReturnsAsync(second);
+            .Setup(x => x.GetOrDefaultAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(() => rows[reads++])
+            .Verifiable(Times.Exactly(rows.Length));
     }
 
-    private void SetupSave(Exception? exception = null)
+    private void SetupSave(Exception? exception = null, int times = 1)
     {
         var setup = MockStoreManager
             .Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()))
             .Callback(() => CallLog.Add("save"));
 
         if (exception is null)
-            setup.Returns(ValueTask.CompletedTask).Verifiable(Times.Once());
+            setup.Returns(ValueTask.CompletedTask).Verifiable(Times.Exactly(times));
         else
-            setup.Throws(exception).Verifiable(Times.Once());
+            setup
+                .Returns(() => ValueTask.FromException(exception))
+                .Verifiable(Times.Exactly(times));
     }
 
     private void SetupLogged(LogLevel level, int eventId, Dictionary<string, object?> state)
@@ -582,29 +586,34 @@ public sealed class DefaultInstanceSetupServiceTests : IDisposable
     #region SetUpAsync Tests
 
     [Fact]
-    public async Task SetUpAsync_WhenNoRecord_AddsInitializedRecordAndSavesOnce()
+    public async Task SetUpAsync_WhenNoRecord_AddsTheRowThenInitializesIt()
     {
         PersistedInstanceSetup? added = null;
+        PersistedInstanceSetup? updated = null;
         var state = new Dictionary<string, object?>();
 
         SetupTenantScope();
-        SetupStoreManagers(1);
-        SetupInstanceSetupStore(1);
-        SetupRead(null);
+        SetupStoreManagers(2);
+        SetupInstanceSetupStore(2);
+        SetupReads(null, null);
         SetupCreator(CreateCreation());
         SetupAssignment(_ => { });
         SetupAdd(item => added = item);
-        SetupSave();
+        MockInstanceSetupStore
+            .Setup(x =>
+                x.UpdateAsync(It.IsAny<PersistedInstanceSetup>(), It.IsAny<CancellationToken>())
+            )
+            .Callback<PersistedInstanceSetup, CancellationToken>((item, _) => updated = item)
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable(Times.Once());
+        SetupSave(times: 2);
         SetupLogged(LogLevel.Information, EventIds.RootAdministratorCreated, state);
         TimeProvider.SetUtcNow(new DateTimeOffset(2026, 11, 12, 8, 0, 0, TimeSpan.Zero));
 
         var result = await CreateService().SetUpAsync(CreateRequest(), CancellationToken.None);
 
         Assert.True(result.Succeeded);
-        MockInstanceSetupStore.Verify(
-            x => x.UpdateAsync(It.IsAny<PersistedInstanceSetup>(), It.IsAny<CancellationToken>()),
-            Times.Never()
-        );
+        Assert.Same(added, updated);
 
         Assert.NotNull(added);
         Assert.Equal(PersistedInstanceSetup.SingletonKey, added.Key);
@@ -768,7 +777,7 @@ public sealed class DefaultInstanceSetupServiceTests : IDisposable
         SetupTenantScope();
         SetupStoreManagers(1);
         SetupInstanceSetupStore(1);
-        SetupRead(null);
+        SetupRead(CreateRow());
         SetupConnection(null);
         MockAmbientTenantAccessor
             .Setup(x => x.BeginScope(TenantId))
@@ -804,14 +813,14 @@ public sealed class DefaultInstanceSetupServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task SetUpAsync_WhenUpdateLosesConcurrency_ReturnsNotFound()
+    public async Task SetUpAsync_WhenUpdateLosesToAnotherSetup_ReturnsNotFound()
     {
         var row = CreateRow();
 
         SetupTenantScope();
-        SetupStoreManagers(1);
-        SetupInstanceSetupStore(1);
-        SetupRead(row);
+        SetupStoreManagers(2);
+        SetupInstanceSetupStore(2);
+        SetupReads(row, CreateRow(isInitialized: true));
         SetupCreator(CreateCreation());
         SetupAssignment(_ => { });
         SetupUpdate(row, new StoreConcurrencyException());
@@ -823,14 +832,14 @@ public sealed class DefaultInstanceSetupServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task SetUpAsync_WhenSaveLosesConcurrency_ReturnsNotFound()
+    public async Task SetUpAsync_WhenSaveLosesToAnotherSetup_ReturnsNotFound()
     {
         var row = CreateRow();
 
         SetupTenantScope();
-        SetupStoreManagers(1);
-        SetupInstanceSetupStore(1);
-        SetupRead(row);
+        SetupStoreManagers(2);
+        SetupInstanceSetupStore(2);
+        SetupReads(row, CreateRow(isInitialized: true));
         SetupCreator(CreateCreation());
         SetupAssignment(_ => { });
         SetupUpdate(row);
@@ -843,14 +852,12 @@ public sealed class DefaultInstanceSetupServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task SetUpAsync_WhenAddFailsAndReReadFindsInitialized_ReturnsNotFound()
+    public async Task SetUpAsync_WhenAnotherSetupAddsTheRowFirst_ReturnsNotFoundAndStagesNothing()
     {
         SetupTenantScope();
-        SetupStoreManagers(2);
-        SetupInstanceSetupStore(2);
-        SetupReadSequence(null, CreateRow(isInitialized: true));
-        SetupCreator(CreateCreation());
-        SetupAssignment(_ => { });
+        SetupStoreManagers(3);
+        SetupInstanceSetupStore(3);
+        SetupReads(null, null, CreateRow(isInitialized: true));
         SetupAdd(_ => { });
         SetupSave(new InvalidOperationException("duplicate key"));
 
@@ -858,23 +865,73 @@ public sealed class DefaultInstanceSetupServiceTests : IDisposable
 
         Assert.False(result.Succeeded);
         Assert.Equal(StatusCodes.Status404NotFound, result.Error.StatusCode);
-        MockInstanceSetupStore.Verify(
-            x => x.GetOrDefaultAsync(It.IsAny<CancellationToken>()),
-            Times.Exactly(2)
-        );
     }
 
     [Fact]
-    public async Task SetUpAsync_WhenAddFailsAndReReadFindsNone_Throws()
+    public async Task SetUpAsync_WhenAHostAddsTheRowFirst_InitializesTheHostsRow()
+    {
+        var hostRow = CreateRow();
+        var duplicateKey = new InvalidOperationException("duplicate key");
+        var saves = 0;
+        var state = new Dictionary<string, object?>();
+
+        SetupTenantScope();
+        SetupStoreManagers(3);
+        SetupInstanceSetupStore(3);
+        SetupReads(null, null, hostRow);
+        SetupCreator(CreateCreation());
+        SetupAssignment(_ => { });
+        SetupAdd(_ => { });
+        MockStoreManager
+            .Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()))
+            .Returns(() =>
+                ++saves == 1 ? ValueTask.FromException(duplicateKey) : ValueTask.CompletedTask
+            )
+            .Verifiable(Times.Exactly(2));
+        SetupUpdate(hostRow);
+        SetupLogged(LogLevel.Information, EventIds.RootAdministratorCreated, state);
+
+        var result = await CreateService().SetUpAsync(CreateRequest(), CancellationToken.None);
+
+        Assert.True(result.Succeeded);
+        Assert.True(hostRow.IsInitialized);
+        Assert.Equal(PrincipalId, hostRow.InitializedByPrincipalId);
+        Assert.Null(hostRow.TokenHash);
+    }
+
+    [Fact]
+    public async Task SetUpAsync_WhenUpdateLosesToAHostStoringItsToken_RunsAgainAndInitializes()
+    {
+        var stale = CreateRow();
+        var stored = CreateRow();
+        var state = new Dictionary<string, object?>();
+
+        SetupTenantScope();
+        SetupStoreManagers(3);
+        SetupInstanceSetupStore(3);
+        SetupReads(stale, CreateRow(), stored);
+        SetupCreator(CreateCreation(), times: 2);
+        SetupAssignment(_ => { }, assignments: 2);
+        SetupUpdate(stale, new StoreConcurrencyException());
+        SetupUpdate(stored);
+        SetupSave();
+        SetupLogged(LogLevel.Information, EventIds.RootAdministratorCreated, state);
+
+        var result = await CreateService().SetUpAsync(CreateRequest(), CancellationToken.None);
+
+        Assert.True(result.Succeeded);
+        Assert.True(stored.IsInitialized);
+    }
+
+    [Fact]
+    public async Task SetUpAsync_WhenTheRowCannotBeAdded_Throws()
     {
         var exception = new InvalidOperationException("save failed");
 
         SetupTenantScope();
-        SetupStoreManagers(2);
-        SetupInstanceSetupStore(2);
-        SetupReadSequence(null, null);
-        SetupCreator(CreateCreation());
-        SetupAssignment(_ => { });
+        SetupStoreManagers(3);
+        SetupInstanceSetupStore(3);
+        SetupReads(null, null, null);
         SetupAdd(_ => { });
         SetupSave(exception);
 
@@ -883,6 +940,34 @@ public sealed class DefaultInstanceSetupServiceTests : IDisposable
         );
 
         Assert.Same(exception, thrown);
+    }
+
+    [Fact]
+    public async Task SetUpAsync_WhenEveryAttemptLosesToAHostStoringItsToken_Throws()
+    {
+        var attempts = DefaultInstanceSetupService.MaxSetUpAttempts;
+
+        SetupTenantScope();
+        SetupStoreManagers(2 * attempts);
+        SetupInstanceSetupStore(2 * attempts);
+        // Each read returns a row of its own, because an attempt marks the row it read as initialized before its
+        // update.
+        MockInstanceSetupStore
+            .Setup(x => x.GetOrDefaultAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(() => CreateRow())
+            .Verifiable(Times.Exactly(2 * attempts));
+        SetupCreator(CreateCreation(), times: attempts);
+        SetupAssignment(_ => { }, assignments: attempts);
+        MockInstanceSetupStore
+            .Setup(x =>
+                x.UpdateAsync(It.IsAny<PersistedInstanceSetup>(), It.IsAny<CancellationToken>())
+            )
+            .Returns(() => ValueTask.FromException(new StoreConcurrencyException()))
+            .Verifiable(Times.Exactly(attempts));
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            CreateService().SetUpAsync(CreateRequest(), CancellationToken.None).AsTask()
+        );
     }
 
     [Fact]

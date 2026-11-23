@@ -27,6 +27,7 @@ spec:
     spec:
       restartPolicy: Never
       serviceAccountName: {{ $name }}
+      {{- include "identity-host.processNamespace" . | nindent 6 }}
       {{- with include "identity-host.imagePullSecrets" . }}
       {{- . | trim | nindent 6 }}
       {{- end }}

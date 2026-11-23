@@ -30,6 +30,7 @@ spec:
       restartPolicy: Never
       # The Job runs as the host does, so a root key provider that trusts the service account (a web identity) works.
       serviceAccountName: {{ include "identity-host.serviceAccountName" . }}
+      {{- include "identity-host.processNamespace" . | nindent 6 }}
       # The host never calls the Kubernetes API.
       automountServiceAccountToken: false
       {{- with include "identity-host.imagePullSecrets" . }}

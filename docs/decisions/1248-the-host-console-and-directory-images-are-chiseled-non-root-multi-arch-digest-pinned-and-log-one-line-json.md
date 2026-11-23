@@ -27,10 +27,17 @@ they write one-line JSON logs.
 
 ### The runtime image
 
-- The final stage of `hosts/NCode.Identity.OpenId.Host/Dockerfile` is `mcr.microsoft.com/dotnet/aspnet:10.0-noble-chiseled-extra`:
-  distroless, with no shell or package manager, and with ICU and time-zone data. It runs as the non-root `app` user by
-  numeric id (`USER $APP_UID`) and serves HTTPS only, on port 8443, so TLS ends at the pod
-  ([ADR-1504](1504-the-hosts-serve-https-only-and-verify-their-certificate-at-startup.md) holds the transport rule and the certificate mount).
+- The final stage of `hosts/NCode.Identity.OpenId.Host/Dockerfile` is
+  `mcr.microsoft.com/dotnet/aspnet:10.0-noble-chiseled-extra`: distroless, with no shell or package manager, and with
+  ICU and time-zone data. It runs as the non-root `app` user by numeric id (`USER $APP_UID`) and serves HTTPS only, on
+  port 8443, so TLS ends at the pod
+  ([ADR-1504](1504-the-hosts-serve-https-only-and-verify-their-certificate-at-startup.md) holds the transport rule and
+  the certificate mount). The image's entry point is `dotnet`, with no init process: a runtime that starts it gives the
+  container an init, such as `docker run --init` or Docker Compose's `init: true`, or a shared process namespace, as the
+  host chart does
+  ([ADR-1458](1458-the-host-chart-deploys-the-server-and-an-opt-in-management-console-and-refuses-unsafe-releases.md)),
+  because a .NET process that is PID 1 hangs after an unhandled exception
+  ([dotnet/runtime#112580](https://github.com/dotnet/runtime/issues/112580)).
 - The host image builds `apps/auth` in a Node stage with the workspace's pinned pnpm, serves it from `/app/auth` with
   `InteractiveAuthentication__BundleRootPath=/app/auth`, and carries the migration worker in `/app/migrations`.
 - `hosts/NCode.Identity.ManagementConsole.Host/Dockerfile` mirrors it with the same pinned bases. It builds

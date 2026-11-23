@@ -209,11 +209,11 @@ internal static partial class Log
     internal static partial void InstanceSetupCommandRootUserNameMissing(this ILogger logger);
 
     [LoggerMessage(
-        EventId = EventIds.InstanceSetupCommandFailed,
+        EventId = EventIds.InstanceSetupCommandRefused,
         Level = LogLevel.Error,
         Message = "The setup command was refused with status code {StatusCode}; the host's options validation names each configuration rule at start."
     )]
-    internal static partial void InstanceSetupCommandFailed(this ILogger logger, int statusCode);
+    internal static partial void InstanceSetupCommandRefused(this ILogger logger, int statusCode);
 
     [LoggerMessage(
         EventId = EventIds.InstanceSetupCommandRootCreated,
@@ -259,4 +259,14 @@ internal static partial class Log
         Message = "Setup belongs to the control-plane cell, and this cell is not the control plane; run the setup command there."
     )]
     internal static partial void InstanceSetupCommandNotOnTheControlPlane(this ILogger logger);
+
+    [LoggerMessage(
+        EventId = EventIds.InstanceSetupCommandFailed,
+        Level = LogLevel.Error,
+        Message = "The setup command failed; the instance is not set up."
+    )]
+    internal static partial void InstanceSetupCommandFailed(
+        this ILogger logger,
+        Exception exception
+    );
 }
