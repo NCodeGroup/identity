@@ -86,6 +86,141 @@ internal class AuditStreamApiEndpointHandler(
     /// </summary>
     private static TimeSpan CreateGuardRetryAfter { get; } = TimeSpan.FromSeconds(1);
 
+    /// <summary>
+    /// Gets the location of an audit stream, which the create and rotate-signing-secret routes answer with.
+    /// </summary>
+    /// <param name="tenantId">The identifier of the OpenID Tenant.</param>
+    /// <param name="streamId">The identifier of the audit stream.</param>
+    /// <returns>The location of the audit stream.</returns>
+    private static string GetStreamLocation(string tenantId, string streamId) =>
+        $"/tenants/{tenantId}/audit-streams/{streamId}";
+
+    /// <summary>
+    /// Gets how long a rotation waits before it may add a signing secret: nothing while fewer than the most signing
+    /// secrets sign, and otherwise the time until the earliest of the secrets that sign stops signing.
+    /// </summary>
+    /// <param name="stream">The audit stream to rotate.</param>
+    /// <param name="now">The current time.</param>
+    /// <returns>
+    /// The time to wait, or <see langword="null"/> when the stream has room for another signing secret.
+    /// </returns>
+    private static TimeSpan? GetRotationWait(PersistedAuditStream stream, DateTimeOffset now)
+    {
+        var count = 0;
+        DateTimeOffset? earliestExpiry = null;
+        foreach (var secret in stream.SigningSecrets)
+        {
+            if (secret.ExpiryTime is { } expiryTime)
+            {
+                if (expiryTime <= now)
+                {
+                    continue;
+                }
+
+                if (earliestExpiry is not { } earliest || expiryTime < earliest)
+                {
+                    earliestExpiry = expiryTime;
+                }
+            }
+
+            count++;
+        }
+
+        if (count < MaxSigningSecrets)
+        {
+            return null;
+        }
+
+        return earliestExpiry is { } expiry ? expiry - now : SigningSecretOverlap;
+    }
+
+    /// <summary>
+    /// Judges the writable members of an audit stream, naming each field that is refused in a validation problem.
+    /// </summary>
+    /// <param name="displayName">The display name to judge.</param>
+    /// <param name="endpoint">The endpoint to judge.</param>
+    /// <returns>The validation problem, or <see langword="null"/> when every member is accepted.</returns>
+    private static ValidationProblem? GetValidationProblemOrDefault(
+        string? displayName,
+        string? endpoint
+    )
+    {
+        var errors = new Dictionary<string, string[]>(StringComparer.Ordinal);
+
+        var displayNameError = GetDisplayNameErrorOrDefault(displayName);
+        if (displayNameError is not null)
+        {
+            errors["displayName"] = [displayNameError];
+        }
+
+        var endpointError = GetEndpointErrorOrDefault(endpoint);
+        if (endpointError is not null)
+        {
+            errors["endpoint"] = [endpointError];
+        }
+
+        if (errors.Count == 0)
+        {
+            return null;
+        }
+
+        var messages = errors.Values.SelectMany(values => values);
+        var detail = string.Join(" ", messages);
+        return TypedResults.ValidationProblem(
+            errors,
+            detail: detail,
+            title: "The audit stream is invalid."
+        );
+    }
+
+    /// <summary>
+    /// Judges the display name of an audit stream, which must be present, not too long and free of control characters.
+    /// </summary>
+    /// <param name="displayName">The display name to judge.</param>
+    /// <returns>The message that names why it is refused, or <see langword="null"/> when it is accepted.</returns>
+    private static string? GetDisplayNameErrorOrDefault(string? displayName)
+    {
+        if (string.IsNullOrWhiteSpace(displayName))
+        {
+            return "'displayName' must not be empty.";
+        }
+
+        if (displayName.Length > OpenIdMaxLengths.DisplayName)
+        {
+            return $"'displayName' must be at most {OpenIdMaxLengths.DisplayName} characters.";
+        }
+
+        return displayName.Any(char.IsControl)
+            ? "'displayName' must not contain control characters."
+            : null;
+    }
+
+    /// <summary>
+    /// Judges the endpoint of an audit stream, which must be an absolute https URL of a bounded length that carries
+    /// neither user information nor a fragment.
+    /// </summary>
+    /// <param name="endpoint">The endpoint to judge.</param>
+    /// <returns>The message that names why it is refused, or <see langword="null"/> when it is accepted.</returns>
+    private static string? GetEndpointErrorOrDefault(string? endpoint)
+    {
+        if (endpoint is { Length: > OpenIdMaxLengths.UrlValue })
+        {
+            return $"'endpoint' must be at most {OpenIdMaxLengths.UrlValue} characters.";
+        }
+
+        if (!AbsoluteUri.TryParseHttps(endpoint, out var uri))
+        {
+            return "'endpoint' must be an absolute https URL.";
+        }
+
+        if (uri.UserInfo.Length > 0)
+        {
+            return "'endpoint' must not carry user information.";
+        }
+
+        return endpoint.Contains('#') ? "'endpoint' must not carry a fragment." : null;
+    }
+
     private IStoreManagerFactory StoreManagerFactory { get; } = storeManagerFactory;
     private ISecretProtectorProvider SecretProtectorProvider { get; } = secretProtectorProvider;
     private IOpenIdContextFactory OpenIdContextFactory { get; } = openIdContextFactory;
@@ -157,15 +292,6 @@ internal class AuditStreamApiEndpointHandler(
             .ProducesProblem(StatusCodes.Status412PreconditionFailed)
             .WithNoStore();
     }
-
-    /// <summary>
-    /// Gets the location of an audit stream, which the create and rotate-signing-secret routes answer with.
-    /// </summary>
-    /// <param name="tenantId">The identifier of the OpenID Tenant.</param>
-    /// <param name="streamId">The identifier of the audit stream.</param>
-    /// <returns>The location of the audit stream.</returns>
-    private static string GetStreamLocation(string tenantId, string streamId) =>
-        $"/tenants/{tenantId}/audit-streams/{streamId}";
 
     /// <summary>
     /// Maps a <see cref="PersistedAuditStream"/> to its <see cref="AuditStreamResource"/> representation, which never
@@ -744,45 +870,6 @@ internal class AuditStreamApiEndpointHandler(
     }
 
     /// <summary>
-    /// Gets how long a rotation waits before it may add a signing secret: nothing while fewer than the most signing
-    /// secrets sign, and otherwise the time until the earliest of the secrets that sign stops signing.
-    /// </summary>
-    /// <param name="stream">The audit stream to rotate.</param>
-    /// <param name="now">The current time.</param>
-    /// <returns>
-    /// The time to wait, or <see langword="null"/> when the stream has room for another signing secret.
-    /// </returns>
-    private static TimeSpan? GetRotationWait(PersistedAuditStream stream, DateTimeOffset now)
-    {
-        var count = 0;
-        DateTimeOffset? earliestExpiry = null;
-        foreach (var secret in stream.SigningSecrets)
-        {
-            if (secret.ExpiryTime is { } expiryTime)
-            {
-                if (expiryTime <= now)
-                {
-                    continue;
-                }
-
-                if (earliestExpiry is not { } earliest || expiryTime < earliest)
-                {
-                    earliestExpiry = expiryTime;
-                }
-            }
-
-            count++;
-        }
-
-        if (count < MaxSigningSecrets)
-        {
-            return null;
-        }
-
-        return earliestExpiry is { } expiry ? expiry - now : SigningSecretOverlap;
-    }
-
-    /// <summary>
     /// Reads the most audit streams that the addressed tenant may hold, from the settings of a context of that tenant.
     /// </summary>
     /// <param name="httpContext">The <see cref="HttpContext"/> of the request.</param>
@@ -864,92 +951,5 @@ internal class AuditStreamApiEndpointHandler(
         {
             CryptographicOperations.ZeroMemory(secretBytes);
         }
-    }
-
-    /// <summary>
-    /// Judges the writable members of an audit stream, naming each field that is refused in a validation problem.
-    /// </summary>
-    /// <param name="displayName">The display name to judge.</param>
-    /// <param name="endpoint">The endpoint to judge.</param>
-    /// <returns>The validation problem, or <see langword="null"/> when every member is accepted.</returns>
-    private static ValidationProblem? GetValidationProblemOrDefault(
-        string? displayName,
-        string? endpoint
-    )
-    {
-        var errors = new Dictionary<string, string[]>(StringComparer.Ordinal);
-
-        var displayNameError = GetDisplayNameErrorOrDefault(displayName);
-        if (displayNameError is not null)
-        {
-            errors["displayName"] = [displayNameError];
-        }
-
-        var endpointError = GetEndpointErrorOrDefault(endpoint);
-        if (endpointError is not null)
-        {
-            errors["endpoint"] = [endpointError];
-        }
-
-        if (errors.Count == 0)
-        {
-            return null;
-        }
-
-        var messages = errors.Values.SelectMany(values => values);
-        var detail = string.Join(" ", messages);
-        return TypedResults.ValidationProblem(
-            errors,
-            detail: detail,
-            title: "The audit stream is invalid."
-        );
-    }
-
-    /// <summary>
-    /// Judges the display name of an audit stream, which must be present, not too long and free of control characters.
-    /// </summary>
-    /// <param name="displayName">The display name to judge.</param>
-    /// <returns>The message that names why it is refused, or <see langword="null"/> when it is accepted.</returns>
-    private static string? GetDisplayNameErrorOrDefault(string? displayName)
-    {
-        if (string.IsNullOrWhiteSpace(displayName))
-        {
-            return "'displayName' must not be empty.";
-        }
-
-        if (displayName.Length > OpenIdMaxLengths.DisplayName)
-        {
-            return $"'displayName' must be at most {OpenIdMaxLengths.DisplayName} characters.";
-        }
-
-        return displayName.Any(char.IsControl)
-            ? "'displayName' must not contain control characters."
-            : null;
-    }
-
-    /// <summary>
-    /// Judges the endpoint of an audit stream, which must be an absolute https URL of a bounded length that carries
-    /// neither user information nor a fragment.
-    /// </summary>
-    /// <param name="endpoint">The endpoint to judge.</param>
-    /// <returns>The message that names why it is refused, or <see langword="null"/> when it is accepted.</returns>
-    private static string? GetEndpointErrorOrDefault(string? endpoint)
-    {
-        if (endpoint is { Length: > OpenIdMaxLengths.UrlValue })
-        {
-            return $"'endpoint' must be at most {OpenIdMaxLengths.UrlValue} characters.";
-        }
-
-        if (!AbsoluteUri.TryParseHttps(endpoint, out var uri))
-        {
-            return "'endpoint' must be an absolute https URL.";
-        }
-
-        if (uri.UserInfo.Length > 0)
-        {
-            return "'endpoint' must not carry user information.";
-        }
-
-        return endpoint.Contains('#') ? "'endpoint' must not carry a fragment." : null;
     }
 }

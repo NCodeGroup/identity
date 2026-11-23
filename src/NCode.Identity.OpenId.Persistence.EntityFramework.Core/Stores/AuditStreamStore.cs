@@ -31,27 +31,6 @@ internal sealed class AuditStreamStore(
     private const string StreamConflictMessage =
         "The audit stream has been modified by another process. Please reload and try again.";
 
-    /// <inheritdoc />
-    protected override IStoreProvider StoreProvider { get; } = storeProvider;
-
-    /// <inheritdoc />
-    protected override ISurrogateKeyGenerator KeyGenerator { get; } = keyGenerator;
-
-    /// <inheritdoc />
-    protected override IPageCursorProtector CursorProtector { get; } = cursorProtector;
-
-    /// <inheritdoc />
-    protected override OpenIdDbContext DbContext { get; } = openIdDbContext;
-
-    /// <summary>
-    /// Gets the audit stream query that loads each stream with its tenant, delivery state and signing secrets.
-    /// </summary>
-    private IQueryable<AuditStreamEntity> StreamsWithChildren =>
-        DbContext
-            .AuditStreams.Include(entity => entity.Tenant)
-            .Include(entity => entity.State)
-            .Include(entity => entity.SigningSecrets);
-
     /// <summary>
     /// Maps the delivery state entity of an audit stream to its persisted model.
     /// </summary>
@@ -79,6 +58,27 @@ internal sealed class AuditStreamStore(
             LeaseExpiryTime = entity.LeaseExpiryTime,
             ConcurrencyToken = entity.ConcurrencyToken,
         };
+
+    /// <inheritdoc />
+    protected override IStoreProvider StoreProvider { get; } = storeProvider;
+
+    /// <inheritdoc />
+    protected override ISurrogateKeyGenerator KeyGenerator { get; } = keyGenerator;
+
+    /// <inheritdoc />
+    protected override IPageCursorProtector CursorProtector { get; } = cursorProtector;
+
+    /// <inheritdoc />
+    protected override OpenIdDbContext DbContext { get; } = openIdDbContext;
+
+    /// <summary>
+    /// Gets the audit stream query that loads each stream with its tenant, delivery state and signing secrets.
+    /// </summary>
+    private IQueryable<AuditStreamEntity> StreamsWithChildren =>
+        DbContext
+            .AuditStreams.Include(entity => entity.Tenant)
+            .Include(entity => entity.State)
+            .Include(entity => entity.SigningSecrets);
 
     /// <inheritdoc />
     protected override ValueTask<PersistedAuditStream> MapFromEntityAsync(
