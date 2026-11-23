@@ -330,6 +330,7 @@ public class LocalAccountInteractivePasswordResetterTests : BaseTests
             TenantId = TenantId,
             LocalAccountId = LocalAccountId,
             UserName = UserName,
+            DisplayName = "Display Name",
             Email = email,
             EmailVerified = emailVerified,
             IsEnabled = isEnabled,

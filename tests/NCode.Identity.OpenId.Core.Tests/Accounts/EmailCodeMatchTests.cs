@@ -21,6 +21,7 @@ public class EmailCodeMatchTests : BaseTests
             TenantId = "tenant-1",
             LocalAccountId = localAccountId,
             UserName = "user",
+            DisplayName = "Display Name",
             Email = email,
             EmailVerified = true,
             IsEnabled = true,

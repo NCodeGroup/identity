@@ -192,6 +192,7 @@ public class LocalAccountInteractiveEmailVerifierTests : BaseTests
             TenantId = TenantId,
             LocalAccountId = LocalAccountId,
             UserName = UserName,
+            DisplayName = "Display Name",
             Email = email,
             EmailVerified = emailVerified,
             IsEnabled = true,

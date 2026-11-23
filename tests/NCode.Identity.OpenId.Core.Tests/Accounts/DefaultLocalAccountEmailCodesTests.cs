@@ -114,6 +114,7 @@ public partial class DefaultLocalAccountEmailCodesTests : BaseTests
             TenantId = TenantId,
             LocalAccountId = LocalAccountId,
             UserName = "user",
+            DisplayName = "Display Name",
             Email = Email,
             EmailVerified = false,
             IsEnabled = true,
