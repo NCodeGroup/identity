@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import AddIcon from '@mui/icons-material/Add';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -6,6 +6,7 @@ import Typography from '@mui/material/Typography';
 import {
   ConfirmDialog,
   DataStateBoundary,
+  LoadMoreButton,
   TeamFormDialog,
   TeamTable,
   emptyTeamFormValues,
@@ -14,11 +15,12 @@ import {
 import type { TeamResource } from '@ncodegroup/identity-api';
 import {
   apiErrorMessage,
+  pagedItems,
   useCreateChildTeamMutation,
   useCreateTeamMutation,
   useDeleteTeamMutation,
-  useListChildTeamsQuery,
-  useListTeamsQuery,
+  useListChildTeamsInfiniteQuery,
+  useListTeamsInfiniteQuery,
   useUpdateTeamMutation,
   type ApiError,
 } from '@ncodegroup/identity-store';
@@ -48,10 +50,15 @@ export type TeamsPageProps = {
  */
 export function TeamsPage({ onOpenTeam, parentTeamId }: TeamsPageProps) {
   const isChildList = parentTeamId !== undefined;
-  const allTeams = useListTeamsQuery(undefined, { skip: isChildList });
-  const childTeams = useListChildTeamsQuery({ teamId: parentTeamId ?? '' }, { skip: !isChildList });
-  const { data, isLoading, error } = isChildList ? childTeams : allTeams;
-  const teams = data?.items ?? [];
+  const allTeams = useListTeamsInfiniteQuery(undefined, { skip: isChildList });
+  const childTeams = useListChildTeamsInfiniteQuery(
+    { teamId: parentTeamId ?? '' },
+    { skip: !isChildList },
+  );
+  const { data, isLoading, error, hasNextPage, isFetchingNextPage, fetchNextPage } = isChildList
+    ? childTeams
+    : allTeams;
+  const teams = useMemo(() => pagedItems(data), [data]);
 
   const [createRootTeam, { isLoading: isCreatingRoot }] = useCreateTeamMutation();
   const [createChildTeam, { isLoading: isCreatingChild }] = useCreateChildTeamMutation();
@@ -169,6 +176,11 @@ export function TeamsPage({ onOpenTeam, parentTeamId }: TeamsPageProps) {
           onDelete={openDelete}
         />
       </DataStateBoundary>
+      <LoadMoreButton
+        hasMore={hasNextPage}
+        isLoading={isFetchingNextPage}
+        onLoadMore={() => void fetchNextPage()}
+      />
 
       <TeamFormDialog
         open={formOpen}
