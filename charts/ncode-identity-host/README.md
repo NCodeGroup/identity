@@ -172,9 +172,10 @@ it, and the chart renders them as the `Cell` section the host binds:
   `cell.isControlPlane` is `false` because the cell accepts platform and team management tokens from it, and when
   `directory.url` is set because the cell asks it for the token it presents to the directory;
 - `tenantResolution.staticSingle.tenantId` and `displayName`, the cell's own tenant under the `StaticSingle` strategy
-  (`StaticSingle:TenantId` and `StaticSingle:DisplayName`). A cell that is not the control plane must name its tenant,
-  because a tenant identifier is unique across the platform's cells and the cell reserves and places its tenant in the
-  directory when it first creates it.
+  (`StaticSingle:TenantId` and `StaticSingle:DisplayName`), the tenant identifier `default` when empty, which the chart
+  writes for the cell and for the directory alike. A cell that is not the control plane must name its tenant, because a
+  tenant identifier is unique across the platform's cells and the cell reserves and places its tenant in the directory
+  when it first creates it.
 
 A cell reaches the platform's directory through the `directory` values, rendered as the `Directory` section
 (`Directory__Url`, `Directory__ClientId`, `Directory__KeyRing`) when `directory.url` is set, and then

@@ -748,9 +748,9 @@ same configuration the pods it rewraps keys for read.
 - name: OpenId__TenantResolution__StaticSingle__Issuer
   value: {{ . | quote }}
 {{- end }}
-{{- with .Values.tenantResolution.staticSingle.tenantId }}
+{{- if eq .Values.tenantResolution.strategyCode "StaticSingle" }}
 - name: OpenId__TenantResolution__StaticSingle__TenantId
-  value: {{ . | quote }}
+  value: {{ include "identity-host.staticSingle.tenantId" . | quote }}
 {{- end }}
 {{- with .Values.tenantResolution.staticSingle.displayName }}
 - name: OpenId__TenantResolution__StaticSingle__DisplayName
@@ -1268,6 +1268,14 @@ The directory's container image: the digest when one is set, else the tag, which
 {{- end }}
 
 {{/*
+The identifier of the tenant a StaticSingle release serves: tenantResolution.staticSingle.tenantId, or `default`. The
+chart writes it for the cell and for the directory alike, so both read one identifier.
+*/}}
+{{- define "identity-host.staticSingle.tenantId" -}}
+{{- .Values.tenantResolution.staticSingle.tenantId | default "default" }}
+{{- end }}
+
+{{/*
 The identifier of the control-plane cell's root tenant, which the directory holds for that cell:
 directory.controlPlaneTenantId when set. Else, in the release of the control-plane cell (cell.isControlPlane is true and
 cell.name is directory.controlPlaneCell) under StaticSingle, the tenant the release serves:
@@ -1278,7 +1286,7 @@ strategy's root tenant is named by settings the chart does not read, such as ext
 {{- if .Values.directory.controlPlaneTenantId }}
 {{- .Values.directory.controlPlaneTenantId }}
 {{- else if and .Values.cell.isControlPlane (eq .Values.cell.name .Values.directory.controlPlaneCell) (eq .Values.tenantResolution.strategyCode "StaticSingle") }}
-{{- .Values.tenantResolution.staticSingle.tenantId | default "default" }}
+{{- include "identity-host.staticSingle.tenantId" . }}
 {{- end }}
 {{- end }}
 

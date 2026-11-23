@@ -917,6 +917,10 @@ jobs:
           tenant() { render templates/directory-deployment.yaml "$@" | grep -A1 'name: DirectoryServer__ControlPlaneTenantId'; }
           expect "$(tenant)" 'value: "default"'
           expect "$(tenant --set tenantResolution.staticSingle.tenantId=acme)" 'value: "acme"'
+          # The cell serves the tenant the directory holds: the chart writes one identifier for both.
+          served() { render templates/deployment.yaml "$@" | grep -A1 'name: OpenId__TenantResolution__StaticSingle__TenantId'; }
+          expect "$(served)" 'value: "default"'
+          expect "$(served --set tenantResolution.staticSingle.tenantId=acme)" 'value: "acme"'
           expect "$(tenant --set tenantResolution.strategyCode=DynamicByPath --set directory.controlPlaneTenantId=control)" \
             'value: "control"'
           expect "$(tenant --set directory.controlPlaneCell=other-cell --set directory.controlPlaneTenantId=cp-root)" \
