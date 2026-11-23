@@ -29,4 +29,9 @@ public sealed class RoleHolderResource
     /// Gets the name of the granted role.
     /// </summary>
     public required string RoleName { get; init; }
+
+    /// <summary>
+    /// Gets the control plane's summary of the principal, or <see langword="null"/> when no describer knows it.
+    /// </summary>
+    public PrincipalSummaryResource? Principal { get; init; }
 }
