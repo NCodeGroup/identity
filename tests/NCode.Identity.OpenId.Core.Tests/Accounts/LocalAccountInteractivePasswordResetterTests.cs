@@ -299,8 +299,7 @@ public class LocalAccountInteractivePasswordResetterTests : BaseTests
             .Setup(x =>
                 x.ConsumeAsync(
                     mockContext.Object,
-                    EmailCodePurposes.ResetPassword,
-                    FlowId,
+                    new EmailCodeFlow(EmailCodePurposes.ResetPassword, FlowId),
                     It.IsAny<CancellationToken>()
                 )
             )
@@ -312,8 +311,7 @@ public class LocalAccountInteractivePasswordResetterTests : BaseTests
             .Setup(x =>
                 x.VerifyAsync(
                     It.IsAny<OpenIdContext>(),
-                    EmailCodePurposes.ResetPassword,
-                    FlowId,
+                    new EmailCodeFlow(EmailCodePurposes.ResetPassword, FlowId),
                     It.Is<Secret<char>>(s => SecretArguments.Reveals(s, Code)),
                     It.IsAny<CancellationToken>()
                 )
@@ -903,8 +901,7 @@ public class LocalAccountInteractivePasswordResetterTests : BaseTests
             x =>
                 x.ConsumeAsync(
                     It.IsAny<OpenIdContext>(),
-                    It.IsAny<string>(),
-                    It.IsAny<string>(),
+                    It.IsAny<EmailCodeFlow>(),
                     It.IsAny<CancellationToken>()
                 ),
             Times.Never

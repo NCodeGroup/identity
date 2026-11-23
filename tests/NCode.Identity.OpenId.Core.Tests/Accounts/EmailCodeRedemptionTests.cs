@@ -47,8 +47,7 @@ public class EmailCodeRedemptionTests : BaseTests
             .Setup(x =>
                 x.VerifyAsync(
                     MockContext.Object,
-                    EmailCodePurposes.VerifyEmail,
-                    FlowId,
+                    new EmailCodeFlow(EmailCodePurposes.VerifyEmail, FlowId),
                     It.Is<Secret<char>>(s => SecretArguments.Reveals(s, Code)),
                     It.IsAny<CancellationToken>()
                 )
@@ -61,8 +60,7 @@ public class EmailCodeRedemptionTests : BaseTests
             .Setup(x =>
                 x.ConsumeAsync(
                     MockContext.Object,
-                    EmailCodePurposes.VerifyEmail,
-                    FlowId,
+                    new EmailCodeFlow(EmailCodePurposes.VerifyEmail, FlowId),
                     It.IsAny<CancellationToken>()
                 )
             )
@@ -70,11 +68,9 @@ public class EmailCodeRedemptionTests : BaseTests
             .Verifiable();
 
     private ValueTask<bool> Redeem(Secret<char> code, CancellationToken cancellationToken) =>
-        EmailCodeRedemption.TryRedeemAsync(
-            MockEmailCodes.Object,
+        MockEmailCodes.Object.TryRedeemAsync(
             MockContext.Object,
-            EmailCodePurposes.VerifyEmail,
-            FlowId,
+            new EmailCodeFlow(EmailCodePurposes.VerifyEmail, FlowId),
             code,
             Account(),
             cancellationToken
@@ -97,8 +93,7 @@ public class EmailCodeRedemptionTests : BaseTests
             x =>
                 x.ConsumeAsync(
                     It.IsAny<OpenIdContext>(),
-                    It.IsAny<string>(),
-                    It.IsAny<string>(),
+                    It.IsAny<EmailCodeFlow>(),
                     It.IsAny<CancellationToken>()
                 ),
             Times.Never
@@ -118,8 +113,7 @@ public class EmailCodeRedemptionTests : BaseTests
             x =>
                 x.ConsumeAsync(
                     It.IsAny<OpenIdContext>(),
-                    It.IsAny<string>(),
-                    It.IsAny<string>(),
+                    It.IsAny<EmailCodeFlow>(),
                     It.IsAny<CancellationToken>()
                 ),
             Times.Never

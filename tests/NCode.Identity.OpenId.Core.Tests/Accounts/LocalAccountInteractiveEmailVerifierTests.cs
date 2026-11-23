@@ -162,8 +162,7 @@ public class LocalAccountInteractiveEmailVerifierTests : BaseTests
             .Setup(x =>
                 x.ConsumeAsync(
                     mockContext.Object,
-                    EmailCodePurposes.VerifyEmail,
-                    FlowId,
+                    new EmailCodeFlow(EmailCodePurposes.VerifyEmail, FlowId),
                     It.IsAny<CancellationToken>()
                 )
             )
@@ -175,8 +174,7 @@ public class LocalAccountInteractiveEmailVerifierTests : BaseTests
             .Setup(x =>
                 x.VerifyAsync(
                     It.IsAny<OpenIdContext>(),
-                    EmailCodePurposes.VerifyEmail,
-                    FlowId,
+                    new EmailCodeFlow(EmailCodePurposes.VerifyEmail, FlowId),
                     It.Is<Secret<char>>(s => SecretArguments.Reveals(s, Code)),
                     It.IsAny<CancellationToken>()
                 )
@@ -461,8 +459,7 @@ public class LocalAccountInteractiveEmailVerifierTests : BaseTests
             x =>
                 x.ConsumeAsync(
                     It.IsAny<OpenIdContext>(),
-                    It.IsAny<string>(),
-                    It.IsAny<string>(),
+                    It.IsAny<EmailCodeFlow>(),
                     It.IsAny<CancellationToken>()
                 ),
             Times.Never

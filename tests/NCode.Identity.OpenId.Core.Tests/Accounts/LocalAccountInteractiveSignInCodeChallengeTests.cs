@@ -140,8 +140,7 @@ public class LocalAccountInteractiveSignInCodeChallengeTests : BaseTests
             .Setup(x =>
                 x.ConsumeAsync(
                     MockContext.Object,
-                    EmailCodePurposes.SignIn,
-                    FlowId,
+                    new EmailCodeFlow(EmailCodePurposes.SignIn, FlowId),
                     It.IsAny<CancellationToken>()
                 )
             )
@@ -153,8 +152,7 @@ public class LocalAccountInteractiveSignInCodeChallengeTests : BaseTests
             .Setup(x =>
                 x.VerifyAsync(
                     MockContext.Object,
-                    EmailCodePurposes.SignIn,
-                    FlowId,
+                    new EmailCodeFlow(EmailCodePurposes.SignIn, FlowId),
                     It.Is<Secret<char>>(s => SecretArguments.Reveals(s, Code)),
                     It.IsAny<CancellationToken>()
                 )
@@ -422,8 +420,7 @@ public class LocalAccountInteractiveSignInCodeChallengeTests : BaseTests
             x =>
                 x.ConsumeAsync(
                     It.IsAny<OpenIdContext>(),
-                    It.IsAny<string>(),
-                    It.IsAny<string>(),
+                    It.IsAny<EmailCodeFlow>(),
                     It.IsAny<CancellationToken>()
                 ),
             Times.Never

@@ -664,8 +664,7 @@ public class DefaultLocalAccountEmailCodesTests : BaseTests
         using var code = Secret.Create(Code.AsSpan());
         var match = await EmailCodes.VerifyAsync(
             mockContext.Object,
-            Purpose,
-            FlowId,
+            new EmailCodeFlow(Purpose, FlowId),
             code,
             CancellationToken.None
         );
@@ -687,8 +686,7 @@ public class DefaultLocalAccountEmailCodesTests : BaseTests
         using var code = Secret.Create(Code.AsSpan());
         var match = await EmailCodes.VerifyAsync(
             mockContext.Object,
-            Purpose,
-            FlowId,
+            new EmailCodeFlow(Purpose, FlowId),
             code,
             CancellationToken.None
         );
@@ -721,8 +719,7 @@ public class DefaultLocalAccountEmailCodesTests : BaseTests
         using var code = Secret.Create("000000".AsSpan());
         var accountId = await EmailCodes.VerifyAsync(
             mockContext.Object,
-            Purpose,
-            FlowId,
+            new EmailCodeFlow(Purpose, FlowId),
             code,
             CancellationToken.None
         );
@@ -744,8 +741,7 @@ public class DefaultLocalAccountEmailCodesTests : BaseTests
         using var code = Secret.Create(Code.AsSpan());
         var match = await EmailCodes.VerifyAsync(
             mockContext.Object,
-            Purpose,
-            FlowId,
+            new EmailCodeFlow(Purpose, FlowId),
             code,
             CancellationToken.None
         );
@@ -780,8 +776,7 @@ public class DefaultLocalAccountEmailCodesTests : BaseTests
         using var code = Secret.Create(Code.AsSpan());
         var match = await EmailCodes.VerifyAsync(
             mockContext.Object,
-            Purpose,
-            FlowId,
+            new EmailCodeFlow(Purpose, FlowId),
             code,
             CancellationToken.None
         );
@@ -806,8 +801,7 @@ public class DefaultLocalAccountEmailCodesTests : BaseTests
         using var code = Secret.Create("000000".AsSpan());
         var accountId = await EmailCodes.VerifyAsync(
             mockContext.Object,
-            Purpose,
-            FlowId,
+            new EmailCodeFlow(Purpose, FlowId),
             code,
             CancellationToken.None
         );
@@ -824,8 +818,7 @@ public class DefaultLocalAccountEmailCodesTests : BaseTests
         using var code = Secret.Create(Code.AsSpan());
         var accountId = await EmailCodes.VerifyAsync(
             mockContext.Object,
-            Purpose,
-            FlowId,
+            new EmailCodeFlow(Purpose, FlowId),
             code,
             CancellationToken.None
         );
@@ -844,8 +837,7 @@ public class DefaultLocalAccountEmailCodesTests : BaseTests
         using var code = Secret.Create(Code.AsSpan());
         var match = await EmailCodes.VerifyAsync(
             mockContext.Object,
-            Purpose,
-            FlowId,
+            new EmailCodeFlow(Purpose, FlowId),
             code,
             CancellationToken.None
         );
@@ -868,8 +860,7 @@ public class DefaultLocalAccountEmailCodesTests : BaseTests
 
         var consumed = await EmailCodes.ConsumeAsync(
             mockContext.Object,
-            Purpose,
-            FlowId,
+            new EmailCodeFlow(Purpose, FlowId),
             CancellationToken.None
         );
 
@@ -887,8 +878,7 @@ public class DefaultLocalAccountEmailCodesTests : BaseTests
 
         var consumed = await EmailCodes.ConsumeAsync(
             mockContext.Object,
-            Purpose,
-            FlowId,
+            new EmailCodeFlow(Purpose, FlowId),
             CancellationToken.None
         );
 
