@@ -22,13 +22,14 @@ public sealed class AspNetIdentityLocalAccountStoreTransferTests : IAsyncLifetim
 {
     private const string TenantA = "tenant-a";
     private const string TenantB = "tenant-b";
+    private const string ConnectionId = "connection-1";
     private const string AccountA = "account-a";
     private const string AccountB = "account-b";
     private const string UserA = "alice";
     private const string UserB = "bob";
     private const string AccountC = "account-c";
     private const string UserC = "carol";
-    private const string NormalizedUserC = "tenant-a|CAROL";
+    private const string NormalizedUserC = "tenant-a|connection-1|CAROL";
     private const string StoredSecurityStamp = "stored-stamp";
 
     private static byte[] Password { get; } = "correct horse battery staple"u8.ToArray();
@@ -62,13 +63,10 @@ public sealed class AspNetIdentityLocalAccountStoreTransferTests : IAsyncLifetim
 
         Provider = serviceCollection.BuildServiceProvider();
 
-        var storeProvider = new Mock<IStoreProvider>(MockBehavior.Strict).Object;
-        Store = Provider
-            .GetRequiredService<Func<IStoreProvider, ILocalAccountStore>>()
-            .Invoke(storeProvider);
-        TransferStore = Provider
-            .GetRequiredService<Func<IStoreProvider, ILocalAccountTransferStore>>()
-            .Invoke(storeProvider);
+        var storeManager = new Mock<IStoreManager>(MockBehavior.Strict).Object;
+        var registration = Provider.GetRequiredService<LocalAccountStoreRegistration>();
+        Store = registration.CreateStore(storeManager);
+        TransferStore = registration.CreateTransferStore(storeManager);
     }
 
     public Task InitializeAsync() => Task.CompletedTask;
@@ -90,6 +88,7 @@ public sealed class AspNetIdentityLocalAccountStoreTransferTests : IAsyncLifetim
         new()
         {
             TenantId = string.Empty,
+            ConnectionId = ConnectionId,
             LocalAccountId = localAccountId,
             UserName = userName,
             DisplayName = "Alice Example",
@@ -141,7 +140,7 @@ public sealed class AspNetIdentityLocalAccountStoreTransferTests : IAsyncLifetim
             await Store.AddAsync(CreateAccount(AccountB, UserB), Password, CancellationToken.None);
         }
 
-        var records = await TransferStore.ExportAsync(CancellationToken.None);
+        var records = await TransferStore.ExportAsync(ConnectionId, CancellationToken.None);
 
         var record = Assert.Single(records);
         Assert.Equal(AccountA, record.LocalAccountId);
@@ -174,6 +173,7 @@ public sealed class AspNetIdentityLocalAccountStoreTransferTests : IAsyncLifetim
             {
                 Id = AccountC,
                 TenantId = TenantA,
+                ConnectionId = ConnectionId,
                 UserName = userName,
                 NormalizedUserName = normalizedUserName,
                 SecurityStamp = securityStamp,
@@ -190,7 +190,7 @@ public sealed class AspNetIdentityLocalAccountStoreTransferTests : IAsyncLifetim
         Assert.Equal(securityStamp, stored.SecurityStamp);
 
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
-            await TransferStore.ExportAsync(CancellationToken.None)
+            await TransferStore.ExportAsync(ConnectionId, CancellationToken.None)
         );
 
         Assert.Equal(
@@ -208,6 +208,7 @@ public sealed class AspNetIdentityLocalAccountStoreTransferTests : IAsyncLifetim
             {
                 Id = AccountC,
                 TenantId = TenantA,
+                ConnectionId = ConnectionId,
                 UserName = UserC,
                 NormalizedUserName = NormalizedUserC,
                 SecurityStamp = StoredSecurityStamp,
@@ -215,7 +216,7 @@ public sealed class AspNetIdentityLocalAccountStoreTransferTests : IAsyncLifetim
             CancellationToken.None
         );
 
-        var records = await TransferStore.ExportAsync(CancellationToken.None);
+        var records = await TransferStore.ExportAsync(ConnectionId, CancellationToken.None);
 
         var record = Assert.Single(records);
         Assert.Equal(AccountC, record.LocalAccountId);
@@ -237,15 +238,15 @@ public sealed class AspNetIdentityLocalAccountStoreTransferTests : IAsyncLifetim
         await Store.AddAsync(CreateAccount(AccountA, UserA), Password, CancellationToken.None);
         var before = await Store.GetByIdOrDefaultAsync(AccountA, CancellationToken.None);
         Assert.NotNull(before);
-        var records = await TransferStore.ExportAsync(CancellationToken.None);
-        await TransferStore.RemoveAllAsync(CancellationToken.None);
+        var records = await TransferStore.ExportAsync(ConnectionId, CancellationToken.None);
+        await TransferStore.RemoveAllAsync(ConnectionId, CancellationToken.None);
 
         using (Accessor.BeginScope(TenantB))
         {
-            await TransferStore.ImportAsync(records, CancellationToken.None);
+            await TransferStore.ImportAsync(ConnectionId, records, CancellationToken.None);
 
             var result = await Store.VerifyCredentialAsync(
-                UserA,
+                new LocalAccountSignInIdentifier { ConnectionId = ConnectionId, UserName = UserA },
                 Password,
                 NotRefused,
                 CancellationToken.None
@@ -266,12 +267,12 @@ public sealed class AspNetIdentityLocalAccountStoreTransferTests : IAsyncLifetim
             Password,
             CancellationToken.None
         );
-        var records = await TransferStore.ExportAsync(CancellationToken.None);
-        await TransferStore.RemoveAllAsync(CancellationToken.None);
+        var records = await TransferStore.ExportAsync(ConnectionId, CancellationToken.None);
+        await TransferStore.RemoveAllAsync(ConnectionId, CancellationToken.None);
 
         using (Accessor.BeginScope(TenantB))
         {
-            await TransferStore.ImportAsync(records, CancellationToken.None);
+            await TransferStore.ImportAsync(ConnectionId, records, CancellationToken.None);
 
             var account = await Store.GetByIdOrDefaultAsync(AccountA, CancellationToken.None);
 
@@ -286,6 +287,7 @@ public sealed class AspNetIdentityLocalAccountStoreTransferTests : IAsyncLifetim
         var claim = new PersistedLocalAccountClaim { Type = "role", Value = "reader" };
 
         await TransferStore.ImportAsync(
+            ConnectionId,
             [CreateRecord(AccountA, UserA, claim)],
             CancellationToken.None
         );
@@ -304,6 +306,7 @@ public sealed class AspNetIdentityLocalAccountStoreTransferTests : IAsyncLifetim
         var claim = new PersistedLocalAccountClaim { Type = "role", Value = "reader" };
 
         await TransferStore.ImportAsync(
+            ConnectionId,
             [CreateRecord(AccountA, UserA, claim), CreateRecord(AccountB, UserB, claim)],
             CancellationToken.None
         );
@@ -326,7 +329,11 @@ public sealed class AspNetIdentityLocalAccountStoreTransferTests : IAsyncLifetim
         TenantScope.Dispose();
 
         await Assert.ThrowsAsync<InvalidOperationException>(async () =>
-            await TransferStore.ImportAsync([CreateRecord(AccountA, UserA)], CancellationToken.None)
+            await TransferStore.ImportAsync(
+                ConnectionId,
+                [CreateRecord(AccountA, UserA)],
+                CancellationToken.None
+            )
         );
     }
 
@@ -343,12 +350,14 @@ public sealed class AspNetIdentityLocalAccountStoreTransferTests : IAsyncLifetim
             await Store.AddAsync(CreateAccount(AccountB, UserB), Password, CancellationToken.None);
         }
 
-        await TransferStore.RemoveAllAsync(CancellationToken.None);
+        await TransferStore.RemoveAllAsync(ConnectionId, CancellationToken.None);
 
-        Assert.Empty(await TransferStore.ExportAsync(CancellationToken.None));
+        Assert.Empty(await TransferStore.ExportAsync(ConnectionId, CancellationToken.None));
         using (Accessor.BeginScope(TenantB))
         {
-            var remaining = Assert.Single(await TransferStore.ExportAsync(CancellationToken.None));
+            var remaining = Assert.Single(
+                await TransferStore.ExportAsync(ConnectionId, CancellationToken.None)
+            );
             Assert.Equal(AccountB, remaining.LocalAccountId);
         }
     }

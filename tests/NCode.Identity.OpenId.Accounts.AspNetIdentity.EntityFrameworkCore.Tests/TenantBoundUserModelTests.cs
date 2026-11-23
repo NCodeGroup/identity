@@ -4,6 +4,7 @@
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using NCode.Identity.Persistence;
 using Xunit;
 
 namespace NCode.Identity.OpenId.Accounts.AspNetIdentity.EntityFrameworkCore;
@@ -49,6 +50,19 @@ public sealed class TenantBoundUserModelTests
         var isNullable = IsNullable(dbContext, nameof(TestTenantUser.DisplayName));
 
         Assert.Equal(AccountMaxLengths.DisplayName, maxLength);
+        Assert.False(isNullable);
+    }
+
+    [Fact]
+    public void HasTenantLookupLengths_WhenCalled_SizesTheConnectionIdColumnAndRequiresIt()
+    {
+        var options = CreateOptions<TenantBoundIdentityDbContext>();
+        using var dbContext = new TenantBoundIdentityDbContext(options);
+
+        var maxLength = GetMaxLength(dbContext, nameof(TestTenantUser.ConnectionId));
+        var isNullable = IsNullable(dbContext, nameof(TestTenantUser.ConnectionId));
+
+        Assert.Equal(MaxLengths.ResourceId, maxLength);
         Assert.False(isNullable);
     }
 

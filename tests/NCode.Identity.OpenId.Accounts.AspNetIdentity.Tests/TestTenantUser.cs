@@ -15,5 +15,7 @@ public sealed class TestTenantUser : IdentityUser, ITenantBoundUser
 
     public string TenantId { get; set; } = string.Empty;
 
+    public string ConnectionId { get; set; } = string.Empty;
+
     public string DisplayName { get; set; } = string.Empty;
 }
