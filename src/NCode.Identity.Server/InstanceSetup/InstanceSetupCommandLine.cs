@@ -112,14 +112,28 @@ public sealed class InstanceSetupCommandLine
         }
         // An exception that escapes Main leaves the end of the process to the runtime's crash path, which does not end
         // a process that runs as PID 1 in its container (dotnet/runtime issue 112580), so a Job would run until its
-        // deadline.
-        catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
+        // deadline. Only a cancellation the caller requested propagates; any other failure, even one after the caller
+        // cancels, is logged and ends the command with 1.
+        catch (Exception exception)
+            when (exception is not OperationCanceledException
+                || !cancellationToken.IsCancellationRequested
+            )
         {
             logger.InstanceSetupCommandFailed(exception);
             return 1;
         }
     }
 
+    /// <summary>
+    /// Checks the arguments and the cell, then creates the root administrator unless the instance is already
+    /// initialized.
+    /// </summary>
+    /// <param name="services">The services of the built host.</param>
+    /// <param name="logger">The <see cref="ILogger"/> that records the outcome.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the command.</param>
+    /// <returns>The <see cref="ValueTask{TResult}"/> that represents the work, containing <c>0</c> when the root
+    /// administrator is created or the instance is already initialized, <c>1</c> when setup refuses it, and <c>2</c>
+    /// for a usage error. An exception that it throws is the caller's to log.</returns>
     private async ValueTask<int> SetUpAsync(
         IServiceProvider services,
         ILogger logger,

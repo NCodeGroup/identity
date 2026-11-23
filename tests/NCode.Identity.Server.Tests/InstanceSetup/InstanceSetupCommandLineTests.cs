@@ -361,6 +361,7 @@ public class InstanceSetupCommandLineTests : BaseTests
     public async Task RunAsync_SetUpThrows_ReturnsOneAndLogsTheFailure()
     {
         var loggerProvider = new CapturingLoggerProvider();
+        var failure = new InvalidOperationException("The instance setup row changed.");
         var setupService = CreateStrictMock<IInstanceSetupService>();
         setupService
             .Setup(x => x.IsInitializedAsync(It.IsAny<CancellationToken>()))
@@ -370,40 +371,90 @@ public class InstanceSetupCommandLineTests : BaseTests
             .Setup(x =>
                 x.SetUpAsync(It.IsAny<InstanceSetupRequest>(), It.IsAny<CancellationToken>())
             )
-            .Returns(() =>
-                ValueTask.FromException<InstanceSetupResult>(
-                    new InvalidOperationException("The instance setup row changed.")
-                )
-            )
+            .Returns(() => ValueTask.FromException<InstanceSetupResult>(failure))
             .Verifiable();
         using var services = CreateServices(setupService.Object, CreateRoot(), loggerProvider);
 
         var exitCode = await Parse("setup").RunAsync(services, CancellationToken.None);
 
         Assert.Equal(1, exitCode);
-        Assert.Contains(
-            loggerProvider.Messages,
-            message => message.StartsWith("The setup command failed", StringComparison.Ordinal)
+        var logged = Assert.Single(
+            loggerProvider.Logs,
+            x => x.EventId.Id == Logging.EventIds.InstanceSetupCommandFailed
         );
+        Assert.Same(failure, logged.Exception);
     }
 
     [Fact]
-    public async Task RunAsync_IsInitializedThrows_ReturnsOne()
+    public async Task RunAsync_IsInitializedThrows_ReturnsOneAndLogsTheFailure()
     {
+        var loggerProvider = new CapturingLoggerProvider();
+        var failure = new InvalidOperationException("The database is unreachable.");
         var setupService = CreateStrictMock<IInstanceSetupService>();
         setupService
             .Setup(x => x.IsInitializedAsync(It.IsAny<CancellationToken>()))
-            .Returns(() =>
-                ValueTask.FromException<bool>(
-                    new InvalidOperationException("The database is unreachable.")
-                )
-            )
+            .Returns(() => ValueTask.FromException<bool>(failure))
             .Verifiable();
-        using var services = CreateServices(setupService.Object, CreateRoot());
+        using var services = CreateServices(setupService.Object, CreateRoot(), loggerProvider);
 
         var exitCode = await Parse("setup").RunAsync(services, CancellationToken.None);
 
         Assert.Equal(1, exitCode);
+        var logged = Assert.Single(
+            loggerProvider.Logs,
+            x => x.EventId.Id == Logging.EventIds.InstanceSetupCommandFailed
+        );
+        Assert.Same(failure, logged.Exception);
+    }
+
+    [Fact]
+    public async Task RunAsync_TheCallerCancels_PropagatesWithoutLogging()
+    {
+        using var cancellationTokenSource = new CancellationTokenSource();
+        var cancellationToken = cancellationTokenSource.Token;
+        await cancellationTokenSource.CancelAsync();
+
+        var loggerProvider = new CapturingLoggerProvider();
+        var cancellation = new OperationCanceledException(cancellationToken);
+        var setupService = CreateStrictMock<IInstanceSetupService>();
+        setupService
+            .Setup(x => x.IsInitializedAsync(cancellationToken))
+            .Returns(() => ValueTask.FromException<bool>(cancellation))
+            .Verifiable();
+        using var services = CreateServices(setupService.Object, CreateRoot(), loggerProvider);
+
+        var thrown = await Assert.ThrowsAsync<OperationCanceledException>(async () =>
+            await Parse("setup").RunAsync(services, cancellationToken)
+        );
+
+        Assert.Same(cancellation, thrown);
+        Assert.Empty(loggerProvider.Logs);
+    }
+
+    [Fact]
+    public async Task RunAsync_IsInitializedFailsAfterTheCallerCancels_ReturnsOneAndLogsTheFailure()
+    {
+        using var cancellationTokenSource = new CancellationTokenSource();
+        var cancellationToken = cancellationTokenSource.Token;
+        await cancellationTokenSource.CancelAsync();
+
+        var loggerProvider = new CapturingLoggerProvider();
+        var failure = new InvalidOperationException("The database is unreachable.");
+        var setupService = CreateStrictMock<IInstanceSetupService>();
+        setupService
+            .Setup(x => x.IsInitializedAsync(cancellationToken))
+            .Returns(() => ValueTask.FromException<bool>(failure))
+            .Verifiable();
+        using var services = CreateServices(setupService.Object, CreateRoot(), loggerProvider);
+
+        var exitCode = await Parse("setup").RunAsync(services, cancellationToken);
+
+        Assert.Equal(1, exitCode);
+        var logged = Assert.Single(
+            loggerProvider.Logs,
+            x => x.EventId.Id == Logging.EventIds.InstanceSetupCommandFailed
+        );
+        Assert.Same(failure, logged.Exception);
     }
 
     [Fact]
