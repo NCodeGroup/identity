@@ -7,6 +7,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 using NCode.Identity.AspNetCore;
+using NCode.Identity.Mail.Mime;
 using NCode.Identity.Mail.Smtp.Facades;
 using NCode.Identity.Mail.Smtp.Options;
 using NCode.Identity.Registration;
@@ -44,21 +45,7 @@ public static class DefaultRegistration
 
             var serviceCollection = builder.ServiceCollection;
 
-            var registered = serviceCollection.FirstOrDefault(descriptor =>
-                descriptor.ServiceType == typeof(MailTransportRegistration)
-            );
-            if (registered is not null)
-            {
-                var registeredName =
-                    (registered.ImplementationInstance as MailTransportRegistration)?.Name
-                    ?? "(unknown)";
-                throw new InvalidOperationException(
-                    $"The mail transport '{registeredName}' is registered; configure one of 'Mail:Smtp' and 'Mail:AmazonSes'."
-                );
-            }
-
-            var marker = new MailTransportRegistration(SmtpMailTransportOptions.SectionName);
-            serviceCollection.AddSingleton(marker);
+            builder.AddMimeMailTransport<SmtpMailTransport>(SmtpMailTransportOptions.SectionName);
 
             // The validator refuses clear-text submission unless the host is configured for local development
             // (ADR-1532, ADR-1370).
@@ -76,11 +63,6 @@ public static class DefaultRegistration
             serviceCollection.TryAddEnumerable(validatorDescriptor);
 
             serviceCollection.TryAddSingleton<ISmtpClientFactory, DefaultSmtpClientFactory>();
-            var transportDescriptor = ServiceDescriptor.Singleton<
-                IMailTransport,
-                SmtpMailTransport
-            >();
-            serviceCollection.Replace(transportDescriptor);
 
             return builder;
         }

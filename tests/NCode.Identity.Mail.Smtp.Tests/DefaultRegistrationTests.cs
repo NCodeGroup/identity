@@ -5,6 +5,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
+using NCode.Identity.Mail.Mime;
 using NCode.Identity.Mail.Smtp.Facades;
 using NCode.Identity.Mail.Smtp.Options;
 using NCode.Identity.Registration;
@@ -71,6 +72,7 @@ public class DefaultRegistrationTests : BaseTests
 
         Assert.IsType<SmtpMailTransport>(Assert.Single(provider.GetServices<IMailTransport>()));
         Assert.IsType<DefaultSmtpClientFactory>(provider.GetRequiredService<ISmtpClientFactory>());
+        Assert.NotNull(provider.GetService<IMimeMessageFactory>());
         var options = provider.GetRequiredService<IOptions<SmtpMailTransportOptions>>().Value;
         Assert.Equal("smtp.example.com", options.Host);
         Assert.Equal("noreply@example.com", options.From);
@@ -97,7 +99,7 @@ public class DefaultRegistrationTests : BaseTests
         );
 
         Assert.Equal(
-            "The mail transport 'Mail:AmazonSes' is registered; configure one of 'Mail:Smtp' and 'Mail:AmazonSes'.",
+            "The mail transport 'Mail:AmazonSes' is registered, so the mail transport 'Mail:Smtp' cannot be; a host configures one mail transport.",
             exception.Message
         );
     }

@@ -4,14 +4,17 @@
 using MailKit;
 using MailKit.Net.Smtp;
 using MailKit.Security;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MimeKit;
 using Moq;
 using NCode.Buffers;
+using NCode.Identity.Mail.Mime;
 using NCode.Identity.Mail.Smtp.Facades;
 using NCode.Identity.Mail.Smtp.Logging;
 using NCode.Identity.Mail.Smtp.Options;
+using NCode.Identity.Registration;
 using Xunit;
 
 namespace NCode.Identity.Mail.Smtp.Tests;
@@ -23,6 +26,8 @@ public class SmtpMailTransportTests : BaseTests
     private Mock<ISmtpClient> ClientMock { get; }
 
     private Mock<ILogger<SmtpMailTransport>> LoggerMock { get; }
+
+    private ServiceProvider MimeServices { get; }
 
     private SmtpMailTransportOptions TransportOptions { get; } =
         new() { Host = "smtp.example.com", From = "noreply@example.com" };
@@ -45,9 +50,15 @@ public class SmtpMailTransportTests : BaseTests
         ClientMock = CreateStrictMock<ISmtpClient>();
         LoggerMock = CreateStrictMock<ILogger<SmtpMailTransport>>();
 
+        var mimeServices = new ServiceCollection();
+        mimeServices.NewBuilder<MailLibrary>().AddMimeMessageFactory();
+        MimeServices = mimeServices.BuildServiceProvider();
+        var mimeMessageFactory = MimeServices.GetRequiredService<IMimeMessageFactory>();
+
         var optionsAccessor = new OptionsWrapper<SmtpMailTransportOptions>(TransportOptions);
         Transport = new SmtpMailTransport(
             ClientFactoryMock.Object,
+            mimeMessageFactory,
             optionsAccessor,
             LoggerMock.Object
         );
@@ -56,7 +67,10 @@ public class SmtpMailTransportTests : BaseTests
     protected override void Dispose(bool disposing)
     {
         if (disposing)
+        {
             Message.Dispose();
+            MimeServices.Dispose();
+        }
 
         base.Dispose(disposing);
     }

@@ -22,11 +22,14 @@ namespace NCode.Identity.Mail.Smtp;
 // See ADR-1532.
 internal sealed class SmtpMailTransport(
     ISmtpClientFactory clientFactory,
+    IMimeMessageFactory mimeMessageFactory,
     IOptions<SmtpMailTransportOptions> optionsAccessor,
     ILogger<SmtpMailTransport> logger
 ) : IMailTransport
 {
     private ISmtpClientFactory ClientFactory { get; } = clientFactory;
+
+    private IMimeMessageFactory MimeMessageFactory { get; } = mimeMessageFactory;
 
     private ILogger<SmtpMailTransport> Logger { get; } = logger;
 
@@ -58,12 +61,12 @@ internal sealed class SmtpMailTransport(
 
         var options = Options;
         var defaultFrom = new MailAddress(options.From, options.FromName);
-        using var mimeMessage = await MimeMailMessages.CreateAsync(
+        using var mimeMessage = await MimeMessageFactory.CreateAsync(
             message,
             defaultFrom,
             cancellationToken
         );
-        var formatOptions = MimeMailMessages.CreateFormatOptions();
+        var formatOptions = MimeMessageFactory.CreateFormatOptions();
 
         using var client = ClientFactory.Create();
         client.Timeout = (int)options.Timeout.TotalMilliseconds;
