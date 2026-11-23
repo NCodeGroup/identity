@@ -146,7 +146,7 @@ public sealed class AuditStreamSigningSecretValueSourceTests : BaseTests
     #region RewrapAsync Tests
 
     [Fact]
-    public async Task Rewrap_RewrapsOnlyTheValuesThatNameTheKeyWithOneProtectorPerPage()
+    public async Task Rewrap_Always_RewrapsOnlyTheValuesThatNameTheKeyWithOneProtectorPerPage()
     {
         var stale1 = Value("s1", OldKey);
         var current = Value("s2", ActiveKey);
@@ -181,7 +181,7 @@ public sealed class AuditStreamSigningSecretValueSourceTests : BaseTests
     }
 
     [Fact]
-    public async Task Rewrap_RewrapsTheValuesUnderAnyRequestedKeyInOnePass()
+    public async Task Rewrap_SeveralRequestedKeys_RewrapsTheValuesUnderAnyInOnePass()
     {
         var keys = new HashSet<Guid> { OldKey, OlderKey };
         var first = Value("s1", OldKey);
@@ -229,7 +229,7 @@ public sealed class AuditStreamSigningSecretValueSourceTests : BaseTests
     }
 
     [Fact]
-    public async Task Rewrap_ReadsEveryPage()
+    public async Task Rewrap_SeveralPages_ReadsEveryPage()
     {
         var first = Value("s1", OldKey);
         var second = Value("s2", OldKey);
@@ -411,7 +411,7 @@ public sealed class AuditStreamSigningSecretValueSourceTests : BaseTests
     }
 
     [Fact]
-    public async Task FindReferenced_StopsOnceEveryKeyIsFound()
+    public async Task FindReferenced_EveryKeyFound_StopsReading()
     {
         var keys = new HashSet<Guid> { OldKey, OlderKey };
         // The first page holds both keys and has a next page, which is never requested: no manager is queued for it.

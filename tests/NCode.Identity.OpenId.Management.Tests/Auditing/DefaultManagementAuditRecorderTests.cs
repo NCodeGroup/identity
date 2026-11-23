@@ -1225,7 +1225,7 @@ public sealed class DefaultManagementAuditRecorderTests : IDisposable
     #region RecordAuditStreamChangedAsync Tests
 
     [Fact]
-    public async Task RecordAuditStreamChangedAsync_PublishesAuditStreamChangedAuditEventWithSnapshot()
+    public async Task RecordAuditStreamChangedAsync_Always_PublishesAuditStreamChangedAuditEventWithSnapshot()
     {
         var mockPublisher = MockRepository.Create<IEventPublisher>();
 

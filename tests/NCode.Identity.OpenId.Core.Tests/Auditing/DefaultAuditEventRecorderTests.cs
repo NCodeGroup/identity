@@ -915,7 +915,7 @@ public sealed class DefaultAuditEventRecorderTests : IDisposable
     #region Self-Service Credential Tests
 
     [Fact]
-    public async Task RecordPasswordChangedAsync_PublishesSuccessAuditEventWithTheAccount()
+    public async Task RecordPasswordChangedAsync_Always_PublishesSuccessAuditEventWithTheAccount()
     {
         var captured = await RecordAsync<PasswordChangeAuditEvent>(
             (recorder, openIdContext) =>
@@ -937,7 +937,7 @@ public sealed class DefaultAuditEventRecorderTests : IDisposable
     }
 
     [Fact]
-    public async Task RecordPasswordChangeFailedAsync_PublishesFailureAuditEventWithError()
+    public async Task RecordPasswordChangeFailedAsync_Always_PublishesFailureAuditEventWithError()
     {
         var captured = await RecordAsync<PasswordChangeAuditEvent>(
             (recorder, openIdContext) =>
@@ -960,7 +960,7 @@ public sealed class DefaultAuditEventRecorderTests : IDisposable
     }
 
     [Fact]
-    public async Task RecordPasswordResetRequestedAsync_PublishesSuccessAuditEventWithTheAccount()
+    public async Task RecordPasswordResetRequestedAsync_Always_PublishesSuccessAuditEventWithTheAccount()
     {
         var captured = await RecordAsync<PasswordResetRequestAuditEvent>(
             (recorder, openIdContext) =>
@@ -1000,7 +1000,7 @@ public sealed class DefaultAuditEventRecorderTests : IDisposable
     }
 
     [Fact]
-    public async Task RecordPasswordResetRequestFailedAsync_PublishesFailureAuditEventWithTheUserName()
+    public async Task RecordPasswordResetRequestFailedAsync_Always_PublishesFailureAuditEventWithTheUserName()
     {
         var captured = await RecordAsync<PasswordResetRequestAuditEvent>(
             (recorder, openIdContext) =>
@@ -1022,7 +1022,7 @@ public sealed class DefaultAuditEventRecorderTests : IDisposable
     }
 
     [Fact]
-    public async Task RecordPasswordResetAsync_PublishesSuccessAuditEventWithTheAccount()
+    public async Task RecordPasswordResetAsync_Always_PublishesSuccessAuditEventWithTheAccount()
     {
         var captured = await RecordAsync<PasswordResetAuditEvent>(
             (recorder, openIdContext) =>
@@ -1038,7 +1038,7 @@ public sealed class DefaultAuditEventRecorderTests : IDisposable
     }
 
     [Fact]
-    public async Task RecordPasswordResetFailedAsync_PublishesFailureAuditEventWithError()
+    public async Task RecordPasswordResetFailedAsync_Always_PublishesFailureAuditEventWithError()
     {
         var captured = await RecordAsync<PasswordResetAuditEvent>(
             (recorder, openIdContext) =>
@@ -1060,7 +1060,7 @@ public sealed class DefaultAuditEventRecorderTests : IDisposable
     }
 
     [Fact]
-    public async Task RecordEmailVerifiedAsync_PublishesSuccessAuditEventWithTheAccount()
+    public async Task RecordEmailVerifiedAsync_Always_PublishesSuccessAuditEventWithTheAccount()
     {
         var captured = await RecordAsync<EmailVerificationAuditEvent>(
             (recorder, openIdContext) =>
@@ -1076,7 +1076,7 @@ public sealed class DefaultAuditEventRecorderTests : IDisposable
     }
 
     [Fact]
-    public async Task RecordEmailVerificationFailedAsync_PublishesFailureAuditEventWithError()
+    public async Task RecordEmailVerificationFailedAsync_Always_PublishesFailureAuditEventWithError()
     {
         var captured = await RecordAsync<EmailVerificationAuditEvent>(
             (recorder, openIdContext) =>
@@ -1098,7 +1098,7 @@ public sealed class DefaultAuditEventRecorderTests : IDisposable
     }
 
     [Fact]
-    public async Task RecordSecondFactorVerifiedAsync_PublishesSuccessAuditEventWithTheFactor()
+    public async Task RecordSecondFactorVerifiedAsync_Always_PublishesSuccessAuditEventWithTheFactor()
     {
         var captured = await RecordAsync<SecondFactorAuditEvent>(
             (recorder, openIdContext) =>
@@ -1120,7 +1120,7 @@ public sealed class DefaultAuditEventRecorderTests : IDisposable
     }
 
     [Fact]
-    public async Task RecordSecondFactorFailedAsync_PublishesFailureAuditEventWithTheFactor()
+    public async Task RecordSecondFactorFailedAsync_Always_PublishesFailureAuditEventWithTheFactor()
     {
         var captured = await RecordAsync<SecondFactorAuditEvent>(
             (recorder, openIdContext) =>
