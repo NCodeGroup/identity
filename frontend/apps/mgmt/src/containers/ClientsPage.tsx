@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import AddIcon from '@mui/icons-material/Add';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -7,8 +8,13 @@ import {
   ClientTable,
   ConfirmDialog,
   DataStateBoundary,
+  LoadMoreButton,
 } from '@ncodegroup/identity-ui';
-import { useCreateClientMutation, useListClientsQuery } from '@ncodegroup/identity-store';
+import {
+  pagedItems,
+  useCreateClientMutation,
+  useListClientsInfiniteQuery,
+} from '@ncodegroup/identity-store';
 import { useTenantCell } from '../tenantCell.js';
 import { ClientDetailPage } from './ClientDetailPage.js';
 import { useClientAdministration } from './useClientAdministration.js';
@@ -36,10 +42,11 @@ export type ClientsPageProps = {
  */
 export function ClientsPage({ tenantId, resourceServerId, embedded = false }: ClientsPageProps) {
   const cell = useTenantCell();
-  const { data, isLoading, error } = useListClientsQuery(
-    resourceServerId ? { tenantId, resourceServerId, cell } : { tenantId, cell },
-  );
-  const clients = data?.items ?? [];
+  const { data, isLoading, error, hasNextPage, isFetchingNextPage, fetchNextPage } =
+    useListClientsInfiniteQuery(
+      resourceServerId ? { tenantId, resourceServerId, cell } : { tenantId, cell },
+    );
+  const clients = useMemo(() => pagedItems(data), [data]);
 
   const [createClient] = useCreateClientMutation();
   const admin = useClientAdministration({
@@ -100,6 +107,11 @@ export function ClientsPage({ tenantId, resourceServerId, embedded = false }: Cl
           onDelete={admin.openDelete}
         />
       </DataStateBoundary>
+      <LoadMoreButton
+        hasMore={hasNextPage}
+        isLoading={isFetchingNextPage}
+        onLoadMore={() => void fetchNextPage()}
+      />
 
       <ClientFormDialog
         open={admin.formOpen}
