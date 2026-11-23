@@ -23,6 +23,52 @@ namespace NCode.Identity.OpenId.Management.Endpoints;
 internal abstract class BaseOwnableApiEndpointHandler : BaseApiEndpointHandler
 {
     /// <summary>
+    /// Creates the <c>409 Conflict</c> response for a grant that is refused because the principal is a client that
+    /// cannot hold the role at the node.
+    /// </summary>
+    // See ADR-1466.
+    internal static ProblemHttpResult RoleRefusedForPrincipal() =>
+        TypedResults.Problem(
+            detail: "A client holds a role only as a machine client, at the node that owns it or a node beneath it.",
+            statusCode: StatusCodes.Status409Conflict
+        );
+
+    /// <summary>
+    /// Reads the one name that a grant requests its principal by.
+    /// </summary>
+    /// <param name="request">The <see cref="AddRoleHolderRequest"/> that names the principal.</param>
+    /// <param name="name">
+    /// When this method returns <c>true</c>, the username when only the username is non-empty, or the principal
+    /// identifier when only the principal identifier is non-empty; otherwise, <see langword="null"/>.
+    /// </param>
+    /// <param name="isUserName">
+    /// <c>true</c> when the username of <paramref name="request"/> is non-empty; otherwise, <c>false</c>.
+    /// </param>
+    /// <returns>
+    /// <c>true</c> when exactly one of the principal identifier and the username is non-empty; otherwise, <c>false</c>.
+    /// </returns>
+    // See ADR-1465.
+    private static bool TryGetRequestedName(
+        AddRoleHolderRequest request,
+        [NotNullWhen(true)] out string? name,
+        out bool isUserName
+    )
+    {
+        var principalId = request.PrincipalId;
+        var userName = request.UserName;
+        var hasPrincipalId = !string.IsNullOrEmpty(principalId);
+        isUserName = !string.IsNullOrEmpty(userName);
+        if (hasPrincipalId == isUserName)
+        {
+            name = null;
+            return false;
+        }
+
+        name = isUserName ? userName : principalId;
+        return name is not null;
+    }
+
+    /// <summary>
     /// Gets the factory used to open a unit of work for role-list operations.
     /// </summary>
     protected abstract IStoreManagerFactory StoreManagerFactory { get; }
@@ -242,17 +288,6 @@ internal abstract class BaseOwnableApiEndpointHandler : BaseApiEndpointHandler
     }
 
     /// <summary>
-    /// Creates the <c>409 Conflict</c> response for a grant that is refused because the principal is a client that
-    /// cannot hold the role at the node.
-    /// </summary>
-    // See ADR-1466.
-    internal static ProblemHttpResult RoleRefusedForPrincipal() =>
-        TypedResults.Problem(
-            detail: "A client holds a role only as a machine client, at the node that owns it or a node beneath it.",
-            statusCode: StatusCodes.Status409Conflict
-        );
-
-    /// <summary>
     /// Processes an HTTP <c>POST</c> that grants a principal one role at a resource node: authorizes the caller to
     /// perform the operation at the node, then adds the assignment and records the grant. The request names the
     /// principal by identifier or by the username of a control-plane local account. Responds <c>403</c> when the caller
@@ -292,10 +327,7 @@ internal abstract class BaseOwnableApiEndpointHandler : BaseApiEndpointHandler
             return AuthorizationFailed(httpContext);
         }
 
-        var requestedPrincipalId = request.PrincipalId;
-        var requestedUserName = request.UserName;
-        var requestedPrincipalKey = requestedPrincipalId ?? string.Empty;
-        if (string.IsNullOrEmpty(requestedPrincipalId) == string.IsNullOrEmpty(requestedUserName))
+        if (!TryGetRequestedName(request, out var requestedName, out var isUserName))
         {
             return TypedResults.Problem(
                 detail: "Name exactly one of 'principalId' and 'userName'.",
@@ -310,9 +342,9 @@ internal abstract class BaseOwnableApiEndpointHandler : BaseApiEndpointHandler
         }
 
         PrincipalSummaryResource summary;
-        if (!string.IsNullOrEmpty(requestedUserName))
+        if (isUserName)
         {
-            var userNameQuery = new ControlPlanePrincipalQuery { UserNames = [requestedUserName] };
+            var userNameQuery = new ControlPlanePrincipalQuery { UserNames = [requestedName] };
             var matches = await ControlPlanePrincipalDirectory.FindAsync(
                 userNameQuery,
                 cancellationToken
@@ -321,11 +353,7 @@ internal abstract class BaseOwnableApiEndpointHandler : BaseApiEndpointHandler
             foreach (var match in matches)
             {
                 if (
-                    string.Equals(
-                        match.UserName,
-                        requestedUserName,
-                        StringComparison.OrdinalIgnoreCase
-                    )
+                    string.Equals(match.UserName, requestedName, StringComparison.OrdinalIgnoreCase)
                 )
                 {
                     userNameMatch = match;
@@ -345,8 +373,8 @@ internal abstract class BaseOwnableApiEndpointHandler : BaseApiEndpointHandler
         }
         else
         {
-            var described = await DescribeAsync([requestedPrincipalKey], cancellationToken);
-            var describedSummary = described.GetValueOrDefault(requestedPrincipalKey);
+            var described = await DescribeAsync([requestedName], cancellationToken);
+            var describedSummary = described.GetValueOrDefault(requestedName);
             if (describedSummary is null)
             {
                 return TypedResults.Problem(
