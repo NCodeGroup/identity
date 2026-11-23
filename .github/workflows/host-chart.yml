@@ -458,6 +458,60 @@ jobs:
             --set setup.job.existingSecret=identity-setup-root --show-only templates/setup-job.yaml)
           reject "$setup" 'Directory__Url' 'KeyRings__cell-client' 'directory-key'
 
+      - name: Give the mail settings and the Amazon SES identity only to the host's Deployment
+        run: |
+          expect() {
+            local rendered="$1"; shift
+            for expected in "$@"; do
+              if ! grep -q -- "$expected" <<< "$rendered"; then
+                echo "::error::The release lacks: $expected"
+                exit 1
+              fi
+            done
+          }
+          reject() {
+            local rendered="$1"; shift
+            # A failed render prints nothing, so a render with no manifest fails the check instead of passing it.
+            if ! grep -q '^kind:' <<< "$rendered"; then
+              echo "::error::The release rendered no manifest"
+              exit 1
+            fi
+            for unexpected in "$@"; do
+              if grep -q -- "$unexpected" <<< "$rendered"; then
+                echo "::error::The release renders what it must not: $unexpected"
+                exit 1
+              fi
+            done
+          }
+          base="$CHART/ci/single-replica-values.yaml"
+          smtp=(--set mail.smtp.host=smtp.example.com --set mail.smtp.from=no-reply@example.com --set mail.smtp.existingSecret=identity-smtp)
+          ses=(--set aws.webIdentity.roleArn=arn:aws:iam::111122223333:role/x --set mail.amazonSes.region=us-east-1 --set mail.amazonSes.from=no-reply@example.com)
+          rewrap=(--set secretProtection.rewrapJob.enabled=true --set secretProtection.rewrapJob.command=rewrap)
+          setup=(--set setup.token.existingSecret=identity-setup-token --set setup.job.enabled=true --set setup.job.existingSecret=identity-setup-root)
+          # The Deployment sends the mail, so it holds the SMTP server and its credentials.
+          expect "$(helm template release "$CHART" --values "$base" "${smtp[@]}" --show-only templates/deployment.yaml)" \
+            'name: Mail__Smtp__Host' 'name: Mail__Smtp__UserName' 'name: Mail__Smtp__Password' 'name: "identity-smtp"'
+          # The Jobs send no mail, so none holds a mail setting or the SMTP password.
+          reject "$(helm template release "$CHART" --values "$base" "${smtp[@]}" "${rewrap[@]}" \
+            --show-only templates/secret-protection-job.yaml)" 'Mail__'
+          reject "$(helm template release "$CHART" --values "$base" "${smtp[@]}" "${setup[@]}" \
+            --show-only templates/setup-job.yaml)" 'Mail__'
+          reject "$(helm template release "$CHART" --values "$base" "${smtp[@]}" \
+            --show-only templates/migration-job.yaml)" 'Mail__'
+          # Amazon SES reaches the Deployment as the pod's AWS role, which a Job that uses no AWS KMS never carries.
+          expect "$(helm template release "$CHART" --values "$base" "${ses[@]}" --show-only templates/deployment.yaml)" \
+            'name: Mail__AmazonSes__Region' 'name: AWS_ROLE_ARN' 'name: aws-web-identity'
+          reject "$(helm template release "$CHART" --values "$base" "${ses[@]}" "${rewrap[@]}" \
+            --show-only templates/secret-protection-job.yaml)" 'Mail__' 'AWS_ROLE_ARN' 'aws-web-identity'
+          reject "$(helm template release "$CHART" --values "$base" "${ses[@]}" "${setup[@]}" \
+            --show-only templates/setup-job.yaml)" 'Mail__' 'AWS_ROLE_ARN' 'aws-web-identity'
+          # With AWS KMS, a Job carries the role for the key, and still no mail setting.
+          kms=$(helm template release "$CHART" --values "$CHART/ci/rewrap-job-values.yaml" \
+            --set mail.amazonSes.region=us-east-1 --set mail.amazonSes.from=no-reply@example.com \
+            --show-only templates/secret-protection-job.yaml)
+          expect "$kms" 'name: AWS_ROLE_ARN'
+          reject "$kms" 'Mail__'
+
       - name: Give the migration Job the host's extra settings, and the Job and the directory Service valid names
         run: |
           base="$CHART/ci/single-replica-values.yaml"
