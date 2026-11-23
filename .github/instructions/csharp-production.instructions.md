@@ -1399,6 +1399,7 @@ MethodImplOptions.AggressiveOptimization)]`, manual unrolling of tiny fixed-coun
     | `32000`–`32999` | `NCode.Identity.Mail`                               |
     | `33000`–`33999` | `NCode.Identity.Mail.Smtp`                          |
     | `34000`–`34999` | `NCode.Identity.Mail.Mime`                          |
+    | `35000`–`35999` | `NCode.Identity.Mail.AmazonSes`                     |
 
 ### Metrics
 

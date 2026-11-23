@@ -1,0 +1,18 @@
+#nullable enable
+const NCode.Identity.Mail.AmazonSes.Options.AmazonSesMailTransportOptions.SectionName = "Mail:AmazonSes" -> string!
+NCode.Identity.Mail.AmazonSes.Options.AmazonSesMailTransportOptions
+NCode.Identity.Mail.AmazonSes.Options.AmazonSesMailTransportOptions.AmazonSesMailTransportOptions() -> void
+NCode.Identity.Mail.AmazonSes.Options.AmazonSesMailTransportOptions.ConfigurationSetName.get -> string?
+NCode.Identity.Mail.AmazonSes.Options.AmazonSesMailTransportOptions.ConfigurationSetName.set -> void
+NCode.Identity.Mail.AmazonSes.Options.AmazonSesMailTransportOptions.From.get -> string!
+NCode.Identity.Mail.AmazonSes.Options.AmazonSesMailTransportOptions.From.set -> void
+NCode.Identity.Mail.AmazonSes.Options.AmazonSesMailTransportOptions.FromIdentityArn.get -> string?
+NCode.Identity.Mail.AmazonSes.Options.AmazonSesMailTransportOptions.FromIdentityArn.set -> void
+NCode.Identity.Mail.AmazonSes.Options.AmazonSesMailTransportOptions.FromName.get -> string?
+NCode.Identity.Mail.AmazonSes.Options.AmazonSesMailTransportOptions.FromName.set -> void
+NCode.Identity.Mail.AmazonSes.Options.AmazonSesMailTransportOptions.Region.get -> string!
+NCode.Identity.Mail.AmazonSes.Options.AmazonSesMailTransportOptions.Region.set -> void
+NCode.Identity.Mail.AmazonSes.Options.AmazonSesMailTransportOptions.Tags.get -> System.Collections.Generic.Dictionary<string!, string!>!
+NCode.Identity.Mail.AmazonSes.Options.AmazonSesMailTransportOptions.Tags.set -> void
+NCode.Identity.Mail.AmazonSes.Options.AmazonSesMailTransportOptions.Timeout.get -> System.TimeSpan
+NCode.Identity.Mail.AmazonSes.Options.AmazonSesMailTransportOptions.Timeout.set -> void

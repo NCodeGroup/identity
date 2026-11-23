@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <LangVersion>latest</LangVersion>
+        <RootNamespace>NCode.Identity.Mail.AmazonSes</RootNamespace>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\NCode.Identity.AspNetCore\NCode.Identity.AspNetCore.csproj" />
+        <ProjectReference Include="..\NCode.Identity.Mail.Abstractions\NCode.Identity.Mail.Abstractions.csproj" />
+        <ProjectReference Include="..\NCode.Identity.Mail.Mime\NCode.Identity.Mail.Mime.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="AWSSDK.SimpleEmailV2" />
+        <!-- Loaded by the AWS SDK at runtime to exchange a web identity token (AWS_WEB_IDENTITY_TOKEN_FILE) for credentials; no code references it. -->
+        <PackageReference Include="AWSSDK.SecurityToken" />
+        <PackageReference Include="JetBrains.Annotations" PrivateAssets="All" />
+        <PackageReference Include="Microsoft.Extensions.Configuration.Binder" />
+        <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+        <PackageReference Include="Microsoft.Extensions.Options" />
+        <PackageReference Include="NCode.Buffers" />
+    </ItemGroup>
+</Project>
