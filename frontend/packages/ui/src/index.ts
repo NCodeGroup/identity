@@ -180,6 +180,10 @@ export {
   type LocalAccountClaimsEditorProps,
 } from './components/LocalAccountClaimsEditor.js';
 export {
+  LocalAccountMetadataEditor,
+  type LocalAccountMetadataEditorProps,
+} from './components/LocalAccountMetadataEditor.js';
+export {
   InitialAccessTokenFormDialog,
   emptyInitialAccessTokenFormValues,
   type InitialAccessTokenFormDialogProps,
