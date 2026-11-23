@@ -125,10 +125,14 @@ internal sealed class DefaultSetupTokenService(
         catch (StoreConcurrencyException)
         {
             // Another replica stored a token between the read above and this write, so that replica logs its token.
+            // Setup may have initialized the instance in between, which needs no token, so nothing is logged then.
             var concurrent = await InstanceSetupRecords.GetOrAddAsync(
                 StoreManagerFactory,
                 cancellationToken
             );
+            if (concurrent.IsInitialized)
+                return;
+
             Logger.SetupTokenIssuedByAnotherReplica(concurrent.TokenIssuedAt);
             return;
         }
