@@ -358,6 +358,55 @@ public class InstanceSetupCommandLineTests : BaseTests
     }
 
     [Fact]
+    public async Task RunAsync_SetUpThrows_ReturnsOneAndLogsTheFailure()
+    {
+        var loggerProvider = new CapturingLoggerProvider();
+        var setupService = CreateStrictMock<IInstanceSetupService>();
+        setupService
+            .Setup(x => x.IsInitializedAsync(It.IsAny<CancellationToken>()))
+            .Returns(new ValueTask<bool>(false))
+            .Verifiable();
+        setupService
+            .Setup(x =>
+                x.SetUpAsync(It.IsAny<InstanceSetupRequest>(), It.IsAny<CancellationToken>())
+            )
+            .Returns(() =>
+                ValueTask.FromException<InstanceSetupResult>(
+                    new InvalidOperationException("The instance setup row changed.")
+                )
+            )
+            .Verifiable();
+        using var services = CreateServices(setupService.Object, CreateRoot(), loggerProvider);
+
+        var exitCode = await Parse("setup").RunAsync(services, CancellationToken.None);
+
+        Assert.Equal(1, exitCode);
+        Assert.Contains(
+            loggerProvider.Messages,
+            message => message.StartsWith("The setup command failed", StringComparison.Ordinal)
+        );
+    }
+
+    [Fact]
+    public async Task RunAsync_IsInitializedThrows_ReturnsOne()
+    {
+        var setupService = CreateStrictMock<IInstanceSetupService>();
+        setupService
+            .Setup(x => x.IsInitializedAsync(It.IsAny<CancellationToken>()))
+            .Returns(() =>
+                ValueTask.FromException<bool>(
+                    new InvalidOperationException("The database is unreachable.")
+                )
+            )
+            .Verifiable();
+        using var services = CreateServices(setupService.Object, CreateRoot());
+
+        var exitCode = await Parse("setup").RunAsync(services, CancellationToken.None);
+
+        Assert.Equal(1, exitCode);
+    }
+
+    [Fact]
     public async Task RunAsync_RootCreated_ReturnsZeroAndPassesTheConfiguredRoot()
     {
         InstanceSetupRequest? captured = null;
