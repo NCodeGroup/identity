@@ -1097,3 +1097,33 @@ static NCode.Identity.OpenId.Settings.OpenIdSettingKeys.TenantKeyRetirementGrace
 static NCode.Identity.OpenId.Settings.OpenIdSettingKeys.TenantKeyProvider.get -> NCode.Identity.Settings.SettingKey<string!>
 NCode.Identity.OpenId.Messages.ISupportClone<T>
 NCode.Identity.OpenId.Messages.ISupportClone<T>.Clone() -> T
+NCode.Identity.OpenId.Connections.ConnectionClaimTypes
+const NCode.Identity.OpenId.Connections.ConnectionClaimTypes.Connection = "urn:ncode:identity:connection" -> string!
+NCode.Identity.OpenId.Connections.ConnectionDefaults
+const NCode.Identity.OpenId.Connections.ConnectionDefaults.Name = "local" -> string!
+NCode.Identity.OpenId.Connections.ConnectionNameRules
+const NCode.Identity.OpenId.Connections.ConnectionNameRules.MaxLength = 128 -> int
+static NCode.Identity.OpenId.Connections.ConnectionNameRules.IsValid(string? name) -> bool
+NCode.Identity.OpenId.Connections.ConnectionRequests
+static NCode.Identity.OpenId.Connections.ConnectionRequests.GetRequestedName(string? connectionParameter, System.Collections.Generic.IReadOnlyCollection<string!>! acrValues) -> string?
+NCode.Identity.OpenId.Connections.ConnectionSignInMethods
+const NCode.Identity.OpenId.Connections.ConnectionSignInMethods.Password = "password" -> string!
+NCode.Identity.OpenId.Connections.ConnectionStrategyNames
+const NCode.Identity.OpenId.Connections.ConnectionStrategyNames.Local = "local" -> string!
+NCode.Identity.OpenId.Connections.IConnectionStrategy
+NCode.Identity.OpenId.Connections.IConnectionStrategy.Name.get -> string!
+NCode.Identity.OpenId.Connections.IConnectionStrategy.SignInMethod.get -> string!
+NCode.Identity.OpenId.Connections.IConnectionStrategy.ValidateOptions(System.Text.Json.JsonElement options) -> string?
+NCode.Identity.OpenId.Connections.IConnectionStrategyCatalog
+NCode.Identity.OpenId.Connections.IConnectionStrategyCatalog.Strategies.get -> System.Collections.Generic.IReadOnlyCollection<NCode.Identity.OpenId.Connections.IConnectionStrategy!>!
+NCode.Identity.OpenId.Connections.IConnectionStrategyCatalog.TryGetStrategy(string! name, out NCode.Identity.OpenId.Connections.IConnectionStrategy! strategy) -> bool
+NCode.Identity.OpenId.Connections.LocalAccountIdentifiers
+const NCode.Identity.OpenId.Connections.LocalAccountIdentifiers.Email = "email" -> string!
+const NCode.Identity.OpenId.Connections.LocalAccountIdentifiers.EmailOrUserName = "email_or_user_name" -> string!
+const NCode.Identity.OpenId.Connections.LocalAccountIdentifiers.UserName = "user_name" -> string!
+NCode.Identity.OpenId.Connections.LocalAccountStoreNames
+const NCode.Identity.OpenId.Connections.LocalAccountStoreNames.Default = "default" -> string!
+NCode.Identity.OpenId.Connections.LocalConnectionOptions
+NCode.Identity.OpenId.Connections.LocalConnectionOptions.LocalConnectionOptions() -> void
+NCode.Identity.OpenId.Connections.LocalConnectionOptions.Store.get -> string!
+NCode.Identity.OpenId.Connections.LocalConnectionOptions.Store.init -> void
