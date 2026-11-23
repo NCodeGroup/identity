@@ -13,8 +13,9 @@ namespace NCode.Identity.OpenId.Management.Promotions;
 
 /// <summary>
 /// Provides a default implementation of <see cref="ITenantConfigurationExporter"/> that reads a tenant's settings,
-/// resource servers, clients and client grants under the tenant's own scope. It leaves out machine clients, clients the
-/// host manages and the grants of those clients, as the promotion contributors do, and it reads no secret.
+/// connections, resource servers, clients and client grants under the tenant's own scope. It leaves out machine
+/// clients, clients the host manages and the grants of those clients, as the promotion contributors do, and it reads no
+/// secret.
 /// </summary>
 // See ADR-1425.
 internal class DefaultTenantConfigurationExporter(
@@ -56,6 +57,7 @@ internal class DefaultTenantConfigurationExporter(
         await ReadClientsAsync(storeManager, tenantId, clients, clientGrants, cancellationToken);
 
         var resourceServers = await ReadResourceServersAsync(storeManager, cancellationToken);
+        var connections = await ReadConnectionsAsync(storeManager, cancellationToken);
 
         return new TenantConfigurationDocument
         {
@@ -65,6 +67,7 @@ internal class DefaultTenantConfigurationExporter(
             Clients = clients,
             ClientGrants = clientGrants,
             ResourceServers = resourceServers,
+            Connections = connections,
         };
     }
 
@@ -147,6 +150,28 @@ internal class DefaultTenantConfigurationExporter(
 
             grantCursor = grantPage.NextCursor;
         } while (grantCursor is not null);
+    }
+
+    private static async ValueTask<List<TenantConfigurationConnection>> ReadConnectionsAsync(
+        IStoreManager storeManager,
+        CancellationToken cancellationToken
+    )
+    {
+        var store = storeManager.GetStore<IConnectionStore>();
+        var connections = await store.GetAllAsync(cancellationToken);
+
+        return
+        [
+            .. connections.Select(connection => new TenantConfigurationConnection
+            {
+                Name = connection.Name,
+                Strategy = connection.Strategy,
+                DisplayName = connection.DisplayName,
+                IsEnabled = connection.IsEnabled,
+                Options = connection.Options,
+                Settings = connection.Settings.Value,
+            }),
+        ];
     }
 
     private static async ValueTask<

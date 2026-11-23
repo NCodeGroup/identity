@@ -18,7 +18,7 @@ internal static class DefaultRegistration
     {
         /// <summary>
         /// Registers the promotion services, the tenant configuration exporter and the built-in contributors of the
-        /// tenant's settings, resource servers, clients and client grants.
+        /// tenant's settings, connections, resource servers, clients and client grants.
         /// </summary>
         public void AddTenantPromotionServices()
         {
@@ -48,6 +48,12 @@ internal static class DefaultRegistration
                 TenantSettingsPromotionContributor
             >();
             serviceCollection.TryAddEnumerable(tenantSettingsDescriptor);
+
+            var connectionDescriptor = ServiceDescriptor.Singleton<
+                ITenantPromotionContributor,
+                ConnectionPromotionContributor
+            >();
+            serviceCollection.TryAddEnumerable(connectionDescriptor);
 
             var resourceServerDescriptor = ServiceDescriptor.Singleton<
                 ITenantPromotionContributor,

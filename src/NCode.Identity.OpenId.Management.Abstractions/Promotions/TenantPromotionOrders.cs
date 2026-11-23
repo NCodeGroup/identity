@@ -19,6 +19,12 @@ public static class TenantPromotionOrders
     public const int TenantSettings = 100;
 
     /// <summary>
+    /// The position of the contributor that promotes the tenant's connections, which the clients' allowed connections
+    /// name.
+    /// </summary>
+    public const int Connections = 150;
+
+    /// <summary>
     /// The position of the contributor that promotes the tenant's resource servers and their scopes.
     /// </summary>
     public const int ResourceServers = 200;

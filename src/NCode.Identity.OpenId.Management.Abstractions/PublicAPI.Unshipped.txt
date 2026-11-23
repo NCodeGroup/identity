@@ -286,11 +286,27 @@ NCode.Identity.OpenId.Management.Contracts.Tenants.TenantConfigurationClientGran
 NCode.Identity.OpenId.Management.Contracts.Tenants.TenantConfigurationClientGrant.Scopes.get -> System.Collections.Generic.List<string!>!
 NCode.Identity.OpenId.Management.Contracts.Tenants.TenantConfigurationClientGrant.Scopes.init -> void
 NCode.Identity.OpenId.Management.Contracts.Tenants.TenantConfigurationClientGrant.TenantConfigurationClientGrant() -> void
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantConfigurationConnection
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantConfigurationConnection.DisplayName.get -> string!
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantConfigurationConnection.DisplayName.init -> void
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantConfigurationConnection.IsEnabled.get -> bool
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantConfigurationConnection.IsEnabled.init -> void
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantConfigurationConnection.Name.get -> string!
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantConfigurationConnection.Name.init -> void
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantConfigurationConnection.Options.get -> System.Text.Json.JsonElement
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantConfigurationConnection.Options.init -> void
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantConfigurationConnection.Settings.get -> System.Text.Json.JsonElement
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantConfigurationConnection.Settings.init -> void
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantConfigurationConnection.Strategy.get -> string!
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantConfigurationConnection.Strategy.init -> void
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantConfigurationConnection.TenantConfigurationConnection() -> void
 NCode.Identity.OpenId.Management.Contracts.Tenants.TenantConfigurationDocument
 NCode.Identity.OpenId.Management.Contracts.Tenants.TenantConfigurationDocument.ClientGrants.get -> System.Collections.Generic.List<NCode.Identity.OpenId.Management.Contracts.Tenants.TenantConfigurationClientGrant!>!
 NCode.Identity.OpenId.Management.Contracts.Tenants.TenantConfigurationDocument.ClientGrants.init -> void
 NCode.Identity.OpenId.Management.Contracts.Tenants.TenantConfigurationDocument.Clients.get -> System.Collections.Generic.List<NCode.Identity.OpenId.Management.Contracts.Tenants.TenantConfigurationClient!>!
 NCode.Identity.OpenId.Management.Contracts.Tenants.TenantConfigurationDocument.Clients.init -> void
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantConfigurationDocument.Connections.get -> System.Collections.Generic.List<NCode.Identity.OpenId.Management.Contracts.Tenants.TenantConfigurationConnection!>!
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantConfigurationDocument.Connections.init -> void
 NCode.Identity.OpenId.Management.Contracts.Tenants.TenantConfigurationDocument.Region.get -> string!
 NCode.Identity.OpenId.Management.Contracts.Tenants.TenantConfigurationDocument.Region.init -> void
 NCode.Identity.OpenId.Management.Contracts.Tenants.TenantConfigurationDocument.ResourceServers.get -> System.Collections.Generic.List<NCode.Identity.OpenId.Management.Contracts.Tenants.TenantConfigurationResourceServer!>!
@@ -1385,6 +1401,7 @@ NCode.Identity.OpenId.Management.Promotions.ITenantPromotionContributor.PlanAsyn
 NCode.Identity.OpenId.Management.Promotions.ITenantPromotionContributor.ApplyAsync(NCode.Identity.OpenId.Management.Promotions.TenantPromotionContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 NCode.Identity.OpenId.Management.Promotions.TenantPromotionOrders
 const NCode.Identity.OpenId.Management.Promotions.TenantPromotionOrders.TenantSettings = 100 -> int
+const NCode.Identity.OpenId.Management.Promotions.TenantPromotionOrders.Connections = 150 -> int
 const NCode.Identity.OpenId.Management.Promotions.TenantPromotionOrders.ResourceServers = 200 -> int
 const NCode.Identity.OpenId.Management.Promotions.TenantPromotionOrders.Clients = 300 -> int
 const NCode.Identity.OpenId.Management.Promotions.TenantPromotionOrders.ClientGrants = 400 -> int

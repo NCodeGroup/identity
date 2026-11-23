@@ -9,8 +9,8 @@ namespace NCode.Identity.OpenId.Management.Contracts.Tenants;
 
 /// <summary>
 /// Represents the configuration of one tenant that a promotion carries into another tenant of the same region: the
-/// tenant's settings, its clients, their grants and its resource servers. The document holds no secret, key,
-/// credential, member tenant identifier, concurrency token or principal identifier.
+/// tenant's settings, its connections, its clients, their grants and its resource servers. The document holds no
+/// secret, key, credential, member tenant identifier, concurrency token or principal identifier.
 /// </summary>
 [PublicAPI]
 [ExcludeFromCodeCoverage]
@@ -45,4 +45,9 @@ public sealed class TenantConfigurationDocument
     /// Gets the tenant's resource servers with their scopes.
     /// </summary>
     public required List<TenantConfigurationResourceServer> ResourceServers { get; init; }
+
+    /// <summary>
+    /// Gets the tenant's connections with their options and settings.
+    /// </summary>
+    public List<TenantConfigurationConnection> Connections { get; init; } = [];
 }
