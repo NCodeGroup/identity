@@ -32,29 +32,26 @@ internal sealed class ClientPrincipalDescriber(IAmbientTenantAccessor ambientTen
     )
     {
         var summaries = new List<PrincipalSummaryResource>();
-        var clientStore = storeManager.GetStore<IClientStore>();
 
-        foreach (var principalId in query.PrincipalIds.Distinct(StringComparer.Ordinal))
+        if (query.PrincipalIds.Count == 0)
         {
-            PersistedClient? client;
+            return summaries;
+        }
 
-            // A principal names at most one client in any tenant, so it is read across tenants. See ADR-1018.
-            using (AmbientTenantAccessor.BeginUnscoped(UnscopedReason))
-            {
-                client = await clientStore.GetByPrincipalOrDefaultAsync(
-                    principalId,
-                    cancellationToken
-                );
-            }
+        var clientStore = storeManager.GetStore<IClientStore>();
+        IReadOnlyList<PersistedClient> clients;
 
-            if (client is null)
-            {
-                continue;
-            }
+        // A principal names at most one client in any tenant, so the principals are read across tenants. See ADR-1018.
+        using (AmbientTenantAccessor.BeginUnscoped(UnscopedReason))
+        {
+            clients = await clientStore.GetByPrincipalsAsync(query.PrincipalIds, cancellationToken);
+        }
 
+        foreach (var client in clients)
+        {
             var summary = new PrincipalSummaryResource
             {
-                PrincipalId = principalId,
+                PrincipalId = client.PrincipalId,
                 PrincipalType = PrincipalTypes.Client,
                 DisplayName = client.ClientId,
                 UserName = null,

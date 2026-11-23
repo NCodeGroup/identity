@@ -28,15 +28,14 @@ public sealed class ClientPrincipalDescriberTests : IDisposable
         MockClientStore = MockRepository.Create<IClientStore>();
 
         Describer = new ClientPrincipalDescriber(MockAmbientTenantAccessor.Object);
+    }
 
+    private void SetupClients(string[] principalIds, IReadOnlyList<PersistedClient> clients)
+    {
         MockStoreManager
             .Setup(x => x.GetStore<IClientStore>())
             .Returns(MockClientStore.Object)
             .Verifiable();
-    }
-
-    private void SetupClient(string principalId, PersistedClient? client)
-    {
         var scope = MockRepository.Create<IDisposable>();
         scope.Setup(x => x.Dispose()).Verifiable();
         MockAmbientTenantAccessor
@@ -44,13 +43,20 @@ public sealed class ClientPrincipalDescriberTests : IDisposable
             .Returns(scope.Object)
             .Verifiable();
         MockClientStore
-            .Setup(x => x.GetByPrincipalOrDefaultAsync(principalId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(client)
+            .Setup(x =>
+                x.GetByPrincipalsAsync(
+                    It.Is<IReadOnlyCollection<string>>(ids => ids.SequenceEqual(principalIds)),
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync(clients)
             .Verifiable();
     }
 
+    #region FindAsync Tests
+
     [Fact]
-    public async Task FindAsync_WithAClientPrincipal_DescribesItByClientId()
+    public async Task FindAsync_WhenAClientHoldsThePrincipal_DescribesItByClientId()
     {
         var client = new PersistedClientBuilder
         {
@@ -58,11 +64,11 @@ public sealed class ClientPrincipalDescriberTests : IDisposable
             ClientId = "cell-eu",
             PrincipalId = "p1",
         }.Build();
-        SetupClient("p1", client);
+        SetupClients(["p1", "p2"], [client]);
 
         var result = await Describer.FindAsync(
             MockStoreManager.Object,
-            new ControlPlanePrincipalQuery { PrincipalIds = ["p1", "p1"], UserNames = ["alice"] },
+            new ControlPlanePrincipalQuery { PrincipalIds = ["p1", "p2"], UserNames = ["alice"] },
             CancellationToken.None
         );
 
@@ -74,9 +80,9 @@ public sealed class ClientPrincipalDescriberTests : IDisposable
     }
 
     [Fact]
-    public async Task FindAsync_WithAnUnknownPrincipal_SkipsIt()
+    public async Task FindAsync_WhenNoClientHoldsThePrincipals_ReturnsNothing()
     {
-        SetupClient("p2", null);
+        SetupClients(["p2"], []);
 
         var result = await Describer.FindAsync(
             MockStoreManager.Object,
@@ -86,4 +92,18 @@ public sealed class ClientPrincipalDescriberTests : IDisposable
 
         Assert.Empty(result);
     }
+
+    [Fact]
+    public async Task FindAsync_WhenTheQueryNamesNoPrincipal_ReadsNoStore()
+    {
+        var result = await Describer.FindAsync(
+            MockStoreManager.Object,
+            new ControlPlanePrincipalQuery { UserNames = ["alice"] },
+            CancellationToken.None
+        );
+
+        Assert.Empty(result);
+    }
+
+    #endregion
 }
