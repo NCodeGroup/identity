@@ -62,6 +62,14 @@ public class RemoteControlPlanePrincipalDirectoryTests : BaseTests
         );
     }
 
+    private static ControlPlanePrincipalQuery DeserializeBody(string? body)
+    {
+        Assert.NotNull(body);
+        var query = JsonSerializer.Deserialize<ControlPlanePrincipalQuery>(body, WireOptions);
+        Assert.NotNull(query);
+        return query;
+    }
+
     #region FindAsync Tests
 
     [Fact]
@@ -124,6 +132,35 @@ public class RemoteControlPlanePrincipalDirectoryTests : BaseTests
 
         Assert.Equal(2, handler.Requests.Count);
         Assert.Equal(2, result.Count);
+        var first = DeserializeBody(handler.Requests[0].Body);
+        var second = DeserializeBody(handler.Requests[1].Body);
+        Assert.Equal(ids.GetRange(0, ControlPlanePrincipalQuery.MaxNames), first.PrincipalIds);
+        Assert.Empty(first.UserNames);
+        Assert.Equal([ids[ControlPlanePrincipalQuery.MaxNames]], second.PrincipalIds);
+    }
+
+    [Fact]
+    public async Task FindAsync_WhenTheIdsAndUserNamesCrossTheMaximum_SplitsThemInOrder()
+    {
+        var handler = StubHttpMessageHandler.Respond(HttpStatusCode.OK, Answer);
+        var directory = CreateDirectory(handler);
+        var ids = Enumerable
+            .Range(0, ControlPlanePrincipalQuery.MaxNames)
+            .Select(index => $"p{index}")
+            .ToList();
+
+        await directory.FindAsync(
+            new ControlPlanePrincipalQuery { PrincipalIds = ids, UserNames = ["ada", "bob"] },
+            CancellationToken.None
+        );
+
+        Assert.Equal(2, handler.Requests.Count);
+        var first = DeserializeBody(handler.Requests[0].Body);
+        var second = DeserializeBody(handler.Requests[1].Body);
+        Assert.Equal(ids, first.PrincipalIds);
+        Assert.Empty(first.UserNames);
+        Assert.Empty(second.PrincipalIds);
+        Assert.Equal(["ada", "bob"], second.UserNames);
     }
 
     [Fact]

@@ -36,7 +36,10 @@ internal sealed class RemoteControlPlanePrincipalDirectory(
         if (query.PrincipalIds.Count == 0 && query.UserNames.Count == 0)
             return [];
 
-        var principalsUri = CreatePrincipalsUri();
+        var principalsUri = ControlPlaneUris.Create(
+            CellOptions,
+            GlobalDirectoryProtocol.ControlPlanePrincipalsPath
+        );
         var names = new List<(bool IsId, string Value)>();
         foreach (var principalId in query.PrincipalIds)
         {
@@ -51,11 +54,22 @@ internal sealed class RemoteControlPlanePrincipalDirectory(
         var results = new List<PrincipalSummaryResource>();
         for (var start = 0; start < names.Count; start += ControlPlanePrincipalQuery.MaxNames)
         {
-            var chunk = names.Skip(start).Take(ControlPlanePrincipalQuery.MaxNames).ToList();
+            var count = Math.Min(ControlPlanePrincipalQuery.MaxNames, names.Count - start);
+            var chunk = names.GetRange(start, count);
+            var chunkIds = new List<string>(count);
+            var chunkUserNames = new List<string>(count);
+            foreach (var (isId, value) in chunk)
+            {
+                if (isId)
+                    chunkIds.Add(value);
+                else
+                    chunkUserNames.Add(value);
+            }
+
             var chunkQuery = new ControlPlanePrincipalQuery
             {
-                PrincipalIds = chunk.Where(name => name.IsId).Select(name => name.Value).ToList(),
-                UserNames = chunk.Where(name => !name.IsId).Select(name => name.Value).ToList(),
+                PrincipalIds = chunkIds,
+                UserNames = chunkUserNames,
             };
             var principalsRequest = new CellApiRequest(
                 HttpMethod.Post,
@@ -74,24 +88,5 @@ internal sealed class RemoteControlPlanePrincipalDirectory(
         }
 
         return results;
-    }
-
-    /// <summary>
-    /// Creates the URI of the control plane's principals endpoint from the control plane's issuer.
-    /// </summary>
-    /// <returns>The absolute URI of the principals endpoint on the control plane's host.</returns>
-    /// <exception cref="DirectoryUnavailableException">
-    /// The cell does not know an absolute issuer of the control plane.
-    /// </exception>
-    private Uri CreatePrincipalsUri()
-    {
-        var issuer = CellOptions.ControlPlane.Issuer;
-        if (!AbsoluteUri.TryParse(issuer, out var uri))
-            throw new DirectoryUnavailableException(
-                "The cell does not know the issuer of the control plane."
-            );
-
-        var authority = uri.GetLeftPart(UriPartial.Authority);
-        return new Uri(authority + DirectoryClientDefaults.PrincipalsPath);
     }
 }

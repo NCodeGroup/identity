@@ -52,7 +52,10 @@ internal sealed class RemoteControlPlaneAuthority(
         if (Cache.TryGetValue(key, out var cached) && cached.ExpiresAt > now)
             return cached.Authority;
 
-        var authorityUri = CreateAuthorityUri();
+        var authorityUri = ControlPlaneUris.Create(
+            CellOptions,
+            GlobalDirectoryProtocol.ControlPlaneAuthorityPath
+        );
         var authorityRequest = new CellApiRequest(
             HttpMethod.Post,
             authorityUri,
@@ -70,25 +73,6 @@ internal sealed class RemoteControlPlaneAuthority(
         var storedAt = TimeProvider.GetUtcNow();
         Store(key, authority, storedAt + CacheLifetime);
         return authority;
-    }
-
-    /// <summary>
-    /// Creates the URI of the control plane's authority endpoint from the control plane's issuer.
-    /// </summary>
-    /// <returns>The absolute URI of the authority endpoint on the control plane's host.</returns>
-    /// <exception cref="DirectoryUnavailableException">
-    /// The cell does not know an absolute issuer of the control plane.
-    /// </exception>
-    private Uri CreateAuthorityUri()
-    {
-        var issuer = CellOptions.ControlPlane.Issuer;
-        if (!AbsoluteUri.TryParse(issuer, out var uri))
-            throw new DirectoryUnavailableException(
-                "The cell does not know the issuer of the control plane."
-            );
-
-        var authority = uri.GetLeftPart(UriPartial.Authority);
-        return new Uri(authority + DirectoryClientDefaults.AuthorityPath);
     }
 
     /// <summary>
