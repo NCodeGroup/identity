@@ -59,6 +59,7 @@ describe('ConnectionFormDialog', () => {
       />,
     );
     expect(screen.getByTestId('connection-form-submit')).toBeDisabled();
+    expect(screen.getByTestId('connection-store')).toBeEnabled();
     fireEvent.change(screen.getByTestId('connection-name'), { target: { value: 'bad name' } });
     fireEvent.change(screen.getByTestId('connection-display-name'), { target: { value: 'Staff' } });
     expect(screen.getByTestId('connection-form-submit')).toBeDisabled();
@@ -88,6 +89,7 @@ describe('ConnectionFormDialog', () => {
       />,
     );
     expect(screen.getByTestId('connection-name')).toBeDisabled();
+    expect(screen.getByTestId('connection-store')).toBeDisabled();
     expect(screen.getByText('The name is immutable after creation.')).toBeInTheDocument();
     fireEvent.change(screen.getByTestId('connection-display-name'), {
       target: { value: ' Staff members ' },

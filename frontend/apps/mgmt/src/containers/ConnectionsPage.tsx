@@ -122,7 +122,7 @@ export function ConnectionsPage({ tenantId }: ConnectionsPageProps) {
           fields: {
             displayName: values.displayName,
             isEnabled: values.isEnabled,
-            options: { ...dialog.connection.options, store: values.store },
+            options: dialog.connection.options,
           },
           cell,
         }).unwrap();

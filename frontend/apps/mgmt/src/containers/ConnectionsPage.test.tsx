@@ -141,6 +141,7 @@ describe('ConnectionsPage', () => {
 
     expect(screen.getByTestId('connection-name')).toBeDisabled();
     expect(screen.getByTestId('connection-store')).toHaveValue('default');
+    expect(screen.getByTestId('connection-store')).toBeDisabled();
     fireEvent.change(screen.getByTestId('connection-store'), { target: { value: 'other' } });
     fireEvent.click(screen.getByRole('switch', { name: 'Enabled' }));
     fireEvent.click(screen.getByTestId('connection-form-submit'));
@@ -151,7 +152,7 @@ describe('ConnectionsPage', () => {
     expect(JSON.parse(patch?.body ?? '[]')).toEqual([
       { op: 'replace', path: '/displayName', value: 'Username and password' },
       { op: 'replace', path: '/isEnabled', value: false },
-      { op: 'replace', path: '/options', value: { store: 'other', extra: 1 } },
+      { op: 'replace', path: '/options', value: { store: 'default', extra: 1 } },
     ]);
   });
 

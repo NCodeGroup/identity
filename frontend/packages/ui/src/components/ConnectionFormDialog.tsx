@@ -28,7 +28,7 @@ export type ConnectionFormDialogProps = {
   readonly title: string;
   readonly submitLabel: string;
   readonly initialValues: ConnectionFormValues;
-  /** Whether the name and strategy may be edited. False on edit, since both are immutable. */
+  /** Whether the name, strategy and store may be edited. False on edit, since all three are immutable. */
   readonly nameEditable?: boolean;
   /** The registered strategies the select offers. */
   readonly strategies?: readonly string[];
@@ -56,11 +56,11 @@ export function isValidConnectionName(name: string): boolean {
 }
 
 /**
- * Stateless connection create/edit form rendered in a dialog. The name and strategy are immutable after creation, so
- * they are read-only when {@link ConnectionFormDialogProps.nameEditable} is false. The name is validated like the
- * server's connection name rules. The field state is local because it is intrinsic to the controlled inputs (it reseeds
- * on the rising edge of `open`), so the component still renders in isolation under Storybook/RTL. All persistence and
- * server-error handling lives in the container that wires the mutation.
+ * Stateless connection create/edit form rendered in a dialog. The name, strategy and store are immutable after
+ * creation, so they are read-only when {@link ConnectionFormDialogProps.nameEditable} is false. The name is validated
+ * like the server's connection name rules. The field state is local because it is intrinsic to the controlled inputs
+ * (it reseeds on the rising edge of `open`), so the component still renders in isolation under Storybook/RTL. All
+ * persistence and server-error handling lives in the container that wires the mutation.
  */
 export function ConnectionFormDialog({
   open,
@@ -161,9 +161,14 @@ export function ConnectionFormDialog({
             label="Store"
             value={values.store}
             onChange={(event) => setValues((v) => ({ ...v, store: event.target.value }))}
-            required
+            required={nameEditable}
+            disabled={!nameEditable}
             fullWidth
-            helperText="The named local-account store that holds this connection's accounts."
+            helperText={
+              nameEditable
+                ? "The named local-account store that holds this connection's accounts."
+                : "The named local-account store that holds this connection's accounts. It is fixed when the connection is created."
+            }
             slotProps={{ htmlInput: { 'data-testid': 'connection-store' } }}
           />
           <FormControlLabel
