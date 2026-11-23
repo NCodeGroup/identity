@@ -241,10 +241,21 @@ internal sealed class DefaultLocalAccountEmailCodes(
                 return null;
             }
 
-            var state = JsonSerializer.Deserialize(
-                value.Value.Span,
-                EmailCodeJsonContext.Default.EmailCodeState
-            );
+            EmailCodeState? state;
+            try
+            {
+                state = JsonSerializer.Deserialize(
+                    value.Value.Span,
+                    EmailCodeJsonContext.Default.EmailCodeState
+                );
+            }
+            catch (JsonException)
+            {
+                // A stored flow that lacks a member, or holds a null where none is written, is malformed, so it
+                // refuses every code. See ADR-1533.
+                return null;
+            }
+
             if (state is null)
             {
                 return null;

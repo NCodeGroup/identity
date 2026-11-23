@@ -9,6 +9,10 @@ namespace NCode.Identity.OpenId.Accounts.Authentication.EmailCodes;
 /// The source-generated JSON context for the state of an email-code flow.
 /// </summary>
 // See ADR-1533.
-[JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.SnakeCaseLower)]
+[JsonSourceGenerationOptions(
+    PropertyNamingPolicy = JsonKnownNamingPolicy.SnakeCaseLower,
+    RespectNullableAnnotations = true,
+    RespectRequiredConstructorParameters = true
+)]
 [JsonSerializable(typeof(EmailCodeState))]
 internal sealed partial class EmailCodeJsonContext : JsonSerializerContext;

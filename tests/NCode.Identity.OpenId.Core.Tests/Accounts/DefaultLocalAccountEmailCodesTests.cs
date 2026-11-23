@@ -4,6 +4,7 @@
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Microsoft.Extensions.Time.Testing;
 using Moq;
 using NCode.Buffers;
@@ -830,6 +831,26 @@ public class DefaultLocalAccountEmailCodesTests : BaseTests
         );
 
         Assert.Null(accountId);
+    }
+
+    [Fact]
+    public async Task VerifyAsync_WhenTheStoredFlowLacksAMember_ReturnsNull()
+    {
+        var mockContext = CreateContext(mockSettings: null);
+        var node = Assert.IsType<JsonObject>(JsonNode.Parse(Serialize(attempts: 0)));
+        node.Remove("email");
+        SetupGet(JsonSerializer.SerializeToUtf8Bytes(node));
+
+        using var code = Secret.Create(Code.AsSpan());
+        var match = await EmailCodes.VerifyAsync(
+            mockContext.Object,
+            Purpose,
+            FlowId,
+            code,
+            CancellationToken.None
+        );
+
+        Assert.Null(match);
     }
 
     #endregion
