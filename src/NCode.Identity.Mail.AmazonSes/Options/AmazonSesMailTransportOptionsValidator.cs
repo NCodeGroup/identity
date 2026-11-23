@@ -120,7 +120,7 @@ internal sealed partial class AmazonSesMailTransportOptionsValidator
                 if (tagValue is null || !TagPattern().IsMatch(tagValue))
                 {
                     failures.Add(
-                        $"{nameof(AmazonSesMailTransportOptions)}.{nameof(AmazonSesMailTransportOptions.Tags)} ('{AmazonSesMailTransportOptions.SectionName}:{nameof(AmazonSesMailTransportOptions.Tags)}:{tagName}') must be 1 to 256 letters, digits, underscores, periods, at signs or hyphens."
+                        $"{nameof(AmazonSesMailTransportOptions)}.{nameof(AmazonSesMailTransportOptions.Tags)} ('{AmazonSesMailTransportOptions.SectionName}:{nameof(AmazonSesMailTransportOptions.Tags)}:{tagName}') must be 1 to 256 letters, digits, underscores, periods, at signs or hyphens; it is '{tagValue}'."
                     );
                 }
             }

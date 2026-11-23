@@ -221,7 +221,7 @@ public class AmazonSesMailTransportOptionsValidatorTests : BaseTests
         Assert.True(result.Failed);
         var failure = Assert.Single(result.Failures);
         Assert.Equal(
-            "AmazonSesMailTransportOptions.Tags ('Mail:AmazonSes:Tags:team') must be 1 to 256 letters, digits, underscores, periods, at signs or hyphens.",
+            $"AmazonSesMailTransportOptions.Tags ('Mail:AmazonSes:Tags:team') must be 1 to 256 letters, digits, underscores, periods, at signs or hyphens; it is '{tagValue}'.",
             failure
         );
     }
@@ -229,15 +229,16 @@ public class AmazonSesMailTransportOptionsValidatorTests : BaseTests
     [Fact]
     public void Validate_WithATagValueOver256Characters_Fails()
     {
+        var tagValue = new string('a', 257);
         var options = CreateOptions();
-        options.Tags["team"] = new string('a', 257);
+        options.Tags["team"] = tagValue;
 
         var result = Validator.Validate(null, options);
 
         Assert.True(result.Failed);
         var failure = Assert.Single(result.Failures);
         Assert.Equal(
-            "AmazonSesMailTransportOptions.Tags ('Mail:AmazonSes:Tags:team') must be 1 to 256 letters, digits, underscores, periods, at signs or hyphens.",
+            $"AmazonSesMailTransportOptions.Tags ('Mail:AmazonSes:Tags:team') must be 1 to 256 letters, digits, underscores, periods, at signs or hyphens; it is '{tagValue}'.",
             failure
         );
     }
