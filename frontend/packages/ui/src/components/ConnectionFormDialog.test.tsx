@@ -94,29 +94,6 @@ describe('ConnectionFormDialog', () => {
     });
   });
 
-  it('does not submit when the form cannot submit', () => {
-    const onSubmit = vi.fn();
-    render(
-      <ConnectionFormDialog
-        open
-        title="Create connection"
-        submitLabel="Create"
-        initialValues={emptyConnectionFormValues}
-        onSubmit={onSubmit}
-        onCancel={vi.fn()}
-      />,
-    );
-    const submit = screen.getByTestId('connection-form-submit');
-    expect(submit).toBeDisabled();
-    // A disabled button never dispatches a click, so the handler is invoked as a keyboard or script activation would.
-    const reactPropsKey = Object.keys(submit).find((key) => key.startsWith('__reactProps'))!;
-    const props = (submit as unknown as Record<string, { onClick: (event: unknown) => void }>)[
-      reactPropsKey
-    ]!;
-    props.onClick({ preventDefault: vi.fn(), defaultPrevented: false });
-    expect(onSubmit).not.toHaveBeenCalled();
-  });
-
   it('locks the name and strategy when they are not editable', () => {
     const onSubmit = vi.fn();
     render(

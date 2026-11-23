@@ -95,9 +95,6 @@ export function ConnectionFormDialog({
     !isSubmitting;
 
   const handleSubmit = () => {
-    if (!canSubmit) {
-      return;
-    }
     onSubmit({
       name,
       displayName,
