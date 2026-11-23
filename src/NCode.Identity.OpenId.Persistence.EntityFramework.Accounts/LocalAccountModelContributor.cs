@@ -8,7 +8,7 @@ namespace NCode.Identity.OpenId.Persistence.EntityFramework.Accounts;
 
 /// <summary>
 /// Contributes the local account entities to the shared <see cref="OpenIdDbContext"/> model so a local account and its
-/// self-issued federated identity can be written in the same unit of work.
+/// federated identity in the account's connection can be written in the same unit of work.
 /// </summary>
 internal sealed class LocalAccountModelContributor : IOpenIdModelContributor
 {

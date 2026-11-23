@@ -115,7 +115,7 @@ Each module below exercises OP behavior that a specification requires; the OP be
       `auth_time`, `acr`, `idp` and `amr` are unaffected.
     - The account-sourced UserInfo enricher (`DefaultGetLocalAccountUserInfoClaimsHandler`, registered by
       `AddLocalAccountAuthentication` / `AddLocalAccountInteractiveAuthentication`) resolves the caller's local account
-      from its self-issued connection and returns the scope-permitted claims from the account store. It also honors
+      from the connection that authenticated it and returns the scope-permitted claims from the account store. It also honors
       individual claims requested through the OIDC `claims` parameter's `userinfo` member (OIDC Core §5.5) regardless of
       scope, and coerces the standard typed claims (`updated_at` → number, `address` → JSON object,
       `phone_number_verified` → boolean).

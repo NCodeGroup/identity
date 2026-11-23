@@ -24,7 +24,7 @@ public sealed class LocalAccountMetadataResource : ISupportConcurrencyToken
     public required string TenantId { get; init; }
 
     /// <summary>
-    /// Gets the opaque identifier of the local account (its self-issued subject).
+    /// Gets the opaque identifier of the local account (its identifier).
     /// </summary>
     public required string LocalAccountId { get; init; }
 

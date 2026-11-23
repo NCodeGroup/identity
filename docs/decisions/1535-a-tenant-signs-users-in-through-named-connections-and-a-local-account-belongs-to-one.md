@@ -73,13 +73,14 @@ management API in `NCode.Identity.OpenId.Management`.
 | `Settings`     | A settings document at the `connection` scope (see 5), a sub-resource with its own concurrency token                                                                                                                           |
 
 A strategy is an `IConnectionStrategy` registered with `TryAddEnumerable`, one class per strategy, and indexed by
-`IConnectionStrategyCatalog`, which rejects a duplicate name, as the tenant environment types are. A strategy has a
+`IConnectionStrategyCatalog`, which rejects a duplicate name, as the tenant environment types are
+([ADR-1289](1289-a-tenant-declares-its-environment-type-which-selects-its-guardrails.md)). A strategy has a
 `Name`, a `SignInMethod`, `ValidateOptions` and `ValidateOptionsChange`, which return an error description or
 `null`; the management API calls `ValidateOptionsChange` with an existing connection's current and proposed options, so
 the `store` of a `local` connection is fixed at create, because its accounts stay in that store. The sign-in method is an
-open vocabulary: `password` means the server verifies a password, so the interactive form and the password grant serve
-the connection. No host-scheme strategy ships; a host that delegates to its own ASP.NET Core authentication scheme
-registers a strategy whose options name that scheme, so every sign-in comes through a connection.
+open vocabulary: `password` means the server verifies a password, so the interactive form serves the connection. No
+host-scheme strategy ships; a host that delegates to its own ASP.NET Core authentication scheme registers a strategy
+whose options name that scheme, so every sign-in comes through a connection.
 
 Every tenant is created with an enabled `local` connection, displayed as "Username and password", whose options are
 `{"store":"default"}` and whose settings are empty. `LocalConnectionSeedHandler` creates it as a `SeedTenantCommand`
@@ -131,8 +132,9 @@ email, `user_name` a user name, and `email_or_user_name` at least one. A sign-in
 first, then as an email, as the setting allows.
 
 `ILocalAccountStore` takes the connection id on every lookup that is scoped to a connection
-(`GetByUserNameOrDefaultAsync`, `GetByEmailOrDefaultAsync` and `GetPageAsync`) and a `LocalAccountSignInIdentifier` for
-`VerifyCredentialAsync`. Credential verification keeps its constant cost whether or not the account exists
+(`GetByUserNameOrDefaultAsync`, `GetByEmailOrDefaultAsync` and `GetPageAsync`), and its
+`VerifyCredentialAsync(identifier, password, isRefusedAsync, cancellationToken)` takes a `LocalAccountSignInIdentifier`
+that carries the `ConnectionId`. Credential verification keeps its constant cost whether or not the account exists
 ([ADR-1239](1239-a-password-is-verified-in-the-same-time-whether-or-not-its-account-exists.md)). Failed-attempt limits
 key on `(tenant, connectionId, accountKey)`, where `accountKey` is the found account's `LocalAccountId`, or the submitted
 identifier when no account matches, and the limit and window come from the connection's settings
@@ -193,8 +195,9 @@ reads `ResolvedConnection.Settings`: the tenant's effective settings resolved th
   narrowed to the requested one when the request names one, and preselects the default. The login form posts
   `connection`: the server renders a `<select id="connection">` when more than one connection is offered and a hidden
   input when one is. The forgot-password form carries `connection` too.
-- The password grant takes `connection` and otherwise uses the default. It accepts only a connection whose sign-in
-  method is `password`.
+- The password grant takes `connection` and otherwise uses the default. It accepts only a connection of the `local`
+  strategy, because it verifies against a local-account store; the interactive form offers every connection whose
+  sign-in method is `password`.
 
 ### 7. People in several connections
 

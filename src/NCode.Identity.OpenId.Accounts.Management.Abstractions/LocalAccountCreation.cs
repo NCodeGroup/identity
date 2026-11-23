@@ -10,7 +10,7 @@ namespace NCode.Identity.OpenId.Accounts.Management;
 
 /// <summary>
 /// Represents the outcome of staging a local account through <see cref="ILocalAccountCreator"/>. When
-/// <see cref="Succeeded"/> is <c>true</c>, the principal, its self-issued identity and the local account are staged on
+/// <see cref="Succeeded"/> is <c>true</c>, the principal, its identity in the account's connection and the local account are staged on
 /// the store manager and the caller saves the store manager to persist them. When <see cref="Error"/> is set, nothing
 /// is staged.
 /// </summary>

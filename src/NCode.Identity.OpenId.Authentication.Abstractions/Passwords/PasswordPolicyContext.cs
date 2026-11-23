@@ -8,19 +8,19 @@ namespace NCode.Identity.OpenId.Authentication.Passwords;
 
 /// <summary>
 /// Carries what an <see cref="IPasswordPolicy"/> and an <see cref="IPasswordBlocklist"/> need to know about the account
-/// a password is being set for: the settings of its tenant and the names it is known by.
+/// a password is being set for: the effective settings of its connection and the names it is known by.
 /// </summary>
 // See ADR-1236.
 [PublicAPI]
 public sealed class PasswordPolicyContext
 {
     /// <summary>
-    /// Gets the effective settings of the tenant the account belongs to.
+    /// Gets the effective settings of the connection the account belongs to.
     /// </summary>
     public required IReadOnlySettingCollection Settings { get; init; }
 
     /// <summary>
-    /// Gets the user name of the account.
+    /// Gets the user name of the account, or the empty string when the account has none.
     /// </summary>
     public required string UserName { get; init; }
 

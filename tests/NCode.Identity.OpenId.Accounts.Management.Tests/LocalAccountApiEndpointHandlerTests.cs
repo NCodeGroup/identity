@@ -1554,7 +1554,7 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
 
         // No identity lookup, RemoveAsync/SaveChangesAsync, session or audit scaffold: a strict-mock failure would mean
         // the account was deleted, its sessions ended or the change audited although the tenant is not served, whether
-        // or not the account has a self-issued identity.
+        // or not the account has an identity in its connection.
         await Assert.ThrowsAsync<HttpResultException>(async () =>
             await Handler.DeleteLocalAccountAsync(
                 httpContext,

@@ -96,8 +96,8 @@ The surface is the leaf package pair `NCode.Identity.OpenId.Authentication.Inter
   `AddLocalAccountInteractiveAuthentication(IServiceBuilder<LocalAccountLibrary>, IServiceBuilder<MailLibrary>)` in
   `NCode.Identity.OpenId.Accounts.Authentication`, registered like the password grant
   ([ADR-1051](1051-a-local-account-belongs-to-one-local-connection-behind-a-named-pluggable-store-seam.md)). It registers
-  `LocalAccountInteractiveCredentialVerifier`, which verifies through secure buffers and issues a self-issued principal,
-  and `LocalAccountInteractivePasswordChanger`
+  `LocalAccountInteractiveCredentialVerifier`, which verifies through secure buffers and issues a principal that carries
+  the connection claim, and `LocalAccountInteractivePasswordChanger`
   ([ADR-1230](1230-an-end-user-changes-their-password-through-an-optional-seam-and-keeps-only-the-current-session.md)).
 - An LDAP, external-IdP or passwordless backend registers its own `IInteractiveCredentialVerifier`.
 

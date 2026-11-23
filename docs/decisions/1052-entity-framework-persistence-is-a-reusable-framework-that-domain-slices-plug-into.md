@@ -88,8 +88,8 @@ packages it depends only on the framework.
 
 A slice's store inherits `BaseStore` and registers with `AddStore`, so it reuses `IStore` delegation, normalization and
 surrogate key and concurrency-token generation. A host registers the framework plumbing once and then each slice it
-wants. All slices share one `OpenIdDbContext`, so a cross-slice write, such as a local account and its self-issued
-federated identity, is one unit of work.
+wants. All slices share one `OpenIdDbContext`, so a cross-slice write, such as a local account and its federated
+identity, is one unit of work.
 
 ### Naming
 
@@ -111,7 +111,7 @@ A non-Entity-Framework adapter is not a slice and keeps domain-first naming, as 
   tenant-scoped `OpenIdDbContext`, `SurrogateKeyAttribute` and the OpenID model-contribution seam, and the family has no
   goal to reuse it elsewhere, so a context-agnostic layer would be speculative generality.
 - **Per-domain `DbContext`s, one in each package.** Rejected: separate contexts cannot share a unit of work, so a
-  cross-slice write, such as a local account and its self-issued federated identity, could not be atomic.
+  cross-slice write, such as a local account and its federated identity, could not be atomic.
 - **Typed `DbSet`s on `OpenIdDbContext`.** Rejected: a typed `DbSet<ClientEntity>` on the context type would re-couple
   the framework to the core schema, because the entity would have to live in the framework. The framework context stays
   schema-agnostic and stores use `context.Set<TEntity>()`.

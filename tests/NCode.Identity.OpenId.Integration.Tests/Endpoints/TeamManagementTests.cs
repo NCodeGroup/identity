@@ -223,7 +223,7 @@ public class TeamManagementTests
             )
             .Sum(entry => entry.GetProperty("count").GetInt64());
 
-    // Seeds an end-user of the root tenant (a local account with a password, its principal and its self-issued identity)
+    // Seeds an end-user of the root tenant (a local account with a password, its principal and its identity in the local connection)
     // and the public console client, grants the user the role at the team, and returns a client that calls the
     // management API with the user's access token.
     private static async ValueTask<HttpClient> CreateTeamUserClientAsync(

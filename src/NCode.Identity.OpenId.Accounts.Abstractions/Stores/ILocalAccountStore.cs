@@ -9,7 +9,7 @@ namespace NCode.Identity.OpenId.Accounts.Stores;
 
 /// <summary>
 /// Provides the single pluggable seam for a host's local accounts: the server-owned credential, profile, and status
-/// payloads behind self-issued connections. It is intentionally backing-store-agnostic — the generic Entity Framework
+/// payloads behind connections of the local strategy. It is intentionally backing-store-agnostic — the generic Entity Framework
 /// reference implementation and the ASP.NET Core Identity adapter both implement it — so credential handling (which
 /// differs by backing store) is expressed as first-class operations (<see cref="AddAsync"/>,
 /// <see cref="SetPasswordAsync"/>, <see cref="VerifyCredentialAsync"/>) rather than by exposing a raw password hash on
@@ -94,7 +94,7 @@ public interface ILocalAccountStore : IStore
     );
 
     /// <summary>
-    /// Attempts to get a local account from the store by its opaque identifier (its self-issued subject).
+    /// Attempts to get a local account from the store by its opaque identifier (the subject of its identity in the connection).
     /// </summary>
     /// <param name="localAccountId">The opaque identifier of the local account.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
