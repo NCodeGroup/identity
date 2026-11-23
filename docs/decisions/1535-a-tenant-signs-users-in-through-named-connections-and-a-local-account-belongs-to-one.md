@@ -129,7 +129,10 @@ Both name columns are nullable and a null never conflicts, so a connection may d
 The setting `local_account_identifier` (`email`, `user_name` or `email_or_user_name`, default `email_or_user_name`,
 replace-merged, applying to tenants and connections) decides which identifier an account must have: `email` requires an
 email, `user_name` a user name, and `email_or_user_name` at least one. A sign-in identifier is looked up as a user name
-first, then as an email, as the setting allows.
+first, then as an email, as the setting allows. The two fields never shadow each other within a connection, whatever the
+setting says, because it can change later: a user name never equals another account's email and an email never equals
+another account's user name, so a sign-in identifier names one account. An account whose own user name equals its own
+email is allowed. The database indexes back each field; the validators guard the pair.
 
 `ILocalAccountStore` takes the connection id on every lookup that is scoped to a connection
 (`GetByUserNameOrDefaultAsync`, `GetByEmailOrDefaultAsync` and `GetPageAsync`), and its
@@ -139,8 +142,9 @@ that carries the `ConnectionId`. Credential verification keeps its constant cost
 key on `(tenant, connectionId, accountKey)`, where `accountKey` is the found account's `LocalAccountId`, or the submitted
 identifier when no account matches, and the limit and window come from the connection's settings
 ([ADR-1237](1237-failed-password-attempts-are-limited-per-account-and-a-refusal-costs-what-a-wrong-password-costs.md)).
-`DefaultLocalAccountValidator` checks email uniqueness per connection for every store, and the Entity Framework store's
-unique index backs it.
+`DefaultLocalAccountValidator` checks email uniqueness and the cross-field rule per connection for every store, and the
+Entity Framework store's unique index backs the email. The seeders' `SeededLocalAccountValidator` applies the
+cross-field rule to the accounts they create.
 
 ### 4. Each local connection names its store
 

@@ -273,6 +273,7 @@ internal sealed class ConformanceSeedHandler(
             "conformance test user",
             context.Tenant,
             connection,
+            store,
             account,
             password,
             cancellationToken

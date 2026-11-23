@@ -396,6 +396,7 @@ internal sealed class DeveloperInteractiveSeedHandler(
             "developer administrator",
             context.Tenant,
             connection,
+            store,
             account,
             password,
             cancellationToken

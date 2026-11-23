@@ -153,6 +153,44 @@ internal class DefaultLocalAccountValidator(
             }
         }
 
+        // An identifier of one field never equals another account's identifier of the other field, so a sign-in
+        // identifier names one account whatever the connection's local_account_identifier is later set to.
+        if (!string.IsNullOrWhiteSpace(userName))
+        {
+            var shadowed = await store.GetByEmailOrDefaultAsync(
+                connectionId,
+                userName,
+                cancellationToken
+            );
+            if (IsOtherAccount(shadowed, localAccountId))
+            {
+                return new ManagementError
+                {
+                    StatusCode = StatusCodes.Status409Conflict,
+                    Detail =
+                        "The specified username is the email address of another local account.",
+                };
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(email))
+        {
+            var shadowed = await store.GetByUserNameOrDefaultAsync(
+                connectionId,
+                email,
+                cancellationToken
+            );
+            if (IsOtherAccount(shadowed, localAccountId))
+            {
+                return new ManagementError
+                {
+                    StatusCode = StatusCodes.Status409Conflict,
+                    Detail =
+                        "The specified email address is the username of another local account.",
+                };
+            }
+        }
+
         return null;
     }
 

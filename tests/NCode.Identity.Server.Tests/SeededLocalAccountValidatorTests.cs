@@ -4,6 +4,7 @@
 using System.Text.Json;
 using Moq;
 using NCode.Identity.OpenId.Accounts.DataContracts;
+using NCode.Identity.OpenId.Accounts.Stores;
 using NCode.Identity.OpenId.Authentication.Passwords;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Settings;
@@ -18,6 +19,7 @@ public class SeededLocalAccountValidatorTests : BaseTests
 
     private Mock<IEffectiveSettingsResolver> MockEffectiveSettingsResolver { get; }
     private Mock<IPasswordPolicy> MockPasswordPolicy { get; }
+    private Mock<ILocalAccountStore> MockLocalAccountStore { get; }
 
     private SeededLocalAccountValidator Validator { get; }
 
@@ -25,6 +27,7 @@ public class SeededLocalAccountValidatorTests : BaseTests
     {
         MockEffectiveSettingsResolver = CreateStrictMock<IEffectiveSettingsResolver>();
         MockPasswordPolicy = CreateStrictMock<IPasswordPolicy>();
+        MockLocalAccountStore = CreateStrictMock<ILocalAccountStore>();
 
         Validator = new SeededLocalAccountValidator(
             MockEffectiveSettingsResolver.Object,
@@ -82,6 +85,32 @@ public class SeededLocalAccountValidatorTests : BaseTests
         return connectionSettings;
     }
 
+    private void SetupLookups(
+        PersistedLocalAccount? accountWithTheUserNameAsEmail = null,
+        PersistedLocalAccount? accountWithTheEmailAsUserName = null
+    )
+    {
+        MockLocalAccountStore
+            .Setup(x =>
+                x.GetByEmailOrDefaultAsync(
+                    LocalConnectionTestData.ConnectionId,
+                    "admin",
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync(accountWithTheUserNameAsEmail)
+            .Verifiable();
+        MockLocalAccountStore
+            .Setup(x =>
+                x.GetByUserNameOrDefaultAsync(
+                    LocalConnectionTestData.ConnectionId,
+                    "admin@localhost",
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync(accountWithTheEmailAsUserName);
+    }
+
     private void SetupPolicy(
         IReadOnlySettingCollection connectionSettings,
         PasswordPolicyResult result
@@ -108,6 +137,7 @@ public class SeededLocalAccountValidatorTests : BaseTests
     [Fact]
     public async Task EnsureCanBeSeededAsync_WhenThePolicyAcceptsThePassword_Completes()
     {
+        SetupLookups();
         var connectionSettings = SetupTenantResolution();
         SetupPolicy(connectionSettings, PasswordPolicyResult.Accepted);
 
@@ -115,6 +145,7 @@ public class SeededLocalAccountValidatorTests : BaseTests
             "developer administrator",
             CreateTenant(),
             LocalConnectionTestData.CreateConnection(TenantId),
+            MockLocalAccountStore.Object,
             CreateAccount(),
             "dev-admin-password",
             CancellationToken.None
@@ -124,6 +155,7 @@ public class SeededLocalAccountValidatorTests : BaseTests
     [Fact]
     public async Task EnsureCanBeSeededAsync_WhenThePolicyRefusesThePassword_ThrowsNamingTheAccount()
     {
+        SetupLookups();
         var connectionSettings = SetupTenantResolution();
         SetupPolicy(
             connectionSettings,
@@ -138,6 +170,7 @@ public class SeededLocalAccountValidatorTests : BaseTests
                 "developer administrator",
                 CreateTenant(),
                 LocalConnectionTestData.CreateConnection(TenantId),
+                MockLocalAccountStore.Object,
                 CreateAccount(),
                 "short",
                 CancellationToken.None
@@ -146,6 +179,50 @@ public class SeededLocalAccountValidatorTests : BaseTests
 
         Assert.Contains("'admin'", exception.Message, StringComparison.Ordinal);
         Assert.Contains("at least 15", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task EnsureCanBeSeededAsync_WhenTheUserNameIsAnotherAccountsEmail_Throws()
+    {
+        SetupLookups(accountWithTheUserNameAsEmail: CreateAccount());
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await Validator.EnsureCanBeSeededAsync(
+                "developer administrator",
+                CreateTenant(),
+                LocalConnectionTestData.CreateConnection(TenantId),
+                MockLocalAccountStore.Object,
+                CreateAccount(),
+                "dev-admin-password",
+                CancellationToken.None
+            )
+        );
+
+        Assert.Contains(
+            "another account's email address",
+            exception.Message,
+            StringComparison.Ordinal
+        );
+    }
+
+    [Fact]
+    public async Task EnsureCanBeSeededAsync_WhenTheEmailIsAnotherAccountsUserName_Throws()
+    {
+        SetupLookups(accountWithTheEmailAsUserName: CreateAccount());
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await Validator.EnsureCanBeSeededAsync(
+                "developer administrator",
+                CreateTenant(),
+                LocalConnectionTestData.CreateConnection(TenantId),
+                MockLocalAccountStore.Object,
+                CreateAccount(),
+                "dev-admin-password",
+                CancellationToken.None
+            )
+        );
+
+        Assert.Contains("another account's user name", exception.Message, StringComparison.Ordinal);
     }
 
     #endregion

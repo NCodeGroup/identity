@@ -285,6 +285,25 @@ public class ConformanceSeedHandlerTests : SecretProtectionTestBase
             TestUserPassword = "conformance-password",
         };
         var mockAccountStore = CreateStrictMock<ILocalAccountStore>();
+        // The seeded identifiers are also looked up as another account's email address and user name.
+        mockAccountStore
+            .Setup(x =>
+                x.GetByEmailOrDefaultAsync(
+                    LocalConnectionTestData.ConnectionId,
+                    It.IsAny<string>(),
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync((PersistedLocalAccount?)null);
+        mockAccountStore
+            .Setup(x =>
+                x.GetByUserNameOrDefaultAsync(
+                    LocalConnectionTestData.ConnectionId,
+                    It.Is<string>(value => value != "conformance-user"),
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync((PersistedLocalAccount?)null);
         var handler = CreateHandler(
             options,
             CreateStrictMock<ISettingSerializer>().Object,
@@ -356,6 +375,25 @@ public class ConformanceSeedHandlerTests : SecretProtectionTestBase
         };
         // No AddAsync setup: the strict store refuses an account that would be stored.
         var mockAccountStore = CreateStrictMock<ILocalAccountStore>();
+        // The seeded identifiers are also looked up as another account's email address and user name.
+        mockAccountStore
+            .Setup(x =>
+                x.GetByEmailOrDefaultAsync(
+                    LocalConnectionTestData.ConnectionId,
+                    It.IsAny<string>(),
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync((PersistedLocalAccount?)null);
+        mockAccountStore
+            .Setup(x =>
+                x.GetByUserNameOrDefaultAsync(
+                    LocalConnectionTestData.ConnectionId,
+                    It.Is<string>(value => value != "conformance-user"),
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync((PersistedLocalAccount?)null);
         var handler = CreateHandler(
             options,
             CreateStrictMock<ISettingSerializer>().Object,

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using NCode.Identity.OpenId.Accounts.DataContracts;
+using NCode.Identity.OpenId.Accounts.Stores;
 using NCode.Identity.OpenId.Authentication.Passwords;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Settings;
@@ -29,20 +30,55 @@ internal sealed class SeededLocalAccountValidator(
     /// <param name="accountKind">The kind of account the seeder creates, which names the account in the error.</param>
     /// <param name="tenant">The tenant the account is seeded into.</param>
     /// <param name="connection">The local connection the account is seeded into.</param>
+    /// <param name="store">The <see cref="ILocalAccountStore"/> of the connection.</param>
     /// <param name="account">The local account the seeder is about to create.</param>
     /// <param name="password">The password the seeder is about to set.</param>
     /// <param name="cancellationToken">A <see cref="CancellationToken"/> for the operation.</param>
-    /// <returns>A <see cref="ValueTask"/> that completes when the password is acceptable.</returns>
-    /// <exception cref="InvalidOperationException">The password policy refuses the password.</exception>
+    /// <returns>A <see cref="ValueTask"/> that completes when the account can be seeded.</returns>
+    /// <exception cref="InvalidOperationException">
+    /// The account's user name equals another account's email address or its email address equals another account's
+    /// user name in the connection, or the password policy refuses the password.
+    /// </exception>
     public async ValueTask EnsureCanBeSeededAsync(
         string accountKind,
         PersistedTenant tenant,
         PersistedConnection connection,
+        ILocalAccountStore store,
         PersistedLocalAccount account,
         string password,
         CancellationToken cancellationToken
     )
     {
+        if (!string.IsNullOrWhiteSpace(account.UserName))
+        {
+            var shadowed = await store.GetByEmailOrDefaultAsync(
+                connection.ConnectionId,
+                account.UserName,
+                cancellationToken
+            );
+            if (shadowed is not null)
+            {
+                throw new InvalidOperationException(
+                    $"The {accountKind} '{account.UserName}' cannot be seeded: the user name is another account's email address."
+                );
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(account.Email))
+        {
+            var shadowed = await store.GetByUserNameOrDefaultAsync(
+                connection.ConnectionId,
+                account.Email,
+                cancellationToken
+            );
+            if (shadowed is not null)
+            {
+                throw new InvalidOperationException(
+                    $"The {accountKind} '{account.UserName}' cannot be seeded: the email address is another account's user name."
+                );
+            }
+        }
+
         var teamSettings = await EffectiveSettingsResolver.ResolveTeamAsync(
             tenant.TeamId,
             cancellationToken

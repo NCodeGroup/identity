@@ -235,6 +235,13 @@ public sealed class DefaultLocalAccountValidatorTests : IDisposable
             )
             .ReturnsAsync(existing)
             .Verifiable();
+
+        // The user name is also looked up as another account's email address; no account has it unless a test says so.
+        MockLocalAccountStore
+            .Setup(x =>
+                x.GetByEmailOrDefaultAsync(connectionId, userName, It.IsAny<CancellationToken>())
+            )
+            .ReturnsAsync((PersistedLocalAccount?)null);
     }
 
     private void SetupEmailLookup(
@@ -249,6 +256,13 @@ public sealed class DefaultLocalAccountValidatorTests : IDisposable
             )
             .ReturnsAsync(existing)
             .Verifiable();
+
+        // The email address is also looked up as another account's user name; no account has it unless a test says so.
+        MockLocalAccountStore
+            .Setup(x =>
+                x.GetByUserNameOrDefaultAsync(connectionId, email, It.IsAny<CancellationToken>())
+            )
+            .ReturnsAsync((PersistedLocalAccount?)null);
     }
 
     #endregion
@@ -479,6 +493,63 @@ public sealed class DefaultLocalAccountValidatorTests : IDisposable
         Assert.Equal(StatusCodes.Status409Conflict, error.StatusCode);
         Assert.Equal(
             "A local account with the specified email address already exists.",
+            error.Detail
+        );
+    }
+
+    [Fact]
+    public async Task ValidateCreateAsync_WhenTheUserNameIsAnotherAccountsEmail_Returns409()
+    {
+        SetupIdentifiers(LocalAccountIdentifiers.EmailOrUserName);
+        SetupUserNameLookup(existing: null);
+        MockLocalAccountStore
+            .Setup(x =>
+                x.GetByEmailOrDefaultAsync(ConnectionId, UserName, It.IsAny<CancellationToken>())
+            )
+            .ReturnsAsync(CreateAccount(localAccountId: "other-account", userName: "bob"))
+            .Verifiable();
+        var account = CreateAccount();
+
+        var error = await Validator.ValidateCreateAsync(
+            Connection,
+            account,
+            MockStoreManager.Object,
+            CancellationToken.None
+        );
+
+        Assert.NotNull(error);
+        Assert.Equal(StatusCodes.Status409Conflict, error.StatusCode);
+        Assert.Equal(
+            "The specified username is the email address of another local account.",
+            error.Detail
+        );
+    }
+
+    [Fact]
+    public async Task ValidateCreateAsync_WhenTheEmailIsAnotherAccountsUserName_Returns409()
+    {
+        SetupIdentifiers(LocalAccountIdentifiers.EmailOrUserName);
+        SetupUserNameLookup(existing: null);
+        SetupEmailLookup(existing: null);
+        MockLocalAccountStore
+            .Setup(x =>
+                x.GetByUserNameOrDefaultAsync(ConnectionId, Email, It.IsAny<CancellationToken>())
+            )
+            .ReturnsAsync(CreateAccount(localAccountId: "other-account", userName: Email))
+            .Verifiable();
+        var account = CreateAccount(email: Email);
+
+        var error = await Validator.ValidateCreateAsync(
+            Connection,
+            account,
+            MockStoreManager.Object,
+            CancellationToken.None
+        );
+
+        Assert.NotNull(error);
+        Assert.Equal(StatusCodes.Status409Conflict, error.StatusCode);
+        Assert.Equal(
+            "The specified email address is the username of another local account.",
             error.Detail
         );
     }
@@ -774,6 +845,62 @@ public sealed class DefaultLocalAccountValidatorTests : IDisposable
 
         Assert.NotNull(error);
         Assert.Equal(StatusCodes.Status409Conflict, error.StatusCode);
+    }
+
+    [Fact]
+    public async Task ValidateUpdateAsync_WhenTheUserNameIsAnotherAccountsEmail_Returns409()
+    {
+        SetupIdentifiers(LocalAccountIdentifiers.EmailOrUserName);
+        SetupUserNameLookup(existing: null);
+        MockLocalAccountStore
+            .Setup(x =>
+                x.GetByEmailOrDefaultAsync(ConnectionId, UserName, It.IsAny<CancellationToken>())
+            )
+            .ReturnsAsync(CreateAccount(localAccountId: "other-account", userName: "bob"))
+            .Verifiable();
+        var account = CreateAccount();
+        var model = CreateModel();
+
+        var error = await Validator.ValidateUpdateAsync(
+            Connection,
+            account,
+            model,
+            null,
+            MockStoreManager.Object,
+            CancellationToken.None
+        );
+
+        Assert.NotNull(error);
+        Assert.Equal(StatusCodes.Status409Conflict, error.StatusCode);
+    }
+
+    [Fact]
+    public async Task ValidateUpdateAsync_WhenTheUserNameEqualsTheAccountsOwnEmail_ReturnsNull()
+    {
+        SetupIdentifiers(LocalAccountIdentifiers.EmailOrUserName);
+        var own = CreateAccount(userName: Email, email: Email);
+        MockLocalAccountStore
+            .Setup(x =>
+                x.GetByUserNameOrDefaultAsync(ConnectionId, Email, It.IsAny<CancellationToken>())
+            )
+            .ReturnsAsync(own);
+        MockLocalAccountStore
+            .Setup(x =>
+                x.GetByEmailOrDefaultAsync(ConnectionId, Email, It.IsAny<CancellationToken>())
+            )
+            .ReturnsAsync(own);
+        var model = CreateModel(userName: Email, email: Email);
+
+        var error = await Validator.ValidateUpdateAsync(
+            Connection,
+            own,
+            model,
+            null,
+            MockStoreManager.Object,
+            CancellationToken.None
+        );
+
+        Assert.Null(error);
     }
 
     [Fact]

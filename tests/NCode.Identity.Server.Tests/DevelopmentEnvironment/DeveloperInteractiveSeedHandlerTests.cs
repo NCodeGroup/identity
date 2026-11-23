@@ -551,6 +551,25 @@ public class DeveloperInteractiveSeedHandlerTests : BaseTests
             AdminPassword = "short",
         };
         var mockAccountStore = CreateStrictMock<ILocalAccountStore>();
+        // The seeded identifiers are also looked up as another account's email address and user name.
+        mockAccountStore
+            .Setup(x =>
+                x.GetByEmailOrDefaultAsync(
+                    LocalConnectionTestData.ConnectionId,
+                    It.IsAny<string>(),
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync((PersistedLocalAccount?)null);
+        mockAccountStore
+            .Setup(x =>
+                x.GetByUserNameOrDefaultAsync(
+                    LocalConnectionTestData.ConnectionId,
+                    It.Is<string>(value => value != "admin"),
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync((PersistedLocalAccount?)null);
         var handler = new DeveloperInteractiveSeedHandler(
             options,
             CreateStrictMock<IClientKeyImporter>().Object,
@@ -634,6 +653,25 @@ public class DeveloperInteractiveSeedHandlerTests : BaseTests
             AdminPassword = "a-sufficiently-long-password",
         };
         var mockAccountStore = CreateStrictMock<ILocalAccountStore>();
+        // The seeded identifiers are also looked up as another account's email address and user name.
+        mockAccountStore
+            .Setup(x =>
+                x.GetByEmailOrDefaultAsync(
+                    LocalConnectionTestData.ConnectionId,
+                    It.IsAny<string>(),
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync((PersistedLocalAccount?)null);
+        mockAccountStore
+            .Setup(x =>
+                x.GetByUserNameOrDefaultAsync(
+                    LocalConnectionTestData.ConnectionId,
+                    It.Is<string>(value => value != "admin"),
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync((PersistedLocalAccount?)null);
         var handler = new DeveloperInteractiveSeedHandler(
             options,
             CreateStrictMock<IClientKeyImporter>().Object,
