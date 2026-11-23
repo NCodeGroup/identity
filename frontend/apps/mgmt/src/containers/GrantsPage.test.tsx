@@ -158,6 +158,31 @@ describe('GrantsPage (list states and filters)', () => {
   });
 });
 
+describe('GrantsPage (paging)', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('loads the next page', async () => {
+    const calls = installFetch((url, method) => {
+      if (url.includes('/api/tenants/acme/grants') && method === 'GET') {
+        return url.includes('cursor=next')
+          ? jsonResponse({ items: [otherGrant] })
+          : jsonResponse({ items: [grant], continuationToken: 'next' });
+      }
+      throw new Error(`Unexpected ${method} ${url}`);
+    });
+
+    renderPage();
+    fireEvent.click(await screen.findByTestId('load-more'));
+
+    expect(await screen.findByText('user-2')).toBeInTheDocument();
+    expect(screen.getByText('user-1')).toBeInTheDocument();
+    expect(calls.some((c) => c.url.includes('cursor=next'))).toBe(true);
+    await waitFor(() => expect(screen.queryByTestId('load-more')).not.toBeInTheDocument());
+  });
+});
+
 describe('GrantsPage (tenant-scoped revocation wiring)', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
@@ -513,5 +538,38 @@ describe('GrantsPage (initial access tokens)', () => {
       lifetimeSeconds: null,
       resourceServerId: 'rs-orders',
     });
+  });
+
+  it('lists every resource server in the mint dialog', async () => {
+    installFetch((url, method) => {
+      if (url.includes('/api/tenants/acme/resource-servers') && method === 'GET') {
+        return url.includes('cursor=next')
+          ? jsonResponse({
+              items: [resourceServer('rs-billing', 'Billing', 'https://billing.example', false)],
+            })
+          : jsonResponse({
+              items: [resourceServer('rs-orders', 'Orders', 'https://orders.example', false)],
+              continuationToken: 'next',
+            });
+      }
+      if (url.includes('/api/tenants/acme/grants') && method === 'GET') {
+        return jsonResponse({ items: [] });
+      }
+      throw new Error(`Unexpected ${method} ${url}`);
+    });
+
+    renderPage();
+    expect(await screen.findByTestId('data-empty')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId('mint-initial-access-token'));
+    fireEvent.mouseDown(await screen.findByRole('combobox', { name: /Resource server/ }));
+
+    await waitFor(() =>
+      expect(
+        within(screen.getByRole('listbox'))
+          .getAllByRole('option')
+          .map((option) => option.textContent),
+      ).toEqual(['None', 'Orders (https://orders.example)', 'Billing (https://billing.example)']),
+    );
   });
 });

@@ -101,6 +101,32 @@ describe('ResourceServersPage (list states)', () => {
   });
 });
 
+describe('ResourceServersPage (paging)', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('loads the next page', async () => {
+    const second = { ...orders, resourceServerId: 'rs-billing', name: 'Billing API' };
+    const calls = installFetch((url, method) => {
+      if (url.includes('/api/tenants/acme/resource-servers') && method === 'GET') {
+        return url.includes('cursor=next')
+          ? jsonResponse({ items: [second] })
+          : jsonResponse({ items: [orders], continuationToken: 'next' });
+      }
+      throw new Error(`Unexpected ${method} ${url}`);
+    });
+
+    renderPage();
+    fireEvent.click(await screen.findByTestId('load-more'));
+
+    expect(await screen.findByText('Billing API')).toBeInTheDocument();
+    expect(screen.getByText('Orders API')).toBeInTheDocument();
+    expect(calls.some((c) => c.url.includes('cursor=next'))).toBe(true);
+    await waitFor(() => expect(screen.queryByTestId('load-more')).not.toBeInTheDocument());
+  });
+});
+
 describe('ResourceServersPage (tenant-scoped CRUD + scope drill-in)', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
