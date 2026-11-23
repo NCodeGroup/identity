@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using System.Security.Claims;
+using NCode.Buffers;
 using NCode.Identity.OpenId.Contexts;
 
 namespace NCode.Identity.OpenId.Authentication.Interactive;
@@ -30,7 +31,7 @@ internal sealed class DefaultInteractiveSignInCodeChallenge : IInteractiveSignIn
         OpenIdContext openIdContext,
         ClaimsPrincipal principal,
         string flowId,
-        string code,
+        Secret<char> code,
         CancellationToken cancellationToken
     ) => ValueTask.FromResult(NotSupported);
 }

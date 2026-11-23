@@ -1,6 +1,7 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using NCode.Buffers;
 using NCode.Identity.OpenId.Accounts.DataContracts;
 using NCode.Identity.OpenId.Authentication.Interactive;
 using NCode.Identity.OpenId.Contexts;
@@ -77,7 +78,7 @@ internal interface ILocalAccountEmailCodes
     /// <param name="openIdContext">The <see cref="OpenIdContext"/> of the tenant the flow belongs to.</param>
     /// <param name="purpose">The purpose of the code, one of the <see cref="EmailCodePurposes"/>.</param>
     /// <param name="flowId">The handle that <see cref="SendAsync"/> returned.</param>
-    /// <param name="code">The code the end user presented.</param>
+    /// <param name="code">The code the end user presented, which the caller owns and disposes.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
     /// <returns>
     /// The account the flow was started for and the address the code was mailed to; or <see langword="null"/> when the
@@ -87,7 +88,7 @@ internal interface ILocalAccountEmailCodes
         OpenIdContext openIdContext,
         string purpose,
         string flowId,
-        string code,
+        Secret<char> code,
         CancellationToken cancellationToken
     );
 

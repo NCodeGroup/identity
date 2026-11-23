@@ -3,6 +3,7 @@
 
 using System.Security.Claims;
 using Moq;
+using NCode.Buffers;
 using NCode.Identity.OpenId.Accounts;
 using NCode.Identity.OpenId.Accounts.Authentication;
 using NCode.Identity.OpenId.Accounts.Authentication.EmailCodes;
@@ -176,7 +177,7 @@ public class LocalAccountInteractiveEmailVerifierTests : BaseTests
                     It.IsAny<OpenIdContext>(),
                     EmailCodePurposes.VerifyEmail,
                     FlowId,
-                    Code,
+                    It.Is<Secret<char>>(s => SecretArguments.Reveals(s, Code)),
                     It.IsAny<CancellationToken>()
                 )
             )
@@ -359,11 +360,12 @@ public class LocalAccountInteractiveEmailVerifierTests : BaseTests
         SetupVerify("account-2");
         SetupRecordedFailure();
 
+        using var code = Secret.Create(Code.AsSpan());
         var result = await Verifier.VerifyEmailAsync(
             mockContext.Object,
             Principal,
             FlowId,
-            Code,
+            code,
             CancellationToken.None
         );
 
@@ -379,11 +381,12 @@ public class LocalAccountInteractiveEmailVerifierTests : BaseTests
         SetupVerify("account-2");
         SetupRecordedFailure();
 
+        using var code = Secret.Create(Code.AsSpan());
         await Verifier.VerifyEmailAsync(
             mockContext.Object,
             Principal,
             FlowId,
-            Code,
+            code,
             CancellationToken.None
         );
 
@@ -411,11 +414,12 @@ public class LocalAccountInteractiveEmailVerifierTests : BaseTests
         SetupConsume(mockContext, consumed: false);
         SetupRecordedFailure();
 
+        using var code = Secret.Create(Code.AsSpan());
         var result = await Verifier.VerifyEmailAsync(
             mockContext.Object,
             Principal,
             FlowId,
-            Code,
+            code,
             CancellationToken.None
         );
 
@@ -441,11 +445,12 @@ public class LocalAccountInteractiveEmailVerifierTests : BaseTests
         SetupVerify(LocalAccountId, email: "old@example.com");
         SetupRecordedFailure();
 
+        using var code = Secret.Create(Code.AsSpan());
         var result = await Verifier.VerifyEmailAsync(
             mockContext.Object,
             Principal,
             FlowId,
-            Code,
+            code,
             CancellationToken.None
         );
 
@@ -478,11 +483,12 @@ public class LocalAccountInteractiveEmailVerifierTests : BaseTests
         var mockContext = CreateContext(isVerificationEnabled: true);
         SetupSuccessfulVerification(mockContext);
 
+        using var code = Secret.Create(Code.AsSpan());
         var result = await Verifier.VerifyEmailAsync(
             mockContext.Object,
             Principal,
             FlowId,
-            Code,
+            code,
             CancellationToken.None
         );
 
@@ -495,11 +501,12 @@ public class LocalAccountInteractiveEmailVerifierTests : BaseTests
         var mockContext = CreateContext(isVerificationEnabled: true);
         SetupSuccessfulVerification(mockContext);
 
+        using var code = Secret.Create(Code.AsSpan());
         await Verifier.VerifyEmailAsync(
             mockContext.Object,
             Principal,
             FlowId,
-            Code,
+            code,
             CancellationToken.None
         );
 

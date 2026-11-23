@@ -585,11 +585,12 @@ public partial class DefaultLocalAccountEmailCodesTests : BaseTests
         SetupGet(Serialize(attempts: 2));
         SetupReplace(version: 3, replaced: true);
 
+        using var code = Secret.Create(Code.AsSpan());
         var match = await EmailCodes.VerifyAsync(
             mockContext.Object,
             Purpose,
             FlowId,
-            Code,
+            code,
             CancellationToken.None
         );
 
@@ -607,11 +608,12 @@ public partial class DefaultLocalAccountEmailCodesTests : BaseTests
         byte[]? replacedBytes = null;
         SetupReplace(version: 3, replaced: true, onReplace: bytes => replacedBytes = bytes);
 
+        using var code = Secret.Create(Code.AsSpan());
         var match = await EmailCodes.VerifyAsync(
             mockContext.Object,
             Purpose,
             FlowId,
-            Code,
+            code,
             CancellationToken.None
         );
 
@@ -640,11 +642,12 @@ public partial class DefaultLocalAccountEmailCodesTests : BaseTests
         byte[]? replacedBytes = null;
         SetupReplace(version: 3, replaced: true, onReplace: bytes => replacedBytes = bytes);
 
+        using var code = Secret.Create("000000".AsSpan());
         var accountId = await EmailCodes.VerifyAsync(
             mockContext.Object,
             Purpose,
             FlowId,
-            "000000",
+            code,
             CancellationToken.None
         );
 
@@ -662,11 +665,12 @@ public partial class DefaultLocalAccountEmailCodesTests : BaseTests
         SetupGet(Serialize(attempts: DefaultLocalAccountEmailCodes.MaxAttempts));
         SetupRemove();
 
+        using var code = Secret.Create(Code.AsSpan());
         var match = await EmailCodes.VerifyAsync(
             mockContext.Object,
             Purpose,
             FlowId,
-            Code,
+            code,
             CancellationToken.None
         );
 
@@ -697,11 +701,12 @@ public partial class DefaultLocalAccountEmailCodesTests : BaseTests
         byte[]? replacedBytes = null;
         SetupReplace(version: 4, replaced: true, onReplace: bytes => replacedBytes = bytes);
 
+        using var code = Secret.Create(Code.AsSpan());
         var match = await EmailCodes.VerifyAsync(
             mockContext.Object,
             Purpose,
             FlowId,
-            Code,
+            code,
             CancellationToken.None
         );
 
@@ -722,11 +727,12 @@ public partial class DefaultLocalAccountEmailCodesTests : BaseTests
         SetupReplace(version: 3, replaced: true);
         SetupRemove();
 
+        using var code = Secret.Create("000000".AsSpan());
         var accountId = await EmailCodes.VerifyAsync(
             mockContext.Object,
             Purpose,
             FlowId,
-            "000000",
+            code,
             CancellationToken.None
         );
 
@@ -739,11 +745,12 @@ public partial class DefaultLocalAccountEmailCodesTests : BaseTests
         var mockContext = CreateContext(mockSettings: null);
         SetupGet(bytes: null);
 
+        using var code = Secret.Create(Code.AsSpan());
         var accountId = await EmailCodes.VerifyAsync(
             mockContext.Object,
             Purpose,
             FlowId,
-            Code,
+            code,
             CancellationToken.None
         );
 

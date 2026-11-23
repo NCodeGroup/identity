@@ -3,6 +3,7 @@
 
 using System.Security.Claims;
 using JetBrains.Annotations;
+using NCode.Buffers;
 using NCode.Identity.OpenId.Contexts;
 
 namespace NCode.Identity.OpenId.Authentication.Interactive;
@@ -67,7 +68,7 @@ public interface IInteractiveEmailVerifier
     /// <param name="principal">The <see cref="ClaimsPrincipal"/> of the signed-in end user, as the cookie session
     /// carries it.</param>
     /// <param name="flowId">The handle that <see cref="SendVerificationCodeAsync"/> reported.</param>
-    /// <param name="code">The code the end user received by mail.</param>
+    /// <param name="code">The code the end user received by mail. The caller owns and disposes it.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous
     /// operation.</param>
     /// <returns>
@@ -79,7 +80,7 @@ public interface IInteractiveEmailVerifier
         OpenIdContext openIdContext,
         ClaimsPrincipal principal,
         string flowId,
-        string code,
+        Secret<char> code,
         CancellationToken cancellationToken
     );
 }

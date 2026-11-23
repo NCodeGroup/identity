@@ -1308,6 +1308,10 @@ IBufferWriter<byte>, allows ref struct` (as in `SymmetricSecretKey.ExportPrivate
   interface implementation writes the characters, check `writer.WrittenCount == chars.Length`, so no `'\0'` remainder
   is ever persisted. See [ADR-1266](../../docs/decisions/1266-binary-data-uses-bufferfactory-rentals-with-explicit-sensitivity-and-text-only-strict-encodings.md) and
   [ADR-1235](../../docs/decisions/1235-stored-secrets-and-grant-payloads-are-protected-by-a-key-hierarchy-under-an-external-root-key.md).
+- 👁 **A password or one-time code crosses an interface as `Secret<char>`.** The endpoint that binds it wraps the bound
+  value once (`Secret.Create`) in a `using`; every interface and implementation below takes `Secret<char>` and reveals
+  it only to `IPasswordPolicy` (`RevealMemory()`) or into a sensitive UTF-8 rental; a test matches it through a helper
+  method, because a setup expression cannot hold the span `Reveal()` returns.
 - 👁 **Size a collection from a count you already know, and keep per-call paths free of avoidable allocations** —
   template [Memory and Performance](csharp.instructions.md#memory-and-performance); test `Count == 0` before a
   `foreach` over an interface, so its boxed enumerator is not created for nothing

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using Moq;
+using NCode.Buffers;
 using NCode.Identity.OpenId.Contexts;
 using Xunit;
 
@@ -50,11 +51,13 @@ public sealed class DefaultInteractivePasswordResetterTests : IDisposable
     [Fact]
     public async Task ResetPasswordAsync_Always_ReportsNotSupported()
     {
+        using var code = Secret.Create("123456".AsSpan());
+        using var newPassword = Secret.Create("a new password".AsSpan());
         var result = await Resetter.ResetPasswordAsync(
             MockContext.Object,
             "flow",
-            "123456",
-            "a new password",
+            code,
+            newPassword,
             CancellationToken.None
         );
 

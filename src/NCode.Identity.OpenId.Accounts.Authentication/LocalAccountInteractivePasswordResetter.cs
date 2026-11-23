@@ -151,8 +151,8 @@ internal sealed class LocalAccountInteractivePasswordResetter(
     public async ValueTask<InteractivePasswordChangeResult> ResetPasswordAsync(
         OpenIdContext openIdContext,
         string flowId,
-        string code,
-        string newPassword,
+        Secret<char> code,
+        Secret<char> newPassword,
         CancellationToken cancellationToken
     )
     {
@@ -223,7 +223,7 @@ internal sealed class LocalAccountInteractivePasswordResetter(
 
         // The new password is judged before the code is spent, so a password the policy refuses leaves the flow for
         // another try. See ADR-1236.
-        var newPasswordMemory = newPassword.AsMemory();
+        var newPasswordMemory = newPassword.RevealMemory();
         var policyContext = new PasswordPolicyContext
         {
             Settings = settings,
@@ -268,8 +268,9 @@ internal sealed class LocalAccountInteractivePasswordResetter(
         }
 
         // Encode the password into a pinned, zeroed-on-return buffer so it never lingers on the GC heap.
+        var newPasswordChars = newPassword.Reveal();
         using var newOwner = SecureEncoding.UTF8.RentBytes(
-            newPassword,
+            newPasswordChars,
             isSensitive: true,
             out Memory<byte> newBuffer
         );

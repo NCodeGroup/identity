@@ -4,6 +4,7 @@
 using System.Security.Claims;
 using Microsoft.Extensions.Time.Testing;
 using Moq;
+using NCode.Buffers;
 using NCode.Identity.Jose;
 using NCode.Identity.OpenId.Accounts.Authentication;
 using NCode.Identity.OpenId.Accounts.DataContracts;
@@ -133,6 +134,7 @@ public class LocalAccountInteractiveCredentialVerifierTests : BaseTests
     [Fact]
     public async Task VerifyCredentialAsync_WhenTheAttemptLimitIsReached_RecordsAFailureAndReturnsNull()
     {
+        using var password = Secret.Create(Password.AsSpan());
         SetupStoreManager();
         SetupLimit(isReached: true);
         LocalAccountStoreSetup.SetupVerification(
@@ -149,7 +151,7 @@ public class LocalAccountInteractiveCredentialVerifierTests : BaseTests
         var principal = await Verifier.VerifyCredentialAsync(
             MockContext.Object,
             UserName,
-            Password,
+            password,
             CancellationToken.None
         );
 
@@ -159,6 +161,7 @@ public class LocalAccountInteractiveCredentialVerifierTests : BaseTests
     [Fact]
     public async Task VerifyCredentialAsync_WhenTheStoreVerifiesARefusedPassword_RecordsAFailureAndReturnsNull()
     {
+        using var password = Secret.Create(Password.AsSpan());
         SetupStoreManager();
         SetupLimit(isReached: true);
         LocalAccountStoreSetup.SetupVerificationIgnoringARefusal(
@@ -175,7 +178,7 @@ public class LocalAccountInteractiveCredentialVerifierTests : BaseTests
         var principal = await Verifier.VerifyCredentialAsync(
             MockContext.Object,
             UserName,
-            Password,
+            password,
             CancellationToken.None
         );
 
@@ -185,6 +188,7 @@ public class LocalAccountInteractiveCredentialVerifierTests : BaseTests
     [Fact]
     public async Task VerifyCredentialAsync_WhenTheStoreDoesNotAskTheGate_Throws()
     {
+        using var password = Secret.Create(Password.AsSpan());
         SetupStoreManager();
         LocalAccountStoreSetup.SetupVerificationWithoutTheGate(
             MockLocalAccountStore,
@@ -197,7 +201,7 @@ public class LocalAccountInteractiveCredentialVerifierTests : BaseTests
             await Verifier.VerifyCredentialAsync(
                 MockContext.Object,
                 UserName,
-                Password,
+                password,
                 CancellationToken.None
             )
         );
@@ -206,6 +210,7 @@ public class LocalAccountInteractiveCredentialVerifierTests : BaseTests
     [Fact]
     public async Task VerifyCredentialAsync_WhenTheStoreMatchesAnotherSpelling_CountsTheStoredUserName()
     {
+        using var password = Secret.Create(Password.AsSpan());
         SetupStoreManager();
         SetupLimit(isReached: true);
         LocalAccountStoreSetup.SetupVerification(
@@ -222,7 +227,7 @@ public class LocalAccountInteractiveCredentialVerifierTests : BaseTests
         var principal = await Verifier.VerifyCredentialAsync(
             MockContext.Object,
             UserName + " ",
-            Password,
+            password,
             CancellationToken.None
         );
 
@@ -232,6 +237,7 @@ public class LocalAccountInteractiveCredentialVerifierTests : BaseTests
     [Fact]
     public async Task VerifyCredentialAsync_WhenThePasswordIsWrong_RecordsAFailedAttempt()
     {
+        using var password = Secret.Create(Password.AsSpan());
         using var cancellationSource = new CancellationTokenSource();
         SetupStoreManager();
         SetupLimit(isReached: false);
@@ -249,7 +255,7 @@ public class LocalAccountInteractiveCredentialVerifierTests : BaseTests
         var principal = await Verifier.VerifyCredentialAsync(
             MockContext.Object,
             UserName,
-            Password,
+            password,
             cancellationSource.Token
         );
 
@@ -259,6 +265,7 @@ public class LocalAccountInteractiveCredentialVerifierTests : BaseTests
     [Fact]
     public async Task VerifyCredentialAsync_WhenThePasswordIsRight_ClearsTheFailedAttempts()
     {
+        using var password = Secret.Create(Password.AsSpan());
         SetupStoreManager();
         SetupLimit(isReached: false);
         LocalAccountStoreSetup.SetupVerification(
@@ -276,7 +283,7 @@ public class LocalAccountInteractiveCredentialVerifierTests : BaseTests
         var principal = await Verifier.VerifyCredentialAsync(
             MockContext.Object,
             UserName,
-            Password,
+            password,
             CancellationToken.None
         );
 

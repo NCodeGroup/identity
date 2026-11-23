@@ -413,10 +413,12 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
         }
 
         var openIdContext = httpContext.GetOpenIdContext();
+        var passwordChars = password.AsSpan();
+        using var passwordSecret = Secret.Create(passwordChars);
         var principal = await CredentialVerifier.VerifyCredentialAsync(
             openIdContext,
             username,
-            password,
+            passwordSecret,
             httpContext.RequestAborted
         );
         if (principal is null)
@@ -1289,11 +1291,15 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
             );
         }
 
+        var currentPasswordChars = currentPassword.AsSpan();
+        var newPasswordChars = newPassword.AsSpan();
+        using var currentPasswordSecret = Secret.Create(currentPasswordChars);
+        using var newPasswordSecret = Secret.Create(newPasswordChars);
         var result = await PasswordChanger.ChangePasswordAsync(
             openIdContext,
             principal,
-            currentPassword,
-            newPassword,
+            currentPasswordSecret,
+            newPasswordSecret,
             httpContext.RequestAborted
         );
         if (!result.IsChanged)
@@ -1500,11 +1506,15 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
         else
         {
             var openIdContext = httpContext.GetOpenIdContext();
+            var resetCodeChars = code.AsSpan();
+            var newPasswordChars = newPassword.AsSpan();
+            using var codeSecret = Secret.Create(resetCodeChars);
+            using var newPasswordSecret = Secret.Create(newPasswordChars);
             var result = await PasswordResetter.ResetPasswordAsync(
                 openIdContext,
                 flow,
-                code,
-                newPassword,
+                codeSecret,
+                newPasswordSecret,
                 httpContext.RequestAborted
             );
             if (result.IsChanged)
@@ -1686,11 +1696,13 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
         else
         {
             var openIdContext = httpContext.GetOpenIdContext();
+            var emailCodeChars = code.AsSpan();
+            using var codeSecret = Secret.Create(emailCodeChars);
             var verified = await EmailVerifier.VerifyEmailAsync(
                 openIdContext,
                 authenticateResult.Principal,
                 flow,
-                code,
+                codeSecret,
                 httpContext.RequestAborted
             );
             if (verified.IsAccepted)
@@ -1862,11 +1874,13 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
             );
         }
 
+        var signInCodeChars = code.AsSpan();
+        using var codeSecret = Secret.Create(signInCodeChars);
         var verified = await SignInCodeChallenge.VerifySignInCodeAsync(
             openIdContext,
             principal,
             flowId,
-            code,
+            codeSecret,
             httpContext.RequestAborted
         );
         if (!verified.IsAccepted)

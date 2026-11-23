@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using Moq;
+using NCode.Buffers;
 using NCode.Identity.Cryptography;
 using NCode.Identity.Mail;
 using NCode.Identity.OpenId.Accounts;
@@ -313,7 +314,7 @@ public class LocalAccountInteractivePasswordResetterTests : BaseTests
                     It.IsAny<OpenIdContext>(),
                     EmailCodePurposes.ResetPassword,
                     FlowId,
-                    Code,
+                    It.Is<Secret<char>>(s => SecretArguments.Reveals(s, Code)),
                     It.IsAny<CancellationToken>()
                 )
             )
@@ -710,11 +711,13 @@ public class LocalAccountInteractivePasswordResetterTests : BaseTests
     {
         var mockContext = CreateContext(isResetEnabled: false);
 
+        using var code = Secret.Create(Code.AsSpan());
+        using var newPassword = Secret.Create(NewPassword.AsSpan());
         var result = await Resetter.ResetPasswordAsync(
             mockContext.Object,
             FlowId,
-            Code,
-            NewPassword,
+            code,
+            newPassword,
             CancellationToken.None
         );
 
@@ -733,11 +736,13 @@ public class LocalAccountInteractivePasswordResetterTests : BaseTests
             InteractiveEmailCodeErrors.InvalidCode
         );
 
+        using var code = Secret.Create(Code.AsSpan());
+        using var newPassword = Secret.Create(NewPassword.AsSpan());
         var result = await Resetter.ResetPasswordAsync(
             mockContext.Object,
             FlowId,
-            Code,
-            NewPassword,
+            code,
+            newPassword,
             CancellationToken.None
         );
 
@@ -757,11 +762,13 @@ public class LocalAccountInteractivePasswordResetterTests : BaseTests
             InteractiveEmailCodeErrors.InvalidCode
         );
 
+        using var code = Secret.Create(Code.AsSpan());
+        using var newPassword = Secret.Create(NewPassword.AsSpan());
         await Resetter.ResetPasswordAsync(
             mockContext.Object,
             FlowId,
-            Code,
-            NewPassword,
+            code,
+            newPassword,
             CancellationToken.None
         );
 
@@ -799,11 +806,13 @@ public class LocalAccountInteractivePasswordResetterTests : BaseTests
             .ReturnsAsync(PasswordPolicyResult.Rejected(PasswordPolicyErrors.TooShort, "too short"))
             .Verifiable();
 
+        using var code = Secret.Create(Code.AsSpan());
+        using var newPassword = Secret.Create(NewPassword.AsSpan());
         var result = await Resetter.ResetPasswordAsync(
             mockContext.Object,
             FlowId,
-            Code,
-            NewPassword,
+            code,
+            newPassword,
             CancellationToken.None
         );
 
@@ -837,11 +846,13 @@ public class LocalAccountInteractivePasswordResetterTests : BaseTests
             InteractiveEmailCodeErrors.InvalidCode
         );
 
+        using var code = Secret.Create(Code.AsSpan());
+        using var newPassword = Secret.Create(NewPassword.AsSpan());
         var result = await Resetter.ResetPasswordAsync(
             mockContext.Object,
             FlowId,
-            Code,
-            NewPassword,
+            code,
+            newPassword,
             CancellationToken.None
         );
 
@@ -876,11 +887,13 @@ public class LocalAccountInteractivePasswordResetterTests : BaseTests
             InteractiveEmailCodeErrors.InvalidCode
         );
 
+        using var code = Secret.Create(Code.AsSpan());
+        using var newPassword = Secret.Create(NewPassword.AsSpan());
         var result = await Resetter.ResetPasswordAsync(
             mockContext.Object,
             FlowId,
-            Code,
-            NewPassword,
+            code,
+            newPassword,
             CancellationToken.None
         );
 
@@ -925,11 +938,13 @@ public class LocalAccountInteractivePasswordResetterTests : BaseTests
             InteractiveEmailCodeErrors.InvalidCode
         );
 
+        using var code = Secret.Create(Code.AsSpan());
+        using var newPassword = Secret.Create(NewPassword.AsSpan());
         var result = await Resetter.ResetPasswordAsync(
             mockContext.Object,
             FlowId,
-            Code,
-            NewPassword,
+            code,
+            newPassword,
             CancellationToken.None
         );
 
@@ -967,11 +982,13 @@ public class LocalAccountInteractivePasswordResetterTests : BaseTests
         var mockContext = CreateContext(isResetEnabled: true, needsTenantId: true);
         SetupSuccessfulReset(mockContext);
 
+        using var code = Secret.Create(Code.AsSpan());
+        using var newPassword = Secret.Create(NewPassword.AsSpan());
         var result = await Resetter.ResetPasswordAsync(
             mockContext.Object,
             FlowId,
-            Code,
-            NewPassword,
+            code,
+            newPassword,
             CancellationToken.None
         );
 
@@ -984,11 +1001,13 @@ public class LocalAccountInteractivePasswordResetterTests : BaseTests
         var mockContext = CreateContext(isResetEnabled: true, needsTenantId: true);
         SetupSuccessfulReset(mockContext);
 
+        using var code = Secret.Create(Code.AsSpan());
+        using var newPassword = Secret.Create(NewPassword.AsSpan());
         await Resetter.ResetPasswordAsync(
             mockContext.Object,
             FlowId,
-            Code,
-            NewPassword,
+            code,
+            newPassword,
             CancellationToken.None
         );
 
@@ -1006,11 +1025,13 @@ public class LocalAccountInteractivePasswordResetterTests : BaseTests
         var mockContext = CreateContext(isResetEnabled: true, needsTenantId: true);
         SetupSuccessfulReset(mockContext, calls);
 
+        using var code = Secret.Create(Code.AsSpan());
+        using var newPassword = Secret.Create(NewPassword.AsSpan());
         await Resetter.ResetPasswordAsync(
             mockContext.Object,
             FlowId,
-            Code,
-            NewPassword,
+            code,
+            newPassword,
             CancellationToken.None
         );
 

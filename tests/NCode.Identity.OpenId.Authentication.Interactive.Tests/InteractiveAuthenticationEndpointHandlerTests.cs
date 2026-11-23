@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Routing.Patterns;
 using Microsoft.AspNetCore.Routing.Template;
 using Microsoft.Extensions.DependencyInjection;
 using Moq;
+using NCode.Buffers;
 using NCode.Identity.AspNetCore;
 using NCode.Identity.Jose;
 using NCode.Identity.OpenId.Authentication.Consent;
@@ -487,7 +488,7 @@ public sealed class InteractiveAuthenticationEndpointHandlerTests : IDisposable
                     mockContext.Object,
                     principal,
                     "flow-1",
-                    "000000",
+                    It.Is<Secret<char>>(s => SecretArguments.Reveals(s, "000000")),
                     It.IsAny<CancellationToken>()
                 )
             )

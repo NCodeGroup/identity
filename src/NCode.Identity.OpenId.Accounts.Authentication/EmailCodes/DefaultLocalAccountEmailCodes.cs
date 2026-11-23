@@ -221,13 +221,14 @@ internal sealed class DefaultLocalAccountEmailCodes(
         OpenIdContext openIdContext,
         string purpose,
         string flowId,
-        string code,
+        Secret<char> code,
         CancellationToken cancellationToken
     )
     {
         var key = CreateFlowKey(openIdContext.Tenant.TenantId, purpose, flowId);
         var presentedHash = default(EmailCodeHash);
-        HashCode(flowId, code, presentedHash);
+        var presentedCode = code.Reveal();
+        HashCode(flowId, presentedCode, presentedHash);
 
         // Each guess is counted before it is judged, so at most five guesses are compared against one flow however
         // many race, and a lost swap reads the flow again.

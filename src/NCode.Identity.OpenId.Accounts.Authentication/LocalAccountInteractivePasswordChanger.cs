@@ -37,8 +37,8 @@ internal sealed class LocalAccountInteractivePasswordChanger(
     public async ValueTask<InteractivePasswordChangeResult> ChangePasswordAsync(
         OpenIdContext openIdContext,
         ClaimsPrincipal principal,
-        string currentPassword,
-        string newPassword,
+        Secret<char> currentPassword,
+        Secret<char> newPassword,
         CancellationToken cancellationToken
     )
     {
@@ -62,7 +62,7 @@ internal sealed class LocalAccountInteractivePasswordChanger(
 
         // The new password is judged before the current one is verified, so a password the policy refuses costs no
         // verification. See ADR-1236.
-        var newPasswordMemory = newPassword.AsMemory();
+        var newPasswordMemory = newPassword.RevealMemory();
         var policyContext = new PasswordPolicyContext
         {
             Settings = openIdContext.Tenant.SettingsProvider.Collection,
@@ -88,8 +88,9 @@ internal sealed class LocalAccountInteractivePasswordChanger(
 
         // Encode each password into its own pinned, zeroed-on-return buffer so the credentials never linger on the GC
         // heap.
+        var currentPasswordChars = currentPassword.Reveal();
         using var currentOwner = SecureEncoding.UTF8.RentBytes(
-            currentPassword,
+            currentPasswordChars,
             isSensitive: true,
             out Memory<byte> currentBuffer
         );
@@ -138,8 +139,9 @@ internal sealed class LocalAccountInteractivePasswordChanger(
             cancellationToken
         );
 
+        var newPasswordChars = newPassword.Reveal();
         using var newOwner = SecureEncoding.UTF8.RentBytes(
-            newPassword,
+            newPasswordChars,
             isSensitive: true,
             out Memory<byte> newBuffer
         );

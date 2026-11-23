@@ -3,6 +3,7 @@
 
 using System.Security.Claims;
 using Moq;
+using NCode.Buffers;
 using NCode.Identity.OpenId.Contexts;
 using Xunit;
 
@@ -46,11 +47,12 @@ public sealed class DefaultInteractiveSignInCodeChallengeTests : IDisposable
     [Fact]
     public async Task VerifySignInCodeAsync_Always_RefusesWithNotSupported()
     {
+        using var code = Secret.Create("123456".AsSpan());
         var result = await Challenge.VerifySignInCodeAsync(
             MockContext.Object,
             Principal,
             "flow",
-            "123456",
+            code,
             CancellationToken.None
         );
 

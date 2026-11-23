@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using JetBrains.Annotations;
+using NCode.Buffers;
 using NCode.Identity.OpenId.Contexts;
 
 namespace NCode.Identity.OpenId.Authentication.Interactive;
@@ -47,8 +48,8 @@ public interface IInteractivePasswordResetter
     /// <param name="openIdContext">The resolved <see cref="OpenIdContext"/> whose tenant scopes the account
     /// lookup.</param>
     /// <param name="flowId">The handle that <see cref="SendResetCodeAsync"/> returned.</param>
-    /// <param name="code">The code the end user received by mail.</param>
-    /// <param name="newPassword">The password the end user chose.</param>
+    /// <param name="code">The code the end user received by mail. The caller owns and disposes it.</param>
+    /// <param name="newPassword">The password the end user chose. The caller owns and disposes it.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous
     /// operation.</param>
     /// <returns>
@@ -57,8 +58,8 @@ public interface IInteractivePasswordResetter
     ValueTask<InteractivePasswordChangeResult> ResetPasswordAsync(
         OpenIdContext openIdContext,
         string flowId,
-        string code,
-        string newPassword,
+        Secret<char> code,
+        Secret<char> newPassword,
         CancellationToken cancellationToken
     );
 }

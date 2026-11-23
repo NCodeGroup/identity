@@ -3,6 +3,7 @@
 
 using System.Security.Claims;
 using Moq;
+using NCode.Buffers;
 using NCode.Identity.OpenId.Accounts;
 using NCode.Identity.OpenId.Accounts.Authentication;
 using NCode.Identity.OpenId.Accounts.Authentication.EmailCodes;
@@ -154,7 +155,7 @@ public class LocalAccountInteractiveSignInCodeChallengeTests : BaseTests
                     MockContext.Object,
                     EmailCodePurposes.SignIn,
                     FlowId,
-                    Code,
+                    It.Is<Secret<char>>(s => SecretArguments.Reveals(s, Code)),
                     It.IsAny<CancellationToken>()
                 )
             )
@@ -322,11 +323,12 @@ public class LocalAccountInteractiveSignInCodeChallengeTests : BaseTests
         SetupVerify(null);
         SetupRecordedFailure(InteractiveEmailCodeErrors.InvalidCode);
 
+        using var code = Secret.Create(Code.AsSpan());
         var result = await Challenge.VerifySignInCodeAsync(
             MockContext.Object,
             Principal,
             FlowId,
-            Code,
+            code,
             CancellationToken.None
         );
 
@@ -341,11 +343,12 @@ public class LocalAccountInteractiveSignInCodeChallengeTests : BaseTests
         SetupVerify(null);
         SetupRecordedFailure(InteractiveEmailCodeErrors.InvalidCode);
 
+        using var code = Secret.Create(Code.AsSpan());
         await Challenge.VerifySignInCodeAsync(
             MockContext.Object,
             Principal,
             FlowId,
-            Code,
+            code,
             CancellationToken.None
         );
 
@@ -373,11 +376,12 @@ public class LocalAccountInteractiveSignInCodeChallengeTests : BaseTests
         SetupConsume(consumed: false);
         SetupRecordedFailure(InteractiveEmailCodeErrors.InvalidCode);
 
+        using var code = Secret.Create(Code.AsSpan());
         var result = await Challenge.VerifySignInCodeAsync(
             MockContext.Object,
             Principal,
             FlowId,
-            Code,
+            code,
             CancellationToken.None
         );
 
@@ -402,11 +406,12 @@ public class LocalAccountInteractiveSignInCodeChallengeTests : BaseTests
         SetupVerify(LocalAccountId, email: "old@example.com");
         SetupRecordedFailure(InteractiveEmailCodeErrors.InvalidCode);
 
+        using var code = Secret.Create(Code.AsSpan());
         var result = await Challenge.VerifySignInCodeAsync(
             MockContext.Object,
             Principal,
             FlowId,
-            Code,
+            code,
             CancellationToken.None
         );
 
@@ -438,11 +443,12 @@ public class LocalAccountInteractiveSignInCodeChallengeTests : BaseTests
     {
         SetupSuccessfulVerification();
 
+        using var code = Secret.Create(Code.AsSpan());
         var result = await Challenge.VerifySignInCodeAsync(
             MockContext.Object,
             Principal,
             FlowId,
-            Code,
+            code,
             CancellationToken.None
         );
 
@@ -454,11 +460,12 @@ public class LocalAccountInteractiveSignInCodeChallengeTests : BaseTests
     {
         SetupSuccessfulVerification();
 
+        using var code = Secret.Create(Code.AsSpan());
         await Challenge.VerifySignInCodeAsync(
             MockContext.Object,
             Principal,
             FlowId,
-            Code,
+            code,
             CancellationToken.None
         );
 

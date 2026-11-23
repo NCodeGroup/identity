@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using System.Security.Claims;
+using NCode.Buffers;
 using NCode.Identity.OpenId.Accounts.Authentication.EmailCodes;
 using NCode.Identity.OpenId.Accounts.DataContracts;
 using NCode.Identity.OpenId.Accounts.Stores;
@@ -111,7 +112,7 @@ internal sealed class LocalAccountInteractiveEmailVerifier(
         OpenIdContext openIdContext,
         ClaimsPrincipal principal,
         string flowId,
-        string code,
+        Secret<char> code,
         CancellationToken cancellationToken
     )
     {

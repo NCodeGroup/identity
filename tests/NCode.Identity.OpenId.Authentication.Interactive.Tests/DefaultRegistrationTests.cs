@@ -13,6 +13,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using Moq;
+using NCode.Buffers;
 using NCode.Identity.OpenId.Locales;
 using NCode.Identity.OpenId.Tenants;
 using NCode.Identity.Registration;
@@ -206,11 +207,13 @@ public sealed class DefaultRegistrationTests : IDisposable
         using var serviceProvider = serviceCollection.BuildServiceProvider();
         var passwordChanger = serviceProvider.GetRequiredService<IInteractivePasswordChanger>();
 
+        using var current = Secret.Create("current".AsSpan());
+        using var replacement = Secret.Create("new".AsSpan());
         var result = await passwordChanger.ChangePasswordAsync(
             null!,
             new ClaimsPrincipal(),
-            "current",
-            "new",
+            current,
+            replacement,
             CancellationToken.None
         );
 

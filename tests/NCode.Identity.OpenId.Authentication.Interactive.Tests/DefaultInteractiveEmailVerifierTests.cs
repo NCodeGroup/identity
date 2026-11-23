@@ -3,6 +3,7 @@
 
 using System.Security.Claims;
 using Moq;
+using NCode.Buffers;
 using NCode.Identity.OpenId.Contexts;
 using Xunit;
 
@@ -62,11 +63,12 @@ public sealed class DefaultInteractiveEmailVerifierTests : IDisposable
     [Fact]
     public async Task VerifyEmailAsync_Always_RefusesWithNotSupported()
     {
+        using var code = Secret.Create("123456".AsSpan());
         var result = await Verifier.VerifyEmailAsync(
             MockContext.Object,
             Principal,
             "flow",
-            "123456",
+            code,
             CancellationToken.None
         );
 

@@ -3,6 +3,7 @@
 
 using System.Buffers.Text;
 using System.Security.Cryptography;
+using NCode.Buffers;
 using NCode.Identity.OpenId.Contexts;
 
 namespace NCode.Identity.OpenId.Authentication.Interactive;
@@ -36,8 +37,8 @@ internal sealed class DefaultInteractivePasswordResetter : IInteractivePasswordR
     public ValueTask<InteractivePasswordChangeResult> ResetPasswordAsync(
         OpenIdContext openIdContext,
         string flowId,
-        string code,
-        string newPassword,
+        Secret<char> code,
+        Secret<char> newPassword,
         CancellationToken cancellationToken
     ) => ValueTask.FromResult(InteractivePasswordChangeResult.NotSupported);
 }
