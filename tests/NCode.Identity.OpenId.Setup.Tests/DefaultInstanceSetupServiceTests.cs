@@ -381,7 +381,7 @@ public sealed class DefaultInstanceSetupServiceTests : IDisposable
         if (exception is null)
             setup.Returns(ValueTask.CompletedTask).Verifiable(Times.Once());
         else
-            setup.Throws(exception).Verifiable(Times.Once());
+            setup.Returns(() => ValueTask.FromException(exception)).Verifiable(Times.Once());
     }
 
     private void SetupAdd(Action<PersistedInstanceSetup> onAdded)
@@ -397,14 +397,11 @@ public sealed class DefaultInstanceSetupServiceTests : IDisposable
 
     private void SetupReads(params PersistedInstanceSetup?[] rows)
     {
-        var sequence = MockInstanceSetupStore.SetupSequence(x =>
-            x.GetOrDefaultAsync(It.IsAny<CancellationToken>())
-        );
-
-        foreach (var row in rows)
-        {
-            sequence = sequence.ReturnsAsync(row);
-        }
+        var reads = 0;
+        MockInstanceSetupStore
+            .Setup(x => x.GetOrDefaultAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(() => rows[reads++])
+            .Verifiable(Times.Exactly(rows.Length));
     }
 
     private void SetupSave(Exception? exception = null, int times = 1)
@@ -416,7 +413,9 @@ public sealed class DefaultInstanceSetupServiceTests : IDisposable
         if (exception is null)
             setup.Returns(ValueTask.CompletedTask).Verifiable(Times.Exactly(times));
         else
-            setup.Throws(exception).Verifiable(Times.Exactly(times));
+            setup
+                .Returns(() => ValueTask.FromException(exception))
+                .Verifiable(Times.Exactly(times));
     }
 
     private void SetupLogged(LogLevel level, int eventId, Dictionary<string, object?> state)
@@ -827,7 +826,7 @@ public sealed class DefaultInstanceSetupServiceTests : IDisposable
         SetupTenantScope();
         SetupStoreManagers(3);
         SetupInstanceSetupStore(3);
-        SetupReads(stale, stored, stored);
+        SetupReads(stale, CreateRow(), stored);
         SetupCreator(CreateCreation(), times: 2);
         SetupAssignment(_ => { }, assignments: 2);
         SetupUpdate(stale, new StoreConcurrencyException());
@@ -880,7 +879,7 @@ public sealed class DefaultInstanceSetupServiceTests : IDisposable
             .Setup(x =>
                 x.UpdateAsync(It.IsAny<PersistedInstanceSetup>(), It.IsAny<CancellationToken>())
             )
-            .Throws(new StoreConcurrencyException())
+            .Returns(() => ValueTask.FromException(new StoreConcurrencyException()))
             .Verifiable(Times.Exactly(attempts));
 
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
