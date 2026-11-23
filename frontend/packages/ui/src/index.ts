@@ -175,6 +175,11 @@ export {
 } from './components/ExportPublicKeyDialog.js';
 export { SettingsEditor, type SettingsEditorProps } from './components/SettingsEditor.js';
 export {
+  LocalAccountClaimsEditor,
+  type LocalAccountClaim,
+  type LocalAccountClaimsEditorProps,
+} from './components/LocalAccountClaimsEditor.js';
+export {
   InitialAccessTokenFormDialog,
   emptyInitialAccessTokenFormValues,
   type InitialAccessTokenFormDialogProps,
