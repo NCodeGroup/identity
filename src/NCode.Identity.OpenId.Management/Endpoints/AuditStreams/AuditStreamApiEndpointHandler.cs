@@ -75,6 +75,12 @@ internal class AuditStreamApiEndpointHandler(
     private static TimeSpan SigningSecretOverlap { get; } = TimeSpan.FromHours(24);
     private static TimeSpan CreateGuardLifetime { get; } = TimeSpan.FromSeconds(30);
 
+    /// <summary>
+    /// Gets how long a create that meets another one running waits, because a create holds the guard only while it
+    /// counts and inserts.
+    /// </summary>
+    private static TimeSpan CreateGuardRetryAfter { get; } = TimeSpan.FromSeconds(1);
+
     private IStoreManagerFactory StoreManagerFactory { get; } = storeManagerFactory;
     private ISecretProtectorProvider SecretProtectorProvider { get; } = secretProtectorProvider;
     private IOpenIdContextFactory OpenIdContextFactory { get; } = openIdContextFactory;
@@ -301,10 +307,12 @@ internal class AuditStreamApiEndpointHandler(
         );
         if (!guardTaken)
         {
-            return TypedResults.Problem(
-                detail: "Another audit stream of the tenant is being created; try again.",
-                statusCode: StatusCodes.Status409Conflict
-            );
+            var problem = new ProblemDetails
+            {
+                Status = StatusCodes.Status409Conflict,
+                Detail = "Another audit stream of the tenant is being created; try again.",
+            };
+            return RetryAfterProblem.Create(httpContext, CreateGuardRetryAfter, problem);
         }
 
         try

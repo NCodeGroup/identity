@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
+using NCode.Identity.AspNetCore;
 using NCode.Identity.Cryptography;
 using NCode.Identity.Events.Audit;
 using NCode.Identity.OpenId.Contexts;
@@ -580,8 +581,9 @@ public sealed class AuditStreamApiEndpointHandlerTests : IDisposable
 
         // Strict mocks: no store setup and no guard removal, so counting or releasing a guard that
         // another create holds would fail the test.
+        var httpContext = CreateHttpContext();
         var result = await Handler.CreateAsync(
-            CreateHttpContext(),
+            httpContext,
             TenantId,
             request,
             CancellationToken.None
@@ -593,6 +595,8 @@ public sealed class AuditStreamApiEndpointHandlerTests : IDisposable
             "Another audit stream of the tenant is being created; try again.",
             problem.ProblemDetails.Detail
         );
+        Assert.Equal("1", httpContext.Response.Headers.RetryAfter.ToString());
+        Assert.Equal(1L, problem.ProblemDetails.Extensions[RetryAfterProblem.MemberName]);
     }
 
     [Fact]
