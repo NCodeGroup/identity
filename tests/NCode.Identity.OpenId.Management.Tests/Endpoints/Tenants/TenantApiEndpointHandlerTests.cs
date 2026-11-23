@@ -12,6 +12,7 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Time.Testing;
 using NCode.Identity.Cryptography;
 using NCode.Identity.Events.Audit;
 using NCode.Identity.OpenId.Authentication.Clients;
@@ -31,6 +32,7 @@ using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
 using NCode.Identity.OpenId.Settings;
 using NCode.Identity.OpenId.Tenants;
+using NCode.Identity.Persistence;
 using NCode.Identity.Persistence.Stores;
 using NCode.Identity.Secrets.KeyMaterial;
 using NCode.Identity.Secrets.Persistence;
@@ -128,7 +130,11 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
         // A write announces the change after it commits; the tests that write verify the announcement.
         MockMediator = MockRepository.Create<IMediator>();
 
-        Handler = new TenantApiEndpointHandler(
+        Handler = CreateHandler(TimeProvider.System);
+    }
+
+    private TenantApiEndpointHandler CreateHandler(TimeProvider timeProvider) =>
+        new(
             MockStoreManagerFactory.Object,
             MockAuthorizationService.Object,
             MockTenantValidator.Object,
@@ -140,7 +146,7 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
             MockSecretProtectorProvider.Object,
             MockMasterKeyManager.Object,
             MockOwnerRootKeyManager.Object,
-            TimeProvider.System,
+            timeProvider,
             MockCryptoService.Object,
             MockSettingSerializer.Object,
             MockSettingScopeCollectionProvider.Object,
@@ -156,7 +162,6 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
             MockManagementAuditRecorder.Object,
             NullLogger<TenantApiEndpointHandler>.Instance
         );
-    }
 
     // Only a request that changes the tenant announces the change to every replica.
     private void SetupTenantChangedAnnouncement() =>
@@ -5111,6 +5116,119 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
         );
 
         Assert.Same(failure, thrown);
+    }
+
+    [Fact]
+    public async Task UpdateTenantAsync_WhenTheStoreUpdateFailsAndTheTakeBackThrows_RethrowsTheStoreFailure()
+    {
+        SetupDefaultAlias(TenantId, alias: null);
+        const string previous = "https://op.example/tenant-1";
+        const string next = "https://op.example/tenant-1-renamed";
+        SetupIssuerChange(previous, next, ReservationResult.Reserved());
+        var takeBackToken = CancellationToken.None;
+        MockTenantDirectory
+            .Setup(x =>
+                x.ChangeIssuerAsync(
+                    It.Is<TenantIssuerChange>(change => change.Issuer == previous),
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .Callback((TenantIssuerChange _, CancellationToken token) => takeBackToken = token)
+            .ThrowsAsync(new HttpRequestException("The directory answered with a malformed body."))
+            .Verifiable();
+        var failure = new InvalidOperationException("The row cannot be written.");
+        SetupUpdate(CreateTenant("tenant-ct", issuer: previous), _ => { }, failure);
+
+        var thrown = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await Handler.UpdateTenantAsync(
+                CreateHttpContext(authenticated: true),
+                TenantId,
+                CreateIssuerPatch(next),
+                ifMatch: null,
+                CancellationToken.None
+            )
+        );
+
+        Assert.Same(failure, thrown);
+        Assert.True(takeBackToken.CanBeCanceled);
+    }
+
+    [Fact]
+    public async Task UpdateTenantAsync_WhenTheStoreUpdateFailsAndTheTakeBackIsRefused_RethrowsTheStoreFailure()
+    {
+        SetupDefaultAlias(TenantId, alias: null);
+        const string previous = "https://op.example/tenant-1";
+        const string next = "https://op.example/tenant-1-renamed";
+        SetupIssuerChange(previous, next, ReservationResult.Reserved());
+        MockTenantDirectory
+            .Setup(x =>
+                x.ChangeIssuerAsync(
+                    It.Is<TenantIssuerChange>(change => change.Issuer == previous),
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync(ReservationResult.Conflict("Another tenant already has the issuer."))
+            .Verifiable();
+        var failure = new InvalidOperationException("The row cannot be written.");
+        SetupUpdate(CreateTenant("tenant-ct", issuer: previous), _ => { }, failure);
+
+        var thrown = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await Handler.UpdateTenantAsync(
+                CreateHttpContext(authenticated: true),
+                TenantId,
+                CreateIssuerPatch(next),
+                ifMatch: null,
+                CancellationToken.None
+            )
+        );
+
+        Assert.Same(failure, thrown);
+    }
+
+    [Fact]
+    public async Task UpdateTenantAsync_WhenTheStoreUpdateFailsAndTheTakeBackHangs_RethrowsTheStoreFailureOnceTheTakeBacksBoundElapses()
+    {
+        var timeProvider = new FakeTimeProvider();
+        var handler = CreateHandler(timeProvider);
+        SetupDefaultAlias(TenantId, alias: null);
+        const string previous = "https://op.example/tenant-1";
+        const string next = "https://op.example/tenant-1-renamed";
+        SetupIssuerChange(previous, next, ReservationResult.Reserved());
+        var takeBackStarted = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        MockTenantDirectory
+            .Setup(x =>
+                x.ChangeIssuerAsync(
+                    It.Is<TenantIssuerChange>(change => change.Issuer == previous),
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .Returns(
+                async (TenantIssuerChange _, CancellationToken token) =>
+                {
+                    takeBackStarted.SetResult();
+                    await Task.Delay(Timeout.InfiniteTimeSpan, token);
+                    return ReservationResult.Reserved();
+                }
+            )
+            .Verifiable();
+        var failure = new InvalidOperationException("The row cannot be written.");
+        SetupUpdate(CreateTenant("tenant-ct", issuer: previous), _ => { }, failure);
+
+        var update = handler
+            .UpdateTenantAsync(
+                CreateHttpContext(authenticated: true),
+                TenantId,
+                CreateIssuerPatch(next),
+                ifMatch: null,
+                CancellationToken.None
+            )
+            .AsTask();
+        await takeBackStarted.Task;
+        timeProvider.Advance(PostCommitWork.Timeout);
+
+        Assert.Same(failure, await Assert.ThrowsAsync<InvalidOperationException>(() => update));
     }
 
     [Fact]

@@ -181,4 +181,18 @@ internal static partial class Log
         string tenantId,
         Exception exception
     );
+
+    /// <summary>
+    /// Logs that giving a tenant back its previous issuer in the global directory did not complete.
+    /// </summary>
+    [LoggerMessage(
+        EventId = EventIds.TenantIssuerChangeTakeBackFailed,
+        Level = LogLevel.Warning,
+        Message = "Giving the tenant '{TenantId}' back its previous issuer in the global directory after the update of its row failed did not complete; the directory holds the issuer the update would have given it"
+    )]
+    internal static partial void TenantIssuerChangeTakeBackFailed(
+        this ILogger logger,
+        string tenantId,
+        Exception exception
+    );
 }

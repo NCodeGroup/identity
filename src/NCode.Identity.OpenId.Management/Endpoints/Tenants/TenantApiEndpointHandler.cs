@@ -1452,13 +1452,28 @@ internal class TenantApiEndpointHandler(
         {
             if (isIssuerChanged)
             {
-                // The take-back compensates a failed update, so it runs even when the request was canceled.
-                await TakeBackIssuerChangeAsync(
-                    tenant.TenantId,
-                    previousIssuer,
-                    model.Issuer,
-                    CancellationToken.None
-                );
+                // The take-back compensates the failed update, so it runs even when the request was canceled, on its own
+                // token bounded as work that follows a commit; a take-back that fails, is refused or outlasts its bound
+                // is logged, so the update's failure surfaces, and the directory then holds the issuer the update would
+                // have given the tenant. See ADR-1160 and ADR-1351.
+                var takeBack = new TenantIssuerChange
+                {
+                    TenantId = tenant.TenantId,
+                    PreviousIssuer = model.Issuer,
+                    Issuer = previousIssuer,
+                };
+                try
+                {
+                    await PostCommitWork.RunAsync(
+                        TimeProvider,
+                        TakeBackIssuerChangeAsync,
+                        takeBack
+                    );
+                }
+                catch (Exception exception)
+                {
+                    Logger.TenantIssuerChangeTakeBackFailed(tenant.TenantId, exception);
+                }
             }
 
             throw;
@@ -1486,34 +1501,25 @@ internal class TenantApiEndpointHandler(
 
     /// <summary>
     /// Gives a tenant back the issuer it held before a change that the cell's tenant row did not take, so the directory
-    /// holds the issuer the row holds. The call is best effort: a directory that cannot be reached leaves the issuer
-    /// change recorded, which a later change of the tenant's issuer corrects.
+    /// holds the issuer the row holds. A refused take-back throws, so the caller logs it as it logs a take-back that
+    /// fails.
     /// </summary>
-    /// <param name="tenantId">The identifier of the tenant.</param>
-    /// <param name="previousIssuer">The issuer the tenant held before the change.</param>
-    /// <param name="attemptedIssuer">The issuer the change would have given the tenant.</param>
+    /// <param name="takeBack">The change that gives the tenant back the issuer it held before the update.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation.</returns>
+    /// <exception cref="InvalidOperationException">The global directory refuses the take-back.</exception>
     // See ADR-1160.
     private async ValueTask TakeBackIssuerChangeAsync(
-        string tenantId,
-        string? previousIssuer,
-        string? attemptedIssuer,
+        TenantIssuerChange takeBack,
         CancellationToken cancellationToken
     )
     {
-        try
+        var takeBackResult = await TenantDirectory.ChangeIssuerAsync(takeBack, cancellationToken);
+        if (!takeBackResult.IsReserved)
         {
-            var issuerChange = new TenantIssuerChange
-            {
-                TenantId = tenantId,
-                PreviousIssuer = attemptedIssuer,
-                Issuer = previousIssuer,
-            };
-            await TenantDirectory.ChangeIssuerAsync(issuerChange, cancellationToken);
-        }
-        catch (DirectoryUnavailableException)
-        {
-            // The update's own failure is the one the caller sees.
+            throw new InvalidOperationException(
+                $"The global directory refuses to give the tenant '{takeBack.TenantId}' back its previous issuer: {takeBackResult.ConflictDetail}"
+            );
         }
     }
 
