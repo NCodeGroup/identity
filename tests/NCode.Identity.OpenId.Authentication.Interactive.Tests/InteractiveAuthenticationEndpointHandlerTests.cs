@@ -24,6 +24,7 @@ using NCode.Identity.OpenId.Contexts;
 using NCode.Identity.OpenId.Locales;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.PrincipalResolution;
+using NCode.Identity.OpenId.Settings;
 using NCode.Identity.OpenId.Tenants;
 using NCode.Identity.Settings;
 using Xunit;
@@ -361,6 +362,177 @@ public sealed class InteractiveAuthenticationEndpointHandlerTests : IDisposable
         Assert.Equal("/acme/account/password/forgot?error=invalid_request", redirect.Url);
     }
 
+    [Fact]
+    public async Task PostForgotPasswordAsync_WhenTheSelectedConnectionDisablesReset_IsNotFound()
+    {
+        var mockCatalog = MockRepository.Create<IUiLocaleCatalog>();
+        mockCatalog.SetupGet(x => x.Locales).Returns([TestLocales.Xx]).Verifiable();
+        var mockContext = MockRepository.Create<OpenIdContext>();
+        var mockFeature = MockRepository.Create<IOpenIdContextFeature>();
+        mockFeature.SetupGet(x => x.OpenIdContext).Returns(mockContext.Object).Verifiable();
+
+        var connection = CreateConnection(passwordResetEnabled: false);
+        var mockConnections = MockRepository.Create<ISignInConnectionService>();
+        mockConnections
+            .Setup(x =>
+                x.SelectAsync(mockContext.Object, null, "local", It.IsAny<CancellationToken>())
+            )
+            .ReturnsAsync(new ConnectionSelection { Connection = connection })
+            .Verifiable();
+
+        var mockTenantResolver = MockRepository.Create<ITenantResolver>();
+        using var serviceProvider = new ServiceCollection().AddRouting().BuildServiceProvider();
+        using var bundle = new SinglePageBundle<InteractiveBundleShell>(null, _ => null);
+        var handler = CreateHandler(
+            mockCatalog.Object,
+            mockTenantResolver.Object,
+            serviceProvider,
+            bundle,
+            signInConnectionService: mockConnections.Object
+        );
+
+        var httpContext = new DefaultHttpContext();
+        httpContext.Features.Set(mockFeature.Object);
+
+        var result = await handler.PostForgotPasswordAsync(
+            httpContext,
+            "alice",
+            connection: "local",
+            returnUrl: null,
+            uiLocales: null
+        );
+
+        Assert.IsType<NotFound>(result);
+    }
+
+    #endregion
+
+    #region GetForgotPasswordPageAsync Tests
+
+    [Fact]
+    public async Task GetForgotPasswordPageAsync_WhenNoOfferedConnectionEnablesReset_IsNotFound()
+    {
+        var mockCatalog = MockRepository.Create<IUiLocaleCatalog>();
+        mockCatalog.SetupGet(x => x.Locales).Returns([TestLocales.Xx]).Verifiable();
+        var mockContext = MockRepository.Create<OpenIdContext>();
+        var mockFeature = MockRepository.Create<IOpenIdContextFeature>();
+        mockFeature.SetupGet(x => x.OpenIdContext).Returns(mockContext.Object).Verifiable();
+
+        var connection = CreateConnection(passwordResetEnabled: false);
+        var mockConnections = MockRepository.Create<ISignInConnectionService>();
+        mockConnections
+            .Setup(x => x.GetOfferedAsync(mockContext.Object, null, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(
+                new SignInConnections { Offered = [connection], Preselected = connection }
+            )
+            .Verifiable();
+
+        var mockTenantResolver = MockRepository.Create<ITenantResolver>();
+        using var serviceProvider = new ServiceCollection().AddRouting().BuildServiceProvider();
+        using var bundle = new SinglePageBundle<InteractiveBundleShell>(null, _ => null);
+        var handler = CreateHandler(
+            mockCatalog.Object,
+            mockTenantResolver.Object,
+            serviceProvider,
+            bundle,
+            signInConnectionService: mockConnections.Object
+        );
+
+        var httpContext = new DefaultHttpContext();
+        httpContext.Features.Set(mockFeature.Object);
+
+        var result = await handler.GetForgotPasswordPageAsync(httpContext);
+
+        Assert.IsType<NotFound>(result);
+    }
+
+    #endregion
+
+    #region GetEmailPageAsync Tests
+
+    [Fact]
+    public async Task GetEmailPageAsync_WhenThePrincipalsConnectionDisablesVerification_IsNotFound()
+    {
+        var mockCatalog = MockRepository.Create<IUiLocaleCatalog>();
+        mockCatalog.SetupGet(x => x.Locales).Returns([TestLocales.Xx]).Verifiable();
+        var mockContext = MockRepository.Create<OpenIdContext>();
+        var mockFeature = MockRepository.Create<IOpenIdContextFeature>();
+        mockFeature.SetupGet(x => x.OpenIdContext).Returns(mockContext.Object).Verifiable();
+
+        var principal = new ClaimsPrincipal(
+            new ClaimsIdentity(
+                [
+                    new Claim(JoseClaimNames.Payload.Sid, "session-1"),
+                    new Claim(ConnectionClaimTypes.Connection, "connection-1"),
+                ],
+                authenticationType: "cookie"
+            )
+        );
+        var mockAuthentication = MockRepository.Create<IAuthenticationService>();
+        mockAuthentication
+            .Setup(x =>
+                x.AuthenticateAsync(
+                    It.IsAny<HttpContext>(),
+                    InteractiveAuthenticationDefaults.CookieSchemeName
+                )
+            )
+            .ReturnsAsync(
+                AuthenticateResult.Success(
+                    new AuthenticationTicket(
+                        principal,
+                        InteractiveAuthenticationDefaults.CookieSchemeName
+                    )
+                )
+            )
+            .Verifiable();
+
+        var mockSessionService = MockRepository.Create<ISessionService>();
+        mockSessionService
+            .Setup(x =>
+                x.ValidateAndTouchAsync(
+                    mockContext.Object,
+                    "session-1",
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync(true)
+            .Verifiable();
+
+        var mockConnectionResolver = MockRepository.Create<IConnectionResolver>();
+        mockConnectionResolver
+            .Setup(x =>
+                x.GetByIdOrDefaultAsync(
+                    mockContext.Object,
+                    "connection-1",
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync(CreateConnection(emailVerificationEnabled: false))
+            .Verifiable();
+
+        var mockTenantResolver = MockRepository.Create<ITenantResolver>();
+        using var serviceProvider = new ServiceCollection()
+            .AddRouting()
+            .AddSingleton(mockAuthentication.Object)
+            .BuildServiceProvider();
+        using var bundle = new SinglePageBundle<InteractiveBundleShell>(null, _ => null);
+        var handler = CreateHandler(
+            mockCatalog.Object,
+            mockTenantResolver.Object,
+            serviceProvider,
+            bundle,
+            connectionResolver: mockConnectionResolver.Object,
+            sessionService: mockSessionService.Object
+        );
+
+        var httpContext = new DefaultHttpContext { RequestServices = serviceProvider };
+        httpContext.Features.Set(mockFeature.Object);
+
+        var result = await handler.GetEmailPageAsync(httpContext);
+
+        Assert.IsType<NotFound>(result);
+    }
+
     #endregion
 
     #region PostSendEmailCodeAsync Tests
@@ -398,7 +570,10 @@ public sealed class InteractiveAuthenticationEndpointHandlerTests : IDisposable
 
         var principal = new ClaimsPrincipal(
             new ClaimsIdentity(
-                [new Claim(JoseClaimNames.Payload.Sid, "session-1")],
+                [
+                    new Claim(JoseClaimNames.Payload.Sid, "session-1"),
+                    new Claim(ConnectionClaimTypes.Connection, "connection-1"),
+                ],
                 authenticationType: "cookie"
             )
         );
@@ -445,6 +620,18 @@ public sealed class InteractiveAuthenticationEndpointHandlerTests : IDisposable
             .ReturnsAsync(InteractiveEmailCodeResult.Sent("flow-1"))
             .Verifiable();
 
+        var mockConnectionResolver = MockRepository.Create<IConnectionResolver>();
+        mockConnectionResolver
+            .Setup(x =>
+                x.GetByIdOrDefaultAsync(
+                    mockContext.Object,
+                    "connection-1",
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync(CreateConnection())
+            .Verifiable();
+
         var mockTenantResolver = MockRepository.Create<ITenantResolver>();
         mockTenantResolver
             .Setup(x => x.GetTenantRoute())
@@ -461,6 +648,7 @@ public sealed class InteractiveAuthenticationEndpointHandlerTests : IDisposable
             mockTenantResolver.Object,
             serviceProvider,
             bundle,
+            connectionResolver: mockConnectionResolver.Object,
             emailVerifier: mockVerifier.Object,
             sessionService: mockSessionService.Object
         );
@@ -494,7 +682,10 @@ public sealed class InteractiveAuthenticationEndpointHandlerTests : IDisposable
 
         var principal = new ClaimsPrincipal(
             new ClaimsIdentity(
-                [new Claim(JoseClaimNames.Payload.Sid, "session-1")],
+                [
+                    new Claim(JoseClaimNames.Payload.Sid, "session-1"),
+                    new Claim(ConnectionClaimTypes.Connection, "connection-1"),
+                ],
                 authenticationType: "cookie"
             )
         );
@@ -542,6 +733,18 @@ public sealed class InteractiveAuthenticationEndpointHandlerTests : IDisposable
             .ReturnsAsync(InteractiveEmailCodeResult.Refused("invalid_code"))
             .Verifiable();
 
+        var mockConnectionResolver = MockRepository.Create<IConnectionResolver>();
+        mockConnectionResolver
+            .Setup(x =>
+                x.GetByIdOrDefaultAsync(
+                    mockContext.Object,
+                    "connection-1",
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync(CreateConnection())
+            .Verifiable();
+
         var mockTenantResolver = MockRepository.Create<ITenantResolver>();
         mockTenantResolver
             .Setup(x => x.GetTenantRoute())
@@ -558,6 +761,7 @@ public sealed class InteractiveAuthenticationEndpointHandlerTests : IDisposable
             mockTenantResolver.Object,
             serviceProvider,
             bundle,
+            connectionResolver: mockConnectionResolver.Object,
             emailVerifier: mockVerifier.Object,
             sessionService: mockSessionService.Object
         );
@@ -724,8 +928,19 @@ public sealed class InteractiveAuthenticationEndpointHandlerTests : IDisposable
 
     #region Helpers
 
-    private ResolvedConnection CreateConnection() =>
-        new()
+    private ResolvedConnection CreateConnection(
+        bool passwordResetEnabled = true,
+        bool emailVerificationEnabled = true
+    )
+    {
+        var mockConnectionSettings = MockRepository.Create<IReadOnlySettingCollection>();
+        mockConnectionSettings
+            .Setup(x => x.GetValue(OpenIdSettingKeys.PasswordResetEnabled))
+            .Returns(passwordResetEnabled);
+        mockConnectionSettings
+            .Setup(x => x.GetValue(OpenIdSettingKeys.EmailVerificationEnabled))
+            .Returns(emailVerificationEnabled);
+        return new ResolvedConnection
         {
             Connection = new PersistedConnection
             {
@@ -744,8 +959,9 @@ public sealed class InteractiveAuthenticationEndpointHandlerTests : IDisposable
                 },
             },
             Strategy = MockRepository.Create<IConnectionStrategy>().Object,
-            Settings = MockRepository.Create<IReadOnlySettingCollection>().Object,
+            Settings = mockConnectionSettings.Object,
         };
+    }
 
     private InteractiveAuthenticationEndpointHandler CreateHandler(
         IUiLocaleCatalog localeCatalog,
@@ -754,6 +970,7 @@ public sealed class InteractiveAuthenticationEndpointHandlerTests : IDisposable
         SinglePageBundle<InteractiveBundleShell> bundle,
         IInteractivePasswordResetter? passwordResetter = null,
         ISignInConnectionService? signInConnectionService = null,
+        IConnectionResolver? connectionResolver = null,
         IInteractiveEmailVerifier? emailVerifier = null,
         ISessionService? sessionService = null
     ) =>
@@ -762,7 +979,7 @@ public sealed class InteractiveAuthenticationEndpointHandlerTests : IDisposable
             MockRepository.Create<IPrincipalResolver>().Object,
             MockRepository.Create<IConsentService>().Object,
             signInConnectionService ?? MockRepository.Create<ISignInConnectionService>().Object,
-            MockRepository.Create<IConnectionResolver>().Object,
+            connectionResolver ?? MockRepository.Create<IConnectionResolver>().Object,
             MockRepository.Create<IContinueRefusalService>().Object,
             MockRepository.Create<IInteractivePasswordChanger>().Object,
             passwordResetter ?? MockRepository.Create<IInteractivePasswordResetter>().Object,

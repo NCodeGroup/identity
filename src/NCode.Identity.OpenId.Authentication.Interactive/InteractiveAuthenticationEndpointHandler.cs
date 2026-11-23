@@ -164,51 +164,29 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
         );
         surface.MapGet(InteractiveAuthenticationDefaults.PasswordPath, GetPasswordPageAsync);
         surface.MapPost(InteractiveAuthenticationDefaults.PasswordPath, PostPasswordAsync);
-        // The reset pages exist only while the tenant lets its end users reset a password (ADR-1533).
-        var passwordResetFilter = new InteractiveFeatureEndpointFilter(
-            OpenIdSettingKeys.PasswordResetEnabled
-        );
-        var passwordReset = surface.MapGroup(string.Empty).AddEndpointFilter(passwordResetFilter);
-        passwordReset.MapGet(
+        surface.MapGet(
             InteractiveAuthenticationDefaults.PasswordForgotPath,
             GetForgotPasswordPageAsync
         );
-        passwordReset.MapPost(
+        surface.MapPost(
             InteractiveAuthenticationDefaults.PasswordForgotPath,
             PostForgotPasswordAsync
         );
-        passwordReset.MapGet(
+        surface.MapGet(
             InteractiveAuthenticationDefaults.PasswordResetPath,
             GetResetPasswordPageAsync
         );
-        passwordReset.MapPost(
+        surface.MapPost(
             InteractiveAuthenticationDefaults.PasswordResetPath,
             PostResetPasswordAsync
         );
         surface.MapGet(InteractiveAuthenticationDefaults.LoginCodePath, GetSignInCodePageAsync);
         surface.MapPost(InteractiveAuthenticationDefaults.LoginCodePath, PostSignInCodeAsync);
 
-        // The email page and its endpoints exist only while the tenant lets its end users verify their address
-        // (ADR-1533).
-        var emailVerificationFilter = new InteractiveFeatureEndpointFilter(
-            OpenIdSettingKeys.EmailVerificationEnabled
-        );
-        var emailVerification = surface
-            .MapGroup(string.Empty)
-            .AddEndpointFilter(emailVerificationFilter);
-        emailVerification.MapGet(InteractiveAuthenticationDefaults.EmailPath, GetEmailPageAsync);
-        emailVerification.MapGet(
-            InteractiveAuthenticationDefaults.EmailStatusPath,
-            GetEmailStatusAsync
-        );
-        emailVerification.MapPost(
-            InteractiveAuthenticationDefaults.EmailSendPath,
-            PostSendEmailCodeAsync
-        );
-        emailVerification.MapPost(
-            InteractiveAuthenticationDefaults.EmailVerifyPath,
-            PostVerifyEmailAsync
-        );
+        surface.MapGet(InteractiveAuthenticationDefaults.EmailPath, GetEmailPageAsync);
+        surface.MapGet(InteractiveAuthenticationDefaults.EmailStatusPath, GetEmailStatusAsync);
+        surface.MapPost(InteractiveAuthenticationDefaults.EmailSendPath, PostSendEmailCodeAsync);
+        surface.MapPost(InteractiveAuthenticationDefaults.EmailVerifyPath, PostVerifyEmailAsync);
     }
 
     /// <summary>
@@ -242,7 +220,7 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
             ? frame.Locale.Messages.PasswordResetStatus
             : null;
 
-        // The link to the forgot-password page appears only while the tenant lets its end users reset a password.
+        // The link to the forgot-password page appears only while the connection lets its end users reset a password.
         // See ADR-1533.
         string? forgotPasswordHref = null;
         if (IsPasswordResetEnabled(httpContext, offered.Preselected))
@@ -391,7 +369,7 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
     /// <param name="principal">The authenticated cookie principal.</param>
     /// <param name="subjectId">The subject identifier of the principal, which names the account when it carries no
     /// name.</param>
-    /// <param name="emailVerification">Whether the tenant lets its end users verify their email address.</param>
+    /// <param name="emailVerification">Whether the connection lets its end users verify their email address.</param>
     /// <returns>The view model of the account page.</returns>
     internal static AccountMeResponse BuildMeResponse(
         ClaimsPrincipal principal,
@@ -1411,13 +1389,25 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
     /// <summary>
     /// Serves the forgot-password page, where an end user who is not signed in asks for a reset code. The server
     /// renders a working no-JavaScript form carrying the antiforgery token and the return URL. The page is not found
-    /// while the tenant does not let its end users reset a password.
+    /// while the connection does not let its end users reset a password.
     /// </summary>
     // See ADR-1533.
     public async ValueTask<IResult> GetForgotPasswordPageAsync(HttpContext httpContext)
     {
-        var tokens = IssueAntiforgeryTokens(httpContext);
         var query = httpContext.Request.Query;
+        var returnUrl = query[ReturnUrlName].ToString();
+        var offered = await GetOfferedAsync(httpContext, returnUrl, httpContext.RequestAborted);
+        var resettable = offered
+            .Offered.Where(candidate =>
+                candidate.Settings.GetValue(OpenIdSettingKeys.PasswordResetEnabled)
+            )
+            .ToList();
+        if (resettable.Count == 0)
+        {
+            return TypedResults.NotFound();
+        }
+
+        var tokens = IssueAntiforgeryTokens(httpContext);
         var branding = ReadBranding(httpContext);
         var security = InteractivePageSecurity.Create(branding);
         var frame = await CreatePageFrameAsync(
@@ -1427,14 +1417,18 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
             httpContext.RequestAborted
         );
         var html = InteractiveHtmlResult.CreateBuffer();
-        var returnUrl = query[ReturnUrlName].ToString();
-        var offered = await GetOfferedAsync(httpContext, returnUrl, httpContext.RequestAborted);
         var requestedConnection = query[ConnectionName].ToString();
-        var selectedName = offered.Offered.Any(candidate =>
-            string.Equals(candidate.Name, requestedConnection, StringComparison.Ordinal)
-        )
-            ? requestedConnection
-            : offered.Preselected?.Name;
+        var preselectedName = offered.Preselected?.Name;
+        var selectedName =
+            resettable.Any(candidate =>
+                string.Equals(candidate.Name, requestedConnection, StringComparison.Ordinal)
+            )
+                ? requestedConnection
+            : resettable.Any(candidate =>
+                string.Equals(candidate.Name, preselectedName, StringComparison.Ordinal)
+            )
+                ? preselectedName
+            : null;
         var errorQueryValue = query[ErrorQueryName].ToString();
         var errorMessage = DescribePasswordResetError(errorQueryValue, frame.Locale.Messages);
         var form = new InteractivePageForm(tokens)
@@ -1442,7 +1436,9 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
             ReturnUrl = returnUrl,
             ErrorMessage = errorMessage,
         };
-        var connectionViews = ToConnectionViews(offered);
+        var connectionViews = resettable
+            .Select(connection => (connection.Name, connection.Connection.DisplayName))
+            .ToList();
         InteractiveAuthenticationPageRenderer.RenderForgotPasswordPage(
             html,
             frame,
@@ -1456,7 +1452,7 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
     /// <summary>
     /// Serves the reset-password page, where an end user who is not signed in presents the reset code and chooses a new
     /// password. The server renders a working no-JavaScript form carrying the antiforgery token, the return URL and the
-    /// handle of the reset flow. The page is not found while the tenant does not let its end users reset a password.
+    /// handle of the reset flow. The page is not found while the connection does not let its end users reset a password.
     /// </summary>
     // See ADR-1533.
     public async ValueTask<IResult> GetResetPasswordPageAsync(HttpContext httpContext)
@@ -1489,7 +1485,7 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
     /// Starts a password reset for the user name the forgot-password form posts, then redirects to the reset-password
     /// page with the handle of the reset flow, whether or not the account exists, so the answer never tells. A missing
     /// user name redirects back to the forgot-password page with <c>?error=invalid_request</c>. The page is not found
-    /// while the tenant does not let its end users reset a password.
+    /// while the connection does not let its end users reset a password.
     /// </summary>
     // See ADR-1533.
     public async ValueTask<IResult> PostForgotPasswordAsync(
@@ -1523,6 +1519,11 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
             );
         }
 
+        if (!selectedConnection.Settings.GetValue(OpenIdSettingKeys.PasswordResetEnabled))
+        {
+            return TypedResults.NotFound();
+        }
+
         var locale = SelectLocale(httpContext, languageTag);
         var flowId = await PasswordResetter.SendResetCodeAsync(
             openIdContext,
@@ -1545,7 +1546,7 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
     /// <c>?status=password_reset</c>, or back to the reset-password page, keeping the flow, with <c>?error=</c> and
     /// <c>invalid_request</c> for a missing field, <c>password_mismatch</c> when the confirmation differs from the new
     /// password, or the error code the credential backend reports, such as <c>invalid_code</c> or a password policy
-    /// code. The page is not found while the tenant does not let its end users reset a password.
+    /// code. The page is not found while the connection does not let its end users reset a password.
     /// </summary>
     // See ADR-1533.
     public async ValueTask<IResult> PostResetPasswordAsync(
@@ -1620,7 +1621,7 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
     /// <summary>
     /// Serves the email page (the single-page bundle), establishing the antiforgery token its forms echo back. A
     /// request without an active session is redirected to the login page with the email page as its return URL. The
-    /// page is not found while the tenant does not let its end users verify their address.
+    /// page is not found while the connection does not let its end users verify their address.
     /// </summary>
     // See ADR-1533.
     public async ValueTask<IResult> GetEmailPageAsync(HttpContext httpContext)
@@ -1634,12 +1635,23 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
             return RedirectToLogin(httpContext, InteractiveAuthenticationDefaults.EmailPath);
         }
 
+        if (
+            !await IsEmailVerificationEnabledAsync(
+                httpContext,
+                authenticateResult.Principal,
+                httpContext.RequestAborted
+            )
+        )
+        {
+            return TypedResults.NotFound();
+        }
+
         return await ServeBundleAsync(httpContext, httpContext.RequestAborted);
     }
 
     /// <summary>
     /// Returns the address of the current end user and whether it is verified as JSON for the email page, <c>401</c>
-    /// when the request is not authenticated, or <c>404</c> when the end user has no address to verify or the tenant
+    /// when the request is not authenticated, or <c>404</c> when the end user has no address to verify or the connection
     /// does not let its end users verify their address.
     /// </summary>
     // See ADR-1533.
@@ -1652,6 +1664,17 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
         if (!authenticateResult.Succeeded)
         {
             return TypedResults.Unauthorized();
+        }
+
+        if (
+            !await IsEmailVerificationEnabledAsync(
+                httpContext,
+                authenticateResult.Principal,
+                httpContext.RequestAborted
+            )
+        )
+        {
+            return TypedResults.NotFound();
         }
 
         var openIdContext = httpContext.GetOpenIdContext();
@@ -1673,7 +1696,7 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
     /// Mails the current end user's address a code that verifies it, then redirects to the email page with
     /// <c>?flow=</c> and the handle of the verification flow, or with <c>?error=</c> and the reason the code is
     /// refused, such as <c>already_verified</c>, <c>no_email</c> or <c>too_many_codes</c>. A request without an active
-    /// session is redirected to the login page. The page is not found while the tenant does not let its end users
+    /// session is redirected to the login page. The page is not found while the connection does not let its end users
     /// verify their address.
     /// </summary>
     // See ADR-1533.
@@ -1692,6 +1715,17 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
         if (!authenticateResult.Succeeded)
         {
             return RedirectToLogin(httpContext, InteractiveAuthenticationDefaults.EmailPath);
+        }
+
+        if (
+            !await IsEmailVerificationEnabledAsync(
+                httpContext,
+                authenticateResult.Principal,
+                httpContext.RequestAborted
+            )
+        )
+        {
+            return TypedResults.NotFound();
         }
 
         var openIdContext = httpContext.GetOpenIdContext();
@@ -1722,7 +1756,7 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
     /// with <c>?status=verified</c>, or back to it, keeping the flow, with <c>?error=</c> and <c>invalid_request</c>
     /// for a missing field or the error code the backend reports, such as <c>invalid_code</c>. Every redirect keeps the
     /// language the form carries. A request without an active session is redirected to the login page. The page is not
-    /// found while the tenant does not let its end users verify their address.
+    /// found while the connection does not let its end users verify their address.
     /// </summary>
     // See ADR-1533.
     public async ValueTask<IResult> PostVerifyEmailAsync(
@@ -1742,6 +1776,17 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
         if (!authenticateResult.Succeeded)
         {
             return RedirectToLogin(httpContext, InteractiveAuthenticationDefaults.EmailPath);
+        }
+
+        if (
+            !await IsEmailVerificationEnabledAsync(
+                httpContext,
+                authenticateResult.Principal,
+                httpContext.RequestAborted
+            )
+        )
+        {
+            return TypedResults.NotFound();
         }
 
         string? error;
@@ -2128,14 +2173,14 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
     }
 
     /// <summary>
-    /// Determines whether the tenant lets its end users verify their address, which the me response reports to the
+    /// Determines whether the connection lets its end users verify their address, which the me response reports to the
     /// bundle.
     /// </summary>
     /// <param name="httpContext">The current request.</param>
     /// <param name="principal">The signed-in principal, whose connection claim names the connection whose settings
     /// decide.</param>
     /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
-    /// <returns><see langword="true"/> when the tenant lets its end users verify their address.</returns>
+    /// <returns><see langword="true"/> when the connection lets its end users verify their address.</returns>
     // See ADR-1533.
     private async ValueTask<bool> IsEmailVerificationEnabledAsync(
         HttpContext httpContext,
@@ -2191,13 +2236,13 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
             .ToList();
 
     /// <summary>
-    /// Determines whether the tenant lets its end users reset a password, which the login page's link to the
+    /// Determines whether the connection lets its end users reset a password, which the login page's link to the
     /// forgot-password page shows.
     /// </summary>
     /// <param name="httpContext">The current request.</param>
     /// <param name="connection">The connection the page preselects, whose settings decide, or
     /// <see langword="null"/> for the tenant's settings.</param>
-    /// <returns><see langword="true"/> when the tenant lets its end users reset a password.</returns>
+    /// <returns><see langword="true"/> when the connection lets its end users reset a password.</returns>
     // See ADR-1533.
     private static bool IsPasswordResetEnabled(
         HttpContext httpContext,
