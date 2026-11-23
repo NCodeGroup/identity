@@ -209,5 +209,42 @@ public class MailDeliveryJobHandlerTests : BaseTests
         Assert.Empty(Logger.Collector.GetSnapshot());
     }
 
+    [Fact]
+    public async Task HandleAsync_WhenTheTransportFailsAfterTheCallerCancels_CountsAndLogsTheFailure()
+    {
+        using var cancellationTokenSource = new CancellationTokenSource();
+        var cancellationToken = cancellationTokenSource.Token;
+        await cancellationTokenSource.CancelAsync();
+
+        var (message, stream) = CreateMessage();
+        var failure = new InvalidOperationException("The provider refused the message.");
+        MockComposer
+            .Setup(x => x.ComposeAsync(Model, cancellationToken))
+            .ReturnsAsync(message)
+            .Verifiable();
+        MockTransport
+            .Setup(x => x.DeliverAsync(message, cancellationToken))
+            .Throws(failure)
+            .Verifiable();
+
+        var thrown = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await Handler.HandleAsync(Job, Context, cancellationToken)
+        );
+
+        Assert.Same(failure, thrown);
+        Assert.False(stream.CanRead);
+
+        var measurement = Assert.Single(MessagesCollector.GetMeasurementSnapshot());
+        Assert.Equal(1, measurement.Value);
+        Assert.Equal(
+            MailDeliveryMetrics.FailedResult,
+            measurement.Tags[MailDeliveryMetrics.ResultAttribute]
+        );
+
+        var record = Assert.Single(Logger.Collector.GetSnapshot());
+        Assert.Equal(EventIds.MailDeliveryFailed, record.Id.Id);
+        Assert.Same(failure, record.Exception);
+    }
+
     #endregion
 }

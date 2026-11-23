@@ -41,7 +41,10 @@ internal sealed class MailDeliveryJobHandler(
             await Transport.DeliverAsync(message, cancellationToken);
             Metrics.Delivered();
         }
-        catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
+        catch (Exception exception)
+            when (exception is not OperationCanceledException
+                || !cancellationToken.IsCancellationRequested
+            )
         {
             Metrics.Failed();
             Logger.MailDeliveryFailed(exception, context.Attempt, context.MaxAttempts);
