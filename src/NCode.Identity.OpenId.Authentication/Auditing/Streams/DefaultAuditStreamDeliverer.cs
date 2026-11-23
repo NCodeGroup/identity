@@ -446,7 +446,7 @@ internal sealed class DefaultAuditStreamDeliverer(
         request.Headers.Add(WebhookTimestampHeader, timestampHeader);
         request.Headers.Add(WebhookSignatureHeader, signatureHeader);
 
-        var httpClient = HttpClientFactory.CreateClient(GuardedHttpClient.Name);
+        using var httpClient = HttpClientFactory.CreateClient(GuardedHttpClient.Name);
 
         try
         {
@@ -456,7 +456,11 @@ internal sealed class DefaultAuditStreamDeliverer(
                 cancellationToken
             );
 
-            return response.IsSuccessStatusCode ? null : $"http_{(int)response.StatusCode}";
+            if (response.IsSuccessStatusCode)
+                return null;
+
+            var statusCode = (int)response.StatusCode;
+            return string.Create(CultureInfo.InvariantCulture, $"http_{statusCode}");
         }
         catch (HttpRequestException)
         {
@@ -474,7 +478,7 @@ internal sealed class DefaultAuditStreamDeliverer(
     /// </summary>
     /// <param name="stream">The stream whose signing secrets are unprotected.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
-    /// <returns>The unprotected signing secrets, which the caller disposes, and which are empty when none has not
+    /// <returns>The unprotected signing secrets, which the caller disposes, and which are empty when every secret has
     /// expired.</returns>
     private async ValueTask<UnprotectedSigningSecrets> UnprotectCurrentSecretsAsync(
         PersistedAuditStream stream,
