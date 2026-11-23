@@ -250,6 +250,84 @@ public sealed class FederatedIdentityStoreTests : IDisposable
         Assert.All(loaded, identity => Assert.Equal(PrincipalId, identity.PrincipalId));
     }
 
+    #region GetByPrincipalsAsync Tests
+
+    [Fact]
+    public async Task GetByPrincipalsAsync_WhenSomePrincipalsHaveIdentities_ReturnsOnlyTheIdentitiesOfThosePrincipals()
+    {
+        const string secondPrincipalId = "principal-2";
+        const string thirdPrincipalId = "principal-3";
+        const string unrequestedPrincipalId = "principal-4";
+        await SeedPrincipalAsync(PrincipalId, CancellationToken.None);
+        await SeedPrincipalAsync(secondPrincipalId, CancellationToken.None);
+        await SeedPrincipalAsync(thirdPrincipalId, CancellationToken.None);
+        await SeedPrincipalAsync(unrequestedPrincipalId, CancellationToken.None);
+        await Store.AddAsync(
+            CreateIdentity("identity-1", PrincipalId, Issuer, Subject),
+            CancellationToken.None
+        );
+        await Store.AddAsync(
+            CreateIdentity("identity-2", PrincipalId, "https://other.example", "subject-2"),
+            CancellationToken.None
+        );
+        await Store.AddAsync(
+            CreateIdentity("identity-3", secondPrincipalId, Issuer, "subject-3"),
+            CancellationToken.None
+        );
+        await Store.AddAsync(
+            CreateIdentity("identity-4", unrequestedPrincipalId, Issuer, "subject-4"),
+            CancellationToken.None
+        );
+        await DbContext.SaveChangesAsync();
+
+        var loaded = await Store.GetByPrincipalsAsync(
+            [PrincipalId, secondPrincipalId, thirdPrincipalId],
+            CancellationToken.None
+        );
+
+        Assert.Equal(3, loaded.Count);
+        Assert.Contains(loaded, identity => identity.FederatedIdentityId == "identity-1");
+        Assert.Contains(loaded, identity => identity.FederatedIdentityId == "identity-2");
+        Assert.Contains(loaded, identity => identity.FederatedIdentityId == "identity-3");
+        Assert.DoesNotContain(loaded, identity => identity.PrincipalId == unrequestedPrincipalId);
+    }
+
+    [Fact]
+    public async Task GetByPrincipalsAsync_WhenTheIdentifiersDifferInCase_MatchesThem()
+    {
+        await SeedPrincipalAsync(PrincipalId, CancellationToken.None);
+        await Store.AddAsync(
+            CreateIdentity("identity-1", PrincipalId, Issuer, Subject),
+            CancellationToken.None
+        );
+        await DbContext.SaveChangesAsync();
+
+        var loaded = await Store.GetByPrincipalsAsync(
+            [PrincipalId.ToUpperInvariant()],
+            CancellationToken.None
+        );
+
+        var identity = Assert.Single(loaded);
+        Assert.Equal(PrincipalId, identity.PrincipalId);
+    }
+
+    [Fact]
+    public async Task GetByPrincipalsAsync_WhenNoPrincipals_ReturnsNone()
+    {
+        await SeedPrincipalAsync(PrincipalId, CancellationToken.None);
+        await Store.AddAsync(
+            CreateIdentity("identity-1", PrincipalId, Issuer, Subject),
+            CancellationToken.None
+        );
+        await DbContext.SaveChangesAsync();
+
+        var loaded = await Store.GetByPrincipalsAsync([], CancellationToken.None);
+
+        Assert.Empty(loaded);
+    }
+
+    #endregion
+
     [Fact]
     public async Task GetByJoinKeyAsync_WhenMatch_ReturnsIdentitiesWithThatJoinKey()
     {
