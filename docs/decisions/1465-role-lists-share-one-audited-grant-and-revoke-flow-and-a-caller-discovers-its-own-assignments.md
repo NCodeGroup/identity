@@ -78,8 +78,9 @@ audited; and a caller reads its own assignments, teams and tenants from `GET /ap
    adapter, in every other cell, posts the query to the control-plane cell and sends a query of more than 100 names in
    chunks of 100. A list handler never reads names from the serving cell's own tables.
 10. **`POST /control-plane/v1/principals` answers the cells.** It sits behind the cell gate that guards
-    `POST /control-plane/v1/authority` and answers `400` for a query of more than 100 names
-    (`ControlPlanePrincipalQuery.MaxNames`, principal ids plus user names).
+    `POST /control-plane/v1/authority` and answers `400` when `principalIds` or `userNames` is null or holds a null or
+    blank name, and for a query of more than 100 names (`ControlPlanePrincipalQuery.MaxNames`, principal ids plus user
+    names).
 11. **`IPrincipalDescriber` is a strategy collection** (see
     [ADR-1001](1001-behavior-is-a-service-a-strategy-collection-or-a-mediator-seam-chosen-by-one-ladder.md)): every
     registered describer describes the principals it knows, and the local adapter merges their answers. The
