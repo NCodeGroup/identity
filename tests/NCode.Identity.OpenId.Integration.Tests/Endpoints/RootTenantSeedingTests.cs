@@ -54,11 +54,16 @@ public class RootTenantSeedingTests(HostApplicationFactory factory)
         );
         var store = storeManager.GetStore<ITenantStore>();
 
+        var servedTenant = await store.GetOrDefaultAsync(
+            HostApplicationFactory.TenantId,
+            CancellationToken.None
+        );
         var rootTenant = await store.GetOrDefaultAsync(
             RootTenantOptions.DefaultTenantId,
             CancellationToken.None
         );
 
+        Assert.NotNull(servedTenant);
         Assert.Null(rootTenant);
     }
 }
