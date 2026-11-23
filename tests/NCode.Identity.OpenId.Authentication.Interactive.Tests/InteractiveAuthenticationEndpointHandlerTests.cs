@@ -26,9 +26,13 @@ using Xunit;
 
 namespace NCode.Identity.OpenId.Authentication.Interactive.Tests;
 
-public class InteractiveAuthenticationEndpointHandlerTests
+public sealed class InteractiveAuthenticationEndpointHandlerTests : IDisposable
 {
     private const string Origin = "https://op.example";
+
+    private MockRepository MockRepository { get; } = new(MockBehavior.Strict);
+
+    public void Dispose() => MockRepository.Verify();
 
     #region ResolveSafeReturnUrl Tests
 
@@ -217,13 +221,12 @@ public class InteractiveAuthenticationEndpointHandlerTests
     [Fact]
     public async Task PostForgotPasswordAsync_WhenTheFormCarriesALanguageTag_MailsInThatLocale()
     {
-        var mockRepository = new MockRepository(MockBehavior.Strict);
-        var mockCatalog = mockRepository.Create<IUiLocaleCatalog>();
+        var mockCatalog = MockRepository.Create<IUiLocaleCatalog>();
         mockCatalog.SetupGet(x => x.Locales).Returns([TestLocales.Xx, TestLocales.Yy]).Verifiable();
         IUiLocale? carried = TestLocales.Yy;
         mockCatalog.Setup(x => x.TryGet("yy", out carried)).Returns(true).Verifiable();
 
-        var mockSettings = mockRepository.Create<IReadOnlySettingCollection>();
+        var mockSettings = MockRepository.Create<IReadOnlySettingCollection>();
         mockSettings
             .Setup(x => x.GetValue(OpenIdSettingKeys.PasswordResetEnabled))
             .Returns(true)
@@ -241,16 +244,16 @@ public class InteractiveAuthenticationEndpointHandlerTests
             .Returns(TestLocales.Yy)
             .Verifiable();
 
-        var mockProvider = mockRepository.Create<IReadOnlySettingCollectionProvider>();
+        var mockProvider = MockRepository.Create<IReadOnlySettingCollectionProvider>();
         mockProvider.SetupGet(x => x.Collection).Returns(mockSettings.Object).Verifiable();
-        var mockTenant = mockRepository.Create<OpenIdTenant>();
+        var mockTenant = MockRepository.Create<OpenIdTenant>();
         mockTenant.SetupGet(x => x.SettingsProvider).Returns(mockProvider.Object).Verifiable();
-        var mockContext = mockRepository.Create<OpenIdContext>();
+        var mockContext = MockRepository.Create<OpenIdContext>();
         mockContext.SetupGet(x => x.Tenant).Returns(mockTenant.Object).Verifiable();
-        var mockFeature = mockRepository.Create<IOpenIdContextFeature>();
+        var mockFeature = MockRepository.Create<IOpenIdContextFeature>();
         mockFeature.SetupGet(x => x.OpenIdContext).Returns(mockContext.Object).Verifiable();
 
-        var mockResetter = mockRepository.Create<IInteractivePasswordResetter>();
+        var mockResetter = MockRepository.Create<IInteractivePasswordResetter>();
         mockResetter
             .Setup(x =>
                 x.SendResetCodeAsync(
@@ -263,7 +266,7 @@ public class InteractiveAuthenticationEndpointHandlerTests
             .ReturnsAsync("flow-1")
             .Verifiable();
 
-        var mockTenantResolver = mockRepository.Create<ITenantResolver>();
+        var mockTenantResolver = MockRepository.Create<ITenantResolver>();
         mockTenantResolver
             .Setup(x => x.GetTenantRoute())
             .Returns(RoutePatternFactory.Parse("/{tenantId}"))
@@ -271,26 +274,12 @@ public class InteractiveAuthenticationEndpointHandlerTests
 
         using var serviceProvider = new ServiceCollection().AddRouting().BuildServiceProvider();
         using var bundle = new SinglePageBundle<InteractiveBundleShell>(null, _ => null);
-        var handler = new InteractiveAuthenticationEndpointHandler(
-            mockRepository.Create<IInteractiveCredentialVerifier>().Object,
-            mockRepository.Create<IPrincipalResolver>().Object,
-            mockRepository.Create<IConsentService>().Object,
-            mockRepository.Create<IContinueRefusalService>().Object,
-            mockRepository.Create<IInteractivePasswordChanger>().Object,
-            mockResetter.Object,
-            mockRepository.Create<IInteractiveEmailVerifier>().Object,
-            mockRepository.Create<IInteractiveSignInCodeChallenge>().Object,
-            mockRepository.Create<ISessionService>().Object,
-            mockRepository.Create<IPostCommitSecurityEffects>().Object,
-            TimeProvider.System,
-            mockRepository.Create<IAntiforgery>().Object,
+        var handler = CreateHandler(
+            mockCatalog.Object,
+            mockTenantResolver.Object,
+            serviceProvider,
             bundle,
-            new InteractiveSurfacePaths(
-                mockTenantResolver.Object,
-                serviceProvider.GetRequiredService<TemplateBinderFactory>()
-            ),
-            mockRepository.Create<ITenantEnvironmentCatalog>().Object,
-            new InteractiveLocaleSelector(mockCatalog.Object)
+            passwordResetter: mockResetter.Object
         );
 
         var httpContext = new DefaultHttpContext();
@@ -307,7 +296,6 @@ public class InteractiveAuthenticationEndpointHandlerTests
 
         var redirect = Assert.IsType<RedirectHttpResult>(result);
         Assert.Equal("/acme/account/password/reset?flow=flow-1&ui_locales=yy", redirect.Url);
-        mockRepository.Verify();
     }
 
     #endregion
@@ -317,13 +305,12 @@ public class InteractiveAuthenticationEndpointHandlerTests
     [Fact]
     public async Task PostSendEmailCodeAsync_WhenTheFormCarriesALanguageTag_MailsInThatLocale()
     {
-        var mockRepository = new MockRepository(MockBehavior.Strict);
-        var mockCatalog = mockRepository.Create<IUiLocaleCatalog>();
+        var mockCatalog = MockRepository.Create<IUiLocaleCatalog>();
         mockCatalog.SetupGet(x => x.Locales).Returns([TestLocales.Xx, TestLocales.Yy]).Verifiable();
         IUiLocale? carried = TestLocales.Yy;
         mockCatalog.Setup(x => x.TryGet("yy", out carried)).Returns(true).Verifiable();
 
-        var mockSettings = mockRepository.Create<IReadOnlySettingCollection>();
+        var mockSettings = MockRepository.Create<IReadOnlySettingCollection>();
         mockSettings
             .Setup(x => x.GetValue(OpenIdSettingKeys.EmailVerificationEnabled))
             .Returns(true)
@@ -341,13 +328,13 @@ public class InteractiveAuthenticationEndpointHandlerTests
             .Returns(TestLocales.Yy)
             .Verifiable();
 
-        var mockProvider = mockRepository.Create<IReadOnlySettingCollectionProvider>();
+        var mockProvider = MockRepository.Create<IReadOnlySettingCollectionProvider>();
         mockProvider.SetupGet(x => x.Collection).Returns(mockSettings.Object).Verifiable();
-        var mockTenant = mockRepository.Create<OpenIdTenant>();
+        var mockTenant = MockRepository.Create<OpenIdTenant>();
         mockTenant.SetupGet(x => x.SettingsProvider).Returns(mockProvider.Object).Verifiable();
-        var mockContext = mockRepository.Create<OpenIdContext>();
+        var mockContext = MockRepository.Create<OpenIdContext>();
         mockContext.SetupGet(x => x.Tenant).Returns(mockTenant.Object).Verifiable();
-        var mockFeature = mockRepository.Create<IOpenIdContextFeature>();
+        var mockFeature = MockRepository.Create<IOpenIdContextFeature>();
         mockFeature.SetupGet(x => x.OpenIdContext).Returns(mockContext.Object).Verifiable();
 
         var principal = new ClaimsPrincipal(
@@ -356,7 +343,7 @@ public class InteractiveAuthenticationEndpointHandlerTests
                 authenticationType: "cookie"
             )
         );
-        var mockAuthentication = mockRepository.Create<IAuthenticationService>();
+        var mockAuthentication = MockRepository.Create<IAuthenticationService>();
         mockAuthentication
             .Setup(x =>
                 x.AuthenticateAsync(
@@ -374,7 +361,7 @@ public class InteractiveAuthenticationEndpointHandlerTests
             )
             .Verifiable();
 
-        var mockSessionService = mockRepository.Create<ISessionService>();
+        var mockSessionService = MockRepository.Create<ISessionService>();
         mockSessionService
             .Setup(x =>
                 x.ValidateAndTouchAsync(
@@ -386,7 +373,7 @@ public class InteractiveAuthenticationEndpointHandlerTests
             .ReturnsAsync(true)
             .Verifiable();
 
-        var mockVerifier = mockRepository.Create<IInteractiveEmailVerifier>();
+        var mockVerifier = MockRepository.Create<IInteractiveEmailVerifier>();
         mockVerifier
             .Setup(x =>
                 x.SendVerificationCodeAsync(
@@ -399,7 +386,7 @@ public class InteractiveAuthenticationEndpointHandlerTests
             .ReturnsAsync(InteractiveEmailCodeResult.Sent("flow-1"))
             .Verifiable();
 
-        var mockTenantResolver = mockRepository.Create<ITenantResolver>();
+        var mockTenantResolver = MockRepository.Create<ITenantResolver>();
         mockTenantResolver
             .Setup(x => x.GetTenantRoute())
             .Returns(RoutePatternFactory.Parse("/{tenantId}"))
@@ -410,26 +397,13 @@ public class InteractiveAuthenticationEndpointHandlerTests
             .AddSingleton(mockAuthentication.Object)
             .BuildServiceProvider();
         using var bundle = new SinglePageBundle<InteractiveBundleShell>(null, _ => null);
-        var handler = new InteractiveAuthenticationEndpointHandler(
-            mockRepository.Create<IInteractiveCredentialVerifier>().Object,
-            mockRepository.Create<IPrincipalResolver>().Object,
-            mockRepository.Create<IConsentService>().Object,
-            mockRepository.Create<IContinueRefusalService>().Object,
-            mockRepository.Create<IInteractivePasswordChanger>().Object,
-            mockRepository.Create<IInteractivePasswordResetter>().Object,
-            mockVerifier.Object,
-            mockRepository.Create<IInteractiveSignInCodeChallenge>().Object,
-            mockSessionService.Object,
-            mockRepository.Create<IPostCommitSecurityEffects>().Object,
-            TimeProvider.System,
-            mockRepository.Create<IAntiforgery>().Object,
+        var handler = CreateHandler(
+            mockCatalog.Object,
+            mockTenantResolver.Object,
+            serviceProvider,
             bundle,
-            new InteractiveSurfacePaths(
-                mockTenantResolver.Object,
-                serviceProvider.GetRequiredService<TemplateBinderFactory>()
-            ),
-            mockRepository.Create<ITenantEnvironmentCatalog>().Object,
-            new InteractiveLocaleSelector(mockCatalog.Object)
+            emailVerifier: mockVerifier.Object,
+            sessionService: mockSessionService.Object
         );
 
         var httpContext = new DefaultHttpContext { RequestServices = serviceProvider };
@@ -441,7 +415,6 @@ public class InteractiveAuthenticationEndpointHandlerTests
 
         var redirect = Assert.IsType<RedirectHttpResult>(result);
         Assert.Equal("/acme/account/email?flow=flow-1&ui_locales=yy", redirect.Url);
-        mockRepository.Verify();
     }
 
     #endregion
@@ -451,25 +424,24 @@ public class InteractiveAuthenticationEndpointHandlerTests
     [Fact]
     public async Task PostVerifyEmailAsync_WhenTheFormCarriesALanguageTag_KeepsItInTheRedirect()
     {
-        var mockRepository = new MockRepository(MockBehavior.Strict);
-        var mockCatalog = mockRepository.Create<IUiLocaleCatalog>();
+        var mockCatalog = MockRepository.Create<IUiLocaleCatalog>();
         mockCatalog.SetupGet(x => x.Locales).Returns([TestLocales.Xx, TestLocales.Yy]).Verifiable();
         IUiLocale? carried = TestLocales.Yy;
         mockCatalog.Setup(x => x.TryGet("yy", out carried)).Returns(true).Verifiable();
 
-        var mockSettings = mockRepository.Create<IReadOnlySettingCollection>();
+        var mockSettings = MockRepository.Create<IReadOnlySettingCollection>();
         mockSettings
             .Setup(x => x.GetValue(OpenIdSettingKeys.EmailVerificationEnabled))
             .Returns(true)
             .Verifiable();
 
-        var mockProvider = mockRepository.Create<IReadOnlySettingCollectionProvider>();
+        var mockProvider = MockRepository.Create<IReadOnlySettingCollectionProvider>();
         mockProvider.SetupGet(x => x.Collection).Returns(mockSettings.Object).Verifiable();
-        var mockTenant = mockRepository.Create<OpenIdTenant>();
+        var mockTenant = MockRepository.Create<OpenIdTenant>();
         mockTenant.SetupGet(x => x.SettingsProvider).Returns(mockProvider.Object).Verifiable();
-        var mockContext = mockRepository.Create<OpenIdContext>();
+        var mockContext = MockRepository.Create<OpenIdContext>();
         mockContext.SetupGet(x => x.Tenant).Returns(mockTenant.Object).Verifiable();
-        var mockFeature = mockRepository.Create<IOpenIdContextFeature>();
+        var mockFeature = MockRepository.Create<IOpenIdContextFeature>();
         mockFeature.SetupGet(x => x.OpenIdContext).Returns(mockContext.Object).Verifiable();
 
         var principal = new ClaimsPrincipal(
@@ -478,7 +450,7 @@ public class InteractiveAuthenticationEndpointHandlerTests
                 authenticationType: "cookie"
             )
         );
-        var mockAuthentication = mockRepository.Create<IAuthenticationService>();
+        var mockAuthentication = MockRepository.Create<IAuthenticationService>();
         mockAuthentication
             .Setup(x =>
                 x.AuthenticateAsync(
@@ -496,7 +468,7 @@ public class InteractiveAuthenticationEndpointHandlerTests
             )
             .Verifiable();
 
-        var mockSessionService = mockRepository.Create<ISessionService>();
+        var mockSessionService = MockRepository.Create<ISessionService>();
         mockSessionService
             .Setup(x =>
                 x.ValidateAndTouchAsync(
@@ -508,7 +480,7 @@ public class InteractiveAuthenticationEndpointHandlerTests
             .ReturnsAsync(true)
             .Verifiable();
 
-        var mockVerifier = mockRepository.Create<IInteractiveEmailVerifier>();
+        var mockVerifier = MockRepository.Create<IInteractiveEmailVerifier>();
         mockVerifier
             .Setup(x =>
                 x.VerifyEmailAsync(
@@ -522,7 +494,7 @@ public class InteractiveAuthenticationEndpointHandlerTests
             .ReturnsAsync(InteractiveEmailCodeResult.Refused("invalid_code"))
             .Verifiable();
 
-        var mockTenantResolver = mockRepository.Create<ITenantResolver>();
+        var mockTenantResolver = MockRepository.Create<ITenantResolver>();
         mockTenantResolver
             .Setup(x => x.GetTenantRoute())
             .Returns(RoutePatternFactory.Parse("/{tenantId}"))
@@ -533,26 +505,13 @@ public class InteractiveAuthenticationEndpointHandlerTests
             .AddSingleton(mockAuthentication.Object)
             .BuildServiceProvider();
         using var bundle = new SinglePageBundle<InteractiveBundleShell>(null, _ => null);
-        var handler = new InteractiveAuthenticationEndpointHandler(
-            mockRepository.Create<IInteractiveCredentialVerifier>().Object,
-            mockRepository.Create<IPrincipalResolver>().Object,
-            mockRepository.Create<IConsentService>().Object,
-            mockRepository.Create<IContinueRefusalService>().Object,
-            mockRepository.Create<IInteractivePasswordChanger>().Object,
-            mockRepository.Create<IInteractivePasswordResetter>().Object,
-            mockVerifier.Object,
-            mockRepository.Create<IInteractiveSignInCodeChallenge>().Object,
-            mockSessionService.Object,
-            mockRepository.Create<IPostCommitSecurityEffects>().Object,
-            TimeProvider.System,
-            mockRepository.Create<IAntiforgery>().Object,
+        var handler = CreateHandler(
+            mockCatalog.Object,
+            mockTenantResolver.Object,
+            serviceProvider,
             bundle,
-            new InteractiveSurfacePaths(
-                mockTenantResolver.Object,
-                serviceProvider.GetRequiredService<TemplateBinderFactory>()
-            ),
-            mockRepository.Create<ITenantEnvironmentCatalog>().Object,
-            new InteractiveLocaleSelector(mockCatalog.Object)
+            emailVerifier: mockVerifier.Object,
+            sessionService: mockSessionService.Object
         );
 
         var httpContext = new DefaultHttpContext { RequestServices = serviceProvider };
@@ -571,7 +530,6 @@ public class InteractiveAuthenticationEndpointHandlerTests
             "/acme/account/email?flow=flow-1&error=invalid_code&ui_locales=yy",
             redirect.Url
         );
-        mockRepository.Verify();
     }
 
     #endregion
@@ -637,6 +595,41 @@ public class InteractiveAuthenticationEndpointHandlerTests
 
         Assert.Equal(messages.PasswordRefusedError, result);
     }
+
+    #endregion
+
+    #region Helpers
+
+    private InteractiveAuthenticationEndpointHandler CreateHandler(
+        IUiLocaleCatalog localeCatalog,
+        ITenantResolver tenantResolver,
+        IServiceProvider serviceProvider,
+        SinglePageBundle<InteractiveBundleShell> bundle,
+        IInteractivePasswordResetter? passwordResetter = null,
+        IInteractiveEmailVerifier? emailVerifier = null,
+        ISessionService? sessionService = null
+    ) =>
+        new(
+            MockRepository.Create<IInteractiveCredentialVerifier>().Object,
+            MockRepository.Create<IPrincipalResolver>().Object,
+            MockRepository.Create<IConsentService>().Object,
+            MockRepository.Create<IContinueRefusalService>().Object,
+            MockRepository.Create<IInteractivePasswordChanger>().Object,
+            passwordResetter ?? MockRepository.Create<IInteractivePasswordResetter>().Object,
+            emailVerifier ?? MockRepository.Create<IInteractiveEmailVerifier>().Object,
+            MockRepository.Create<IInteractiveSignInCodeChallenge>().Object,
+            sessionService ?? MockRepository.Create<ISessionService>().Object,
+            MockRepository.Create<IPostCommitSecurityEffects>().Object,
+            TimeProvider.System,
+            MockRepository.Create<IAntiforgery>().Object,
+            bundle,
+            new InteractiveSurfacePaths(
+                tenantResolver,
+                serviceProvider.GetRequiredService<TemplateBinderFactory>()
+            ),
+            MockRepository.Create<ITenantEnvironmentCatalog>().Object,
+            new InteractiveLocaleSelector(localeCatalog)
+        );
 
     #endregion
 }
