@@ -1,0 +1,61 @@
+// Copyright © NCode Group
+// SPDX-License-Identifier: Apache-2.0
+
+using System.Collections.Frozen;
+using System.Diagnostics.CodeAnalysis;
+
+namespace NCode.Identity.OpenId.Connections;
+
+/// <summary>
+/// Provides the default implementation of <see cref="IConnectionStrategyCatalog"/> over the registered
+/// <see cref="IConnectionStrategy"/> strategy collection. Strategies are keyed by their
+/// <see cref="IConnectionStrategy.Name"/>.
+/// </summary>
+/// <remarks>
+/// The registered set is validated when the catalog is composed: a strategy with no name, or a name registered more
+/// than once, is an error, never ignored.
+/// </remarks>
+// See ADR-1535.
+internal sealed class DefaultConnectionStrategyCatalog(IEnumerable<IConnectionStrategy> strategies)
+    : IConnectionStrategyCatalog
+{
+    private FrozenDictionary<string, IConnectionStrategy> StrategiesByName { get; } =
+        Index(strategies);
+
+    /// <inheritdoc />
+    public IReadOnlyCollection<IConnectionStrategy> Strategies => StrategiesByName.Values;
+
+    /// <inheritdoc />
+    public bool TryGetStrategy(string name, [MaybeNullWhen(false)] out IConnectionStrategy strategy)
+    {
+        if (string.IsNullOrEmpty(name))
+        {
+            strategy = null;
+            return false;
+        }
+
+        return StrategiesByName.TryGetValue(name, out strategy);
+    }
+
+    private static FrozenDictionary<string, IConnectionStrategy> Index(
+        IEnumerable<IConnectionStrategy> strategies
+    )
+    {
+        var strategiesByName = new Dictionary<string, IConnectionStrategy>(StringComparer.Ordinal);
+        foreach (var strategy in strategies)
+        {
+            var name = strategy.Name;
+            if (string.IsNullOrEmpty(name))
+                throw new InvalidOperationException("A connection strategy has no name.");
+
+            if (!strategiesByName.TryAdd(name, strategy))
+            {
+                throw new InvalidOperationException(
+                    $"The connection strategy '{name}' is registered more than once."
+                );
+            }
+        }
+
+        return strategiesByName.ToFrozenDictionary(StringComparer.Ordinal);
+    }
+}

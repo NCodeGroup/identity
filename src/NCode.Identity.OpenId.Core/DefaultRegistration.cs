@@ -5,6 +5,7 @@ using JetBrains.Annotations;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using NCode.Identity.Claims;
 using NCode.Identity.Cryptography;
+using NCode.Identity.OpenId.Connections;
 using NCode.Identity.OpenId.Contexts;
 using NCode.Identity.OpenId.Environments;
 using NCode.Identity.OpenId.Exceptions;
@@ -64,6 +65,7 @@ public static class DefaultRegistration
                 .AddContextServices()
                 .AddPlatformServices()
                 .AddSettingServices()
+                .AddConnectionServices()
                 .AddSecretProtectionServices()
                 .AddTenantResolutionServices()
                 .AddTeamServices()

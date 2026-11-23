@@ -1134,3 +1134,27 @@ const NCode.Identity.OpenId.Settings.OpenIdSettingNames.LocalAccountIdentifier =
 static NCode.Identity.OpenId.Settings.OpenIdSettingKeys.AllowedConnections.get -> NCode.Identity.Settings.SettingKey<System.Collections.Generic.IReadOnlyCollection<string!>!>
 static NCode.Identity.OpenId.Settings.OpenIdSettingKeys.DefaultConnection.get -> NCode.Identity.Settings.SettingKey<string!>
 static NCode.Identity.OpenId.Settings.OpenIdSettingKeys.LocalAccountIdentifier.get -> NCode.Identity.Settings.SettingKey<string!>
+NCode.Identity.OpenId.Connections.ConnectionSelection
+NCode.Identity.OpenId.Connections.ConnectionSelection.Connection.get -> NCode.Identity.OpenId.Connections.ResolvedConnection?
+NCode.Identity.OpenId.Connections.ConnectionSelection.Connection.init -> void
+NCode.Identity.OpenId.Connections.ConnectionSelection.ConnectionSelection() -> void
+NCode.Identity.OpenId.Connections.ConnectionSelection.ErrorDescription.get -> string?
+NCode.Identity.OpenId.Connections.ConnectionSelection.ErrorDescription.init -> void
+NCode.Identity.OpenId.Connections.ConnectionSelection.IsRefused.get -> bool
+NCode.Identity.OpenId.Connections.IConnectionDependentSource
+NCode.Identity.OpenId.Connections.IConnectionDependentSource.HasDependentsAsync(NCode.Identity.Persistence.Stores.IStoreManager! storeManager, NCode.Identity.OpenId.Persistence.DataContracts.PersistedConnection! connection, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<bool>
+NCode.Identity.OpenId.Connections.IConnectionResolver
+NCode.Identity.OpenId.Connections.IConnectionResolver.GetAllowedAsync(NCode.Identity.OpenId.Contexts.OpenIdContext! openIdContext, NCode.Identity.Settings.IReadOnlySettingCollection! clientSettings, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<NCode.Identity.OpenId.Connections.ResolvedConnection!>!>
+NCode.Identity.OpenId.Connections.IConnectionResolver.GetByIdOrDefaultAsync(NCode.Identity.OpenId.Contexts.OpenIdContext! openIdContext, string! connectionId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.Connections.ResolvedConnection?>
+NCode.Identity.OpenId.Connections.IConnectionResolver.GetByNameOrDefaultAsync(NCode.Identity.OpenId.Contexts.OpenIdContext! openIdContext, string! name, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.Connections.ResolvedConnection?>
+NCode.Identity.OpenId.Connections.IConnectionResolver.SelectAsync(NCode.Identity.OpenId.Contexts.OpenIdContext! openIdContext, NCode.Identity.Settings.IReadOnlySettingCollection! clientSettings, string? requestedName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.Connections.ConnectionSelection!>
+NCode.Identity.OpenId.Connections.ResolvedConnection
+NCode.Identity.OpenId.Connections.ResolvedConnection.Connection.get -> NCode.Identity.OpenId.Persistence.DataContracts.PersistedConnection!
+NCode.Identity.OpenId.Connections.ResolvedConnection.Connection.init -> void
+NCode.Identity.OpenId.Connections.ResolvedConnection.ConnectionId.get -> string!
+NCode.Identity.OpenId.Connections.ResolvedConnection.Name.get -> string!
+NCode.Identity.OpenId.Connections.ResolvedConnection.ResolvedConnection() -> void
+NCode.Identity.OpenId.Connections.ResolvedConnection.Settings.get -> NCode.Identity.Settings.IReadOnlySettingCollection!
+NCode.Identity.OpenId.Connections.ResolvedConnection.Settings.init -> void
+NCode.Identity.OpenId.Connections.ResolvedConnection.Strategy.get -> NCode.Identity.OpenId.Connections.IConnectionStrategy!
+NCode.Identity.OpenId.Connections.ResolvedConnection.Strategy.init -> void
