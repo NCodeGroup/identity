@@ -52,12 +52,24 @@ internal sealed class DefaultLocalAccountEmailCodes(
     /// </summary>
     internal const string DecoySendsKeyPurpose = "email-code-decoy-sends";
 
+    /// <summary>
+    /// The message of the exception a send throws when shared state already holds a flow under the handle it drew.
+    /// </summary>
     private const string DuplicateFlowMessage = "An email code flow with the same handle exists.";
 
+    /// <summary>
+    /// The number of digits of a code.
+    /// </summary>
     private const int CodeDigits = 6;
 
+    /// <summary>
+    /// Gets the exclusive upper bound of a code, the smallest number that has one digit more than a code.
+    /// </summary>
     private static int CodeUpperBound { get; } = (int)Math.Pow(10, CodeDigits);
 
+    /// <summary>
+    /// Gets the window over which the codes sent to an account for one purpose are counted.
+    /// </summary>
     private static TimeSpan SendsWindow { get; } = TimeSpan.FromHours(1);
 
     /// <summary>

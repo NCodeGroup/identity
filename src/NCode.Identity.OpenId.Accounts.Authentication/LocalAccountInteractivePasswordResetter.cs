@@ -37,6 +37,10 @@ internal sealed class LocalAccountInteractivePasswordResetter(
     IAuditEventRecorder auditEventRecorder
 ) : IInteractivePasswordResetter
 {
+    /// <summary>
+    /// The audit error code of a reset request that names no account a code may be sent to: none is found, it is
+    /// disabled, or its address is missing or unverified.
+    /// </summary>
     private const string AccountNotEligible = "account_not_eligible";
 
     /// <summary>
