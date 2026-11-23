@@ -56,11 +56,11 @@ export function isValidConnectionName(name: string): boolean {
 }
 
 /**
- * Stateless connection create/edit form rendered in a dialog. The name and strategy are immutable after creation,
- * so they are read-only when {@link ConnectionFormDialogProps.nameEditable} is false. The name is validated like the
- * server's connection name rules. The field state is local because it is intrinsic to the controlled inputs (it
- * reseeds on the rising edge of `open`), so the component still renders in isolation under Storybook/RTL. All
- * persistence and server-error handling lives in the container that wires the mutation.
+ * Stateless connection create/edit form rendered in a dialog. The name and strategy are immutable after creation, so
+ * they are read-only when {@link ConnectionFormDialogProps.nameEditable} is false. The name is validated like the
+ * server's connection name rules. The field state is local because it is intrinsic to the controlled inputs (it reseeds
+ * on the rising edge of `open`), so the component still renders in isolation under Storybook/RTL. All persistence and
+ * server-error handling lives in the container that wires the mutation.
  */
 export function ConnectionFormDialog({
   open,

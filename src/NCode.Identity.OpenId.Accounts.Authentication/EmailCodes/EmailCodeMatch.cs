@@ -16,8 +16,8 @@ internal sealed record EmailCodeMatch(string ConnectionId, string LocalAccountId
 {
     /// <summary>
     /// Determines whether the code was sent for the specified account: the flow's connection and account identifiers
-    /// equal the account's, ordinally, and the address the code was mailed to equals the account's current address, ignoring
-    /// case. A code authorizes nothing once the account's address differs from the one it was mailed to.
+    /// equal the account's, ordinally, and the address the code was mailed to equals the account's current address,
+    /// ignoring case. A code authorizes nothing once the account's address differs from the one it was mailed to.
     /// </summary>
     /// <param name="account">The local account to compare with.</param>
     /// <returns><see langword="true"/> when the code is bound to the account; otherwise,

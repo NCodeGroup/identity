@@ -26,12 +26,13 @@ namespace NCode.Identity.OpenId.Setup;
 
 /// <summary>
 /// Provides a default implementation of <see cref="IInstanceSetupService"/>. The root administrator is a local account
-/// in the <c>local</c> connection of the control-plane tenant that holds <see cref="BuiltInRoles.GlobalAdmin"/> at the platform node. The account, its
-/// identity, the role assignment, the management console's client and the automation client when the request carries
-/// them, and the initialized mark are staged on one store manager and saved once, so the instance is initialized
-/// exactly when its root administrator exists. The automation client is a platform-owned machine client that holds
-/// <see cref="BuiltInRoles.GlobalAdmin"/> at the platform node. Both clients are staged through
-/// <see cref="IClientCreator"/>, so each passes the same validation as a client that the management API creates.
+/// in the <c>local</c> connection of the control-plane tenant that holds <see cref="BuiltInRoles.GlobalAdmin"/> at the
+/// platform node. The account, its identity, the role assignment, the management console's client and the automation
+/// client when the request carries them, and the initialized mark are staged on one store manager and saved once, so
+/// the instance is initialized exactly when its root administrator exists. The automation client is a platform-owned
+/// machine client that holds <see cref="BuiltInRoles.GlobalAdmin"/> at the platform node. Both clients are staged
+/// through <see cref="IClientCreator"/>, so each passes the same validation as a client that the management API
+/// creates.
 /// </summary>
 internal sealed class DefaultInstanceSetupService(
     IStoreManagerFactory storeManagerFactory,

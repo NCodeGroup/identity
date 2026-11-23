@@ -60,15 +60,14 @@ The platform routes operate on the local connection that the control-plane tenan
 
 /// <summary>
 /// Provides the management endpoints for local accounts, which are nested under the local connection that holds them.
-/// Local accounts are end-user subjects, not ownable resources, so every operation authorizes against the owning
-/// tenant scope (there is no per-account owner model). A route loads its connection, answers 404 when the connection
-/// is missing or is not a local connection, and operates on the <see cref="ILocalAccountStore"/> that the connection's
-/// options select from the <see cref="LocalAccountStoreCatalog"/>; an account that another connection holds is
-/// answered 404. Deleting or disabling an account, or resetting its password,
-/// ends every session of its principal. Every password it sets meets the tenant's password policy; a refused password
-/// is answered 400 with the requirement it fails. The security effects that follow a commit (ending the sessions of a
-/// disabled account or of a reset password, and clearing failed password attempts) run through
-/// <see cref="IPostCommitSecurityEffects"/>.
+/// Local accounts are end-user subjects, not ownable resources, so every operation authorizes against the owning tenant
+/// scope (there is no per-account owner model). A route loads its connection, answers 404 when the connection is
+/// missing or is not a local connection, and operates on the <see cref="ILocalAccountStore"/> that the connection's
+/// options select from the <see cref="LocalAccountStoreCatalog"/>; an account that another connection holds is answered
+/// 404. Deleting or disabling an account, or resetting its password, ends every session of its principal. Every
+/// password it sets meets the tenant's password policy; a refused password is answered 400 with the requirement it
+/// fails. The security effects that follow a commit (ending the sessions of a disabled account or of a reset password,
+/// and clearing failed password attempts) run through <see cref="IPostCommitSecurityEffects"/>.
 /// </summary>
 internal class LocalAccountApiEndpointHandler(
     IStoreManagerFactory storeManagerFactory,

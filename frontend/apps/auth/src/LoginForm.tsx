@@ -44,8 +44,8 @@ export type LoginFormProps = {
 };
 
 /**
- * The field that carries the connection a form signs in through: a select (`id="connection"`) when several
- * connections are offered, a hidden input when one is, and nothing when none is.
+ * The field that carries the connection a form signs in through: a select (`id="connection"`) when several connections
+ * are offered, a hidden input when one is, and nothing when none is.
  */
 export function ConnectionField({
   connections,

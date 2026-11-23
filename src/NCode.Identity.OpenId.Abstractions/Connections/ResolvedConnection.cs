@@ -25,8 +25,8 @@ public sealed class ResolvedConnection
     public required IConnectionStrategy Strategy { get; init; }
 
     /// <summary>
-    /// Gets the effective settings of the connection: the tenant's effective settings resolved through the
-    /// connection's own settings document.
+    /// Gets the effective settings of the connection: the tenant's effective settings resolved through the connection's
+    /// own settings document.
     /// </summary>
     public required IReadOnlySettingCollection Settings { get; init; }
 

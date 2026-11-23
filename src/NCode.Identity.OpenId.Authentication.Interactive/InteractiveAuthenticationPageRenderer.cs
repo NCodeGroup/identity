@@ -114,7 +114,8 @@ internal static class InteractiveAuthenticationPageRenderer
     /// <param name="forgotPasswordHref">The address of the forgot-password page the form links to, or
     /// <see langword="null"/> for no link.</param>
     /// <param name="connections">The connections the form offers, as name and display name.</param>
-    /// <param name="selected">The name of the connection the form preselects, or <see langword="null"/> for none.</param>
+    /// <param name="selected">The name of the connection the form preselects, or <see langword="null"/> for
+    /// none.</param>
     public static void RenderLoginPage(
         IBufferWriter<char> writer,
         InteractivePageFrame frame,
@@ -172,7 +173,8 @@ internal static class InteractiveAuthenticationPageRenderer
     /// <param name="frame">The document the page is written into.</param>
     /// <param name="form">The form the page posts.</param>
     /// <param name="connections">The connections the form offers, as name and display name.</param>
-    /// <param name="selected">The name of the connection the form preselects, or <see langword="null"/> for none.</param>
+    /// <param name="selected">The name of the connection the form preselects, or <see langword="null"/> for
+    /// none.</param>
     public static void RenderForgotPasswordPage(
         IBufferWriter<char> writer,
         InteractivePageFrame frame,
@@ -563,7 +565,8 @@ internal static class InteractiveAuthenticationPageRenderer
     /// <param name="writer">The buffer the field is written to.</param>
     /// <param name="messages">The messages of the page's locale.</param>
     /// <param name="connections">The connections the form offers, as name and display name.</param>
-    /// <param name="selected">The name of the connection the form preselects, or <see langword="null"/> for none.</param>
+    /// <param name="selected">The name of the connection the form preselects, or <see langword="null"/> for
+    /// none.</param>
     private static void WriteConnectionField(
         IBufferWriter<char> writer,
         InteractiveMessages messages,

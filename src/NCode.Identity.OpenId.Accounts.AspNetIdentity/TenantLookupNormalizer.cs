@@ -9,8 +9,8 @@ namespace NCode.Identity.OpenId.Accounts.AspNetIdentity;
 /// <summary>
 /// Normalizes the names and emails that ASP.NET Core Identity looks users up by, and prefixes each with the normalized
 /// identifier of the ambient tenant and the connection of the ambient connection scope
-/// (<c>{normalizedTenantId}|{normalizedConnectionId}|{value}</c>), so a user name or email is unique per connection
-/// and a lookup in one connection never finds a user of another.
+/// (<c>{normalizedTenantId}|{normalizedConnectionId}|{value}</c>), so a user name or email is unique per connection and
+/// a lookup in one connection never finds a user of another.
 /// </summary>
 /// <remarks>
 /// The normalizer fails closed. It throws outside a tenant scope, an unscoped scope

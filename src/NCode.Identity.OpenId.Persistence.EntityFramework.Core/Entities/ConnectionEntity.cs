@@ -31,8 +31,8 @@ public sealed class ConnectionEntity : ISupportTenantEntity, ISupportConcurrency
     public required Guid TenantId { get; init; }
 
     /// <summary>
-    /// Gets the owning tenant's normalized identifier, denormalized onto this entity so the tenant-scoping global
-    /// query filter compares a single indexed column without a navigation join.
+    /// Gets the owning tenant's normalized identifier, denormalized onto this entity so the tenant-scoping global query
+    /// filter compares a single indexed column without a navigation join.
     /// </summary>
     [Unicode(false)]
     [MaxLength(MaxLengths.ResourceId)]

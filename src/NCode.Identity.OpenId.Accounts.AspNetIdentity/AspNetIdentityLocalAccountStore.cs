@@ -27,20 +27,20 @@ namespace NCode.Identity.OpenId.Accounts.AspNetIdentity;
 /// Each user belongs to one tenant (<see cref="ITenantBoundUser.TenantId"/>) and one connection
 /// (<see cref="ITenantBoundUser.ConnectionId"/>). Creating a user stamps the tenant of the ambient tenant scope and
 /// fails when no tenant scope is set. Every lookup treats a user of another tenant as not found, inside a tenant scope.
-/// Lookups by user name or email, and credential verification, need a tenant scope: they find nothing in an unset
-/// scope and throw in an unscoped scope (<see cref="IAmbientTenantAccessor.IsUnscoped"/>), and they find only the users
-/// of the connection they name. The store opens a connection scope around each user manager call, so the lookup
-/// normalizer prefixes the normalized names and emails with the connection. A user with no user name is stored with
-/// its <see cref="PersistedLocalAccount.LocalAccountId"/> as ASP.NET Core Identity's user name, which a user manager
+/// Lookups by user name or email, and credential verification, need a tenant scope: they find nothing in an unset scope
+/// and throw in an unscoped scope (<see cref="IAmbientTenantAccessor.IsUnscoped"/>), and they find only the users of
+/// the connection they name. The store opens a connection scope around each user manager call, so the lookup normalizer
+/// prefixes the normalized names and emails with the connection. A user with no user name is stored with its
+/// <see cref="PersistedLocalAccount.LocalAccountId"/> as ASP.NET Core Identity's user name, which a user manager
 /// requires, and is read back with a <c>null</c> user name. Lookups by identifier match the identifier in the query
 /// over the tenant's users, so they read across tenants only in an unscoped scope; like listing, they need an ASP.NET
-/// Core Identity store that supports querying users.
-/// <see cref="PersistedLocalAccount.TenantId"/> is mapped as empty; the resource-owner password grant authenticates
-/// against the request's tenant. Each operation resolves the scoped <see cref="UserManager{TUser}"/> from a fresh
-/// dependency-injection scope, so this adapter holds no scoped state and its writes commit immediately (they do not
-/// enlist in the OpenID unit of work). The user manager stores every user with a user name, a normalized user name and
-/// a security stamp, so a stored user without its user name or security stamp is malformed and reading it as a local
-/// account throws; an export also throws for a user without its normalized user name.
+/// Core Identity store that supports querying users. <see cref="PersistedLocalAccount.TenantId"/> is mapped as empty;
+/// the resource-owner password grant authenticates against the request's tenant. Each operation resolves the scoped
+/// <see cref="UserManager{TUser}"/> from a fresh dependency-injection scope, so this adapter holds no scoped state and
+/// its writes commit immediately (they do not enlist in the OpenID unit of work). The user manager stores every user
+/// with a user name, a normalized user name and a security stamp, so a stored user without its user name or security
+/// stamp is malformed and reading it as a local account throws; an export also throws for a user without its normalized
+/// user name.
 /// </remarks>
 /// <typeparam name="TUser">The ASP.NET Core Identity user type.</typeparam>
 internal sealed class AspNetIdentityLocalAccountStore<TUser>(

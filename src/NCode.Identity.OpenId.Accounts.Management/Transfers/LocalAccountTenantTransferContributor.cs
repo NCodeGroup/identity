@@ -14,8 +14,9 @@ namespace NCode.Identity.OpenId.Accounts.Management.Transfers;
 
 /// <summary>
 /// Provides an implementation of <see cref="ITenantTransferContributor"/> that carries a tenant's local accounts as the
-/// records of each local connection's <see cref="ILocalAccountTransferStore"/>, grouped by connection id, with their password hashes, security stamps and claims. The
-/// section is sensitive and is handled only inside an encrypted transfer. A local account references no remote key.
+/// records of each local connection's <see cref="ILocalAccountTransferStore"/>, grouped by connection id, with their
+/// password hashes, security stamps and claims. The section is sensitive and is handled only inside an encrypted
+/// transfer. A local account references no remote key.
 /// </summary>
 // See ADR-1514.
 internal class LocalAccountTenantTransferContributor(

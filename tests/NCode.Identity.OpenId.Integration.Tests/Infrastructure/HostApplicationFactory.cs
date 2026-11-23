@@ -332,9 +332,9 @@ public class HostApplicationFactory : WebApplicationFactory<HostApiMarker>
     }
 
     /// <summary>
-    /// Ensures the tenant exists and seeds a passwordless local account together with the one-to-one federated
-    /// identity that a real interactive login provisions. Returns the provisioned principal id, the value a
-    /// access token carries as its public <c>sub</c>.
+    /// Ensures the tenant exists and seeds a passwordless local account together with the one-to-one federated identity
+    /// that a real interactive login provisions. Returns the provisioned principal id, the value a access token carries
+    /// as its public <c>sub</c>.
     /// </summary>
     // See ADR-1035.
     public async ValueTask<string> SeedPasswordlessLocalAccountAsync(
@@ -1206,8 +1206,8 @@ public class HostApplicationFactory : WebApplicationFactory<HostApiMarker>
 
     /// <summary>
     /// Ensures the tenant exists and seeds an enabled local account whose stored password hash matches
-    /// <paramref name="password"/>, so the resource-owner <c>password</c> grant can be exercised. Returns the
-    /// generated <c>LocalAccountId</c> (the subject of the account's federated identity).
+    /// <paramref name="password"/>, so the resource-owner <c>password</c> grant can be exercised. Returns the generated
+    /// <c>LocalAccountId</c> (the subject of the account's federated identity).
     /// </summary>
     public ValueTask<string> SeedLocalAccountAsync(
         string userName,

@@ -352,8 +352,8 @@ export type UpdateClientFields = {
 
 /**
  * Mirror of `LocalAccountResource`. `connectionId` names the local connection the account belongs to. `principalId` is
- * the account's principal, which role assignments name, or `null` when it has none. `userName` is `null` for an
- * account that signs in by email alone.
+ * the account's principal, which role assignments name, or `null` when it has none. `userName` is `null` for an account
+ * that signs in by email alone.
  */
 export type LocalAccountResource = {
   readonly tenantId: string;
@@ -411,8 +411,8 @@ export type ConnectionResource = {
 };
 
 /**
- * Mirror of `CreateConnectionRequest`. The connection id is server-generated; `name` is the operator-chosen,
- * immutable name. `options` and `settings` default to empty objects when omitted.
+ * Mirror of `CreateConnectionRequest`. The connection id is server-generated; `name` is the operator-chosen, immutable
+ * name. `options` and `settings` default to empty objects when omitted.
  */
 export type CreateConnectionRequest = {
   readonly name: string;

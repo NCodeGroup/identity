@@ -37,10 +37,11 @@ export function connectionStore(connection: ConnectionResource): string {
 }
 
 /**
- * Container: drills into one connection to edit its display name and enabled flag (General, which shows a local connection's
- * store read-only) and its `connection`-scope settings (Settings). The parent {@link import('./ConnectionsPage.js').ConnectionsPage} supplies
- * the connection and owns the drill-in selection. Settings reuse the shared {@link SettingsManager} over the
- * connection's own settings document, effective settings and limits. Owns only tab and form state.
+ * Container: drills into one connection to edit its display name and enabled flag (General, which shows a local
+ * connection's store read-only) and its `connection`-scope settings (Settings). The parent
+ * {@link import('./ConnectionsPage.js').ConnectionsPage} supplies the connection and owns the drill-in selection.
+ * Settings reuse the shared {@link SettingsManager} over the connection's own settings document, effective settings and
+ * limits. Owns only tab and form state.
  */
 export function ConnectionDetailPage({ tenantId, connection, onBack }: ConnectionDetailPageProps) {
   const [surface, setSurface] = useState<ConnectionSurface>('general');

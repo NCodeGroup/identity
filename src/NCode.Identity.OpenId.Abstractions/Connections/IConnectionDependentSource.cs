@@ -17,7 +17,8 @@ public interface IConnectionDependentSource
     /// <summary>
     /// Determines whether any record depends on the connection.
     /// </summary>
-    /// <param name="storeManager">The <see cref="IStoreManager"/> of the unit of work, bound to the connection's tenant.</param>
+    /// <param name="storeManager">The <see cref="IStoreManager"/> of the unit of work, bound to the connection's
+    /// tenant.</param>
     /// <param name="connection">The connection that would be deleted.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
     /// <returns>The <see cref="ValueTask{TResult}"/> that represents the asynchronous operation, containing

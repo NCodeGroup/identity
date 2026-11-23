@@ -13,8 +13,8 @@ using NCode.Identity.Persistence.Stores;
 namespace NCode.Identity.OpenId.PrincipalResolution;
 
 /// <summary>
-/// Provides the default implementation of <see cref="IPrincipalResolver"/>, which resolves an authenticated caller to
-/// a federated principal: the subject claim is interpreted first as a server-owned <c>PrincipalId</c>, then as the
+/// Provides the default implementation of <see cref="IPrincipalResolver"/>, which resolves an authenticated caller to a
+/// federated principal: the subject claim is interpreted first as a server-owned <c>PrincipalId</c>, then as the
 /// principal of a client acting for itself and, when neither matches, as the subject of the connection that the
 /// server-owned connection claim names. A client acting for itself resolves to its principal while the client is
 /// enabled and to none when it is disabled, and is never provisioned as a federated principal. Only a principal whose

@@ -14,9 +14,9 @@ namespace NCode.Identity.OpenId.Accounts.Authentication;
 
 /// <summary>
 /// Builds the subject of a local account that has just verified a password: the tenant's subject claim, the connection
-/// claim and <c>idp</c>, the tenant identifier, the authentication time, the display name as <c>name</c>, the account's own
-/// claims, the <c>pwd</c> authentication method and the resolved authentication context class reference. The password
-/// grant and the interactive sign-in both build their subject with it, so the two paths stamp the same claims.
+/// claim and <c>idp</c>, the tenant identifier, the authentication time, the display name as <c>name</c>, the account's
+/// own claims, the <c>pwd</c> authentication method and the resolved authentication context class reference. The
+/// password grant and the interactive sign-in both build their subject with it, so the two paths stamp the same claims.
 /// </summary>
 // See ADR-1035, ADR-1051, ADR-1055.
 internal sealed class LocalAccountSubjectFactory(

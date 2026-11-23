@@ -9,9 +9,9 @@ namespace NCode.Identity.OpenId.Accounts.Stores;
 
 /// <summary>
 /// Provides the single pluggable seam for a host's local accounts: the server-owned credential, profile, and status
-/// payloads behind connections of the local strategy. It is intentionally backing-store-agnostic — the generic Entity Framework
-/// reference implementation and the ASP.NET Core Identity adapter both implement it — so credential handling (which
-/// differs by backing store) is expressed as first-class operations (<see cref="AddAsync"/>,
+/// payloads behind connections of the local strategy. It is intentionally backing-store-agnostic — the generic Entity
+/// Framework reference implementation and the ASP.NET Core Identity adapter both implement it — so credential handling
+/// (which differs by backing store) is expressed as first-class operations (<see cref="AddAsync"/>,
 /// <see cref="SetPasswordAsync"/>, <see cref="VerifyCredentialAsync"/>) rather than by exposing a raw password hash on
 /// the <see cref="PersistedLocalAccount"/> data contract. A host registers an implementation (or an opt-in reference
 /// package supplies one) to enable the resource-owner password grant and the local-account management endpoints; when
@@ -68,11 +68,10 @@ public interface ILocalAccountStore : IStore
     /// <paramref name="isRefusedAsync"/> once with the identifier of the account it found (or the submitted identifier
     /// when none matches), then verifies once: against the stored hash, or against a dummy hash of the same cost when
     /// <paramref name="isRefusedAsync"/> refuses the password or the store holds no hash it may verify (no account, no
-    /// password, a lockout against guessing). A refused or failed verification therefore costs the same work whether
-    /// or not an account matches. The store verifies the NFC form of the password first, and the password as
-    /// submitted as a fallback, and may upgrade a stored hash to the current parameters on success. A valid
-    /// credential's account is returned whether or not it is enabled, so its caller can tell the end user why it
-    /// cannot sign in.
+    /// password, a lockout against guessing). A refused or failed verification therefore costs the same work whether or
+    /// not an account matches. The store verifies the NFC form of the password first, and the password as submitted as
+    /// a fallback, and may upgrade a stored hash to the current parameters on success. A valid credential's account is
+    /// returned whether or not it is enabled, so its caller can tell the end user why it cannot sign in.
     /// </summary>
     /// <param name="identifier">The <see cref="LocalAccountSignInIdentifier"/> presented by the end-user, with the
     /// connection that holds the account.</param>
@@ -94,7 +93,8 @@ public interface ILocalAccountStore : IStore
     );
 
     /// <summary>
-    /// Attempts to get a local account from the store by its opaque identifier (the subject of its identity in the connection).
+    /// Attempts to get a local account from the store by its opaque identifier (the subject of its identity in the
+    /// connection).
     /// </summary>
     /// <param name="localAccountId">The opaque identifier of the local account.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>

@@ -8,19 +8,19 @@ using NCode.Identity.OpenId.Contexts;
 namespace NCode.Identity.OpenId.Authentication.Passwords;
 
 /// <summary>
-/// Limits the failed password attempts of an account of a connection, so a password can be guessed only a limited number of times.
-/// Every path that verifies a password passes <see cref="IsLimitReachedAsync"/> to the store's verification, which
-/// refuses a password of an account at its limit by verifying it against the dummy hash, and answers it as it answers
-/// a wrong password.
+/// Limits the failed password attempts of an account of a connection, so a password can be guessed only a limited
+/// number of times. Every path that verifies a password passes <see cref="IsLimitReachedAsync"/> to the store's
+/// verification, which refuses a password of an account at its limit by verifying it against the dummy hash, and
+/// answers it as it answers a wrong password.
 /// </summary>
 // See ADR-1237.
 [PublicAPI]
 public interface IPasswordAttemptLimiter
 {
     /// <summary>
-    /// Determines whether the account that the account key names has reached the connection's limit of failed
-    /// attempts, so a password presented for it is refused and verified against the store's dummy hash instead of the
-    /// account's hash.
+    /// Determines whether the account that the account key names has reached the connection's limit of failed attempts,
+    /// so a password presented for it is refused and verified against the store's dummy hash instead of the account's
+    /// hash.
     /// </summary>
     /// <param name="openIdContext">The <see cref="OpenIdContext"/> instance associated with the current request.</param>
     /// <param name="connection">The connection that the password is presented to; its settings set the limit.</param>

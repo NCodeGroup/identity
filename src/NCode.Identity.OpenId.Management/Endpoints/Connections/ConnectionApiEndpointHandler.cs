@@ -553,8 +553,7 @@ internal class ConnectionApiEndpointHandler(
     // Settings
 
     /// <summary>
-    /// Maps a <see cref="PersistedConnectionSettings"/> to its <see cref="ConnectionSettingsResource"/>
-    /// representation.
+    /// Maps a <see cref="PersistedConnectionSettings"/> to its <see cref="ConnectionSettingsResource"/> representation.
     /// </summary>
     /// <param name="settings">The <see cref="PersistedConnectionSettings"/> to map.</param>
     /// <returns>The mapped <see cref="ConnectionSettingsResource"/>.</returns>

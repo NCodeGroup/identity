@@ -12,9 +12,9 @@ namespace NCode.Identity.OpenId.Accounts.DataContracts;
 /// <summary>
 /// Contains the data for a persisted local account: the server-owned profile and status payload behind a local
 /// connection's identity. The <see cref="LocalAccountId"/> is both this record's opaque public identifier and the
-/// <c>subject</c> of its one-to-one federated identity in the connection, from which the owning principal is resolved. The
-/// credential (password hash) is never carried on this data contract; it is a store-internal detail managed through the
-/// <see cref="Stores.ILocalAccountStore"/>'s first-class credential operations.
+/// <c>subject</c> of its one-to-one federated identity in the connection, from which the owning principal is resolved.
+/// The credential (password hash) is never carried on this data contract; it is a store-internal detail managed through
+/// the <see cref="Stores.ILocalAccountStore"/>'s first-class credential operations.
 /// </summary>
 [PublicAPI]
 [ExcludeFromCodeCoverage]
@@ -27,8 +27,8 @@ public sealed class PersistedLocalAccount : ISupportTenantId, ISupportConcurrenc
     public required string TenantId { get; init; }
 
     /// <summary>
-    /// Gets the server-generated opaque public identifier of this local account, used as the subject of its
-    /// federated identity in the connection.
+    /// Gets the server-generated opaque public identifier of this local account, used as the subject of its federated
+    /// identity in the connection.
     /// </summary>
     [MaxLength(MaxLengths.ResourceId)]
     public required string LocalAccountId { get; init; }

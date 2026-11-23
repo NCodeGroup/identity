@@ -21,11 +21,13 @@ internal class PendingAuthorizationRequestReader(IPersistedGrantService persiste
     /// <summary>
     /// Reads the parked authorization request.
     /// </summary>
-    /// <param name="openIdContext">The <see cref="OpenIdContext"/> instance associated with the current request.</param>
+    /// <param name="openIdContext">The <see cref="OpenIdContext"/> instance associated with the current
+    /// request.</param>
     /// <param name="returnUrl">The return URL that carries the state of the parked request.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
     /// <returns>The <see cref="ValueTask{TResult}"/> that represents the asynchronous operation, containing the
-    /// authorization request, or <see langword="null"/> when the URL names no active authorization continuation.</returns>
+    /// authorization request, or <see langword="null"/> when the URL names no active authorization
+    /// continuation.</returns>
     public virtual async ValueTask<IAuthorizationRequest?> ReadAsync(
         OpenIdContext openIdContext,
         string returnUrl,

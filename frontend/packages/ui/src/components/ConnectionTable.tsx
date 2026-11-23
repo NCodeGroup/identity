@@ -27,9 +27,9 @@ export type ConnectionTableProps = {
 };
 
 /**
- * Stateless connection table. Receives rows and callbacks as props; holds no state and does no fetching, so it
- * renders directly in Storybook and under RTL. Selecting a row opens that connection. The row-level edit and delete
- * controls appear only when their callbacks are supplied (and stop propagation so they never trigger selection).
+ * Stateless connection table. Receives rows and callbacks as props; holds no state and does no fetching, so it renders
+ * directly in Storybook and under RTL. Selecting a row opens that connection. The row-level edit and delete controls
+ * appear only when their callbacks are supplied (and stop propagation so they never trigger selection).
  */
 export function ConnectionTable({ connections, onSelect, onEdit, onDelete }: ConnectionTableProps) {
   const showActions = Boolean(onEdit || onDelete);

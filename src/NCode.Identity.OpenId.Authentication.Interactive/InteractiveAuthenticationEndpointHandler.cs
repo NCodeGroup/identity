@@ -1452,7 +1452,8 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
     /// <summary>
     /// Serves the reset-password page, where an end user who is not signed in presents the reset code and chooses a new
     /// password. The server renders a working no-JavaScript form carrying the antiforgery token, the return URL and the
-    /// handle of the reset flow. The page is not found while the connection does not let its end users reset a password.
+    /// handle of the reset flow. The page is not found while the connection does not let its end users reset a
+    /// password.
     /// </summary>
     // See ADR-1533.
     public async ValueTask<IResult> GetResetPasswordPageAsync(HttpContext httpContext)
@@ -1651,8 +1652,8 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
 
     /// <summary>
     /// Returns the address of the current end user and whether it is verified as JSON for the email page, <c>401</c>
-    /// when the request is not authenticated, or <c>404</c> when the end user has no address to verify or the connection
-    /// does not let its end users verify their address.
+    /// when the request is not authenticated, or <c>404</c> when the end user has no address to verify or the
+    /// connection does not let its end users verify their address.
     /// </summary>
     // See ADR-1533.
     public async ValueTask<IResult> GetEmailStatusAsync(HttpContext httpContext)
@@ -2240,8 +2241,8 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
     /// forgot-password page shows.
     /// </summary>
     /// <param name="httpContext">The current request.</param>
-    /// <param name="connection">The connection the page preselects, whose settings decide, or
-    /// <see langword="null"/> for the tenant's settings.</param>
+    /// <param name="connection">The connection the page preselects, whose settings decide, or <see langword="null"/>
+    /// for the tenant's settings.</param>
     /// <returns><see langword="true"/> when the connection lets its end users reset a password.</returns>
     // See ADR-1533.
     private static bool IsPasswordResetEnabled(

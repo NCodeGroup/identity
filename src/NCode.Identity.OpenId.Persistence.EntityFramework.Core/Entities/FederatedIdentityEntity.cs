@@ -12,8 +12,8 @@ namespace NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities;
 
 /// <summary>
 /// Represents an entity framework data contract for a federated identity: one external connection identity owned by a
-/// <see cref="FederatedPrincipalEntity"/>. The <see cref="Connection"/> + <see cref="Subject"/> pair is the
-/// lookup-only natural key. The complimentary DTO for this entity is <c>PersistedFederatedIdentity</c>.
+/// <see cref="FederatedPrincipalEntity"/>. The <see cref="Connection"/> + <see cref="Subject"/> pair is the lookup-only
+/// natural key. The complimentary DTO for this entity is <c>PersistedFederatedIdentity</c>.
 /// </summary>
 [Index(nameof(TenantId), nameof(NormalizedFederatedIdentityId), IsUnique = true)]
 [Index(nameof(TenantId), nameof(ConnectionId), nameof(NormalizedSubject), IsUnique = true)]
@@ -69,8 +69,8 @@ public sealed class FederatedIdentityEntity : ISupportTenantEntity, ISupportConc
     public required Guid ConnectionId { get; init; }
 
     /// <summary>
-    /// Gets the upstream issuer, when the connection is external, recorded for audit and display. It is not part of
-    /// any key. This value is <c>null</c> when the connection has no upstream issuer.
+    /// Gets the upstream issuer, when the connection is external, recorded for audit and display. It is not part of any
+    /// key. This value is <c>null</c> when the connection has no upstream issuer.
     /// </summary>
     [Unicode(false)]
     [MaxLength(OpenIdMaxLengths.Issuer)]

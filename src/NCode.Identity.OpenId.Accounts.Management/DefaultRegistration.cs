@@ -27,8 +27,9 @@ public static class DefaultRegistration
     {
         /// <summary>
         /// Registers the local-account management endpoints (nested under each connection of the tenant-plane group,
-        /// <c>/api/tenants/{tenantId}/connections/{connectionId}/local-accounts</c>), the platform routes <c>/api/platform/local-accounts</c> (nested under the
-        /// root group and mapped on the control-plane cell only) and the default <see cref="ILocalAccountValidator"/>.
+        /// <c>/api/tenants/{tenantId}/connections/{connectionId}/local-accounts</c>), the platform routes
+        /// <c>/api/platform/local-accounts</c> (nested under the root group and mapped on the control-plane cell only)
+        /// and the default <see cref="ILocalAccountValidator"/>.
         /// </summary>
         /// <param name="localAccountStore">The local-account store builder — the compile-time proof that a
         /// <c>ILocalAccountStore</c> is registered, so this capability cannot be added without one.</param>

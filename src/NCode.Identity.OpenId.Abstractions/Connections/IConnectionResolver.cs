@@ -48,10 +48,11 @@ public interface IConnectionResolver
     /// <c>allowed_connections</c> setting allows, ordered by name.
     /// </summary>
     /// <param name="openIdContext">The <see cref="OpenIdContext"/> whose tenant owns the connections.</param>
-    /// <param name="clientSettings">The effective settings of the client, or of the tenant when no client is known.</param>
+    /// <param name="clientSettings">The effective settings of the client, or of the tenant when no client is
+    /// known.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
-    /// <returns>The <see cref="ValueTask{TResult}"/> that represents the asynchronous operation, containing the
-    /// allowed connections.</returns>
+    /// <returns>The <see cref="ValueTask{TResult}"/> that represents the asynchronous operation, containing the allowed
+    /// connections.</returns>
     ValueTask<IReadOnlyList<ResolvedConnection>> GetAllowedAsync(
         OpenIdContext openIdContext,
         IReadOnlySettingCollection clientSettings,
@@ -64,7 +65,8 @@ public interface IConnectionResolver
     /// otherwise no connection is selected.
     /// </summary>
     /// <param name="openIdContext">The <see cref="OpenIdContext"/> whose tenant owns the connections.</param>
-    /// <param name="clientSettings">The effective settings of the client, or of the tenant when no client is known.</param>
+    /// <param name="clientSettings">The effective settings of the client, or of the tenant when no client is
+    /// known.</param>
     /// <param name="requestedName">The connection name the request asks for, if any.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
     /// <returns>The <see cref="ValueTask{TResult}"/> that represents the asynchronous operation, containing the

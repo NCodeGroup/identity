@@ -59,10 +59,10 @@ public interface ILocalAccountValidator
     );
 
     /// <summary>
-    /// Validates that the staged local account may be created in the connection. The default implementation reports
-    /// 400 when the connection's <c>local_account_identifier</c> setting demands a username or email address the
-    /// account lacks, when the username is longer than <see cref="AccountMaxLengths.UserName"/>, the email address is
-    /// longer than <see cref="AccountMaxLengths.Email"/>, or the display name is empty or longer than
+    /// Validates that the staged local account may be created in the connection. The default implementation reports 400
+    /// when the connection's <c>local_account_identifier</c> setting demands a username or email address the account
+    /// lacks, when the username is longer than <see cref="AccountMaxLengths.UserName"/>, the email address is longer
+    /// than <see cref="AccountMaxLengths.Email"/>, or the display name is empty or longer than
     /// <see cref="AccountMaxLengths.DisplayName"/>, and 409 when another account of the connection holds the username
     /// or the email address.
     /// </summary>

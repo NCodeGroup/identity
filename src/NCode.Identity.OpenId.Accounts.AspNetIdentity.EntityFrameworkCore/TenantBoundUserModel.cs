@@ -26,9 +26,10 @@ public static class TenantBoundUserModel
         /// <see cref="AccountMaxLengths.Email"/>, and of <c>NormalizedUserName</c> and <c>NormalizedEmail</c> to
         /// <see cref="AccountMaxLengths.NormalizedUserName"/> and <see cref="AccountMaxLengths.NormalizedEmail"/>. The
         /// default Entity Framework Core model of ASP.NET Core Identity sizes all four at 256, which a normalized value
-        /// that the adapter prefixes with the tenant and connection identifiers outgrows. It also sets the maximum length of
-        /// <c>DisplayName</c> to <see cref="AccountMaxLengths.DisplayName"/> and requires it, and requires <c>ConnectionId</c> with the length of a resource identifier. A host's
-        /// <c>IdentityDbContext</c> calls this method in <c>OnModelCreating</c> after <c>base.OnModelCreating</c>.
+        /// that the adapter prefixes with the tenant and connection identifiers outgrows. It also sets the maximum
+        /// length of <c>DisplayName</c> to <see cref="AccountMaxLengths.DisplayName"/> and requires it, and requires
+        /// <c>ConnectionId</c> with the length of a resource identifier. A host's <c>IdentityDbContext</c> calls this
+        /// method in <c>OnModelCreating</c> after <c>base.OnModelCreating</c>.
         /// </summary>
         /// <returns>The same <see cref="EntityTypeBuilder{TEntity}"/> so that calls can be chained.</returns>
         public EntityTypeBuilder<TUser> HasTenantLookupLengths()

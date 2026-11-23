@@ -10,8 +10,8 @@ using NCode.Identity.Persistence;
 namespace NCode.Identity.OpenId.Persistence.DataContracts;
 
 /// <summary>
-/// Contains the data for a persisted connection: a tenant-scoped, named resource of a registered strategy through
-/// which end users sign in.
+/// Contains the data for a persisted connection: a tenant-scoped, named resource of a registered strategy through which
+/// end users sign in.
 /// </summary>
 [PublicAPI]
 [ExcludeFromCodeCoverage]

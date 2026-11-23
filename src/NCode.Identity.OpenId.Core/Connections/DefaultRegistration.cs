@@ -12,12 +12,13 @@ namespace NCode.Identity.OpenId.Connections;
 /// </summary>
 internal static class DefaultRegistration
 {
-    /// <param name="builder">The <see cref="IServiceBuilder"/> to configure services for <see cref="OpenIdCoreLibrary"/>.</param>
+    /// <param name="builder">The <see cref="IServiceBuilder"/> to configure services for
+    /// <see cref="OpenIdCoreLibrary"/>.</param>
     extension(IServiceBuilder<OpenIdCoreLibrary> builder)
     {
         /// <summary>
-        /// Configures the connection strategy catalog and the connection resolver. A strategy is a
-        /// registered <see cref="IConnectionStrategy"/>, one class per strategy.
+        /// Configures the connection strategy catalog and the connection resolver. A strategy is a registered
+        /// <see cref="IConnectionStrategy"/>, one class per strategy.
         /// </summary>
         /// <returns>The <see cref="IServiceBuilder{T}"/> instance for method chaining.</returns>
         // See ADR-1535.

@@ -12,8 +12,8 @@ using NCode.Identity.Persistence.Stores;
 namespace NCode.Identity.OpenId.Persistence.EntityFramework.Core.Stores;
 
 /// <summary>
-/// Provides a default implementation of <see cref="IConnectionStore"/> that uses Entity Framework Core for
-/// persistence. A lookup sees a connection added earlier in the same unit of work.
+/// Provides a default implementation of <see cref="IConnectionStore"/> that uses Entity Framework Core for persistence.
+/// A lookup sees a connection added earlier in the same unit of work.
 /// </summary>
 internal sealed class ConnectionStore(
     IStoreProvider storeProvider,

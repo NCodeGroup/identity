@@ -32,7 +32,8 @@ public interface IConnectionStore : IStore<PersistedConnection>
     /// ordinally. The result includes a connection added earlier in the same unit of work.
     /// </summary>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
-    /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation, containing the connections.</returns>
+    /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation, containing the
+    /// connections.</returns>
     ValueTask<IReadOnlyList<PersistedConnection>> GetAllAsync(CancellationToken cancellationToken);
 
     /// <summary>
@@ -49,8 +50,8 @@ public interface IConnectionStore : IStore<PersistedConnection>
     );
 
     /// <summary>
-    /// Attempts to get a <see cref="PersistedConnection"/> from the store by its name, compared case-insensitively.
-    /// The lookup sees a connection added earlier in the same unit of work.
+    /// Attempts to get a <see cref="PersistedConnection"/> from the store by its name, compared case-insensitively. The
+    /// lookup sees a connection added earlier in the same unit of work.
     /// </summary>
     /// <param name="name">The name of the connection.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>

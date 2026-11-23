@@ -13,8 +13,8 @@ using NCode.Identity.Persistence;
 namespace NCode.Identity.OpenId.Persistence.EntityFramework.Accounts.Entities;
 
 /// <summary>
-/// Entity framework data contract for a local account: the server-owned credential, profile, and status payload held
-/// by a local connection. The complimentary DTO is <c>PersistedLocalAccount</c>. A local account is tenant-scoped and
+/// Entity framework data contract for a local account: the server-owned credential, profile, and status payload held by
+/// a local connection. The complimentary DTO is <c>PersistedLocalAccount</c>. A local account is tenant-scoped and
 /// belongs to one connection, whose user names and email addresses no other account of the connection shares.
 /// </summary>
 [Index(nameof(NormalizedTenantId), nameof(NormalizedLocalAccountId), IsUnique = true)]

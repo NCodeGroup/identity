@@ -42,8 +42,8 @@ public sealed class PersistedFederatedIdentity : ISupportTenantId, ISupportConcu
     public required string ConnectionId { get; init; }
 
     /// <summary>
-    /// Gets the upstream issuer, when the connection is external, recorded for audit and display. It is not part of
-    /// any key. This value is <c>null</c> when the connection has no upstream issuer.
+    /// Gets the upstream issuer, when the connection is external, recorded for audit and display. It is not part of any
+    /// key. This value is <c>null</c> when the connection has no upstream issuer.
     /// </summary>
     [MaxLength(OpenIdMaxLengths.Issuer)]
     public required string? Issuer { get; init; }

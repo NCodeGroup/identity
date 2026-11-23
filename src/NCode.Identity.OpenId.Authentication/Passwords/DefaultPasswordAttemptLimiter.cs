@@ -13,10 +13,10 @@ namespace NCode.Identity.OpenId.Authentication.Passwords;
 
 /// <summary>
 /// Provides the default <see cref="IPasswordAttemptLimiter"/>. It counts the failed attempts of an account in the
-/// shared <see cref="IExpiringCounterSet"/>, keyed by the tenant, the connection and the folded account key. The first failure starts a
-/// window of <c>password_failed_attempts_window</c>; once <c>password_failed_attempts_limit</c> failures are counted,
-/// every password is refused until the window ends. A counter store that throws propagates the exception, so the limit
-/// fails closed.
+/// shared <see cref="IExpiringCounterSet"/>, keyed by the tenant, the connection and the folded account key. The first
+/// failure starts a window of <c>password_failed_attempts_window</c>; once <c>password_failed_attempts_limit</c>
+/// failures are counted, every password is refused until the window ends. A counter store that throws propagates the
+/// exception, so the limit fails closed.
 /// </summary>
 // See ADR-1237.
 internal class DefaultPasswordAttemptLimiter(

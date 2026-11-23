@@ -36,10 +36,10 @@ type DialogState =
 const closed: DialogState = { kind: 'none' };
 
 /**
- * Container: browses and administers the connections of a tenant. Wires the RTK Query connection list and mutations
- * to the stateless {@link ConnectionTable}, {@link ConnectionFormDialog} and {@link ConfirmDialog}; owns only
- * dialog, error and drill-in state. A delete the server refuses (a connection that still has dependents answers 409)
- * keeps the confirm dialog open and shows the server's detail.
+ * Container: browses and administers the connections of a tenant. Wires the RTK Query connection list and mutations to
+ * the stateless {@link ConnectionTable}, {@link ConnectionFormDialog} and {@link ConfirmDialog}; owns only dialog,
+ * error and drill-in state. A delete the server refuses (a connection that still has dependents answers 409) keeps the
+ * confirm dialog open and shows the server's detail.
  */
 export function ConnectionsPage({ tenantId }: ConnectionsPageProps) {
   const cell = useTenantCell();

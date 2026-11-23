@@ -57,8 +57,8 @@ public interface IFederatedIdentityStore : IStore
     /// <param name="connectionId">The identifier of the connection that authenticated the identities.</param>
     /// <param name="subjects">The subject values issued by the connection.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
-    /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation, containing the identities
-    /// that match the connection and any of the <paramref name="subjects"/>.</returns>
+    /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation, containing the identities that
+    /// match the connection and any of the <paramref name="subjects"/>.</returns>
     ValueTask<IReadOnlyList<PersistedFederatedIdentity>> GetByConnectionSubjectsAsync(
         string connectionId,
         IReadOnlyCollection<string> subjects,

@@ -23,6 +23,7 @@ public interface IConnectionStrategyCatalog
     /// </summary>
     /// <param name="name">The strategy name to look up (for example <c>local</c>).</param>
     /// <param name="strategy">When this method returns, contains the matching strategy, if one is registered.</param>
-    /// <returns><see langword="true"/> if a strategy is registered for the name; otherwise, <see langword="false"/>.</returns>
+    /// <returns><see langword="true"/> if a strategy is registered for the name; otherwise,
+    /// <see langword="false"/>.</returns>
     bool TryGetStrategy(string name, [MaybeNullWhen(false)] out IConnectionStrategy strategy);
 }

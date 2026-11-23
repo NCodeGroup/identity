@@ -8,8 +8,8 @@ using JetBrains.Annotations;
 namespace NCode.Identity.OpenId.Management.Contracts.Connections;
 
 /// <summary>
-/// Represents the mutable metadata of a connection that a JSON Patch document may modify. The name and the strategy
-/// are immutable.
+/// Represents the mutable metadata of a connection that a JSON Patch document may modify. The name and the strategy are
+/// immutable.
 /// </summary>
 [PublicAPI]
 [ExcludeFromCodeCoverage]

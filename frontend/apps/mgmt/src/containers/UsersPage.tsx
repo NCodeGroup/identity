@@ -32,10 +32,10 @@ export type UsersPageProps = {
 const localStrategy = 'local';
 
 /**
- * Container: browses and administers the local accounts of the platform or of a tenant. A tenant owner picks one of
- * the tenant's `local` connections (the one named `local` is preselected), because a local account belongs to one
- * connection; the platform owner addresses the platform tenant's default connection. A tenant owner is addressed in
- * the cell of the tenant route.
+ * Container: browses and administers the local accounts of the platform or of a tenant. A tenant owner picks one of the
+ * tenant's `local` connections (the one named `local` is preselected), because a local account belongs to one
+ * connection; the platform owner addresses the platform tenant's default connection. A tenant owner is addressed in the
+ * cell of the tenant route.
  */
 export function UsersPage({ owner }: UsersPageProps) {
   if (owner.kind === 'platform') {

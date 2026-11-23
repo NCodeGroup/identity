@@ -27,8 +27,8 @@ namespace NCode.Identity.OpenId.Accounts.Authentication;
 /// <c>NCode.Identity.OpenId.Authentication</c> handler reports the grant as unsupported when this capability is absent.
 /// A store that rejects the credentials yields a failed (not unsupported) result, so the two cases stay distinct. A
 /// password for an account that reached its limit of failed attempts is verified against the store's dummy hash and
-/// refused, as a wrong one is. A connection that requires the email second factor refuses the grant before any password is
-/// verified, because the grant carries no second factor.
+/// refused, as a wrong one is. A connection that requires the email second factor refuses the grant before any password
+/// is verified, because the grant carries no second factor.
 /// </summary>
 internal class DefaultAuthenticatePasswordGrantHandler(
     IStoreManagerFactory storeManagerFactory,

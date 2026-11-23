@@ -16,10 +16,10 @@ namespace NCode.Identity.OpenId.Management.Transfers;
 
 /// <summary>
 /// Provides an implementation of <see cref="ITenantTransferContributor"/> that carries a tenant's core records: the
-/// tenant row and its settings, its connections, its clients with their secrets, its client grants, its resource servers with their
-/// scopes and secrets, its own secrets and its tenant-level role assignments. Secret values stay as their protected
-/// envelopes. Grants, consents, sessions, federated principals and identities are not carried, and the audit and usage
-/// records stay in the cell that the tenant leaves.
+/// tenant row and its settings, its connections, its clients with their secrets, its client grants, its resource
+/// servers with their scopes and secrets, its own secrets and its tenant-level role assignments. Secret values stay as
+/// their protected envelopes. Grants, consents, sessions, federated principals and identities are not carried, and the
+/// audit and usage records stay in the cell that the tenant leaves.
 /// </summary>
 // See ADR-1514.
 internal class CoreTenantTransferContributor(
