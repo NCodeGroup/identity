@@ -5,7 +5,6 @@ using Moq;
 using NCode.Buffers;
 using NCode.Identity.Cryptography;
 using NCode.Identity.Mail;
-using NCode.Identity.OpenId.Accounts;
 using NCode.Identity.OpenId.Accounts.Authentication;
 using NCode.Identity.OpenId.Accounts.Authentication.EmailCodes;
 using NCode.Identity.OpenId.Accounts.DataContracts;
@@ -15,6 +14,7 @@ using NCode.Identity.OpenId.Authentication.Interactive;
 using NCode.Identity.OpenId.Authentication.Passwords;
 using NCode.Identity.OpenId.Authentication.Sessions;
 using NCode.Identity.OpenId.Authentication.Subject;
+using NCode.Identity.OpenId.Connections;
 using NCode.Identity.OpenId.Contexts;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
@@ -49,6 +49,9 @@ public class LocalAccountInteractivePasswordResetterTests : BaseTests
     private Mock<ICryptoService> MockCryptoService { get; }
     private Mock<IPostCommitSecurityEffects> MockPostCommitSecurityEffects { get; }
     private Mock<IAuditEventRecorder> MockAuditEventRecorder { get; }
+    private Mock<IConnectionResolver> MockConnectionResolver { get; }
+    private Mock<IReadOnlySettingCollection> MockConnectionSettings { get; }
+    private ResolvedConnection Connection { get; }
     private LocalAccountInteractivePasswordResetter Resetter { get; }
 
     public LocalAccountInteractivePasswordResetterTests()
@@ -62,8 +65,16 @@ public class LocalAccountInteractivePasswordResetterTests : BaseTests
         MockCryptoService = CreateStrictMock<ICryptoService>();
         MockPostCommitSecurityEffects = CreateStrictMock<IPostCommitSecurityEffects>();
         MockAuditEventRecorder = CreateStrictMock<IAuditEventRecorder>();
+        MockConnectionResolver = CreateStrictMock<IConnectionResolver>();
+        MockConnectionSettings = CreateStrictMock<IReadOnlySettingCollection>();
+        Connection = LocalAccountStoreSetup.CreateConnection(
+            TenantId,
+            MockConnectionSettings.Object
+        );
         Resetter = new LocalAccountInteractivePasswordResetter(
             MockStoreManagerFactory.Object,
+            MockConnectionResolver.Object,
+            LocalAccountStoreSetup.CreateCatalog(MockLocalAccountStore),
             MockPasswordPolicy.Object,
             MockEmailCodes.Object,
             MockCryptoService.Object,
@@ -82,24 +93,45 @@ public class LocalAccountInteractivePasswordResetterTests : BaseTests
         Mock<IReadOnlySettingCollection>? mockSettings = null
     )
     {
-        mockSettings ??= CreateStrictMock<IReadOnlySettingCollection>();
-        mockSettings
+        // The connection's settings decide whether a reset is allowed and which identifier signs a user in; a store
+        // lookup reads the identifier only when the submitted value names no account.
+        MockConnectionSettings
             .Setup(x => x.GetValue(OpenIdSettingKeys.PasswordResetEnabled))
-            .Returns(isResetEnabled)
-            .Verifiable();
-        var mockProvider = CreateStrictMock<IReadOnlySettingCollectionProvider>();
-        mockProvider.Setup(x => x.Collection).Returns(mockSettings.Object).Verifiable();
-        var mockTenant = CreateStrictMock<OpenIdTenant>();
-        mockTenant.Setup(x => x.SettingsProvider).Returns(mockProvider.Object).Verifiable();
-        if (needsTenantId)
-        {
-            mockTenant.Setup(x => x.TenantId).Returns(TenantId).Verifiable();
-        }
+            .Returns(isResetEnabled);
+        MockConnectionSettings
+            .Setup(x => x.GetValue(OpenIdSettingKeys.LocalAccountIdentifier))
+            .Returns(LocalAccountIdentifiers.EmailOrUserName);
 
         var mockContext = CreateStrictMock<OpenIdContext>();
+        if (!needsTenantId && mockSettings is null)
+        {
+            return mockContext;
+        }
+
+        var mockTenant = CreateStrictMock<OpenIdTenant>();
+        mockTenant.Setup(x => x.TenantId).Returns(TenantId).Verifiable();
+        if (mockSettings is not null)
+        {
+            var mockProvider = CreateStrictMock<IReadOnlySettingCollectionProvider>();
+            mockProvider.Setup(x => x.Collection).Returns(mockSettings.Object).Verifiable();
+            mockTenant.Setup(x => x.SettingsProvider).Returns(mockProvider.Object).Verifiable();
+        }
+
         mockContext.Setup(x => x.Tenant).Returns(mockTenant.Object).Verifiable();
         return mockContext;
     }
+
+    private void SetupConnection() =>
+        MockConnectionResolver
+            .Setup(x =>
+                x.GetByIdOrDefaultAsync(
+                    It.IsAny<OpenIdContext>(),
+                    LocalAccountStoreSetup.ConnectionId,
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync(Connection)
+            .Verifiable();
 
     private void SetupHandle() =>
         MockCryptoService
@@ -114,17 +146,35 @@ public class LocalAccountInteractivePasswordResetterTests : BaseTests
             .ReturnsAsync(MockStoreManager.Object)
             .Verifiable();
         MockStoreManager.Setup(x => x.DisposeAsync()).Returns(ValueTask.CompletedTask).Verifiable();
-        MockStoreManager
-            .Setup(x => x.GetStore<ILocalAccountStore>())
-            .Returns(MockLocalAccountStore.Object)
-            .Verifiable();
     }
 
-    private void SetupLookupByUserName(PersistedLocalAccount? account) =>
+    // A submitted value that names no user name is looked up as an email address.
+    private void SetupLookupByUserName(PersistedLocalAccount? account)
+    {
         MockLocalAccountStore
-            .Setup(x => x.GetByUserNameOrDefaultAsync(UserName, It.IsAny<CancellationToken>()))
+            .Setup(x =>
+                x.GetByUserNameOrDefaultAsync(
+                    LocalAccountStoreSetup.ConnectionId,
+                    UserName,
+                    It.IsAny<CancellationToken>()
+                )
+            )
             .ReturnsAsync(account)
             .Verifiable();
+        if (account is null)
+        {
+            MockLocalAccountStore
+                .Setup(x =>
+                    x.GetByEmailOrDefaultAsync(
+                        LocalAccountStoreSetup.ConnectionId,
+                        UserName,
+                        It.IsAny<CancellationToken>()
+                    )
+                )
+                .ReturnsAsync((PersistedLocalAccount?)null)
+                .Verifiable();
+        }
+    }
 
     private void SetupLookupById(PersistedLocalAccount? account) =>
         MockLocalAccountStore
@@ -140,13 +190,13 @@ public class LocalAccountInteractivePasswordResetterTests : BaseTests
             .Verifiable();
         MockFederatedIdentityStore
             .Setup(x =>
-                x.GetByIssuerSubjectAsync(
-                    AccountConstants.SelfIssuer,
+                x.GetByConnectionSubjectAsync(
+                    LocalAccountStoreSetup.ConnectionId,
                     LocalAccountId,
                     It.IsAny<CancellationToken>()
                 )
             )
-            .ReturnsAsync(SelfIssuedIdentity())
+            .ReturnsAsync(LocalIdentity())
             .Verifiable();
     }
 
@@ -158,8 +208,8 @@ public class LocalAccountInteractivePasswordResetterTests : BaseTests
             .Verifiable();
         MockFederatedIdentityStore
             .Setup(x =>
-                x.GetByIssuerSubjectAsync(
-                    AccountConstants.SelfIssuer,
+                x.GetByConnectionSubjectAsync(
+                    LocalAccountStoreSetup.ConnectionId,
                     HandleOfNoFlow,
                     It.IsAny<CancellationToken>()
                 )
@@ -241,6 +291,7 @@ public class LocalAccountInteractivePasswordResetterTests : BaseTests
     private void SetupSuccessfulReset(Mock<OpenIdContext> mockContext, List<string>? calls = null)
     {
         SetupVerify(LocalAccountId);
+        SetupConnection();
         SetupStoreManager();
         SetupLookupById(Account());
         MockPasswordPolicy
@@ -286,7 +337,13 @@ public class LocalAccountInteractivePasswordResetterTests : BaseTests
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
         MockPostCommitSecurityEffects
-            .Setup(x => x.ResetPasswordAttemptsAsync(TenantId, UserName))
+            .Setup(x =>
+                x.ResetPasswordAttemptsAsync(
+                    TenantId,
+                    LocalAccountStoreSetup.ConnectionId,
+                    LocalAccountId
+                )
+            )
             .Callback(() =>
                 calls?.Add(nameof(IPostCommitSecurityEffects.ResetPasswordAttemptsAsync))
             )
@@ -316,7 +373,11 @@ public class LocalAccountInteractivePasswordResetterTests : BaseTests
                     It.IsAny<CancellationToken>()
                 )
             )
-            .ReturnsAsync(localAccountId is null ? null : new EmailCodeMatch(localAccountId, email))
+            .ReturnsAsync(
+                localAccountId is null
+                    ? null
+                    : new EmailCodeMatch(LocalAccountStoreSetup.ConnectionId, localAccountId, email)
+            )
             .Verifiable();
 
     private static PersistedLocalAccount Account(
@@ -327,6 +388,7 @@ public class LocalAccountInteractivePasswordResetterTests : BaseTests
         new()
         {
             TenantId = TenantId,
+            ConnectionId = LocalAccountStoreSetup.ConnectionId,
             LocalAccountId = LocalAccountId,
             UserName = UserName,
             DisplayName = "Display Name",
@@ -337,13 +399,14 @@ public class LocalAccountInteractivePasswordResetterTests : BaseTests
             ConcurrencyToken = string.Empty,
         };
 
-    private static PersistedFederatedIdentity SelfIssuedIdentity() =>
+    private static PersistedFederatedIdentity LocalIdentity() =>
         new()
         {
             TenantId = TenantId,
             FederatedIdentityId = "fed-1",
             PrincipalId = PrincipalId,
-            Issuer = AccountConstants.SelfIssuer,
+            ConnectionId = LocalAccountStoreSetup.ConnectionId,
+            Issuer = null,
             Subject = LocalAccountId,
             JoinKey = null,
             ConcurrencyToken = string.Empty,
@@ -361,6 +424,7 @@ public class LocalAccountInteractivePasswordResetterTests : BaseTests
 
         var flowId = await Resetter.SendResetCodeAsync(
             mockContext.Object,
+            Connection,
             UserName,
             Locale,
             CancellationToken.None
@@ -377,6 +441,7 @@ public class LocalAccountInteractivePasswordResetterTests : BaseTests
 
         await Resetter.SendResetCodeAsync(
             mockContext.Object,
+            Connection,
             UserName,
             Locale,
             CancellationToken.None
@@ -398,6 +463,7 @@ public class LocalAccountInteractivePasswordResetterTests : BaseTests
 
         var flowId = await Resetter.SendResetCodeAsync(
             mockContext.Object,
+            Connection,
             UserName,
             Locale,
             CancellationToken.None
@@ -406,8 +472,8 @@ public class LocalAccountInteractivePasswordResetterTests : BaseTests
         Assert.Equal(DecoyFlowId, flowId);
         MockFederatedIdentityStore.Verify(
             x =>
-                x.GetByIssuerSubjectAsync(
-                    AccountConstants.SelfIssuer,
+                x.GetByConnectionSubjectAsync(
+                    LocalAccountStoreSetup.ConnectionId,
                     HandleOfNoFlow,
                     It.IsAny<CancellationToken>()
                 ),
@@ -428,6 +494,7 @@ public class LocalAccountInteractivePasswordResetterTests : BaseTests
 
         await Resetter.SendResetCodeAsync(
             mockContext.Object,
+            Connection,
             UserName,
             Locale,
             CancellationToken.None
@@ -458,6 +525,7 @@ public class LocalAccountInteractivePasswordResetterTests : BaseTests
 
         var flowId = await Resetter.SendResetCodeAsync(
             mockContext.Object,
+            Connection,
             UserName,
             Locale,
             CancellationToken.None
@@ -502,6 +570,7 @@ public class LocalAccountInteractivePasswordResetterTests : BaseTests
 
         var flowId = await Resetter.SendResetCodeAsync(
             mockContext.Object,
+            Connection,
             UserName,
             Locale,
             CancellationToken.None
@@ -547,6 +616,8 @@ public class LocalAccountInteractivePasswordResetterTests : BaseTests
         );
         var resetter = new LocalAccountInteractivePasswordResetter(
             MockStoreManagerFactory.Object,
+            MockConnectionResolver.Object,
+            LocalAccountStoreSetup.CreateCatalog(MockLocalAccountStore),
             MockPasswordPolicy.Object,
             emailCodes,
             MockCryptoService.Object,
@@ -596,6 +667,7 @@ public class LocalAccountInteractivePasswordResetterTests : BaseTests
 
         var flowId = await resetter.SendResetCodeAsync(
             mockContext.Object,
+            Connection,
             UserName,
             Locale,
             CancellationToken.None
@@ -650,6 +722,7 @@ public class LocalAccountInteractivePasswordResetterTests : BaseTests
 
         var flowId = await Resetter.SendResetCodeAsync(
             mockContext.Object,
+            Connection,
             UserName,
             Locale,
             CancellationToken.None
@@ -682,6 +755,7 @@ public class LocalAccountInteractivePasswordResetterTests : BaseTests
 
         await Resetter.SendResetCodeAsync(
             mockContext.Object,
+            Connection,
             UserName,
             Locale,
             CancellationToken.None
@@ -708,6 +782,8 @@ public class LocalAccountInteractivePasswordResetterTests : BaseTests
     public async Task ResetPasswordAsync_WhenResetIsDisabled_ReturnsNotSupported()
     {
         var mockContext = CreateContext(isResetEnabled: false);
+        SetupVerify(LocalAccountId);
+        SetupConnection();
 
         using var code = Secret.Create(Code.AsSpan());
         using var newPassword = Secret.Create(NewPassword.AsSpan());
@@ -789,6 +865,7 @@ public class LocalAccountInteractivePasswordResetterTests : BaseTests
     {
         var mockContext = CreateContext(isResetEnabled: true);
         SetupVerify(LocalAccountId);
+        SetupConnection();
         SetupStoreManager();
         SetupLookupById(Account());
         SetupFederatedIdentity();
@@ -823,6 +900,7 @@ public class LocalAccountInteractivePasswordResetterTests : BaseTests
     {
         var mockContext = CreateContext(isResetEnabled: true);
         SetupVerify(LocalAccountId);
+        SetupConnection();
         SetupStoreManager();
         SetupLookupById(Account());
         SetupFederatedIdentity();
@@ -876,6 +954,7 @@ public class LocalAccountInteractivePasswordResetterTests : BaseTests
     {
         var mockContext = CreateContext(isResetEnabled: true);
         SetupVerify(LocalAccountId, email: "old@example.com");
+        SetupConnection();
         SetupStoreManager();
         SetupLookupById(Account());
         SetupResetFailed(
@@ -926,6 +1005,7 @@ public class LocalAccountInteractivePasswordResetterTests : BaseTests
     {
         var mockContext = CreateContext(isResetEnabled: true);
         SetupVerify(LocalAccountId);
+        SetupConnection();
         SetupStoreManager();
         SetupLookupById(Account(isEnabled: false));
         SetupResetFailed(

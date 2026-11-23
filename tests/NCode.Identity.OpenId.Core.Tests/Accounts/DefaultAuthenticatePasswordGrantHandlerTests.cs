@@ -79,8 +79,8 @@ public class DefaultAuthenticatePasswordGrantHandlerTests : BaseTests
     {
         var mockTokenRequest = CreateStrictMock<ITokenRequest>();
         mockTokenRequest.Setup(x => x.Connection).Returns(requestedConnection).Verifiable();
-        mockTokenRequest.Setup(x => x.Username).Returns(userName).Verifiable();
-        mockTokenRequest.Setup(x => x.Password).Returns(Password).Verifiable();
+        mockTokenRequest.Setup(x => x.Username).Returns(userName);
+        mockTokenRequest.Setup(x => x.Password).Returns(Password);
 
         return new AuthenticatePasswordGrantCommand(
             MockContext.Object,

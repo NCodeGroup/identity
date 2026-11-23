@@ -29,6 +29,8 @@ internal static class LocalAccountStoreSetup
         string name = ConnectionName
     )
     {
+        var mockStrategy = new Mock<IConnectionStrategy>();
+        mockStrategy.SetupGet(x => x.Name).Returns(strategy);
         var options = new LocalConnectionOptions { Store = LocalAccountStoreNames.Default };
         return new ResolvedConnection
         {
@@ -48,7 +50,7 @@ internal static class LocalAccountStoreSetup
                     Value = JsonElements.EmptyObject,
                 },
             },
-            Strategy = new Mock<IConnectionStrategy>().Object,
+            Strategy = mockStrategy.Object,
             Settings = settings,
         };
     }
@@ -90,7 +92,7 @@ internal static class LocalAccountStoreSetup
             )
             .Returns(
                 (
-                    string _,
+                    LocalAccountSignInIdentifier _,
                     ReadOnlyMemory<byte> _,
                     Func<string, CancellationToken, ValueTask<bool>> isRefusedAsync,
                     CancellationToken cancellationToken
@@ -117,7 +119,7 @@ internal static class LocalAccountStoreSetup
             )
             .Returns(
                 (
-                    string _,
+                    LocalAccountSignInIdentifier _,
                     ReadOnlyMemory<byte> _,
                     Func<string, CancellationToken, ValueTask<bool>> isRefusedAsync,
                     CancellationToken cancellationToken

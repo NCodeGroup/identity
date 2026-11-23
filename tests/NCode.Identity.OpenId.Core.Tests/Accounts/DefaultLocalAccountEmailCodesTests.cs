@@ -112,6 +112,7 @@ public class DefaultLocalAccountEmailCodesTests : BaseTests
         new()
         {
             TenantId = TenantId,
+            ConnectionId = LocalAccountStoreSetup.ConnectionId,
             LocalAccountId = LocalAccountId,
             UserName = "user",
             DisplayName = "Display Name",
@@ -139,6 +140,7 @@ public class DefaultLocalAccountEmailCodesTests : BaseTests
     private static byte[] Serialize(int attempts) =>
         JsonSerializer.SerializeToUtf8Bytes(
             new EmailCodeState(
+                LocalAccountStoreSetup.ConnectionId,
                 LocalAccountId,
                 Email,
                 HashOf(FlowId, Code),

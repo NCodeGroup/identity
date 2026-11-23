@@ -25,7 +25,7 @@ public class EmailCodeHashJsonConverterTests : BaseTests
     }
 
     private static string StateJson(string codeHashJson) =>
-        $$"""{"local_account_id":"a","email":"e","code_hash":{{codeHashJson}},"attempts":0,"expires_when":"2026-11-22T12:00:00+00:00"}""";
+        $$"""{"connection_id":"c","local_account_id":"a","email":"e","code_hash":{{codeHashJson}},"attempts":0,"expires_when":"2026-11-22T12:00:00+00:00"}""";
 
     private static EmailCodeState Deserialize(string json) =>
         JsonSerializer.Deserialize(
@@ -39,7 +39,7 @@ public class EmailCodeHashJsonConverterTests : BaseTests
     public void Write_Always_WritesTheHashAsBase64()
     {
         var hash = CreateHash();
-        var state = new EmailCodeState("a", "e", hash, Attempts: 0, ExpiresWhen);
+        var state = new EmailCodeState("c", "a", "e", hash, Attempts: 0, ExpiresWhen);
 
         var bytes = JsonSerializer.SerializeToUtf8Bytes(
             state,

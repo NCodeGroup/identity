@@ -111,7 +111,7 @@ public sealed class DefaultPasswordSettingDescriptorDataSourceTests : BaseTests
     }
 
     [Fact]
-    public void Collection_EveryPasswordSetting_AppliesToTenantsAndIsNotDiscoverable()
+    public void Collection_EveryPasswordSetting_AppliesToTenantsAndConnectionsAndIsNotDiscoverable()
     {
         var dataSource = CreateDataSource();
 
@@ -120,7 +120,10 @@ public sealed class DefaultPasswordSettingDescriptorDataSourceTests : BaseTests
         Assert.Equal(4, descriptors.Count);
         foreach (var descriptor in descriptors)
         {
-            Assert.Equal<string>([OpenIdSettingScopes.Tenant], descriptor.AppliesTo);
+            Assert.Equal<string>(
+                [OpenIdSettingScopes.Tenant, OpenIdSettingScopes.Connection],
+                descriptor.AppliesTo
+            );
             Assert.False(descriptor.IsDiscoverable);
         }
     }

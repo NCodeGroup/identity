@@ -4,18 +4,17 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication;
 using Moq;
-using NCode.Identity.OpenId.Accounts;
 using NCode.Identity.OpenId.Accounts.Authentication;
 using NCode.Identity.OpenId.Accounts.DataContracts;
 using NCode.Identity.OpenId.Accounts.Stores;
 using NCode.Identity.OpenId.Authentication.Subject;
+using NCode.Identity.OpenId.Connections;
 using NCode.Identity.OpenId.Contexts;
+using NCode.Identity.OpenId.Core.Tests.Accounts;
 using NCode.Identity.OpenId.Errors;
 using NCode.Identity.OpenId.Messages;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
-using NCode.Identity.OpenId.Settings;
-using NCode.Identity.OpenId.Tenants;
 using NCode.Identity.Persistence.Stores;
 using NCode.Identity.Registration.AspNetCore;
 using NCode.Identity.Settings;
@@ -28,7 +27,7 @@ public class DefaultValidateLocalAccountSubjectHandlerTests : BaseTests
     private const string TenantId = "tenant-1";
     private const string PrincipalId = "principal-1";
     private const string LocalAccountId = "account-1";
-    private const string IssuerClaimType = "iss";
+    private const string ExternalConnectionId = "connection-ext";
     private const string ExternalIssuer = "https://idp.example";
     private const string AccountGoneMessage = "The end-user's account no longer exists.";
     private const string AccountDisabledOrGoneMessage =
@@ -38,6 +37,7 @@ public class DefaultValidateLocalAccountSubjectHandlerTests : BaseTests
     private Mock<IStoreManager> MockStoreManager { get; }
     private Mock<IFederatedIdentityStore> MockFederatedIdentityStore { get; }
     private Mock<ILocalAccountStore> MockLocalAccountStore { get; }
+    private Mock<IConnectionResolver> MockConnectionResolver { get; }
     private DefaultValidateLocalAccountSubjectHandler Handler { get; }
 
     public DefaultValidateLocalAccountSubjectHandlerTests()
@@ -46,7 +46,12 @@ public class DefaultValidateLocalAccountSubjectHandlerTests : BaseTests
         MockStoreManager = CreateStrictMock<IStoreManager>();
         MockFederatedIdentityStore = CreateStrictMock<IFederatedIdentityStore>();
         MockLocalAccountStore = CreateStrictMock<ILocalAccountStore>();
-        Handler = new DefaultValidateLocalAccountSubjectHandler(MockStoreManagerFactory.Object);
+        MockConnectionResolver = CreateStrictMock<IConnectionResolver>();
+        Handler = new DefaultValidateLocalAccountSubjectHandler(
+            MockStoreManagerFactory.Object,
+            MockConnectionResolver.Object,
+            LocalAccountStoreSetup.CreateCatalog(MockLocalAccountStore)
+        );
     }
 
     #region Scaffolding
@@ -70,28 +75,57 @@ public class DefaultValidateLocalAccountSubjectHandlerTests : BaseTests
             .ReturnsAsync(identities)
             .Verifiable();
 
-    private void SetupAccountStore() =>
-        MockStoreManager
-            .Setup(x => x.GetStore<ILocalAccountStore>())
-            .Returns(MockLocalAccountStore.Object)
+    private void SetupConnection(
+        string connectionId,
+        string strategy = ConnectionStrategyNames.Local
+    ) =>
+        MockConnectionResolver
+            .Setup(x =>
+                x.GetByIdOrDefaultAsync(
+                    It.IsAny<OpenIdContext>(),
+                    connectionId,
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync(
+                LocalAccountStoreSetup.CreateConnection(
+                    TenantId,
+                    CreateStrictMock<IReadOnlySettingCollection>().Object,
+                    strategy,
+                    connectionId
+                )
+            )
+            .Verifiable();
+
+    private void SetupMissingConnection(string connectionId) =>
+        MockConnectionResolver
+            .Setup(x =>
+                x.GetByIdOrDefaultAsync(
+                    It.IsAny<OpenIdContext>(),
+                    connectionId,
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync((ResolvedConnection?)null)
             .Verifiable();
 
     private void SetupAccount(PersistedLocalAccount? account)
     {
-        SetupAccountStore();
+        SetupConnection(LocalAccountStoreSetup.ConnectionId);
         MockLocalAccountStore
             .Setup(x => x.GetByIdOrDefaultAsync(LocalAccountId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(account)
             .Verifiable();
     }
 
-    private static PersistedFederatedIdentity SelfIssuedIdentity() =>
+    private static PersistedFederatedIdentity LocalIdentity() =>
         new()
         {
             TenantId = TenantId,
             FederatedIdentityId = "fed-1",
             PrincipalId = PrincipalId,
-            Issuer = AccountConstants.SelfIssuer,
+            ConnectionId = LocalAccountStoreSetup.ConnectionId,
+            Issuer = null,
             Subject = LocalAccountId,
             JoinKey = null,
             ConcurrencyToken = string.Empty,
@@ -103,6 +137,7 @@ public class DefaultValidateLocalAccountSubjectHandlerTests : BaseTests
             TenantId = TenantId,
             FederatedIdentityId = "fed-ext",
             PrincipalId = PrincipalId,
+            ConnectionId = ExternalConnectionId,
             Issuer = ExternalIssuer,
             Subject = "external-subject",
             JoinKey = null,
@@ -113,6 +148,7 @@ public class DefaultValidateLocalAccountSubjectHandlerTests : BaseTests
         new()
         {
             TenantId = TenantId,
+            ConnectionId = LocalAccountStoreSetup.ConnectionId,
             LocalAccountId = LocalAccountId,
             UserName = "user",
             DisplayName = "Display Name",
@@ -122,24 +158,6 @@ public class DefaultValidateLocalAccountSubjectHandlerTests : BaseTests
             Claims = [],
             ConcurrencyToken = string.Empty,
         };
-
-    // The tenant's settings are read only for a principal that has no identity.
-    private void SetupIssuerClaimType(Mock<OpenIdContext> mockContext)
-    {
-        var mockSettings = CreateStrictMock<IReadOnlySettingCollection>();
-        mockSettings
-            .Setup(x => x.GetValue(OpenIdSettingKeys.PrincipalIssuerClaim))
-            .Returns(IssuerClaimType)
-            .Verifiable();
-
-        var mockProvider = CreateStrictMock<IReadOnlySettingCollectionProvider>();
-        mockProvider.Setup(x => x.Collection).Returns(mockSettings.Object).Verifiable();
-
-        var mockTenant = CreateStrictMock<OpenIdTenant>();
-        mockTenant.Setup(x => x.SettingsProvider).Returns(mockProvider.Object).Verifiable();
-
-        mockContext.Setup(x => x.Tenant).Returns(mockTenant.Object).Verifiable();
-    }
 
     // The error factory is read only when the handler refuses the subject.
     private void SetupAccessDenied(Mock<OpenIdContext> mockContext, string description)
@@ -159,13 +177,13 @@ public class DefaultValidateLocalAccountSubjectHandlerTests : BaseTests
     private static ValidateSubjectStandingCommand CreateCommand(
         Mock<OpenIdContext> mockContext,
         OperationDisposition<IOpenIdError> disposition,
-        string? issuer = null
+        string? connectionId = null
     )
     {
         var identity = new ClaimsIdentity("test");
-        if (issuer is not null)
+        if (connectionId is not null)
         {
-            identity.AddClaim(new Claim(IssuerClaimType, issuer));
+            identity.AddClaim(new Claim(ConnectionClaimTypes.Connection, connectionId));
         }
 
         var subjectAuthentication = new SubjectAuthentication(
@@ -205,7 +223,7 @@ public class DefaultValidateLocalAccountSubjectHandlerTests : BaseTests
     public async Task HandleAsync_WhenTheLocalAccountIsEnabled_LeavesNoError()
     {
         SetupStoreManager();
-        SetupIdentities(SelfIssuedIdentity());
+        SetupIdentities(LocalIdentity());
         SetupAccount(Account(isEnabled: true));
         var disposition = new OperationDisposition<IOpenIdError>();
         var command = CreateCommand(CreateStrictMock<OpenIdContext>(), disposition);
@@ -219,7 +237,7 @@ public class DefaultValidateLocalAccountSubjectHandlerTests : BaseTests
     public async Task HandleAsync_WhenTheLocalAccountIsDisabled_SetsAccessDenied()
     {
         SetupStoreManager();
-        SetupIdentities(SelfIssuedIdentity());
+        SetupIdentities(LocalIdentity());
         SetupAccount(Account(isEnabled: false));
         var mockContext = CreateStrictMock<OpenIdContext>();
         SetupAccessDenied(mockContext, AccountDisabledOrGoneMessage);
@@ -235,7 +253,7 @@ public class DefaultValidateLocalAccountSubjectHandlerTests : BaseTests
     public async Task HandleAsync_WhenTheLocalAccountIsGone_SetsAccessDenied()
     {
         SetupStoreManager();
-        SetupIdentities(SelfIssuedIdentity());
+        SetupIdentities(LocalIdentity());
         SetupAccount(account: null);
         var mockContext = CreateStrictMock<OpenIdContext>();
         SetupAccessDenied(mockContext, AccountDisabledOrGoneMessage);
@@ -252,11 +270,11 @@ public class DefaultValidateLocalAccountSubjectHandlerTests : BaseTests
     {
         SetupStoreManager();
         SetupIdentities();
+        SetupConnection(LocalAccountStoreSetup.ConnectionId);
         var mockContext = CreateStrictMock<OpenIdContext>();
-        SetupIssuerClaimType(mockContext);
         SetupAccessDenied(mockContext, AccountGoneMessage);
         var disposition = new OperationDisposition<IOpenIdError>();
-        var command = CreateCommand(mockContext, disposition, AccountConstants.SelfIssuer);
+        var command = CreateCommand(mockContext, disposition, LocalAccountStoreSetup.ConnectionId);
 
         await Handler.HandleAsync(command, CancellationToken.None);
 
@@ -268,10 +286,10 @@ public class DefaultValidateLocalAccountSubjectHandlerTests : BaseTests
     {
         SetupStoreManager();
         SetupIdentities();
+        SetupConnection(ExternalConnectionId, strategy: "external");
         var mockContext = CreateStrictMock<OpenIdContext>();
-        SetupIssuerClaimType(mockContext);
         var disposition = new OperationDisposition<IOpenIdError>();
-        var command = CreateCommand(mockContext, disposition, ExternalIssuer);
+        var command = CreateCommand(mockContext, disposition, ExternalConnectionId);
 
         await Handler.HandleAsync(command, CancellationToken.None);
 
@@ -283,7 +301,34 @@ public class DefaultValidateLocalAccountSubjectHandlerTests : BaseTests
     {
         SetupStoreManager();
         SetupIdentities(ExternalIdentity());
-        SetupAccountStore();
+        SetupConnection(ExternalConnectionId, strategy: "external");
+        var disposition = new OperationDisposition<IOpenIdError>();
+        var command = CreateCommand(CreateStrictMock<OpenIdContext>(), disposition);
+
+        await Handler.HandleAsync(command, CancellationToken.None);
+
+        Assert.False(disposition.HasError);
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenASubjectWithoutAnIdentityHasNoConnectionClaim_LeavesNoError()
+    {
+        SetupStoreManager();
+        SetupIdentities();
+        var disposition = new OperationDisposition<IOpenIdError>();
+        var command = CreateCommand(CreateStrictMock<OpenIdContext>(), disposition);
+
+        await Handler.HandleAsync(command, CancellationToken.None);
+
+        Assert.False(disposition.HasError);
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenTheConnectionOfAnIdentityIsGone_LeavesNoError()
+    {
+        SetupStoreManager();
+        SetupIdentities(LocalIdentity());
+        SetupMissingConnection(LocalAccountStoreSetup.ConnectionId);
         var disposition = new OperationDisposition<IOpenIdError>();
         var command = CreateCommand(CreateStrictMock<OpenIdContext>(), disposition);
 

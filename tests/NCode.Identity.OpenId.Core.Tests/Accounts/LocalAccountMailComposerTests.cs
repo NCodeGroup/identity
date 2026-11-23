@@ -23,6 +23,7 @@ public class LocalAccountMailComposerTests
             new InteractiveMessages
             {
                 SignInTitle = "SignInTitle",
+                ConnectionLabel = "ConnectionLabel",
                 UsernameLabel = "UsernameLabel",
                 PasswordLabel = "PasswordLabel",
                 SignInButton = "SignInButton",
