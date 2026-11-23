@@ -89,6 +89,8 @@ public class InteractiveLocalesTests
             messages.TooManyCodesError,
             messages.PasswordMismatchError,
             messages.PasswordRefusedError,
+            messages.NoEmailError,
+            messages.EmailCodeFailedError,
             messages.VerificationMailSubject,
             messages.VerificationMailBodyFormat,
             messages.PasswordResetMailSubject,
@@ -194,6 +196,8 @@ public class InteractiveLocalesTests
             messages.TooManyCodesError,
             messages.PasswordMismatchError,
             messages.PasswordRefusedError,
+            messages.NoEmailError,
+            messages.EmailCodeFailedError,
         ];
         Assert.All(expected, text => Assert.Contains(text, catalog, StringComparison.Ordinal));
     }
