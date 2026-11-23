@@ -49,7 +49,7 @@ internal sealed class LocalAccountInteractiveSignInCodeChallenge(
 
         if (account is not { IsEnabled: true })
         {
-            return InteractiveEmailCodeResult.Refused(InteractiveEmailCodeErrors.NotSupported);
+            return InteractiveEmailCodeResult.NotSupported;
         }
 
         if (string.IsNullOrEmpty(account.Email))
@@ -136,7 +136,7 @@ internal sealed class LocalAccountInteractiveSignInCodeChallenge(
         );
         if (account is not { IsEnabled: true })
         {
-            return InteractiveEmailCodeResult.Refused(InteractiveEmailCodeErrors.NotSupported);
+            return InteractiveEmailCodeResult.NotSupported;
         }
 
         // The second factor is audited as the password grant's authentication is (ADR-1533).

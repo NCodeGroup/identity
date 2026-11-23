@@ -65,7 +65,7 @@ internal sealed class LocalAccountInteractiveEmailVerifier(
         var settings = openIdContext.Tenant.SettingsProvider.Collection;
         if (!settings.GetValue(OpenIdSettingKeys.EmailVerificationEnabled))
         {
-            return InteractiveEmailCodeResult.Refused(InteractiveEmailCodeErrors.NotSupported);
+            return InteractiveEmailCodeResult.NotSupported;
         }
 
         var account = await LocalAccountSignedInAccounts.FindAsync(
@@ -77,7 +77,7 @@ internal sealed class LocalAccountInteractiveEmailVerifier(
 
         if (account is not { IsEnabled: true })
         {
-            return InteractiveEmailCodeResult.Refused(InteractiveEmailCodeErrors.NotSupported);
+            return InteractiveEmailCodeResult.NotSupported;
         }
 
         if (string.IsNullOrEmpty(account.Email))
@@ -114,7 +114,7 @@ internal sealed class LocalAccountInteractiveEmailVerifier(
         var settings = openIdContext.Tenant.SettingsProvider.Collection;
         if (!settings.GetValue(OpenIdSettingKeys.EmailVerificationEnabled))
         {
-            return InteractiveEmailCodeResult.Refused(InteractiveEmailCodeErrors.NotSupported);
+            return InteractiveEmailCodeResult.NotSupported;
         }
 
         await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
@@ -127,7 +127,7 @@ internal sealed class LocalAccountInteractiveEmailVerifier(
         );
         if (account is not { IsEnabled: true })
         {
-            return InteractiveEmailCodeResult.Refused(InteractiveEmailCodeErrors.NotSupported);
+            return InteractiveEmailCodeResult.NotSupported;
         }
 
         // The end user's verification is audited as the password grant's authentication is (ADR-1533).
