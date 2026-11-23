@@ -239,6 +239,10 @@ const localAccountsPath = (owner: LocalAccountOwner): CellFetchArgs =>
 const localAccountListTag = (owner: LocalAccountOwner): string =>
   owner.kind === 'platform' ? platformTag(LIST_TAG) : tenantTag(owner.tenantId, LIST_TAG);
 
+/** The path of one tenant local account. */
+const localAccountPath = (tenantId: string, localAccountId: string): string =>
+  `api/tenants/${encodeURIComponent(tenantId)}/local-accounts/${encodeURIComponent(localAccountId)}`;
+
 /** The route of one tenant local account, addressed to the cell that holds the tenant. */
 const localAccountItem = (
   { tenantId, localAccountId, cell }: WithCell<{ tenantId: string; localAccountId: string }>,
@@ -246,13 +250,9 @@ const localAccountItem = (
   method: 'DELETE' | 'POST',
 ): CellFetchArgs =>
   inCell(cell, {
-    url: `api/tenants/${encodeURIComponent(tenantId)}/local-accounts/${encodeURIComponent(localAccountId)}${suffix}`,
+    url: `${localAccountPath(tenantId, localAccountId)}${suffix}`,
     method,
   });
-
-/** The path of one tenant local account. */
-const localAccountPath = (tenantId: string, localAccountId: string): string =>
-  `api/tenants/${encodeURIComponent(tenantId)}/local-accounts/${encodeURIComponent(localAccountId)}`;
 
 // The caller's own access spans scopes, so each mutation that can change where it holds a role invalidates it.
 const callerTag = 'me';
@@ -793,7 +793,7 @@ export const managementApi = createApi({
     >({
       query: ({ tenantId, localAccountId, concurrencyToken, fields, cell }) =>
         inCell(cell, {
-          url: `api/tenants/${encodeURIComponent(tenantId)}/local-accounts/${encodeURIComponent(localAccountId)}`,
+          url: localAccountPath(tenantId, localAccountId),
           method: 'PATCH',
           body: replacePatch({ ...fields }),
           headers: { 'If-Match': concurrencyToken },
@@ -835,7 +835,7 @@ export const managementApi = createApi({
     >({
       query: ({ tenantId, localAccountId, body, cell }) =>
         inCell(cell, {
-          url: `api/tenants/${encodeURIComponent(tenantId)}/local-accounts/${encodeURIComponent(localAccountId)}/password`,
+          url: `${localAccountPath(tenantId, localAccountId)}/password`,
           method: 'POST',
           body,
         }),

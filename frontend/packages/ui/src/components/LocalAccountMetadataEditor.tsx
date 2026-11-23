@@ -34,9 +34,10 @@ function parseObject(text: string): Record<string, unknown> | undefined {
 }
 
 /**
- * Stateless local-account metadata editor. Both documents are opaque JSON objects edited as text; the text reseeds when
+ * Presentational local-account metadata editor that keeps its own text state. The text reseeds when
  * {@link LocalAccountMetadataEditorProps.profileJson} or {@link LocalAccountMetadataEditorProps.systemJson} changes
- * after a save, and {@link LocalAccountMetadataEditorProps.onSave} receives both parsed objects.
+ * after a save; persistence lives in the container, and {@link LocalAccountMetadataEditorProps.onSave} receives both
+ * parsed objects.
  */
 export function LocalAccountMetadataEditor({
   profileJson,
