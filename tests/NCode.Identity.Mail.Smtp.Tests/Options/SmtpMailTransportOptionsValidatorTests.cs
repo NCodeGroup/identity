@@ -1,14 +1,23 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using Microsoft.Extensions.Options;
+using NCode.Identity.AspNetCore.Options;
 using NCode.Identity.Mail.Smtp.Options;
 using Xunit;
 
-namespace NCode.Identity.Mail.Smtp.Tests;
+namespace NCode.Identity.Mail.Smtp.Tests.Options;
 
 public class SmtpMailTransportOptionsValidatorTests : BaseTests
 {
-    private SmtpMailTransportOptionsValidator Validator { get; } = new();
+    private SmtpMailTransportOptionsValidator Validator { get; } = CreateValidator(false);
+
+    private static SmtpMailTransportOptionsValidator CreateValidator(
+        bool localDevelopmentEnabled
+    ) =>
+        new(
+            new OptionsWrapper<LocalDevelopmentOptions>(new() { Enabled = localDevelopmentEnabled })
+        );
 
     private static SmtpMailTransportOptions CreateOptions() =>
         new() { Host = "smtp.example.com", From = "noreply@example.com" };
@@ -79,6 +88,33 @@ public class SmtpMailTransportOptionsValidatorTests : BaseTests
         Assert.True(result.Failed);
         var failure = Assert.Single(result.Failures);
         Assert.Contains("Mail:Smtp:Tls", failure);
+    }
+
+    [Fact]
+    public void Validate_WhenTlsIsNoneOutsideLocalDevelopment_Fails()
+    {
+        var options = CreateOptions();
+        options.Tls = SmtpTls.None;
+
+        var result = Validator.Validate(null, options);
+
+        Assert.True(result.Failed);
+        var failure = Assert.Single(result.Failures);
+        Assert.Contains("Mail:Smtp:Tls", failure);
+        Assert.Contains("clear text", failure);
+        Assert.Contains("LocalDevelopment:Enabled", failure);
+    }
+
+    [Fact]
+    public void Validate_WhenTlsIsNoneInLocalDevelopment_Succeeds()
+    {
+        var options = CreateOptions();
+        options.Tls = SmtpTls.None;
+        var validator = CreateValidator(true);
+
+        var result = validator.Validate(null, options);
+
+        Assert.True(result.Succeeded);
     }
 
     [Theory]

@@ -335,8 +335,8 @@ The section is bound strictly and validated when the host starts.
 
 Without the section the host registers no transport: every delivery fails and is logged, and no mail is sent, so leave
 the three settings below off. `Tls=None` sends in clear and exists for the local stack's Mailpit; only a host with
-`LocalDevelopment:Enabled` uses it, and the deployment-safety gate and the Helm chart refuse it. The host queues each
-message through the job dispatcher, so the in-process dispatcher loses the messages a stopping replica holds
+`LocalDevelopment:Enabled` uses it, and the SMTP options validator and the Helm chart refuse it otherwise. The host
+queues each message through the job dispatcher, so the in-process dispatcher loses the messages a stopping replica holds
 ([#25](https://github.com/NCodeGroup/identity/issues/25)).
 
 A tenant turns the flows on with these tenant settings, each under `OpenId:Platform:Settings`:

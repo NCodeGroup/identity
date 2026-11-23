@@ -6,6 +6,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
+using NCode.Identity.AspNetCore;
 using NCode.Identity.Mail.Smtp.Facades;
 using NCode.Identity.Mail.Smtp.Options;
 using NCode.Identity.Registration;
@@ -39,6 +40,10 @@ public static class DefaultRegistration
                 return builder;
 
             var serviceCollection = builder.ServiceCollection;
+
+            // The validator refuses clear-text submission unless the host is configured for local development
+            // (ADR-1532, ADR-1370).
+            serviceCollection.AddLocalDevelopmentOptions(configuration);
 
             serviceCollection
                 .AddOptions<SmtpMailTransportOptions>()

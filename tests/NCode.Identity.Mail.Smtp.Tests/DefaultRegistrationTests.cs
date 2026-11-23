@@ -3,6 +3,7 @@
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using NCode.Identity.Mail.Smtp.Facades;
 using NCode.Identity.Mail.Smtp.Options;
@@ -15,9 +16,12 @@ public class DefaultRegistrationTests : BaseTests
 {
     private IMailTransport TransportRegisteredBefore { get; }
 
+    private IHostEnvironment HostEnvironment { get; }
+
     public DefaultRegistrationTests()
     {
         TransportRegisteredBefore = CreateStrictMock<IMailTransport>().Object;
+        HostEnvironment = CreateStrictMock<IHostEnvironment>().Object;
     }
 
     private static IConfiguration CreateConfiguration(
@@ -31,6 +35,7 @@ public class DefaultRegistrationTests : BaseTests
     {
         var serviceCollection = new ServiceCollection();
         serviceCollection.AddSingleton(TransportRegisteredBefore);
+        serviceCollection.AddSingleton(HostEnvironment);
         serviceCollection.NewBuilder<MailLibrary>().AddSmtpMailTransport(configuration);
         return serviceCollection;
     }
@@ -104,6 +109,28 @@ public class DefaultRegistrationTests : BaseTests
             provider.GetRequiredService<IOptions<SmtpMailTransportOptions>>().Value
         );
         Assert.Contains("Mail:Smtp", exception.Message);
+    }
+
+    [Theory]
+    [InlineData("2")]
+    [InlineData(" None ")]
+    [InlineData("StartTls, None")]
+    public async Task AddSmtpMailTransport_WhenTlsIsAnotherSpellingOfNone_FailsAtStart(string tls)
+    {
+        var serviceCollection = AddSmtpMailTransport(
+            CreateConfiguration(
+                ("Mail:Smtp:Host", "smtp.example.com"),
+                ("Mail:Smtp:From", "noreply@example.com"),
+                ("Mail:Smtp:Tls", tls)
+            )
+        );
+
+        await using var provider = serviceCollection.BuildServiceProvider();
+
+        var exception = Assert.Throws<OptionsValidationException>(() =>
+            provider.GetRequiredService<IOptions<SmtpMailTransportOptions>>().Value
+        );
+        Assert.Contains("Mail:Smtp:Tls", Assert.Single(exception.Failures));
     }
 
     #endregion

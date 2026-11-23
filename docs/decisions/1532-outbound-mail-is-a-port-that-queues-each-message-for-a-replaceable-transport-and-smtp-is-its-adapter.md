@@ -48,8 +48,8 @@ Forces:
    and `Password` (both or neither), `From`, `FromName` and `Timeout` (30 seconds). It is bound strictly and validated
    at start
    ([ADR-1137](1137-configuration-binds-strictly-and-every-option-timer-period-and-retention-is-validated-at-startup.md)).
-   `StartTls` refuses a server that offers no STARTTLS. `None` sends in clear, so a deployment refuses it and only a
-   host with `LocalDevelopment:Enabled` uses it, for the local stack's mail catcher
+   `StartTls` refuses a server that offers no STARTTLS. `None` sends in clear, so the SMTP options validator refuses it,
+   in any spelling that binds to it, unless `LocalDevelopment:Enabled` is set, for the local stack's mail catcher
    ([ADR-1370](1370-a-host-runs-the-deployment-posture-unless-configured-for-local-development-and-always-names-its-root-key-provider.md)).
    Without the section nothing is registered, and every delivery fails and is logged. Each message opens one
    connection and closes it.

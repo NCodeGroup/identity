@@ -3,6 +3,7 @@
 
 using Microsoft.Extensions.Options;
 using MimeKit;
+using NCode.Identity.AspNetCore.Options;
 
 namespace NCode.Identity.Mail.Smtp.Options;
 
@@ -10,8 +11,14 @@ namespace NCode.Identity.Mail.Smtp.Options;
 /// Validates <see cref="SmtpMailTransportOptions"/> when the host starts.
 /// </summary>
 // See ADR-1532.
-internal sealed class SmtpMailTransportOptionsValidator : IValidateOptions<SmtpMailTransportOptions>
+internal sealed class SmtpMailTransportOptionsValidator(
+    IOptions<LocalDevelopmentOptions> localDevelopmentOptions
+) : IValidateOptions<SmtpMailTransportOptions>
 {
+    private const int MinPort = 1;
+
+    private const int MaxPort = 65535;
+
     private static TimeSpan MinTimeout { get; } = TimeSpan.FromSeconds(1);
 
     private static TimeSpan MaxTimeout { get; } = TimeSpan.FromMinutes(5);
@@ -30,10 +37,10 @@ internal sealed class SmtpMailTransportOptionsValidator : IValidateOptions<SmtpM
             );
         }
 
-        if (options.Port is < 1 or > 65535)
+        if (options.Port is < MinPort or > MaxPort)
         {
             failures.Add(
-                $"{nameof(SmtpMailTransportOptions)}.{nameof(SmtpMailTransportOptions.Port)} ('{SmtpMailTransportOptions.SectionName}:{nameof(SmtpMailTransportOptions.Port)}') must be between 1 and 65535; it is {options.Port}."
+                $"{nameof(SmtpMailTransportOptions)}.{nameof(SmtpMailTransportOptions.Port)} ('{SmtpMailTransportOptions.SectionName}:{nameof(SmtpMailTransportOptions.Port)}') must be between {MinPort} and {MaxPort}; it is {options.Port}."
             );
         }
 
@@ -43,6 +50,14 @@ internal sealed class SmtpMailTransportOptionsValidator : IValidateOptions<SmtpM
             var definedValues = string.Join(", ", names);
             failures.Add(
                 $"{nameof(SmtpMailTransportOptions)}.{nameof(SmtpMailTransportOptions.Tls)} ('{SmtpMailTransportOptions.SectionName}:{nameof(SmtpMailTransportOptions.Tls)}') must be one of {definedValues}; it is {(int)options.Tls}."
+            );
+        }
+        else if (options.Tls == SmtpTls.None && !localDevelopmentOptions.Value.Enabled)
+        {
+            // Mail carries one-time codes, so it is never submitted in clear text outside a host configured for local
+            // development; judging the bound value refuses every spelling that binds to None (ADR-1532, ADR-1370).
+            failures.Add(
+                $"{nameof(SmtpMailTransportOptions)}.{nameof(SmtpMailTransportOptions.Tls)} ('{SmtpMailTransportOptions.SectionName}:{nameof(SmtpMailTransportOptions.Tls)}') is {nameof(SmtpTls.None)}, which sends mail and the codes it carries in clear text; only a host with {LocalDevelopmentOptions.DefaultSectionName}:{nameof(LocalDevelopmentOptions.Enabled)} may use it."
             );
         }
 
