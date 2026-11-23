@@ -197,13 +197,14 @@ internal sealed class DefaultAuditStreamDeliverer(
 
     /// <summary>
     /// Releases the lease of a stream whose delivery the stopping host cancelled, in a unit of work of its own bounded
-    /// by <see cref="LeaseReleaseTimeout"/>. A failure to release is logged and not thrown, so that the cancellation of
-    /// the host is what propagates.
+    /// by a short timeout. A failure to release is logged and not thrown, so that the cancellation of the host is what
+    /// propagates.
     /// </summary>
     /// <param name="state">The state of the stream whose lease this replica holds.</param>
     /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation.</returns>
-    // The stop's own cancellation reaches the host's token but not the release, which runs on a bounded token of its
-    // own, so a replica that stops hands its lease back instead of leaving it to expire. See ADR-1534 and ADR-1496.
+    // The release runs on a token bounded by LeaseReleaseTimeout. The stop's own cancellation reaches the host's token
+    // but not the release, which runs on a bounded token of its own, so a replica that stops hands its lease back
+    // instead of leaving it to expire. See ADR-1534 and ADR-1496.
     [SuppressMessage(
         "Design",
         "NCID0003",
