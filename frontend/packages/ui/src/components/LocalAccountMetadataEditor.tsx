@@ -66,10 +66,8 @@ export function LocalAccountMetadataEditor({
   const isDirty = profileText !== profileJson || systemText !== systemJson;
 
   const handleSave = () => {
-    if (!profile || !system || !isDirty || isSaving) {
-      return;
-    }
-    onSave(profile, system);
+    // The Save button is disabled unless both texts parse, so a click always has both objects.
+    onSave(profile as Record<string, unknown>, system as Record<string, unknown>);
   };
 
   const monospace = { [`& .${inputBaseClasses.input}`]: { typography: 'code' } };

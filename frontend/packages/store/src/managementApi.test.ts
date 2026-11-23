@@ -4037,4 +4037,45 @@ describe('tenant pages', () => {
     expect(next.hasNextPage).toBe(false);
     expect(pagedTenants(next.data).items.map((t) => t.tenantId)).toEqual(['a', 'c', 'b']);
   });
+
+  it('pages the control plane alone by its continuation token', async () => {
+    const calls: string[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = (input as Request).url;
+        calls.push(url);
+        return url.includes('cursor=t1')
+          ? jsonResponse({ items: [tenant('b')] })
+          : jsonResponse({ items: [tenant('a')], continuationToken: 't1' });
+      }),
+    );
+    const store = createAppStore({ config: { runtime } });
+    const arg = { teamId: 'acme' };
+
+    await store.dispatch(managementApi.endpoints.listTenants.initiate(arg));
+    const next = await store.dispatch(
+      managementApi.endpoints.listTenants.initiate(arg, { direction: 'forward' }),
+    );
+
+    expect(calls).toEqual([
+      'https://api.test/api/teams/acme/tenants',
+      'https://api.test/api/teams/acme/tenants?cursor=t1',
+    ]);
+    expect(next.hasNextPage).toBe(false);
+    expect(pagedTenants(next.data).items.map((t) => t.tenantId)).toEqual(['a', 'b']);
+  });
+
+  it('fails the caller tenants when the control plane fails', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => jsonResponse({ title: 'down' }, 503)),
+    );
+    const store = createAppStore({ config: { runtime } });
+
+    const result = await store.dispatch(managementApi.endpoints.listCallerTenants.initiate());
+
+    expect(result.isError).toBe(true);
+    expect(result.error).toMatchObject({ status: 503 });
+  });
 });

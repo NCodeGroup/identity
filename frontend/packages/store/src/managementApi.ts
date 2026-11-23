@@ -158,14 +158,13 @@ async function listTenantsInEveryCell(
 ): Promise<
   { data: CellTenantsPage; error?: undefined } | { error: FetchBaseQueryError; data?: undefined }
 > {
-  const firstPage = Object.keys(cursors).length === 0;
-  const pageRequest = (cell: string, key: string): CellFetchArgs => ({
-    ...withParams(url, firstPage ? {} : { cursor: cursors[key] ?? '' }),
+  const pageRequest = (cell: string, cursor: string): CellFetchArgs => ({
+    ...withParams(url, cursorParams(cursor)),
     ...(cell ? { cell } : {}),
   });
 
   if (cells.length === 0) {
-    const result = await fetchWithBQ(pageRequest('', CONTROL_PLANE_CURSOR));
+    const result = await fetchWithBQ(pageRequest('', Object.values(cursors).join('')));
     if (result.error) {
       return { error: result.error };
     }
@@ -179,9 +178,15 @@ async function listTenantsInEveryCell(
     };
   }
 
-  const asked = firstPage ? cells : cells.filter((cell) => cell in cursors);
+  const asked: (readonly [string, string])[] =
+    Object.keys(cursors).length === 0
+      ? cells.map((cell) => [cell, ''] as const)
+      : Object.entries(cursors).filter(([cell]) => cells.includes(cell));
   const results = await Promise.all(
-    asked.map(async (cell) => ({ cell, result: await fetchWithBQ(pageRequest(cell, cell)) })),
+    asked.map(async ([cell, cursor]) => ({
+      cell,
+      result: await fetchWithBQ(pageRequest(cell, cursor)),
+    })),
   );
   const items: CellTenantResource[] = [];
   const unavailableCells: string[] = [];

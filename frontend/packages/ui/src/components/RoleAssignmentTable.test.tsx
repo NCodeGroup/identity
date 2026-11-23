@@ -84,4 +84,30 @@ describe('RoleAssignmentTable', () => {
     );
     expect(screen.getByTestId('owners-row-f-1')).toHaveTextContent('Federated user · f-1');
   });
+
+  it('captions a named holder without a type by its id alone', () => {
+    render(
+      <RoleAssignmentTable
+        label="Owners"
+        testIdPrefix="owners"
+        assignments={[
+          { assignmentId: 'a-5', principalId: 'n-1', displayName: 'Nina', principalType: null },
+        ]}
+      />,
+    );
+    expect(screen.getByTestId('owners-row-n-1')).toHaveTextContent(/^Ninan-1$/);
+  });
+
+  it('captions a holder of an unknown type by the type and id', () => {
+    render(
+      <RoleAssignmentTable
+        label="Owners"
+        testIdPrefix="owners"
+        assignments={[
+          { assignmentId: 'a-6', principalId: 'x-1', displayName: 'Xena', principalType: 'robot' },
+        ]}
+      />,
+    );
+    expect(screen.getByTestId('owners-row-x-1')).toHaveTextContent('robot · x-1');
+  });
 });

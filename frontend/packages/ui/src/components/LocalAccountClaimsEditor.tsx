@@ -60,9 +60,6 @@ export function LocalAccountClaimsEditor({
     setRows((current) => current.map((row, i) => (i === index ? { ...row, ...patch } : row)));
 
   const handleSave = () => {
-    if (!canSave) {
-      return;
-    }
     onSave(rows.map((row) => ({ type: row.type.trim(), value: row.value.trim() })));
   };
 
