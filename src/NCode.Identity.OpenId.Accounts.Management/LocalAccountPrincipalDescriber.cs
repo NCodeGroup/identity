@@ -6,6 +6,7 @@ using NCode.Identity.OpenId.Accounts.Stores;
 using NCode.Identity.OpenId.Management.Contracts;
 using NCode.Identity.OpenId.Management.ControlPlane;
 using NCode.Identity.OpenId.Management.Principals;
+using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
 using NCode.Identity.Persistence.Stores;
 
@@ -26,65 +27,111 @@ internal sealed class LocalAccountPrincipalDescriber : IPrincipalDescriber
     )
     {
         var summaries = new List<PrincipalSummaryResource>();
-        var described = new HashSet<string>(StringComparer.Ordinal);
-        var accountStore = storeManager.GetStore<ILocalAccountStore>();
-        var identityStore = storeManager.GetStore<IFederatedIdentityStore>();
 
-        foreach (var principalId in query.PrincipalIds.Distinct(StringComparer.Ordinal))
+        if (query.PrincipalIds.Count == 0 && query.UserNames.Count == 0)
         {
-            var identities = await identityStore.GetByPrincipalAsync(
-                principalId,
-                cancellationToken
-            );
-            var identity = identities.FirstOrDefault(x =>
-                string.Equals(x.Issuer, AccountConstants.SelfIssuer, StringComparison.Ordinal)
-            );
-            if (identity is null)
-            {
-                continue;
-            }
-
-            var account = await accountStore.GetByIdOrDefaultAsync(
-                identity.Subject,
-                cancellationToken
-            );
-            if (account is null || !described.Add(principalId))
-            {
-                continue;
-            }
-
-            var summary = ToSummary(principalId, account);
-            summaries.Add(summary);
+            return summaries;
         }
 
-        foreach (var userName in query.UserNames.Distinct(StringComparer.Ordinal))
+        var accountStore = storeManager.GetStore<ILocalAccountStore>();
+        var identityStore = storeManager.GetStore<IFederatedIdentityStore>();
+        var described = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        if (query.PrincipalIds.Count > 0)
         {
-            var account = await accountStore.GetByUserNameOrDefaultAsync(
-                userName,
+            var identities = await identityStore.GetByPrincipalsAsync(
+                query.PrincipalIds,
                 cancellationToken
             );
-            if (account is null)
+
+            var principalIdBySubject = new Dictionary<string, string>(
+                StringComparer.OrdinalIgnoreCase
+            );
+            foreach (var identity in identities)
             {
-                continue;
+                if (
+                    string.Equals(
+                        identity.Issuer,
+                        AccountConstants.SelfIssuer,
+                        StringComparison.Ordinal
+                    )
+                )
+                {
+                    principalIdBySubject[identity.Subject] = identity.PrincipalId;
+                }
             }
 
-            var identity = await identityStore.GetByIssuerSubjectAsync(
-                AccountConstants.SelfIssuer,
-                account.LocalAccountId,
+            if (principalIdBySubject.Count > 0)
+            {
+                var localAccountIds = new List<string>(principalIdBySubject.Keys);
+                var accounts = await accountStore.GetByIdsAsync(localAccountIds, cancellationToken);
+                foreach (var account in accounts)
+                {
+                    if (
+                        principalIdBySubject.TryGetValue(
+                            account.LocalAccountId,
+                            out var principalId
+                        ) && described.Add(principalId)
+                    )
+                    {
+                        var summary = ToSummary(principalId, account);
+                        summaries.Add(summary);
+                    }
+                }
+            }
+        }
+
+        if (query.UserNames.Count > 0)
+        {
+            var accounts = await accountStore.GetByUserNamesAsync(
+                query.UserNames,
                 cancellationToken
             );
-            if (identity is null || !described.Add(identity.PrincipalId))
-            {
-                continue;
-            }
 
-            var summary = ToSummary(identity.PrincipalId, account);
-            summaries.Add(summary);
+            if (accounts.Count > 0)
+            {
+                var localAccountIds = new List<string>(accounts.Count);
+                foreach (var account in accounts)
+                {
+                    localAccountIds.Add(account.LocalAccountId);
+                }
+
+                var found = await identityStore.GetByIssuerSubjectsAsync(
+                    AccountConstants.SelfIssuer,
+                    localAccountIds,
+                    cancellationToken
+                );
+                var identityBySubject = new Dictionary<string, PersistedFederatedIdentity>(
+                    StringComparer.OrdinalIgnoreCase
+                );
+                foreach (var identity in found)
+                {
+                    identityBySubject[identity.Subject] = identity;
+                }
+
+                foreach (var account in accounts)
+                {
+                    if (
+                        identityBySubject.TryGetValue(account.LocalAccountId, out var identity)
+                        && described.Add(identity.PrincipalId)
+                    )
+                    {
+                        var summary = ToSummary(identity.PrincipalId, account);
+                        summaries.Add(summary);
+                    }
+                }
+            }
         }
 
         return summaries;
     }
 
+    /// <summary>
+    /// Summarizes the principal of a local account.
+    /// </summary>
+    /// <param name="principalId">The identifier of the principal that owns the account's self-issued identity.</param>
+    /// <param name="account">The local account.</param>
+    /// <returns>The summary, named by the account's display name and username.</returns>
     private static PrincipalSummaryResource ToSummary(
         string principalId,
         PersistedLocalAccount account
