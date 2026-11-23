@@ -3,7 +3,7 @@
 
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Options;
-using MimeKit;
+using NCode.Identity.Mail.Mime;
 
 namespace NCode.Identity.Mail.AmazonSes.Options;
 
@@ -71,10 +71,7 @@ internal sealed partial class AmazonSesMailTransportOptionsValidator
             );
         }
 
-        if (
-            !MailboxAddress.TryParse(options.From, out var address)
-            || !address.Address.Contains('@', StringComparison.Ordinal)
-        )
+        if (!MimeMailAddresses.IsMailAddress(options.From))
         {
             failures.Add(
                 $"{nameof(AmazonSesMailTransportOptions)}.{nameof(AmazonSesMailTransportOptions.From)} ('{AmazonSesMailTransportOptions.SectionName}:{nameof(AmazonSesMailTransportOptions.From)}') must be one mail address; it is '{options.From}'."

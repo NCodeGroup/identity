@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using Microsoft.Extensions.Options;
-using MimeKit;
 using NCode.Identity.AspNetCore.Options;
+using NCode.Identity.Mail.Mime;
 
 namespace NCode.Identity.Mail.Smtp.Options;
 
@@ -61,10 +61,7 @@ internal sealed class SmtpMailTransportOptionsValidator(
             );
         }
 
-        if (
-            !MailboxAddress.TryParse(options.From, out var address)
-            || !address.Address.Contains('@', StringComparison.Ordinal)
-        )
+        if (!MimeMailAddresses.IsMailAddress(options.From))
         {
             failures.Add(
                 $"{nameof(SmtpMailTransportOptions)}.{nameof(SmtpMailTransportOptions.From)} ('{SmtpMailTransportOptions.SectionName}:{nameof(SmtpMailTransportOptions.From)}') must be one mail address; it is '{options.From}'."
