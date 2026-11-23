@@ -4,7 +4,6 @@
 using System.Security.Claims;
 using NCode.Buffers;
 using NCode.Identity.OpenId.Accounts.Authentication.EmailCodes;
-using NCode.Identity.OpenId.Accounts.DataContracts;
 using NCode.Identity.OpenId.Accounts.Stores;
 using NCode.Identity.OpenId.Authentication.Auditing;
 using NCode.Identity.OpenId.Authentication.Interactive;
@@ -69,16 +68,12 @@ internal sealed class LocalAccountInteractiveEmailVerifier(
             return InteractiveEmailCodeResult.Refused(InteractiveEmailCodeErrors.NotSupported);
         }
 
-        PersistedLocalAccount? account;
-        await using (var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken))
-        {
-            account = await LocalAccountSignedInAccounts.FindAsync(
-                storeManager,
-                openIdContext,
-                principal,
-                cancellationToken
-            );
-        }
+        var account = await LocalAccountSignedInAccounts.FindAsync(
+            StoreManagerFactory,
+            openIdContext,
+            principal,
+            cancellationToken
+        );
 
         if (account is not { IsEnabled: true })
         {

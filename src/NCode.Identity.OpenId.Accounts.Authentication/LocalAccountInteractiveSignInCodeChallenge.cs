@@ -40,16 +40,12 @@ internal sealed class LocalAccountInteractiveSignInCodeChallenge(
         CancellationToken cancellationToken
     )
     {
-        PersistedLocalAccount? account;
-        await using (var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken))
-        {
-            account = await LocalAccountSignedInAccounts.FindAsync(
-                storeManager,
-                openIdContext,
-                principal,
-                cancellationToken
-            );
-        }
+        var account = await LocalAccountSignedInAccounts.FindAsync(
+            StoreManagerFactory,
+            openIdContext,
+            principal,
+            cancellationToken
+        );
 
         if (account is not { IsEnabled: true })
         {
