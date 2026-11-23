@@ -591,10 +591,10 @@ of 32 random bytes. The secret is shown once, in that response: the server keeps
 key and reports only its `secretId` afterwards. A stream starts at its creation and carries no record stored before it.
 A tenant has at most `max_audit_streams` streams, a limit between 0 and 10 that is 2 by default and merges with `Min`,
 and creating a stream past it is a `409`, and a tenant's creates run one at a time, so the limit holds when they race; a
-create that meets another running answers `409` too. `GET api/tenants/{tenantId}/audit-streams` lists the streams, and
-`GET`, `PATCH` (a JSON Patch document, with `If-Match`) and `DELETE` on
-`api/tenants/{tenantId}/audit-streams/{streamId}` read, change and remove one. Each change is recorded as an
-`audit_stream` change.
+create that meets another running answers `409` too, with a one-second `Retry-After`.
+`GET api/tenants/{tenantId}/audit-streams` lists the streams, and `GET`, `PATCH` (a JSON Patch document, with
+`If-Match`) and `DELETE` on `api/tenants/{tenantId}/audit-streams/{streamId}` read, change and remove one. Each change
+is recorded as an `audit_stream` change.
 
 **A delivery.** The server calls the endpoint through the guarded outbound client, which refuses a private or loopback
 address and follows no redirect. A delivery is a `POST` with `Content-Type: application/json` that carries up to
@@ -656,7 +656,9 @@ that falls behind by more than the retention loses the records the prune removes
 
 **Rotating the secret.** `POST api/tenants/{tenantId}/audit-streams/{streamId}/signing-secrets` returns a new secret in
 a `201` response, shown once as `signingSecret`. The previous secrets keep signing for 24 hours beside it, so a receiver
-adds the new secret, then drops the old one once the day has passed.
+adds the new secret, then drops the old one once the day has passed. A stream has at most three secrets that sign: a
+rotation while three sign answers `409`, and its `Retry-After` and `retryAfterSeconds` give the time until the oldest
+rotated secret stops signing.
 
 **Operating it.** Every replica claims the streams that are due under a lease in the audit store's database, so one
 replica sends a stream at a time and its order holds. A stream is due only once its tenant has a record ready for it, so

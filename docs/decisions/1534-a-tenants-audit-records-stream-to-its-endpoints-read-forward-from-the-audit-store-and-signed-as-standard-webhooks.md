@@ -42,7 +42,7 @@ once the endpoint accepts them.**
    merged with `Min`, which a tier writes
    ([ADR-1418](1418-limits-are-set-by-the-authority-above-their-scope-and-readers-learn-which-they-may-change.md)). A
    tenant's creates are serialized through an atomic add-if-absent in shared state, held for at most 30 seconds, so the
-   limit holds when creates race and a create that meets another running answers `409`.
+   limit holds when creates race and a create that meets another running answers `409` with a one-second `Retry-After`.
 2. **The endpoint.** It is an absolute `https` URL of at most 1,000 characters without user information or a fragment,
    called only through the guarded client: no private address, no redirect, bounded time.
 3. **The position.** The store stamps each record with the time it stores it (`StoredTime`). A stream reads its tenant's
@@ -58,7 +58,9 @@ once the endpoint accepts them.**
    the Unix seconds of the send, and `webhook-signature` is one `v1,` + base64 HMAC-SHA256 over
    `{id}.{timestamp}.{body}` per active secret, separated by spaces. A secret is 32 random bytes shown once, as `whsec_`
    + base64, when the stream is created and when its secret rotates. A rotated secret keeps signing beside its successor
-   for 24 hours. Each secret is stored protected under the tenant's master key and rewrapped with it.
+   for 24 hours. A stream has at most three secrets that sign, so a rotation while three sign answers `409` with a
+   `Retry-After` that lasts until the oldest rotated secret stops signing. Each secret is stored protected under the
+   tenant's master key and rewrapped with it.
 6. **Failures.** Any answer but `2xx`, a timeout or a refused connection keeps the position, and so does a failure of
    any other kind: a signing secret that cannot be unprotected is recorded as `signing_secret_unavailable`, and any
    other failure of the delivery as `delivery_error`. The next attempt waits `StreamRetryDelay` × 2^(failures − 1), at
