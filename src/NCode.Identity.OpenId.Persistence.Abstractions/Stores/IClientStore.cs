@@ -90,6 +90,21 @@ public interface IClientStore : IStore<PersistedClient>
     );
 
     /// <summary>
+    /// Gets the clients whose principal is any of the specified identifiers, in any tenant, in one call. A principal
+    /// names at most one client in any tenant. It reads across tenants, so it runs only in an unscoped scope.
+    /// </summary>
+    /// <param name="principalIds">The identifiers of the clients' principals.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation, containing the matching
+    /// <see cref="PersistedClient"/> instances in no particular order, or an empty list when
+    /// <paramref name="principalIds"/> is empty.</returns>
+    /// <exception cref="InvalidOperationException">Thrown when the ambient scope is not unscoped.</exception>
+    ValueTask<IReadOnlyList<PersistedClient>> GetByPrincipalsAsync(
+        IReadOnlyCollection<string> principalIds,
+        CancellationToken cancellationToken
+    );
+
+    /// <summary>
     /// Attempts to get a <see cref="PersistedClient"/> instance from the store with the specified identifier.
     /// </summary>
     /// <param name="clientId">The identifier of the <see cref="PersistedClient"/> instance to retrieve.</param>

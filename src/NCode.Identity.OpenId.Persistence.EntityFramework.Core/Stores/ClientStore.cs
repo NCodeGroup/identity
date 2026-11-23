@@ -274,6 +274,40 @@ internal class ClientStore(
     }
 
     /// <inheritdoc />
+    public async ValueTask<IReadOnlyList<PersistedClient>> GetByPrincipalsAsync(
+        IReadOnlyCollection<string> principalIds,
+        CancellationToken cancellationToken
+    )
+    {
+        DbContext.EnsureUnscoped($"{nameof(ClientStore)}.{nameof(GetByPrincipalsAsync)}");
+
+        if (principalIds.Count == 0)
+            return [];
+
+        var normalizedPrincipalIds = new List<string>(principalIds.Count);
+        foreach (var principalId in principalIds)
+        {
+            var normalizedPrincipalId = Normalize(principalId);
+            normalizedPrincipalIds.Add(normalizedPrincipalId);
+        }
+
+        var entities = await QueryClients()
+            // Cross-tenant: the principals are looked up before the tenants of their clients are known.
+            .IgnoreQueryFilters()
+            .Where(client => normalizedPrincipalIds.Contains(client.NormalizedPrincipalId))
+            .ToListAsync(cancellationToken);
+
+        var clients = new List<PersistedClient>(entities.Count);
+        foreach (var entity in entities)
+        {
+            var client = await MapFromEntityAsync(entity, cancellationToken);
+            clients.Add(client);
+        }
+
+        return clients;
+    }
+
+    /// <inheritdoc />
     protected override Guid GetSortKey(ClientEntity entity) => entity.Id;
 
     // A client is bound only to a resource server of its own tenant.

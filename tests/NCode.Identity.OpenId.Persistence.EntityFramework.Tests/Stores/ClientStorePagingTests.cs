@@ -357,4 +357,69 @@ public sealed class ClientStorePagingTests : IDisposable
     }
 
     #endregion
+
+    #region GetByPrincipalsAsync Tests
+
+    [Fact]
+    public async Task GetByPrincipalsAsync_WhenUnscoped_FindsTheClientsInAnyTenant()
+    {
+        await SeedAsync(1, CancellationToken.None);
+        var keyGenerator = Provider.GetRequiredService<ISurrogateKeyGenerator>();
+        DbContext.SeedTenant(keyGenerator, "tenant-2");
+        var firstClient = CreateClient("first-client", tenantId: "tenant-2");
+        var secondClient = CreateClient("second-client");
+        var unrequestedClient = CreateClient("unrequested-client");
+        await Store.AddAsync(firstClient, CancellationToken.None);
+        await Store.AddAsync(secondClient, CancellationToken.None);
+        await Store.AddAsync(unrequestedClient, CancellationToken.None);
+        await DbContext.SaveChangesAsync();
+        DbContext.ChangeTracker.Clear();
+        var firstPrincipalId = Assert.IsType<string>(firstClient.PrincipalId);
+        var secondPrincipalId = Assert.IsType<string>(secondClient.PrincipalId);
+
+        using var scope = Ambient.BeginUnscoped("test");
+        var loaded = await Store.GetByPrincipalsAsync(
+            [firstPrincipalId, secondPrincipalId],
+            CancellationToken.None
+        );
+
+        var clientIds = loaded.Select(client => client.ClientId).Order().ToList();
+        Assert.Equal(["first-client", "second-client"], clientIds);
+        var first = Assert.Single(loaded, client => client.ClientId == "first-client");
+        Assert.Equal("tenant-2", first.TenantId);
+    }
+
+    [Fact]
+    public async Task GetByPrincipalsAsync_WhenNoClientHoldsThePrincipals_ReturnsNone()
+    {
+        await SeedAsync(2, CancellationToken.None);
+
+        using var scope = Ambient.BeginUnscoped("test");
+
+        var loaded = await Store.GetByPrincipalsAsync(
+            ["unknown-principal", "another-unknown-principal"],
+            CancellationToken.None
+        );
+
+        Assert.Empty(loaded);
+    }
+
+    [Fact]
+    public async Task GetByPrincipalsAsync_WhenTheScopeIsATenantScope_Throws()
+    {
+        await SeedAsync(1, CancellationToken.None);
+
+        using var scope = Ambient.BeginScope(TenantId);
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await Store.GetByPrincipalsAsync(["any-principal"], CancellationToken.None)
+        );
+
+        Assert.Equal(
+            "ClientStore.GetByPrincipalsAsync reads across tenants and runs only in an unscoped scope (IAmbientTenantAccessor.BeginUnscoped).",
+            exception.Message
+        );
+    }
+
+    #endregion
 }
