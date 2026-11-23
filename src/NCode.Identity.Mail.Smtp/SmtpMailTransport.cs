@@ -32,6 +32,12 @@ internal sealed class SmtpMailTransport(
 
     private SmtpMailTransportOptions Options => optionsAccessor.Value;
 
+    /// <summary>
+    /// Maps the configured TLS mode to the socket options that the SMTP client connects with.
+    /// </summary>
+    /// <param name="tls">The TLS mode to map.</param>
+    /// <returns>The <see cref="SecureSocketOptions"/> that matches the TLS mode.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when the TLS mode is not a defined value.</exception>
     private static SecureSocketOptions ToSocketOptions(SmtpTls tls) =>
         tls switch
         {
