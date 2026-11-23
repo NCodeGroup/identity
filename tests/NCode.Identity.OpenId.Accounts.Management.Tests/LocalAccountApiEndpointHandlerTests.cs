@@ -423,6 +423,33 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
         return patch;
     }
 
+    private static PersistedFederatedPrincipal CreatePrincipal() =>
+        new()
+        {
+            TenantId = TenantId,
+            PrincipalId = "principal-1",
+            ConcurrencyToken = "principal-ct",
+        };
+
+    // Resolves the account's self-issued identity and its principal through one store manager.
+    private void SetupPrincipal(PersistedFederatedPrincipal principal)
+    {
+        MockStoreManagerFactory
+            .Setup(x => x.CreateAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(MockStoreManager.Object)
+            .Verifiable();
+        MockStoreManager.Setup(x => x.DisposeAsync()).Returns(ValueTask.CompletedTask).Verifiable();
+        SetupSelfIssuedIdentity();
+        MockStoreManager
+            .Setup(x => x.GetStore<IFederatedPrincipalStore>())
+            .Returns(MockFederatedPrincipalStore.Object)
+            .Verifiable();
+        MockFederatedPrincipalStore
+            .Setup(x => x.GetOrDefaultAsync("principal-1", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(principal)
+            .Verifiable();
+    }
+
     private void SetupUpdateValidated(string? userName, string displayName)
     {
         MockLocalAccountValidator
@@ -829,6 +856,62 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
         );
     }
 
+    [Fact]
+    public async Task SetClaimsAsync_WithAStaleIfMatch_Returns412AndWritesNothing()
+    {
+        SetupAuthorizeUpdate(error: null);
+        SetupAccount(CreateAccount());
+        var httpContext = CreateHttpContext();
+        httpContext.Request.Headers.IfMatch = "stale-ct";
+
+        // No ReplaceClaimsAsync/SaveChangesAsync or audit scaffold: a strict-mock failure would mean the claims were
+        // written.
+        var result = await Handler.SetClaimsAsync(
+            httpContext,
+            TenantId,
+            LocalAccountId,
+            new SetLocalAccountClaimsRequest { Claims = [] },
+            CancellationToken.None
+        );
+
+        var problem = Assert.IsType<ProblemHttpResult>(result);
+        Assert.Equal(StatusCodes.Status412PreconditionFailed, problem.StatusCode);
+    }
+
+    [Fact]
+    public async Task SetClaimsAsync_WithAMatchingIfMatch_ReplacesTheClaims()
+    {
+        SetupAuthorizeUpdate(error: null);
+        SetupAccount(CreateAccount());
+        MockLocalAccountStore
+            .Setup(x =>
+                x.ReplaceClaimsAsync(
+                    LocalAccountId,
+                    It.IsAny<IReadOnlyList<PersistedLocalAccountClaim>>(),
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable();
+        MockStoreManager
+            .Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()))
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable();
+        SetupAuditRecorded();
+        var httpContext = CreateHttpContext();
+        httpContext.Request.Headers.IfMatch = "account-ct";
+
+        var result = await Handler.SetClaimsAsync(
+            httpContext,
+            TenantId,
+            LocalAccountId,
+            new SetLocalAccountClaimsRequest { Claims = [] },
+            CancellationToken.None
+        );
+
+        Assert.IsType<NoContent>(result);
+    }
+
     #endregion
 
     #region SetMetadataAsync Tests
@@ -848,6 +931,57 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
 
         var problem = Assert.IsType<ProblemHttpResult>(result);
         Assert.Equal(StatusCodes.Status403Forbidden, problem.StatusCode);
+    }
+
+    [Fact]
+    public async Task SetMetadataAsync_WithAStaleIfMatch_Returns412AndWritesNothing()
+    {
+        SetupAuthorizeUpdate(error: null);
+        SetupPrincipal(CreatePrincipal());
+        var httpContext = CreateHttpContext();
+        httpContext.Request.Headers.IfMatch = "stale-ct";
+
+        // No UpdateAsync/SaveChangesAsync or audit scaffold: a strict-mock failure would mean the metadata was
+        // written.
+        var result = await Handler.SetMetadataAsync(
+            httpContext,
+            TenantId,
+            LocalAccountId,
+            new SetLocalAccountMetadataRequest(),
+            CancellationToken.None
+        );
+
+        var problem = Assert.IsType<ProblemHttpResult>(result);
+        Assert.Equal(StatusCodes.Status412PreconditionFailed, problem.StatusCode);
+    }
+
+    [Fact]
+    public async Task SetMetadataAsync_WithAMatchingIfMatch_WritesTheMetadata()
+    {
+        SetupAuthorizeUpdate(error: null);
+        var principal = CreatePrincipal();
+        SetupPrincipal(principal);
+        MockFederatedPrincipalStore
+            .Setup(x => x.UpdateAsync(principal, It.IsAny<CancellationToken>()))
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable();
+        MockStoreManager
+            .Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()))
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable();
+        SetupAuditRecorded();
+        var httpContext = CreateHttpContext();
+        httpContext.Request.Headers.IfMatch = "principal-ct";
+
+        var result = await Handler.SetMetadataAsync(
+            httpContext,
+            TenantId,
+            LocalAccountId,
+            new SetLocalAccountMetadataRequest(),
+            CancellationToken.None
+        );
+
+        Assert.IsType<NoContent>(result);
     }
 
     #endregion
