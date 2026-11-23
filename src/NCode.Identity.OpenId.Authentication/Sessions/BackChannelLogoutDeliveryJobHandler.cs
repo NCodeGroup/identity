@@ -41,7 +41,7 @@ internal sealed class BackChannelLogoutDeliveryJobHandler(
             Content = content,
         };
 
-        var httpClient = HttpClientFactory.CreateClient(GuardedHttpClient.Name);
+        using var httpClient = HttpClientFactory.CreateClient(GuardedHttpClient.Name);
 
         try
         {
