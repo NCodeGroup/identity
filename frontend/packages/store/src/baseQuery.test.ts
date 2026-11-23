@@ -37,7 +37,7 @@ type CapturedRequest = {
   readonly credentials: RequestCredentials;
 };
 
-function mockFetch(status = 200) {
+function mockFetch(status = 200, body: unknown = { ok: true }) {
   const captured: CapturedRequest[] = [];
   const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
     const request = input as Request;
@@ -47,7 +47,7 @@ function mockFetch(status = 200) {
       authorization: request.headers.get('authorization'),
       credentials: request.credentials,
     });
-    return new Response(JSON.stringify({ ok: true }), {
+    return new Response(JSON.stringify(body), {
       status,
       headers: { 'content-type': 'application/json' },
     });
@@ -89,7 +89,7 @@ describe('dynamicBaseQuery', () => {
   });
 
   it('resolves the base URL from the runtime configuration at request time', async () => {
-    const { captured } = mockFetch();
+    const { captured } = mockFetch(200, { items: [] });
     const store = createAppStore();
 
     store.dispatch(runtimeConfigLoaded({ ...runtime, apiBaseUrl: 'https://tier-a.test' }));

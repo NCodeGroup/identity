@@ -9,7 +9,7 @@ import type {
 } from '@ncodegroup/identity-api';
 import type { BffRuntimeConfig, OpenIdRuntimeConfig } from '@ncodegroup/identity-config';
 import { createAppStore, type AppStore } from './store.js';
-import { managementApi } from './managementApi.js';
+import { managementApi, pagedItems } from './managementApi.js';
 
 const runtime: BffRuntimeConfig = {
   kind: 'bff',
@@ -933,7 +933,7 @@ describe('managementApi team CRUD endpoints (platform scope)', () => {
       managementApi.endpoints.listChildTeams.initiate({ teamId: 'acme' }),
     );
 
-    expect('data' in result && result.data?.items[0]?.parentTeamId).toBe('acme');
+    expect('data' in result && result.data?.pages[0]?.items[0]?.parentTeamId).toBe('acme');
     expect(captured[0]?.url).toBe('https://api.test/api/teams/acme/teams');
     expect(captured[0]?.method).toBe('GET');
   });
@@ -1371,7 +1371,7 @@ describe('managementApi query request shapes', () => {
   it.each(queryRequestCases)(
     '$name GETs $url with the anti-forgery header',
     async ({ url, run }) => {
-      const captured = mockFetch(jsonResponse({}));
+      const captured = mockFetch(jsonResponse({ items: [] }));
 
       await run(createStore());
 
@@ -3578,7 +3578,7 @@ describe('managementApi role assignment requests', () => {
     await store.dispatch(
       managementApi.endpoints.removeRoleAssignment.initiate({
         list: tenantOwners,
-        holder: { principalId: 'p-1' },
+        principalId: 'p-1',
         cell: undefined,
       }),
     );
@@ -3879,4 +3879,47 @@ describe('managementApi local accounts', () => {
       expect(fetches.count('GET', '/api/platform/local-accounts')).toBe(1);
     },
   );
+});
+
+describe('paged collections', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  const client = (clientId: string) => ({ clientId, tenantId: 'acme' });
+
+  it('reads the first page without a cursor, the next with the token and ends without one', async () => {
+    const calls: string[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = (input as Request).url;
+        calls.push(url);
+        return url.includes('cursor=t1')
+          ? jsonResponse({ items: [client('c2')] })
+          : jsonResponse({ items: [client('c1')], continuationToken: 't1' });
+      }),
+    );
+    const store = createStore();
+    const arg = { tenantId: 'acme', cell: undefined };
+
+    const first = await store.dispatch(managementApi.endpoints.listClients.initiate(arg));
+    const next = await store.dispatch(
+      managementApi.endpoints.listClients.initiate(arg, { direction: 'forward' }),
+    );
+
+    expect(calls).toEqual([
+      'https://api.test/api/tenants/acme/clients',
+      'https://api.test/api/tenants/acme/clients?cursor=t1',
+    ]);
+    expect(first.hasNextPage).toBe(true);
+    expect(next.hasNextPage).toBe(false);
+    expect(pagedItems(next.data).map((c) => c.clientId)).toEqual(['c1', 'c2']);
+  });
+
+  it('flattens the items of every page', () => {
+    expect(pagedItems({ pages: [{ items: [1, 2] }, { items: [3] }] })).toEqual([1, 2, 3]);
+    expect(pagedItems(undefined)).toEqual([]);
+  });
 });
