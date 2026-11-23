@@ -1,5 +1,8 @@
 #nullable enable
 const NCode.Identity.Mail.AmazonSes.Options.AmazonSesMailTransportOptions.SectionName = "Mail:AmazonSes" -> string!
+NCode.Identity.Mail.AmazonSes.DefaultRegistration
+NCode.Identity.Mail.AmazonSes.DefaultRegistration.extension(NCode.Identity.Registration.IServiceBuilder<NCode.Identity.Mail.MailLibrary>!)
+NCode.Identity.Mail.AmazonSes.DefaultRegistration.extension(NCode.Identity.Registration.IServiceBuilder<NCode.Identity.Mail.MailLibrary>!).AddAmazonSesMailTransport(Microsoft.Extensions.Configuration.IConfiguration! configuration) -> NCode.Identity.Registration.IServiceBuilder<NCode.Identity.Mail.MailLibrary>!
 NCode.Identity.Mail.AmazonSes.Options.AmazonSesMailTransportOptions
 NCode.Identity.Mail.AmazonSes.Options.AmazonSesMailTransportOptions.AmazonSesMailTransportOptions() -> void
 NCode.Identity.Mail.AmazonSes.Options.AmazonSesMailTransportOptions.ConfigurationSetName.get -> string?
