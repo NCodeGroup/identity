@@ -266,6 +266,45 @@ public class InteractiveSignInCodeTests
         Assert.Empty(transport.Delivered);
     }
 
+    [Fact]
+    public async Task PostLogin_WhenTheTenantAllowsNoMoreCodes_RedirectsToTheLoginPageWithTooManyCodes()
+    {
+        var transport = new CapturingMailTransport();
+        using var factory = new HostApplicationFactory();
+        await factory.SeedTenantSettingsAsync(
+            new Dictionary<string, object>
+            {
+                [OpenIdSettingNames.EmailMfaRequired] = true,
+                [OpenIdSettingNames.EmailCodeSendsPerHour] = 1,
+            },
+            CancellationToken.None
+        );
+        await factory.SeedLocalAccountAsync(
+            UserName,
+            Password,
+            Email,
+            emailVerified: true,
+            CancellationToken.None
+        );
+        using var host = factory.WithWebHostBuilder(UseTransport(transport));
+        var client = CreateClient(host);
+        var (firstLocation, _, _) = await SubmitPasswordAsync(client, CancellationToken.None);
+        Assert.Equal(LoginCodePath, firstLocation.AbsolutePath);
+        await ReadMailedCodeAsync(transport, CancellationToken.None);
+
+        var (location, pendingCookie, sessionCookie) = await SubmitPasswordAsync(
+            client,
+            CancellationToken.None
+        );
+
+        Assert.Equal(LoginPath, location.AbsolutePath);
+        var query = HttpUtility.ParseQueryString(location.Query);
+        Assert.Equal("too_many_codes", query["error"]);
+        Assert.Null(pendingCookie);
+        Assert.Null(sessionCookie);
+        Assert.Single(transport.Delivered);
+    }
+
     #endregion
 
     #region Login Code Tests
