@@ -5,6 +5,7 @@ using JetBrains.Annotations;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using NCode.Identity.OpenId.Accounts.Management.Transfers;
+using NCode.Identity.OpenId.Connections;
 using NCode.Identity.OpenId.Management;
 using NCode.Identity.OpenId.Management.Endpoints;
 using NCode.Identity.OpenId.Management.Transfers;
@@ -25,8 +26,8 @@ public static class DefaultRegistration
     extension(IServiceBuilder<OpenIdManagementLibrary> builder)
     {
         /// <summary>
-        /// Registers the local-account management endpoints (nested under the tenant-plane group
-        /// <c>/api/tenants/{tenantId}</c>), the platform routes <c>/api/platform/local-accounts</c> (nested under the
+        /// Registers the local-account management endpoints (nested under each connection of the tenant-plane group,
+        /// <c>/api/tenants/{tenantId}/connections/{connectionId}/local-accounts</c>), the platform routes <c>/api/platform/local-accounts</c> (nested under the
         /// root group and mapped on the control-plane cell only) and the default <see cref="ILocalAccountValidator"/>.
         /// </summary>
         /// <param name="localAccountStore">The local-account store builder — the compile-time proof that a
@@ -67,6 +68,13 @@ public static class DefaultRegistration
             >();
             serviceCollection.TryAddSingleton<LocalAccountPasswords>();
             serviceCollection.TryAddSingleton<ILocalAccountCreator, DefaultLocalAccountCreator>();
+
+            // A local connection that holds accounts cannot be deleted (ADR-1535).
+            var dependentSourceDescriptor = ServiceDescriptor.Singleton<
+                IConnectionDependentSource,
+                LocalAccountConnectionDependentSource
+            >();
+            serviceCollection.TryAddEnumerable(dependentSourceDescriptor);
 
             // Carries a tenant's local accounts between cells (ADR-1514).
             var transferDescriptor = ServiceDescriptor.Singleton<
