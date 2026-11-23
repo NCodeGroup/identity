@@ -335,8 +335,22 @@ The section is bound strictly and validated when the host starts.
 | `Mail:Smtp:FromName` | none          | The display name of the sender                                                                       |
 | `Mail:Smtp:Timeout`  | 30 seconds    | How long a connection or a command waits for the server, between one second and five minutes         |
 
-Without the section the host registers no transport: every delivery fails and is logged, and no mail is sent, so leave
-the three settings below off. `Tls=None` sends in clear and exists for the local stack's Mailpit; only a host with
+The host sends through Amazon SES instead when the optional `Mail:AmazonSes` section exists. It is bound strictly and
+validated when the host starts, and its credentials come from the default AWS chain, such as a pod's web identity.
+
+| Setting                               | Default    | Meaning                                                                                           |
+|---------------------------------------|------------|---------------------------------------------------------------------------------------------------|
+| `Mail:AmazonSes:Region`               | none       | The AWS region, such as `us-east-1`, whose Amazon SES endpoint sends the mail; required           |
+| `Mail:AmazonSes:From`                 | none       | The address every message is sent from, which a verified Amazon SES identity authorizes; required |
+| `Mail:AmazonSes:FromName`             | none       | The display name of the sender                                                                    |
+| `Mail:AmazonSes:FromIdentityArn`      | none       | The ARN of the Amazon SES identity that authorizes the sender when it belongs to another account  |
+| `Mail:AmazonSes:ConfigurationSetName` | none       | The configuration set every message is sent with, 1 to 64 letters, digits, underscores or hyphens |
+| `Mail:AmazonSes:Tags:<name>`          | none       | A tag every message is sent with, at most 50, each name and value 1 to 256 characters             |
+| `Mail:AmazonSes:Timeout`              | 30 seconds | How long a call to Amazon SES waits, between one second and five minutes                          |
+
+A host configures one transport: setting both `Mail:Smtp` and `Mail:AmazonSes` fails the host at start. Without either
+section the host registers no transport: every delivery fails and is logged, and no mail is sent, so leave the three
+settings below off. `Tls=None` sends in clear and exists for the local stack's Mailpit; only a host with
 `LocalDevelopment:Enabled` uses it, and the SMTP options validator and the Helm chart refuse it otherwise. The host
 queues each message through the job dispatcher, so the in-process dispatcher loses the messages a stopping replica holds
 ([#25](https://github.com/NCodeGroup/identity/issues/25)).

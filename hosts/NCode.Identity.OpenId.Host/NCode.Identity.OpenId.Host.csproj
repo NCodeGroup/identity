@@ -20,6 +20,7 @@
         <ProjectReference Include="..\..\src\NCode.Identity.OpenId.Setup\NCode.Identity.OpenId.Setup.csproj" />
         <ProjectReference Include="..\NCode.Identity.OpenId.Host.Database\NCode.Identity.OpenId.Host.Database.csproj" />
         <ProjectReference Include="..\..\src\NCode.Identity.SharedState.Valkey\NCode.Identity.SharedState.Valkey.csproj" />
+        <ProjectReference Include="..\..\src\NCode.Identity.Mail.AmazonSes\NCode.Identity.Mail.AmazonSes.csproj" />
         <ProjectReference Include="..\..\src\NCode.Identity.Mail.Smtp\NCode.Identity.Mail.Smtp.csproj" />
         <ProjectReference Include="..\..\src\NCode.Identity.Secrets.AwsKms\NCode.Identity.Secrets.AwsKms.csproj" />
         <ProjectReference Include="..\..\src\NCode.Identity.Secrets.AzureKeyVault\NCode.Identity.Secrets.AzureKeyVault.csproj" />

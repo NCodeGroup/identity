@@ -3,6 +3,7 @@
 
 using NCode.Identity.AspNetCore;
 using NCode.Identity.AspNetCore.OpenTelemetry;
+using NCode.Identity.Mail.AmazonSes;
 using NCode.Identity.Mail.Smtp;
 using NCode.Identity.OpenId.Accounts.Authentication;
 using NCode.Identity.OpenId.Accounts.Credentials;
@@ -132,9 +133,11 @@ identityServer.AddFrontendBootstrap(configuration);
 // in-process, which is correct only for a single replica (ADR-1164).
 identityServer.SharedStateLibraryBuilder.AddValkey(configuration);
 
-// Mail — verification, password-reset and sign-in codes — goes to the SMTP server the 'Mail:Smtp' section names;
-// without the section the host sends no mail, and each failed delivery is logged (ADR-1532).
+// Mail — verification, password-reset and sign-in codes — goes to the SMTP server the 'Mail:Smtp' section names, or
+// through Amazon SES when the 'Mail:AmazonSes' section names its region; a host configures one. Without either
+// section the host sends no mail, and each failed delivery is logged (ADR-1532).
 identityServer.MailLibraryBuilder.AddSmtpMailTransport(configuration);
+identityServer.MailLibraryBuilder.AddAmazonSesMailTransport(configuration);
 
 var entityFrameworkPersistence =
     serviceCollection.AddEntityFrameworkCorePersistence<OpenIdDbContext>();

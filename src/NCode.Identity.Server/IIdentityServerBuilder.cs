@@ -40,7 +40,7 @@ public interface IIdentityServerBuilder : IServiceBuilder<IdentityServer>
 
     /// <summary>
     /// Gets the builder of the mail library, whose default transport refuses every message until the host registers
-    /// one, such as <c>AddSmtpMailTransport</c>.
+    /// one, such as <c>AddSmtpMailTransport</c> or <c>AddAmazonSesMailTransport</c>.
     /// </summary>
     IServiceBuilder<MailLibrary> MailLibraryBuilder { get; }
 
