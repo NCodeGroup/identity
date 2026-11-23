@@ -55,7 +55,10 @@ public class AmazonSesMailTransportOptionsValidatorTests : BaseTests
 
         Assert.True(result.Failed);
         var failure = Assert.Single(result.Failures);
-        Assert.Contains("Mail:AmazonSes:Region", failure);
+        Assert.Equal(
+            $"AmazonSesMailTransportOptions.Region ('Mail:AmazonSes:Region') must name an AWS region such as 'us-east-1'; it is '{region}'.",
+            failure
+        );
     }
 
     [Theory]
@@ -72,7 +75,10 @@ public class AmazonSesMailTransportOptionsValidatorTests : BaseTests
 
         Assert.True(result.Failed);
         var failure = Assert.Single(result.Failures);
-        Assert.Contains("Mail:AmazonSes:From", failure);
+        Assert.Equal(
+            $"AmazonSesMailTransportOptions.From ('Mail:AmazonSes:From') must be one mail address; it is '{from}'.",
+            failure
+        );
     }
 
     [Theory]
@@ -90,7 +96,10 @@ public class AmazonSesMailTransportOptionsValidatorTests : BaseTests
 
         Assert.True(result.Failed);
         var failure = Assert.Single(result.Failures);
-        Assert.Contains("Mail:AmazonSes:FromIdentityArn", failure);
+        Assert.Equal(
+            $"AmazonSesMailTransportOptions.FromIdentityArn ('Mail:AmazonSes:FromIdentityArn') must be the ARN of an Amazon SES identity; it is '{arn}'.",
+            failure
+        );
     }
 
     [Theory]
@@ -106,20 +115,27 @@ public class AmazonSesMailTransportOptionsValidatorTests : BaseTests
 
         Assert.True(result.Failed);
         var failure = Assert.Single(result.Failures);
-        Assert.Contains("Mail:AmazonSes:ConfigurationSetName", failure);
+        Assert.Equal(
+            $"AmazonSesMailTransportOptions.ConfigurationSetName ('Mail:AmazonSes:ConfigurationSetName') must be 1 to 64 letters, digits, underscores or hyphens; it is '{configurationSet}'.",
+            failure
+        );
     }
 
     [Fact]
     public void Validate_WithAConfigurationSetNameOver64Characters_Fails()
     {
+        var configurationSet = new string('a', 65);
         var options = CreateOptions();
-        options.ConfigurationSetName = new string('a', 65);
+        options.ConfigurationSetName = configurationSet;
 
         var result = Validator.Validate(null, options);
 
         Assert.True(result.Failed);
         var failure = Assert.Single(result.Failures);
-        Assert.Contains("Mail:AmazonSes:ConfigurationSetName", failure);
+        Assert.Equal(
+            $"AmazonSesMailTransportOptions.ConfigurationSetName ('Mail:AmazonSes:ConfigurationSetName') must be 1 to 64 letters, digits, underscores or hyphens; it is '{configurationSet}'.",
+            failure
+        );
     }
 
     [Fact]
@@ -135,8 +151,10 @@ public class AmazonSesMailTransportOptionsValidatorTests : BaseTests
 
         Assert.True(result.Failed);
         var failure = Assert.Single(result.Failures);
-        Assert.Contains("Mail:AmazonSes:Tags", failure);
-        Assert.Contains("50", failure);
+        Assert.Equal(
+            "AmazonSesMailTransportOptions.Tags ('Mail:AmazonSes:Tags') must hold at most 50 tags; it holds 51.",
+            failure
+        );
     }
 
     [Fact]
@@ -166,21 +184,27 @@ public class AmazonSesMailTransportOptionsValidatorTests : BaseTests
 
         Assert.True(result.Failed);
         var failure = Assert.Single(result.Failures);
-        Assert.Contains("Mail:AmazonSes:Tags", failure);
-        Assert.Contains("name", failure);
+        Assert.Equal(
+            $"AmazonSesMailTransportOptions.Tags ('Mail:AmazonSes:Tags') must name each tag with 1 to 256 letters, digits, underscores, periods, at signs or hyphens; the name '{tagName}' does not.",
+            failure
+        );
     }
 
     [Fact]
     public void Validate_WithATagNameOver256Characters_Fails()
     {
+        var tagName = new string('a', 257);
         var options = CreateOptions();
-        options.Tags[new string('a', 257)] = "value";
+        options.Tags[tagName] = "value";
 
         var result = Validator.Validate(null, options);
 
         Assert.True(result.Failed);
         var failure = Assert.Single(result.Failures);
-        Assert.Contains("Mail:AmazonSes:Tags", failure);
+        Assert.Equal(
+            $"AmazonSesMailTransportOptions.Tags ('Mail:AmazonSes:Tags') must name each tag with 1 to 256 letters, digits, underscores, periods, at signs or hyphens; the name '{tagName}' does not.",
+            failure
+        );
     }
 
     [Theory]
@@ -196,7 +220,10 @@ public class AmazonSesMailTransportOptionsValidatorTests : BaseTests
 
         Assert.True(result.Failed);
         var failure = Assert.Single(result.Failures);
-        Assert.Contains("Mail:AmazonSes:Tags:team", failure);
+        Assert.Equal(
+            "AmazonSesMailTransportOptions.Tags ('Mail:AmazonSes:Tags:team') must be 1 to 256 letters, digits, underscores, periods, at signs or hyphens.",
+            failure
+        );
     }
 
     [Fact]
@@ -209,14 +236,17 @@ public class AmazonSesMailTransportOptionsValidatorTests : BaseTests
 
         Assert.True(result.Failed);
         var failure = Assert.Single(result.Failures);
-        Assert.Contains("Mail:AmazonSes:Tags:team", failure);
+        Assert.Equal(
+            "AmazonSesMailTransportOptions.Tags ('Mail:AmazonSes:Tags:team') must be 1 to 256 letters, digits, underscores, periods, at signs or hyphens.",
+            failure
+        );
     }
 
     [Theory]
-    [InlineData(0)]
-    [InlineData(999)]
-    [InlineData(300_001)]
-    public void Validate_WithATimeoutOutsideTheRange_Fails(int milliseconds)
+    [InlineData(0, "00:00:00")]
+    [InlineData(999, "00:00:00.9990000")]
+    [InlineData(300_001, "00:05:00.0010000")]
+    public void Validate_WithATimeoutOutsideTheRange_Fails(int milliseconds, string timeout)
     {
         var options = CreateOptions();
         options.Timeout = TimeSpan.FromMilliseconds(milliseconds);
@@ -225,7 +255,10 @@ public class AmazonSesMailTransportOptionsValidatorTests : BaseTests
 
         Assert.True(result.Failed);
         var failure = Assert.Single(result.Failures);
-        Assert.Contains("Mail:AmazonSes:Timeout", failure);
+        Assert.Equal(
+            $"AmazonSesMailTransportOptions.Timeout ('Mail:AmazonSes:Timeout') must be between 00:00:01 and 00:05:00; it is {timeout}.",
+            failure
+        );
     }
 
     [Fact]
@@ -238,7 +271,11 @@ public class AmazonSesMailTransportOptionsValidatorTests : BaseTests
         var result = Validator.Validate(null, options);
 
         Assert.True(result.Failed);
-        Assert.Equal(2, result.Failures.Count());
+        var regionMessage =
+            "AmazonSesMailTransportOptions.Region ('Mail:AmazonSes:Region') must name an AWS region such as 'us-east-1'; it is ''.";
+        var fromMessage =
+            "AmazonSesMailTransportOptions.From ('Mail:AmazonSes:From') must be one mail address; it is ''.";
+        Assert.Equal([regionMessage, fromMessage], result.Failures);
     }
 
     #endregion

@@ -58,7 +58,10 @@ public class SmtpMailTransportOptionsValidatorTests : BaseTests
 
         Assert.True(result.Failed);
         var failure = Assert.Single(result.Failures);
-        Assert.Contains("Mail:Smtp:Host", failure);
+        Assert.Equal(
+            "SmtpMailTransportOptions.Host ('Mail:Smtp:Host') must name the SMTP server; it is empty.",
+            failure
+        );
     }
 
     [Theory]
@@ -74,7 +77,10 @@ public class SmtpMailTransportOptionsValidatorTests : BaseTests
 
         Assert.True(result.Failed);
         var failure = Assert.Single(result.Failures);
-        Assert.Contains("Mail:Smtp:Port", failure);
+        Assert.Equal(
+            $"SmtpMailTransportOptions.Port ('Mail:Smtp:Port') must be between 1 and 65535; it is {port}.",
+            failure
+        );
     }
 
     [Fact]
@@ -87,7 +93,10 @@ public class SmtpMailTransportOptionsValidatorTests : BaseTests
 
         Assert.True(result.Failed);
         var failure = Assert.Single(result.Failures);
-        Assert.Contains("Mail:Smtp:Tls", failure);
+        Assert.Equal(
+            "SmtpMailTransportOptions.Tls ('Mail:Smtp:Tls') must be one of StartTls, ImplicitTls, None; it is 42.",
+            failure
+        );
     }
 
     [Fact]
@@ -100,9 +109,10 @@ public class SmtpMailTransportOptionsValidatorTests : BaseTests
 
         Assert.True(result.Failed);
         var failure = Assert.Single(result.Failures);
-        Assert.Contains("Mail:Smtp:Tls", failure);
-        Assert.Contains("clear text", failure);
-        Assert.Contains("LocalDevelopment:Enabled", failure);
+        Assert.Equal(
+            "SmtpMailTransportOptions.Tls ('Mail:Smtp:Tls') is None, which sends mail and the codes it carries in clear text; only a host with LocalDevelopment:Enabled may use it.",
+            failure
+        );
     }
 
     [Fact]
@@ -131,7 +141,10 @@ public class SmtpMailTransportOptionsValidatorTests : BaseTests
 
         Assert.True(result.Failed);
         var failure = Assert.Single(result.Failures);
-        Assert.Contains("Mail:Smtp:From", failure);
+        Assert.Equal(
+            $"SmtpMailTransportOptions.From ('Mail:Smtp:From') must be one mail address; it is '{from}'.",
+            failure
+        );
     }
 
     [Fact]
@@ -144,7 +157,10 @@ public class SmtpMailTransportOptionsValidatorTests : BaseTests
 
         Assert.True(result.Failed);
         var failure = Assert.Single(result.Failures);
-        Assert.Contains("Mail:Smtp:UserName", failure);
+        Assert.Equal(
+            "SmtpMailTransportOptions.UserName and Password ('Mail:Smtp:UserName' and 'Mail:Smtp:Password') must be set together or not at all.",
+            failure
+        );
     }
 
     [Fact]
@@ -157,14 +173,17 @@ public class SmtpMailTransportOptionsValidatorTests : BaseTests
 
         Assert.True(result.Failed);
         var failure = Assert.Single(result.Failures);
-        Assert.Contains("Mail:Smtp:Password", failure);
+        Assert.Equal(
+            "SmtpMailTransportOptions.UserName and Password ('Mail:Smtp:UserName' and 'Mail:Smtp:Password') must be set together or not at all.",
+            failure
+        );
     }
 
     [Theory]
-    [InlineData(0)]
-    [InlineData(999)]
-    [InlineData(300_001)]
-    public void Validate_WithATimeoutOutsideTheRange_Fails(int milliseconds)
+    [InlineData(0, "00:00:00")]
+    [InlineData(999, "00:00:00.9990000")]
+    [InlineData(300_001, "00:05:00.0010000")]
+    public void Validate_WithATimeoutOutsideTheRange_Fails(int milliseconds, string timeout)
     {
         var options = CreateOptions();
         options.Timeout = TimeSpan.FromMilliseconds(milliseconds);
@@ -173,7 +192,10 @@ public class SmtpMailTransportOptionsValidatorTests : BaseTests
 
         Assert.True(result.Failed);
         var failure = Assert.Single(result.Failures);
-        Assert.Contains("Mail:Smtp:Timeout", failure);
+        Assert.Equal(
+            $"SmtpMailTransportOptions.Timeout ('Mail:Smtp:Timeout') must be between 00:00:01 and 00:05:00; it is {timeout}.",
+            failure
+        );
     }
 
     [Fact]
@@ -186,7 +208,11 @@ public class SmtpMailTransportOptionsValidatorTests : BaseTests
         var result = Validator.Validate(null, options);
 
         Assert.True(result.Failed);
-        Assert.Equal(2, result.Failures.Count());
+        var hostMessage =
+            "SmtpMailTransportOptions.Host ('Mail:Smtp:Host') must name the SMTP server; it is empty.";
+        var portMessage =
+            "SmtpMailTransportOptions.Port ('Mail:Smtp:Port') must be between 1 and 65535; it is 0.";
+        Assert.Equal([hostMessage, portMessage], result.Failures);
     }
 
     #endregion
