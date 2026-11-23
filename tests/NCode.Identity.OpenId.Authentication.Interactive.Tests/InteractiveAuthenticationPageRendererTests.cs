@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using System.Buffers;
+using Microsoft.AspNetCore.Antiforgery;
 using Xunit;
 
 namespace NCode.Identity.OpenId.Authentication.Interactive.Tests;
@@ -35,6 +36,11 @@ public class InteractiveAuthenticationPageRendererTests
         InteractiveLocale? locale = null
     ) => new(shell, surfaceBase, branding, Nonce, locale ?? TestLocales.Xx);
 
+    private static InteractivePageForm CreateForm(
+        string antiforgeryFieldName,
+        string antiforgeryToken
+    ) => new(new AntiforgeryTokenSet(antiforgeryToken, null, antiforgeryFieldName, null));
+
     #region RenderLoginPage Tests
 
     [Fact]
@@ -44,11 +50,10 @@ public class InteractiveAuthenticationPageRendererTests
         InteractiveAuthenticationPageRenderer.RenderLoginPage(
             writer,
             CreateFrame(),
-            returnUrl: "/connect/authorize",
-            antiforgeryFieldName: "__RequestVerificationToken",
-            antiforgeryToken: "token-123",
-            errorMessage: null,
-            statusMessage: null,
+            CreateForm("__RequestVerificationToken", "token-123") with
+            {
+                ReturnUrl = "/connect/authorize",
+            },
             forgotPasswordHref: null
         );
         var html = writer.WrittenSpan.ToString();
@@ -76,11 +81,11 @@ public class InteractiveAuthenticationPageRendererTests
         InteractiveAuthenticationPageRenderer.RenderLoginPage(
             writer,
             CreateFrame(),
-            returnUrl: "/",
-            antiforgeryFieldName: "__RequestVerificationToken",
-            antiforgeryToken: "t",
-            errorMessage: "The username or password is incorrect.",
-            statusMessage: null,
+            CreateForm("__RequestVerificationToken", "t") with
+            {
+                ReturnUrl = "/",
+                ErrorMessage = "The username or password is incorrect.",
+            },
             forgotPasswordHref: null
         );
         var html = writer.WrittenSpan.ToString();
@@ -96,11 +101,10 @@ public class InteractiveAuthenticationPageRendererTests
         InteractiveAuthenticationPageRenderer.RenderLoginPage(
             writer,
             CreateFrame(),
-            returnUrl: "\"><script>alert(1)</script>",
-            antiforgeryFieldName: "__RequestVerificationToken",
-            antiforgeryToken: "t",
-            errorMessage: null,
-            statusMessage: null,
+            CreateForm("__RequestVerificationToken", "t") with
+            {
+                ReturnUrl = "\"><script>alert(1)</script>",
+            },
             forgotPasswordHref: null
         );
         var html = writer.WrittenSpan.ToString();
@@ -115,11 +119,10 @@ public class InteractiveAuthenticationPageRendererTests
         InteractiveAuthenticationPageRenderer.RenderLoginPage(
             writer,
             CreateFrame(shell: InteractiveBundleShell.TryCreate(BundleShell)),
-            returnUrl: "/",
-            antiforgeryFieldName: "__RequestVerificationToken",
-            antiforgeryToken: "t",
-            errorMessage: null,
-            statusMessage: null,
+            CreateForm("__RequestVerificationToken", "t") with
+            {
+                ReturnUrl = "/",
+            },
             forgotPasswordHref: null
         );
         var html = writer.WrittenSpan.ToString();
@@ -137,11 +140,10 @@ public class InteractiveAuthenticationPageRendererTests
         InteractiveAuthenticationPageRenderer.RenderLoginPage(
             writer,
             CreateFrame(shell: InteractiveBundleShell.TryCreate(BundleShell)),
-            returnUrl: "/",
-            antiforgeryFieldName: "__RequestVerificationToken",
-            antiforgeryToken: "t",
-            errorMessage: null,
-            statusMessage: null,
+            CreateForm("__RequestVerificationToken", "t") with
+            {
+                ReturnUrl = "/",
+            },
             forgotPasswordHref: null
         );
         var html = writer.WrittenSpan.ToString();
@@ -167,11 +169,11 @@ public class InteractiveAuthenticationPageRendererTests
         InteractiveAuthenticationPageRenderer.RenderLoginPage(
             writer,
             CreateFrame(),
-            returnUrl: "/",
-            antiforgeryFieldName: "__RequestVerificationToken",
-            antiforgeryToken: "t",
-            errorMessage: new string('<', 1000),
-            statusMessage: null,
+            CreateForm("__RequestVerificationToken", "t") with
+            {
+                ReturnUrl = "/",
+                ErrorMessage = new string('<', 1000),
+            },
             forgotPasswordHref: null
         );
         var html = writer.WrittenSpan.ToString();
@@ -193,11 +195,10 @@ public class InteractiveAuthenticationPageRendererTests
                 shell: InteractiveBundleShell.TryCreate(BundleShell),
                 branding: AcmeBranding
             ),
-            returnUrl: "/",
-            antiforgeryFieldName: "__RequestVerificationToken",
-            antiforgeryToken: "t",
-            errorMessage: null,
-            statusMessage: null,
+            CreateForm("__RequestVerificationToken", "t") with
+            {
+                ReturnUrl = "/",
+            },
             forgotPasswordHref: null
         );
         var html = writer.WrittenSpan.ToString();
@@ -229,11 +230,10 @@ public class InteractiveAuthenticationPageRendererTests
                     null
                 )
             ),
-            returnUrl: "/",
-            antiforgeryFieldName: "__RequestVerificationToken",
-            antiforgeryToken: "t",
-            errorMessage: null,
-            statusMessage: null,
+            CreateForm("__RequestVerificationToken", "t") with
+            {
+                ReturnUrl = "/",
+            },
             forgotPasswordHref: null
         );
         var html = writer.WrittenSpan.ToString();
@@ -249,11 +249,10 @@ public class InteractiveAuthenticationPageRendererTests
         InteractiveAuthenticationPageRenderer.RenderLoginPage(
             writer,
             CreateFrame(branding: AcmeBranding),
-            returnUrl: "/",
-            antiforgeryFieldName: "__RequestVerificationToken",
-            antiforgeryToken: "t",
-            errorMessage: null,
-            statusMessage: null,
+            CreateForm("__RequestVerificationToken", "t") with
+            {
+                ReturnUrl = "/",
+            },
             forgotPasswordHref: null
         );
         var html = writer.WrittenSpan.ToString();
@@ -275,11 +274,10 @@ public class InteractiveAuthenticationPageRendererTests
                 shell: shell,
                 branding: new InteractiveBranding("Acme", null, faviconUrl, null, null, null, null)
             ),
-            returnUrl: "/",
-            antiforgeryFieldName: "__RequestVerificationToken",
-            antiforgeryToken: "t",
-            errorMessage: null,
-            statusMessage: null,
+            CreateForm("__RequestVerificationToken", "t") with
+            {
+                ReturnUrl = "/",
+            },
             forgotPasswordHref: null
         );
         return writer.WrittenSpan.ToString();
@@ -366,11 +364,10 @@ public class InteractiveAuthenticationPageRendererTests
         InteractiveAuthenticationPageRenderer.RenderLoginPage(
             writer,
             CreateFrame(),
-            returnUrl: "/",
-            antiforgeryFieldName: "__RequestVerificationToken",
-            antiforgeryToken: "t",
-            errorMessage: null,
-            statusMessage: null,
+            CreateForm("__RequestVerificationToken", "t") with
+            {
+                ReturnUrl = "/",
+            },
             forgotPasswordHref: "password/forgot?ReturnUrl=%2F&a=\"b\""
         );
         var html = writer.WrittenSpan.ToString();
@@ -389,11 +386,10 @@ public class InteractiveAuthenticationPageRendererTests
         InteractiveAuthenticationPageRenderer.RenderLoginPage(
             writer,
             CreateFrame(),
-            returnUrl: "/",
-            antiforgeryFieldName: "__RequestVerificationToken",
-            antiforgeryToken: "t",
-            errorMessage: null,
-            statusMessage: null,
+            CreateForm("__RequestVerificationToken", "t") with
+            {
+                ReturnUrl = "/",
+            },
             forgotPasswordHref: null
         );
         var html = writer.WrittenSpan.ToString();
@@ -408,11 +404,11 @@ public class InteractiveAuthenticationPageRendererTests
         InteractiveAuthenticationPageRenderer.RenderLoginPage(
             writer,
             CreateFrame(),
-            returnUrl: "/",
-            antiforgeryFieldName: "__RequestVerificationToken",
-            antiforgeryToken: "t",
-            errorMessage: null,
-            statusMessage: "Done <b>",
+            CreateForm("__RequestVerificationToken", "t") with
+            {
+                ReturnUrl = "/",
+                StatusMessage = "Done <b>",
+            },
             forgotPasswordHref: null
         );
         var html = writer.WrittenSpan.ToString();
@@ -448,9 +444,10 @@ public class InteractiveAuthenticationPageRendererTests
         InteractiveAuthenticationPageRenderer.RenderConsentPage(
             writer,
             CreateFrame(),
-            returnUrl: "/continue",
-            antiforgeryFieldName: "__RequestVerificationToken",
-            antiforgeryToken: "t",
+            CreateForm("__RequestVerificationToken", "t") with
+            {
+                ReturnUrl = "/continue",
+            },
             appName: "Conformance Client",
             scopes: []
         );
@@ -469,9 +466,10 @@ public class InteractiveAuthenticationPageRendererTests
         InteractiveAuthenticationPageRenderer.RenderConsentPage(
             writer,
             CreateFrame(),
-            returnUrl: "/continue",
-            antiforgeryFieldName: "__RequestVerificationToken",
-            antiforgeryToken: "t",
+            CreateForm("__RequestVerificationToken", "t") with
+            {
+                ReturnUrl = "/continue",
+            },
             appName: "App",
             scopes:
             [
@@ -505,9 +503,10 @@ public class InteractiveAuthenticationPageRendererTests
         InteractiveAuthenticationPageRenderer.RenderLogoutConfirmationPage(
             writer,
             CreateFrame(),
-            returnUrl: "/continue",
-            antiforgeryFieldName: "__RequestVerificationToken",
-            antiforgeryToken: "t"
+            CreateForm("__RequestVerificationToken", "t") with
+            {
+                ReturnUrl = "/continue",
+            }
         );
         var html = writer.WrittenSpan.ToString();
 
@@ -529,9 +528,10 @@ public class InteractiveAuthenticationPageRendererTests
         InteractiveAuthenticationPageRenderer.RenderLogoutConfirmationPage(
             writer,
             CreateFrame(),
-            returnUrl: "\"><script>alert(1)</script>",
-            antiforgeryFieldName: "__RequestVerificationToken",
-            antiforgeryToken: "t"
+            CreateForm("__RequestVerificationToken", "t") with
+            {
+                ReturnUrl = "\"><script>alert(1)</script>",
+            }
         );
         var html = writer.WrittenSpan.ToString();
 
@@ -738,10 +738,11 @@ public class InteractiveAuthenticationPageRendererTests
         InteractiveAuthenticationPageRenderer.RenderForgotPasswordPage(
             writer,
             CreateFrame(),
-            returnUrl: "/continue",
-            antiforgeryFieldName: "__RequestVerificationToken",
-            antiforgeryToken: "token-123",
-            errorMessage: "Xx problem"
+            CreateForm("__RequestVerificationToken", "token-123") with
+            {
+                ReturnUrl = "/continue",
+                ErrorMessage = "Xx problem",
+            }
         );
         var html = writer.WrittenSpan.ToString();
 
@@ -780,11 +781,11 @@ public class InteractiveAuthenticationPageRendererTests
         InteractiveAuthenticationPageRenderer.RenderResetPasswordPage(
             writer,
             CreateFrame(),
-            returnUrl: "/continue",
-            flowId: "flow-123",
-            antiforgeryFieldName: "__RequestVerificationToken",
-            antiforgeryToken: "token-123",
-            errorMessage: null
+            CreateForm("__RequestVerificationToken", "token-123") with
+            {
+                ReturnUrl = "/continue",
+            },
+            flowId: "flow-123"
         );
         var html = writer.WrittenSpan.ToString();
 
@@ -822,11 +823,11 @@ public class InteractiveAuthenticationPageRendererTests
         InteractiveAuthenticationPageRenderer.RenderResetPasswordPage(
             writer,
             CreateFrame(),
-            returnUrl: "/",
-            flowId: "\"><script>alert(1)</script>",
-            antiforgeryFieldName: "__RequestVerificationToken",
-            antiforgeryToken: "t",
-            errorMessage: null
+            CreateForm("__RequestVerificationToken", "t") with
+            {
+                ReturnUrl = "/",
+            },
+            flowId: "\"><script>alert(1)</script>"
         );
         var html = writer.WrittenSpan.ToString();
 
@@ -845,10 +846,11 @@ public class InteractiveAuthenticationPageRendererTests
         InteractiveAuthenticationPageRenderer.RenderSignInCodePage(
             writer,
             CreateFrame(),
-            antiforgeryFieldName: "__RequestVerificationToken",
-            antiforgeryToken: "token-123",
-            errorMessage: "Xx problem",
-            statusMessage: "Xx sent"
+            CreateForm("__RequestVerificationToken", "token-123") with
+            {
+                ErrorMessage = "Xx problem",
+                StatusMessage = "Xx sent",
+            }
         );
         var html = writer.WrittenSpan.ToString();
 
@@ -890,11 +892,11 @@ public class InteractiveAuthenticationPageRendererTests
         InteractiveAuthenticationPageRenderer.RenderLoginPage(
             writer,
             CreateFrame(),
-            returnUrl: "/",
-            antiforgeryFieldName: "__RequestVerificationToken",
-            antiforgeryToken: "t",
-            errorMessage: TestLocales.Xx.Messages.InvalidCredentialsError,
-            statusMessage: null,
+            CreateForm("__RequestVerificationToken", "t") with
+            {
+                ReturnUrl = "/",
+                ErrorMessage = TestLocales.Xx.Messages.InvalidCredentialsError,
+            },
             forgotPasswordHref: null
         );
         var html = writer.WrittenSpan.ToString();
@@ -931,11 +933,10 @@ public class InteractiveAuthenticationPageRendererTests
         InteractiveAuthenticationPageRenderer.RenderLoginPage(
             writer,
             CreateFrame(shell: shell),
-            returnUrl: "/",
-            antiforgeryFieldName: "__RequestVerificationToken",
-            antiforgeryToken: "t",
-            errorMessage: null,
-            statusMessage: null,
+            CreateForm("__RequestVerificationToken", "t") with
+            {
+                ReturnUrl = "/",
+            },
             forgotPasswordHref: null
         );
         var html = writer.WrittenSpan.ToString();
@@ -966,9 +967,10 @@ public class InteractiveAuthenticationPageRendererTests
         InteractiveAuthenticationPageRenderer.RenderConsentPage(
             writer,
             CreateFrame(),
-            returnUrl: "/",
-            antiforgeryFieldName: "__RequestVerificationToken",
-            antiforgeryToken: "t",
+            CreateForm("__RequestVerificationToken", "t") with
+            {
+                ReturnUrl = "/",
+            },
             appName: "<Acme>",
             scopes: []
         );
@@ -995,9 +997,10 @@ public class InteractiveAuthenticationPageRendererTests
         InteractiveAuthenticationPageRenderer.RenderConsentPage(
             writer,
             CreateFrame(locale: locale),
-            returnUrl: "/",
-            antiforgeryFieldName: "__RequestVerificationToken",
-            antiforgeryToken: "t",
+            CreateForm("__RequestVerificationToken", "t") with
+            {
+                ReturnUrl = "/",
+            },
             appName: "Acme",
             scopes: []
         );
@@ -1014,9 +1017,10 @@ public class InteractiveAuthenticationPageRendererTests
         InteractiveAuthenticationPageRenderer.RenderLogoutConfirmationPage(
             writer,
             CreateFrame(),
-            returnUrl: "/",
-            antiforgeryFieldName: "__RequestVerificationToken",
-            antiforgeryToken: "t"
+            CreateForm("__RequestVerificationToken", "t") with
+            {
+                ReturnUrl = "/",
+            }
         );
         var html = writer.WrittenSpan.ToString();
 
