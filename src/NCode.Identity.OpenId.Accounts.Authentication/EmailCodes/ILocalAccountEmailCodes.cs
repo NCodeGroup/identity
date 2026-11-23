@@ -76,8 +76,7 @@ internal interface ILocalAccountEmailCodes
     /// <see cref="ConsumeAsync"/> after its other checks pass.
     /// </summary>
     /// <param name="openIdContext">The <see cref="OpenIdContext"/> of the tenant the flow belongs to.</param>
-    /// <param name="purpose">The purpose of the code, one of the <see cref="EmailCodePurposes"/>.</param>
-    /// <param name="flowId">The handle that <see cref="SendAsync"/> returned.</param>
+    /// <param name="flow">The flow, as <see cref="SendAsync"/> named it.</param>
     /// <param name="code">The code the end user presented, which the caller owns and disposes.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
     /// <returns>
@@ -86,8 +85,7 @@ internal interface ILocalAccountEmailCodes
     /// </returns>
     ValueTask<EmailCodeMatch?> VerifyAsync(
         OpenIdContext openIdContext,
-        string purpose,
-        string flowId,
+        EmailCodeFlow flow,
         Secret<char> code,
         CancellationToken cancellationToken
     );
@@ -97,8 +95,7 @@ internal interface ILocalAccountEmailCodes
     /// passed and before the work the code authorizes.
     /// </summary>
     /// <param name="openIdContext">The <see cref="OpenIdContext"/> of the tenant the flow belongs to.</param>
-    /// <param name="purpose">The purpose of the code, one of the <see cref="EmailCodePurposes"/>.</param>
-    /// <param name="flowId">The handle that <see cref="SendAsync"/> returned.</param>
+    /// <param name="flow">The flow, as <see cref="SendAsync"/> named it.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
     /// <returns>
     /// <see langword="true"/> when this call took the flow; or <see langword="false"/> when the flow was gone because
@@ -106,8 +103,7 @@ internal interface ILocalAccountEmailCodes
     /// </returns>
     ValueTask<bool> ConsumeAsync(
         OpenIdContext openIdContext,
-        string purpose,
-        string flowId,
+        EmailCodeFlow flow,
         CancellationToken cancellationToken
     );
 }

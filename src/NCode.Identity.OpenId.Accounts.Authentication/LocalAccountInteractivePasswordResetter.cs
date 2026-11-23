@@ -141,13 +141,8 @@ internal sealed class LocalAccountInteractivePasswordResetter(
             return InteractivePasswordChangeResult.NotSupported;
         }
 
-        var match = await EmailCodes.VerifyAsync(
-            openIdContext,
-            EmailCodePurposes.ResetPassword,
-            flowId,
-            code,
-            cancellationToken
-        );
+        var flow = new EmailCodeFlow(EmailCodePurposes.ResetPassword, flowId);
+        var match = await EmailCodes.VerifyAsync(openIdContext, flow, code, cancellationToken);
         if (match is null)
         {
             // The end user's reset is audited as the password grant's authentication is (ADR-1533).
@@ -212,12 +207,7 @@ internal sealed class LocalAccountInteractivePasswordResetter(
 
         // The code is spent after every check has passed and before its effect, with one atomic take, so two requests
         // that present the right code cannot both reset the password. See ADR-1533.
-        var consumed = await EmailCodes.ConsumeAsync(
-            openIdContext,
-            EmailCodePurposes.ResetPassword,
-            flowId,
-            cancellationToken
-        );
+        var consumed = await EmailCodes.ConsumeAsync(openIdContext, flow, cancellationToken);
         if (!consumed)
         {
             return await RefuseInvalidCodeAsync(

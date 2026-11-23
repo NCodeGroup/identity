@@ -358,16 +358,15 @@ internal sealed class DefaultLocalAccountEmailCodes(
     /// <inheritdoc />
     public async ValueTask<EmailCodeMatch?> VerifyAsync(
         OpenIdContext openIdContext,
-        string purpose,
-        string flowId,
+        EmailCodeFlow flow,
         Secret<char> code,
         CancellationToken cancellationToken
     )
     {
-        var key = CreateFlowKey(openIdContext.Tenant.TenantId, purpose, flowId);
+        var key = CreateFlowKey(openIdContext.Tenant.TenantId, flow.Purpose, flow.FlowId);
         var presentedHash = default(EmailCodeHash);
         var presentedCode = code.Reveal();
-        HashCode(flowId, presentedCode, presentedHash);
+        HashCode(flow.FlowId, presentedCode, presentedHash);
 
         // Each guess is counted before it is judged, so at most five guesses are compared against one flow however
         // many race, and a lost swap reads the flow again.
@@ -439,12 +438,11 @@ internal sealed class DefaultLocalAccountEmailCodes(
     /// <inheritdoc />
     public async ValueTask<bool> ConsumeAsync(
         OpenIdContext openIdContext,
-        string purpose,
-        string flowId,
+        EmailCodeFlow flow,
         CancellationToken cancellationToken
     )
     {
-        var key = CreateFlowKey(openIdContext.Tenant.TenantId, purpose, flowId);
+        var key = CreateFlowKey(openIdContext.Tenant.TenantId, flow.Purpose, flow.FlowId);
         var taken = await ValueSet.TryTakeAsync(key, cancellationToken);
         return taken is not null;
     }

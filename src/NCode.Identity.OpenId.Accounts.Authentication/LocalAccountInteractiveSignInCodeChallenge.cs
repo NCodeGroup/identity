@@ -145,17 +145,8 @@ internal sealed class LocalAccountInteractiveSignInCodeChallenge(
 
         // The code is spent after every check has passed, once it is bound to the account, and before its effect, with
         // one atomic take. See ADR-1533.
-        if (
-            !await EmailCodeRedemption.TryRedeemAsync(
-                EmailCodes,
-                openIdContext,
-                EmailCodePurposes.SignIn,
-                flowId,
-                code,
-                account,
-                cancellationToken
-            )
-        )
+        var flow = new EmailCodeFlow(EmailCodePurposes.SignIn, flowId);
+        if (!await EmailCodes.TryRedeemAsync(openIdContext, flow, code, account, cancellationToken))
         {
             await AuditEventRecorder.RecordSecondFactorFailedAsync(
                 openIdContext,
