@@ -12,7 +12,7 @@ namespace NCode.Identity.OpenId.Management.ControlPlane;
 public sealed class ControlPlanePrincipalQuery
 {
     /// <summary>
-    /// The most identifiers and usernames, each, that one query names.
+    /// The most principal identifiers and usernames, together, that one query names.
     /// </summary>
     public const int MaxNames = 100;
 
