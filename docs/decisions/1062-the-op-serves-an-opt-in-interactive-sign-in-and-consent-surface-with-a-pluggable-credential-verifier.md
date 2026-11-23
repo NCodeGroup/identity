@@ -89,7 +89,8 @@ The surface is the leaf package pair `NCode.Identity.OpenId.Authentication.Inter
 
 ### The credential backend
 
-- The local backend is `AddLocalAccountInteractiveAuthentication(IServiceBuilder<LocalAccountLibrary>)` in
+- The local backend is
+  `AddLocalAccountInteractiveAuthentication(IServiceBuilder<LocalAccountLibrary>, IServiceBuilder<MailLibrary>)` in
   `NCode.Identity.OpenId.Accounts.Authentication`, registered like the password grant
   ([ADR-1051](1051-a-local-account-is-a-self-issued-connection-behind-one-pluggable-store-seam.md)). It registers
   `LocalAccountInteractiveCredentialVerifier`, which verifies through secure buffers and issues a self-issued

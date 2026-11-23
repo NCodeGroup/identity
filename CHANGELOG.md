@@ -159,7 +159,7 @@ Until the first stable release, the [Unreleased] section describes the product a
   (`AddLocalAccountEntityFramework()`, `AddAspNetIdentityLocalAccountStore<TUser>()` or a custom store) receives
   `IServiceBuilder<StoreManagerLibrary>`, which `AddEntityFrameworkCorePersistence<TDbContext>()` mints, and returns
   `IServiceBuilder<LocalAccountLibrary>`. `AddLocalAccountAuthentication(IServiceBuilder<LocalAccountLibrary>)` and
-  `AddLocalAccountInteractiveAuthentication(IServiceBuilder<LocalAccountLibrary>)` extend
+  `AddLocalAccountInteractiveAuthentication(IServiceBuilder<LocalAccountLibrary>, IServiceBuilder<MailLibrary>)` extend
   `IServiceBuilder<OpenIdAuthenticationLibrary>`, and `AddLocalAccountManagement(IServiceBuilder<LocalAccountLibrary>)`
   extends `IServiceBuilder<OpenIdManagementLibrary>`, each returning its receiver for chaining, for example
   `AddIdentityServer().OpenIdAuthenticationLibraryBuilder.AddLocalAccountAuthentication(localAccountStore)`
