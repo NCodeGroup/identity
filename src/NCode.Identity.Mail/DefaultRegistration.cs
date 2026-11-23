@@ -21,8 +21,9 @@ public static class DefaultRegistration
     {
         /// <summary>
         /// Registers the mail library: the sender that queues each model for delivery through the job dispatcher, the
-        /// registry of the composers that compose each model into a message, the job that delivers it, and a transport
-        /// that refuses every message, which a registered transport such as <c>AddSmtpMailTransport</c> replaces.
+        /// registry of the composers that build each queued model's message at every delivery attempt, the job that
+        /// delivers it, and a transport that refuses every message, which a registered transport such as
+        /// <c>AddSmtpMailTransport</c> replaces.
         /// </summary>
         /// <returns>The <see cref="IServiceBuilder{T}"/> for the mail library so that calls can be chained.</returns>
         [PublicAPI]

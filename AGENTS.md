@@ -132,8 +132,8 @@ compiles it, no gate runs it as tests, and a `.Tests` project of its own unit-te
 - **Persistence** — `NCode.Identity.Persistence.Abstractions` (every persistence contract, and the UUIDv7 default of the
   surrogate key generator)
 - **Infrastructure ports** — `NCode.Identity.Dispatch(.Abstractions)` (background jobs),
-  `NCode.Identity.Events(.Abstractions)`, `NCode.Identity.Mail(.Abstractions)` (outbound mail) and its opt-in
-  `NCode.Identity.Mail.Smtp` adapter
+  `NCode.Identity.Events(.Abstractions)`, `NCode.Identity.Mail(.Abstractions)` (outbound mail), its MIME form
+  `NCode.Identity.Mail.Mime` and its opt-in `NCode.Identity.Mail.Smtp` and `NCode.Identity.Mail.AmazonSes` adapters
   ([ADR-1532](docs/decisions/1532-outbound-mail-is-a-port-that-composes-each-queued-message-at-delivery-for-a-replaceable-transport-with-smtp-and-amazon-ses-adapters.md)),
   `NCode.Identity.SharedState(.Abstractions)` (state every replica sees) and its opt-in
   `NCode.Identity.SharedState.Valkey` adapter

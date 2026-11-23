@@ -7,7 +7,7 @@
 |                    |                                                                                                                                                                                                                                        |
 | ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Status**         | Available for local accounts                                                                                                                                                                                                           |
-| **Packages**       | `NCode.Identity.Mail(.Abstractions)` (the mail port), `NCode.Identity.Mail.Smtp` (the opt-in SMTP transport), `NCode.Identity.OpenId.Authentication.Interactive` (the pages and seams), `NCode.Identity.OpenId.Accounts.Authentication` (the local-account implementations) |
+| **Packages**       | `NCode.Identity.Mail(.Abstractions)` (the mail port), `NCode.Identity.Mail.Mime` (the MIME form of a message), `NCode.Identity.Mail.Smtp` and `NCode.Identity.Mail.AmazonSes` (the opt-in transports), `NCode.Identity.OpenId.Authentication.Interactive` (the pages and seams), `NCode.Identity.OpenId.Accounts.Authentication` (the local-account implementations) |
 | **Key decisions**  | [ADR-1532](../decisions/1532-outbound-mail-is-a-port-that-composes-each-queued-message-at-delivery-for-a-replaceable-transport-with-smtp-and-amazon-ses-adapters.md), [ADR-1533](../decisions/1533-an-end-user-verifies-an-email-address-resets-a-password-and-signs-in-with-a-second-factor-through-one-time-email-codes.md) |
 | **Operator guide** | The host README's [`## Outbound mail`](../../hosts/NCode.Identity.OpenId.Host/README.md#outbound-mail)                                                                                                                                 |
 
@@ -139,19 +139,26 @@ the grant cannot carry a code. The sign-in-code page has the no-JavaScript basel
 
 ## The mail transport
 
-A flow hands its message to `IMailSender`, which queues a delivery through the job dispatcher and returns. A delivery is
-tried four times, backing off from five seconds to one minute, so a code still arrives within its lifetime, and
-`IMailTransport` delivers it. `NCode.Identity.Mail.Smtp` is the transport a host opts into with the `Mail:Smtp` section;
-without the section the default transport refuses every message, each failed delivery is logged, and a tenant keeps the
-three settings off. The sender address belongs to the transport, because the provider authorizes it. `Tls` is `StartTls`
-or `ImplicitTls`, and `None` sends in clear, so the SMTP options validator refuses it, in any spelling that binds to it,
-unless `LocalDevelopment:Enabled` is set, for the local stack's mail catcher. The mail is worded in every shipped locale
-and in the tenant's branding display name, and a log never writes a recipient or a body. See
-[metrics](../metrics.md#ncodeidentitymailmessages) for the delivery counter.
+A flow hands the mail's model to `IMailSender`, which refuses a model that no registered `IMailComposer` handles, queues
+the model through the job dispatcher and returns. At each delivery attempt the model's composer builds the message, so a
+code is a number until a sensitive buffer writes it, `IMailTransport` delivers the message, and the handler disposes it.
+A delivery is tried four times, backing off from five seconds to one minute, so a code still arrives within its
+lifetime. A message's bodies and attachments are `MailContent`, streams that the message owns and never byte arrays or
+strings, and `NCode.Identity.Mail.Mime` builds the MIME form that both transports send. `NCode.Identity.Mail.Smtp` is
+the transport a host opts into with the `Mail:Smtp` section, and `NCode.Identity.Mail.AmazonSes` is the one it opts into
+with the `Mail:AmazonSes` section, which sends through the Amazon SES v2 API as the pod's AWS role and reports a refusal
+as its error code and status only; a host configures one of them. Without a transport section the default transport
+refuses every message, each failed delivery is logged, and a tenant keeps the three settings off. The sender address
+belongs to the transport, because the provider authorizes it. `Tls` is `StartTls` or `ImplicitTls`, and `None` sends in
+clear, so the SMTP options validator refuses it, in any spelling that binds to it, unless `LocalDevelopment:Enabled` is
+set, for the local stack's mail catcher. The mail is worded in every shipped locale and in the tenant's branding display
+name, and a log never writes a recipient or a body. See [metrics](../metrics.md#ncodeidentitymailmessages) for the
+delivery counter.
 
 > [!TIP]
 > [ADR-1532](../decisions/1532-outbound-mail-is-a-port-that-composes-each-queued-message-at-delivery-for-a-replaceable-transport-with-smtp-and-amazon-ses-adapters.md),
-> `IMailSender`, `IMailTransport`, `MailDeliveryJobHandler`, `SmtpMailTransport`.
+> `IMailSender`, `IMailComposer`, `IMailTransport`, `MailDeliveryJobHandler`, `SmtpMailTransport`,
+> `AmazonSesMailTransport`.
 
 ## Audit
 
@@ -174,7 +181,7 @@ sign-in. Nothing is recorded while a flow's setting is off. See the [audit recor
 - **A replica that stops loses the codes it holds.** The in-process dispatcher keeps a queued message in memory, so the
   end user asks for another code; a durable dispatcher would keep it, code included, until it is delivered
   ([#25](https://github.com/NCodeGroup/identity/issues/25)).
-- **A host without `Mail:Smtp` sends no mail.** Its tenants keep the three settings off.
+- **A host without a transport section sends no mail.** Its tenants keep the three settings off.
 - **The flows serve local accounts.** The surface's seams support nothing until a backend implements them, and the
   local-account capability is the one that does.
 - **TOTP and passkeys are not built.** They are stronger factors that need enrollment.
@@ -188,7 +195,9 @@ sign-in. Nothing is recorded while a flow's setting is off. See the [audit recor
   [ADR-1230](../decisions/1230-an-end-user-changes-their-password-through-an-optional-seam-and-keeps-only-the-current-session.md),
   [ADR-1236](../decisions/1236-a-password-is-judged-by-one-policy-wherever-it-is-set.md)
 - Code: [`NCode.Identity.Mail`](../../src/NCode.Identity.Mail),
+  [`NCode.Identity.Mail.Mime`](../../src/NCode.Identity.Mail.Mime),
   [`NCode.Identity.Mail.Smtp`](../../src/NCode.Identity.Mail.Smtp),
+  [`NCode.Identity.Mail.AmazonSes`](../../src/NCode.Identity.Mail.AmazonSes),
   [`LocalAccountInteractivePasswordResetter`](../../src/NCode.Identity.OpenId.Accounts.Authentication/LocalAccountInteractivePasswordResetter.cs),
   [`LocalAccountInteractiveEmailVerifier`](../../src/NCode.Identity.OpenId.Accounts.Authentication/LocalAccountInteractiveEmailVerifier.cs),
   [`LocalAccountInteractiveSignInCodeChallenge`](../../src/NCode.Identity.OpenId.Accounts.Authentication/LocalAccountInteractiveSignInCodeChallenge.cs)

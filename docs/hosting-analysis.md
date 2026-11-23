@@ -902,9 +902,9 @@ an SLA no higher than a single-datacenter platform supports (~99.9%), until cell
 ([§11](#11-growth-path-aws)); the [incident-response runbook](incident-response.md).
 
 **Outbound email:** verification, password reset and email MFA send through Amazon SES in the cell's AWS region
-(`us-east-1` for production), over SMTP from `mail.ncodeid.net`, with Easy DKIM, a custom MAIL FROM domain so SPF aligns
-as well, and DMARC at `p=reject`. SES charges $0.10 per 1,000 emails _(verify)_ and adds no subprocessor, because AWS
-already is one
+(`us-east-1` for production) from `mail.ncodeid.net`, through the host's Amazon SES transport, as the cell's AWS role,
+with Easy DKIM, a custom MAIL FROM domain so SPF aligns as well, and DMARC at `p=reject`. SES charges $0.10 per 1,000
+emails _(verify)_ and adds no subprocessor, because AWS already is one
 ([ADR-1528](decisions/1528-the-hosted-platform-sends-its-mail-through-amazon-ses-in-each-cells-region-from-mail-ncodeid-net.md)).
 
 ## 11. Growth path: AWS

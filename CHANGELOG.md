@@ -3434,11 +3434,16 @@ Until the first stable release, the [Unreleased] section describes the product a
   ([ADR-1164](docs/decisions/1164-replicas-share-expiring-keys-values-and-indexes-through-ports-with-in-process-and-valkey-adapters.md), issue
   [#123](https://github.com/NCodeGroup/identity/issues/123)).
 
-- **The server sends mail through a queued port and an opt-in SMTP transport.** `IMailSender` queues each message
-  through the job dispatcher and a registered `IMailTransport` delivers it, retrying a failed delivery;
-  `NCode.Identity.Mail.Smtp`'s `AddSmtpMailTransport` delivers over SMTP with STARTTLS or implicit TLS from the
-  `Mail:Smtp` section, which the host chart sets as `mail.smtp`, and the local stack sends to Mailpit;
-  `ncode.identity.mail.messages` counts deliveries
+- **The server sends mail through a queued port and opt-in SMTP and Amazon SES transports.** `IMailSender` queues a
+  serializable model through the job dispatcher and refuses a model that no registered `IMailComposer` handles; at each
+  delivery attempt the model's composer builds the `MailMessage`, whose bodies and attachments are `MailContent` streams
+  it owns, and a registered `IMailTransport` delivers it, retrying a failed delivery. `NCode.Identity.Mail.Mime` builds
+  the MIME form that both transports send. `NCode.Identity.Mail.Smtp`'s `AddSmtpMailTransport` delivers over SMTP with
+  STARTTLS or implicit TLS from the `Mail:Smtp` section, which the host chart sets as `mail.smtp`, and
+  `NCode.Identity.Mail.AmazonSes`'s `AddAmazonSesMailTransport` sends through the Amazon SES v2 API from the
+  `Mail:AmazonSes` section, which the host chart sets as `mail.amazonSes`, as the pod's AWS role that the chart's
+  `aws.webIdentity` gives to AWS KMS and Amazon SES alike. A host configures one transport, and the local stack sends to
+  Mailpit; `ncode.identity.mail.messages` counts deliveries
   ([ADR-1532](docs/decisions/1532-outbound-mail-is-a-port-that-composes-each-queued-message-at-delivery-for-a-replaceable-transport-with-smtp-and-amazon-ses-adapters.md),
   [#911](https://github.com/NCodeGroup/identity/issues/911)).
 
@@ -6800,8 +6805,9 @@ Until the first stable release, the [Unreleased] section describes the product a
   only as hashes in shared state, bound to the flow that asked for them and to the address they were mailed to, spent
   with one atomic take after every check and before their effect, and never logged; a forgot-password request answers
   the same and does the same remote work whether or not an account exists; a failed SMTP delivery reports the server's
-  numeric status, never its reply text or the recipient; a decoy request's entries expire within a minute;
-  `Mail:Smtp:Tls=None` is refused outside local development
+  numeric status, never its reply text or the recipient; Amazon SES reports only its error code and status; a decoy
+  request's entries expire within a minute; passwords and codes cross the interactive surface's interfaces as
+  `Secret<char>`; `Mail:Smtp:Tls=None` is refused outside local development
   ([ADR-1533](docs/decisions/1533-an-end-user-verifies-an-email-address-resets-a-password-and-signs-in-with-a-second-factor-through-one-time-email-codes.md),
   [ADR-1532](docs/decisions/1532-outbound-mail-is-a-port-that-composes-each-queued-message-at-delivery-for-a-replaceable-transport-with-smtp-and-amazon-ses-adapters.md),
   [#911](https://github.com/NCodeGroup/identity/issues/911)).

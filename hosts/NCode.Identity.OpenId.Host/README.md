@@ -320,9 +320,10 @@ DataProtection key ring are in the same database and are purged with it.
 ## Outbound mail
 
 The host mails the one-time codes that verify an email address, reset a forgotten password and complete an email second
-factor. The mail goes to the SMTP server that the optional `Mail:Smtp` section names
+factor. The mail goes to the SMTP server that the optional `Mail:Smtp` section names, or through Amazon SES when the
+`Mail:AmazonSes` section exists, as set out below
 ([ADR-1532](../../docs/decisions/1532-outbound-mail-is-a-port-that-composes-each-queued-message-at-delivery-for-a-replaceable-transport-with-smtp-and-amazon-ses-adapters.md)).
-The section is bound strictly and validated when the host starts.
+Each section is bound strictly and validated when the host starts.
 
 | Setting              | Default       | Meaning                                                                                              |
 |----------------------|---------------|------------------------------------------------------------------------------------------------------|
@@ -352,8 +353,8 @@ A host configures one transport: setting both `Mail:Smtp` and `Mail:AmazonSes` f
 section the host registers no transport: every delivery fails and is logged, and no mail is sent, so leave the three
 settings below off. `Tls=None` sends in clear and exists for the local stack's Mailpit; only a host with
 `LocalDevelopment:Enabled` uses it, and the SMTP options validator and the Helm chart refuse it otherwise. The host
-queues each message through the job dispatcher, so the in-process dispatcher loses the messages a stopping replica holds
-([#25](https://github.com/NCodeGroup/identity/issues/25)).
+queues each mail's model through the job dispatcher and composes the message at each delivery attempt, so the in-process
+dispatcher loses the models a stopping replica holds ([#25](https://github.com/NCodeGroup/identity/issues/25)).
 
 A tenant turns the flows on with these tenant settings, each under `OpenId:Platform:Settings`:
 
@@ -365,8 +366,8 @@ A tenant turns the flows on with these tenant settings, each under `OpenId:Platf
 | `email_code_lifetime`        | 10 minutes | `Min`     | How long a code is accepted, between 1 minute and 1 hour                              |
 | `email_code_sends_per_hour`  | `5`        | `Min`     | The most codes one account receives in an hour for one purpose, between 1 and 20      |
 
-See [Email Codes](../../docs/capabilities/email-codes.md). The Helm chart sets the section through `mail.smtp.*`; see
-the [chart's README](../../charts/ncode-identity-host/README.md#outbound-mail).
+See [Email Codes](../../docs/capabilities/email-codes.md). The Helm chart sets the sections through `mail.smtp.*` and
+`mail.amazonSes.*`; see the [chart's README](../../charts/ncode-identity-host/README.md#outbound-mail).
 
 ## API reference
 
