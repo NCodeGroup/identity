@@ -51,6 +51,7 @@ public sealed class DefaultInstanceSetupServiceTests : IDisposable
     private Mock<IServiceScopeFactory> MockServiceScopeFactory { get; }
     private Mock<IServiceScope> MockServiceScope { get; }
     private Mock<IServiceProvider> MockServiceProvider { get; }
+    private Mock<ITenantProvisioner> MockTenantProvisioner { get; }
     private Mock<IAmbientTenantAccessor> MockAmbientTenantAccessor { get; }
     private Mock<IDisposable> MockTenantScope { get; }
     private Mock<IDisposable> MockStagingScope { get; }
@@ -73,6 +74,7 @@ public sealed class DefaultInstanceSetupServiceTests : IDisposable
         MockServiceScopeFactory = MockRepository.Create<IServiceScopeFactory>();
         MockServiceScope = MockRepository.Create<IServiceScope>();
         MockServiceProvider = MockRepository.Create<IServiceProvider>();
+        MockTenantProvisioner = MockRepository.Create<ITenantProvisioner>();
         MockAmbientTenantAccessor = MockRepository.Create<IAmbientTenantAccessor>();
         MockTenantScope = MockRepository.Create<IDisposable>();
         MockStagingScope = MockRepository.Create<IDisposable>();
@@ -300,6 +302,17 @@ public sealed class DefaultInstanceSetupServiceTests : IDisposable
                 )
             )
             .Callback(() => CallLog.Add("tenant"))
+            .ReturnsAsync(
+                new PersistedTenantBuilder { TenantId = TenantId, Issuer = issuer }.Build()
+            )
+            .Verifiable(Times.Once());
+        MockServiceProvider
+            .Setup(x => x.GetService(typeof(ITenantProvisioner)))
+            .Returns(MockTenantProvisioner.Object)
+            .Verifiable(Times.Once());
+        MockTenantProvisioner
+            .Setup(x => x.SeedAsync(TenantId, It.IsAny<CancellationToken>()))
+            .Callback(() => CallLog.Add("seed"))
             .ReturnsAsync(
                 new PersistedTenantBuilder { TenantId = TenantId, Issuer = issuer }.Build()
             )
@@ -624,7 +637,7 @@ public sealed class DefaultInstanceSetupServiceTests : IDisposable
 
         Assert.True(result.Succeeded);
         Assert.Equal(
-            ["tenant", "staging scope", "account", "staging scope ended", "save"],
+            ["tenant", "seed", "staging scope", "account", "staging scope ended", "save"],
             CallLog
         );
         Assert.Equal(TenantId, result.Root.TenantId);
@@ -922,7 +935,7 @@ public sealed class DefaultInstanceSetupServiceTests : IDisposable
         Assert.Equal(ConsoleClientId, clientState["ClientId"]);
         Assert.Equal(TenantId, clientState["TenantId"]);
         Assert.Equal(
-            ["tenant", "staging scope", "account", "client", "staging scope ended", "save"],
+            ["tenant", "seed", "staging scope", "account", "client", "staging scope ended", "save"],
             CallLog
         );
         Assert.True(row.IsInitialized);
@@ -1061,7 +1074,7 @@ public sealed class DefaultInstanceSetupServiceTests : IDisposable
         Assert.True(result.Succeeded);
         Assert.Null(result.Root.ManagementConsoleClientId);
         Assert.Equal(
-            ["tenant", "staging scope", "account", "staging scope ended", "save"],
+            ["tenant", "seed", "staging scope", "account", "staging scope ended", "save"],
             CallLog
         );
     }
@@ -1168,7 +1181,7 @@ public sealed class DefaultInstanceSetupServiceTests : IDisposable
         Assert.Equal(TenantId, clientState["TenantId"]);
         Assert.Null(result.Root.ManagementConsoleClientId);
         Assert.Equal(
-            ["tenant", "staging scope", "account", "client", "staging scope ended", "save"],
+            ["tenant", "seed", "staging scope", "account", "client", "staging scope ended", "save"],
             CallLog
         );
         Assert.True(row.IsInitialized);
@@ -1295,7 +1308,7 @@ public sealed class DefaultInstanceSetupServiceTests : IDisposable
         Assert.True(result.Succeeded);
         Assert.Null(result.AutomationClientId);
         Assert.Equal(
-            ["tenant", "staging scope", "account", "staging scope ended", "save"],
+            ["tenant", "seed", "staging scope", "account", "staging scope ended", "save"],
             CallLog
         );
     }

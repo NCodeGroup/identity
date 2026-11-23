@@ -290,8 +290,22 @@ public class TenantMoveTests
         CancellationToken cancellationToken
     )
     {
+        using var connections = await administrator.GetAsync(
+            $"/api/tenants/{TenantId}/connections",
+            cancellationToken
+        );
+        var connectionsBody = await connections.Content.ReadAsStringAsync(cancellationToken);
+        Assert.True(connections.StatusCode == HttpStatusCode.OK, connectionsBody);
+        var connectionId = JsonElement
+            .Parse(connectionsBody)
+            .GetProperty("items")
+            .EnumerateArray()
+            .Single(x => x.GetProperty("name").GetString() == "local")
+            .GetProperty("connectionId")
+            .GetString();
+
         using var response = await administrator.PostAsJsonAsync(
-            $"/api/tenants/{TenantId}/local-accounts",
+            $"/api/tenants/{TenantId}/connections/{connectionId}/local-accounts",
             new { userName = UserName, password = Password },
             cancellationToken
         );
@@ -440,10 +454,19 @@ public class TenantMoveTests
         await using var storeManager = await serviceScope
             .ServiceProvider.GetRequiredService<IStoreManagerFactory>()
             .CreateAsync(cancellationToken);
-        var result = await storeManager
-            .GetStore<ILocalAccountStore>()
+        var connection = await HostApplicationFactory.GetLocalConnectionAsync(
+            storeManager,
+            cancellationToken
+        );
+        var connectionId = connection.ConnectionId;
+        var result = await HostApplicationFactory
+            .GetLocalAccountStore(serviceScope.ServiceProvider, storeManager, connection)
             .VerifyCredentialAsync(
-                UserName,
+                new LocalAccountSignInIdentifier
+                {
+                    ConnectionId = connectionId,
+                    UserName = UserName,
+                },
                 SecureEncoding.UTF8.GetBytes(Password),
                 (_, _) => ValueTask.FromResult(false),
                 cancellationToken

@@ -8,8 +8,6 @@ using System.Web;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using NCode.Buffers;
-using NCode.Identity.OpenId.Accounts;
-using NCode.Identity.OpenId.Accounts.Stores;
 using NCode.Identity.OpenId.Integration.Tests.Infrastructure;
 using NCode.Identity.OpenId.Persistence.Stores;
 using NCode.Identity.OpenId.Settings;
@@ -194,7 +192,11 @@ public class LocalAccountLifecycleTests
         using var scope = factory.CreateTenantScope();
         var storeManagerFactory = scope.ServiceProvider.GetRequiredService<IStoreManagerFactory>();
         await using var storeManager = await storeManagerFactory.CreateAsync(cancellationToken);
-        var store = storeManager.GetStore<ILocalAccountStore>();
+        var store = await HostApplicationFactory.GetLocalAccountStoreAsync(
+            scope.ServiceProvider,
+            storeManager,
+            cancellationToken
+        );
         var account = await store.GetByIdOrDefaultAsync(localAccountId, cancellationToken);
         Assert.NotNull(account);
         account.IsEnabled = false;
@@ -211,13 +213,13 @@ public class LocalAccountLifecycleTests
         using var scope = factory.CreateTenantScope();
         var storeManagerFactory = scope.ServiceProvider.GetRequiredService<IStoreManagerFactory>();
         await using var storeManager = await storeManagerFactory.CreateAsync(cancellationToken);
+        var connectionId = await HostApplicationFactory.GetLocalConnectionIdAsync(
+            storeManager,
+            cancellationToken
+        );
         var identity = await storeManager
             .GetStore<IFederatedIdentityStore>()
-            .GetByIssuerSubjectAsync(
-                AccountConstants.SelfIssuer,
-                localAccountId,
-                cancellationToken
-            );
+            .GetByConnectionSubjectAsync(connectionId, localAccountId, cancellationToken);
         Assert.NotNull(identity);
         return identity.PrincipalId;
     }
@@ -293,9 +295,10 @@ public class LocalAccountLifecycleTests
         using var administrator = await factory.CreateAdministratorClientAsync(
             CancellationToken.None
         );
+        var accountsPath = await factory.GetLocalAccountsPathAsync(CancellationToken.None);
 
         using var response = await administrator.PostAsync(
-            $"{TenantApiPath}/local-accounts/{localAccountId}/disable",
+            $"{accountsPath}/{localAccountId}/disable",
             content: null
         );
         var responseBody = await response.Content.ReadAsStringAsync();
@@ -326,9 +329,10 @@ public class LocalAccountLifecycleTests
         using var administrator = await factory.CreateAdministratorClientAsync(
             CancellationToken.None
         );
+        var accountsPath = await factory.GetLocalAccountsPathAsync(CancellationToken.None);
 
         using var response = await administrator.PostAsync(
-            $"{TenantApiPath}/local-accounts/{localAccountId}/password",
+            $"{accountsPath}/{localAccountId}/password",
             JsonContent.Create(new { password = "lifecycle-password-reset" })
         );
         var responseBody = await response.Content.ReadAsStringAsync();
@@ -359,10 +363,9 @@ public class LocalAccountLifecycleTests
         using var administrator = await factory.CreateAdministratorClientAsync(
             CancellationToken.None
         );
+        var accountsPath = await factory.GetLocalAccountsPathAsync(CancellationToken.None);
 
-        using var response = await administrator.DeleteAsync(
-            $"{TenantApiPath}/local-accounts/{localAccountId}"
-        );
+        using var response = await administrator.DeleteAsync($"{accountsPath}/{localAccountId}");
         var responseBody = await response.Content.ReadAsStringAsync();
         Assert.True(response.StatusCode == HttpStatusCode.NoContent, responseBody);
 
@@ -560,9 +563,10 @@ public class LocalAccountLifecycleTests
         using var administrator = await factory.CreateAdministratorClientAsync(
             CancellationToken.None
         );
+        var accountsPath = await factory.GetLocalAccountsPathAsync(CancellationToken.None);
 
         using var response = await administrator.PostAsync(
-            $"{TenantApiPath}/local-accounts/{localAccountId}/disable",
+            $"{accountsPath}/{localAccountId}/disable",
             content: null
         );
         var responseBody = await response.Content.ReadAsStringAsync();
@@ -663,9 +667,10 @@ public class LocalAccountLifecycleTests
         using var administrator = await factory.CreateAdministratorClientAsync(
             CancellationToken.None
         );
+        var accountsPath = await factory.GetLocalAccountsPathAsync(CancellationToken.None);
 
         using var response = await administrator.PostAsync(
-            $"{TenantApiPath}/local-accounts",
+            accountsPath,
             JsonContent.Create(new { userName, password })
         );
 
@@ -688,9 +693,10 @@ public class LocalAccountLifecycleTests
         using var administrator = await factory.CreateAdministratorClientAsync(
             CancellationToken.None
         );
+        var accountsPath = await factory.GetLocalAccountsPathAsync(CancellationToken.None);
 
         using var response = await administrator.PostAsync(
-            $"{TenantApiPath}/local-accounts",
+            accountsPath,
             JsonContent.Create(new { userName = "policy-user", password = "passwordpassword" })
         );
 
@@ -706,9 +712,10 @@ public class LocalAccountLifecycleTests
         using var administrator = await factory.CreateAdministratorClientAsync(
             CancellationToken.None
         );
+        var accountsPath = await factory.GetLocalAccountsPathAsync(CancellationToken.None);
 
         using var create = await administrator.PostAsync(
-            $"{TenantApiPath}/local-accounts",
+            accountsPath,
             JsonContent.Create(new { userName = "first-admin", password = "first-admin-password" })
         );
 
@@ -737,9 +744,10 @@ public class LocalAccountLifecycleTests
         using var administrator = await factory.CreateAdministratorClientAsync(
             CancellationToken.None
         );
+        var accountsPath = await factory.GetLocalAccountsPathAsync(CancellationToken.None);
 
         using var create = await administrator.PostAsync(
-            $"{TenantApiPath}/local-accounts",
+            accountsPath,
             JsonContent.Create(new { userName = "first-admin", password = "first-admin-password" })
         );
 
@@ -751,9 +759,7 @@ public class LocalAccountLifecycleTests
         Assert.False(string.IsNullOrEmpty(localAccountId), createBody);
         Assert.False(string.IsNullOrEmpty(principalId), createBody);
 
-        using var get = await administrator.GetAsync(
-            $"{TenantApiPath}/local-accounts/{localAccountId}"
-        );
+        using var get = await administrator.GetAsync($"{accountsPath}/{localAccountId}");
 
         var getBody = await get.Content.ReadAsStringAsync();
         Assert.True(get.StatusCode == HttpStatusCode.OK, getBody);
@@ -770,9 +776,10 @@ public class LocalAccountLifecycleTests
         using var administrator = await factory.CreateAdministratorClientAsync(
             CancellationToken.None
         );
+        var accountsPath = await factory.GetLocalAccountsPathAsync(CancellationToken.None);
 
         using var create = await administrator.PostAsync(
-            $"{TenantApiPath}/local-accounts",
+            accountsPath,
             JsonContent.Create(new { userName = "first-admin", password = "first-admin-password" })
         );
 
@@ -784,7 +791,7 @@ public class LocalAccountLifecycleTests
         Assert.False(string.IsNullOrEmpty(localAccountId), createBody);
         Assert.False(string.IsNullOrEmpty(principalId), createBody);
 
-        using var list = await administrator.GetAsync($"{TenantApiPath}/local-accounts");
+        using var list = await administrator.GetAsync(accountsPath);
 
         var listBody = await list.Content.ReadAsStringAsync();
         Assert.True(list.StatusCode == HttpStatusCode.OK, listBody);
@@ -805,9 +812,10 @@ public class LocalAccountLifecycleTests
         using var administrator = await factory.CreateAdministratorClientAsync(
             CancellationToken.None
         );
+        var accountsPath = await factory.GetLocalAccountsPathAsync(CancellationToken.None);
 
         using var create = await administrator.PostAsync(
-            $"{TenantApiPath}/local-accounts",
+            accountsPath,
             JsonContent.Create(
                 new
                 {
@@ -893,7 +901,8 @@ public class LocalAccountLifecycleTests
         using var administrator = await factory.CreateAdministratorClientAsync(
             CancellationToken.None
         );
-        var accountPath = $"{TenantApiPath}/local-accounts/{localAccountId}";
+        var accountsPath = await factory.GetLocalAccountsPathAsync(CancellationToken.None);
+        var accountPath = $"{accountsPath}/{localAccountId}";
 
         using var before = await administrator.GetAsync(accountPath);
         var beforeBody = await before.Content.ReadAsStringAsync();
@@ -934,7 +943,8 @@ public class LocalAccountLifecycleTests
         using var administrator = await factory.CreateAdministratorClientAsync(
             CancellationToken.None
         );
-        var accountPath = $"{TenantApiPath}/local-accounts/{localAccountId}";
+        var accountsPath = await factory.GetLocalAccountsPathAsync(CancellationToken.None);
+        var accountPath = $"{accountsPath}/{localAccountId}";
 
         using var request = new HttpRequestMessage(HttpMethod.Patch, accountPath)
         {
@@ -948,7 +958,7 @@ public class LocalAccountLifecycleTests
         var patchBody = await patch.Content.ReadAsStringAsync();
 
         Assert.True(patch.StatusCode == HttpStatusCode.BadRequest, patchBody);
-        Assert.Contains("The username is required.", patchBody);
+        Assert.Contains("A username or an email address is required.", patchBody);
     }
 
     [Fact]
@@ -963,9 +973,10 @@ public class LocalAccountLifecycleTests
         using var administrator = await factory.CreateAdministratorClientAsync(
             CancellationToken.None
         );
+        var accountsPath = await factory.GetLocalAccountsPathAsync(CancellationToken.None);
 
         using var response = await administrator.PutAsync(
-            $"{TenantApiPath}/local-accounts/{localAccountId}/claims",
+            $"{accountsPath}/{localAccountId}/claims",
             JsonContent.Create(new { claims = new[] { new { type = "name", value = "Mallory" } } })
         );
 
@@ -1032,9 +1043,10 @@ public class LocalAccountLifecycleTests
         using var administrator = await factory.CreateAdministratorClientAsync(
             CancellationToken.None
         );
+        var accountsPath = await factory.GetLocalAccountsPathAsync(CancellationToken.None);
 
         using var response = await administrator.PostAsync(
-            $"{TenantApiPath}/local-accounts/{localAccountId}/password",
+            $"{accountsPath}/{localAccountId}/password",
             JsonContent.Create(new { password = "too-short-pw" })
         );
 
@@ -1143,8 +1155,9 @@ public class LocalAccountLifecycleTests
         using var administrator = await factory.CreateAdministratorClientAsync(
             CancellationToken.None
         );
+        var accountsPath = await factory.GetLocalAccountsPathAsync(CancellationToken.None);
         using var resetResponse = await administrator.PostAsync(
-            $"{TenantApiPath}/local-accounts/{localAccountId}/password",
+            $"{accountsPath}/{localAccountId}/password",
             JsonContent.Create(new { password = resetPassword })
         );
         var resetBody = await resetResponse.Content.ReadAsStringAsync();

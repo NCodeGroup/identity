@@ -7,9 +7,7 @@ using System.Text.Json;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using NCode.Buffers;
-using NCode.Identity.OpenId.Accounts;
 using NCode.Identity.OpenId.Accounts.DataContracts;
-using NCode.Identity.OpenId.Accounts.Stores;
 using NCode.Identity.OpenId.Authentication.Usage;
 using NCode.Identity.OpenId.Integration.Tests.Infrastructure;
 using NCode.Identity.OpenId.Management;
@@ -303,12 +301,19 @@ public class TeamManagementTests
             .GetRequiredService<IStoreManagerFactory>()
             .CreateAsync(cancellationToken);
 
-        await storeManager
-            .GetStore<ILocalAccountStore>()
+        var connection = await HostApplicationFactory.GetLocalConnectionAsync(
+            storeManager,
+            cancellationToken
+        );
+        var connectionId = connection.ConnectionId;
+
+        await HostApplicationFactory
+            .GetLocalAccountStore(services, storeManager, connection)
             .AddAsync(
                 new PersistedLocalAccount
                 {
                     TenantId = RootTenantId,
+                    ConnectionId = connectionId,
                     LocalAccountId = localAccountId,
                     UserName = UserName,
                     DisplayName = UserName,
@@ -340,7 +345,8 @@ public class TeamManagementTests
                     TenantId = RootTenantId,
                     FederatedIdentityId = Guid.NewGuid().ToString("N"),
                     PrincipalId = principalId,
-                    Issuer = AccountConstants.SelfIssuer,
+                    ConnectionId = connectionId,
+                    Issuer = null,
                     Subject = localAccountId,
                     JoinKey = null,
                     ConcurrencyToken = string.Empty,

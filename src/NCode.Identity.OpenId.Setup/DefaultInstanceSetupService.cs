@@ -277,12 +277,18 @@ internal sealed class DefaultInstanceSetupService(
         string issuer;
         await using (var scope = ServiceScopeFactory.CreateAsyncScope())
         {
-            var httpContext = new DefaultHttpContext { RequestServices = scope.ServiceProvider };
+            var services = scope.ServiceProvider;
+            var httpContext = new DefaultHttpContext { RequestServices = services };
             var tenant = await TenantResolver.ResolveControlPlaneTenantAsync(
                 httpContext,
                 cancellationToken
             );
             tenantId = tenant.TenantId;
+
+            // The tenant's seed contributors create its `local` connection, which the root administrator's account
+            // belongs to. The seed is idempotent, so a tenant that is already seeded is left as it is.
+            var tenantProvisioner = services.GetRequiredService<ITenantProvisioner>();
+            await tenantProvisioner.SeedAsync(tenantId, cancellationToken);
 
             // A served tenant always has an issuer, and the control-plane tenant is served.
             issuer =

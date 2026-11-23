@@ -169,6 +169,7 @@ public class DefaultAuthenticatePasswordGrantHandlerTests : BaseTests
             .Returns(mockError.Object)
             .Verifiable();
         mockError.SetupSet(x => x.Description = description).Verifiable();
+        mockError.SetupSet(x => x.StatusCode = 400).Verifiable();
         MockContext.Setup(x => x.ErrorFactory).Returns(mockErrorFactory.Object).Verifiable();
         return mockError.Object;
     }

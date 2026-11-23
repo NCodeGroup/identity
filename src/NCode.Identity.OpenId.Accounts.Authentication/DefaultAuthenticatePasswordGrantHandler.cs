@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using System.Security.Claims;
+using Microsoft.AspNetCore.Http;
 using NCode.Buffers;
 using NCode.Identity.OpenId.Accounts.Stores;
 using NCode.Identity.OpenId.Authentication.Auditing;
@@ -93,7 +94,9 @@ internal class DefaultAuthenticatePasswordGrantHandler(
         )
         {
             var description = selection.ErrorDescription ?? ConnectionNotUsableDescription;
-            var error = openIdContext.ErrorFactory.InvalidRequest(description);
+            var error = openIdContext
+                .ErrorFactory.InvalidRequest(description)
+                .WithStatusCode(StatusCodes.Status400BadRequest);
             return new AuthenticateSubjectDisposition(error);
         }
 

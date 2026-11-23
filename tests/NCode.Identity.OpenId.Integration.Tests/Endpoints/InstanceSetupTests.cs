@@ -6,7 +6,6 @@ using System.Net.Http.Json;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using NCode.Buffers;
-using NCode.Identity.OpenId.Accounts.Stores;
 using NCode.Identity.OpenId.Integration.Tests.Infrastructure;
 using NCode.Identity.OpenId.Management;
 using NCode.Identity.OpenId.Persistence;
@@ -327,8 +326,18 @@ public class InstanceSetupTests
         await using var storeManager = await storeManagerFactory.CreateAsync(
             CancellationToken.None
         );
-        var localAccountStore = storeManager.GetStore<ILocalAccountStore>();
+        var connection = await HostApplicationFactory.GetLocalConnectionAsync(
+            storeManager,
+            CancellationToken.None
+        );
+        var connectionId = connection.ConnectionId;
+        var localAccountStore = HostApplicationFactory.GetLocalAccountStore(
+            scope.ServiceProvider,
+            storeManager,
+            connection
+        );
         var account = await localAccountStore.GetByUserNameOrDefaultAsync(
+            connectionId,
             RootUserName,
             CancellationToken.None
         );
