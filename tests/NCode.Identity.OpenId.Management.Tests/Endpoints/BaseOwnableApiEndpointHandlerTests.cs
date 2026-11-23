@@ -715,6 +715,74 @@ public class BaseOwnableApiEndpointHandlerTests : IDisposable
     }
 
     [Fact]
+    public async Task ProcessAddRoleAssignmentAsync_ByUserName_WithADifferentCase_GrantsTheAccount()
+    {
+        var authz = Authz(AuthorizationResult.Success());
+        var (factory, manager) = StoreManager();
+        manager
+            .Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()))
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable();
+        var directory = MockRepository.Create<IControlPlanePrincipalDirectory>();
+        directory
+            .Setup(x =>
+                x.FindAsync(
+                    It.Is<ControlPlanePrincipalQuery>(query =>
+                        query.UserNames.SequenceEqual(new[] { "Alice" })
+                        && query.PrincipalIds.Count == 0
+                    ),
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync([Summary("p2", "alice")])
+            .Verifiable();
+        var ownership = MockRepository.Create<IResourceOwnershipService>();
+        ownership
+            .Setup(x =>
+                x.AddAssignmentAsync(
+                    manager.Object,
+                    TenantId,
+                    ResourceNodeTypes.Client,
+                    ResourceId,
+                    "p2",
+                    RoleName,
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync(
+                new RoleAssignmentGrant
+                {
+                    Assignment = Assignment("p2", RoleName, "a2"),
+                    IsAdded = true,
+                }
+            )
+            .Verifiable();
+        var captured = new List<RoleAssignmentChangedAuditEvent>();
+        var recorder = Recorder(captured);
+        var node = ResourceNode.For(TenantId, ResourceNodeTypes.Client, ResourceId);
+
+        var handler = CreateHandler(
+            authz.Object,
+            factory.Object,
+            ownership.Object,
+            recorder.Object,
+            directory.Object
+        );
+        var roleList = CreateRoleList(node, RoleName, Operations.Create, Exists);
+        var result = await handler.ProcessAddRoleAssignmentAsync(
+            CreateHttpContext(),
+            roleList,
+            new AddRoleHolderRequest { UserName = "Alice" },
+            CancellationToken.None
+        );
+
+        var created = Assert.IsType<Created<RoleHolderResource>>(result);
+        var roleHolder = Assert.IsType<RoleHolderResource>(created.Value);
+        Assert.Equal("p2", roleHolder.PrincipalId);
+        Assert.Single(captured);
+    }
+
+    [Fact]
     public async Task ProcessAddRoleAssignmentAsync_WhenNoPrincipalHasTheUserName_ReturnsBadRequestWithoutGranting()
     {
         var authz = Authz(AuthorizationResult.Success());

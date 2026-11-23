@@ -320,7 +320,13 @@ internal abstract class BaseOwnableApiEndpointHandler : BaseApiEndpointHandler
             PrincipalSummaryResource? userNameMatch = null;
             foreach (var match in matches)
             {
-                if (string.Equals(match.UserName, requestedUserName, StringComparison.Ordinal))
+                if (
+                    string.Equals(
+                        match.UserName,
+                        requestedUserName,
+                        StringComparison.OrdinalIgnoreCase
+                    )
+                )
                 {
                     userNameMatch = match;
                     break;
