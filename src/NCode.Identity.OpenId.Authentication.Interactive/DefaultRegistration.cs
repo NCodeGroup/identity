@@ -38,6 +38,12 @@ public static class DefaultRegistration
     private const string ConfigurationSectionName = "InteractiveAuthentication";
     private const string AntiforgeryHeaderName = "X-XSRF-TOKEN";
 
+    /// <summary>
+    /// Gets how long an end user whose password is verified may take to present the mailed code.
+    /// </summary>
+    // See ADR-1533.
+    private static TimeSpan PendingSignInLifetime { get; } = TimeSpan.FromMinutes(15);
+
     // The index of the registered IUiLocale instance whose tag is languageTag, compared without regard to case as
     // BCP 47 tags are, or -1 when none is registered.
     private static int FindUiLocale(IServiceCollection serviceCollection, string languageTag)
@@ -401,7 +407,7 @@ public static class DefaultRegistration
                         cookie.Cookie.SecurePolicy = CookieSecurePolicy.Always;
                         cookie.Cookie.HttpOnly = true;
                         cookie.Cookie.SameSite = SameSiteMode.Strict;
-                        cookie.ExpireTimeSpan = TimeSpan.FromMinutes(15);
+                        cookie.ExpireTimeSpan = PendingSignInLifetime;
                         cookie.SlidingExpiration = false;
                     }
                 );

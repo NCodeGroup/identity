@@ -238,6 +238,19 @@ public sealed class DefaultRegistrationTests : IDisposable
     }
 
     [Fact]
+    public void AddInteractiveAuthentication_Always_ExpiresThePendingSignInAfterFifteenMinutes()
+    {
+        using var serviceProvider = BuildCookieServiceProvider();
+
+        var options = serviceProvider
+            .GetRequiredService<IOptionsMonitor<CookieAuthenticationOptions>>()
+            .Get(InteractiveAuthenticationDefaults.PendingSignInSchemeName);
+
+        Assert.Equal(TimeSpan.FromMinutes(15), options.ExpireTimeSpan);
+        Assert.False(options.SlidingExpiration);
+    }
+
+    [Fact]
     public async Task AddInteractiveAuthentication_WhenTheHostNamesNoDefaultScheme_DefaultsToTheSessionCookie()
     {
         using var serviceProvider = BuildCookieServiceProvider();
