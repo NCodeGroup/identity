@@ -39,7 +39,7 @@ internal interface ILocalAccountEmailCodes
     /// Starts a decoy flow that does the remote work of <see cref="SendAsync"/> except composing and queuing mail, so a
     /// request that mails nothing costs the shared stores what a request that mails costs. It increments a sends
     /// counter keyed by the purpose and a hash of <paramref name="identifier"/>, never an account's counter, and it
-    /// stores a flow whose code hash is that of random bytes, so no code verifies.
+    /// adds the flow of <see cref="AddDecoyFlowAsync"/>, so one increment and one add are done.
     /// </summary>
     /// <param name="openIdContext">The <see cref="OpenIdContext"/> of the tenant the request belongs to.</param>
     /// <param name="purpose">The purpose of the code, one of the <see cref="EmailCodePurposes"/>.</param>
@@ -51,6 +51,21 @@ internal interface ILocalAccountEmailCodes
         OpenIdContext openIdContext,
         string purpose,
         string identifier,
+        CancellationToken cancellationToken
+    );
+
+    /// <summary>
+    /// Adds a decoy flow that no code verifies, counting nothing. Its code hash is that of random bytes and its account
+    /// identifier and address are empty, so a caller whose <see cref="SendAsync"/> already counted a send, such as one
+    /// that found the account over its limit, finishes with the one increment and one add a decoy request does.
+    /// </summary>
+    /// <param name="openIdContext">The <see cref="OpenIdContext"/> of the tenant the request belongs to.</param>
+    /// <param name="purpose">The purpose of the code, one of the <see cref="EmailCodePurposes"/>.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <returns>The handle of the decoy flow, which looks like the handle of a real flow.</returns>
+    ValueTask<string> AddDecoyFlowAsync(
+        OpenIdContext openIdContext,
+        string purpose,
         CancellationToken cancellationToken
     );
 

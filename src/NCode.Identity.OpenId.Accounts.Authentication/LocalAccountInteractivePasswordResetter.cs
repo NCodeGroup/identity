@@ -115,10 +115,12 @@ internal sealed class LocalAccountInteractivePasswordResetter(
         );
         if (flowId is null)
         {
-            var decoyFlowId = await EmailCodes.SendDecoyAsync(
+            // SendAsync counted the send that found the account over its limit, so the decoy only adds its flow: every
+            // path of a reset request does one increment and one add, and the sixth request's timing says nothing
+            // about the account. See ADR-1533.
+            var decoyFlowId = await EmailCodes.AddDecoyFlowAsync(
                 openIdContext,
                 EmailCodePurposes.ResetPassword,
-                userName,
                 cancellationToken
             );
             await AuditEventRecorder.RecordPasswordResetRequestFailedAsync(

@@ -509,6 +509,58 @@ public partial class DefaultLocalAccountEmailCodesTests : BaseTests
 
     #endregion
 
+    #region AddDecoyFlowAsync Tests
+
+    [Fact]
+    public async Task AddDecoyFlowAsync_Always_StoresAFlowNoCodeVerifiesWithoutCounting()
+    {
+        var mockContext = CreateContext(mockSettings: null);
+        MockCryptoService
+            .Setup(x => x.GenerateKey(32, BinaryEncodings.Base64Url))
+            .Returns(FlowId)
+            .Verifiable();
+
+        byte[]? storedBytes = null;
+        MockValueSet
+            .Setup(x =>
+                x.TryAddAsync(
+                    FlowKey,
+                    It.IsAny<ReadOnlyMemory<byte>>(),
+                    DecoyExpiry,
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .Callback<string, ReadOnlyMemory<byte>, DateTimeOffset, CancellationToken>(
+                (_, value, _, _) => storedBytes = value.ToArray()
+            )
+            .ReturnsAsync(true)
+            .Verifiable();
+
+        var flowId = await EmailCodes.AddDecoyFlowAsync(
+            mockContext.Object,
+            Purpose,
+            CancellationToken.None
+        );
+
+        Assert.Equal(FlowId, flowId);
+        Assert.NotNull(storedBytes);
+        var state = Deserialize(storedBytes);
+        Assert.Equal(string.Empty, state.LocalAccountId);
+        Assert.Equal(string.Empty, state.Email);
+        Assert.Equal(0, state.Attempts);
+        Assert.Equal(DecoyExpiry, state.ExpiresWhen);
+        for (var number = 0; number < 1_000; ++number)
+        {
+            var code = number.ToString("D6", CultureInfo.InvariantCulture);
+            Assert.NotEqual(DefaultLocalAccountEmailCodes.HashCode(FlowId, code), state.CodeHash);
+        }
+
+        MockCounterSet.VerifyNoOtherCalls();
+        MockMailSender.VerifyNoOtherCalls();
+    }
+
+    #endregion
+
     #region VerifyAsync Tests
 
     [Fact]

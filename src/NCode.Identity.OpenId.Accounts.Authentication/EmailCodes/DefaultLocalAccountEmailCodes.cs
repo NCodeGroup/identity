@@ -172,6 +172,19 @@ internal sealed class DefaultLocalAccountEmailCodes(
         var expiresWhen = now + DecoyLifetime;
         await CounterSet.IncrementAsync(sendsKey, expiresWhen, cancellationToken);
 
+        return await AddDecoyFlowAsync(openIdContext, purpose, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public async ValueTask<string> AddDecoyFlowAsync(
+        OpenIdContext openIdContext,
+        string purpose,
+        CancellationToken cancellationToken
+    )
+    {
+        var tenant = openIdContext.Tenant;
+        var expiresWhen = TimeProvider.GetUtcNow() + DecoyLifetime;
+
         var flowId = CryptoService.GenerateUrlSafeKey();
 
         // The code hash is that of random bytes, so no code verifies.
@@ -182,7 +195,7 @@ internal sealed class DefaultLocalAccountEmailCodes(
         );
         var codeHash = SHA256.HashData(randomBytes);
         var state = new EmailCodeState(
-            identifierHash,
+            LocalAccountId: string.Empty,
             Email: string.Empty,
             codeHash,
             Attempts: 0,

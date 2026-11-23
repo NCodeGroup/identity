@@ -3,6 +3,7 @@
 
 using Moq;
 using NCode.Identity.Cryptography;
+using NCode.Identity.Mail;
 using NCode.Identity.OpenId.Accounts;
 using NCode.Identity.OpenId.Accounts.Authentication;
 using NCode.Identity.OpenId.Accounts.Authentication.EmailCodes;
@@ -20,6 +21,7 @@ using NCode.Identity.OpenId.Settings;
 using NCode.Identity.OpenId.Tenants;
 using NCode.Identity.Persistence.Stores;
 using NCode.Identity.Settings;
+using NCode.Identity.SharedState;
 using Xunit;
 
 namespace NCode.Identity.OpenId.Core.Tests.Accounts;
@@ -172,6 +174,18 @@ public class LocalAccountInteractivePasswordResetterTests : BaseTests
                     mockContext.Object,
                     EmailCodePurposes.ResetPassword,
                     UserName,
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync(DecoyFlowId)
+            .Verifiable();
+
+    private void SetupAddDecoyFlow(Mock<OpenIdContext> mockContext) =>
+        MockEmailCodes
+            .Setup(x =>
+                x.AddDecoyFlowAsync(
+                    mockContext.Object,
+                    EmailCodePurposes.ResetPassword,
                     It.IsAny<CancellationToken>()
                 )
             )
@@ -485,7 +499,7 @@ public class LocalAccountInteractivePasswordResetterTests : BaseTests
             )
             .ReturnsAsync((string?)null)
             .Verifiable();
-        SetupDecoy(mockContext);
+        SetupAddDecoyFlow(mockContext);
         SetupRequestFailed(mockContext, InteractiveEmailCodeErrors.TooManyCodes);
 
         var flowId = await Resetter.SendResetCodeAsync(
@@ -507,6 +521,111 @@ public class LocalAccountInteractivePasswordResetterTests : BaseTests
             Times.Once
         );
         MockAuditEventRecorder.VerifyNoOtherCalls();
+    }
+
+    [Fact]
+    public async Task SendResetCodeAsync_WhenTheAccountIsOverItsSendLimit_AddsADecoyFlowWithoutCountingAgain()
+    {
+        const int sendsPerHour = 5;
+        var mockSettings = CreateStrictMock<IReadOnlySettingCollection>();
+        mockSettings
+            .Setup(x => x.GetValue(OpenIdSettingKeys.EmailCodeSendsPerHour))
+            .Returns(sendsPerHour)
+            .Verifiable();
+        var mockContext = CreateContext(
+            isResetEnabled: true,
+            needsTenantId: true,
+            mockSettings: mockSettings
+        );
+        var mockValueSet = CreateStrictMock<IExpiringValueSet>();
+        var mockCounterSet = CreateStrictMock<IExpiringCounterSet>();
+        var mockMailSender = CreateStrictMock<IMailSender>();
+        var emailCodes = new DefaultLocalAccountEmailCodes(
+            mockValueSet.Object,
+            mockCounterSet.Object,
+            mockMailSender.Object,
+            MockCryptoService.Object,
+            TimeProvider.System
+        );
+        var resetter = new LocalAccountInteractivePasswordResetter(
+            MockStoreManagerFactory.Object,
+            MockPasswordPolicy.Object,
+            emailCodes,
+            MockCryptoService.Object,
+            MockPostCommitSecurityEffects.Object,
+            MockAuditEventRecorder.Object
+        );
+        SetupStoreManager();
+        SetupLookupByUserName(Account());
+        SetupFederatedIdentity();
+        MockCryptoService
+            .Setup(x => x.GenerateKey(32, BinaryEncodings.Base64Url))
+            .Returns(DecoyFlowId)
+            .Verifiable();
+        var sendsKey = ExpiringKeys.Create(
+            DefaultLocalAccountEmailCodes.SendsKeyPurpose,
+            TenantId,
+            EmailCodePurposes.ResetPassword,
+            LocalAccountId
+        );
+        mockCounterSet
+            .Setup(x =>
+                x.IncrementAsync(
+                    sendsKey,
+                    It.IsAny<DateTimeOffset>(),
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync(sendsPerHour + 1)
+            .Verifiable();
+        var decoyFlowKey = DefaultLocalAccountEmailCodes.CreateFlowKey(
+            TenantId,
+            EmailCodePurposes.ResetPassword,
+            DecoyFlowId
+        );
+        mockValueSet
+            .Setup(x =>
+                x.TryAddAsync(
+                    decoyFlowKey,
+                    It.IsAny<ReadOnlyMemory<byte>>(),
+                    It.IsAny<DateTimeOffset>(),
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync(true)
+            .Verifiable();
+        SetupRequestFailed(mockContext, InteractiveEmailCodeErrors.TooManyCodes);
+
+        var flowId = await resetter.SendResetCodeAsync(
+            mockContext.Object,
+            UserName,
+            Locale,
+            CancellationToken.None
+        );
+
+        Assert.Equal(DecoyFlowId, flowId);
+        mockCounterSet.Verify(
+            x =>
+                x.IncrementAsync(
+                    It.IsAny<string>(),
+                    It.IsAny<DateTimeOffset>(),
+                    It.IsAny<CancellationToken>()
+                ),
+            Times.Once
+        );
+        mockValueSet.Verify(
+            x =>
+                x.TryAddAsync(
+                    It.IsAny<string>(),
+                    It.IsAny<ReadOnlyMemory<byte>>(),
+                    It.IsAny<DateTimeOffset>(),
+                    It.IsAny<CancellationToken>()
+                ),
+            Times.Once
+        );
+        mockValueSet.VerifyNoOtherCalls();
+        mockCounterSet.VerifyNoOtherCalls();
+        mockMailSender.VerifyNoOtherCalls();
     }
 
     [Fact]
