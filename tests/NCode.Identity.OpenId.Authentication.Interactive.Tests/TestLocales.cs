@@ -54,6 +54,7 @@ internal static class TestLocales
                 PasswordRefusedError = "Xx password refused",
                 NoEmailError = "Xx no email",
                 EmailCodeFailedError = "Xx email code failed",
+                MissingFieldsError = "Xx missing fields",
                 VerificationMailSubject = "Xx verification subject",
                 VerificationMailBodyFormat = "Xx verification {0} {1}",
                 PasswordResetMailSubject = "Xx reset subject",

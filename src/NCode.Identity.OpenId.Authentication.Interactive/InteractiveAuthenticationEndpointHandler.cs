@@ -2142,7 +2142,7 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
             InteractiveEmailCodeErrors.InvalidCode => messages.InvalidCodeError,
             InteractiveEmailCodeErrors.TooManyCodes => messages.TooManyCodesError,
             InteractivePasswordChangeErrors.PasswordMismatch => messages.PasswordMismatchError,
-            InteractivePasswordChangeErrors.InvalidRequest => messages.MissingCredentialsError,
+            InteractivePasswordChangeErrors.InvalidRequest => messages.MissingFieldsError,
             // The password policy's codes are an open vocabulary, so any other code the reset post answers is a
             // refused password.
             _ => messages.PasswordRefusedError,
@@ -2157,7 +2157,7 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
             null or "" => null,
             InteractiveEmailCodeErrors.InvalidCode => messages.InvalidCodeError,
             InteractiveEmailCodeErrors.TooManyCodes => messages.TooManyCodesError,
-            InteractivePasswordChangeErrors.InvalidRequest => messages.MissingCredentialsError,
+            InteractivePasswordChangeErrors.InvalidRequest => messages.MissingFieldsError,
             InteractiveEmailCodeErrors.NoEmail => messages.NoEmailError,
             _ => messages.EmailCodeFailedError,
         };

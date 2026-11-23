@@ -77,6 +77,7 @@ public static class InteractiveLocales
                     "Choose a different password: this one does not meet the requirements.",
                 NoEmailError = "This account has no email address.",
                 EmailCodeFailedError = "Something went wrong. Please try again.",
+                MissingFieldsError = "Fill in every field.",
                 VerificationMailSubject = "Verify your email address",
                 VerificationMailBodyFormat =
                     "Your verification code is {0}. It expires in {1} minutes.\n\nIf you did not ask for this code, you can ignore this email.",
@@ -146,6 +147,7 @@ public static class InteractiveLocales
                     "Wählen Sie ein anderes Passwort: Dieses erfüllt die Anforderungen nicht.",
                 NoEmailError = "Dieses Konto hat keine E-Mail-Adresse.",
                 EmailCodeFailedError = "Etwas ist schiefgelaufen. Bitte versuchen Sie es erneut.",
+                MissingFieldsError = "Füllen Sie alle Felder aus.",
                 VerificationMailSubject = "E-Mail-Adresse bestätigen",
                 VerificationMailBodyFormat =
                     "Ihr Bestätigungscode lautet {0}. Er läuft in {1} Minuten ab.\n\nWenn Sie diesen Code nicht angefordert haben, können Sie diese E-Mail ignorieren.",
@@ -211,6 +213,7 @@ public static class InteractiveLocales
                 PasswordRefusedError = "Elija otra contraseña: esta no cumple los requisitos.",
                 NoEmailError = "Esta cuenta no tiene dirección de correo.",
                 EmailCodeFailedError = "Algo salió mal. Inténtelo de nuevo.",
+                MissingFieldsError = "Complete todos los campos.",
                 VerificationMailSubject = "Verifique su dirección de correo",
                 VerificationMailBodyFormat =
                     "Su código de verificación es {0}. Caduca en {1} minutos.\n\nSi no solicitó este código, puede ignorar este correo.",
@@ -277,6 +280,7 @@ public static class InteractiveLocales
                     "Choisissez un autre mot de passe : celui-ci ne respecte pas les exigences.",
                 NoEmailError = "Ce compte n’a pas d’adresse e-mail.",
                 EmailCodeFailedError = "Une erreur s’est produite. Veuillez réessayer.",
+                MissingFieldsError = "Remplissez tous les champs.",
                 VerificationMailSubject = "Vérifiez votre adresse e-mail",
                 VerificationMailBodyFormat =
                     "Votre code de vérification est {0}. Il expire dans {1} minutes.\n\nSi vous n’avez pas demandé ce code, vous pouvez ignorer cet e-mail.",

@@ -129,6 +129,8 @@ NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.InvalidCred
 NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.InvalidCredentialsError.init -> void
 NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.MissingCredentialsError.get -> string!
 NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.MissingCredentialsError.init -> void
+NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.MissingFieldsError.get -> string!
+NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.MissingFieldsError.init -> void
 NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.NewPasswordLabel.get -> string!
 NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.NewPasswordLabel.init -> void
 NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.NoEmailError.get -> string!

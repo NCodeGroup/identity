@@ -61,6 +61,7 @@ public class LocalAccountMailComposerTests
                 PasswordRefusedError = "PasswordRefusedError",
                 NoEmailError = "NoEmailError",
                 EmailCodeFailedError = "EmailCodeFailedError",
+                MissingFieldsError = "MissingFieldsError",
                 VerificationMailSubject = "Verify subject",
                 VerificationMailBodyFormat = "Verify {0} within {1} minutes",
                 PasswordResetMailSubject = "Reset subject",

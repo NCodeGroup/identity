@@ -580,6 +580,19 @@ public sealed class InteractiveAuthenticationEndpointHandlerTests : IDisposable
         Assert.Equal(messages.EmailCodeFailedError, result);
     }
 
+    [Fact]
+    public void DescribeSignInCodeError_ForAnEmptyField_ReturnsTheMissingFieldsMessage()
+    {
+        var messages = TestLocales.Xx.Messages;
+
+        var result = InteractiveAuthenticationEndpointHandler.DescribeSignInCodeError(
+            InteractivePasswordChangeErrors.InvalidRequest,
+            messages
+        );
+
+        Assert.Equal(messages.MissingFieldsError, result);
+    }
+
     #endregion
 
     #region DescribePasswordResetError Tests
@@ -595,6 +608,19 @@ public sealed class InteractiveAuthenticationEndpointHandlerTests : IDisposable
         );
 
         Assert.Equal(messages.PasswordRefusedError, result);
+    }
+
+    [Fact]
+    public void DescribePasswordResetError_ForAnEmptyField_ReturnsTheMissingFieldsMessage()
+    {
+        var messages = TestLocales.Xx.Messages;
+
+        var result = InteractiveAuthenticationEndpointHandler.DescribePasswordResetError(
+            InteractivePasswordChangeErrors.InvalidRequest,
+            messages
+        );
+
+        Assert.Equal(messages.MissingFieldsError, result);
     }
 
     #endregion

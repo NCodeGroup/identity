@@ -91,6 +91,7 @@ public class InteractiveLocalesTests
             messages.PasswordRefusedError,
             messages.NoEmailError,
             messages.EmailCodeFailedError,
+            messages.MissingFieldsError,
             messages.VerificationMailSubject,
             messages.VerificationMailBodyFormat,
             messages.PasswordResetMailSubject,
@@ -198,6 +199,7 @@ public class InteractiveLocalesTests
             messages.PasswordRefusedError,
             messages.NoEmailError,
             messages.EmailCodeFailedError,
+            messages.MissingFieldsError,
         ];
         Assert.All(expected, text => Assert.Contains(text, catalog, StringComparison.Ordinal));
     }

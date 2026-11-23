@@ -212,6 +212,11 @@ public sealed record InteractiveMessages
     public required string EmailCodeFailedError { get; init; }
 
     /// <summary>
+    /// Gets the message the forgot-password, reset-password and sign-in code pages show when a field is empty.
+    /// </summary>
+    public required string MissingFieldsError { get; init; }
+
+    /// <summary>
     /// Gets the subject of the mail that carries an email verification code.
     /// </summary>
     public required string VerificationMailSubject { get; init; }
