@@ -20,6 +20,9 @@ namespace NCode.Identity.Mail;
 [PublicAPI]
 public abstract class MailContent : IDisposable, IAsyncDisposable
 {
+    /// <summary>
+    /// The size, in bytes, of each chunk in which content that is not reusable is copied into the loaded buffer.
+    /// </summary>
     private const int CopyChunkBytes = 16384;
 
     /// <summary>
@@ -73,10 +76,20 @@ public abstract class MailContent : IDisposable, IAsyncDisposable
     /// </summary>
     public abstract bool IsReusable { get; }
 
+    /// <summary>
+    /// Gets or sets the sensitive pooled buffer that <see cref="LoadIntoBufferAsync"/> copied the content into, or
+    /// <see langword="null"/> when the content is not loaded.
+    /// </summary>
     private PooledMemoryStream? LoadedBuffer { get; set; }
 
+    /// <summary>
+    /// Gets or sets a value indicating whether the stream of content that is not reusable has been handed out.
+    /// </summary>
     private bool HasBeenRead { get; set; }
 
+    /// <summary>
+    /// Gets or sets a value indicating whether the content is disposed.
+    /// </summary>
     private bool IsDisposed { get; set; }
 
     /// <summary>

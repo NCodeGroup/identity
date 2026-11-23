@@ -113,6 +113,9 @@ public sealed class MailMessage : IDisposable, IAsyncDisposable
     /// </summary>
     public List<MailAttachment> LinkedResources { get; init; } = [];
 
+    /// <summary>
+    /// Gets or sets a value indicating whether the message is disposed.
+    /// </summary>
     private bool IsDisposed { get; set; }
 
     /// <inheritdoc />

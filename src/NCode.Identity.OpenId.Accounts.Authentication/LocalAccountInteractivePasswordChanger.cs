@@ -18,7 +18,8 @@ namespace NCode.Identity.OpenId.Accounts.Authentication;
 /// verifies the current password through the same credential path the interactive sign-in uses, and replaces the
 /// password in one unit of work. It judges the new password with the password policy before it verifies the current
 /// one, and verifies the current password under the limit on failed attempts. An end user without exactly one enabled
-/// local account has no password to change here.
+/// local account has no password to change here. It audits each change, and each refusal of the new or the current
+/// password, as a <c>password.change</c> event that carries no password.
 /// </summary>
 // See ADR-1230.
 internal sealed class LocalAccountInteractivePasswordChanger(
