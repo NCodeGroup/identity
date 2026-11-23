@@ -31,13 +31,13 @@ const SUPPLIED_RATE = Number(__ENV.SUPPLIED_RATE || '2');
 const DURATION = __ENV.DURATION || '10m';
 
 const jwk = JSON.parse(JWT_CLIENT_KEY);
-const assertionRate = Math.max(1, Math.round(RATE / 2));
+const halfRate = Math.max(1, Math.round(RATE / 2));
 
 export const options = {
   scenarios: {
     generated_secret: {
       executor: 'constant-arrival-rate',
-      rate: assertionRate,
+      rate: halfRate,
       timeUnit: '1s',
       duration: DURATION,
       preAllocatedVUs: 50,
@@ -46,7 +46,7 @@ export const options = {
     },
     private_key_jwt: {
       executor: 'constant-arrival-rate',
-      rate: assertionRate,
+      rate: halfRate,
       timeUnit: '1s',
       duration: DURATION,
       preAllocatedVUs: 50,
