@@ -11,7 +11,10 @@ using NCode.Identity.OpenId.Authentication.Clients;
 using NCode.Identity.OpenId.Authentication.Endpoints.Token.Commands;
 using NCode.Identity.OpenId.Authentication.Endpoints.Token.Messages;
 using NCode.Identity.OpenId.Authentication.Passwords;
+using NCode.Identity.OpenId.Connections;
 using NCode.Identity.OpenId.Contexts;
+using NCode.Identity.OpenId.Errors;
+using NCode.Identity.OpenId.Messages;
 using NCode.Identity.OpenId.PrincipalResolution;
 using NCode.Identity.OpenId.Settings;
 using NCode.Identity.OpenId.Tenants;
@@ -26,16 +29,21 @@ public class DefaultAuthenticatePasswordGrantHandlerTests : BaseTests
     private const string TenantId = "tenant-1";
     private const string LocalAccountId = "account-1";
     private const string UserName = "user";
+    private const string AccountKey = LocalAccountId;
     private const string Password = "password";
 
     private Mock<IStoreManagerFactory> MockStoreManagerFactory { get; }
     private Mock<IStoreManager> MockStoreManager { get; }
     private Mock<ILocalAccountStore> MockLocalAccountStore { get; }
+    private Mock<IConnectionResolver> MockConnectionResolver { get; }
     private Mock<IPrincipalResolver> MockPrincipalResolver { get; }
     private Mock<IAuditEventRecorder> MockAuditEventRecorder { get; }
     private Mock<IPasswordAttemptLimiter> MockPasswordAttemptLimiter { get; }
     private Mock<OpenIdContext> MockContext { get; }
     private Mock<OpenIdTenant> MockTenant { get; }
+    private Mock<OpenIdClient> MockClient { get; }
+    private Mock<IReadOnlySettingCollection> MockClientSettings { get; }
+    private ResolvedConnection Connection { get; set; } = null!;
     private DefaultAuthenticatePasswordGrantHandler Handler { get; }
 
     public DefaultAuthenticatePasswordGrantHandlerTests()
@@ -43,13 +51,19 @@ public class DefaultAuthenticatePasswordGrantHandlerTests : BaseTests
         MockStoreManagerFactory = CreateStrictMock<IStoreManagerFactory>();
         MockStoreManager = CreateStrictMock<IStoreManager>();
         MockLocalAccountStore = CreateStrictMock<ILocalAccountStore>();
+        MockConnectionResolver = CreateStrictMock<IConnectionResolver>();
         MockPrincipalResolver = CreateStrictMock<IPrincipalResolver>();
         MockAuditEventRecorder = CreateStrictMock<IAuditEventRecorder>();
         MockPasswordAttemptLimiter = CreateStrictMock<IPasswordAttemptLimiter>();
         MockContext = CreateStrictMock<OpenIdContext>();
         MockTenant = CreateStrictMock<OpenIdTenant>();
+        MockClientSettings = CreateStrictMock<IReadOnlySettingCollection>();
+        MockClient = CreateStrictMock<OpenIdClient>();
+        MockClient.Setup(x => x.Settings).Returns(MockClientSettings.Object).Verifiable();
         Handler = new DefaultAuthenticatePasswordGrantHandler(
             MockStoreManagerFactory.Object,
+            MockConnectionResolver.Object,
+            LocalAccountStoreSetup.CreateCatalog(MockLocalAccountStore),
             MockPrincipalResolver.Object,
             MockAuditEventRecorder.Object,
             MockPasswordAttemptLimiter.Object
@@ -58,15 +72,19 @@ public class DefaultAuthenticatePasswordGrantHandlerTests : BaseTests
 
     #region Scaffolding
 
-    private AuthenticatePasswordGrantCommand CreateCommand(string userName = UserName)
+    private AuthenticatePasswordGrantCommand CreateCommand(
+        string userName = UserName,
+        string? requestedConnection = null
+    )
     {
         var mockTokenRequest = CreateStrictMock<ITokenRequest>();
+        mockTokenRequest.Setup(x => x.Connection).Returns(requestedConnection).Verifiable();
         mockTokenRequest.Setup(x => x.Username).Returns(userName).Verifiable();
         mockTokenRequest.Setup(x => x.Password).Returns(Password).Verifiable();
 
         return new AuthenticatePasswordGrantCommand(
             MockContext.Object,
-            CreateStrictMock<OpenIdClient>().Object,
+            MockClient.Object,
             mockTokenRequest.Object,
             new AuthenticationProperties()
         );
@@ -75,7 +93,12 @@ public class DefaultAuthenticatePasswordGrantHandlerTests : BaseTests
     private void SetupLimit(bool isReached) =>
         MockPasswordAttemptLimiter
             .Setup(x =>
-                x.IsLimitReachedAsync(MockContext.Object, UserName, It.IsAny<CancellationToken>())
+                x.IsLimitReachedAsync(
+                    MockContext.Object,
+                    Connection,
+                    AccountKey,
+                    It.IsAny<CancellationToken>()
+                )
             )
             .ReturnsAsync(isReached)
             .Verifiable();
@@ -87,10 +110,6 @@ public class DefaultAuthenticatePasswordGrantHandlerTests : BaseTests
             .ReturnsAsync(MockStoreManager.Object)
             .Verifiable();
         MockStoreManager.Setup(x => x.DisposeAsync()).Returns(ValueTask.CompletedTask).Verifiable();
-        MockStoreManager
-            .Setup(x => x.GetStore<ILocalAccountStore>())
-            .Returns(MockLocalAccountStore.Object)
-            .Verifiable();
     }
 
     private void SetupSaveChanges() =>
@@ -99,20 +118,60 @@ public class DefaultAuthenticatePasswordGrantHandlerTests : BaseTests
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
 
-    private void SetupSettings(bool isEmailMfaRequired)
+    // The connection's settings answer the second-factor rule, and the local_account_identifier only when the grant
+    // goes on to look an account up.
+    private void SetupConnection(
+        bool isEmailMfaRequired,
+        string requested = "",
+        string strategy = ConnectionStrategyNames.Local
+    )
     {
         var mockSettings = CreateStrictMock<IReadOnlySettingCollection>();
         mockSettings
             .Setup(x => x.GetValue(OpenIdSettingKeys.EmailMfaRequired))
-            .Returns(isEmailMfaRequired)
+            .Returns(isEmailMfaRequired);
+        mockSettings
+            .Setup(x => x.GetValue(OpenIdSettingKeys.LocalAccountIdentifier))
+            .Returns(LocalAccountIdentifiers.EmailOrUserName);
+        Connection = LocalAccountStoreSetup.CreateConnection(
+            TenantId,
+            mockSettings.Object,
+            strategy
+        );
+        SetupSelection(new ConnectionSelection { Connection = Connection }, requested);
+    }
+
+    private void SetupSelection(ConnectionSelection selection, string requested = "") =>
+        MockConnectionResolver
+            .Setup(x =>
+                x.SelectAsync(
+                    MockContext.Object,
+                    MockClientSettings.Object,
+                    requested == "" ? null : requested,
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync(selection)
             .Verifiable();
-        var mockProvider = CreateStrictMock<IReadOnlySettingCollectionProvider>();
-        mockProvider.Setup(x => x.Collection).Returns(mockSettings.Object).Verifiable();
-        MockTenant.Setup(x => x.SettingsProvider).Returns(mockProvider.Object).Verifiable();
+
+    private void SetupTenant()
+    {
+        MockTenant.Setup(x => x.TenantId).Returns(TenantId).Verifiable();
         MockContext.Setup(x => x.Tenant).Returns(MockTenant.Object).Verifiable();
     }
 
-    private void SetupTenant() => MockTenant.Setup(x => x.TenantId).Returns(TenantId).Verifiable();
+    private IOpenIdError SetupInvalidRequest(string description)
+    {
+        var mockError = CreateLooseMock<IOpenIdError>();
+        var mockErrorFactory = CreateLooseMock<IOpenIdErrorFactory>();
+        mockErrorFactory
+            .Setup(x => x.Create(OpenIdProtocol.ErrorCodes.InvalidRequest))
+            .Returns(mockError.Object)
+            .Verifiable();
+        mockError.SetupSet(x => x.Description = description).Verifiable();
+        MockContext.Setup(x => x.ErrorFactory).Returns(mockErrorFactory.Object).Verifiable();
+        return mockError.Object;
+    }
 
     private void SetupAudit(string errorCode, string errorMessage, string userName = UserName) =>
         MockAuditEventRecorder
@@ -133,6 +192,7 @@ public class DefaultAuthenticatePasswordGrantHandlerTests : BaseTests
         {
             TenantId = TenantId,
             LocalAccountId = LocalAccountId,
+            ConnectionId = LocalAccountStoreSetup.ConnectionId,
             UserName = UserName,
             DisplayName = "Display Name",
             Email = null,
@@ -147,10 +207,104 @@ public class DefaultAuthenticatePasswordGrantHandlerTests : BaseTests
     #region HandleAsync Tests
 
     [Fact]
-    public async Task HandleAsync_WhenTheTenantRequiresTheEmailSecondFactor_FailsWithoutVerifying()
+    public async Task HandleAsync_WhenTheSelectionIsRefused_FailsWithInvalidRequest()
+    {
+        var command = CreateCommand(requestedConnection: "unknown");
+        SetupSelection(new ConnectionSelection { ErrorDescription = "Not allowed." }, "unknown");
+        var error = SetupInvalidRequest("Not allowed.");
+
+        var disposition = await Handler.HandleAsync(command, CancellationToken.None);
+
+        Assert.True(disposition.HasError);
+        Assert.Same(error, disposition.Error);
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenTheConnectionIsNotLocal_FailsWithInvalidRequest()
+    {
+        var command = CreateCommand(requestedConnection: "corporate");
+        SetupConnection(isEmailMfaRequired: false, "corporate", strategy: "oidc");
+        var error = SetupInvalidRequest(
+            DefaultAuthenticatePasswordGrantHandler.ConnectionNotUsableDescription
+        );
+
+        var disposition = await Handler.HandleAsync(command, CancellationToken.None);
+
+        Assert.True(disposition.HasError);
+        Assert.Same(error, disposition.Error);
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenNoConnectionIsSelected_FailsWithInvalidRequest()
     {
         var command = CreateCommand();
-        SetupSettings(isEmailMfaRequired: true);
+        SetupSelection(new ConnectionSelection());
+        var error = SetupInvalidRequest(
+            DefaultAuthenticatePasswordGrantHandler.ConnectionNotUsableDescription
+        );
+
+        var disposition = await Handler.HandleAsync(command, CancellationToken.None);
+
+        Assert.True(disposition.HasError);
+        Assert.Same(error, disposition.Error);
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenTheConnectionIdentifiesByEmail_LooksUpByEmailOnly()
+    {
+        const string email = "user@example.com";
+        var command = CreateCommand(email);
+        var mockSettings = CreateStrictMock<IReadOnlySettingCollection>();
+        mockSettings
+            .Setup(x => x.GetValue(OpenIdSettingKeys.EmailMfaRequired))
+            .Returns(false)
+            .Verifiable();
+        mockSettings
+            .Setup(x => x.GetValue(OpenIdSettingKeys.LocalAccountIdentifier))
+            .Returns(LocalAccountIdentifiers.Email)
+            .Verifiable();
+        Connection = LocalAccountStoreSetup.CreateConnection(TenantId, mockSettings.Object);
+        SetupSelection(new ConnectionSelection { Connection = Connection });
+        SetupStoreManager();
+        SetupLimit(isReached: false);
+        var identifier = new LocalAccountSignInIdentifier
+        {
+            ConnectionId = LocalAccountStoreSetup.ConnectionId,
+            Email = email,
+        };
+        LocalAccountStoreSetup.SetupVerification(
+            MockLocalAccountStore,
+            identifier,
+            AccountKey,
+            verified: null
+        );
+        MockPasswordAttemptLimiter
+            .Setup(x =>
+                x.RecordFailureAsync(
+                    MockContext.Object,
+                    Connection,
+                    AccountKey,
+                    CancellationToken.None
+                )
+            )
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable();
+        SetupAudit(
+            DefaultAuthenticatePasswordGrantHandler.InvalidCredentialsErrorCode,
+            DefaultAuthenticatePasswordGrantHandler.InvalidCredentialsReason,
+            email
+        );
+
+        var disposition = await Handler.HandleAsync(command, CancellationToken.None);
+
+        Assert.False(disposition.IsAuthenticated);
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenTheConnectionRequiresTheEmailSecondFactor_FailsWithoutVerifying()
+    {
+        var command = CreateCommand();
+        SetupConnection(isEmailMfaRequired: true);
         SetupAudit(
             DefaultAuthenticatePasswordGrantHandler.SecondFactorRequiredErrorCode,
             DefaultAuthenticatePasswordGrantHandler.SecondFactorRequiredReason
@@ -165,17 +319,24 @@ public class DefaultAuthenticatePasswordGrantHandlerTests : BaseTests
     public async Task HandleAsync_WhenTheAttemptLimitIsReached_RecordsAFailureAndAuditsTheLimit()
     {
         var command = CreateCommand();
-        SetupSettings(isEmailMfaRequired: false);
+        SetupConnection(isEmailMfaRequired: false);
         SetupStoreManager();
         SetupLimit(isReached: true);
         LocalAccountStoreSetup.SetupVerification(
             MockLocalAccountStore,
-            UserName,
-            UserName,
+            LocalAccountStoreSetup.EmailOrUserName(UserName),
+            AccountKey,
             Account(isEnabled: true)
         );
         MockPasswordAttemptLimiter
-            .Setup(x => x.RecordFailureAsync(MockContext.Object, UserName, CancellationToken.None))
+            .Setup(x =>
+                x.RecordFailureAsync(
+                    MockContext.Object,
+                    Connection,
+                    AccountKey,
+                    CancellationToken.None
+                )
+            )
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
         SetupAudit(
@@ -192,17 +353,24 @@ public class DefaultAuthenticatePasswordGrantHandlerTests : BaseTests
     public async Task HandleAsync_WhenTheStoreVerifiesARefusedPassword_RecordsAFailureAndAuditsTheLimit()
     {
         var command = CreateCommand();
-        SetupSettings(isEmailMfaRequired: false);
+        SetupConnection(isEmailMfaRequired: false);
         SetupStoreManager();
         SetupLimit(isReached: true);
         LocalAccountStoreSetup.SetupVerificationIgnoringARefusal(
             MockLocalAccountStore,
-            UserName,
-            UserName,
+            LocalAccountStoreSetup.EmailOrUserName(UserName),
+            AccountKey,
             Account(isEnabled: true)
         );
         MockPasswordAttemptLimiter
-            .Setup(x => x.RecordFailureAsync(MockContext.Object, UserName, CancellationToken.None))
+            .Setup(x =>
+                x.RecordFailureAsync(
+                    MockContext.Object,
+                    Connection,
+                    AccountKey,
+                    CancellationToken.None
+                )
+            )
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
         SetupAudit(
@@ -216,20 +384,27 @@ public class DefaultAuthenticatePasswordGrantHandlerTests : BaseTests
     }
 
     [Fact]
-    public async Task HandleAsync_WhenTheStoreMatchesAnotherSpelling_CountsTheStoredUserName()
+    public async Task HandleAsync_WhenTheStoreMatchesAnotherSpelling_CountsTheStoredAccountKey()
     {
         var command = CreateCommand(UserName + " ");
-        SetupSettings(isEmailMfaRequired: false);
+        SetupConnection(isEmailMfaRequired: false);
         SetupStoreManager();
         SetupLimit(isReached: true);
         LocalAccountStoreSetup.SetupVerification(
             MockLocalAccountStore,
-            UserName + " ",
-            UserName,
+            LocalAccountStoreSetup.EmailOrUserName(UserName + " "),
+            AccountKey,
             Account(isEnabled: true)
         );
         MockPasswordAttemptLimiter
-            .Setup(x => x.RecordFailureAsync(MockContext.Object, UserName, CancellationToken.None))
+            .Setup(x =>
+                x.RecordFailureAsync(
+                    MockContext.Object,
+                    Connection,
+                    AccountKey,
+                    CancellationToken.None
+                )
+            )
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
         SetupAudit(
@@ -248,17 +423,24 @@ public class DefaultAuthenticatePasswordGrantHandlerTests : BaseTests
     {
         using var cancellationSource = new CancellationTokenSource();
         var command = CreateCommand();
-        SetupSettings(isEmailMfaRequired: false);
+        SetupConnection(isEmailMfaRequired: false);
         SetupStoreManager();
         SetupLimit(isReached: false);
         LocalAccountStoreSetup.SetupVerification(
             MockLocalAccountStore,
-            UserName,
-            UserName,
+            LocalAccountStoreSetup.EmailOrUserName(UserName),
+            AccountKey,
             verified: null
         );
         MockPasswordAttemptLimiter
-            .Setup(x => x.RecordFailureAsync(MockContext.Object, UserName, CancellationToken.None))
+            .Setup(x =>
+                x.RecordFailureAsync(
+                    MockContext.Object,
+                    Connection,
+                    AccountKey,
+                    CancellationToken.None
+                )
+            )
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
         SetupAudit(
@@ -275,19 +457,26 @@ public class DefaultAuthenticatePasswordGrantHandlerTests : BaseTests
     public async Task HandleAsync_WhenThePasswordIsRightButTheAccountIsDisabled_ClearsTheFailedAttemptsAndFails()
     {
         var command = CreateCommand();
-        SetupSettings(isEmailMfaRequired: false);
+        SetupConnection(isEmailMfaRequired: false);
         SetupStoreManager();
         SetupLimit(isReached: false);
         LocalAccountStoreSetup.SetupVerification(
             MockLocalAccountStore,
-            UserName,
-            UserName,
+            LocalAccountStoreSetup.EmailOrUserName(UserName),
+            AccountKey,
             Account(isEnabled: false)
         );
         SetupSaveChanges();
         SetupTenant();
         MockPasswordAttemptLimiter
-            .Setup(x => x.ResetAsync(TenantId, UserName, It.IsAny<CancellationToken>()))
+            .Setup(x =>
+                x.ResetAsync(
+                    TenantId,
+                    LocalAccountStoreSetup.ConnectionId,
+                    AccountKey,
+                    It.IsAny<CancellationToken>()
+                )
+            )
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
         SetupAudit(

@@ -4,11 +4,12 @@
 using System.Security.Claims;
 using Moq;
 using NCode.Identity.Jose;
-using NCode.Identity.OpenId.Accounts;
 using NCode.Identity.OpenId.Accounts.Authentication;
 using NCode.Identity.OpenId.Accounts.DataContracts;
 using NCode.Identity.OpenId.Authentication.Subject;
+using NCode.Identity.OpenId.Connections;
 using NCode.Identity.OpenId.Contexts;
+using NCode.Identity.OpenId.Core.Tests.Accounts;
 using NCode.Identity.OpenId.Principals;
 using NCode.Identity.OpenId.Settings;
 using NCode.Identity.OpenId.Tenants;
@@ -51,22 +52,15 @@ public class DefaultCreatePasswordGrantSubjectHandlerTests : BaseTests
             .Setup(x => x.GetValue(OpenIdSettingKeys.SubjectClaimTypes))
             .Returns(new[] { "sub" })
             .Verifiable();
-        mockSettings
-            .Setup(x => x.GetValue(OpenIdSettingKeys.PrincipalIssuerClaim))
-            .Returns("iss")
-            .Verifiable();
-
-        var mockProvider = CreateStrictMock<IReadOnlySettingCollectionProvider>();
-        mockProvider.Setup(x => x.Collection).Returns(mockSettings.Object).Verifiable();
 
         var mockTenant = CreateStrictMock<OpenIdTenant>();
-        mockTenant.Setup(x => x.SettingsProvider).Returns(mockProvider.Object).Verifiable();
         mockTenant.Setup(x => x.TenantId).Returns(TenantId).Verifiable();
 
         var mockContext = CreateStrictMock<OpenIdContext>();
         mockContext.Setup(x => x.Tenant).Returns(mockTenant.Object).Verifiable();
 
-        return new CreatePasswordGrantSubjectCommand(mockContext.Object, account);
+        var connection = LocalAccountStoreSetup.CreateConnection(TenantId, mockSettings.Object);
+        return new CreatePasswordGrantSubjectCommand(mockContext.Object, connection, account);
     }
 
     private static PersistedLocalAccount CreateAccount() =>
@@ -74,6 +68,7 @@ public class DefaultCreatePasswordGrantSubjectHandlerTests : BaseTests
         {
             TenantId = string.Empty,
             LocalAccountId = "account-1",
+            ConnectionId = LocalAccountStoreSetup.ConnectionId,
             UserName = "user-1",
             DisplayName = "Display Name",
             Email = null,
@@ -88,14 +83,21 @@ public class DefaultCreatePasswordGrantSubjectHandlerTests : BaseTests
     #region HandleAsync Tests
 
     [Fact]
-    public async Task HandleAsync_StampsSubjectIssuerAndAccountClaims()
+    public async Task HandleAsync_StampsSubjectConnectionAndAccountClaims()
     {
         var command = CreateCommand(CreateAccount());
 
         var principal = await Handler.HandleAsync(command, CancellationToken.None);
 
         Assert.Equal("account-1", principal.FindFirstValue("sub"));
-        Assert.Equal(AccountConstants.SelfIssuer, principal.FindFirstValue("iss"));
+        Assert.Equal(
+            LocalAccountStoreSetup.ConnectionId,
+            principal.FindFirstValue(ConnectionClaimTypes.Connection)
+        );
+        Assert.Equal(
+            LocalAccountStoreSetup.ConnectionName,
+            principal.FindFirstValue(JoseClaimNames.Payload.Idp)
+        );
         Assert.Equal("admin", principal.FindFirstValue("role"));
     }
 
