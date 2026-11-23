@@ -7,6 +7,7 @@ export const es: Messages = {
     titleFor: (productName) => `Iniciar sesión en ${productName}`,
     username: 'Nombre de usuario',
     password: 'Contraseña',
+    connection: 'Iniciar sesión con',
     submit: 'Iniciar sesión',
     forgotPassword: '¿Ha olvidado su contraseña?',
     passwordReset: 'Su contraseña ha sido restablecida. Inicie sesión con su nueva contraseña.',

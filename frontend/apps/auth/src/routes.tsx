@@ -80,11 +80,19 @@ const ROUTES: readonly Route[] = [
   },
   {
     match: isPasswordForgotPath,
-    render: ({ returnUrl, antiforgeryToken, errorCode, messages }) => (
+    render: ({
+      returnUrl,
+      antiforgeryToken,
+      errorCode,
+      messages,
+      serverPage = EMPTY_SERVER_PAGE,
+    }) => (
       <ForgotPasswordPage
         returnUrl={returnUrl}
         antiforgeryToken={antiforgeryToken}
         errorMessage={describeEmailCodeError(errorCode ?? null, messages)}
+        connections={serverPage.connections}
+        selectedConnection={serverPage.selectedConnection}
       />
     ),
   },
@@ -181,6 +189,8 @@ function renderLogin({
       {...productNameOf(branding)}
       carriedValues={serverPage.fieldValues}
       focusedFieldId={serverPage.focusedFieldId}
+      connections={serverPage.connections}
+      selectedConnection={serverPage.selectedConnection}
     />
   );
 }

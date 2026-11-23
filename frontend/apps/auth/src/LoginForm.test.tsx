@@ -222,3 +222,39 @@ describe('LoginForm', () => {
     expect(carried?.value).toBe('fr');
   });
 });
+
+describe('LoginForm connection field', () => {
+  const connections = [
+    { name: 'local', displayName: 'Local' },
+    { name: 'corp', displayName: 'Corp' },
+  ];
+
+  it('renders a select of the connections when several are offered', () => {
+    const { container } = renderForm({
+      returnUrl: '/',
+      antiforgeryToken: 't',
+      connections,
+      selectedConnection: 'corp',
+    });
+
+    const select = container.querySelector('select#connection') as HTMLSelectElement | null;
+    expect(select?.name).toBe('connection');
+    expect(select?.value).toBe('corp');
+    expect(Array.from(select!.options).map((option) => option.value)).toEqual(['local', 'corp']);
+    expect(screen.getByLabelText('Sign in with')).toBe(select);
+  });
+
+  it('renders a hidden input when one connection is offered', () => {
+    const { container } = renderForm({
+      returnUrl: '/',
+      antiforgeryToken: 't',
+      connections: [connections[0]!],
+      selectedConnection: 'local',
+    });
+
+    const hidden = container.querySelector('input[name="connection"]') as HTMLInputElement | null;
+    expect(hidden?.type).toBe('hidden');
+    expect(hidden?.value).toBe('local');
+    expect(container.querySelector('select#connection')).toBeNull();
+  });
+});

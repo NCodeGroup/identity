@@ -7,6 +7,7 @@ export const de: Messages = {
     titleFor: (productName) => `Bei ${productName} anmelden`,
     username: 'Benutzername',
     password: 'Passwort',
+    connection: 'Anmelden mit',
     submit: 'Anmelden',
     forgotPassword: 'Passwort vergessen?',
     passwordReset: 'Ihr Passwort wurde zurückgesetzt. Melden Sie sich mit Ihrem neuen Passwort an.',

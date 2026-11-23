@@ -7,6 +7,7 @@ export const fr: Messages = {
     titleFor: (productName) => `Se connecter à ${productName}`,
     username: 'Nom d’utilisateur',
     password: 'Mot de passe',
+    connection: 'Se connecter avec',
     submit: 'Se connecter',
     forgotPassword: 'Mot de passe oublié ?',
     passwordReset:

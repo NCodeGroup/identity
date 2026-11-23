@@ -15,6 +15,7 @@ export type Messages = {
     readonly titleFor: (productName: string) => string;
     readonly username: string;
     readonly password: string;
+    readonly connection: string;
     readonly submit: string;
     readonly forgotPassword: string;
     readonly passwordReset: string;

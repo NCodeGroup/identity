@@ -16,7 +16,7 @@ import {
   UI_LOCALES_FIELD,
   resolveSurfacePath,
 } from './params.js';
-import { writeCarriedValue } from './serverPage.js';
+import { writeCarriedValue, type ServerConnection } from './serverPage.js';
 
 export type LoginFormProps = {
   /** The validated local return URL the server redirects to after a successful sign-in. */
@@ -37,7 +37,50 @@ export type LoginFormProps = {
   readonly carriedValues?: Readonly<Record<string, string>>;
   /** The id of the field that had focus before the bundle mounted, which keeps it. */
   readonly focusedFieldId?: string | null;
+  /** The connections the form offers: a picker when several, a hidden field when one, nothing when none. */
+  readonly connections?: readonly ServerConnection[];
+  /** The name of the connection the form preselects, or `null` for none. */
+  readonly selectedConnection?: string | null;
 };
+
+/**
+ * The field that carries the connection a form signs in through: a select (`id="connection"`) when several
+ * connections are offered, a hidden input when one is, and nothing when none is.
+ */
+export function ConnectionField({
+  connections,
+  selectedConnection,
+}: {
+  readonly connections: readonly ServerConnection[];
+  readonly selectedConnection: string | null;
+}) {
+  const { messages } = useLocale();
+  const [only] = connections;
+  if (only === undefined) {
+    return null;
+  }
+  if (connections.length === 1) {
+    return <input type="hidden" name="connection" value={only.name} />;
+  }
+  return (
+    <TextField
+      id="connection"
+      name="connection"
+      label={messages.login.connection}
+      select
+      defaultValue={selectedConnection ?? ''}
+      slotProps={{ select: { native: true } }}
+      fullWidth
+    >
+      {selectedConnection === null ? <option value="" /> : null}
+      {connections.map((connection) => (
+        <option key={connection.name} value={connection.name}>
+          {connection.displayName}
+        </option>
+      ))}
+    </TextField>
+  );
+}
 
 /**
  * The stateless login form. It submits as a native HTML form POST so the browser follows the cookie
@@ -53,6 +96,8 @@ export function LoginForm({
   productName,
   carriedValues,
   focusedFieldId,
+  connections = [],
+  selectedConnection = null,
 }: LoginFormProps) {
   const { pageLanguage, messages } = useLocale();
   const carriedUsername = carriedValues?.['username'];
@@ -100,6 +145,7 @@ export function LoginForm({
               <input type="hidden" name={UI_LOCALES_FIELD} value={pageLanguage} />
             ) : null}
 
+            <ConnectionField connections={connections} selectedConnection={selectedConnection} />
             <TextField
               id="username"
               name="username"

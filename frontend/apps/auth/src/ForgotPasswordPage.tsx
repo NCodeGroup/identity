@@ -6,6 +6,8 @@ import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import { TenantCard } from '@ncodegroup/identity-ui';
+import { ConnectionField } from './LoginForm.js';
+import type { ServerConnection } from './serverPage.js';
 import { useLocale } from './i18n/LocaleContext.js';
 import {
   ANTIFORGERY_FIELD,
@@ -22,6 +24,10 @@ export type ForgotPasswordPageProps = {
   readonly returnUrl: string;
   /** A human-readable error to show above the form, or `null` when none. */
   readonly errorMessage?: string | null;
+  /** The connections the form offers: a picker when several, a hidden field when one, nothing when none. */
+  readonly connections?: readonly ServerConnection[];
+  /** The name of the connection the form preselects, or `null` for none. */
+  readonly selectedConnection?: string | null;
 };
 
 /**
@@ -34,6 +40,8 @@ export function ForgotPasswordPage({
   antiforgeryToken,
   returnUrl,
   errorMessage,
+  connections = [],
+  selectedConnection = null,
 }: ForgotPasswordPageProps) {
   const { pageLanguage, messages } = useLocale();
   const text = messages.forgotPassword;
@@ -69,6 +77,7 @@ export function ForgotPasswordPage({
 
             <Typography variant="body2">{text.prompt}</Typography>
 
+            <ConnectionField connections={connections} selectedConnection={selectedConnection} />
             <TextField
               id="username"
               name="username"

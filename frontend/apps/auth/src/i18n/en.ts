@@ -7,6 +7,7 @@ export const en: Messages = {
     titleFor: (productName) => `Sign in to ${productName}`,
     username: 'Username',
     password: 'Password',
+    connection: 'Sign in with',
     submit: 'Sign in',
     forgotPassword: 'Forgot your password?',
     passwordReset: 'Your password has been reset. Sign in with your new password.',
