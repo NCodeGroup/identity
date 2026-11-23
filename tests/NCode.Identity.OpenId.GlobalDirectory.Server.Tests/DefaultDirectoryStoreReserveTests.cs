@@ -341,7 +341,7 @@ public sealed class DefaultDirectoryStoreReserveTests : DefaultDirectoryStoreTes
         );
 
         Assert.Equal(
-            $"The tenant '{TenantId}' that DirectoryServer:ControlPlaneTenantId names is retired or held by another cell, so the directory cannot hold it for the control-plane cell.",
+            $"The tenant '{TenantId}' that DirectoryServer:ControlPlaneTenantId names is retired or held by another cell, so the directory cannot hold it for the control-plane cell; set DirectoryServer:ControlPlaneTenantId to the control-plane cell's root tenant identifier, which no other cell holds or retired.",
             exception.Message
         );
     }
@@ -372,7 +372,7 @@ public sealed class DefaultDirectoryStoreReserveTests : DefaultDirectoryStoreTes
         );
 
         Assert.Equal(
-            $"Another tenant holds or retired the issuer that DirectoryServer:Issuer names, so the directory cannot hold it for the control-plane cell's root tenant '{ControlPlaneTenantId}'.",
+            $"Another tenant holds or retired the issuer that DirectoryServer:Issuer names, so the directory cannot hold it for the control-plane cell's root tenant '{ControlPlaneTenantId}'; set DirectoryServer:Issuer to the control-plane cell's issuer, which no other tenant holds or retired.",
             exception.Message
         );
     }
@@ -399,7 +399,7 @@ public sealed class DefaultDirectoryStoreReserveTests : DefaultDirectoryStoreTes
         );
 
         Assert.Equal(
-            $"The tenant '{ControlPlaneTenantId}' that DirectoryServer:ControlPlaneTenantId names is retired or held by another cell, so the directory cannot hold it for the control-plane cell.",
+            $"The tenant '{ControlPlaneTenantId}' that DirectoryServer:ControlPlaneTenantId names is retired or held by another cell, so the directory cannot hold it for the control-plane cell; set DirectoryServer:ControlPlaneTenantId to the control-plane cell's root tenant identifier, which no other cell holds or retired.",
             exception.Message
         );
     }

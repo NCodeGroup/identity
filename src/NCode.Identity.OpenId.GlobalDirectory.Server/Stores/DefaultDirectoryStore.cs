@@ -159,7 +159,7 @@ internal sealed class DefaultDirectoryStore(
                     if (!isHeld)
                     {
                         throw new InvalidOperationException(
-                            $"The tenant '{tenantId}' that {ControlPlaneTenantIdKey} names is retired or held by another cell, so the directory cannot hold it for the control-plane cell."
+                            $"The tenant '{tenantId}' that {ControlPlaneTenantIdKey} names is retired or held by another cell, so the directory cannot hold it for the control-plane cell; set {ControlPlaneTenantIdKey} to the control-plane cell's root tenant identifier, which no other cell holds or retired."
                         );
                     }
 
@@ -189,7 +189,7 @@ internal sealed class DefaultDirectoryStore(
                 if (isIssuerHeld || retiredIssuerDetail is not null)
                 {
                     throw new InvalidOperationException(
-                        $"Another tenant holds or retired the issuer that {DirectoryServerOptions.SectionName}:{nameof(DirectoryServerOptions.Issuer)} names, so the directory cannot hold it for the control-plane cell's root tenant '{tenantId}'."
+                        $"Another tenant holds or retired the issuer that {DirectoryServerOptions.SectionName}:{nameof(DirectoryServerOptions.Issuer)} names, so the directory cannot hold it for the control-plane cell's root tenant '{tenantId}'; set {DirectoryServerOptions.SectionName}:{nameof(DirectoryServerOptions.Issuer)} to the control-plane cell's issuer, which no other tenant holds or retired."
                     );
                 }
 
