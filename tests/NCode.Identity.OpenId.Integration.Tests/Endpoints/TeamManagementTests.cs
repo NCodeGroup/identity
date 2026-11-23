@@ -2327,7 +2327,7 @@ public class TeamManagementTests
         Assert.True(deleteGrant.StatusCode == HttpStatusCode.Forbidden, deleteGrantBody);
 
         using var deleteAccount = await teamAdmin.DeleteAsync(
-            "/api/tenants/globex-dev/local-accounts/nope"
+            "/api/tenants/globex-dev/connections/nope/local-accounts/nope"
         );
         var deleteAccountBody = await deleteAccount.Content.ReadAsStringAsync();
         Assert.True(deleteAccount.StatusCode == HttpStatusCode.Forbidden, deleteAccountBody);
@@ -3182,8 +3182,13 @@ public class TeamManagementTests
         await CreateTeamAsync(client, "wonka", new { }, CancellationToken.None);
         await CreateTenantAsync(client, "wonka", "wonka-dev", CancellationToken.None);
 
+        var accountsPath = await GetLocalAccountsPathAsync(
+            client,
+            "wonka-dev",
+            CancellationToken.None
+        );
         using var created = await client.PostAsJsonAsync(
-            "/api/tenants/wonka-dev/local-accounts",
+            accountsPath,
             new { userName = "wonka-user", password = "wonka-user-password-1" }
         );
         var createdBody = await created.Content.ReadAsStringAsync();
@@ -3192,7 +3197,7 @@ public class TeamManagementTests
             .Parse(createdBody)
             .GetProperty("localAccountId")
             .GetString();
-        var accountPath = $"/api/tenants/wonka-dev/local-accounts/{localAccountId}";
+        var accountPath = $"{accountsPath}/{localAccountId}";
 
         await SetTeamDisabledAsync(client, "wonka", isDisabled: true, CancellationToken.None);
 
@@ -3224,6 +3229,28 @@ public class TeamManagementTests
         using var disabledAgain = await client.PostAsync($"{accountPath}/disable", content: null);
         var disabledBody = await disabledAgain.Content.ReadAsStringAsync();
         Assert.True(disabledAgain.StatusCode == HttpStatusCode.NoContent, disabledBody);
+    }
+
+    private static async ValueTask<string> GetLocalAccountsPathAsync(
+        HttpClient client,
+        string tenantId,
+        CancellationToken cancellationToken
+    )
+    {
+        using var connections = await client.GetAsync(
+            $"/api/tenants/{tenantId}/connections",
+            cancellationToken
+        );
+        var connectionsBody = await connections.Content.ReadAsStringAsync(cancellationToken);
+        Assert.True(connections.StatusCode == HttpStatusCode.OK, connectionsBody);
+        var connectionId = JsonElement
+            .Parse(connectionsBody)
+            .GetProperty("items")
+            .EnumerateArray()
+            .Single(x => x.GetProperty("name").GetString() == "local")
+            .GetProperty("connectionId")
+            .GetString();
+        return $"/api/tenants/{tenantId}/connections/{connectionId}/local-accounts";
     }
 
     #endregion

@@ -1,5 +1,6 @@
 @host = https://localhost:5001
 @tenantId = default
+@connectionId = REPLACE_WITH_the_local_connectionId
 
 # NCode.Identity.OpenId management API — collection (list) endpoints.
 #
@@ -55,8 +56,12 @@ Accept: application/json
 GET {{host}}/api/tenants/{{tenantId}}/admins
 Accept: application/json
 
+### List a tenant's connections — the `local` connection's connectionId names the account's connection
+GET {{host}}/api/tenants/{{tenantId}}/connections
+Accept: application/json
+
 ### Create a local account — the answer carries its principalId, which every role grant names
-POST {{host}}/api/tenants/{{tenantId}}/local-accounts
+POST {{host}}/api/tenants/{{tenantId}}/connections/{{connectionId}}/local-accounts
 Content-Type: application/json
 
 {
@@ -73,7 +78,7 @@ Content-Type: application/json
 }
 
 ### List a tenant's local accounts — each carries its principalId
-GET {{host}}/api/tenants/{{tenantId}}/local-accounts?limit=50
+GET {{host}}/api/tenants/{{tenantId}}/connections/{{connectionId}}/local-accounts?limit=50
 Accept: application/json
 
 ### List teams (central-admin)

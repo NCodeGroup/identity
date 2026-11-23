@@ -139,7 +139,7 @@ public class UnreadableSettingsDocumentTests
         await MakeTenantDocumentUnreadableAsync(factory, CancellationToken.None);
 
         using var response = await administrator.PostAsync(
-            $"{TenantApiPath}/local-accounts/{localAccountId}/password",
+            $"{await factory.GetLocalAccountsPathAsync(CancellationToken.None)}/{localAccountId}/password",
             JsonContent.Create(new { password = "unreadable-settings-password-reset" })
         );
 

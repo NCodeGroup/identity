@@ -418,8 +418,24 @@ describe('App (platform ↔ team ↔ tenant boundary)', () => {
         if (url.endsWith('/api/platform/local-accounts')) {
           return jsonResponse({ items: [] });
         }
-        if (url.endsWith('/api/tenants/acme/local-accounts')) {
+        if (url.includes('/api/tenants/acme/connections/c-local/local-accounts')) {
           return jsonResponse({ items: [] });
+        }
+        if (url.includes('/api/tenants/acme/connections')) {
+          return jsonResponse({
+            items: [
+              {
+                tenantId: 'acme',
+                connectionId: 'c-local',
+                concurrencyToken: 'c',
+                name: 'local',
+                displayName: 'Username and password',
+                strategy: 'local',
+                isEnabled: true,
+                options: { store: 'default' },
+              },
+            ],
+          });
         }
         if (url.endsWith('/api/tenants/acme/clients')) {
           return jsonResponse({ items: [] });
