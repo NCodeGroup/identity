@@ -42,14 +42,14 @@ describe('SignInCodePage', () => {
     const { container } = renderPage({ antiforgeryToken: 'tok' });
 
     const verify = screen.getByRole('button', { name: en.signInCode.verify });
-    expect(verify).toHaveAttribute('id', 'verify-code');
+    expect(verify).toHaveAttribute('id', 'verify');
     expect(verify).toHaveAttribute('name', 'action');
     expect(verify).toHaveAttribute('value', 'verify');
     expect(verify).toHaveAttribute('type', 'submit');
     expect(verify).not.toHaveAttribute('formnovalidate');
 
     const resend = screen.getByRole('button', { name: en.signInCode.resend });
-    expect(resend).toHaveAttribute('id', 'resend-code');
+    expect(resend).toHaveAttribute('id', 'resend');
     expect(resend).toHaveAttribute('name', 'action');
     expect(resend).toHaveAttribute('value', 'resend');
     expect(resend).toHaveAttribute('type', 'submit');

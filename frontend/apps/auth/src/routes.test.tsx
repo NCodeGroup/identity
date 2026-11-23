@@ -158,8 +158,8 @@ describe('resolveRoute', () => {
   it('renders the sign-in code surface for the sign-in code path', () => {
     const { container } = renderRoute({ ...baseContext, pathname: '/account/login/code' });
     expect(container.querySelector('form')?.getAttribute('action')).toBe('/account/login/code');
-    expect(container.querySelector('#verify-code')).not.toBeNull();
-    expect(container.querySelector('#resend-code')).not.toBeNull();
+    expect(container.querySelector('#verify')).not.toBeNull();
+    expect(container.querySelector('#resend')).not.toBeNull();
     expect(container.querySelector('#login')).toBeNull();
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     expect(fetchMock).not.toHaveBeenCalled();

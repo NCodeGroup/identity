@@ -22,7 +22,8 @@ export type SignInCodePageProps = {
  * The sign-in code page, where an end-user whose password is verified presents the code mailed to the account's
  * address. It submits as a native HTML form POST to the same path carrying the antiforgery token; the `verify` action
  * checks the code and completes the sign-in, and the `resend` action, which skips the form's validation, mails a new
- * code. The stable element ids (`code`, `verify-code`, `resend-code`) are the automation contract.
+ * code. The stable element ids (`code`, `verify`, `resend`) are the automation contract, the same ids the host's page
+ * writes.
  */
 export function SignInCodePage({ antiforgeryToken, errorMessage, sent }: SignInCodePageProps) {
   const { messages } = useLocale();
@@ -69,7 +70,7 @@ export function SignInCodePage({ antiforgeryToken, errorMessage, sent }: SignInC
             />
 
             <Button
-              id="verify-code"
+              id="verify"
               name="action"
               value="verify"
               type="submit"
@@ -79,7 +80,7 @@ export function SignInCodePage({ antiforgeryToken, errorMessage, sent }: SignInC
               {text.verify}
             </Button>
             <Button
-              id="resend-code"
+              id="resend"
               name="action"
               value="resend"
               type="submit"
