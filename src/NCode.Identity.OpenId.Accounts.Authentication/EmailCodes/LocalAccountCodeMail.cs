@@ -1,6 +1,9 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using System.Globalization;
+using System.Text;
+
 namespace NCode.Identity.OpenId.Accounts.Authentication.EmailCodes;
 
 /// <summary>
@@ -26,4 +29,21 @@ internal sealed record LocalAccountCodeMail(
     string LanguageTag,
     int Code,
     int LifetimeMinutes
-);
+)
+{
+    /// <summary>
+    /// Writes the members the record prints, which leave out the code and the address, so neither reaches a log, a
+    /// debugger display or an exception message.
+    /// </summary>
+    /// <param name="builder">The builder that receives the printed members.</param>
+    /// <returns><see langword="true"/>, because members were written.</returns>
+    // See ADR-1533.
+    private bool PrintMembers(StringBuilder builder)
+    {
+        builder.Append(
+            CultureInfo.InvariantCulture,
+            $"LanguageTag = {LanguageTag}, LifetimeMinutes = {LifetimeMinutes}"
+        );
+        return true;
+    }
+}
