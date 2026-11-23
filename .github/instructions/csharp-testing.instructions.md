@@ -144,7 +144,8 @@ seams, facades, and `InternalsVisibleTo` wiring that make code mockable — live
 - 👁 **Stop the unit at the mediator to inspect a command it builds midway** — template
   [Setup Techniques](csharp-tests.instructions.md#setup-techniques) (`DefaultTokenExchangeGrantHandlerTests`).
 - 👁 **Run a function argument through a strict setup.** When the unit passes a function that the collaborator calls
-  midway (the `isRefusedAsync` of `ILocalAccountStore.VerifyCredentialAsync`), set up
+  midway (the `isRefusedAsync` of `ILocalAccountStore.VerifyCredentialAsync`, which receives the account key: the found
+  account's id, or the submitted identifier), set up
   `.Returns((T1 _, T2 _, Func<…> callback, CancellationToken cancellationToken) => HelperAsync(callback, …,
   cancellationToken))` with a static `async` helper rather than an `async` lambda, so the delegate returns the member's
   own `ValueTask<T>` (`LocalAccountStoreSetup.SetupVerification`).
