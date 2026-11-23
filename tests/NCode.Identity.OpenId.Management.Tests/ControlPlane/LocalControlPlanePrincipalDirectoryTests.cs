@@ -319,7 +319,8 @@ public sealed class LocalControlPlanePrincipalDirectoryTests : IDisposable
 
         var result = await directory.FindAsync(query, CancellationToken.None);
 
-        Assert.Equal(["p1", "p2"], result.Select(summary => summary.PrincipalId));
+        var principalIds = result.Select(summary => summary.PrincipalId);
+        Assert.Equal(["p1", "p2"], principalIds);
     }
 
     [Fact]
