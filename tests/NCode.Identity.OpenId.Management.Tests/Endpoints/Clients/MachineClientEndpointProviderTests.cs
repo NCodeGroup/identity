@@ -10,6 +10,7 @@ using NCode.Identity.Cryptography;
 using NCode.Identity.OpenId.Authentication.Clients;
 using NCode.Identity.OpenId.GlobalDirectory;
 using NCode.Identity.OpenId.Management.Auditing;
+using NCode.Identity.OpenId.Management.ControlPlane;
 using NCode.Identity.OpenId.Management.Authorization;
 using NCode.Identity.OpenId.Management.Endpoints.Secrets;
 using NCode.Identity.OpenId.Persistence.Tenants;
@@ -49,6 +50,7 @@ public sealed class MachineClientEndpointProviderTests : IDisposable
                 MockRepository.Create<IClientCoherenceReporter>().Object,
                 MockRepository.Create<IClientSecretIssuer>().Object,
                 MockRepository.Create<IResourceOwnershipService>().Object,
+                CreatePrincipalDirectory(),
                 MockRepository.Create<IManagementAuditRecorder>().Object,
                 new DefaultHostManagedClientChecker([]),
                 MockRepository.Create<IClientKeySourceChecker>().Object,
@@ -103,4 +105,14 @@ public sealed class MachineClientEndpointProviderTests : IDisposable
     }
 
     #endregion
+
+    private static IControlPlanePrincipalDirectory CreatePrincipalDirectory()
+    {
+        var mock = new Mock<IControlPlanePrincipalDirectory>();
+        mock.Setup(x =>
+                x.FindAsync(It.IsAny<ControlPlanePrincipalQuery>(), It.IsAny<CancellationToken>())
+            )
+            .ReturnsAsync([]);
+        return mock.Object;
+    }
 }

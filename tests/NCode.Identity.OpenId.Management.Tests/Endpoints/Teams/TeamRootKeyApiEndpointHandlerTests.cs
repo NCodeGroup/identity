@@ -17,6 +17,7 @@ using NCode.Identity.OpenId.Authentication.Clients;
 using NCode.Identity.OpenId.Contexts;
 using NCode.Identity.OpenId.GlobalDirectory;
 using NCode.Identity.OpenId.Management.Auditing;
+using NCode.Identity.OpenId.Management.ControlPlane;
 using NCode.Identity.OpenId.Management.Authorization;
 using NCode.Identity.OpenId.Management.Contracts.EncryptionKeys;
 using NCode.Identity.OpenId.Management.Contracts.Teams;
@@ -104,6 +105,7 @@ public sealed class TeamRootKeyApiEndpointHandlerTests : IDisposable
             MockClientCoherenceValidator.Object,
             MockTeamClientCoherenceChecker.Object,
             MockResourceOwnershipService.Object,
+            CreatePrincipalDirectory(),
             MockManagementAuditRecorder.Object,
             NullLogger<TeamApiEndpointHandler>.Instance,
             Options.Create(new CellOptions { IsControlPlane = isControlPlane, Region = OwnRegion })
@@ -1005,4 +1007,14 @@ public sealed class TeamRootKeyApiEndpointHandlerTests : IDisposable
     }
 
     #endregion
+
+    private static IControlPlanePrincipalDirectory CreatePrincipalDirectory()
+    {
+        var mock = new Mock<IControlPlanePrincipalDirectory>();
+        mock.Setup(x =>
+                x.FindAsync(It.IsAny<ControlPlanePrincipalQuery>(), It.IsAny<CancellationToken>())
+            )
+            .ReturnsAsync([]);
+        return mock.Object;
+    }
 }

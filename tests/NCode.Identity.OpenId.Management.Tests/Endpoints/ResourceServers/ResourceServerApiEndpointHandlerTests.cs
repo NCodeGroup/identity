@@ -15,6 +15,7 @@ using NCode.Identity.OpenId.Authentication.Clients;
 using NCode.Identity.OpenId.Contexts;
 using NCode.Identity.OpenId.Environments;
 using NCode.Identity.OpenId.Management.Auditing;
+using NCode.Identity.OpenId.Management.ControlPlane;
 using NCode.Identity.OpenId.Management.Authorization;
 using NCode.Identity.OpenId.Management.Contracts;
 using NCode.Identity.OpenId.Management.Contracts.ResourceServers;
@@ -96,6 +97,7 @@ public sealed class ResourceServerApiEndpointHandlerTests : IDisposable
             MockSettingScopeCollectionProvider.Object,
             MockEffectiveSettingsResolver.Object,
             MockResourceOwnershipService.Object,
+            CreatePrincipalDirectory(),
             MockManagementAuditRecorder.Object,
             NullLogger<ResourceServerApiEndpointHandler>.Instance
         );
@@ -2808,4 +2810,14 @@ public sealed class ResourceServerApiEndpointHandlerTests : IDisposable
     }
 
     #endregion
+
+    private static IControlPlanePrincipalDirectory CreatePrincipalDirectory()
+    {
+        var mock = new Mock<IControlPlanePrincipalDirectory>();
+        mock.Setup(x =>
+                x.FindAsync(It.IsAny<ControlPlanePrincipalQuery>(), It.IsAny<CancellationToken>())
+            )
+            .ReturnsAsync([]);
+        return mock.Object;
+    }
 }

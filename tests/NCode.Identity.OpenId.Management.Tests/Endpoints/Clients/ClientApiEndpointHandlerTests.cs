@@ -22,6 +22,7 @@ using NCode.Identity.OpenId.Contexts;
 using NCode.Identity.OpenId.Environments;
 using NCode.Identity.OpenId.GlobalDirectory;
 using NCode.Identity.OpenId.Management.Auditing;
+using NCode.Identity.OpenId.Management.ControlPlane;
 using NCode.Identity.OpenId.Management.Authorization;
 using NCode.Identity.OpenId.Management.Clients;
 using NCode.Identity.OpenId.Management.Contracts;
@@ -171,6 +172,7 @@ public sealed class ClientApiEndpointHandlerTests : IAsyncLifetime
             MockClientCoherenceReporter.Object,
             MockClientSecretIssuer.Object,
             MockResourceOwnershipService.Object,
+            CreatePrincipalDirectory(),
             MockManagementAuditRecorder.Object,
             new DefaultHostManagedClientChecker(hostManagedClientPolicies),
             keySourceChecker,
@@ -6011,4 +6013,14 @@ public sealed class ClientApiEndpointHandlerTests : IAsyncLifetime
     }
 
     #endregion
+
+    private static IControlPlanePrincipalDirectory CreatePrincipalDirectory()
+    {
+        var mock = new Mock<IControlPlanePrincipalDirectory>();
+        mock.Setup(x =>
+                x.FindAsync(It.IsAny<ControlPlanePrincipalQuery>(), It.IsAny<CancellationToken>())
+            )
+            .ReturnsAsync([]);
+        return mock.Object;
+    }
 }

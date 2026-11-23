@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.Http.HttpResults;
 using NCode.Identity.Cryptography;
 using NCode.Identity.Events.Audit;
 using NCode.Identity.OpenId.Management.Auditing;
+using NCode.Identity.OpenId.Management.ControlPlane;
 using NCode.Identity.OpenId.Management.Authorization;
 using NCode.Identity.OpenId.Management.Contracts;
 using NCode.Identity.OpenId.Persistence.DataContracts;
@@ -31,7 +32,8 @@ public class BaseOwnableApiEndpointHandlerTests : IDisposable
         IAuthorizationService authorizationService,
         IStoreManagerFactory storeManagerFactory,
         IResourceOwnershipService ownershipService,
-        IManagementAuditRecorder managementAuditRecorder
+        IManagementAuditRecorder managementAuditRecorder,
+        IControlPlanePrincipalDirectory? principalDirectory = null
     ) : BaseOwnableApiEndpointHandler
     {
         public TestHandler(
@@ -54,6 +56,8 @@ public class BaseOwnableApiEndpointHandlerTests : IDisposable
             ownershipService;
         protected override IManagementAuditRecorder ManagementAuditRecorder { get; } =
             managementAuditRecorder;
+        protected override IControlPlanePrincipalDirectory ControlPlanePrincipalDirectory { get; } =
+            principalDirectory ?? CreatePrincipalDirectory();
     }
 
     private static HttpContext CreateHttpContext() =>
@@ -926,4 +930,14 @@ public class BaseOwnableApiEndpointHandlerTests : IDisposable
     }
 
     #endregion
+
+    private static IControlPlanePrincipalDirectory CreatePrincipalDirectory()
+    {
+        var mock = new Mock<IControlPlanePrincipalDirectory>();
+        mock.Setup(x =>
+                x.FindAsync(It.IsAny<ControlPlanePrincipalQuery>(), It.IsAny<CancellationToken>())
+            )
+            .ReturnsAsync([]);
+        return mock.Object;
+    }
 }

@@ -21,6 +21,7 @@ using NCode.Identity.OpenId.Contexts;
 using NCode.Identity.OpenId.Environments;
 using NCode.Identity.OpenId.GlobalDirectory;
 using NCode.Identity.OpenId.Management.Auditing;
+using NCode.Identity.OpenId.Management.ControlPlane;
 using NCode.Identity.OpenId.Management.Authorization;
 using NCode.Identity.OpenId.Management.Contracts;
 using NCode.Identity.OpenId.Management.Contracts.EncryptionKeys;
@@ -159,6 +160,7 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
             MockTenantEnvironmentCatalog.Object,
             MockTenantClientCoherenceChecker.Object,
             MockResourceOwnershipService.Object,
+            CreatePrincipalDirectory(),
             MockRemoteSecretDestroyer.Object,
             MockTenantDirectory.Object,
             Options.Create(CellOptions),
@@ -7346,4 +7348,14 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
     }
 
     #endregion
+
+    private static IControlPlanePrincipalDirectory CreatePrincipalDirectory()
+    {
+        var mock = new Mock<IControlPlanePrincipalDirectory>();
+        mock.Setup(x =>
+                x.FindAsync(It.IsAny<ControlPlanePrincipalQuery>(), It.IsAny<CancellationToken>())
+            )
+            .ReturnsAsync([]);
+        return mock.Object;
+    }
 }
