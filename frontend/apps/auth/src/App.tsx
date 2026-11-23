@@ -5,6 +5,7 @@ import { useMessages } from './i18n/LocaleContext.js';
 import {
   ANTIFORGERY_COOKIE,
   FLOW_FIELD,
+  RETURN_URL_FIELD,
   describeLoginError,
   getQueryParam,
   readCookie,
@@ -44,7 +45,7 @@ export function App({
       {branding ? <BrandHeader branding={branding} /> : null}
       {resolveRoute({
         pathname,
-        returnUrl: getQueryParam(search, 'ReturnUrl') ?? '/',
+        returnUrl: getQueryParam(search, RETURN_URL_FIELD) ?? '/',
         antiforgeryToken: readCookie(cookie, ANTIFORGERY_COOKIE) ?? '',
         errorMessage: describeLoginError(getQueryParam(search, 'error'), messages),
         errorCode: getQueryParam(search, 'error'),

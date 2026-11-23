@@ -9,6 +9,9 @@
 
 import type { Messages } from './i18n/messages.js';
 
+/** The form field and query parameter that carry the return URL the end user continues to after the page. */
+export const RETURN_URL_FIELD = 'ReturnUrl';
+
 /**
  * The form field that carries the language tag the host selected for the page back to it, so a page the host
  * redirects to after a failed sign-in renders in the same language; the authorization request's parameter name.

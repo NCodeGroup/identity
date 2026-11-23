@@ -11,6 +11,7 @@ import {
   ANTIFORGERY_FIELD,
   FLOW_FIELD,
   PASSWORD_RESET_PATH,
+  RETURN_URL_FIELD,
   UI_LOCALES_FIELD,
   resolveSurfacePath,
 } from './params.js';
@@ -64,7 +65,7 @@ export function ResetPasswordPage({
 
             {errorMessage ? <Alert severity="error">{errorMessage}</Alert> : null}
 
-            <input type="hidden" name="ReturnUrl" value={returnUrl} />
+            <input type="hidden" name={RETURN_URL_FIELD} value={returnUrl} />
             <input type="hidden" name={ANTIFORGERY_FIELD} value={antiforgeryToken} />
             <input type="hidden" name={FLOW_FIELD} value={flow} />
             {pageLanguage ? (

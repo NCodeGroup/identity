@@ -10,6 +10,7 @@ import { useLocale } from './i18n/LocaleContext.js';
 import {
   ANTIFORGERY_FIELD,
   PASSWORD_FORGOT_PATH,
+  RETURN_URL_FIELD,
   UI_LOCALES_FIELD,
   resolveSurfacePath,
 } from './params.js';
@@ -60,7 +61,7 @@ export function ForgotPasswordPage({
 
             {errorMessage ? <Alert severity="error">{errorMessage}</Alert> : null}
 
-            <input type="hidden" name="ReturnUrl" value={returnUrl} />
+            <input type="hidden" name={RETURN_URL_FIELD} value={returnUrl} />
             <input type="hidden" name={ANTIFORGERY_FIELD} value={antiforgeryToken} />
             {pageLanguage ? (
               <input type="hidden" name={UI_LOCALES_FIELD} value={pageLanguage} />
