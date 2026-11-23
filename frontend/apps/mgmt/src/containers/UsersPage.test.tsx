@@ -120,6 +120,36 @@ describe('UsersPage (list states)', () => {
   });
 });
 
+describe('UsersPage (paging)', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('loads the next page', async () => {
+    const grace = { ...ada, localAccountId: 'a2', userName: 'grace', displayName: 'Grace Hopper' };
+    const calls = installFetch((url, method) => {
+      if (url.includes(listUrl) && method === 'GET') {
+        return url.includes('cursor=next')
+          ? jsonResponse({ items: [grace] })
+          : jsonResponse({ items: [ada], continuationToken: 'next' });
+      }
+      throw new Error(`Unexpected ${method} ${url}`);
+    });
+
+    renderPage();
+    fireEvent.click(await screen.findByTestId('load-more'));
+
+    expect(await screen.findByTestId('local-account-row-a2')).toBeInTheDocument();
+    expect(screen.getByTestId('local-account-row-a1')).toBeInTheDocument();
+    expect(calls.some((c) => c.url.includes('cursor=next'))).toBe(true);
+    await waitFor(() => expect(screen.queryByTestId('load-more')).not.toBeInTheDocument());
+  });
+});
+
 describe('UsersPage (administration wiring)', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
