@@ -112,7 +112,8 @@ public class RemoteControlPlanePrincipalDirectoryTests : BaseTests
     {
         var handler = StubHttpMessageHandler.Respond(HttpStatusCode.OK, Answer);
         var directory = CreateDirectory(handler);
-        var ids = Enumerable.Range(0, ControlPlanePrincipalQuery.MaxNames + 1)
+        var ids = Enumerable
+            .Range(0, ControlPlanePrincipalQuery.MaxNames + 1)
             .Select(index => $"p{index}")
             .ToList();
 

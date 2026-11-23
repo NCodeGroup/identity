@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using Microsoft.Extensions.Options;
-using NCode.Identity.OpenId.Management.ControlPlane;
 using NCode.Identity.OpenId.Management.Contracts;
+using NCode.Identity.OpenId.Management.ControlPlane;
 
 namespace NCode.Identity.OpenId.GlobalDirectory.ControlPlane;
 
