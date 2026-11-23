@@ -3939,6 +3939,17 @@ describe('managementApi connections', () => {
     ]);
   });
 
+  it('listConnections reports a failed read without tagging any item', async () => {
+    mockFetch(jsonResponse({ title: 'Boom' }, 500));
+    const store = createStore();
+
+    const result = await store.dispatch(
+      managementApi.endpoints.listConnections.initiate({ tenantId: 'acme', cell: undefined }),
+    );
+
+    expect(result.isError).toBe(true);
+  });
+
   it('getConnection GETs one connection by encoded id', async () => {
     const captured = mockFetch(jsonResponse(connection));
     const store = createStore();

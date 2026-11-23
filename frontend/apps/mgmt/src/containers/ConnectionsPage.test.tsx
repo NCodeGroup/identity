@@ -198,6 +198,26 @@ describe('ConnectionsPage', () => {
     expect(calls.some((c) => c.method === 'DELETE')).toBe(true);
   });
 
+  it('closes the form and the confirm dialog on cancel', async () => {
+    installFetch((url) => {
+      if (url.endsWith(listUrl)) {
+        return jsonResponse({ items: [local] });
+      }
+      throw new Error(`Unexpected ${url}`);
+    });
+
+    renderPage();
+    fireEvent.click(await screen.findByTestId('create-connection'));
+    fireEvent.click(screen.getByTestId('connection-form-cancel'));
+    await waitFor(() =>
+      expect(screen.queryByTestId('connection-form-submit')).not.toBeInTheDocument(),
+    );
+
+    fireEvent.click(screen.getByTestId('connection-delete-c-local'));
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+  });
+
   it('opens a connection in its detail page and returns to the list', async () => {
     installFetch((url) => {
       if (url.endsWith(listUrl)) {

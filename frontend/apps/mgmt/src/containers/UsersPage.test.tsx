@@ -62,11 +62,14 @@ type Call = {
   readonly ifMatch: string | null;
 };
 
-function installFetch(handler: (url: string, method: string) => Response) {
+function installFetch(
+  handler: (url: string, method: string) => Response,
+  connections: readonly (typeof localConnection)[] = [localConnection],
+) {
   const calls: Call[] = [];
   const inner = handler;
   handler = (url, method) =>
-    url.endsWith(connectionsUrl) ? jsonResponse({ items: [localConnection] }) : inner(url, method);
+    url.endsWith(connectionsUrl) ? jsonResponse({ items: connections }) : inner(url, method);
   const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
     const request = input as Request;
     calls.push({
@@ -133,6 +136,32 @@ describe('UsersPage (list states)', () => {
 
     expect(await screen.findByTestId('local-account-row-a1')).toHaveTextContent('Ada Lovelace');
     expect(screen.getByTestId('local-account-row-a1')).toHaveTextContent('ada@example.test');
+  });
+
+  it('lists the accounts of the connection picked in the connection select', async () => {
+    const staff = {
+      ...localConnection,
+      connectionId: 'conn-2',
+      name: 'staff',
+      displayName: 'Staff directory',
+    };
+    const grace = { ...ada, connectionId: 'conn-2', localAccountId: 'a2', displayName: 'Grace' };
+    const calls = installFetch(
+      (url) =>
+        url.endsWith('/connections/conn-2/local-accounts')
+          ? jsonResponse({ items: [grace] })
+          : jsonResponse({ items: [ada] }),
+      [localConnection, staff],
+    );
+
+    renderPage();
+    expect(await screen.findByTestId('local-account-row-a1')).toBeInTheDocument();
+    expect(screen.getByTestId('users-connection')).toHaveValue('conn-1');
+
+    typeInto('users-connection', 'conn-2');
+
+    expect(await screen.findByTestId('local-account-row-a2')).toHaveTextContent('Grace');
+    expect(calls.some((c) => c.url.endsWith('/connections/conn-2/local-accounts'))).toBe(true);
   });
 });
 

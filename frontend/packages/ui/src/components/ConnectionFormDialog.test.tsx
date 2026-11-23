@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import {
   ConnectionFormDialog,
   emptyConnectionFormValues,
@@ -67,6 +67,54 @@ describe('ConnectionFormDialog', () => {
     expect(screen.getByTestId('connection-form-submit')).toBeEnabled();
     fireEvent.change(screen.getByTestId('connection-store'), { target: { value: '  ' } });
     expect(screen.getByTestId('connection-form-submit')).toBeDisabled();
+  });
+
+  it('submits the strategy picked from the strategy select', () => {
+    const onSubmit = vi.fn();
+    render(
+      <ConnectionFormDialog
+        open
+        title="Create connection"
+        submitLabel="Create"
+        strategies={['local', 'corp']}
+        initialValues={{ ...emptyConnectionFormValues, name: 'staff', displayName: 'Staff' }}
+        onSubmit={onSubmit}
+        onCancel={vi.fn()}
+      />,
+    );
+    fireEvent.mouseDown(screen.getByRole('combobox', { name: 'Strategy' }));
+    fireEvent.click(within(screen.getByRole('listbox')).getByRole('option', { name: 'corp' }));
+    fireEvent.click(screen.getByTestId('connection-form-submit'));
+    expect(onSubmit).toHaveBeenCalledExactlyOnceWith({
+      name: 'staff',
+      displayName: 'Staff',
+      strategy: 'corp',
+      store: 'default',
+      isEnabled: true,
+    });
+  });
+
+  it('does not submit when the form cannot submit', () => {
+    const onSubmit = vi.fn();
+    render(
+      <ConnectionFormDialog
+        open
+        title="Create connection"
+        submitLabel="Create"
+        initialValues={emptyConnectionFormValues}
+        onSubmit={onSubmit}
+        onCancel={vi.fn()}
+      />,
+    );
+    const submit = screen.getByTestId('connection-form-submit');
+    expect(submit).toBeDisabled();
+    // A disabled button never dispatches a click, so the handler is invoked as a keyboard or script activation would.
+    const reactPropsKey = Object.keys(submit).find((key) => key.startsWith('__reactProps'))!;
+    const props = (submit as unknown as Record<string, { onClick: (event: unknown) => void }>)[
+      reactPropsKey
+    ]!;
+    props.onClick({ preventDefault: vi.fn(), defaultPrevented: false });
+    expect(onSubmit).not.toHaveBeenCalled();
   });
 
   it('locks the name and strategy when they are not editable', () => {

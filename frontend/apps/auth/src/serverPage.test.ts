@@ -130,6 +130,29 @@ describe('readServerPage', () => {
     expect(page.selectedConnection).toBe('corp');
   });
 
+  it('reads no selected connection when the picker preselects none', () => {
+    const container = pageOf(
+      '<select id="connection" name="connection"><option value=""></option><option value="local">Local</option><option value="corp">Corp</option></select>',
+    );
+
+    const page = readServerPage(container, null);
+
+    expect(page.connections).toHaveLength(3);
+    expect(page.selectedConnection).toBeNull();
+  });
+
+  it('names an option by its value when it has no text', () => {
+    const container = pageOf(
+      '<select id="connection" name="connection"><option value="local">Local</option></select>',
+    );
+    const option = container.querySelector('option')!;
+    Object.defineProperty(option, 'textContent', { value: null });
+
+    const page = readServerPage(container, null);
+
+    expect(page.connections).toEqual([{ name: 'local', displayName: 'local' }]);
+  });
+
   it('reads the hidden connection field as the one connection', () => {
     const container = pageOf('<input type="hidden" name="connection" value="local" />');
 

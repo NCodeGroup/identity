@@ -99,6 +99,27 @@ describe('ConnectionDetailPage', () => {
     ]);
   });
 
+  it('saves the enabled switch as disabled', async () => {
+    const calls = installFetch((url, method) => {
+      if (url.endsWith(base) && method === 'PATCH') {
+        return new Response(null, { status: 204 });
+      }
+      throw new Error(`Unexpected ${method} ${url}`);
+    });
+    renderPage();
+
+    fireEvent.click(screen.getByRole('switch', { name: 'Enabled' }));
+    fireEvent.click(screen.getByTestId('connection-general-save'));
+
+    expect(await screen.findByTestId('connection-general-saved')).toBeInTheDocument();
+    const patch = calls.find((c) => c.method === 'PATCH');
+    expect(JSON.parse(patch?.body ?? '[]')).toContainEqual({
+      op: 'replace',
+      path: '/isEnabled',
+      value: false,
+    });
+  });
+
   it('shows a save failure on the general tab', async () => {
     installFetch(() => jsonResponse({ title: 'Conflict', detail: 'Stale token.' }, 412));
     renderPage();

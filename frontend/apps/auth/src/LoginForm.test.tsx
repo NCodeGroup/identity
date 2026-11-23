@@ -244,6 +244,23 @@ describe('LoginForm connection field', () => {
     expect(screen.getByLabelText('Sign in with')).toBe(select);
   });
 
+  it('renders an empty first option when no connection is preselected', () => {
+    const { container } = renderForm({
+      returnUrl: '/',
+      antiforgeryToken: 't',
+      connections,
+      selectedConnection: null,
+    });
+
+    const select = container.querySelector('select#connection') as HTMLSelectElement | null;
+    expect(select?.value).toBe('');
+    expect(Array.from(select!.options).map((option) => option.value)).toEqual([
+      '',
+      'local',
+      'corp',
+    ]);
+  });
+
   it('renders a hidden input when one connection is offered', () => {
     const { container } = renderForm({
       returnUrl: '/',
