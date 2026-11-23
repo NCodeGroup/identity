@@ -29,11 +29,6 @@ POST control-plane/v1/principals
 // See ADR-1411 and ADR-1465.
 internal sealed class ControlPlanePrincipalsEndpointProvider : IEndpointProvider
 {
-    /// <summary>
-    /// The path of the principals endpoint.
-    /// </summary>
-    internal const string PrincipalsPath = "/control-plane/v1/principals";
-
     /// <inheritdoc />
     public void Map(IEndpointRouteBuilder endpoints)
     {
@@ -42,7 +37,7 @@ internal sealed class ControlPlanePrincipalsEndpointProvider : IEndpointProvider
             return;
 
         endpoints
-            .MapPost(PrincipalsPath, FindAsync)
+            .MapPost(GlobalDirectoryProtocol.ControlPlanePrincipalsPath, FindAsync)
             .AddEndpointGate<RouteHandlerBuilder, ControlPlaneAuthenticationGate>()
             .WithConfidentialBodies()
             .ExcludeFromDescription();

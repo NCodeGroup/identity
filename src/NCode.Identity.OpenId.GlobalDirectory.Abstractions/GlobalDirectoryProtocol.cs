@@ -6,7 +6,7 @@ using JetBrains.Annotations;
 namespace NCode.Identity.OpenId.GlobalDirectory;
 
 /// <summary>
-/// Contains the audiences, scopes and client identifier prefix that the global directory API and the control plane
+/// Contains the audiences, scopes, endpoint paths and client identifier prefix that the global directory API and the control plane
 /// authority API share between the cells that call them and the control-plane cell that serves them, and the wait that
 /// a route asks of its caller when the directory, the control plane or the issuer of its access tokens cannot be
 /// reached.
@@ -35,6 +35,18 @@ public static class GlobalDirectoryProtocol
     /// Contains the single scope of the control plane API: 'control-plane'.
     /// </summary>
     public const string ControlPlaneScope = "control-plane";
+
+    /// <summary>
+    /// Contains the path of the control plane authority endpoint, relative to the origin of the control-plane cell's
+    /// issuer: '/control-plane/v1/authority'.
+    /// </summary>
+    public const string ControlPlaneAuthorityPath = "/control-plane/v1/authority";
+
+    /// <summary>
+    /// Contains the path of the control plane principals endpoint, relative to the origin of the control-plane cell's
+    /// issuer: '/control-plane/v1/principals'.
+    /// </summary>
+    public const string ControlPlanePrincipalsPath = "/control-plane/v1/principals";
 
     /// <summary>
     /// Contains the prefix of the machine client identifier of a cell: 'cell-{name}'.
