@@ -13,27 +13,6 @@ namespace NCode.Identity.Mail;
 // See ADR-1532.
 internal sealed class MailComposerRegistry(IEnumerable<IMailComposer> composers)
 {
-    private FrozenDictionary<Type, IMailComposer> Composers { get; } = CreateComposers(composers);
-
-    /// <summary>
-    /// Gets the composer that composes models of type <paramref name="modelType"/>.
-    /// </summary>
-    /// <param name="modelType">The type of the model.</param>
-    /// <returns>The registered <see cref="IMailComposer"/>.</returns>
-    /// <exception cref="InvalidOperationException">Thrown when no composer is registered for
-    /// <paramref name="modelType"/>.</exception>
-    public IMailComposer Get(Type modelType)
-    {
-        ArgumentNullException.ThrowIfNull(modelType);
-
-        if (Composers.TryGetValue(modelType, out var composer))
-            return composer;
-
-        throw new InvalidOperationException(
-            $"No mail composer is registered for the model type '{modelType}'."
-        );
-    }
-
     /// <summary>
     /// Indexes the composers by the model type each one composes.
     /// </summary>
@@ -60,5 +39,26 @@ internal sealed class MailComposerRegistry(IEnumerable<IMailComposer> composers)
         }
 
         return result.ToFrozenDictionary();
+    }
+
+    private FrozenDictionary<Type, IMailComposer> Composers { get; } = CreateComposers(composers);
+
+    /// <summary>
+    /// Gets the composer that composes models of type <paramref name="modelType"/>.
+    /// </summary>
+    /// <param name="modelType">The type of the model.</param>
+    /// <returns>The registered <see cref="IMailComposer"/>.</returns>
+    /// <exception cref="InvalidOperationException">Thrown when no composer is registered for
+    /// <paramref name="modelType"/>.</exception>
+    public IMailComposer Get(Type modelType)
+    {
+        ArgumentNullException.ThrowIfNull(modelType);
+
+        if (Composers.TryGetValue(modelType, out var composer))
+            return composer;
+
+        throw new InvalidOperationException(
+            $"No mail composer is registered for the model type '{modelType}'."
+        );
     }
 }

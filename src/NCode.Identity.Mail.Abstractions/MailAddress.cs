@@ -13,6 +13,15 @@ namespace NCode.Identity.Mail;
 public sealed class MailAddress
 {
     /// <summary>
+    /// Checks whether a value holds a control character: a character from U+0000 to U+001F, or U+007F.
+    /// </summary>
+    /// <param name="value">The value to check.</param>
+    /// <returns><see langword="true"/> when the value holds a control character; otherwise
+    /// <see langword="false"/>.</returns>
+    private static bool HasControlCharacter(string value) =>
+        value.AsSpan().ContainsAnyInRange('\u0000', '\u001F') || value.Contains('\u007F');
+
+    /// <summary>
     /// Initializes a new instance of the <see cref="MailAddress"/> class.
     /// </summary>
     /// <param name="address">The address of the mailbox, such as <c>user@example.com</c>.</param>
@@ -57,13 +66,4 @@ public sealed class MailAddress
     /// Gets the display name of the mailbox, or <see langword="null"/> for none.
     /// </summary>
     public string? DisplayName { get; }
-
-    /// <summary>
-    /// Checks whether a value holds a control character: a character from U+0000 to U+001F, or U+007F.
-    /// </summary>
-    /// <param name="value">The value to check.</param>
-    /// <returns><see langword="true"/> when the value holds a control character; otherwise
-    /// <see langword="false"/>.</returns>
-    private static bool HasControlCharacter(string value) =>
-        value.AsSpan().ContainsAnyInRange('\u0000', '\u001F') || value.Contains('\u007F');
 }

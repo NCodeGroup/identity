@@ -27,14 +27,6 @@ internal sealed class SmtpMailTransport(
     ILogger<SmtpMailTransport> logger
 ) : IMailTransport
 {
-    private ISmtpClientFactory ClientFactory { get; } = clientFactory;
-
-    private IMimeMessageFactory MimeMessageFactory { get; } = mimeMessageFactory;
-
-    private ILogger<SmtpMailTransport> Logger { get; } = logger;
-
-    private SmtpMailTransportOptions Options => optionsAccessor.Value;
-
     /// <summary>
     /// Maps the configured TLS mode to the socket options that the SMTP client connects with.
     /// </summary>
@@ -53,6 +45,14 @@ internal sealed class SmtpMailTransport(
                 "The TLS mode is not a defined value."
             ),
         };
+
+    private ISmtpClientFactory ClientFactory { get; } = clientFactory;
+
+    private IMimeMessageFactory MimeMessageFactory { get; } = mimeMessageFactory;
+
+    private ILogger<SmtpMailTransport> Logger { get; } = logger;
+
+    private SmtpMailTransportOptions Options => optionsAccessor.Value;
 
     /// <inheritdoc />
     public async ValueTask DeliverAsync(MailMessage message, CancellationToken cancellationToken)
