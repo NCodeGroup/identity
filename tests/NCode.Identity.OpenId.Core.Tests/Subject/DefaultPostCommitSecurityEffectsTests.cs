@@ -24,6 +24,8 @@ public sealed class DefaultPostCommitSecurityEffectsTests : BaseTests
 
     private const string SessionId = "session-1";
 
+    private const string ConnectionId = "connection-1";
+
     private const string UserName = "alice";
 
     private static DateTimeOffset Now { get; } = new(2026, 11, 6, 12, 0, 0, TimeSpan.Zero);
@@ -278,6 +280,7 @@ public sealed class DefaultPostCommitSecurityEffectsTests : BaseTests
             .Setup(x =>
                 x.ResetAsync(
                     TenantId,
+                    ConnectionId,
                     UserName,
                     It.Is<CancellationToken>(x => x.CanBeCanceled && !x.IsCancellationRequested)
                 )
@@ -285,7 +288,7 @@ public sealed class DefaultPostCommitSecurityEffectsTests : BaseTests
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
 
-        await Effects.ResetPasswordAttemptsAsync(TenantId, UserName);
+        await Effects.ResetPasswordAttemptsAsync(TenantId, ConnectionId, UserName);
 
         var records = Logger.Collector.GetSnapshot();
         Assert.Empty(records);
@@ -295,9 +298,11 @@ public sealed class DefaultPostCommitSecurityEffectsTests : BaseTests
     public async Task ResetPasswordAttemptsAsync_WhenTheBoundElapses_LogsTheFailureAndReturns()
     {
         MockPasswordAttemptLimiter
-            .Setup(x => x.ResetAsync(TenantId, UserName, It.IsAny<CancellationToken>()))
+            .Setup(x =>
+                x.ResetAsync(TenantId, ConnectionId, UserName, It.IsAny<CancellationToken>())
+            )
             .Returns(
-                (string _, string _, CancellationToken x) =>
+                (string _, string _, string _, CancellationToken x) =>
                 {
                     TimeProvider.Advance(PostCommitWork.Timeout);
                     return x.IsCancellationRequested
@@ -307,7 +312,7 @@ public sealed class DefaultPostCommitSecurityEffectsTests : BaseTests
             )
             .Verifiable();
 
-        await Effects.ResetPasswordAttemptsAsync(TenantId, UserName);
+        await Effects.ResetPasswordAttemptsAsync(TenantId, ConnectionId, UserName);
 
         var snapshot = Logger.Collector.GetSnapshot();
         var record = Assert.Single(snapshot);
@@ -320,11 +325,13 @@ public sealed class DefaultPostCommitSecurityEffectsTests : BaseTests
     public async Task ResetPasswordAttemptsAsync_WhenTheLimiterThrows_LogsAWarningAndDoesNotThrow()
     {
         MockPasswordAttemptLimiter
-            .Setup(x => x.ResetAsync(TenantId, UserName, It.IsAny<CancellationToken>()))
+            .Setup(x =>
+                x.ResetAsync(TenantId, ConnectionId, UserName, It.IsAny<CancellationToken>())
+            )
             .ThrowsAsync(new InvalidOperationException())
             .Verifiable();
 
-        await Effects.ResetPasswordAttemptsAsync(TenantId, UserName);
+        await Effects.ResetPasswordAttemptsAsync(TenantId, ConnectionId, UserName);
 
         var snapshot = Logger.Collector.GetSnapshot();
         var record = Assert.Single(snapshot);

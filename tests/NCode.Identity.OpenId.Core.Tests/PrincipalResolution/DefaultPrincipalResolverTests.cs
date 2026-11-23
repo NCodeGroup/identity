@@ -4,12 +4,13 @@
 using System.Security.Claims;
 using Moq;
 using NCode.Identity.Cryptography;
+using NCode.Identity.Json;
+using NCode.Identity.OpenId.Connections;
 using NCode.Identity.OpenId.Contexts;
 using NCode.Identity.OpenId.Core.Tests;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
 using NCode.Identity.OpenId.PrincipalResolution;
-using NCode.Identity.OpenId.Settings;
 using NCode.Identity.OpenId.Tenants;
 using NCode.Identity.Persistence.Stores;
 using NCode.Identity.Settings;
@@ -23,37 +24,20 @@ public sealed class DefaultPrincipalResolverTests : BaseTests
     private const string TenantId = "tenant-1";
     private const string ClientId = "client-1";
     private const string Issuer = "https://issuer.example";
+    private const string ConnectionId = "connection-1";
+    private const string OtherConnectionId = "connection-2";
     private const string Subject = "upstream-subject-1";
     private const string GeneratedId = "generated-id";
 
-    // A subject that is not a principal id is read as an upstream identity through the tenant's issuer claim, and only a
-    // resolution that provisions reads the tenant id.
-    private OpenIdContext CreateOpenIdContext(
-        bool readsUpstreamClaims = false,
-        bool provisions = false
-    )
+    // Only a resolution that provisions reads the tenant id.
+    private OpenIdContext CreateOpenIdContext(bool provisions = false)
     {
         var context = CreateStrictMock<OpenIdContext>();
-        if (readsUpstreamClaims || provisions)
+        if (provisions)
         {
             var tenant = CreateStrictMock<OpenIdTenant>();
+            tenant.Setup(x => x.TenantId).Returns(TenantId).Verifiable();
             context.Setup(x => x.Tenant).Returns(tenant.Object).Verifiable();
-            if (readsUpstreamClaims)
-            {
-                var settings = CreateStrictMock<IReadOnlySettingCollection>();
-                settings
-                    .Setup(x => x.GetValue(OpenIdSettingKeys.PrincipalIssuerClaim))
-                    .Returns("iss")
-                    .Verifiable();
-                var provider = CreateStrictMock<IReadOnlySettingCollectionProvider>();
-                provider.Setup(x => x.Collection).Returns(settings.Object).Verifiable();
-                tenant.Setup(x => x.SettingsProvider).Returns(provider.Object).Verifiable();
-            }
-
-            if (provisions)
-            {
-                tenant.Setup(x => x.TenantId).Returns(TenantId).Verifiable();
-            }
         }
 
         // The resolver derives the subject through the tenant-aware context seam (ADR-1053).
@@ -63,6 +47,55 @@ public sealed class DefaultPrincipalResolverTests : BaseTests
             .Verifiable();
         return context.Object;
     }
+
+    private static ResolvedConnection CreateConnection(
+        string connectionId,
+        bool isEnabled = true
+    ) =>
+        new()
+        {
+            Connection = new PersistedConnection
+            {
+                TenantId = TenantId,
+                ConnectionId = connectionId,
+                Name = connectionId,
+                Strategy = ConnectionStrategyNames.Local,
+                DisplayName = connectionId,
+                IsEnabled = isEnabled,
+                Options = JsonElements.EmptyObject,
+                Settings = new PersistedConnectionSettings
+                {
+                    TenantId = TenantId,
+                    ConnectionId = connectionId,
+                    Value = JsonElements.EmptyObject,
+                },
+            },
+            Strategy = new Mock<IConnectionStrategy>().Object,
+            Settings = new Mock<IReadOnlySettingCollection>().Object,
+        };
+
+    private IConnectionResolver CreateConnectionResolver(params ResolvedConnection[] connections)
+    {
+        var resolver = CreateStrictMock<IConnectionResolver>();
+        foreach (var connection in connections)
+        {
+            resolver
+                .Setup(x =>
+                    x.GetByIdOrDefaultAsync(
+                        It.IsAny<OpenIdContext>(),
+                        connection.ConnectionId,
+                        It.IsAny<CancellationToken>()
+                    )
+                )
+                .ReturnsAsync(connection)
+                .Verifiable();
+        }
+
+        return resolver.Object;
+    }
+
+    private static Claim ConnectionClaim(string connectionId = ConnectionId) =>
+        new(ConnectionClaimTypes.Connection, connectionId);
 
     private static ClaimsPrincipal CreateUser(params Claim[] claims) =>
         new(new ClaimsIdentity(claims, "test"));
@@ -75,12 +108,16 @@ public sealed class DefaultPrincipalResolverTests : BaseTests
             ConcurrencyToken = string.Empty,
         };
 
-    private static PersistedFederatedIdentity Identity(string principalId) =>
+    private static PersistedFederatedIdentity Identity(
+        string principalId,
+        string connectionId = ConnectionId
+    ) =>
         new()
         {
             TenantId = TenantId,
             FederatedIdentityId = "identity-1",
             PrincipalId = principalId,
+            ConnectionId = connectionId,
             Issuer = Issuer,
             Subject = Subject,
             JoinKey = null,
@@ -118,7 +155,8 @@ public sealed class DefaultPrincipalResolverTests : BaseTests
             CreateStrictMock<IStoreManagerFactory>().Object,
             CreateStrictMock<ICryptoService>().Object,
             CreateStrictMock<IFederatedIdentityLinkingPolicy>().Object,
-            CreateClientResolver(client)
+            CreateClientResolver(client),
+            CreateStrictMock<IConnectionResolver>().Object
         );
 
     private IStoreManager CreateStoreManagerWithoutPrincipal()
@@ -155,7 +193,8 @@ public sealed class DefaultPrincipalResolverTests : BaseTests
             CreateStrictMock<IStoreManagerFactory>().Object,
             CreateStrictMock<ICryptoService>().Object,
             CreateStrictMock<IFederatedIdentityLinkingPolicy>().Object,
-            CreateStrictMock<IClientPrincipalResolver>().Object
+            CreateStrictMock<IClientPrincipalResolver>().Object,
+            CreateStrictMock<IConnectionResolver>().Object
         );
 
         var result = await resolver.ResolvePrincipalIdOrDefaultAsync(
@@ -188,7 +227,9 @@ public sealed class DefaultPrincipalResolverTests : BaseTests
             .ReturnsAsync((PersistedFederatedPrincipal?)null)
             .Verifiable();
         identityStore
-            .Setup(x => x.GetByIssuerSubjectAsync(Issuer, Subject, It.IsAny<CancellationToken>()))
+            .Setup(x =>
+                x.GetByConnectionSubjectAsync(ConnectionId, Subject, It.IsAny<CancellationToken>())
+            )
             .ReturnsAsync(Identity(PrincipalId))
             .Verifiable();
 
@@ -196,12 +237,13 @@ public sealed class DefaultPrincipalResolverTests : BaseTests
             CreateStrictMock<IStoreManagerFactory>().Object,
             CreateStrictMock<ICryptoService>().Object,
             CreateStrictMock<IFederatedIdentityLinkingPolicy>().Object,
-            CreateClientResolver(null)
+            CreateClientResolver(null),
+            CreateConnectionResolver(CreateConnection(ConnectionId))
         );
 
         var result = await resolver.ResolvePrincipalIdOrDefaultAsync(
-            CreateOpenIdContext(readsUpstreamClaims: true),
-            CreateUser(new Claim("sub", Subject), new Claim("iss", Issuer)),
+            CreateOpenIdContext(),
+            CreateUser(new Claim("sub", Subject), new Claim("iss", Issuer), ConnectionClaim()),
             manager.Object,
             CancellationToken.None
         );
@@ -218,7 +260,8 @@ public sealed class DefaultPrincipalResolverTests : BaseTests
             CreateStrictMock<IStoreManagerFactory>().Object,
             CreateStrictMock<ICryptoService>().Object,
             CreateStrictMock<IFederatedIdentityLinkingPolicy>().Object,
-            CreateStrictMock<IClientPrincipalResolver>().Object
+            CreateStrictMock<IClientPrincipalResolver>().Object,
+            CreateStrictMock<IConnectionResolver>().Object
         );
 
         var result = await resolver.ResolvePrincipalIdOrDefaultAsync(
@@ -232,7 +275,7 @@ public sealed class DefaultPrincipalResolverTests : BaseTests
     }
 
     [Fact]
-    public async Task ResolvePrincipalIdOrDefaultAsync_WhenUpstreamWithoutIssuer_ReturnsNull()
+    public async Task ResolvePrincipalIdOrDefaultAsync_WhenNoConnectionClaim_ReturnsNull()
     {
         var manager = CreateStrictMock<IStoreManager>();
         var principalStore = CreateStrictMock<IFederatedPrincipalStore>();
@@ -250,11 +293,12 @@ public sealed class DefaultPrincipalResolverTests : BaseTests
             CreateStrictMock<IStoreManagerFactory>().Object,
             CreateStrictMock<ICryptoService>().Object,
             CreateStrictMock<IFederatedIdentityLinkingPolicy>().Object,
-            CreateClientResolver(null)
+            CreateClientResolver(null),
+            CreateStrictMock<IConnectionResolver>().Object
         );
 
         var result = await resolver.ResolvePrincipalIdOrDefaultAsync(
-            CreateOpenIdContext(readsUpstreamClaims: true),
+            CreateOpenIdContext(),
             CreateUser(new Claim("sub", Subject)),
             manager.Object,
             CancellationToken.None
@@ -282,7 +326,8 @@ public sealed class DefaultPrincipalResolverTests : BaseTests
             CreateStrictMock<IStoreManagerFactory>().Object,
             CreateStrictMock<ICryptoService>().Object,
             CreateStrictMock<IFederatedIdentityLinkingPolicy>().Object,
-            CreateStrictMock<IClientPrincipalResolver>().Object
+            CreateStrictMock<IClientPrincipalResolver>().Object,
+            CreateStrictMock<IConnectionResolver>().Object
         );
 
         var result = await resolver.ResolvePrincipalIdAsync(
@@ -317,13 +362,16 @@ public sealed class DefaultPrincipalResolverTests : BaseTests
             .ReturnsAsync((PersistedFederatedPrincipal?)null)
             .Verifiable();
         identityStore
-            .Setup(x => x.GetByIssuerSubjectAsync(Issuer, Subject, It.IsAny<CancellationToken>()))
+            .Setup(x =>
+                x.GetByConnectionSubjectAsync(ConnectionId, Subject, It.IsAny<CancellationToken>())
+            )
             .ReturnsAsync((PersistedFederatedIdentity?)null)
             .Verifiable();
         linkingPolicy
             .Setup(x =>
                 x.ResolveLinkAsync(
                     It.IsAny<OpenIdContext>(),
+                    It.Is<ResolvedConnection>(c => c.ConnectionId == ConnectionId),
                     It.IsAny<ClaimsPrincipal>(),
                     manager.Object,
                     It.IsAny<CancellationToken>()
@@ -357,12 +405,13 @@ public sealed class DefaultPrincipalResolverTests : BaseTests
             CreateStrictMock<IStoreManagerFactory>().Object,
             crypto.Object,
             linkingPolicy.Object,
-            CreateClientResolver(null)
+            CreateClientResolver(null),
+            CreateConnectionResolver(CreateConnection(ConnectionId))
         );
 
         var result = await resolver.ResolvePrincipalIdAsync(
-            CreateOpenIdContext(readsUpstreamClaims: true, provisions: true),
-            CreateUser(new Claim("sub", Subject), new Claim("iss", Issuer)),
+            CreateOpenIdContext(provisions: true),
+            CreateUser(new Claim("sub", Subject), new Claim("iss", Issuer), ConnectionClaim()),
             manager.Object,
             CancellationToken.None
         );
@@ -371,6 +420,7 @@ public sealed class DefaultPrincipalResolverTests : BaseTests
         Assert.NotNull(captured);
         Assert.Equal(PrincipalId, captured.PrincipalId);
         Assert.Equal("user@example.com", captured.JoinKey);
+        Assert.Equal(ConnectionId, captured.ConnectionId);
         // A linked identity never provisions a new principal.
         principalStore.Verify(
             x => x.AddAsync(It.IsAny<PersistedFederatedPrincipal>(), It.IsAny<CancellationToken>()),
@@ -400,13 +450,16 @@ public sealed class DefaultPrincipalResolverTests : BaseTests
             .ReturnsAsync((PersistedFederatedPrincipal?)null)
             .Verifiable();
         identityStore
-            .Setup(x => x.GetByIssuerSubjectAsync(Issuer, Subject, It.IsAny<CancellationToken>()))
+            .Setup(x =>
+                x.GetByConnectionSubjectAsync(ConnectionId, Subject, It.IsAny<CancellationToken>())
+            )
             .ReturnsAsync((PersistedFederatedIdentity?)null)
             .Verifiable();
         linkingPolicy
             .Setup(x =>
                 x.ResolveLinkAsync(
                     It.IsAny<OpenIdContext>(),
+                    It.Is<ResolvedConnection>(c => c.ConnectionId == ConnectionId),
                     It.IsAny<ClaimsPrincipal>(),
                     manager.Object,
                     It.IsAny<CancellationToken>()
@@ -446,12 +499,13 @@ public sealed class DefaultPrincipalResolverTests : BaseTests
             CreateStrictMock<IStoreManagerFactory>().Object,
             crypto.Object,
             linkingPolicy.Object,
-            CreateClientResolver(null)
+            CreateClientResolver(null),
+            CreateConnectionResolver(CreateConnection(ConnectionId))
         );
 
         var result = await resolver.ResolvePrincipalIdAsync(
-            CreateOpenIdContext(readsUpstreamClaims: true, provisions: true),
-            CreateUser(new Claim("sub", Subject), new Claim("iss", Issuer)),
+            CreateOpenIdContext(provisions: true),
+            CreateUser(new Claim("sub", Subject), new Claim("iss", Issuer), ConnectionClaim()),
             manager.Object,
             CancellationToken.None
         );
@@ -463,12 +517,13 @@ public sealed class DefaultPrincipalResolverTests : BaseTests
         Assert.NotNull(capturedIdentity);
         Assert.Equal(GeneratedId, capturedIdentity.PrincipalId);
         Assert.Equal(TenantId, capturedIdentity.TenantId);
+        Assert.Equal(ConnectionId, capturedIdentity.ConnectionId);
         Assert.Equal(Issuer, capturedIdentity.Issuer);
         Assert.Equal(Subject, capturedIdentity.Subject);
     }
 
     [Fact]
-    public async Task ResolvePrincipalIdAsync_WhenUpstreamClaimsMissing_FallsBackToRawSubject()
+    public async Task ResolvePrincipalIdAsync_WhenNoConnectionClaim_FallsBackToRawSubject()
     {
         var manager = CreateStrictMock<IStoreManager>();
         var principalStore = CreateStrictMock<IFederatedPrincipalStore>();
@@ -486,18 +541,143 @@ public sealed class DefaultPrincipalResolverTests : BaseTests
             CreateStrictMock<IStoreManagerFactory>().Object,
             CreateStrictMock<ICryptoService>().Object,
             CreateStrictMock<IFederatedIdentityLinkingPolicy>().Object,
-            CreateClientResolver(null)
+            CreateClientResolver(null),
+            CreateStrictMock<IConnectionResolver>().Object
         );
 
-        // Subject present but no issuer: cannot form a durable identity, so the subject value is used as-is.
+        // Subject present but no connection claim: cannot form a durable identity, so the subject value is used as-is.
         var result = await resolver.ResolvePrincipalIdAsync(
-            CreateOpenIdContext(readsUpstreamClaims: true),
+            CreateOpenIdContext(),
             CreateUser(new Claim("sub", Subject)),
             manager.Object,
             CancellationToken.None
         );
 
         Assert.Equal(Subject, result);
+    }
+
+    [Fact]
+    public async Task ResolvePrincipalIdOrDefaultAsync_WhenTheConnectionIsDisabled_ReturnsNull()
+    {
+        var manager = CreateStrictMock<IStoreManager>();
+        var principalStore = CreateStrictMock<IFederatedPrincipalStore>();
+
+        manager
+            .Setup(x => x.GetStore<IFederatedPrincipalStore>())
+            .Returns(principalStore.Object)
+            .Verifiable();
+        principalStore
+            .Setup(x => x.GetOrDefaultAsync(Subject, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((PersistedFederatedPrincipal?)null)
+            .Verifiable();
+
+        var resolver = new DefaultPrincipalResolver(
+            CreateStrictMock<IStoreManagerFactory>().Object,
+            CreateStrictMock<ICryptoService>().Object,
+            CreateStrictMock<IFederatedIdentityLinkingPolicy>().Object,
+            CreateClientResolver(null),
+            CreateConnectionResolver(CreateConnection(ConnectionId, isEnabled: false))
+        );
+
+        var result = await resolver.ResolvePrincipalIdOrDefaultAsync(
+            CreateOpenIdContext(),
+            CreateUser(new Claim("sub", Subject), ConnectionClaim()),
+            manager.Object,
+            CancellationToken.None
+        );
+
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public async Task ResolvePrincipalIdAsync_WhenTheConnectionIsDisabled_DoesNotProvision()
+    {
+        var manager = CreateStrictMock<IStoreManager>();
+        var principalStore = CreateStrictMock<IFederatedPrincipalStore>();
+
+        manager
+            .Setup(x => x.GetStore<IFederatedPrincipalStore>())
+            .Returns(principalStore.Object)
+            .Verifiable();
+        principalStore
+            .Setup(x => x.GetOrDefaultAsync(Subject, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((PersistedFederatedPrincipal?)null)
+            .Verifiable();
+
+        var resolver = new DefaultPrincipalResolver(
+            CreateStrictMock<IStoreManagerFactory>().Object,
+            CreateStrictMock<ICryptoService>().Object,
+            CreateStrictMock<IFederatedIdentityLinkingPolicy>().Object,
+            CreateClientResolver(null),
+            CreateConnectionResolver(CreateConnection(ConnectionId, isEnabled: false))
+        );
+
+        var result = await resolver.ResolvePrincipalIdAsync(
+            CreateOpenIdContext(),
+            CreateUser(new Claim("sub", Subject), ConnectionClaim()),
+            manager.Object,
+            CancellationToken.None
+        );
+
+        Assert.Equal(Subject, result);
+    }
+
+    [Fact]
+    public async Task ResolvePrincipalIdOrDefaultAsync_WhenTheSameSubjectIsInTwoConnections_ResolvesEachItsOwnIdentity()
+    {
+        const string otherPrincipalId = "principal-2";
+        var manager = CreateStrictMock<IStoreManager>();
+        var principalStore = CreateStrictMock<IFederatedPrincipalStore>();
+        var identityStore = CreateStrictMock<IFederatedIdentityStore>();
+
+        manager.Setup(x => x.GetStore<IFederatedPrincipalStore>()).Returns(principalStore.Object);
+        manager.Setup(x => x.GetStore<IFederatedIdentityStore>()).Returns(identityStore.Object);
+        principalStore
+            .Setup(x => x.GetOrDefaultAsync(Subject, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((PersistedFederatedPrincipal?)null);
+        identityStore
+            .Setup(x =>
+                x.GetByConnectionSubjectAsync(ConnectionId, Subject, It.IsAny<CancellationToken>())
+            )
+            .ReturnsAsync(Identity(PrincipalId))
+            .Verifiable();
+        identityStore
+            .Setup(x =>
+                x.GetByConnectionSubjectAsync(
+                    OtherConnectionId,
+                    Subject,
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync(Identity(otherPrincipalId, OtherConnectionId))
+            .Verifiable();
+
+        var resolver = new DefaultPrincipalResolver(
+            CreateStrictMock<IStoreManagerFactory>().Object,
+            CreateStrictMock<ICryptoService>().Object,
+            CreateStrictMock<IFederatedIdentityLinkingPolicy>().Object,
+            CreateClientResolver(null),
+            CreateConnectionResolver(
+                CreateConnection(ConnectionId),
+                CreateConnection(OtherConnectionId)
+            )
+        );
+
+        var first = await resolver.ResolvePrincipalIdOrDefaultAsync(
+            CreateOpenIdContext(),
+            CreateUser(new Claim("sub", Subject), ConnectionClaim()),
+            manager.Object,
+            CancellationToken.None
+        );
+        var second = await resolver.ResolvePrincipalIdOrDefaultAsync(
+            CreateOpenIdContext(),
+            CreateUser(new Claim("sub", Subject), ConnectionClaim(OtherConnectionId)),
+            manager.Object,
+            CancellationToken.None
+        );
+
+        Assert.Equal(PrincipalId, first);
+        Assert.Equal(otherPrincipalId, second);
     }
 
     [Fact]
