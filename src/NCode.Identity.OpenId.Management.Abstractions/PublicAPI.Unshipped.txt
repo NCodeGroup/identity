@@ -1496,3 +1496,17 @@ NCode.Identity.OpenId.Management.Transfers.TenantTransferSection.Json.init -> vo
 NCode.Identity.OpenId.Management.Transfers.TenantTransferSection.Name.get -> string!
 NCode.Identity.OpenId.Management.Transfers.TenantTransferSection.Name.init -> void
 NCode.Identity.OpenId.Management.Transfers.TenantTransferSection.TenantTransferSection() -> void
+NCode.Identity.OpenId.Management.ControlPlane.ControlPlanePrincipalQuery
+const NCode.Identity.OpenId.Management.ControlPlane.ControlPlanePrincipalQuery.MaxNames = 100 -> int
+NCode.Identity.OpenId.Management.ControlPlane.ControlPlanePrincipalQuery.ControlPlanePrincipalQuery() -> void
+NCode.Identity.OpenId.Management.ControlPlane.ControlPlanePrincipalQuery.PrincipalIds.get -> System.Collections.Generic.IReadOnlyList<string!>!
+NCode.Identity.OpenId.Management.ControlPlane.ControlPlanePrincipalQuery.PrincipalIds.init -> void
+NCode.Identity.OpenId.Management.ControlPlane.ControlPlanePrincipalQuery.UserNames.get -> System.Collections.Generic.IReadOnlyList<string!>!
+NCode.Identity.OpenId.Management.ControlPlane.ControlPlanePrincipalQuery.UserNames.init -> void
+NCode.Identity.OpenId.Management.ControlPlane.IControlPlanePrincipalDirectory
+NCode.Identity.OpenId.Management.ControlPlane.IControlPlanePrincipalDirectory.FindAsync(NCode.Identity.OpenId.Management.ControlPlane.ControlPlanePrincipalQuery! query, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<NCode.Identity.OpenId.Management.Contracts.PrincipalSummaryResource!>!>
+NCode.Identity.OpenId.Management.Principals.IPrincipalDescriber
+NCode.Identity.OpenId.Management.Principals.IPrincipalDescriber.FindAsync(NCode.Identity.Persistence.Stores.IStoreManager! storeManager, NCode.Identity.OpenId.Management.ControlPlane.ControlPlanePrincipalQuery! query, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<NCode.Identity.OpenId.Management.Contracts.PrincipalSummaryResource!>!>
+NCode.Identity.OpenId.Management.Principals.PrincipalTypes
+const NCode.Identity.OpenId.Management.Principals.PrincipalTypes.Client = "client" -> string!
+const NCode.Identity.OpenId.Management.Principals.PrincipalTypes.LocalAccount = "local_account" -> string!
