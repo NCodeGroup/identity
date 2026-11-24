@@ -822,3 +822,7 @@ NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.ReplicatedSource
 NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.ReplicatedSourceRevisionEntity.Kind.init -> void
 NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.ReplicatedSourceRevisionEntity.Revision.get -> long
 NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.ReplicatedSourceRevisionEntity.Revision.set -> void
+NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.TenantEntity.KeyCustody.get -> string!
+NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.TenantEntity.KeyCustody.set -> void
+NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.TenantEntity.KeyCustodyCell.get -> string?
+NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.TenantEntity.KeyCustodyCell.set -> void

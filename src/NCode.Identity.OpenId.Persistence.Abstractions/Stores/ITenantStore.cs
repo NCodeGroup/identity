@@ -309,6 +309,24 @@ public interface ITenantStore : IStore<PersistedTenant>
     ValueTask<bool> MarkSecretsChangedAsync(string tenantId, CancellationToken cancellationToken);
 
     /// <summary>
+    /// Sets a tenant's key-custody fence and the other cell of the move it belongs to. The change is saved with the
+    /// store manager's unit of work.
+    /// </summary>
+    /// <param name="tenantId">The identifier of the OpenId Tenant.</param>
+    /// <param name="custody">One of the <c>TenantKeyCustody</c> values.</param>
+    /// <param name="cell">The name of the other cell of the move, or <c>null</c> when the tenant is held.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation, containing <c>true</c>
+    /// when the tenant exists; otherwise <c>false</c>.</returns>
+    // See ADR-1536.
+    ValueTask<bool> SetKeyCustodyAsync(
+        string tenantId,
+        string custody,
+        string? cell,
+        CancellationToken cancellationToken
+    );
+
+    /// <summary>
     /// Removes an OpenId Tenant and everything it owns from the store. The removal is rejected while the tenant still
     /// has clients or resource servers created in it, which must be removed first.
     /// </summary>

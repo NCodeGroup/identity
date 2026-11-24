@@ -117,6 +117,20 @@ public sealed class TenantEntity : ISupportConcurrencyToken
     public required bool IsDisabled { get; set; }
 
     /// <summary>
+    /// Gets or sets the key-custody fence of the tenant, one of the <c>TenantKeyCustody</c> values.
+    /// </summary>
+    [Unicode(false)]
+    [MaxLength(OpenIdMaxLengths.KeyCustody)]
+    public string KeyCustody { get; set; } = TenantKeyCustody.Held;
+
+    /// <summary>
+    /// Gets or sets the name of the other cell of a move in flight, or <c>null</c>.
+    /// </summary>
+    [Unicode(false)]
+    [MaxLength(OpenIdMaxLengths.CellName)]
+    public string? KeyCustodyCell { get; set; }
+
+    /// <summary>
     /// Gets or sets the display name for the tenant.
     /// </summary>
     [Unicode]

@@ -837,3 +837,13 @@ NCode.Identity.OpenId.Persistence.Stores.IDirectoryOutboxStore
 NCode.Identity.OpenId.Persistence.Stores.IDirectoryOutboxStore.ListPendingAsync(int limit, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<NCode.Identity.OpenId.Persistence.DataContracts.PersistedDirectoryOutboxEntry!>!>
 NCode.Identity.OpenId.Persistence.Stores.IDirectoryOutboxStore.ListSourceRevisionsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<NCode.Identity.OpenId.Persistence.DataContracts.PersistedSourceRevision!>!>
 NCode.Identity.OpenId.Persistence.Stores.IDirectoryOutboxStore.RemoveThroughAsync(string! kind, string! key, long revision, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+const NCode.Identity.OpenId.Persistence.OpenIdMaxLengths.KeyCustody = 16 -> int
+NCode.Identity.OpenId.Persistence.DataContracts.PersistedTenant.KeyCustody.get -> string!
+NCode.Identity.OpenId.Persistence.DataContracts.PersistedTenant.KeyCustody.set -> void
+NCode.Identity.OpenId.Persistence.DataContracts.PersistedTenant.KeyCustodyCell.get -> string?
+NCode.Identity.OpenId.Persistence.DataContracts.PersistedTenant.KeyCustodyCell.set -> void
+NCode.Identity.OpenId.Persistence.DataContracts.TenantKeyCustody
+const NCode.Identity.OpenId.Persistence.DataContracts.TenantKeyCustody.Held = "held" -> string!
+const NCode.Identity.OpenId.Persistence.DataContracts.TenantKeyCustody.Incoming = "incoming" -> string!
+const NCode.Identity.OpenId.Persistence.DataContracts.TenantKeyCustody.Outgoing = "outgoing" -> string!
+NCode.Identity.OpenId.Persistence.Stores.ITenantStore.SetKeyCustodyAsync(string! tenantId, string! custody, string? cell, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<bool>
