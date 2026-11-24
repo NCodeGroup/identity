@@ -1248,6 +1248,65 @@ public sealed class DefaultLocalAccountValidatorTests : IDisposable
         );
     }
 
+    [Fact]
+    public async Task ValidateUpdateAsync_WhenThePatchClearsTheOnlyIdentifierOfAnAccountThatFailsTheMode_Returns400()
+    {
+        SetupIdentifiers(LocalAccountIdentifiers.Email);
+        var account = CreateAccount();
+        var model = CreateModel(userName: null);
+
+        var error = await Validator.ValidateUpdateAsync(
+            Connection,
+            account,
+            model,
+            null,
+            MockStoreManager.Object,
+            CancellationToken.None
+        );
+
+        Assert.NotNull(error);
+        Assert.Equal(StatusCodes.Status400BadRequest, error.StatusCode);
+        Assert.Equal("The email address is required.", error.Detail);
+    }
+
+    [Fact]
+    public async Task ValidateUpdateAsync_WhenAnAccountThatFailsTheModeIsRenamed_ReturnsNull()
+    {
+        SetupIdentifiers(LocalAccountIdentifiers.Email);
+        SetupUserNameLookup(existing: null, userName: "new-name");
+        var account = CreateAccount(userName: "old-name");
+        var model = CreateModel(userName: "new-name");
+
+        var error = await Validator.ValidateUpdateAsync(
+            Connection,
+            account,
+            model,
+            null,
+            MockStoreManager.Object,
+            CancellationToken.None
+        );
+
+        Assert.Null(error);
+    }
+
+    [Fact]
+    public void IdentifierChange_ForUpdate_FlagsOnlyTheIdentifiersThatDiffer()
+    {
+        var account = CreateAccount(userName: "old-name", email: Email);
+        var proposal = new LocalAccountIdentifierProposal
+        {
+            UserName = "new-name",
+            Email = Email,
+            LocalAccountId = account.LocalAccountId,
+        };
+
+        var change = IdentifierChange.ForUpdate(proposal, account);
+
+        Assert.True(change.UserNameChanged);
+        Assert.False(change.EmailChanged);
+        Assert.Same(account, change.Current);
+    }
+
     #endregion
 
     #region ValidateDeleteAsync Tests

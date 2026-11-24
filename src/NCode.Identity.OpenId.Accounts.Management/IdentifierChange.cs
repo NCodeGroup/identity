@@ -20,13 +20,34 @@ internal readonly record struct IdentifierChange(
     bool EmailChanged
 )
 {
+    /// <summary>
+    /// Describes the creation of an account, which sets both identifiers.
+    /// </summary>
+    /// <param name="proposal">The proposed identifiers.</param>
+    /// <returns>An <see cref="IdentifierChange"/> with no current account that changes both identifiers.</returns>
     public static IdentifierChange ForCreate(LocalAccountIdentifierProposal proposal) =>
         new(proposal, null, true, true);
 
+    /// <summary>
+    /// Describes the update of an account, comparing each proposed identifier with the stored one by ordinal equality.
+    /// </summary>
+    /// <param name="proposal">The proposed identifiers.</param>
+    /// <param name="current">The account being updated.</param>
+    /// <returns>
+    /// An <see cref="IdentifierChange"/> whose <see cref="UserNameChanged"/> and <see cref="EmailChanged"/> are
+    /// <c>true</c> for each identifier that differs from the one <paramref name="current"/> stores.
+    /// </returns>
     public static IdentifierChange ForUpdate(
         LocalAccountIdentifierProposal proposal,
-        PersistedLocalAccount current,
-        bool userNameChanged,
-        bool emailChanged
-    ) => new(proposal, current, userNameChanged, emailChanged);
+        PersistedLocalAccount current
+    )
+    {
+        var userNameChanged = !string.Equals(
+            proposal.UserName,
+            current.UserName,
+            StringComparison.Ordinal
+        );
+        var emailChanged = !string.Equals(proposal.Email, current.Email, StringComparison.Ordinal);
+        return new IdentifierChange(proposal, current, userNameChanged, emailChanged);
+    }
 }

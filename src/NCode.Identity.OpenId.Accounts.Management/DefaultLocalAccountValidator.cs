@@ -42,13 +42,22 @@ internal class DefaultLocalAccountValidator(
     )
     {
         var (proposal, current, userNameChanged, emailChanged) = change;
-        // The mode is answered only when the request introduces the violation, so an account whose stored
-        // identifiers already fail it can still be renamed.
+        // The mode is answered unless the account's stored identifiers already fail it and the request removes none of
+        // them, so such an account can still be renamed or disabled.
         var detail = GetModeDetailOrDefault(mode, proposal.UserName, proposal.Email);
         if (detail is not null && current is not null)
         {
+            var removesIdentifier =
+                (
+                    string.IsNullOrWhiteSpace(proposal.UserName)
+                    && !string.IsNullOrWhiteSpace(current.UserName)
+                )
+                || (
+                    string.IsNullOrWhiteSpace(proposal.Email)
+                    && !string.IsNullOrWhiteSpace(current.Email)
+                );
             var storedDetail = GetModeDetailOrDefault(mode, current.UserName, current.Email);
-            if (storedDetail is not null)
+            if (storedDetail is not null && !removesIdentifier)
             {
                 detail = null;
             }
@@ -77,6 +86,14 @@ internal class DefaultLocalAccountValidator(
             : new ManagementError { StatusCode = StatusCodes.Status400BadRequest, Detail = detail };
     }
 
+    /// <summary>
+    /// Checks the identifiers against the connection's <c>local_account_identifier</c> mode.
+    /// </summary>
+    /// <param name="mode">The connection's <c>local_account_identifier</c> value.</param>
+    /// <param name="userName">The username to check.</param>
+    /// <param name="email">The email address to check.</param>
+    /// <returns>The message describing the identifier the mode requires, or <c>null</c> when the mode is
+    /// satisfied.</returns>
     private static string? GetModeDetailOrDefault(string mode, string? userName, string? email)
     {
         var hasUserName = !string.IsNullOrWhiteSpace(userName);
@@ -213,6 +230,13 @@ internal class DefaultLocalAccountValidator(
         return null;
     }
 
+    /// <summary>
+    /// Determines whether a lookup found an account other than the one being checked.
+    /// </summary>
+    /// <param name="existing">The account the lookup found, or <c>null</c> when none matched.</param>
+    /// <param name="localAccountId">The identifier of the account being checked, or <c>null</c> on create.</param>
+    /// <returns><c>true</c> when <paramref name="existing"/> is an account with a different identifier; otherwise,
+    /// <c>false</c>.</returns>
     private static bool IsOtherAccount(PersistedLocalAccount? existing, string? localAccountId)
     {
         return existing is not null
@@ -384,24 +408,18 @@ internal class DefaultLocalAccountValidator(
 
         // Only an identifier the patch changes is checked, so an account whose identifiers no longer fit its
         // connection's mode can still be disabled or renamed.
-        var userNameChanged = !string.Equals(
-            model.UserName,
-            account.UserName,
-            StringComparison.Ordinal
-        );
-        var emailChanged = !string.Equals(model.Email, account.Email, StringComparison.Ordinal);
-        if (!userNameChanged && !emailChanged)
-        {
-            return null;
-        }
-
         var proposal = new LocalAccountIdentifierProposal
         {
             UserName = model.UserName,
             Email = model.Email,
             LocalAccountId = account.LocalAccountId,
         };
-        var change = IdentifierChange.ForUpdate(proposal, account, userNameChanged, emailChanged);
+        var change = IdentifierChange.ForUpdate(proposal, account);
+        if (!change.UserNameChanged && !change.EmailChanged)
+        {
+            return null;
+        }
+
         var requirementError = await ValidateIdentifierRequirementsAsync(
             connection,
             change,
@@ -416,8 +434,8 @@ internal class DefaultLocalAccountValidator(
         // The store lookups cover only the identifiers the patch changes.
         var changedProposal = new LocalAccountIdentifierProposal
         {
-            UserName = userNameChanged ? model.UserName : null,
-            Email = emailChanged ? model.Email : null,
+            UserName = change.UserNameChanged ? model.UserName : null,
+            Email = change.EmailChanged ? model.Email : null,
             LocalAccountId = account.LocalAccountId,
         };
         return await ValidateIdentifiersAvailableAsync(
