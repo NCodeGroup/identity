@@ -2706,23 +2706,23 @@ Until the first stable release, the [Unreleased] section describes the product a
   issues [#284](https://github.com/NCodeGroup/identity/issues/284),
   [#289](https://github.com/NCodeGroup/identity/issues/289)).
 
-- **Local-account management is an opt-in capability of the management API.** The `local-accounts` resource family under
-  `/api/tenants/{tenantId}/local-accounts` lets a tenant or global administrator create, list, get, update (a JSON Patch
-  of `displayName`, `userName`, `email` and `emailVerified`), delete, disable and enable a local account, reset its
-  credential, manage its profile claims, and read and set its server-owned metadata, where the claims and metadata
-  writes take `If-Match` ([#936](https://github.com/NCodeGroup/identity/issues/936)). On the control-plane cell, `GET`
-  and `POST /api/platform/local-accounts` list and create the control-plane tenant's accounts, where the root
-  administrator lives. Creating an account provisions its owning `FederatedPrincipal` and its one-to-one
-  `FederatedIdentity` in the account's connection in the same unit of work, so principal-level metadata
-  (`ProfileMetadata` / `SystemMetadata`) has a
-  target from the moment the account exists; `LocalAccountResource.principalId` carries that principal's identifier in
-  the create, get and list answers (`null` for an account without an identity), so an account is granted a
-  role through `AddRoleHolderRequest.principalId` from its own resource, and
-  `IFederatedIdentityStore.GetByConnectionSubjectsAsync` resolves a list page's principals in one call; the metadata
-  endpoint is the administrator-gated write path that keeps `SystemMetadata` never end-user-writable. Local accounts are
-  end-user subjects rather than ownable resources, so every operation authorizes against the owning tenant scope
-  (`TenantScopeResource`), gated by `*:local_accounts` scopes. The endpoints, their validator (`ILocalAccountValidator`
-  / `DefaultLocalAccountValidator`), the wire contracts (namespace
+- **Local-account management is an opt-in capability of the management API.** The `local-accounts` resource family
+  under `/api/tenants/{tenantId}/connections/{connectionId}/local-accounts` lets a tenant or global administrator
+  create, list, get, update (a JSON Patch of `displayName`, `userName`, `email` and `emailVerified`), delete, disable
+  and enable a local account of a local connection, reset its credential, manage its profile claims, and read and set
+  its server-owned metadata, where the claims and metadata writes take `If-Match`
+  ([#936](https://github.com/NCodeGroup/identity/issues/936)). On the control-plane cell,
+  `GET /api/platform/local-accounts` lists and `POST /api/platform/local-accounts` creates the accounts of the
+  control-plane tenant's default connection, where the root administrator lives. Creating an account provisions its
+  owning `FederatedPrincipal` and its one-to-one `FederatedIdentity` in the account's connection in the same unit of
+  work, so principal-level metadata (`ProfileMetadata` / `SystemMetadata`) has a target from the moment the account
+  exists; `LocalAccountResource.principalId` carries that principal's identifier in the create, get and list answers
+  (`null` for an account without an identity), so an account is granted a role through
+  `AddRoleHolderRequest.principalId` from its own resource, and `IFederatedIdentityStore.GetByConnectionSubjectsAsync`
+  resolves a list page's principals in one call; the metadata endpoint is the administrator-gated write path that keeps
+  `SystemMetadata` never end-user-writable. Local accounts are end-user subjects rather than ownable resources, so every
+  operation authorizes against the owning tenant scope (`TenantScopeResource`), gated by `*:local_accounts` scopes. The
+  endpoints, their validator (`ILocalAccountValidator` / `DefaultLocalAccountValidator`), the wire contracts (namespace
   `NCode.Identity.OpenId.Accounts.Management.Contracts`) and `LocalAccountChangedAuditEvent` live in the account-owned
   packages `NCode.Identity.OpenId.Accounts.Management` (`AddLocalAccountManagement()`) and
   `NCode.Identity.OpenId.Accounts.Management.Abstractions`, so `NCode.Identity.OpenId.Management` does not reference
