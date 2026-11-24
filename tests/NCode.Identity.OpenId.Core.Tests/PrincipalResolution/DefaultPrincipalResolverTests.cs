@@ -624,6 +624,100 @@ public sealed class DefaultPrincipalResolverTests : BaseTests
     }
 
     [Fact]
+    public async Task ResolvePrincipalIdOrDefaultAsync_WhenTheConnectionIsUnknown_ReturnsNull()
+    {
+        var manager = CreateStrictMock<IStoreManager>();
+        var principalStore = CreateStrictMock<IFederatedPrincipalStore>();
+
+        manager
+            .Setup(x => x.GetStore<IFederatedPrincipalStore>())
+            .Returns(principalStore.Object)
+            .Verifiable();
+        principalStore
+            .Setup(x => x.GetOrDefaultAsync(Subject, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((PersistedFederatedPrincipal?)null)
+            .Verifiable();
+
+        var connectionResolver = CreateStrictMock<IConnectionResolver>();
+        connectionResolver
+            .Setup(x =>
+                x.GetByIdOrDefaultAsync(
+                    It.IsAny<OpenIdContext>(),
+                    ConnectionId,
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync((ResolvedConnection?)null)
+            .Verifiable();
+
+        // The strict linking policy and key generator throw when the resolver reaches either.
+        var resolver = new DefaultPrincipalResolver(
+            CreateStrictMock<IStoreManagerFactory>().Object,
+            CreateStrictMock<ICryptoService>().Object,
+            CreateStrictMock<IFederatedIdentityLinkingPolicy>().Object,
+            CreateClientResolver(null),
+            connectionResolver.Object
+        );
+
+        var result = await resolver.ResolvePrincipalIdOrDefaultAsync(
+            CreateOpenIdContext(),
+            CreateUser(new Claim("sub", Subject), ConnectionClaim()),
+            manager.Object,
+            CancellationToken.None
+        );
+
+        Assert.Null(result);
+        connectionResolver.Verify();
+    }
+
+    [Fact]
+    public async Task ResolvePrincipalIdAsync_WhenTheConnectionIsUnknown_ReturnsTheRawSubjectWithoutProvisioning()
+    {
+        var manager = CreateStrictMock<IStoreManager>();
+        var principalStore = CreateStrictMock<IFederatedPrincipalStore>();
+
+        manager
+            .Setup(x => x.GetStore<IFederatedPrincipalStore>())
+            .Returns(principalStore.Object)
+            .Verifiable();
+        principalStore
+            .Setup(x => x.GetOrDefaultAsync(Subject, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((PersistedFederatedPrincipal?)null)
+            .Verifiable();
+
+        var connectionResolver = CreateStrictMock<IConnectionResolver>();
+        connectionResolver
+            .Setup(x =>
+                x.GetByIdOrDefaultAsync(
+                    It.IsAny<OpenIdContext>(),
+                    ConnectionId,
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync((ResolvedConnection?)null)
+            .Verifiable();
+
+        // The strict linking policy and key generator throw when the resolver reaches either.
+        var resolver = new DefaultPrincipalResolver(
+            CreateStrictMock<IStoreManagerFactory>().Object,
+            CreateStrictMock<ICryptoService>().Object,
+            CreateStrictMock<IFederatedIdentityLinkingPolicy>().Object,
+            CreateClientResolver(null),
+            connectionResolver.Object
+        );
+
+        var result = await resolver.ResolvePrincipalIdAsync(
+            CreateOpenIdContext(),
+            CreateUser(new Claim("sub", Subject), ConnectionClaim()),
+            manager.Object,
+            CancellationToken.None
+        );
+
+        Assert.Equal(Subject, result);
+        connectionResolver.Verify();
+    }
+
+    [Fact]
     public async Task ResolvePrincipalIdOrDefaultAsync_WhenTheSameSubjectIsInTwoConnections_ResolvesEachItsOwnIdentity()
     {
         const string otherPrincipalId = "principal-2";

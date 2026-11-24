@@ -833,6 +833,101 @@ public class LocalAccountInteractivePasswordResetterTests : BaseTests
     }
 
     [Fact]
+    public async Task ResetPasswordAsync_WhenTheConnectionIsMissing_ReturnsNotSupported()
+    {
+        var mockContext = CreateContext(isResetEnabled: true);
+        SetupVerify(LocalAccountId);
+        SetupResolvedConnection(null);
+
+        var result = await ResetAsync(mockContext, CancellationToken.None);
+
+        Assert.Equal(InteractivePasswordChangeResult.NotSupported, result);
+    }
+
+    [Fact]
+    public async Task ResetPasswordAsync_WhenTheConnectionIsDisabled_ReturnsNotSupported()
+    {
+        var mockContext = CreateContext(isResetEnabled: true);
+        SetupVerify(LocalAccountId);
+        var disabled = LocalAccountStoreSetup.CreateConnection(
+            TenantId,
+            MockConnectionSettings.Object
+        );
+        disabled.Connection.IsEnabled = false;
+        SetupResolvedConnection(disabled);
+
+        var result = await ResetAsync(mockContext, CancellationToken.None);
+
+        Assert.Equal(InteractivePasswordChangeResult.NotSupported, result);
+    }
+
+    [Fact]
+    public async Task ResetPasswordAsync_WhenTheConnectionIsNotLocal_ReturnsNotSupported()
+    {
+        var mockContext = CreateContext(isResetEnabled: true);
+        SetupVerify(LocalAccountId);
+        SetupResolvedConnection(
+            LocalAccountStoreSetup.CreateConnection(
+                TenantId,
+                MockConnectionSettings.Object,
+                strategy: "custom"
+            )
+        );
+
+        var result = await ResetAsync(mockContext, CancellationToken.None);
+
+        Assert.Equal(InteractivePasswordChangeResult.NotSupported, result);
+    }
+
+    [Fact]
+    public async Task ResetPasswordAsync_WhenTheConnectionIsAnEnabledLocalConnection_ReachesTheAccountLookup()
+    {
+        var mockContext = CreateContext(isResetEnabled: true);
+        SetupVerify(LocalAccountId);
+        SetupConnection();
+        SetupStoreManager();
+        SetupLookupById(null);
+        SetupResetFailed(
+            mockContext,
+            subjectId: null,
+            localAccountId: null,
+            InteractiveEmailCodeErrors.InvalidCode
+        );
+
+        var result = await ResetAsync(mockContext, CancellationToken.None);
+
+        Assert.Equal(InteractiveEmailCodeErrors.InvalidCode, result.Error);
+    }
+
+    private void SetupResolvedConnection(ResolvedConnection? connection) =>
+        MockConnectionResolver
+            .Setup(x =>
+                x.GetByIdOrDefaultAsync(
+                    It.IsAny<OpenIdContext>(),
+                    LocalAccountStoreSetup.ConnectionId,
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync(connection)
+            .Verifiable();
+
+    private async ValueTask<InteractivePasswordChangeResult> ResetAsync(
+        Mock<OpenIdContext> mockContext,
+        CancellationToken cancellationToken
+    )
+    {
+        using var code = Secret.Create(Code.AsSpan());
+        using var newPassword = Secret.Create(NewPassword.AsSpan());
+        return await Resetter.ResetPasswordAsync(
+            mockContext.Object,
+            FlowId,
+            code,
+            newPassword,
+            cancellationToken
+        );
+    }
+
+    [Fact]
     public async Task ResetPasswordAsync_WithAWrongCode_RefusesWithInvalidCode()
     {
         var mockContext = CreateContext(isResetEnabled: true);

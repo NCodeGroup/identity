@@ -593,6 +593,35 @@ public sealed class ConnectionApiEndpointHandlerTests : IDisposable
     }
 
     [Fact]
+    public async Task UpdateAsync_WhenThePatchCannotBeApplied_ReturnsBadRequestWithoutWriting()
+    {
+        SetupAuthorization(AuthorizationResult.Success());
+        SetupStore();
+        SetupGetConnection(CreateConnection());
+        var patch = new JsonPatchDocument<UpdateConnectionRequest>();
+        patch.Operations.Add(
+            new Operation<UpdateConnectionRequest>("replace", "/missing", from: null, value: 1)
+        );
+
+        // Strict mocks: no validator or update setup, so a write would fail the test.
+        var result = await Handler.UpdateAsync(
+            CreateHttpContext(),
+            TenantId,
+            ConnectionId,
+            patch,
+            ManagementEntityTags.Format(ConcurrencyToken),
+            CancellationToken.None
+        );
+
+        var problem = Assert.IsType<ProblemHttpResult>(result);
+        Assert.Equal(StatusCodes.Status400BadRequest, problem.StatusCode);
+        Assert.Equal(
+            "The JSON Patch document could not be applied.",
+            problem.ProblemDetails.Detail
+        );
+    }
+
+    [Fact]
     public async Task UpdateAsync_WhenDisabling_UpdatesAndAudits()
     {
         SetupAuthorization(AuthorizationResult.Success());
@@ -936,6 +965,35 @@ public sealed class ConnectionApiEndpointHandlerTests : IDisposable
         var problem = Assert.IsType<ValidationProblem>(result);
         Assert.Equal(StatusCodes.Status400BadRequest, problem.StatusCode);
         Assert.Equal(["require_pkce"], problem.ProblemDetails.Errors.Keys);
+    }
+
+    [Fact]
+    public async Task UpdateSettingsAsync_WhenThePatchCannotBeApplied_ReturnsBadRequestWithoutWriting()
+    {
+        SetupAuthorization(AuthorizationResult.Success());
+        SetupStore();
+        SetupGetConnection(CreateConnection());
+        var patch = new JsonPatchDocument<JsonObject>();
+        patch.Operations.Add(
+            new Operation<JsonObject>("replace", "/missing", from: null, value: 1)
+        );
+
+        // Strict mocks: no settings update setup, so a write would fail the test.
+        var result = await Handler.UpdateSettingsAsync(
+            CreateHttpContext(),
+            TenantId,
+            ConnectionId,
+            patch,
+            ifMatch: null,
+            CancellationToken.None
+        );
+
+        var problem = Assert.IsType<ProblemHttpResult>(result);
+        Assert.Equal(StatusCodes.Status400BadRequest, problem.StatusCode);
+        Assert.Equal(
+            "The JSON Patch document could not be applied.",
+            problem.ProblemDetails.Detail
+        );
     }
 
     [Fact]
