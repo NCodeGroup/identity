@@ -307,4 +307,65 @@ internal static partial class Log
         this ILogger logger,
         Exception exception
     );
+
+    [LoggerMessage(
+        EventId = EventIds.RecoverAdminCommandUsageInvalid,
+        Level = LogLevel.Error,
+        Message = "The recover-admin command line is invalid: {Error} {Usage}"
+    )]
+    internal static partial void RecoverAdminCommandUsageInvalid(
+        this ILogger logger,
+        string error,
+        string usage
+    );
+
+    [LoggerMessage(
+        EventId = EventIds.RecoverAdminCommandNotOnTheControlPlane,
+        Level = LogLevel.Error,
+        Message = "The recover-admin command recovers the administrator of the control-plane cell; this cell is a workload cell."
+    )]
+    internal static partial void RecoverAdminCommandNotOnTheControlPlane(this ILogger logger);
+
+    [LoggerMessage(
+        EventId = EventIds.RecoverAdminCommandUserNameMissing,
+        Level = LogLevel.Error,
+        Message = "The recover-admin command needs the administrator's username in the Recovery:Admin:UserName configuration."
+    )]
+    internal static partial void RecoverAdminCommandUserNameMissing(this ILogger logger);
+
+    [LoggerMessage(
+        EventId = EventIds.RecoverAdminCommandPasswordMissing,
+        Level = LogLevel.Error,
+        Message = "The recover-admin command needs the administrator's password in the Recovery:Admin:Password configuration."
+    )]
+    internal static partial void RecoverAdminCommandPasswordMissing(this ILogger logger);
+
+    [LoggerMessage(
+        EventId = EventIds.RecoverAdminCommandRefused,
+        Level = LogLevel.Error,
+        Message = "The recover-admin command was refused with status {StatusCode}; the administrator is not recovered."
+    )]
+    internal static partial void RecoverAdminCommandRefused(this ILogger logger, int statusCode);
+
+    [LoggerMessage(
+        EventId = EventIds.RecoverAdminCommandRecovered,
+        Level = LogLevel.Information,
+        Message = "Recovered the administrator '{UserName}' in tenant {TenantId}; the account was created: {Created}."
+    )]
+    internal static partial void RecoverAdminCommandRecovered(
+        this ILogger logger,
+        string userName,
+        string tenantId,
+        bool created
+    );
+
+    [LoggerMessage(
+        EventId = EventIds.RecoverAdminCommandFailed,
+        Level = LogLevel.Error,
+        Message = "The recover-admin command failed; the administrator is not recovered."
+    )]
+    internal static partial void RecoverAdminCommandFailed(
+        this ILogger logger,
+        Exception exception
+    );
 }

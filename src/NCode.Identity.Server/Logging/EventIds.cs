@@ -70,4 +70,39 @@ internal static class EventIds
     /// Identifies the error that the revoke-management-key command failed with an exception.
     /// </summary>
     public const int RevokeManagementKeyCommandFailed = Base + 31;
+
+    /// <summary>
+    /// Identifies the error that the recover-admin command line is invalid.
+    /// </summary>
+    public const int RecoverAdminCommandUsageInvalid = Base + 32;
+
+    /// <summary>
+    /// Identifies the error that the recover-admin command ran outside the control-plane cell.
+    /// </summary>
+    public const int RecoverAdminCommandNotOnTheControlPlane = Base + 33;
+
+    /// <summary>
+    /// Identifies the error that the recover-admin command has no administrator username.
+    /// </summary>
+    public const int RecoverAdminCommandUserNameMissing = Base + 34;
+
+    /// <summary>
+    /// Identifies the error that the recover-admin command has no administrator password.
+    /// </summary>
+    public const int RecoverAdminCommandPasswordMissing = Base + 35;
+
+    /// <summary>
+    /// Identifies the error that the recover-admin command was refused.
+    /// </summary>
+    public const int RecoverAdminCommandRefused = Base + 36;
+
+    /// <summary>
+    /// Identifies the information that the recover-admin command recovered the administrator.
+    /// </summary>
+    public const int RecoverAdminCommandRecovered = Base + 37;
+
+    /// <summary>
+    /// Identifies the error that the recover-admin command failed with an exception.
+    /// </summary>
+    public const int RecoverAdminCommandFailed = Base + 38;
 }

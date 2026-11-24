@@ -24,4 +24,9 @@ internal static class EventIds
     /// setup token.
     /// </summary>
     public const int SetupBelongsToTheControlPlane = Base + 5;
+
+    /// <summary>
+    /// Identifies the informational message that recovery created or restored an administrator.
+    /// </summary>
+    public const int AdministratorRecovered = Base + 6;
 }

@@ -62,4 +62,16 @@ internal static partial class Log
         Message = "Setup belongs to the control-plane cell, so this cell prepares no setup token."
     )]
     internal static partial void SetupBelongsToTheControlPlane(this ILogger logger);
+
+    [LoggerMessage(
+        EventId = EventIds.AdministratorRecovered,
+        Level = LogLevel.Information,
+        Message = "Recovered the administrator {PrincipalId} in tenant {TenantId}; the account was created: {Created}."
+    )]
+    internal static partial void AdministratorRecovered(
+        this ILogger logger,
+        string tenantId,
+        string principalId,
+        bool created
+    );
 }

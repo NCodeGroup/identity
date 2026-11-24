@@ -1,4 +1,15 @@
 #nullable enable
+NCode.Identity.OpenId.Setup.AdministratorRecoveryResult
+NCode.Identity.OpenId.Setup.AdministratorRecoveryResult.AdministratorRecoveryResult() -> void
+NCode.Identity.OpenId.Setup.AdministratorRecoveryResult.Created.get -> bool
+NCode.Identity.OpenId.Setup.AdministratorRecoveryResult.Created.init -> void
+NCode.Identity.OpenId.Setup.AdministratorRecoveryResult.Error.get -> NCode.Identity.OpenId.Management.ManagementError?
+NCode.Identity.OpenId.Setup.AdministratorRecoveryResult.Error.init -> void
+NCode.Identity.OpenId.Setup.AdministratorRecoveryResult.PrincipalId.get -> string?
+NCode.Identity.OpenId.Setup.AdministratorRecoveryResult.PrincipalId.init -> void
+NCode.Identity.OpenId.Setup.AdministratorRecoveryResult.Succeeded.get -> bool
+NCode.Identity.OpenId.Setup.AdministratorRecoveryResult.TenantId.get -> string?
+NCode.Identity.OpenId.Setup.AdministratorRecoveryResult.TenantId.init -> void
 NCode.Identity.OpenId.Setup.Contracts.CheckSetupTokenRequest
 NCode.Identity.OpenId.Setup.Contracts.CheckSetupTokenRequest.CheckSetupTokenRequest() -> void
 NCode.Identity.OpenId.Setup.Contracts.CheckSetupTokenRequest.ExtensionData.get -> System.Collections.Generic.Dictionary<string!, System.Text.Json.JsonElement>?
@@ -77,6 +88,8 @@ NCode.Identity.OpenId.Setup.Contracts.SetupStatusResponse.MinimumPasswordLength.
 NCode.Identity.OpenId.Setup.Contracts.SetupStatusResponse.SetupStatusResponse() -> void
 NCode.Identity.OpenId.Setup.Contracts.SetupStatusResponse.TokenSource.get -> string!
 NCode.Identity.OpenId.Setup.Contracts.SetupStatusResponse.TokenSource.init -> void
+NCode.Identity.OpenId.Setup.IAdministratorRecoveryService
+NCode.Identity.OpenId.Setup.IAdministratorRecoveryService.RecoverAsync(NCode.Identity.OpenId.Setup.RecoveryAdminOptions! options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.Setup.AdministratorRecoveryResult!>
 NCode.Identity.OpenId.Setup.IInstanceSetupService
 NCode.Identity.OpenId.Setup.IInstanceSetupService.IsInitializedAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<bool>
 NCode.Identity.OpenId.Setup.IInstanceSetupService.SetUpAsync(NCode.Identity.OpenId.Setup.InstanceSetupRequest! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.Setup.InstanceSetupResult!>
@@ -101,7 +114,20 @@ NCode.Identity.OpenId.Setup.ISetupTokenService
 NCode.Identity.OpenId.Setup.ISetupTokenService.EnsureTokenAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 NCode.Identity.OpenId.Setup.ISetupTokenService.TokenSource.get -> string!
 NCode.Identity.OpenId.Setup.ISetupTokenService.VerifyAsync(string! token, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<bool>
-NCode.Identity.OpenId.Setup.SetupDefaults
+NCode.Identity.OpenId.Setup.RecoveryAdminOptions
+NCode.Identity.OpenId.Setup.RecoveryAdminOptions.DisplayName.get -> string?
+NCode.Identity.OpenId.Setup.RecoveryAdminOptions.DisplayName.set -> void
+NCode.Identity.OpenId.Setup.RecoveryAdminOptions.Email.get -> string?
+NCode.Identity.OpenId.Setup.RecoveryAdminOptions.Email.set -> void
+NCode.Identity.OpenId.Setup.RecoveryAdminOptions.Password.get -> string?
+NCode.Identity.OpenId.Setup.RecoveryAdminOptions.Password.set -> void
+NCode.Identity.OpenId.Setup.RecoveryAdminOptions.RecoveryAdminOptions() -> void
+NCode.Identity.OpenId.Setup.RecoveryAdminOptions.UserName.get -> string?
+NCode.Identity.OpenId.Setup.RecoveryAdminOptions.UserName.set -> void
+NCode.Identity.OpenId.Setup.RecoveryOptions
+NCode.Identity.OpenId.Setup.RecoveryOptions.Admin.get -> NCode.Identity.OpenId.Setup.RecoveryAdminOptions!
+NCode.Identity.OpenId.Setup.RecoveryOptions.Admin.set -> void
+NCode.Identity.OpenId.Setup.RecoveryOptions.RecoveryOptions() -> void
 NCode.Identity.OpenId.Setup.SetupAutomationOptions
 NCode.Identity.OpenId.Setup.SetupAutomationOptions.ClientId.get -> string?
 NCode.Identity.OpenId.Setup.SetupAutomationOptions.ClientId.set -> void
@@ -109,6 +135,7 @@ NCode.Identity.OpenId.Setup.SetupAutomationOptions.IsConfigured.get -> bool
 NCode.Identity.OpenId.Setup.SetupAutomationOptions.Jwks.get -> string?
 NCode.Identity.OpenId.Setup.SetupAutomationOptions.Jwks.set -> void
 NCode.Identity.OpenId.Setup.SetupAutomationOptions.SetupAutomationOptions() -> void
+NCode.Identity.OpenId.Setup.SetupDefaults
 NCode.Identity.OpenId.Setup.SetupInstanceLinksOptions
 NCode.Identity.OpenId.Setup.SetupInstanceLinksOptions.ApiReferencePath.get -> string?
 NCode.Identity.OpenId.Setup.SetupInstanceLinksOptions.ApiReferencePath.set -> void
@@ -160,6 +187,7 @@ NCode.Identity.OpenId.Setup.SetupWizardOptions
 NCode.Identity.OpenId.Setup.SetupWizardOptions.ManagementConsole.get -> NCode.Identity.OpenId.Setup.SetupWizardManagementConsoleOptions!
 NCode.Identity.OpenId.Setup.SetupWizardOptions.ManagementConsole.set -> void
 NCode.Identity.OpenId.Setup.SetupWizardOptions.SetupWizardOptions() -> void
+const NCode.Identity.OpenId.Setup.RecoveryOptions.SectionName = "Recovery" -> string!
 const NCode.Identity.OpenId.Setup.SetupDefaults.MinimumRootPasswordLength = 15 -> int
 const NCode.Identity.OpenId.Setup.SetupDefaults.MinimumTokenLength = 32 -> int
 const NCode.Identity.OpenId.Setup.SetupDefaults.PathPrefix = "/setup" -> string!
