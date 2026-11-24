@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Options;
+using NCode.Buffers;
 using NCode.Identity.AspNetCore;
 using NCode.Identity.OpenId.GlobalDirectory.Server.Stores;
 using NCode.Identity.OpenId.Tenants;
@@ -208,6 +209,16 @@ public static class DirectoryEndpoints
             .MapGet("{teamId}/document", GetTeamDocumentAsync)
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status404NotFound);
+        group
+            .MapPut("{teamId}/authority", PublishTeamAuthorityAsync)
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status403Forbidden)
+            .ProducesProblem(StatusCodes.Status413PayloadTooLarge)
+            .ProducesProblem(StatusCodes.Status415UnsupportedMediaType);
+        group
+            .MapGet("{teamId}/authority", GetTeamAuthorityAsync)
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status404NotFound);
         group.MapGet("changes", ListChangesAsync).ProducesProblem(StatusCodes.Status400BadRequest);
     }
 
@@ -226,6 +237,24 @@ public static class DirectoryEndpoints
             .ProducesProblem(StatusCodes.Status422UnprocessableEntity);
         group
             .MapGet("document", GetPlatformDocumentAsync)
+            .ProducesProblem(StatusCodes.Status404NotFound);
+        group
+            .MapPut("authority", PublishPlatformAuthorityAsync)
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status403Forbidden)
+            .ProducesProblem(StatusCodes.Status413PayloadTooLarge)
+            .ProducesProblem(StatusCodes.Status415UnsupportedMediaType);
+        group
+            .MapGet("authority", GetPlatformAuthorityAsync)
+            .ProducesProblem(StatusCodes.Status404NotFound);
+        group
+            .MapPut("management-keys", PublishManagementKeysAsync)
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status403Forbidden)
+            .ProducesProblem(StatusCodes.Status413PayloadTooLarge)
+            .ProducesProblem(StatusCodes.Status415UnsupportedMediaType);
+        group
+            .MapGet("management-keys", GetManagementKeysAsync)
             .ProducesProblem(StatusCodes.Status404NotFound);
     }
 
@@ -908,6 +937,254 @@ public static class DirectoryEndpoints
 
     #endregion
 
+    #region Replicated documents
+
+    /// <summary>
+    /// Publishes the platform's authority document. Only the control-plane cell publishes it.
+    /// </summary>
+    /// <param name="document">The <see cref="ReplicatedDocument"/> to publish.</param>
+    /// <param name="httpContext">The <see cref="HttpContext"/> that carries the authenticated calling cell.</param>
+    /// <param name="options">The <see cref="DirectoryServerOptions"/> that name the control-plane cell.</param>
+    /// <param name="directory">The <see cref="IReplicatedDocumentDirectory"/> that holds the document.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    /// <returns>See <see cref="PublishReplicatedAsync"/>.</returns>
+    private static ValueTask<IResult> PublishPlatformAuthorityAsync(
+        ReplicatedDocument document,
+        HttpContext httpContext,
+        IOptions<DirectoryServerOptions> options,
+        IReplicatedDocumentDirectory directory,
+        CancellationToken cancellationToken
+    ) =>
+        PublishReplicatedAsync(
+            ReplicatedDocumentKinds.PlatformAuthority,
+            string.Empty,
+            document,
+            httpContext,
+            options.Value,
+            directory,
+            cancellationToken
+        );
+
+    /// <summary>
+    /// Publishes the management keys document. Only the control-plane cell publishes it.
+    /// </summary>
+    /// <param name="document">The <see cref="ReplicatedDocument"/> to publish.</param>
+    /// <param name="httpContext">The <see cref="HttpContext"/> that carries the authenticated calling cell.</param>
+    /// <param name="options">The <see cref="DirectoryServerOptions"/> that name the control-plane cell.</param>
+    /// <param name="directory">The <see cref="IReplicatedDocumentDirectory"/> that holds the document.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    /// <returns>See <see cref="PublishReplicatedAsync"/>.</returns>
+    private static ValueTask<IResult> PublishManagementKeysAsync(
+        ReplicatedDocument document,
+        HttpContext httpContext,
+        IOptions<DirectoryServerOptions> options,
+        IReplicatedDocumentDirectory directory,
+        CancellationToken cancellationToken
+    ) =>
+        PublishReplicatedAsync(
+            ReplicatedDocumentKinds.ManagementKeys,
+            string.Empty,
+            document,
+            httpContext,
+            options.Value,
+            directory,
+            cancellationToken
+        );
+
+    /// <summary>
+    /// Publishes a team's authority document. Only the control-plane cell publishes it.
+    /// </summary>
+    /// <param name="teamId">The team identifier from the route.</param>
+    /// <param name="document">The <see cref="ReplicatedDocument"/> to publish.</param>
+    /// <param name="httpContext">The <see cref="HttpContext"/> that carries the authenticated calling cell.</param>
+    /// <param name="options">The <see cref="DirectoryServerOptions"/> that name the control-plane cell.</param>
+    /// <param name="directory">The <see cref="IReplicatedDocumentDirectory"/> that holds the document.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    /// <returns>See <see cref="PublishReplicatedAsync"/>; <c>400 Bad Request</c> also when the team is not valid.</returns>
+    private static async ValueTask<IResult> PublishTeamAuthorityAsync(
+        string teamId,
+        ReplicatedDocument document,
+        HttpContext httpContext,
+        IOptions<DirectoryServerOptions> options,
+        IReplicatedDocumentDirectory directory,
+        CancellationToken cancellationToken
+    )
+    {
+        if (ForbidUnlessControlPlane(httpContext, options.Value) is { } forbidden)
+            return forbidden;
+
+        if (ValidateTeamId(teamId) is { } invalid)
+            return invalid;
+
+        return await PublishReplicatedAsync(
+            ReplicatedDocumentKinds.TeamAuthority,
+            teamId,
+            document,
+            httpContext,
+            options.Value,
+            directory,
+            cancellationToken
+        );
+    }
+
+    /// <summary>
+    /// Publishes a replicated document of the kind and key that its route names.
+    /// </summary>
+    /// <param name="kind">The kind that the route names.</param>
+    /// <param name="key">The key that the route names.</param>
+    /// <param name="document">The <see cref="ReplicatedDocument"/> to publish.</param>
+    /// <param name="httpContext">The <see cref="HttpContext"/> that carries the authenticated calling cell.</param>
+    /// <param name="options">The <see cref="DirectoryServerOptions"/> that name the control-plane cell.</param>
+    /// <param name="directory">The <see cref="IReplicatedDocumentDirectory"/> that holds the document.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    /// <returns>
+    /// <c>200 OK</c> with the stored revision, which is the document's when it was higher and the stored one otherwise;
+    /// <c>403 Forbidden</c> when the caller is not the control-plane cell; <c>400 Bad Request</c> when the document's
+    /// kind or key is not the route's; or <c>413 Payload Too Large</c> when its content is longer than
+    /// <see cref="DirectoryLimits.MaxDocumentBytes"/> bytes.
+    /// </returns>
+    private static async ValueTask<IResult> PublishReplicatedAsync(
+        string kind,
+        string key,
+        ReplicatedDocument document,
+        HttpContext httpContext,
+        DirectoryServerOptions options,
+        IReplicatedDocumentDirectory directory,
+        CancellationToken cancellationToken
+    )
+    {
+        if (ForbidUnlessControlPlane(httpContext, options) is { } forbidden)
+            return forbidden;
+
+        var isRoute =
+            string.Equals(document.Kind, kind, StringComparison.Ordinal)
+            && string.Equals(document.Key, key, StringComparison.OrdinalIgnoreCase);
+        if (!isRoute)
+            return BadRequest("The kind and the key of the document are those of the route.");
+
+        var contentJson = document.Content?.GetRawText();
+        var size = contentJson is null ? 0 : SecureEncoding.UTF8.GetByteCount(contentJson);
+        if (size > DirectoryLimits.MaxDocumentBytes)
+        {
+            return PayloadTooLarge(
+                $"The document is {size} bytes, and a published document is at most {DirectoryLimits.MaxDocumentBytes} bytes."
+            );
+        }
+
+        var revision = await directory.PublishAsync(document, cancellationToken);
+        var response = new { revision };
+        return TypedResults.Ok(response);
+    }
+
+    /// <summary>
+    /// Reads the platform's authority document.
+    /// </summary>
+    /// <param name="directory">The <see cref="IReplicatedDocumentDirectory"/> that holds the document.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    /// <returns><c>200 OK</c> with the document, or a <c>404 Not Found</c> problem when none is published.</returns>
+    private static ValueTask<IResult> GetPlatformAuthorityAsync(
+        IReplicatedDocumentDirectory directory,
+        CancellationToken cancellationToken
+    ) =>
+        GetReplicatedAsync(
+            ReplicatedDocumentKinds.PlatformAuthority,
+            string.Empty,
+            directory,
+            cancellationToken
+        );
+
+    /// <summary>
+    /// Reads the management keys document.
+    /// </summary>
+    /// <param name="directory">The <see cref="IReplicatedDocumentDirectory"/> that holds the document.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    /// <returns><c>200 OK</c> with the document, or a <c>404 Not Found</c> problem when none is published.</returns>
+    private static ValueTask<IResult> GetManagementKeysAsync(
+        IReplicatedDocumentDirectory directory,
+        CancellationToken cancellationToken
+    ) =>
+        GetReplicatedAsync(
+            ReplicatedDocumentKinds.ManagementKeys,
+            string.Empty,
+            directory,
+            cancellationToken
+        );
+
+    /// <summary>
+    /// Reads a team's authority document.
+    /// </summary>
+    /// <param name="teamId">The team identifier from the route.</param>
+    /// <param name="directory">The <see cref="IReplicatedDocumentDirectory"/> that holds the document.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    /// <returns>
+    /// <c>200 OK</c> with the document; <c>400 Bad Request</c> when the team is not valid; or a <c>404 Not Found</c>
+    /// problem when none is published.
+    /// </returns>
+    private static async ValueTask<IResult> GetTeamAuthorityAsync(
+        string teamId,
+        IReplicatedDocumentDirectory directory,
+        CancellationToken cancellationToken
+    )
+    {
+        if (ValidateTeamId(teamId) is { } invalid)
+            return invalid;
+
+        return await GetReplicatedAsync(
+            ReplicatedDocumentKinds.TeamAuthority,
+            teamId,
+            directory,
+            cancellationToken
+        );
+    }
+
+    /// <summary>
+    /// Reads a replicated document.
+    /// </summary>
+    /// <param name="kind">The kind of the document.</param>
+    /// <param name="key">The key of the document.</param>
+    /// <param name="directory">The <see cref="IReplicatedDocumentDirectory"/> that holds the document.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    /// <returns><c>200 OK</c> with the document, or a <c>404 Not Found</c> problem when none is published.</returns>
+    private static async ValueTask<IResult> GetReplicatedAsync(
+        string kind,
+        string key,
+        IReplicatedDocumentDirectory directory,
+        CancellationToken cancellationToken
+    )
+    {
+        var document = await directory.GetOrDefaultAsync(kind, key, cancellationToken);
+        return document is null
+            ? NotFound($"The directory holds no '{kind}' document.")
+            : TypedResults.Ok(document);
+    }
+
+    /// <summary>
+    /// Lists the revision of every replicated document, which the control-plane cell reads when it starts.
+    /// </summary>
+    /// <param name="httpContext">The <see cref="HttpContext"/> that carries the authenticated calling cell.</param>
+    /// <param name="options">The <see cref="DirectoryServerOptions"/> that name the control-plane cell.</param>
+    /// <param name="directory">The <see cref="IReplicatedDocumentDirectory"/> that holds the documents.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    /// <returns>
+    /// <c>200 OK</c> with the documents, whose content is <c>null</c>; or <c>403 Forbidden</c> when the caller is not
+    /// the control-plane cell.
+    /// </returns>
+    private static async ValueTask<IResult> ListReplicatedRevisionsAsync(
+        HttpContext httpContext,
+        IOptions<DirectoryServerOptions> options,
+        IReplicatedDocumentDirectory directory,
+        CancellationToken cancellationToken
+    )
+    {
+        if (ForbidUnlessControlPlane(httpContext, options.Value) is { } forbidden)
+            return forbidden;
+
+        var revisions = await directory.ListRevisionsAsync(cancellationToken);
+        return TypedResults.Ok(revisions);
+    }
+
+    #endregion
+
     #region Cells
 
     /// <summary>
@@ -1188,6 +1465,18 @@ public static class DirectoryEndpoints
         );
 
     /// <summary>
+    /// Builds a <c>413 Payload Too Large</c> problem document.
+    /// </summary>
+    /// <param name="detail">The explanation for the caller.</param>
+    /// <returns>The <see cref="ProblemHttpResult"/> that writes the problem document.</returns>
+    private static ProblemHttpResult PayloadTooLarge(string detail) =>
+        TypedResults.Problem(
+            title: "Payload Too Large",
+            detail: detail,
+            statusCode: StatusCodes.Status413PayloadTooLarge
+        );
+
+    /// <summary>
     /// Builds a <c>422 Unprocessable Entity</c> problem document.
     /// </summary>
     /// <param name="detail">The explanation for the caller.</param>
@@ -1255,6 +1544,9 @@ public static class DirectoryEndpoints
                 .MapGet("retired-issuers", GetRetiredIssuerAsync)
                 .ProducesProblem(StatusCodes.Status400BadRequest)
                 .ProducesProblem(StatusCodes.Status404NotFound);
+            group
+                .MapGet("replicated-revisions", ListReplicatedRevisionsAsync)
+                .ProducesProblem(StatusCodes.Status403Forbidden);
             var teamsGroup = group.MapGroup("teams");
             MapTeams(teamsGroup);
             var platformGroup = group.MapGroup("platform");
