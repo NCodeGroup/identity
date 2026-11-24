@@ -165,6 +165,10 @@ internal class CoreTenantTransferContributor(
         await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
         using var scope = AmbientTenantAccessor.BeginScope(tenantId);
 
+        // An imported tenant is fenced until the directory confirms the move; the import names the source cell.
+        tenant.KeyCustody = TenantKeyCustody.Incoming;
+        tenant.KeyCustodyCell = null;
+
         // A row refers to the rows it needs by a query, so each group is saved before the group that refers to it.
         await storeManager.GetStore<ITenantStore>().AddAsync(tenant, cancellationToken);
         await storeManager.SaveChangesAsync(cancellationToken);

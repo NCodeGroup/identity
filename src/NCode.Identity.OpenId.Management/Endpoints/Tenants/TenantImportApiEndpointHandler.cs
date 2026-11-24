@@ -23,6 +23,7 @@ using NCode.Identity.OpenId.Management.Auditing;
 using NCode.Identity.OpenId.Management.Contracts;
 using NCode.Identity.OpenId.Management.Contracts.Tenants;
 using NCode.Identity.OpenId.Management.Transfers;
+using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
 using NCode.Identity.Persistence.Stores;
 using NCode.Identity.Registration.AspNetCore;
@@ -314,6 +315,7 @@ internal class TenantImportApiEndpointHandler(
         {
             failure = await ImportAndRetagAsync(
                 tenantId,
+                sourceCell,
                 masterKeys,
                 privateKey,
                 contributors,
@@ -359,6 +361,15 @@ internal class TenantImportApiEndpointHandler(
             return moveFailure;
         }
 
+        // The directory places the tenant in this cell, so this cell holds its keys, whatever the request's
+        // cancellation.
+        await SetKeyCustodyAsync(
+            tenantId,
+            TenantKeyCustody.Held,
+            cell: null,
+            CancellationToken.None
+        );
+
         // The directory places the tenant in this cell whatever the request's cancellation, so the import is read and
         // audited to the end.
         await using (
@@ -394,6 +405,7 @@ internal class TenantImportApiEndpointHandler(
     // is imported and its keys are retagged.
     private async ValueTask<IResult?> ImportAndRetagAsync(
         string tenantId,
+        string sourceCell,
         string masterKeys,
         SecretKey privateKey,
         List<ITenantTransferContributor> contributors,
@@ -458,7 +470,30 @@ internal class TenantImportApiEndpointHandler(
             retagged.Add((provider, keyId));
         }
 
+        // The tenant is fenced against the source cell until the directory confirms the move.
+        await SetKeyCustodyAsync(
+            tenantId,
+            TenantKeyCustody.Incoming,
+            sourceCell,
+            cancellationToken
+        );
+
         return null;
+    }
+
+    // Sets the tenant's key-custody fence in a unit of work of its own.
+    private async ValueTask SetKeyCustodyAsync(
+        string tenantId,
+        string custody,
+        string? cell,
+        CancellationToken cancellationToken
+    )
+    {
+        await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
+        await storeManager
+            .GetStore<ITenantStore>()
+            .SetKeyCustodyAsync(tenantId, custody, cell, cancellationToken);
+        await storeManager.SaveChangesAsync(cancellationToken);
     }
 
     // Moves the tenant's placement to this cell. The directory can commit a move that it does not confirm, such as one

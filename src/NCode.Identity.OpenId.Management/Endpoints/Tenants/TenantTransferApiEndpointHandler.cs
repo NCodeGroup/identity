@@ -22,6 +22,7 @@ using NCode.Identity.OpenId.Management.Auditing;
 using NCode.Identity.OpenId.Management.Contracts;
 using NCode.Identity.OpenId.Management.Contracts.Tenants;
 using NCode.Identity.OpenId.Management.Transfers;
+using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
 using NCode.Identity.OpenId.Tenants;
 using NCode.Identity.Persistence.Stores;
@@ -300,9 +301,8 @@ internal class TenantTransferApiEndpointHandler(
         }
 
         await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
-        var tenant = await storeManager
-            .GetStore<ITenantStore>()
-            .GetOrDefaultAsync(tenantId, cancellationToken);
+        var tenantStore = storeManager.GetStore<ITenantStore>();
+        var tenant = await tenantStore.GetOrDefaultAsync(tenantId, cancellationToken);
 
         if (tenant is null)
         {
@@ -322,6 +322,16 @@ internal class TenantTransferApiEndpointHandler(
             );
         }
 
+        // The tenant's keys are fenced before the directory is asked, so no key operation of this cell runs while the
+        // offer is in flight. A refused offer or an unavailable directory lifts the fence again.
+        await tenantStore.SetKeyCustodyAsync(
+            tenantId,
+            TenantKeyCustody.Outgoing,
+            request.TargetCell,
+            cancellationToken
+        );
+        await storeManager.SaveChangesAsync(cancellationToken);
+
         // The offer is the directory's record that this cell lets the tenant go to the target cell, and the move
         // consumes it. It is recorded before the package is sealed, so no package exists for a move that the directory
         // refuses.
@@ -337,6 +347,8 @@ internal class TenantTransferApiEndpointHandler(
         }
         catch (DirectoryUnavailableException)
         {
+            await ReleaseFenceAsync(storeManager, tenantStore, tenantId, cancellationToken);
+
             var retryAfter = TimeSpan.FromSeconds(
                 GlobalDirectoryProtocol.UnavailableRetryAfterSeconds
             );
@@ -350,6 +362,7 @@ internal class TenantTransferApiEndpointHandler(
 
         if (!offer.IsOffered)
         {
+            await ReleaseFenceAsync(storeManager, tenantStore, tenantId, cancellationToken);
             return await OfferConflictAsync(tenantId, offer.ConflictDetail, cancellationToken);
         }
 
@@ -391,6 +404,23 @@ internal class TenantTransferApiEndpointHandler(
 
         var resource = new TenantExportResource { Package = package };
         return TypedResults.Ok(resource);
+    }
+
+    // Lifts the key-custody fence of a tenant whose offer the directory did not record: this cell holds its keys again.
+    private static async ValueTask ReleaseFenceAsync(
+        IStoreManager storeManager,
+        ITenantStore tenantStore,
+        string tenantId,
+        CancellationToken cancellationToken
+    )
+    {
+        await tenantStore.SetKeyCustodyAsync(
+            tenantId,
+            TenantKeyCustody.Held,
+            cell: null,
+            cancellationToken
+        );
+        await storeManager.SaveChangesAsync(cancellationToken);
     }
 
     // Answers an offer that the directory refuses. A directory that places the tenant in another cell has a move behind

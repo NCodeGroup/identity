@@ -67,6 +67,8 @@ public sealed class TenantImportApiEndpointHandlerTests : IDisposable
     private Mock<ITenantDirectory> MockTenantDirectory { get; }
     private Mock<IManagementAuditRecorder> MockManagementAuditRecorder { get; }
     private List<string> Calls { get; } = [];
+    private List<string> FenceCalls { get; } = [];
+    private int PendingFenceSaves { get; set; }
     private TenantImportApiEndpointHandler Handler { get; }
 
     public TenantImportApiEndpointHandlerTests()
@@ -353,6 +355,39 @@ public sealed class TenantImportApiEndpointHandlerTests : IDisposable
                 ++reads == 1 && !tenantExistsBefore ? (PersistedTenant?)null : CreateTenant()
             )
             .Verifiable(Times.Exactly(readImportedTenant ? 2 : 1));
+
+        // Each change of the key-custody fence is saved in a unit of work of its own, which Calls does not record.
+        MockTenantStore
+            .Setup(x =>
+                x.SetKeyCustodyAsync(
+                    TenantId,
+                    It.IsAny<string>(),
+                    It.IsAny<string?>(),
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .Returns(
+                (string _, string custody, string? cell, CancellationToken _) =>
+                {
+                    FenceCalls.Add($"{custody}:{cell}");
+                    PendingFenceSaves++;
+                    return new ValueTask<bool>(true);
+                }
+            );
+
+        MockStoreManager
+            .Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()))
+            .Returns(() =>
+            {
+                if (PendingFenceSaves > 0)
+                {
+                    PendingFenceSaves--;
+                    return ValueTask.CompletedTask;
+                }
+
+                Calls.Add("save");
+                return ValueTask.CompletedTask;
+            });
     }
 
     private static TenantPlacement CreatePlacement(string cell) =>
@@ -570,15 +605,6 @@ public sealed class TenantImportApiEndpointHandlerTests : IDisposable
                 return new ValueTask<bool>(true);
             })
             .Verifiable();
-
-        MockStoreManager
-            .Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()))
-            .Returns(() =>
-            {
-                Calls.Add("save");
-                return ValueTask.CompletedTask;
-            })
-            .Verifiable();
     }
 
     #endregion
@@ -626,6 +652,7 @@ public sealed class TenantImportApiEndpointHandlerTests : IDisposable
             ["import-core", "import-accounts", "import-master-keys", $"retag-{CellName}", "move"],
             Calls
         );
+        Assert.Equal([$"incoming:{SourceCell}", "held:"], FenceCalls);
     }
 
     [Fact]
