@@ -304,8 +304,8 @@ internal sealed class LocalAccountInteractivePasswordResetter(
     }
 
     /// <summary>
-    /// Finds the account the end user named, by user name first and then by email address, as the connection's
-    /// <c>local_account_identifier</c> setting allows.
+    /// Finds the account the end user named, through the lookups the connection's <c>local_account_identifier</c>
+    /// setting names. Both lookups run whatever the first finds, and the user name's match wins.
     /// </summary>
     private static async ValueTask<PersistedLocalAccount?> FindAccountAsync(
         ILocalAccountStore accountStore,
@@ -315,29 +315,28 @@ internal sealed class LocalAccountInteractivePasswordResetter(
     )
     {
         var mode = connection.Settings.GetValue(OpenIdSettingKeys.LocalAccountIdentifier);
+
+        PersistedLocalAccount? byUserName = null;
         if (mode != LocalAccountIdentifiers.Email)
         {
-            var byUserName = await accountStore.GetByUserNameOrDefaultAsync(
+            byUserName = await accountStore.GetByUserNameOrDefaultAsync(
                 connection.ConnectionId,
                 submitted,
                 cancellationToken
             );
-            if (byUserName is not null)
-            {
-                return byUserName;
-            }
         }
 
-        if (mode == LocalAccountIdentifiers.UserName)
+        PersistedLocalAccount? byEmail = null;
+        if (mode != LocalAccountIdentifiers.UserName)
         {
-            return null;
+            byEmail = await accountStore.GetByEmailOrDefaultAsync(
+                connection.ConnectionId,
+                submitted,
+                cancellationToken
+            );
         }
 
-        return await accountStore.GetByEmailOrDefaultAsync(
-            connection.ConnectionId,
-            submitted,
-            cancellationToken
-        );
+        return byUserName ?? byEmail;
     }
 
     /// <summary>

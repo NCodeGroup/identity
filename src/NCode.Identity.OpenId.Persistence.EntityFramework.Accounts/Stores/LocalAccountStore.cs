@@ -594,33 +594,35 @@ internal sealed class LocalAccountStore(
         );
     }
 
-    // The user name is looked up first, then the email address.
+    // Each value the identifier carries is looked up whatever the other finds, so the work does not tell which one
+    // matched; the user name's match wins.
     private async ValueTask<LocalAccountEntity?> GetEntityByIdentifierOrDefaultAsync(
         ConnectionEntity connectionEntity,
         LocalAccountSignInIdentifier identifier,
         CancellationToken cancellationToken
     )
     {
-        LocalAccountEntity? entity = null;
+        LocalAccountEntity? byUserName = null;
         if (identifier.UserName is { } userName)
         {
-            entity = await GetEntityByUserNameOrDefaultAsync(
+            byUserName = await GetEntityByUserNameOrDefaultAsync(
                 connectionEntity,
                 userName,
                 cancellationToken
             );
         }
 
-        if (entity is null && identifier.Email is { } email)
+        LocalAccountEntity? byEmail = null;
+        if (identifier.Email is { } email)
         {
-            entity = await GetEntityByEmailOrDefaultAsync(
+            byEmail = await GetEntityByEmailOrDefaultAsync(
                 connectionEntity,
                 email,
                 cancellationToken
             );
         }
 
-        return entity;
+        return byUserName ?? byEmail;
     }
 
     private ValueTask<LocalAccountEntity?> GetEntityByIdOrDefaultAsync(

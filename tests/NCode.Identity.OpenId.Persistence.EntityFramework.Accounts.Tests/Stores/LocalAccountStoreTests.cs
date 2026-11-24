@@ -438,6 +438,66 @@ public sealed class LocalAccountStoreTests : IDisposable
         Assert.Equal("plain:dummy", Assert.Single(Hasher.VerifiedHashes));
     }
 
+    [Fact]
+    public async Task VerifyCredentialAsync_WhenTheUserNameAndTheEmailNameDifferentAccounts_VerifiesTheUserNameAccount()
+    {
+        var store = CreateStoreWithPasswords();
+        await AddWithPasswordAndDetachAsync(
+            store,
+            CreateAccount("account-1", "alice", "alice@example.com"),
+            "secret",
+            CancellationToken.None
+        );
+        await AddWithPasswordAndDetachAsync(
+            store,
+            CreateAccount("account-2", "bob", "bob@example.com"),
+            "secret",
+            CancellationToken.None
+        );
+
+        var result = await store.VerifyCredentialAsync(
+            new LocalAccountSignInIdentifier
+            {
+                ConnectionId = ConnectionId,
+                UserName = "alice",
+                Email = "bob@example.com",
+            },
+            SecureEncoding.UTF8.GetBytes("secret"),
+            NotRefused,
+            CancellationToken.None
+        );
+
+        Assert.True(result.IsVerified);
+        Assert.Equal("account-1", result.Account.LocalAccountId);
+    }
+
+    [Fact]
+    public async Task VerifyCredentialAsync_WhenOnlyTheEmailNamesAnAccount_VerifiesTheEmailAccount()
+    {
+        var store = CreateStoreWithPasswords();
+        await AddWithPasswordAndDetachAsync(
+            store,
+            CreateAccount("account-2", "bob", "bob@example.com"),
+            "secret",
+            CancellationToken.None
+        );
+
+        var result = await store.VerifyCredentialAsync(
+            new LocalAccountSignInIdentifier
+            {
+                ConnectionId = ConnectionId,
+                UserName = "nobody",
+                Email = "bob@example.com",
+            },
+            SecureEncoding.UTF8.GetBytes("secret"),
+            NotRefused,
+            CancellationToken.None
+        );
+
+        Assert.True(result.IsVerified);
+        Assert.Equal("account-2", result.Account.LocalAccountId);
+    }
+
     #endregion
 
     #region UpdateAsync Tests

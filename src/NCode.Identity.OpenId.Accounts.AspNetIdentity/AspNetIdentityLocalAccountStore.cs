@@ -1071,8 +1071,8 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
     }
 
     /// <summary>
-    /// Finds the user that a sign-in identifier names, by its user name first and then by its email. The caller opens
-    /// the connection scope.
+    /// Finds the user that a sign-in identifier names. It runs the lookup of each value the identifier carries,
+    /// whatever the first finds, and prefers the user name's match. The caller opens the connection scope.
     /// </summary>
     /// <param name="userManager">The <see cref="UserManager{TUser}"/> to look the user up with.</param>
     /// <param name="identifier">The identifier that the end user submitted.</param>
@@ -1085,10 +1085,10 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
         CancellationToken cancellationToken
     )
     {
-        TUser? user = null;
+        TUser? byUserName = null;
         if (identifier.UserName is { } userName)
         {
-            user = await FindByNameAsync(
+            byUserName = await FindByNameAsync(
                 userManager,
                 identifier.ConnectionId,
                 userName,
@@ -1096,9 +1096,10 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
             );
         }
 
-        if (user is null && identifier.Email is { } email)
+        TUser? byEmail = null;
+        if (identifier.Email is { } email)
         {
-            user = await FindByEmailAsync(
+            byEmail = await FindByEmailAsync(
                 userManager,
                 identifier.ConnectionId,
                 email,
@@ -1106,7 +1107,7 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
             );
         }
 
-        return user;
+        return byUserName ?? byEmail;
     }
 
     private static bool IsInConnection(TUser user, string tenantId, string connectionId) =>

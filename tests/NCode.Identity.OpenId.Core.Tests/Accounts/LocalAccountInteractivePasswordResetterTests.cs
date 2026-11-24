@@ -148,8 +148,11 @@ public class LocalAccountInteractivePasswordResetterTests : BaseTests
         MockStoreManager.Setup(x => x.DisposeAsync()).Returns(ValueTask.CompletedTask).Verifiable();
     }
 
-    // A submitted value that names no user name is looked up as an email address.
-    private void SetupLookupByUserName(PersistedLocalAccount? account)
+    // A submitted value is looked up as a user name and as an email address, whatever the first lookup finds.
+    private void SetupLookupByUserName(
+        PersistedLocalAccount? account,
+        PersistedLocalAccount? emailAccount = null
+    )
     {
         MockLocalAccountStore
             .Setup(x =>
@@ -160,20 +163,17 @@ public class LocalAccountInteractivePasswordResetterTests : BaseTests
                 )
             )
             .ReturnsAsync(account)
-            .Verifiable();
-        if (account is null)
-        {
-            MockLocalAccountStore
-                .Setup(x =>
-                    x.GetByEmailOrDefaultAsync(
-                        LocalAccountStoreSetup.ConnectionId,
-                        UserName,
-                        It.IsAny<CancellationToken>()
-                    )
+            .Verifiable(Times.Once());
+        MockLocalAccountStore
+            .Setup(x =>
+                x.GetByEmailOrDefaultAsync(
+                    LocalAccountStoreSetup.ConnectionId,
+                    UserName,
+                    It.IsAny<CancellationToken>()
                 )
-                .ReturnsAsync((PersistedLocalAccount?)null)
-                .Verifiable();
-        }
+            )
+            .ReturnsAsync(emailAccount)
+            .Verifiable(Times.Once());
     }
 
     private void SetupLookupById(PersistedLocalAccount? account) =>
@@ -705,6 +705,40 @@ public class LocalAccountInteractivePasswordResetterTests : BaseTests
         var account = Account();
         SetupStoreManager();
         SetupLookupByUserName(account);
+        SetupFederatedIdentity();
+        SetupRequested(mockContext);
+        MockEmailCodes
+            .Setup(x =>
+                x.SendAsync(
+                    mockContext.Object,
+                    EmailCodePurposes.ResetPassword,
+                    account,
+                    Locale,
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync(FlowId)
+            .Verifiable();
+
+        var flowId = await Resetter.SendResetCodeAsync(
+            mockContext.Object,
+            Connection,
+            UserName,
+            Locale,
+            CancellationToken.None
+        );
+
+        Assert.Equal(FlowId, flowId);
+    }
+
+    [Fact]
+    public async Task SendResetCodeAsync_WhenTheUserNameAndTheEmailNameDifferentAccounts_SendsTheCodeToTheUserNameAccount()
+    {
+        var mockContext = CreateContext(isResetEnabled: true);
+        var account = Account();
+        var emailAccount = Account(email: "other@example.com");
+        SetupStoreManager();
+        SetupLookupByUserName(account, emailAccount);
         SetupFederatedIdentity();
         SetupRequested(mockContext);
         MockEmailCodes

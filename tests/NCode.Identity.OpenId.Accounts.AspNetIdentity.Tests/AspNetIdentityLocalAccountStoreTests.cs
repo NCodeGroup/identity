@@ -265,6 +265,93 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
     }
 
     [Fact]
+    public async Task VerifyCredentialAsync_WhenNeitherTheUserNameNorTheEmailIsFound_RunsBothLookups()
+    {
+        var passwordHasher = CreatePasswordHasher();
+        var passwordStore = CreatePasswordStore();
+        var (store, userManager) = CreateStore(passwordHasher.Object, passwordStore.Object);
+        SetupDummyPasswordHash(passwordHasher);
+        userManager
+            .Setup(x => x.FindByNameAsync(UserName))
+            .ReturnsAsync((TestTenantUser?)null)
+            .Verifiable(Times.Once());
+        userManager
+            .Setup(x => x.FindByEmailAsync("alice@example.com"))
+            .ReturnsAsync((TestTenantUser?)null)
+            .Verifiable(Times.Once());
+        passwordHasher
+            .Setup(x =>
+                x.VerifyHashedPassword(It.IsAny<TestTenantUser>(), DummyPasswordHash, Password)
+            )
+            .Returns(PasswordVerificationResult.Failed)
+            .Verifiable();
+
+        var result = await store.VerifyCredentialAsync(
+            new LocalAccountSignInIdentifier
+            {
+                ConnectionId = ConnectionId,
+                UserName = UserName,
+                Email = "alice@example.com",
+            },
+            PasswordBytes,
+            NotRefused,
+            CancellationToken.None
+        );
+
+        Assert.Null(result.Account);
+    }
+
+    [Fact]
+    public async Task VerifyCredentialAsync_WhenTheUserNameAndTheEmailNameDifferentUsers_RunsBothLookupsAndPrefersTheUserName()
+    {
+        var passwordHasher = CreatePasswordHasher();
+        var passwordStore = CreatePasswordStore();
+        var (store, userManager) = CreateStore(passwordHasher.Object, passwordStore.Object);
+        SetupDummyPasswordHash(passwordHasher);
+        var user = CreateUser();
+        var emailUser = CreateUser();
+        emailUser.Id = "other-account";
+        userManager
+            .Setup(x => x.FindByNameAsync(UserName))
+            .ReturnsAsync(user)
+            .Verifiable(Times.Once());
+        userManager
+            .Setup(x => x.FindByEmailAsync("other@example.com"))
+            .ReturnsAsync(emailUser)
+            .Verifiable(Times.Once());
+        userManager.SetupGet(x => x.SupportsUserLockout).Returns(true).Verifiable();
+        userManager.Setup(x => x.IsLockedOutAsync(user)).ReturnsAsync(false).Verifiable();
+        passwordStore
+            .Setup(x => x.GetPasswordHashAsync(user, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(StoredPasswordHash)
+            .Verifiable();
+        passwordHasher
+            .Setup(x => x.VerifyHashedPassword(user, StoredPasswordHash, Password))
+            .Returns(PasswordVerificationResult.Failed)
+            .Verifiable();
+        var askedAccountKeys = new List<string>();
+
+        var result = await store.VerifyCredentialAsync(
+            new LocalAccountSignInIdentifier
+            {
+                ConnectionId = ConnectionId,
+                UserName = UserName,
+                Email = "other@example.com",
+            },
+            PasswordBytes,
+            (accountKey, _) =>
+            {
+                askedAccountKeys.Add(accountKey);
+                return ValueTask.FromResult(false);
+            },
+            CancellationToken.None
+        );
+
+        Assert.Equal(LocalAccountId, Assert.Single(askedAccountKeys));
+        Assert.Equal(LocalAccountId, result.AccountKey);
+    }
+
+    [Fact]
     public async Task VerifyCredentialAsync_WhenLockedOut_VerifiesAgainstTheDummyHash()
     {
         var passwordHasher = CreatePasswordHasher();
