@@ -241,16 +241,20 @@ internal class LocalAccountApiEndpointHandler(
         [FromRoute] string connectionId,
         [FromBody] CreateLocalAccountRequest request,
         CancellationToken cancellationToken
-    ) => CreateCoreAsync(httpContext, tenantId, connectionId, request, cancellationToken);
+    )
+    {
+        var route = new ConnectionRoute(tenantId, connectionId);
+        return CreateCoreAsync(httpContext, route, request, cancellationToken);
+    }
 
     private async ValueTask<IResult> CreateCoreAsync(
         HttpContext httpContext,
-        string tenantId,
-        string? connectionId,
+        ConnectionRoute route,
         CreateLocalAccountRequest request,
         CancellationToken cancellationToken
     )
     {
+        var (tenantId, connectionId) = route;
         var authorizationError = await LocalAccountValidator.AuthorizeCreateAsync(
             httpContext.User,
             tenantId,
@@ -331,17 +335,22 @@ internal class LocalAccountApiEndpointHandler(
         [FromQuery] string? cursor,
         [FromQuery] int? limit,
         CancellationToken cancellationToken
-    ) => ListCoreAsync(httpContext, tenantId, connectionId, cursor, limit, cancellationToken);
+    )
+    {
+        var route = new ConnectionRoute(tenantId, connectionId);
+        var window = new PageWindow(cursor, limit);
+        return ListCoreAsync(httpContext, route, window, cancellationToken);
+    }
 
     private async ValueTask<IResult> ListCoreAsync(
         HttpContext httpContext,
-        string tenantId,
-        string? connectionId,
-        string? cursor,
-        int? limit,
+        ConnectionRoute route,
+        PageWindow window,
         CancellationToken cancellationToken
     )
     {
+        var (tenantId, connectionId) = route;
+        var (cursor, limit) = window;
         var effectiveLimit = NormalizeLimit(limit);
 
         var tenantResource = TenantScopeResource.For(tenantId);
@@ -430,14 +439,9 @@ internal class LocalAccountApiEndpointHandler(
     {
         var tenantId = httpContext.GetOpenIdContext().Tenant.TenantId;
         using var scope = AmbientTenantAccessor.BeginScope(tenantId);
-        return await ListCoreAsync(
-            httpContext,
-            tenantId,
-            connectionId: null,
-            cursor,
-            limit,
-            cancellationToken
-        );
+        var route = new ConnectionRoute(tenantId, ConnectionId: null);
+        var window = new PageWindow(cursor, limit);
+        return await ListCoreAsync(httpContext, route, window, cancellationToken);
     }
 
     /// <summary>
@@ -455,13 +459,8 @@ internal class LocalAccountApiEndpointHandler(
     {
         var tenantId = httpContext.GetOpenIdContext().Tenant.TenantId;
         using var scope = AmbientTenantAccessor.BeginScope(tenantId);
-        return await CreateCoreAsync(
-            httpContext,
-            tenantId,
-            connectionId: null,
-            request,
-            cancellationToken
-        );
+        var route = new ConnectionRoute(tenantId, ConnectionId: null);
+        return await CreateCoreAsync(httpContext, route, request, cancellationToken);
     }
 
     /// <summary>
@@ -753,15 +752,11 @@ internal class LocalAccountApiEndpointHandler(
         [FromRoute] string connectionId,
         [FromRoute] string localAccountId,
         CancellationToken cancellationToken
-    ) =>
-        SetEnabledAsync(
-            httpContext,
-            tenantId,
-            connectionId,
-            localAccountId,
-            isEnabled: true,
-            cancellationToken
-        );
+    )
+    {
+        var route = new AccountRoute(tenantId, connectionId, localAccountId);
+        return EnableAsync(httpContext, route, cancellationToken);
+    }
 
     /// <summary>
     /// Disables a local account and ends the sessions of its principal.
@@ -774,28 +769,22 @@ internal class LocalAccountApiEndpointHandler(
         [FromRoute] string connectionId,
         [FromRoute] string localAccountId,
         CancellationToken cancellationToken
-    ) =>
-        SetEnabledAsync(
-            httpContext,
-            tenantId,
-            connectionId,
-            localAccountId,
-            isEnabled: false,
-            cancellationToken
-        );
+    )
+    {
+        var route = new AccountRoute(tenantId, connectionId, localAccountId);
+        return DisableAsync(httpContext, route, cancellationToken);
+    }
 
-    private async ValueTask<IResult> SetEnabledAsync(
+    // Enabling an account ends no session, so it needs no tenant context.
+    private async ValueTask<IResult> EnableAsync(
         HttpContext httpContext,
-        string tenantId,
-        string connectionId,
-        string localAccountId,
-        bool isEnabled,
+        AccountRoute route,
         CancellationToken cancellationToken
     )
     {
         var authorizationError = await LocalAccountValidator.AuthorizeUpdateAsync(
             httpContext.User,
-            tenantId,
+            route.TenantId,
             cancellationToken
         );
         if (authorizationError is not null)
@@ -807,8 +796,8 @@ internal class LocalAccountApiEndpointHandler(
 
         var located = await FindAccountAsync(
             storeManager,
-            connectionId,
-            localAccountId,
+            route.ConnectionId,
+            route.LocalAccountId,
             cancellationToken
         );
         if (located is not { } found)
@@ -817,25 +806,71 @@ internal class LocalAccountApiEndpointHandler(
         }
 
         var (connection, store, account) = found;
-
-        // The account's principal is resolved before the account is written, for the audit record and, when the account
-        // is disabled, to end its sessions. Disabling an account with an identity ends its principal's
-        // sessions, so the tenant's context is created before the account is written: a tenant that is not served
-        // refuses the request here, before anything is committed or audited. Enabling an account, or disabling one
-        // without an identity, ends no session and needs no context.
         var principalId = await FindPrincipalIdAsync(
             storeManager,
             connection.ConnectionId,
-            localAccountId,
+            route.LocalAccountId,
             cancellationToken
         );
 
-        await using var tenantContext =
-            isEnabled || principalId is null
-                ? null
-                : await CreateTenantContextAsync(httpContext, tenantId, cancellationToken);
+        account.IsEnabled = true;
+        await store.UpdateAsync(account, cancellationToken);
+        await storeManager.SaveChangesAsync(cancellationToken);
 
-        account.IsEnabled = isEnabled;
+        return await RecordEnabledChangeAsync(
+            httpContext,
+            route,
+            account,
+            principalId,
+            cancellationToken
+        );
+    }
+
+    // Disabling an account with an identity ends its principal's sessions, so the tenant's context is created before the
+    // account is written: a tenant that is not served refuses the request here, before anything is committed or
+    // audited. Disabling an account without an identity ends no session and needs no context.
+    private async ValueTask<IResult> DisableAsync(
+        HttpContext httpContext,
+        AccountRoute route,
+        CancellationToken cancellationToken
+    )
+    {
+        var authorizationError = await LocalAccountValidator.AuthorizeUpdateAsync(
+            httpContext.User,
+            route.TenantId,
+            cancellationToken
+        );
+        if (authorizationError is not null)
+        {
+            return ToErrorResult(authorizationError);
+        }
+
+        await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
+
+        var located = await FindAccountAsync(
+            storeManager,
+            route.ConnectionId,
+            route.LocalAccountId,
+            cancellationToken
+        );
+        if (located is not { } found)
+        {
+            return ManagementProblems.ResourceNotFound();
+        }
+
+        var (connection, store, account) = found;
+        var principalId = await FindPrincipalIdAsync(
+            storeManager,
+            connection.ConnectionId,
+            route.LocalAccountId,
+            cancellationToken
+        );
+
+        await using var tenantContext = principalId is null
+            ? null
+            : await CreateTenantContextAsync(httpContext, route.TenantId, cancellationToken);
+
+        account.IsEnabled = false;
         await store.UpdateAsync(account, cancellationToken);
         await storeManager.SaveChangesAsync(cancellationToken);
 
@@ -851,12 +886,29 @@ internal class LocalAccountApiEndpointHandler(
             );
         }
 
+        return await RecordEnabledChangeAsync(
+            httpContext,
+            route,
+            account,
+            principalId,
+            cancellationToken
+        );
+    }
+
+    private async ValueTask<IResult> RecordEnabledChangeAsync(
+        HttpContext httpContext,
+        AccountRoute route,
+        PersistedLocalAccount account,
+        string? principalId,
+        CancellationToken cancellationToken
+    )
+    {
         var resource = ToLocalAccountResource(account, principalId);
         var resourceValues = ToResourceValues(resource);
         await ManagementAuditRecorder.RecordLocalAccountChangedAsync(
             httpContext,
-            tenantId,
-            localAccountId,
+            route.TenantId,
+            route.LocalAccountId,
             ResourceChangeTypes.Updated,
             resourceValues
         );

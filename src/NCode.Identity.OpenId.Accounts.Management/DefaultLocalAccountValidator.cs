@@ -34,19 +34,14 @@ internal class DefaultLocalAccountValidator(
     /// account carries and the request changes.
     /// </summary>
     /// <param name="mode">The connection's <c>local_account_identifier</c> value.</param>
-    /// <param name="proposal">The proposed identifiers.</param>
-    /// <param name="current">The account being updated, or <c>null</c> when an account is created.</param>
-    /// <param name="userNameChanged">Whether the request changes the username.</param>
-    /// <param name="emailChanged">Whether the request changes the email address.</param>
+    /// <param name="change">The proposed identifiers, the current account and which identifiers change.</param>
     /// <returns>A <see cref="ManagementError"/> describing the refusal, or <c>null</c> when valid.</returns>
     private static ManagementError? GetIdentifierErrorOrDefault(
         string mode,
-        LocalAccountIdentifierProposal proposal,
-        PersistedLocalAccount? current,
-        bool userNameChanged,
-        bool emailChanged
+        IdentifierChange change
     )
     {
+        var (proposal, current, userNameChanged, emailChanged) = change;
         // The mode is answered only when the request introduces the violation, so an account whose stored
         // identifiers already fail it can still be renamed.
         var detail = GetModeDetailOrDefault(mode, proposal.UserName, proposal.Email);
@@ -229,10 +224,7 @@ internal class DefaultLocalAccountValidator(
     /// </summary>
     private async ValueTask<ManagementError?> ValidateIdentifierRequirementsAsync(
         PersistedConnection connection,
-        LocalAccountIdentifierProposal proposal,
-        PersistedLocalAccount? current,
-        bool userNameChanged,
-        bool emailChanged,
+        IdentifierChange change,
         IStoreManager storeManager,
         CancellationToken cancellationToken
     )
@@ -249,7 +241,7 @@ internal class DefaultLocalAccountValidator(
         }
 
         var mode = settings.GetValue(OpenIdSettingKeys.LocalAccountIdentifier);
-        return GetIdentifierErrorOrDefault(mode, proposal, current, userNameChanged, emailChanged);
+        return GetIdentifierErrorOrDefault(mode, change);
     }
 
     /// <summary>
@@ -338,12 +330,10 @@ internal class DefaultLocalAccountValidator(
             UserName = account.UserName,
             Email = account.Email,
         };
+        var change = IdentifierChange.ForCreate(proposal);
         var requirementError = await ValidateIdentifierRequirementsAsync(
             connection,
-            proposal,
-            null,
-            true,
-            true,
+            change,
             storeManager,
             cancellationToken
         );
@@ -411,12 +401,10 @@ internal class DefaultLocalAccountValidator(
             Email = model.Email,
             LocalAccountId = account.LocalAccountId,
         };
+        var change = IdentifierChange.ForUpdate(proposal, account, userNameChanged, emailChanged);
         var requirementError = await ValidateIdentifierRequirementsAsync(
             connection,
-            proposal,
-            account,
-            userNameChanged,
-            emailChanged,
+            change,
             storeManager,
             cancellationToken
         );
