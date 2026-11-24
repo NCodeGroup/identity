@@ -13,7 +13,8 @@ namespace NCode.Identity.OpenId.GlobalDirectory.ControlPlane;
 /// <c>Cell:ControlPlane:Issuer</c>, with a client-credentials token for the audience
 /// <see cref="GlobalDirectoryProtocol.ControlPlaneAudience"/>, in queries of at most
 /// <see cref="ControlPlanePrincipalQuery.MaxNames"/> names each. It fails closed: a missing issuer, a failed call or an
-/// unreadable answer is a <see cref="DirectoryUnavailableException"/>. It keeps no cache.
+/// unreadable answer is a <see cref="DirectoryUnavailableException"/>. It answers each principal once, with the first
+/// summary of it, comparing principal identifiers ignoring case as the stores match them. It keeps no cache.
 /// </summary>
 // See ADR-1411.
 internal sealed class RemoteControlPlanePrincipalDirectory(
@@ -53,6 +54,7 @@ internal sealed class RemoteControlPlanePrincipalDirectory(
         }
 
         var results = new List<PrincipalSummaryResource>();
+        var seenPrincipalIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         for (var start = 0; start < names.Count; start += ControlPlanePrincipalQuery.MaxNames)
         {
             var count = Math.Min(ControlPlanePrincipalQuery.MaxNames, names.Count - start);
@@ -85,7 +87,13 @@ internal sealed class RemoteControlPlanePrincipalDirectory(
 
             response.EnsureSuccess("describe control-plane principals");
             var page = response.Read<CollectionResource<PrincipalSummaryResource>>();
-            results.AddRange(page.Items);
+            // A principal named by its identifier in one chunk and by its username in another is answered once,
+            // with its first summary.
+            foreach (var summary in page.Items)
+            {
+                if (seenPrincipalIds.Add(summary.PrincipalId))
+                    results.Add(summary);
+            }
         }
 
         return results;

@@ -21,6 +21,11 @@ public class RemoteControlPlanePrincipalDirectoryTests : BaseTests
     private const string Answer =
         """{"items":[{"principalId":"p1","principalType":"User","displayName":"Ada","userName":"ada"}]}""";
 
+    private const string OtherAnswer =
+        """{"items":[{"principalId":"p100","principalType":"User","displayName":"Bob","userName":"bob"}]}""";
+    private const string AgainAnswer =
+        """{"items":[{"principalId":"P1","principalType":"User","displayName":"Ada (again)","userName":"ada"}]}""";
+
     private static JsonSerializerOptions WireOptions { get; } = new(JsonSerializerDefaults.Web);
 
     private static ControlPlanePrincipalQuery DeserializeBody(string? body)
@@ -29,6 +34,20 @@ public class RemoteControlPlanePrincipalDirectoryTests : BaseTests
         var query = JsonSerializer.Deserialize<ControlPlanePrincipalQuery>(body, WireOptions);
         Assert.NotNull(query);
         return query;
+    }
+
+    private static StubHttpMessageHandler RespondInTurn(IReadOnlyList<string> answers)
+    {
+        var next = 0;
+        return new StubHttpMessageHandler(
+            (_, _) =>
+            {
+                var answer = answers[next];
+                next++;
+                var response = StubHttpMessageHandler.CreateResponse(HttpStatusCode.OK, answer);
+                return Task.FromResult(response);
+            }
+        );
     }
 
     private RemoteControlPlanePrincipalDirectory CreateDirectory(
@@ -112,9 +131,9 @@ public class RemoteControlPlanePrincipalDirectoryTests : BaseTests
     }
 
     [Fact]
-    public async Task FindAsync_WhenTheQueryNamesMoreThanTheMaximum_SplitsItAndConcatenatesTheAnswers()
+    public async Task FindAsync_WhenTheQueryNamesMoreThanTheMaximum_SplitsItAndJoinsTheAnswers()
     {
-        var handler = StubHttpMessageHandler.Respond(HttpStatusCode.OK, Answer);
+        var handler = RespondInTurn([Answer, OtherAnswer]);
         var directory = CreateDirectory(handler);
         var ids = Enumerable
             .Range(0, ControlPlanePrincipalQuery.MaxNames + 1)
@@ -125,13 +144,52 @@ public class RemoteControlPlanePrincipalDirectoryTests : BaseTests
         var result = await directory.FindAsync(query, CancellationToken.None);
 
         Assert.Equal(2, handler.Requests.Count);
-        Assert.Equal(2, result.Count);
+        var principalIds = result.Select(summary => summary.PrincipalId).ToList();
+        Assert.Equal(["p1", "p100"], principalIds);
         var first = DeserializeBody(handler.Requests[0].Body);
         var second = DeserializeBody(handler.Requests[1].Body);
         var firstIds = ids.GetRange(0, ControlPlanePrincipalQuery.MaxNames);
         Assert.Equal(firstIds, first.PrincipalIds);
         Assert.Empty(first.UserNames);
         Assert.Equal([ids[ControlPlanePrincipalQuery.MaxNames]], second.PrincipalIds);
+    }
+
+    [Fact]
+    public async Task FindAsync_WhenTwoChunksNameOnePrincipal_ReturnsItsFirstSummaryOnce()
+    {
+        var handler = RespondInTurn([Answer, AgainAnswer]);
+        var directory = CreateDirectory(handler);
+        var ids = Enumerable
+            .Range(0, ControlPlanePrincipalQuery.MaxNames)
+            .Select(index => $"p{index}")
+            .ToList();
+
+        var query = new ControlPlanePrincipalQuery { PrincipalIds = ids, UserNames = ["ada"] };
+        var result = await directory.FindAsync(query, CancellationToken.None);
+
+        Assert.Equal(2, handler.Requests.Count);
+        var summary = Assert.Single(result);
+        Assert.Equal("p1", summary.PrincipalId);
+        Assert.Equal("Ada", summary.DisplayName);
+    }
+
+    [Fact]
+    public async Task FindAsync_WhenTheQueryNamesExactlyTheMaximum_PostsOneRequest()
+    {
+        var handler = StubHttpMessageHandler.Respond(HttpStatusCode.OK, Answer);
+        var directory = CreateDirectory(handler);
+        var ids = Enumerable
+            .Range(0, ControlPlanePrincipalQuery.MaxNames)
+            .Select(index => $"p{index}")
+            .ToList();
+
+        var query = new ControlPlanePrincipalQuery { PrincipalIds = ids };
+        await directory.FindAsync(query, CancellationToken.None);
+
+        var recorded = Assert.Single(handler.Requests);
+        var body = DeserializeBody(recorded.Body);
+        Assert.Equal(ids, body.PrincipalIds);
+        Assert.Empty(body.UserNames);
     }
 
     [Fact]
