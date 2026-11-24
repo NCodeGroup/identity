@@ -191,3 +191,67 @@ NCode.Identity.OpenId.GlobalDirectory.IPlatformTopology
 NCode.Identity.OpenId.GlobalDirectory.IPlatformTopology.HasDirectory.get -> bool
 NCode.Identity.OpenId.GlobalDirectory.IPlatformTopology.HasManagementTenant.get -> bool
 NCode.Identity.OpenId.GlobalDirectory.IPlatformTopology.IsControlPlaneCell.get -> bool
+NCode.Identity.OpenId.GlobalDirectory.ReplicatedDocument
+NCode.Identity.OpenId.GlobalDirectory.ReplicatedDocument.Content.get -> System.Text.Json.JsonElement?
+NCode.Identity.OpenId.GlobalDirectory.ReplicatedDocument.Content.init -> void
+NCode.Identity.OpenId.GlobalDirectory.ReplicatedDocument.Key.get -> string!
+NCode.Identity.OpenId.GlobalDirectory.ReplicatedDocument.Key.init -> void
+NCode.Identity.OpenId.GlobalDirectory.ReplicatedDocument.Kind.get -> string!
+NCode.Identity.OpenId.GlobalDirectory.ReplicatedDocument.Kind.init -> void
+NCode.Identity.OpenId.GlobalDirectory.ReplicatedDocument.Revision.get -> long
+NCode.Identity.OpenId.GlobalDirectory.ReplicatedDocument.Revision.init -> void
+NCode.Identity.OpenId.GlobalDirectory.ReplicatedDocumentKinds
+const NCode.Identity.OpenId.GlobalDirectory.ReplicatedDocumentKinds.ManagementKeys = "management-keys" -> string!
+const NCode.Identity.OpenId.GlobalDirectory.ReplicatedDocumentKinds.PlatformAuthority = "platform-authority" -> string!
+const NCode.Identity.OpenId.GlobalDirectory.ReplicatedDocumentKinds.TeamAuthority = "team-authority" -> string!
+NCode.Identity.OpenId.GlobalDirectory.AuthorityDocumentContent
+NCode.Identity.OpenId.GlobalDirectory.AuthorityDocumentContent.Assignments.get -> System.Collections.Generic.IReadOnlyList<NCode.Identity.OpenId.GlobalDirectory.AuthorityAssignment!>!
+NCode.Identity.OpenId.GlobalDirectory.AuthorityDocumentContent.Assignments.init -> void
+NCode.Identity.OpenId.GlobalDirectory.AuthorityDocumentContent.Clients.get -> System.Collections.Generic.IReadOnlyList<NCode.Identity.OpenId.GlobalDirectory.AuthorityClient!>!
+NCode.Identity.OpenId.GlobalDirectory.AuthorityDocumentContent.Clients.init -> void
+NCode.Identity.OpenId.GlobalDirectory.AuthorityAssignment
+NCode.Identity.OpenId.GlobalDirectory.AuthorityAssignment.PrincipalId.get -> string!
+NCode.Identity.OpenId.GlobalDirectory.AuthorityAssignment.PrincipalId.init -> void
+NCode.Identity.OpenId.GlobalDirectory.AuthorityAssignment.RoleName.get -> string!
+NCode.Identity.OpenId.GlobalDirectory.AuthorityAssignment.RoleName.init -> void
+NCode.Identity.OpenId.GlobalDirectory.AuthorityClient
+NCode.Identity.OpenId.GlobalDirectory.AuthorityClient.ClientId.get -> string!
+NCode.Identity.OpenId.GlobalDirectory.AuthorityClient.ClientId.init -> void
+NCode.Identity.OpenId.GlobalDirectory.AuthorityClient.PrincipalId.get -> string!
+NCode.Identity.OpenId.GlobalDirectory.AuthorityClient.PrincipalId.init -> void
+NCode.Identity.OpenId.GlobalDirectory.ManagementKeysDocumentContent
+NCode.Identity.OpenId.GlobalDirectory.ManagementKeysDocumentContent.Keys.get -> System.Collections.Generic.IReadOnlyList<NCode.Identity.OpenId.GlobalDirectory.ManagementKeyEntry!>!
+NCode.Identity.OpenId.GlobalDirectory.ManagementKeysDocumentContent.Keys.init -> void
+NCode.Identity.OpenId.GlobalDirectory.ManagementKeysDocumentContent.RevokedKeyIds.get -> System.Collections.Generic.IReadOnlyList<string!>!
+NCode.Identity.OpenId.GlobalDirectory.ManagementKeysDocumentContent.RevokedKeyIds.init -> void
+NCode.Identity.OpenId.GlobalDirectory.ManagementKeyEntry
+NCode.Identity.OpenId.GlobalDirectory.ManagementKeyEntry.ActivatesWhen.get -> System.DateTimeOffset?
+NCode.Identity.OpenId.GlobalDirectory.ManagementKeyEntry.ActivatesWhen.init -> void
+NCode.Identity.OpenId.GlobalDirectory.ManagementKeyEntry.Algorithm.get -> string!
+NCode.Identity.OpenId.GlobalDirectory.ManagementKeyEntry.Algorithm.init -> void
+NCode.Identity.OpenId.GlobalDirectory.ManagementKeyEntry.ExpiresWhen.get -> System.DateTimeOffset?
+NCode.Identity.OpenId.GlobalDirectory.ManagementKeyEntry.ExpiresWhen.init -> void
+NCode.Identity.OpenId.GlobalDirectory.ManagementKeyEntry.KeyId.get -> string!
+NCode.Identity.OpenId.GlobalDirectory.ManagementKeyEntry.KeyId.init -> void
+NCode.Identity.OpenId.GlobalDirectory.ManagementKeyEntry.KeySizeBits.get -> int?
+NCode.Identity.OpenId.GlobalDirectory.ManagementKeyEntry.KeySizeBits.init -> void
+NCode.Identity.OpenId.GlobalDirectory.ManagementKeyEntry.PublicKey.get -> string!
+NCode.Identity.OpenId.GlobalDirectory.ManagementKeyEntry.PublicKey.init -> void
+NCode.Identity.OpenId.GlobalDirectory.ManagementKeyEntry.RetiresWhen.get -> System.DateTimeOffset?
+NCode.Identity.OpenId.GlobalDirectory.ManagementKeyEntry.RetiresWhen.init -> void
+NCode.Identity.OpenId.GlobalDirectory.ManagementKeyEntry.SecretType.get -> string!
+NCode.Identity.OpenId.GlobalDirectory.ManagementKeyEntry.SecretType.init -> void
+NCode.Identity.OpenId.GlobalDirectory.ManagementKeyEntry.Use.get -> string!
+NCode.Identity.OpenId.GlobalDirectory.ManagementKeyEntry.Use.init -> void
+NCode.Identity.OpenId.GlobalDirectory.IReplicatedDocumentDirectory
+NCode.Identity.OpenId.GlobalDirectory.IReplicatedDocumentDirectory.GetOrDefaultAsync(string! kind, string! key, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.GlobalDirectory.ReplicatedDocument?>
+NCode.Identity.OpenId.GlobalDirectory.IReplicatedDocumentDirectory.ListRevisionsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<NCode.Identity.OpenId.GlobalDirectory.ReplicatedDocument!>!>
+NCode.Identity.OpenId.GlobalDirectory.IReplicatedDocumentDirectory.PublishAsync(NCode.Identity.OpenId.GlobalDirectory.ReplicatedDocument! document, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<long>
+NCode.Identity.OpenId.GlobalDirectory.IReplicatedDocumentApplier
+NCode.Identity.OpenId.GlobalDirectory.IReplicatedDocumentApplier.ApplyAsync(NCode.Identity.OpenId.GlobalDirectory.ReplicatedDocument! document, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+NCode.Identity.OpenId.GlobalDirectory.DirectoryChange.Replicated.get -> NCode.Identity.OpenId.GlobalDirectory.ReplicatedDocument?
+NCode.Identity.OpenId.GlobalDirectory.DirectoryChange.Replicated.init -> void
+const NCode.Identity.OpenId.GlobalDirectory.GlobalDirectoryProtocol.ManagementKeysPath = "/directory/v1/platform/management-keys" -> string!
+const NCode.Identity.OpenId.GlobalDirectory.GlobalDirectoryProtocol.PlatformAuthorityPath = "/directory/v1/platform/authority" -> string!
+const NCode.Identity.OpenId.GlobalDirectory.GlobalDirectoryProtocol.ReplicatedRevisionsPath = "/directory/v1/replicated-revisions" -> string!
+const NCode.Identity.OpenId.GlobalDirectory.GlobalDirectoryProtocol.TeamAuthorityPathFormat = "/directory/v1/teams/{0}/authority" -> string!

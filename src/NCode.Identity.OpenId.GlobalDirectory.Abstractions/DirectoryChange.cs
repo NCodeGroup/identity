@@ -33,4 +33,9 @@ public sealed record DirectoryChange
     /// Gets the published platform document. It is set only for a platform change.
     /// </summary>
     public PlatformDocument? Platform { get; init; }
+
+    /// <summary>
+    /// Gets the replicated document. It is set only for a replicated document change.
+    /// </summary>
+    public ReplicatedDocument? Replicated { get; init; }
 }
