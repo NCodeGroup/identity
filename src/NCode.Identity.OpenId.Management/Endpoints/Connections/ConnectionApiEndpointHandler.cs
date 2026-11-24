@@ -1,6 +1,7 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using System.Collections.Immutable;
 using System.Text.Json.Nodes;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
@@ -61,9 +62,19 @@ internal class ConnectionApiEndpointHandler(
     ILogger<ConnectionApiEndpointHandler> logger
 ) : BaseApiEndpointHandler, IEndpointProvider
 {
+    /// <summary>
+    /// Gets the location of a connection, which the create route answers with.
+    /// </summary>
+    /// <param name="tenantId">The identifier of the OpenID Tenant.</param>
+    /// <param name="connectionId">The identifier of the connection.</param>
+    /// <returns>The location of the connection.</returns>
+    private static string GetConnectionLocation(string tenantId, string connectionId) =>
+        $"/tenants/{tenantId}/connections/{connectionId}";
+
     private IStoreManagerFactory StoreManagerFactory { get; } = storeManagerFactory;
     private IConnectionValidator ConnectionValidator { get; } = connectionValidator;
-    private IEnumerable<IConnectionDependentSource> DependentSources { get; } = dependentSources;
+    private ImmutableArray<IConnectionDependentSource> DependentSources { get; } =
+    [.. dependentSources];
     private ISettingSerializer SettingSerializer { get; } = settingSerializer;
 
     private ISettingScopeCollectionProvider SettingScopeCollectionProvider { get; } =
@@ -98,6 +109,7 @@ internal class ConnectionApiEndpointHandler(
             .ProducesValidationProblem()
             .ProducesProblem(StatusCodes.Status401Unauthorized)
             .ProducesProblem(StatusCodes.Status403Forbidden)
+            .ProducesProblem(StatusCodes.Status404NotFound)
             .ProducesProblem(StatusCodes.Status409Conflict)
             .ProducesProblem(StatusCodes.Status412PreconditionFailed)
             .ProducesProblem(StatusCodes.Status415UnsupportedMediaType);
@@ -153,15 +165,6 @@ internal class ConnectionApiEndpointHandler(
             .ProducesProblem(StatusCodes.Status403Forbidden)
             .ProducesProblem(StatusCodes.Status404NotFound);
     }
-
-    /// <summary>
-    /// Gets the location of a connection, which the create route answers with.
-    /// </summary>
-    /// <param name="tenantId">The identifier of the OpenID Tenant.</param>
-    /// <param name="connectionId">The identifier of the connection.</param>
-    /// <returns>The location of the connection.</returns>
-    private static string GetConnectionLocation(string tenantId, string connectionId) =>
-        $"/tenants/{tenantId}/connections/{connectionId}";
 
     /// <summary>
     /// Maps a <see cref="PersistedConnection"/> to its <see cref="ConnectionResource"/> representation.
@@ -231,6 +234,7 @@ internal class ConnectionApiEndpointHandler(
     /// <response code="201">The created connection.</response>
     /// <response code="400">The name, display name, strategy or options are not valid, or the settings are not valid
     /// for a connection.</response>
+    /// <response code="404">The tenant does not exist.</response>
     /// <response code="409">A connection with the same name already exists.</response>
     [EndpointName("api/connections/create")]
     internal virtual async ValueTask<IResult> CreateAsync(
@@ -256,6 +260,15 @@ internal class ConnectionApiEndpointHandler(
 
         await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
         var store = storeManager.GetStore<IConnectionStore>();
+
+        // The caller holds authority at the tenant's node, but the tenant may not exist: the store's insert would fail on
+        // it, so the absent tenant is answered 404 before anything is validated or stored.
+        var tenantStore = storeManager.GetStore<ITenantStore>();
+        var tenant = await tenantStore.GetOrDefaultAsync(tenantId, cancellationToken);
+        if (tenant is null)
+        {
+            return ManagementProblems.ResourceNotFound();
+        }
 
         var connectionId = CryptoService.GenerateResourceId();
         var requestedSettings = request.Settings ?? default;

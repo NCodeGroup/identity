@@ -125,6 +125,20 @@ public sealed class ConnectionApiEndpointHandlerTests : IDisposable
         MockStoreManager.Setup(x => x.DisposeAsync()).Returns(ValueTask.CompletedTask).Verifiable();
     }
 
+    private void SetupTenant(bool exists)
+    {
+        var mockTenantStore = MockRepository.Create<ITenantStore>();
+        MockStoreManager
+            .Setup(x => x.GetStore<ITenantStore>())
+            .Returns(mockTenantStore.Object)
+            .Verifiable();
+        var tenant = exists ? new PersistedTenantBuilder { TenantId = TenantId }.Build() : null;
+        mockTenantStore
+            .Setup(x => x.GetOrDefaultAsync(TenantId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(tenant)
+            .Verifiable();
+    }
+
     private void SetupSave()
     {
         MockStoreManager
@@ -314,10 +328,30 @@ public sealed class ConnectionApiEndpointHandlerTests : IDisposable
     }
 
     [Fact]
+    public async Task CreateAsync_WhenTheTenantDoesNotExist_ReturnsNotFoundWithoutStoring()
+    {
+        SetupAuthorization(AuthorizationResult.Success());
+        SetupStore();
+        SetupTenant(exists: false);
+
+        // Strict mocks: no validator or AddAsync setup, so validating or storing would fail the test.
+        var result = await Handler.CreateAsync(
+            CreateHttpContext(),
+            TenantId,
+            CreateRequest(),
+            CancellationToken.None
+        );
+
+        var problem = Assert.IsType<ProblemHttpResult>(result);
+        Assert.Equal(StatusCodes.Status404NotFound, problem.StatusCode);
+    }
+
+    [Fact]
     public async Task CreateAsync_WhenTheValidatorRefuses_ReturnsBadRequest()
     {
         SetupAuthorization(AuthorizationResult.Success());
         SetupStore();
+        SetupTenant(exists: true);
         SetupValidSettings();
         CryptoService.ResourceIds.Enqueue(NewConnectionId);
         MockValidator
@@ -347,6 +381,7 @@ public sealed class ConnectionApiEndpointHandlerTests : IDisposable
     {
         SetupAuthorization(AuthorizationResult.Success());
         SetupStore();
+        SetupTenant(exists: true);
         SetupValidSettings();
         CryptoService.ResourceIds.Enqueue(NewConnectionId);
         MockValidator
@@ -376,6 +411,7 @@ public sealed class ConnectionApiEndpointHandlerTests : IDisposable
     {
         SetupAuthorization(AuthorizationResult.Success());
         SetupStore();
+        SetupTenant(exists: true);
         CryptoService.ResourceIds.Enqueue(NewConnectionId);
         MockSettingSerializer
             .Setup(x =>
@@ -404,6 +440,7 @@ public sealed class ConnectionApiEndpointHandlerTests : IDisposable
     {
         SetupAuthorization(AuthorizationResult.Success());
         SetupStore();
+        SetupTenant(exists: true);
         CryptoService.ResourceIds.Enqueue(NewConnectionId);
         MockSettingSerializer
             .Setup(x =>
@@ -440,6 +477,7 @@ public sealed class ConnectionApiEndpointHandlerTests : IDisposable
     {
         SetupAuthorization(AuthorizationResult.Success());
         SetupStore();
+        SetupTenant(exists: true);
         SetupSave();
         SetupValidSettings();
         CryptoService.ResourceIds.Enqueue(NewConnectionId);
@@ -1190,7 +1228,7 @@ public sealed class ConnectionApiEndpointHandlerTests : IDisposable
 
     [Theory]
     [InlineData("GET", "/connections", new[] { 400, 401, 403 })]
-    [InlineData("POST", "/connections", new[] { 400, 401, 403, 409, 412, 415 })]
+    [InlineData("POST", "/connections", new[] { 400, 401, 403, 404, 409, 412, 415 })]
     [InlineData("GET", "/connections/{connectionId}", new[] { 401, 403, 404 })]
     [InlineData("PATCH", "/connections/{connectionId}", new[] { 400, 401, 403, 404, 412, 415 })]
     [InlineData("DELETE", "/connections/{connectionId}", new[] { 401, 403, 404, 409, 412 })]
