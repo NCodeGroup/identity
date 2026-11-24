@@ -5,6 +5,7 @@ using JetBrains.Annotations;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using NCode.Identity.OpenId.GlobalDirectory;
 using NCode.Identity.OpenId.Management.Auditing;
@@ -175,6 +176,13 @@ public static class DefaultRegistration
                 ControlPlaneResourceServerSeedHandler
             >();
             serviceCollection.TryAddEnumerable(controlPlaneSeedDescriptor);
+
+            // Refuses a management URL whose origin is not the root tenant's issuer origin on a platform with a directory.
+            var managementUrlCheckDescriptor = ServiceDescriptor.Singleton<
+                IHostedService,
+                ManagementUrlStartupCheck
+            >();
+            serviceCollection.TryAddEnumerable(managementUrlCheckDescriptor);
 
             // The root group declares its own endpoints and child groups (ADR-1086); registering it wires the whole
             // /api tree.

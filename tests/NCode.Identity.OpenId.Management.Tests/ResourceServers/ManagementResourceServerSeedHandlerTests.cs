@@ -4,6 +4,7 @@
 using System.Text.Json;
 using NCode.Identity.Cryptography;
 using NCode.Identity.Json;
+using NCode.Identity.OpenId.GlobalDirectory;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
 using NCode.Identity.OpenId.Tenants;
@@ -39,6 +40,7 @@ public sealed class ManagementResourceServerSeedHandlerTests : IDisposable
 
     private async ValueTask<PersistedResourceServer?> SeedAsync(
         TenantPlane plane,
+        bool hasDirectory,
         CancellationToken cancellationToken
     )
     {
@@ -67,7 +69,10 @@ public sealed class ManagementResourceServerSeedHandlerTests : IDisposable
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
 
-        var handler = new ManagementResourceServerSeedHandler(crypto.Object);
+        var handler = new ManagementResourceServerSeedHandler(
+            crypto.Object,
+            Mock.Of<IPlatformTopology>(topology => topology.HasDirectory == hasDirectory)
+        );
         await handler.HandleAsync(CreateCommand(manager.Object, plane), cancellationToken);
 
         return captured;
@@ -76,7 +81,7 @@ public sealed class ManagementResourceServerSeedHandlerTests : IDisposable
     [Fact]
     public async Task HandleAsync_WhenWorkloadPlane_SeedsTenantScopesOnly()
     {
-        var captured = await SeedAsync(TenantPlane.Workload, CancellationToken.None);
+        var captured = await SeedAsync(TenantPlane.Workload, false, CancellationToken.None);
 
         Assert.NotNull(captured);
         var values = captured.Scopes.Select(scope => scope.Value).ToList();
@@ -92,7 +97,7 @@ public sealed class ManagementResourceServerSeedHandlerTests : IDisposable
     [Fact]
     public async Task HandleAsync_WhenRootPlane_SeedsPlatformAndTeamFamilies()
     {
-        var captured = await SeedAsync(TenantPlane.Root, CancellationToken.None);
+        var captured = await SeedAsync(TenantPlane.Root, false, CancellationToken.None);
 
         Assert.NotNull(captured);
         var values = captured.Scopes.Select(scope => scope.Value).ToList();
@@ -111,10 +116,20 @@ public sealed class ManagementResourceServerSeedHandlerTests : IDisposable
     [Fact]
     public async Task HandleAsync_WhenAbsent_SeedsEmptyObjectSettings()
     {
-        var captured = await SeedAsync(TenantPlane.Workload, CancellationToken.None);
+        var captured = await SeedAsync(TenantPlane.Workload, false, CancellationToken.None);
 
         Assert.NotNull(captured);
         Assert.True(JsonElement.DeepEquals(JsonElements.EmptyObject, captured.Settings.Value));
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenThePlatformHasADirectory_RequiresDPoPBoundAccessTokens()
+    {
+        var captured = await SeedAsync(TenantPlane.Workload, true, CancellationToken.None);
+
+        Assert.NotNull(captured);
+        var expected = JsonElement.Parse("""{"require_dpop_bound_access_tokens":true}""");
+        Assert.True(JsonElement.DeepEquals(expected, captured.Settings.Value));
     }
 
     [Fact]
@@ -142,7 +157,10 @@ public sealed class ManagementResourceServerSeedHandlerTests : IDisposable
             .ReturnsAsync(resourceServer)
             .Verifiable();
 
-        var handler = new ManagementResourceServerSeedHandler(crypto.Object);
+        var handler = new ManagementResourceServerSeedHandler(
+            crypto.Object,
+            Mock.Of<IPlatformTopology>(topology => topology.HasDirectory == false)
+        );
 
         await handler.HandleAsync(
             CreateCommand(manager.Object, TenantPlane.Workload),
