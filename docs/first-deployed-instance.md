@@ -13,6 +13,27 @@ The `BootstrapAdmin` configuration is a development convenience, and a host with
 it
 ([ADR-1044](decisions/1044-the-management-api-authenticates-its-own-access-tokens-and-a-configured-client-bootstraps-the-first-globaladmin.md)).
 
+## The shape of a deployment
+
+A platform of one cell is one release of the host chart, which this guide walks through. A platform of more than one cell
+is three kinds of release
+([ADR-1536](decisions/1536-a-platforms-global-plane-is-a-standalone-directory-and-a-dedicated-control-plane-cell-and-every-other-cell-runs-and-is-managed-on-its-own.md)):
+
+- **The directory**, the chart `ncode-identity-directory`, a release of its own with its own database. It issues the
+  cells' tokens and carries the replicated authority and keys to every cell.
+- **The control-plane cell**, a host release with `cell.isControlPlane=true`, dedicated to the control-plane tenant. This
+  guide's setup, root administrator and management console run here.
+- **Workload cells**, each a host release with its own directory client. A workload cell with a dynamic
+  tenant-resolution strategy has a management tenant of its own: its setup Job creates the first `CellAdmin` and the cell
+  console's client, as [section 4](#4-create-the-root-administrator) describes for the root administrator.
+
+The bootstrap order is the one of
+[section 9 of the platform bootstrap runbook](platform-bootstrap.md#9-run-the-cells-of-a-platform): provision the keys,
+print the control-plane cell's directory-client JWKS with `directory-client-jwks`, install the directory, install the
+control-plane cell and run its setup, register each workload cell with `PUT /api/cells/{name}`, then install each
+workload cell. The break-glass commands `recover-admin`, `recover-sign-in` and `revoke-management-key` are in the same
+section.
+
 ## 1. Prerequisites
 
 - **A Postgres database and two roles.** One database holds the host's schema and its Data Protection key ring. The
