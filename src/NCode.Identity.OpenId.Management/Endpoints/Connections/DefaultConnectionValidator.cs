@@ -1,6 +1,7 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 using Microsoft.AspNetCore.Http;
 using NCode.Identity.OpenId.Connections;
@@ -16,6 +17,8 @@ namespace NCode.Identity.OpenId.Management.Endpoints.Connections;
 internal sealed class DefaultConnectionValidator(IConnectionStrategyCatalog strategyCatalog)
     : IConnectionValidator
 {
+    private const string StrategyNotRegisteredDetail = "The connection strategy is not registered.";
+
     /// <summary>
     /// Creates the <c>400 Bad Request</c> error with the specified detail.
     /// </summary>
@@ -37,8 +40,7 @@ internal sealed class DefaultConnectionValidator(IConnectionStrategyCatalog stra
             return BadRequest(nameError);
         }
 
-        var contentError = ValidateContent(connection);
-        if (contentError is not null)
+        if (!TryValidateContent(connection, out _, out var contentError))
         {
             return contentError;
         }
@@ -80,15 +82,9 @@ internal sealed class DefaultConnectionValidator(IConnectionStrategyCatalog stra
         JsonElement previousOptions
     )
     {
-        var error = ValidateContent(connection);
-        if (error is not null)
+        if (!TryValidateContent(connection, out var strategy, out var error))
         {
             return error;
-        }
-
-        if (!strategyCatalog.TryGetStrategy(connection.Strategy, out var strategy))
-        {
-            return BadRequest("The connection strategy is not registered.");
         }
 
         var changeError = strategy.ValidateOptionsChange(previousOptions, connection.Options);
@@ -99,23 +95,38 @@ internal sealed class DefaultConnectionValidator(IConnectionStrategyCatalog stra
     /// Validates the strategy, options and display name of a connection.
     /// </summary>
     /// <param name="connection">The connection to validate.</param>
-    /// <returns>The first error found, or <see langword="null"/> when the content is valid.</returns>
-    private ManagementError? ValidateContent(PersistedConnection connection)
+    /// <param name="strategy">The connection's strategy when the content is valid.</param>
+    /// <param name="error">The first error found when the content is not valid.</param>
+    /// <returns><see langword="true"/> when the content is valid; otherwise, <see langword="false"/>.</returns>
+    private bool TryValidateContent(
+        PersistedConnection connection,
+        [NotNullWhen(true)] out IConnectionStrategy? strategy,
+        [NotNullWhen(false)] out ManagementError? error
+    )
     {
-        if (!strategyCatalog.TryGetStrategy(connection.Strategy, out var strategy))
+        if (!strategyCatalog.TryGetStrategy(connection.Strategy, out strategy))
         {
-            return BadRequest("The connection strategy is not registered.");
+            error = BadRequest(StrategyNotRegisteredDetail);
+            return false;
         }
 
         var optionsError = strategy.ValidateOptions(connection.Options);
         if (optionsError is not null)
         {
-            return BadRequest(optionsError);
+            error = BadRequest(optionsError);
+            return false;
         }
 
         var displayNameError = ConnectionContentRules.GetDisplayNameErrorOrDefault(
             connection.DisplayName
         );
-        return displayNameError is null ? null : BadRequest(displayNameError);
+        if (displayNameError is not null)
+        {
+            error = BadRequest(displayNameError);
+            return false;
+        }
+
+        error = null;
+        return true;
     }
 }
