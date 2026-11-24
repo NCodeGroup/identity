@@ -114,9 +114,8 @@ internal sealed class DefaultConnectionResolver(
             )
                 continue;
 
-            var resolved = Resolve(openIdContext, connection);
-            if (resolved is not null)
-                allowed.Add(resolved);
+            var resolved = Resolve(openIdContext, connection, strategy);
+            allowed.Add(resolved);
         }
 
         return allowed;
@@ -202,9 +201,24 @@ internal sealed class DefaultConnectionResolver(
     /// registered.</returns>
     private ResolvedConnection? Resolve(OpenIdContext openIdContext, PersistedConnection connection)
     {
-        if (!StrategyCatalog.TryGetStrategy(connection.Strategy, out var strategy))
-            return null;
+        return StrategyCatalog.TryGetStrategy(connection.Strategy, out var strategy)
+            ? Resolve(openIdContext, connection, strategy)
+            : null;
+    }
 
+    /// <summary>
+    /// Resolves a stored connection through a strategy already found and its effective settings.
+    /// </summary>
+    /// <param name="openIdContext">The context of the request.</param>
+    /// <param name="connection">The stored connection.</param>
+    /// <param name="strategy">The registered strategy of the connection.</param>
+    /// <returns>The resolved connection.</returns>
+    private ResolvedConnection Resolve(
+        OpenIdContext openIdContext,
+        PersistedConnection connection,
+        IConnectionStrategy strategy
+    )
+    {
         var settings = EffectiveSettingsResolver.ResolveStored(
             openIdContext.Tenant.SettingsProvider.Collection,
             OpenIdSettingScopes.Connection,
