@@ -31,8 +31,10 @@ questions decide how a call is handled, and the answers must not depend on the h
 - **Which cell issues and validates the token?** A platform runs as more than one cell, and the platform and team
   authority lives in the control-plane cell
   ([ADR-1411](1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md)).
-  A management API that every cell serves needs one issuer for its tokens and a way for a cell that does not hold the
-  control plane's keys to trust them, and that way must fail closed.
+  A management API that every cell serves needs one issuer for the control plane's tokens and a way for a cell that does
+  not hold the control plane's private keys to trust them, a way that works while the control-plane cell is down and
+  fails closed, and a token must be of no use at any cell but the one it is presented to
+  ([ADR-1536](1536-a-platforms-global-plane-is-a-standalone-directory-and-a-dedicated-control-plane-cell-and-every-other-cell-runs-and-is-managed-on-its-own.md)).
 
 ## Decision
 
@@ -46,14 +48,25 @@ are independent: the first is the security domain that issued the caller's token
    tenant that issued its token. A workload tenant's token never authenticates the API; control-plane principals
    administer a workload tenant through role assignments at that tenant's node
    ([ADR-1417](1417-management-authority-is-a-role-assignment-at-a-node-of-the-platform-team-and-tenant-hierarchy.md)).
-2. **The control-plane cell issues management tokens, and every cell validates them through
+2. **The control-plane cell issues control-plane management tokens, and every cell validates them through
    `IManagementTokenValidator`.** The control-plane tenant of the control-plane cell (`Cell:IsControlPlane`) is the one
-   issuer of management tokens, audience `urn:ncode:management`. The control-plane cell's adapter is the local one: it
-   wraps the validation of item 1 through `IIssuedTokenValidator`. Every other cell uses the remote adapter, which
-   validates the token against `Cell:ControlPlane:Issuer` through discovery and the key set of
-   `NCode.Identity.OpenId.Client`. A token bound by `cnf.jkt` needs a `DPoP` proof for the request made with that key.
-   The remote adapter builds the principal from the token's claims (`sub`, `client_id`, `scope`), and a token it cannot
-   validate fails the request; it never falls back to a local decision.
+   issuer of control-plane management tokens, audience `urn:ncode:management`. The control-plane cell's adapter is the
+   local one: it wraps the validation of item 1 through `IIssuedTokenValidator`. Every other cell uses the replicated
+   adapter, `ReplicatedManagementTokenValidator`, which validates the token against the management keys document that
+   the cell applied into its own database: issuer `Cell:ControlPlane:Issuer`, audience `urn:ncode:management`, a key the
+   replica holds and no key the replica lists as revoked. It never fetches a discovery document or a key set, answers
+   `503` while the replica holds no key, and keeps validating whatever the state of the control-plane cell or the
+   directory. It builds the principal from the token's claims (`sub`, `client_id`, `scope`), and a token it cannot
+   validate fails the request; it never falls back to a local decision. A cell with a management tenant also validates
+   that tenant's own tokens locally, and a principal of that tenant is authorized only by the assignments the cell
+   stores, so a cell's issuer signs only for authority the cell owns.
+   **A management token is DPoP-bound on a platform with a directory.** On such a platform the control-plane tenant
+   issues a token for the audience `urn:ncode:management` only to a token request that carries a `DPoP` proof
+   ([RFC 9449](https://datatracker.ietf.org/doc/html/rfc9449)), because the setting `require_dpop_bound_access_tokens`
+   also applies to a resource server and the management resource server is seeded with it `true`. Every validator on
+   such a platform, the local one included, refuses a management token sent under `Bearer` or without `cnf.jkt` with
+   `401`, checks the proof's `htu` against the cell's configured `Cell:ManagementUrl` and accepts each `jti` once, so a
+   token that reaches another cell is of no use there. A platform of one cell accepts `Bearer` and `DPoP` both.
 3. **The strategy names the control-plane tenant.** `ITenantStrategy.GetControlPlaneTenantId` and
    `GetControlPlaneTenantDisplayName` name it from configuration alone, without reading the store, and
    `ITenantStrategy.ResolveControlPlaneTenantAsync` resolves it. `ITenantResolver` delegates all three to the selected
@@ -102,12 +115,16 @@ are independent: the first is the security domain that issued the caller's token
   on, so the address would encode the tenant twice, and a collection route has no tenant to address.
 - **Authenticate by the control-plane tenant and scope by the route (chosen).** Deterministic across every strategy,
   fail-closed through the query filter, and consistent with the ownership hierarchy.
-- **Issue management tokens in every cell.** Rejected: platform and team authority lives in the control-plane cell, so
-  a second issuer would hold keys for authority it does not own.
-- **Share the control plane's signing keys with every cell.** Rejected: it spreads one cell's key material across
-  regions, where discovery and the key set already give a cell what it needs to validate.
-- **Validate a management token through the control-plane issuer, behind a port (chosen).** The control-plane cell
-  validates locally, every other cell validates remotely, and a token that cannot be validated is refused.
+- **Issue management tokens in every cell for any authority.** Rejected: platform and team authority lives in the
+  control-plane cell, so a cell's issuer that signed for it would hold keys for authority it does not own. A cell's
+  management tenant signs only for the cell's own authority, `CellAdmin` and the tenants of that cell.
+- **Share the control plane's signing keys with every cell.** Rejected: it spreads one cell's private key material
+  across regions, where the replicated public keys already give a cell what it needs to validate.
+- **Fetch the control plane's discovery document and key set at validation.** Rejected: a cell would refuse management
+  whenever the control-plane cell is down.
+- **Validate a management token against replicated public keys, behind a port (chosen).** The control-plane cell
+  validates locally, every other cell validates against the keys it applied, and a token that cannot be validated is
+  refused.
 
 ## Consequences
 
@@ -115,10 +132,12 @@ are independent: the first is the security domain that issued the caller's token
   `auth.<apex>`, and at `/api` under `DynamicByPath`, with tokens the root tenant issues. Integration tests drive both
   dynamic strategies.
 - A token a workload tenant issues does not authenticate the management API. Administration of a workload tenant is
-  delegated to control-plane principals through role assignments.
-- One token, issued by the control-plane cell, authenticates a caller at every cell, and a cell never holds the
-  control plane's keys. A cell that cannot reach the control plane's discovery or key set refuses management requests
-  instead of guessing.
+  delegated to control-plane principals through role assignments, or to the `CellAdmin`s of its cell, whose tokens its
+  cell's management tenant issues.
+- One control-plane token, issued by the control-plane cell and bound by DPoP, authenticates a caller at every cell
+  that receives a proof naming its own management URL, and a cell never holds the control plane's private keys. A cell
+  keeps validating from the keys it last applied while the control-plane cell or the directory is down, and refuses
+  management requests with `503` only while it holds no key.
 - An administrator can act on any tenant's clients by route, while the persistence query filter guarantees that no
   cross-tenant row is materialized.
 - A control-plane route that reads across tenants states so with an unscoped scope, and a route that forgets one
