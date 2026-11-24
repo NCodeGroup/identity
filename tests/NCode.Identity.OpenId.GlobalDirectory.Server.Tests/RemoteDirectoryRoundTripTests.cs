@@ -12,7 +12,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Moq;
 using NCode.Identity.OpenId.Client;
 using NCode.Identity.OpenId.GlobalDirectory.Server.Entities;
-using NCode.Identity.Registration;
 using NCode.Identity.Secrets.Persistence;
 using Xunit;
 
@@ -26,7 +25,6 @@ public class RemoteDirectoryRoundTripTests : IAsyncLifetime
 {
     private const string ServerIssuer = "https://control-plane.example";
     private const string Audience = GlobalDirectoryProtocol.DirectoryAudience;
-    private const string AccessToken = "directory-access-token";
     private const string CellName = "a";
     private const string OtherCellName = "b";
     private const string ControlPlaneTenantId = "root";
@@ -38,7 +36,7 @@ public class RemoteDirectoryRoundTripTests : IAsyncLifetime
 
     private MockRepository Mocks { get; } = new(MockBehavior.Strict);
 
-    private Mock<IIssuerAccessTokenValidator> ValidatorMock { get; }
+    private string AccessToken { get; set; } = string.Empty;
 
     private SqliteConnection Connection { get; } = new("DataSource=:memory:");
 
@@ -62,16 +60,9 @@ public class RemoteDirectoryRoundTripTests : IAsyncLifetime
 
     private ICellDirectory Cells => CellsOrNull ?? throw new InvalidOperationException();
 
-    public RemoteDirectoryRoundTripTests()
-    {
-        ValidatorMock = Mocks.Create<IIssuerAccessTokenValidator>();
-    }
-
     public async Task InitializeAsync()
     {
         Connection.Open();
-
-        ActAs(CellName);
 
         var builder = WebApplication.CreateBuilder();
         builder.WebHost.UseTestServer();
@@ -81,14 +72,12 @@ public class RemoteDirectoryRoundTripTests : IAsyncLifetime
         builder.Services.AddDbContextFactory<DirectoryDbContext>(options =>
             options.UseSqlite(Connection)
         );
-        builder.Services.AddSingleton(ValidatorMock.Object);
+        var libraries = DirectoryServerTestOptions.AddDirectoryTokenServices(builder.Services);
         builder.Services.AddSingleton<
             IPublicJwksReader,
             DirectoryServerTestOptions.AcceptingPublicJwksReader
         >();
-        new ServiceBuilder<OpenIdClientLibrary>(builder.Services).AddOpenIdDirectoryServer(
-            builder.Configuration
-        );
+        libraries.AddOpenIdDirectoryServer(builder.Configuration);
 
         var app = builder.Build();
         app.MapDirectory();
@@ -103,6 +92,7 @@ public class RemoteDirectoryRoundTripTests : IAsyncLifetime
 
         await app.StartAsync();
         App = app;
+        await ActAsAsync(CellName);
 
         var httpClient = new HttpClient(app.GetTestServer().CreateHandler());
         HttpClientOrNull = httpClient;
@@ -122,7 +112,7 @@ public class RemoteDirectoryRoundTripTests : IAsyncLifetime
                     It.IsAny<CancellationToken>()
                 )
             )
-            .Returns(new ValueTask<string>(AccessToken))
+            .Returns(() => new ValueTask<string>(AccessToken))
             .Verifiable(Times.AtLeastOnce);
 
         var client = new DirectoryHttpClient(
@@ -152,25 +142,17 @@ public class RemoteDirectoryRoundTripTests : IAsyncLifetime
     /// <summary>
     /// Makes the access token that the remote adapters send authenticate as the machine client of a cell.
     /// </summary>
-    private void ActAs(string cellName) =>
-        ValidatorMock
-            .Setup(x =>
-                x.ValidateAsync(ServerIssuer, Audience, AccessToken, It.IsAny<CancellationToken>())
-            )
-            .ReturnsAsync(
-                CreateValidResult(
-                    GlobalDirectoryProtocol.CellClientIdPrefix + cellName,
-                    GlobalDirectoryProtocol.DirectoryScope
-                )
-            )
-            .Verifiable(Times.AtLeastOnce);
-
-    private static IssuerAccessTokenResult CreateValidResult(string clientId, string scope)
+    private async ValueTask ActAsAsync(
+        string cellName,
+        CancellationToken cancellationToken = default
+    )
     {
-        var payload = JsonElement.Parse(
-            JsonSerializer.Serialize(new { client_id = clientId, scope })
+        var services = (App ?? throw new InvalidOperationException()).Services;
+        AccessToken = await DirectoryServerTestOptions.CreateTokenAsync(
+            services,
+            GlobalDirectoryProtocol.CellClientIdPrefix + cellName,
+            cancellationToken: cancellationToken
         );
-        return new IssuerAccessTokenResult(payload, ServerIssuer);
     }
 
     /// <summary>
@@ -275,7 +257,7 @@ public class RemoteDirectoryRoundTripTests : IAsyncLifetime
             ).IsReserved
         );
 
-        ActAs(OtherCellName);
+        await ActAsAsync(OtherCellName);
         var result = await Tenants.ReserveAsync(
             CreateReservation(TenantId, OtherTenantIssuer, OtherCellName),
             CancellationToken.None
@@ -300,7 +282,7 @@ public class RemoteDirectoryRoundTripTests : IAsyncLifetime
             ).IsReserved
         );
 
-        ActAs(OtherCellName);
+        await ActAsAsync(OtherCellName);
         var result = await Tenants.ReserveAsync(
             CreateReservation(OtherTenantId, TenantIssuer, OtherCellName),
             CancellationToken.None
@@ -405,7 +387,7 @@ public class RemoteDirectoryRoundTripTests : IAsyncLifetime
 
         await Tenants.ReleaseAsync(TenantId, CancellationToken.None);
 
-        ActAs(OtherCellName);
+        await ActAsAsync(OtherCellName);
         var result = await Tenants.ReserveAsync(
             CreateReservation(TenantId, TenantIssuer, OtherCellName),
             CancellationToken.None

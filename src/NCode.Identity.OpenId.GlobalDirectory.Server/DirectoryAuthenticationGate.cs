@@ -5,33 +5,24 @@ using System.Security.Claims;
 using System.Text.Json;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Options;
 using NCode.Identity.AspNetCore;
 using NCode.Identity.Jose;
-using NCode.Identity.OpenId.Client;
+using NCode.Identity.OpenId.GlobalDirectory.Server.Tokens;
 
 namespace NCode.Identity.OpenId.GlobalDirectory.Server;
 
 /// <summary>
 /// The authentication gate of the directory API. It runs before the route binds its body, validates the bearer access
-/// token of a request with <see cref="IIssuerAccessTokenValidator"/> against
-/// <see cref="DirectoryControlPlaneOptions.Issuer"/> and the audience
-/// <see cref="GlobalDirectoryProtocol.DirectoryAudience"/>, and requires the scope
+/// token of a request with <see cref="DirectoryTokenIssuer"/>, which trusts only the tokens that the directory issued
+/// itself, for the audience <see cref="GlobalDirectoryProtocol.DirectoryAudience"/>, and requires the scope
 /// <see cref="GlobalDirectoryProtocol.DirectoryScope"/>. A request that lacks a valid token with the scope is answered
-/// <c>401 Unauthorized</c>, and a request whose issuer cannot be reached is answered <c>503 Service Unavailable</c>
-/// through <see cref="RetryAfterProblem"/>, with the wait of
-/// <see cref="GlobalDirectoryProtocol.UnavailableRetryAfterSeconds"/> in <c>Retry-After</c> and in the problem's
-/// <c>retryAfterSeconds</c>, never allowed. A token bound to a key (one that carries a <c>cnf</c> claim) is answered
+/// <c>401 Unauthorized</c>, never allowed. A token bound to a key (one that carries a <c>cnf</c> claim) is answered
 /// <c>401 Unauthorized</c>, because the directory checks no proof of possession. A request that passes carries a
 /// principal whose <c>client_id</c> claim names the calling machine client. A request refused here costs no more than
 /// its headers.
 /// </summary>
-// See ADR-1520 and ADR-1411.
-internal sealed class DirectoryAuthenticationGate(
-    IIssuerAccessTokenValidator validator,
-    IOptions<DirectoryServerOptions> options
-) : IEndpointGate
+// See ADR-1536.
+internal sealed class DirectoryAuthenticationGate(DirectoryTokenIssuer tokenIssuer) : IEndpointGate
 {
     /// <summary>
     /// The claim type of the machine client that the request authenticates as.
@@ -164,9 +155,7 @@ internal sealed class DirectoryAuthenticationGate(
         return false;
     }
 
-    private IIssuerAccessTokenValidator Validator { get; } = validator;
-
-    private IOptions<DirectoryServerOptions> Options { get; } = options;
+    private DirectoryTokenIssuer TokenIssuer { get; } = tokenIssuer;
 
     /// <inheritdoc />
     public async ValueTask<IResult?> InvokeAsync(
@@ -177,27 +166,7 @@ internal sealed class DirectoryAuthenticationGate(
         if (!TryGetBearerToken(httpContext, out var token))
             return Unauthorized(httpContext);
 
-        var result = await Validator.ValidateAsync(
-            Options.Value.ControlPlane.Issuer,
-            GlobalDirectoryProtocol.DirectoryAudience,
-            token,
-            cancellationToken
-        );
-
-        if (result.IsUnavailable)
-        {
-            var retryAfter = TimeSpan.FromSeconds(
-                GlobalDirectoryProtocol.UnavailableRetryAfterSeconds
-            );
-            var problem = new ProblemDetails
-            {
-                Title = "Service Unavailable",
-                Detail =
-                    "The issuer of the directory's access tokens is unavailable. Retry the request.",
-                Status = StatusCodes.Status503ServiceUnavailable,
-            };
-            return RetryAfterProblem.Create(httpContext, retryAfter, problem);
-        }
+        var result = await TokenIssuer.ValidateAsync(token, cancellationToken);
 
         if (!result.IsValid)
             return Unauthorized(httpContext);

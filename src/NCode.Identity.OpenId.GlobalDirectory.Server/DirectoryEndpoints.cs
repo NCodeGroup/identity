@@ -13,25 +13,29 @@ using Microsoft.Extensions.Options;
 using NCode.Buffers;
 using NCode.Identity.AspNetCore;
 using NCode.Identity.OpenId.GlobalDirectory.Server.Stores;
+using NCode.Identity.OpenId.GlobalDirectory.Server.Tokens;
 using NCode.Identity.OpenId.Tenants;
 
 namespace NCode.Identity.OpenId.GlobalDirectory.Server;
 
 /// <summary>
-/// Maps the global directory API under <c>/directory/v1/</c>: the tenant, retired-issuer, team, platform and cell
-/// routes that the remote adapters of <c>NCode.Identity.OpenId.GlobalDirectory</c> call. Every route requires a bearer
-/// access token for the audience <see cref="GlobalDirectoryProtocol.DirectoryAudience"/> with the scope
-/// <see cref="GlobalDirectoryProtocol.DirectoryScope"/>, checked before the route runs, its bodies are confidential so
-/// HTTP logging never writes them, and every failure, a lookup that finds nothing included, is an RFC 9457 problem
-/// document: a missing resource is a <c>404 Not Found</c> problem, never an empty body. Every write is bound to the
-/// calling cell: the platform and team writes need the control-plane cell
-/// (<see cref="DirectoryControlPlaneOptions.Cell"/>), and a tenant write needs the cell that holds the tenant.
+/// Maps the global directory API under <c>/directory/v1/</c>: the token endpoint and the tenant, retired-issuer, team,
+/// platform and cell routes that the remote adapters of <c>NCode.Identity.OpenId.GlobalDirectory</c> call. The token
+/// endpoint authenticates a cell with its <c>private_key_jwt</c> client assertion and issues the directory's own access
+/// token. Every other route requires a bearer access token that the directory issued, for the audience
+/// <see cref="GlobalDirectoryProtocol.DirectoryAudience"/> with the scope
+/// <see cref="GlobalDirectoryProtocol.DirectoryScope"/>, checked before the route runs. Every route waits for the
+/// platform's trust anchor, its bodies are confidential so HTTP logging never writes them, and every failure, a lookup
+/// that finds nothing included, is an RFC 9457 problem document: a missing resource is a <c>404 Not Found</c> problem,
+/// never an empty body. Every write is bound to the calling cell: the platform and team writes need the control-plane
+/// cell (<see cref="DirectoryControlPlaneOptions.Cell"/>), and a tenant write needs the cell that holds the tenant.
 /// </summary>
 // See ADR-1411. DirectoryAuthenticationGate checks the token before the route binds its body.
 [PublicAPI]
 public static class DirectoryEndpoints
 {
     private const string RoutePrefix = "directory/v1";
+    private const string TokenRoute = "token";
 
     private const int DefaultChangesLimit = 100;
     private const int MaxChangesLimit = 1000;
@@ -274,6 +278,129 @@ public static class DirectoryEndpoints
         group.MapGet("", ListCellsAsync);
         group.MapGet("{name}", GetCellAsync).ProducesProblem(StatusCodes.Status404NotFound);
     }
+
+    #region Token
+
+    /// <summary>
+    /// Authenticates a cell by its <c>private_key_jwt</c> client assertion (RFC 7523) and issues the directory's access
+    /// token for it. The route is outside the authentication gate, because the token is what it issues.
+    /// </summary>
+    /// <param name="httpContext">The <see cref="HttpContext"/> that carries the form request.</param>
+    /// <param name="assertionValidator">The <see cref="DirectoryClientAssertionValidator"/> that checks the
+    /// assertion.</param>
+    /// <param name="tokenIssuer">The <see cref="DirectoryTokenIssuer"/> that issues the access token.</param>
+    /// <param name="options">The <see cref="DirectoryServerOptions"/> that name the directory's issuer and token
+    /// lifetime.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    /// <returns>
+    /// <c>200 OK</c> with the access token, its type and its lifetime in seconds; <c>400 Bad Request</c> with the RFC
+    /// 6749 error <c>invalid_request</c> when the request is not a form or lacks or repeats a parameter, or
+    /// <c>unsupported_grant_type</c> when the grant type is not <c>client_credentials</c>; or <c>401 Unauthorized</c>
+    /// with the error <c>invalid_client</c> when the assertion is refused. Every answer carries
+    /// <c>Cache-Control: no-store</c>.
+    /// </returns>
+    private static async ValueTask<IResult> TokenAsync(
+        HttpContext httpContext,
+        DirectoryClientAssertionValidator assertionValidator,
+        DirectoryTokenIssuer tokenIssuer,
+        IOptions<DirectoryServerOptions> options,
+        CancellationToken cancellationToken
+    )
+    {
+        var headers = httpContext.Response.Headers;
+        headers.CacheControl = "no-store";
+        headers.Pragma = "no-cache";
+
+        if (!httpContext.Request.HasFormContentType)
+            return TokenError(
+                StatusCodes.Status400BadRequest,
+                OpenIdProtocol.ErrorCodes.InvalidRequest,
+                "The request is a form."
+            );
+
+        var form = await httpContext.Request.ReadFormAsync(cancellationToken);
+        var grantType = form[OpenIdProtocol.Parameters.GrantType];
+        if (grantType.Count != 1 || string.IsNullOrEmpty(grantType[0]))
+            return TokenError(
+                StatusCodes.Status400BadRequest,
+                OpenIdProtocol.ErrorCodes.InvalidRequest,
+                "The request has one grant_type."
+            );
+
+        if (
+            !string.Equals(
+                grantType[0],
+                OpenIdProtocol.GrantTypes.ClientCredentials,
+                StringComparison.Ordinal
+            )
+        )
+            return TokenError(
+                StatusCodes.Status400BadRequest,
+                OpenIdProtocol.ErrorCodes.UnsupportedGrantType,
+                "The grant type is client_credentials."
+            );
+
+        var assertionType = form[OpenIdProtocol.Parameters.ClientAssertionType];
+        var assertion = form[OpenIdProtocol.Parameters.ClientAssertion];
+        var isAssertion =
+            assertionType.Count == 1
+            && string.Equals(
+                assertionType[0],
+                OpenIdProtocol.ClientAssertionTypes.JwtBearer,
+                StringComparison.Ordinal
+            )
+            && assertion.Count == 1
+            && !string.IsNullOrEmpty(assertion[0]);
+        if (!isAssertion)
+            return TokenError(
+                StatusCodes.Status400BadRequest,
+                OpenIdProtocol.ErrorCodes.InvalidRequest,
+                "The request has one JWT bearer client_assertion."
+            );
+
+        var issuer = options.Value.Issuer.TrimEnd('/');
+        var tokenEndpointUrl = $"{issuer}/{RoutePrefix}/{TokenRoute}";
+        var assertionValue = assertion[0] ?? string.Empty;
+        var result = await assertionValidator.ValidateAsync(
+            assertionValue,
+            tokenEndpointUrl,
+            cancellationToken
+        );
+        if (!result.IsValid)
+            return TokenError(
+                StatusCodes.Status401Unauthorized,
+                OpenIdProtocol.ErrorCodes.InvalidClient,
+                result.FailureReason
+            );
+
+        var accessToken = await tokenIssuer.IssueAsync(result.CellName, cancellationToken);
+        var response = new Dictionary<string, object>
+        {
+            [OpenIdProtocol.Parameters.AccessToken] = accessToken,
+            [OpenIdProtocol.Parameters.TokenType] = OpenIdProtocol.TokenTypes.Bearer,
+            [OpenIdProtocol.Parameters.ExpiresIn] = (long)options.Value.TokenLifetime.TotalSeconds,
+        };
+        return TypedResults.Json(response);
+    }
+
+    /// <summary>
+    /// Builds the RFC 6749 section 5.2 error document of the token endpoint.
+    /// </summary>
+    /// <param name="statusCode">The HTTP status code.</param>
+    /// <param name="error">The error code.</param>
+    /// <param name="description">The explanation for the caller.</param>
+    /// <returns>The <see cref="IResult"/> that writes the error document.</returns>
+    private static IResult TokenError(int statusCode, string error, string description)
+    {
+        var body = new Dictionary<string, string>
+        {
+            [OpenIdProtocol.Parameters.ErrorCode] = error,
+            [OpenIdProtocol.Parameters.ErrorDescription] = description,
+        };
+        return TypedResults.Json(body, statusCode: statusCode);
+    }
+
+    #endregion
 
     #region Tenants
 
@@ -1542,11 +1669,20 @@ public static class DirectoryEndpoints
         {
             ArgumentNullException.ThrowIfNull(endpoints);
 
-            var group = endpoints
+            var root = endpoints
                 .MapGroup(RoutePrefix)
                 .AddEndpointGate<RouteGroupBuilder, DirectoryAnchorGate>()
+                .WithConfidentialBodies();
+
+            // The token endpoint is outside the authentication gate: its client assertion is its authentication.
+            root.MapPost(TokenRoute, TokenAsync)
+                .Produces(StatusCodes.Status200OK)
+                .Produces(StatusCodes.Status400BadRequest)
+                .Produces(StatusCodes.Status401Unauthorized)
+                .Produces(StatusCodes.Status503ServiceUnavailable);
+
+            var group = root.MapGroup(string.Empty)
                 .AddEndpointGate<RouteGroupBuilder, DirectoryAuthenticationGate>()
-                .WithConfidentialBodies()
                 .ProducesProblem(StatusCodes.Status401Unauthorized)
                 .ProducesProblem(StatusCodes.Status503ServiceUnavailable);
 

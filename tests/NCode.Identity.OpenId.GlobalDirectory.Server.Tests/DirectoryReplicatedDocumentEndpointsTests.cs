@@ -12,8 +12,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Moq;
-using NCode.Identity.OpenId.Client;
-using NCode.Identity.Registration;
 using NCode.Identity.Secrets.Persistence;
 using Xunit;
 
@@ -33,8 +31,6 @@ public class DirectoryReplicatedDocumentEndpointsTests : IAsyncLifetime
 
     private MockRepository Mocks { get; } = new(MockBehavior.Strict);
 
-    private Mock<IIssuerAccessTokenValidator> ValidatorMock { get; }
-
     private SqliteConnection Connection { get; } = new("DataSource=:memory:");
 
     private WebApplication? App { get; set; }
@@ -42,11 +38,6 @@ public class DirectoryReplicatedDocumentEndpointsTests : IAsyncLifetime
     private HttpClient? ClientOrNull { get; set; }
 
     private HttpClient Client => ClientOrNull ?? throw new InvalidOperationException();
-
-    public DirectoryReplicatedDocumentEndpointsTests()
-    {
-        ValidatorMock = Mocks.Create<IIssuerAccessTokenValidator>();
-    }
 
     public async Task InitializeAsync()
     {
@@ -60,14 +51,12 @@ public class DirectoryReplicatedDocumentEndpointsTests : IAsyncLifetime
         builder.Services.AddDbContextFactory<DirectoryDbContext>(options =>
             options.UseSqlite(Connection)
         );
-        builder.Services.AddSingleton(ValidatorMock.Object);
+        var libraries = DirectoryServerTestOptions.AddDirectoryTokenServices(builder.Services);
         builder.Services.AddSingleton<
             IPublicJwksReader,
             DirectoryServerTestOptions.AcceptingPublicJwksReader
         >();
-        new ServiceBuilder<OpenIdClientLibrary>(builder.Services).AddOpenIdDirectoryServer(
-            builder.Configuration
-        );
+        libraries.AddOpenIdDirectoryServer(builder.Configuration);
 
         var app = builder.Build();
         app.MapDirectory();
@@ -96,31 +85,18 @@ public class DirectoryReplicatedDocumentEndpointsTests : IAsyncLifetime
         Mocks.Verify();
     }
 
-    private void Authenticate(string cell)
+    private async ValueTask AuthenticateAsync(
+        string cell,
+        CancellationToken cancellationToken = default
+    )
     {
-        var payload = JsonElement.Parse(
-            JsonSerializer.Serialize(
-                new
-                {
-                    client_id = GlobalDirectoryProtocol.CellClientIdPrefix + cell,
-                    scope = GlobalDirectoryProtocol.DirectoryScope,
-                }
-            )
+        var services = (App ?? throw new InvalidOperationException()).Services;
+        var token = await DirectoryServerTestOptions.CreateTokenAsync(
+            services,
+            GlobalDirectoryProtocol.CellClientIdPrefix + cell,
+            cancellationToken: cancellationToken
         );
-        var result = new IssuerAccessTokenResult(payload, ServerIssuer);
-        ValidatorMock
-            .Setup(x =>
-                x.ValidateAsync(
-                    ServerIssuer,
-                    GlobalDirectoryProtocol.DirectoryAudience,
-                    Token,
-                    It.IsAny<CancellationToken>()
-                )
-            )
-            .ReturnsAsync(result)
-            .Verifiable();
-
-        Client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", Token);
+        Client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
     }
 
     private static ReplicatedDocument CreateDocument(
@@ -152,7 +128,7 @@ public class DirectoryReplicatedDocumentEndpointsTests : IAsyncLifetime
     [Fact]
     public async Task PutPlatformAuthority_FromTheControlPlane_StoresAndAnswersTheRevision()
     {
-        Authenticate(ControlPlaneCell);
+        await AuthenticateAsync(ControlPlaneCell);
         var document = CreateDocument(ReplicatedDocumentKinds.PlatformAuthority, "", 3);
 
         var response = await Client.PutAsJsonAsync(
@@ -168,7 +144,7 @@ public class DirectoryReplicatedDocumentEndpointsTests : IAsyncLifetime
     [Fact]
     public async Task PutPlatformAuthority_WithALowerRevision_AnswersTheStoredRevision()
     {
-        Authenticate(ControlPlaneCell);
+        await AuthenticateAsync(ControlPlaneCell);
         var first = CreateDocument(ReplicatedDocumentKinds.PlatformAuthority, "", 5);
         var second = CreateDocument(ReplicatedDocumentKinds.PlatformAuthority, "", 2);
         await Client.PutAsJsonAsync(
@@ -190,7 +166,7 @@ public class DirectoryReplicatedDocumentEndpointsTests : IAsyncLifetime
     [Fact]
     public async Task PutPlatformAuthority_FromAnotherCell_AnswersForbidden()
     {
-        Authenticate(CellName);
+        await AuthenticateAsync(CellName);
         var document = CreateDocument(ReplicatedDocumentKinds.PlatformAuthority, "", 1);
 
         var response = await Client.PutAsJsonAsync(
@@ -205,7 +181,7 @@ public class DirectoryReplicatedDocumentEndpointsTests : IAsyncLifetime
     [Fact]
     public async Task PutPlatformAuthority_WithAnotherKind_AnswersBadRequest()
     {
-        Authenticate(ControlPlaneCell);
+        await AuthenticateAsync(ControlPlaneCell);
         var document = CreateDocument(ReplicatedDocumentKinds.ManagementKeys, "", 1);
 
         var response = await Client.PutAsJsonAsync(
@@ -220,7 +196,7 @@ public class DirectoryReplicatedDocumentEndpointsTests : IAsyncLifetime
     [Fact]
     public async Task PutPlatformAuthority_WithOversizedContent_AnswersPayloadTooLarge()
     {
-        Authenticate(ControlPlaneCell);
+        await AuthenticateAsync(ControlPlaneCell);
         var big = JsonSerializer.Serialize(new string('x', DirectoryLimits.MaxDocumentBytes + 1));
         var document = CreateDocument(ReplicatedDocumentKinds.PlatformAuthority, "", 1, big);
 
@@ -236,7 +212,7 @@ public class DirectoryReplicatedDocumentEndpointsTests : IAsyncLifetime
     [Fact]
     public async Task PutManagementKeys_ThenGet_ReturnsTheDocument()
     {
-        Authenticate(ControlPlaneCell);
+        await AuthenticateAsync(ControlPlaneCell);
         var document = CreateDocument(
             ReplicatedDocumentKinds.ManagementKeys,
             "",
@@ -262,7 +238,7 @@ public class DirectoryReplicatedDocumentEndpointsTests : IAsyncLifetime
     [Fact]
     public async Task GetManagementKeys_WhenNonePublished_AnswersNotFound()
     {
-        Authenticate(ControlPlaneCell);
+        await AuthenticateAsync(ControlPlaneCell);
 
         var response = await Client.GetAsync(GlobalDirectoryProtocol.ManagementKeysPath);
 
@@ -272,7 +248,7 @@ public class DirectoryReplicatedDocumentEndpointsTests : IAsyncLifetime
     [Fact]
     public async Task GetPlatformAuthority_FromAnyCell_AnswersTheDocument()
     {
-        Authenticate(CellName);
+        await AuthenticateAsync(CellName);
         await StoreDirectlyAsync(CreateDocument(ReplicatedDocumentKinds.PlatformAuthority, "", 2));
 
         var response = await Client.GetAsync(GlobalDirectoryProtocol.PlatformAuthorityPath);
@@ -283,7 +259,7 @@ public class DirectoryReplicatedDocumentEndpointsTests : IAsyncLifetime
     [Fact]
     public async Task PutTeamAuthority_WithTheRoutesKey_StoresIt()
     {
-        Authenticate(ControlPlaneCell);
+        await AuthenticateAsync(ControlPlaneCell);
         var document = CreateDocument(ReplicatedDocumentKinds.TeamAuthority, TeamId, 1);
 
         var response = await Client.PutAsJsonAsync(TeamPath, document, WebOptions);
@@ -295,7 +271,7 @@ public class DirectoryReplicatedDocumentEndpointsTests : IAsyncLifetime
     [Fact]
     public async Task PutTeamAuthority_WithAnotherTeamsKey_AnswersBadRequest()
     {
-        Authenticate(ControlPlaneCell);
+        await AuthenticateAsync(ControlPlaneCell);
         var document = CreateDocument(ReplicatedDocumentKinds.TeamAuthority, "team-2", 1);
 
         var response = await Client.PutAsJsonAsync(TeamPath, document, WebOptions);
@@ -306,7 +282,7 @@ public class DirectoryReplicatedDocumentEndpointsTests : IAsyncLifetime
     [Fact]
     public async Task PutTeamAuthority_FromAnotherCell_AnswersForbidden()
     {
-        Authenticate(CellName);
+        await AuthenticateAsync(CellName);
         var document = CreateDocument(ReplicatedDocumentKinds.TeamAuthority, TeamId, 1);
 
         var response = await Client.PutAsJsonAsync(TeamPath, document, WebOptions);
@@ -317,7 +293,7 @@ public class DirectoryReplicatedDocumentEndpointsTests : IAsyncLifetime
     [Fact]
     public async Task GetTeamAuthority_WhenNonePublished_AnswersNotFound()
     {
-        Authenticate(CellName);
+        await AuthenticateAsync(CellName);
 
         var response = await Client.GetAsync(TeamPath);
 
@@ -327,7 +303,7 @@ public class DirectoryReplicatedDocumentEndpointsTests : IAsyncLifetime
     [Fact]
     public async Task ListRevisions_FromTheControlPlane_ListsRevisionsWithoutContent()
     {
-        Authenticate(ControlPlaneCell);
+        await AuthenticateAsync(ControlPlaneCell);
         await StoreDirectlyAsync(CreateDocument(ReplicatedDocumentKinds.PlatformAuthority, "", 7));
 
         var response = await Client.GetAsync(GlobalDirectoryProtocol.ReplicatedRevisionsPath);
@@ -343,7 +319,7 @@ public class DirectoryReplicatedDocumentEndpointsTests : IAsyncLifetime
     [Fact]
     public async Task ListRevisions_FromAnotherCell_AnswersForbidden()
     {
-        Authenticate(CellName);
+        await AuthenticateAsync(CellName);
 
         var response = await Client.GetAsync(GlobalDirectoryProtocol.ReplicatedRevisionsPath);
 

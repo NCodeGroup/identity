@@ -12,6 +12,7 @@ using NCode.Identity.Json;
 using NCode.Identity.OpenId.Client;
 using NCode.Identity.OpenId.GlobalDirectory.Server.Options;
 using NCode.Identity.OpenId.GlobalDirectory.Server.Stores;
+using NCode.Identity.OpenId.GlobalDirectory.Server.Tokens;
 using NCode.Identity.Persistence;
 using NCode.Identity.Registration;
 
@@ -33,10 +34,11 @@ public static class DefaultRegistration
         /// <see cref="DirectoryServerOptions"/> strictly from the <c>DirectoryServer</c> section, which must name the
         /// issuer, the control-plane cell and that cell's root tenant and is validated when the host starts. The host
         /// registers the <see cref="Microsoft.EntityFrameworkCore.IDbContextFactory{TContext}"/> of
-        /// <see cref="DirectoryDbContext"/> and the OpenID client library, whose <c>IIssuerAccessTokenValidator</c>
-        /// validates the bearer tokens. The host's <c>AllowedHosts</c> is validated when the host starts: it must list
-        /// the deployment's host names and not be empty or contain <c>*</c>, unless <c>LocalDevelopment:Enabled</c> is
-        /// true.
+        /// <see cref="DirectoryDbContext"/>, the OpenID client library, whose <c>IIssuerAccessTokenValidator</c> and
+        /// key rings the directory's own tokens use, the JWT library, an <c>IExpiringKeySet</c> and an
+        /// <c>IPublicJwksReader</c>. The directory issues and validates the bearer tokens itself. The host's
+        /// <c>AllowedHosts</c> is validated when the host starts: it must list the deployment's host names and not be
+        /// empty or contain <c>*</c>, unless <c>LocalDevelopment:Enabled</c> is true.
         /// </summary>
         /// <param name="configuration">
         /// The <see cref="IConfiguration"/> holding the <c>DirectoryServer</c> section.
@@ -80,6 +82,8 @@ public static class DefaultRegistration
             serviceCollection.AddPersistedPayloadSerializer();
             serviceCollection.AddSurrogateKeyGenerator();
             serviceCollection.TryAddSingleton<DefaultDirectoryStore>();
+            serviceCollection.TryAddSingleton<DirectoryTokenIssuer>();
+            serviceCollection.TryAddSingleton<DirectoryClientAssertionValidator>();
             serviceCollection.TryAddSingleton<ITenantDirectory>(serviceProvider =>
                 serviceProvider.GetRequiredService<DefaultDirectoryStore>()
             );
