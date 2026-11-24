@@ -2796,6 +2796,8 @@ public class DirectoryEndpointsTests : IAsyncLifetime
             $"/directory/v1/cells/{ControlPlaneCell}",
             CreateCell(ControlPlaneCell) with
             {
+                // The initializer registered the control-plane cell under the configured region.
+                Region = "region-1",
                 IsControlPlane = true,
             },
             WebOptions

@@ -98,6 +98,14 @@ public sealed class DirectoryServerRegistrationTests
             DirectoryServerTestOptions.Create(ControlPlaneCell, ControlPlaneTenantId, ServerIssuer)
         );
 
+        var dbContextFactory = app.Services.GetRequiredService<
+            IDbContextFactory<DirectoryDbContext>
+        >();
+        await using (var dbContext = await dbContextFactory.CreateDbContextAsync())
+        {
+            await dbContext.Database.EnsureCreatedAsync();
+        }
+
         await app.StartAsync();
         await app.StopAsync();
     }

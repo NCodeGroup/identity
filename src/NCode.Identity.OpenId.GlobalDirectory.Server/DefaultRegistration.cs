@@ -5,6 +5,7 @@ using JetBrains.Annotations;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using NCode.Identity.AspNetCore;
 using NCode.Identity.Json;
@@ -64,6 +65,18 @@ public static class DefaultRegistration
             serviceCollection.TryAddEnumerable(optionsValidator);
 
             serviceCollection.TryAddSingleton(TimeProvider.System);
+            serviceCollection.TryAddSingleton<DirectoryAnchorState>();
+            var anchorInitializer = ServiceDescriptor.Singleton<
+                IHostedService,
+                DirectoryAnchorInitializer
+            >();
+            serviceCollection.TryAddEnumerable(anchorInitializer);
+            serviceCollection
+                .AddHealthChecks()
+                .AddCheck<DirectoryAnchorHealthCheck>(
+                    DirectoryAnchorHealthCheck.Name,
+                    tags: [HealthCheckTags.Readiness]
+                );
             serviceCollection.AddPersistedPayloadSerializer();
             serviceCollection.AddSurrogateKeyGenerator();
             serviceCollection.TryAddSingleton<DefaultDirectoryStore>();

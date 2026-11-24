@@ -1544,6 +1544,7 @@ public static class DirectoryEndpoints
 
             var group = endpoints
                 .MapGroup(RoutePrefix)
+                .AddEndpointGate<RouteGroupBuilder, DirectoryAnchorGate>()
                 .AddEndpointGate<RouteGroupBuilder, DirectoryAuthenticationGate>()
                 .WithConfidentialBodies()
                 .ProducesProblem(StatusCodes.Status401Unauthorized)

@@ -186,15 +186,25 @@ public class RemoteDirectoryRoundTripTests : IAsyncLifetime
         var dbContextFactory = services.GetRequiredService<IDbContextFactory<DirectoryDbContext>>();
         await using (var dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken))
         {
-            dbContext.Cells.Add(
-                new CellRecord
+            // The initializer already wrote the control-plane cell's record; its region and kind are the descriptor's.
+            var record = await dbContext.Cells.SingleOrDefaultAsync(
+                entity => entity.Name == descriptor.Name,
+                cancellationToken
+            );
+            if (record is null)
+            {
+                record = new CellRecord
                 {
                     Name = descriptor.Name,
                     Region = descriptor.Region,
                     Kind = descriptor.Kind,
                     ClientJwksJson = """{"keys":[]}""",
-                }
-            );
+                };
+                dbContext.Cells.Add(record);
+            }
+
+            record.Region = descriptor.Region;
+            record.Kind = descriptor.Kind;
             await dbContext.SaveChangesAsync(cancellationToken);
         }
 
