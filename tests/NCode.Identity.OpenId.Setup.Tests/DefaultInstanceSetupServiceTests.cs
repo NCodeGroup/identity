@@ -382,7 +382,6 @@ public sealed class DefaultInstanceSetupServiceTests : IDisposable
             .Setup(x =>
                 x.StageAsync(
                     MockStoreManager.Object,
-                    TenantId,
                     connection,
                     It.Is<CreateLocalAccountRequest>(request =>
                         request.UserName == UserName
@@ -396,12 +395,11 @@ public sealed class DefaultInstanceSetupServiceTests : IDisposable
             )
             .Callback<
                 IStoreManager,
-                string,
                 PersistedConnection,
                 CreateLocalAccountRequest,
                 CancellationToken
             >(
-                (_, _, _, request, _) =>
+                (_, _, request, _) =>
                 {
                     CallLog.Add("account");
                     onStaged?.Invoke(request);

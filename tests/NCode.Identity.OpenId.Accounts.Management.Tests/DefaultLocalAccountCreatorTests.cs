@@ -247,7 +247,6 @@ public sealed class DefaultLocalAccountCreatorTests : IDisposable
 
         var creation = await Creator.StageAsync(
             MockStoreManager.Object,
-            TenantId,
             Connection,
             CreateRequest(),
             CancellationToken.None
@@ -282,7 +281,6 @@ public sealed class DefaultLocalAccountCreatorTests : IDisposable
 
         var creation = await Creator.StageAsync(
             MockStoreManager.Object,
-            TenantId,
             Connection,
             new CreateLocalAccountRequest
             {
@@ -309,7 +307,6 @@ public sealed class DefaultLocalAccountCreatorTests : IDisposable
 
         var creation = await Creator.StageAsync(
             MockStoreManager.Object,
-            TenantId,
             Connection,
             new CreateLocalAccountRequest
             {
@@ -328,7 +325,6 @@ public sealed class DefaultLocalAccountCreatorTests : IDisposable
     {
         var creation = await Creator.StageAsync(
             MockStoreManager.Object,
-            TenantId,
             Connection,
             new CreateLocalAccountRequest
             {
@@ -358,7 +354,6 @@ public sealed class DefaultLocalAccountCreatorTests : IDisposable
 
         var creation = await Creator.StageAsync(
             MockStoreManager.Object,
-            TenantId,
             Connection,
             CreateRequest(),
             CancellationToken.None
@@ -384,7 +379,6 @@ public sealed class DefaultLocalAccountCreatorTests : IDisposable
 
         var creation = await Creator.StageAsync(
             MockStoreManager.Object,
-            TenantId,
             Connection,
             CreateRequest(),
             CancellationToken.None

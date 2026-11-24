@@ -280,7 +280,6 @@ internal class LocalAccountApiEndpointHandler(
 
         var creation = await LocalAccountCreator.StageAsync(
             storeManager,
-            tenantId,
             connection,
             request,
             cancellationToken

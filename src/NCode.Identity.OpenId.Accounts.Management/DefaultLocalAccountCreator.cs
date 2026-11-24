@@ -29,7 +29,6 @@ internal sealed class DefaultLocalAccountCreator(
     /// <inheritdoc />
     public async ValueTask<LocalAccountCreation> StageAsync(
         IStoreManager storeManager,
-        string tenantId,
         PersistedConnection connection,
         CreateLocalAccountRequest request,
         CancellationToken cancellationToken
@@ -53,7 +52,7 @@ internal sealed class DefaultLocalAccountCreator(
 
         var account = new PersistedLocalAccount
         {
-            TenantId = tenantId,
+            TenantId = connection.TenantId,
             LocalAccountId = localAccountId,
             ConnectionId = connection.ConnectionId,
             DisplayName = displayName,
@@ -100,7 +99,7 @@ internal sealed class DefaultLocalAccountCreator(
         // principal uniformly with any federated identity (ADR-1051/ADR-1057).
         var principal = new PersistedFederatedPrincipal
         {
-            TenantId = tenantId,
+            TenantId = connection.TenantId,
             PrincipalId = principalId,
             ConcurrencyToken = string.Empty,
         };
@@ -122,7 +121,7 @@ internal sealed class DefaultLocalAccountCreator(
 
         var identity = new PersistedFederatedIdentity
         {
-            TenantId = tenantId,
+            TenantId = connection.TenantId,
             FederatedIdentityId = CryptoService.GenerateResourceId(),
             PrincipalId = principalId,
             ConnectionId = connection.ConnectionId,

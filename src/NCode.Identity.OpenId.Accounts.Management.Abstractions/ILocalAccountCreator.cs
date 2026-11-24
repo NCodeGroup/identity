@@ -27,7 +27,6 @@ public interface ILocalAccountCreator
     /// same unit of work. Nothing is staged when <see cref="LocalAccountCreation.Error"/> is set.
     /// </summary>
     /// <param name="storeManager">The <see cref="IStoreManager"/> that reads the existing accounts and the tenant and receives the staged rows.</param>
-    /// <param name="tenantId">The identifier of the tenant the account is created in.</param>
     /// <param name="connection">The local <see cref="PersistedConnection"/> that holds the account.</param>
     /// <param name="request">The <see cref="CreateLocalAccountRequest"/> describing the account.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
@@ -40,7 +39,6 @@ public interface ILocalAccountCreator
     /// </returns>
     ValueTask<LocalAccountCreation> StageAsync(
         IStoreManager storeManager,
-        string tenantId,
         PersistedConnection connection,
         CreateLocalAccountRequest request,
         CancellationToken cancellationToken

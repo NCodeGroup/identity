@@ -401,7 +401,6 @@ internal sealed class DefaultInstanceSetupService(
 
             var creation = await LocalAccountCreator.StageAsync(
                 storeManager,
-                tenantId,
                 connection,
                 createRequest,
                 cancellationToken
