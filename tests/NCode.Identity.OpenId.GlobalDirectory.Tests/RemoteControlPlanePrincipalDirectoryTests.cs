@@ -54,19 +54,19 @@ public class RemoteControlPlanePrincipalDirectoryTests : BaseTests
                     It.IsAny<CancellationToken>()
                 )
             )
-            .Returns(new ValueTask<string>(AccessToken))
+            .ReturnsAsync(AccessToken)
             .Verifiable(anyTimes);
 
-        var clientOptions = Options.Create(new DirectoryClientOptions { Url = DirectoryUrl });
+        var directoryClientOptions = new DirectoryClientOptions { Url = DirectoryUrl };
+        var clientOptions = Options.Create(directoryClientOptions);
         var client = new DirectoryHttpClient(
             factoryMock.Object,
             tokenSourceMock.Object,
             clientOptions
         );
 
-        var cellOptions = Options.Create(
-            new CellOptions { ControlPlane = new ControlPlaneOptions { Issuer = issuer } }
-        );
+        var cell = new CellOptions { ControlPlane = new ControlPlaneOptions { Issuer = issuer } };
+        var cellOptions = Options.Create(cell);
         return new RemoteControlPlanePrincipalDirectory(client, cellOptions);
     }
 
@@ -78,10 +78,8 @@ public class RemoteControlPlanePrincipalDirectoryTests : BaseTests
         var handler = StubHttpMessageHandler.Respond(HttpStatusCode.OK, Answer);
         var directory = CreateDirectory(handler);
 
-        var result = await directory.FindAsync(
-            new ControlPlanePrincipalQuery(),
-            CancellationToken.None
-        );
+        var query = new ControlPlanePrincipalQuery();
+        var result = await directory.FindAsync(query, CancellationToken.None);
 
         Assert.Empty(result);
         Assert.Empty(handler.Requests);
@@ -93,10 +91,8 @@ public class RemoteControlPlanePrincipalDirectoryTests : BaseTests
         var handler = StubHttpMessageHandler.Respond(HttpStatusCode.OK, Answer);
         var directory = CreateDirectory(handler);
 
-        var result = await directory.FindAsync(
-            new ControlPlanePrincipalQuery { PrincipalIds = ["p1"], UserNames = ["ada"] },
-            CancellationToken.None
-        );
+        var query = new ControlPlanePrincipalQuery { PrincipalIds = ["p1"], UserNames = ["ada"] };
+        var result = await directory.FindAsync(query, CancellationToken.None);
 
         var summary = Assert.Single(result);
         Assert.Equal("p1", summary.PrincipalId);
@@ -125,10 +121,8 @@ public class RemoteControlPlanePrincipalDirectoryTests : BaseTests
             .Select(index => $"p{index}")
             .ToList();
 
-        var result = await directory.FindAsync(
-            new ControlPlanePrincipalQuery { PrincipalIds = ids },
-            CancellationToken.None
-        );
+        var query = new ControlPlanePrincipalQuery { PrincipalIds = ids };
+        var result = await directory.FindAsync(query, CancellationToken.None);
 
         Assert.Equal(2, handler.Requests.Count);
         Assert.Equal(2, result.Count);
@@ -150,10 +144,12 @@ public class RemoteControlPlanePrincipalDirectoryTests : BaseTests
             .Select(index => $"p{index}")
             .ToList();
 
-        await directory.FindAsync(
-            new ControlPlanePrincipalQuery { PrincipalIds = ids, UserNames = ["ada", "bob"] },
-            CancellationToken.None
-        );
+        var query = new ControlPlanePrincipalQuery
+        {
+            PrincipalIds = ids,
+            UserNames = ["ada", "bob"],
+        };
+        await directory.FindAsync(query, CancellationToken.None);
 
         Assert.Equal(2, handler.Requests.Count);
         var first = DeserializeBody(handler.Requests[0].Body);
@@ -170,11 +166,9 @@ public class RemoteControlPlanePrincipalDirectoryTests : BaseTests
         var handler = StubHttpMessageHandler.Respond(HttpStatusCode.ServiceUnavailable);
         var directory = CreateDirectory(handler);
 
+        var query = new ControlPlanePrincipalQuery { PrincipalIds = ["p1"] };
         var exception = await Assert.ThrowsAsync<DirectoryUnavailableException>(async () =>
-            await directory.FindAsync(
-                new ControlPlanePrincipalQuery { PrincipalIds = ["p1"] },
-                CancellationToken.None
-            )
+            await directory.FindAsync(query, CancellationToken.None)
         );
 
         Assert.Equal($"{PrincipalsUrl} answered 503 to POST.", exception.Message);
@@ -186,11 +180,9 @@ public class RemoteControlPlanePrincipalDirectoryTests : BaseTests
         var handler = StubHttpMessageHandler.Respond(HttpStatusCode.NotFound);
         var directory = CreateDirectory(handler);
 
+        var query = new ControlPlanePrincipalQuery { PrincipalIds = ["p1"] };
         var exception = await Assert.ThrowsAsync<DirectoryUnavailableException>(async () =>
-            await directory.FindAsync(
-                new ControlPlanePrincipalQuery { PrincipalIds = ["p1"] },
-                CancellationToken.None
-            )
+            await directory.FindAsync(query, CancellationToken.None)
         );
 
         Assert.Equal(
@@ -210,11 +202,9 @@ public class RemoteControlPlanePrincipalDirectoryTests : BaseTests
         var handler = StubHttpMessageHandler.Respond(HttpStatusCode.OK, Answer);
         var directory = CreateDirectory(handler, issuer);
 
+        var query = new ControlPlanePrincipalQuery { PrincipalIds = ["p1"] };
         var exception = await Assert.ThrowsAsync<DirectoryUnavailableException>(async () =>
-            await directory.FindAsync(
-                new ControlPlanePrincipalQuery { PrincipalIds = ["p1"] },
-                CancellationToken.None
-            )
+            await directory.FindAsync(query, CancellationToken.None)
         );
 
         Assert.Equal("The cell does not know the issuer of the control plane.", exception.Message);

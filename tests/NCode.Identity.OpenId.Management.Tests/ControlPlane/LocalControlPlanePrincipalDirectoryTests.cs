@@ -169,10 +169,9 @@ public sealed class LocalControlPlanePrincipalDirectoryTests : IDisposable
         var describer = MockRepository.Create<IPrincipalDescriber>();
         var directory = CreateDirectory(describer.Object);
 
-        var result = await directory.FindAsync(
-            new ControlPlanePrincipalQuery(),
-            CancellationToken.None
-        );
+        var query = new ControlPlanePrincipalQuery();
+
+        var result = await directory.FindAsync(query, CancellationToken.None);
 
         Assert.Empty(result);
     }
@@ -364,10 +363,9 @@ public sealed class LocalControlPlanePrincipalDirectoryTests : IDisposable
         SetupScope();
         var directory = CreateDirectory();
 
-        var result = await directory.FindAsync(
-            new ControlPlanePrincipalQuery { UserNames = ["alice"] },
-            CancellationToken.None
-        );
+        var query = new ControlPlanePrincipalQuery { UserNames = ["alice"] };
+
+        var result = await directory.FindAsync(query, CancellationToken.None);
 
         Assert.Empty(result);
     }

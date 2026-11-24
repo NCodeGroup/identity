@@ -867,11 +867,13 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
 
         // No ReplaceClaimsAsync/SaveChangesAsync or audit scaffold: a strict-mock failure would mean the claims were
         // written.
+        var request = new SetLocalAccountClaimsRequest { Claims = [] };
+
         var result = await Handler.SetClaimsAsync(
             httpContext,
             TenantId,
             LocalAccountId,
-            new SetLocalAccountClaimsRequest { Claims = [] },
+            request,
             CancellationToken.None
         );
 
@@ -903,11 +905,13 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
         var httpContext = CreateHttpContext();
         httpContext.Request.Headers.IfMatch = "account-ct";
 
+        var request = new SetLocalAccountClaimsRequest { Claims = [] };
+
         var result = await Handler.SetClaimsAsync(
             httpContext,
             TenantId,
             LocalAccountId,
-            new SetLocalAccountClaimsRequest { Claims = [] },
+            request,
             CancellationToken.None
         );
 
@@ -946,11 +950,13 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
 
         // No UpdateAsync/SaveChangesAsync or audit scaffold: a strict-mock failure would mean the metadata was
         // written.
+        var request = new SetLocalAccountMetadataRequest();
+
         var result = await Handler.SetMetadataAsync(
             httpContext,
             TenantId,
             LocalAccountId,
-            new SetLocalAccountMetadataRequest(),
+            request,
             CancellationToken.None
         );
 
@@ -976,11 +982,13 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
         var httpContext = CreateHttpContext();
         httpContext.Request.Headers.IfMatch = "principal-ct";
 
+        var request = new SetLocalAccountMetadataRequest();
+
         var result = await Handler.SetMetadataAsync(
             httpContext,
             TenantId,
             LocalAccountId,
-            new SetLocalAccountMetadataRequest(),
+            request,
             CancellationToken.None
         );
 

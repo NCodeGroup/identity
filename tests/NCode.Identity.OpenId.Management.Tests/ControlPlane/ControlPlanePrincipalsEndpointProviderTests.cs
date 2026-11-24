@@ -105,7 +105,8 @@ public sealed class ControlPlanePrincipalsEndpointProviderTests : IDisposable
         var body = SecureEncoding.UTF8.GetBytes("""{"principalIds":["p1"]}""");
         httpContext.Request.Body = new MemoryStream(body);
         httpContext.Request.ContentLength = body.Length;
-        httpContext.Features.Set<IHttpRequestBodyDetectionFeature>(new BodyDetectionFeature());
+        var bodyDetection = new BodyDetectionFeature();
+        httpContext.Features.Set<IHttpRequestBodyDetectionFeature>(bodyDetection);
         httpContext.Response.Body = new MemoryStream();
         httpContext.SetEndpoint(endpoint);
 
@@ -226,7 +227,7 @@ public sealed class ControlPlanePrincipalsEndpointProviderTests : IDisposable
         IReadOnlyList<PrincipalSummaryResource> summaries = [];
         MockDirectory
             .Setup(x => x.FindAsync(query, CancellationToken.None))
-            .Returns(new ValueTask<IReadOnlyList<PrincipalSummaryResource>>(summaries))
+            .ReturnsAsync(summaries)
             .Verifiable();
 
         var result = await ControlPlanePrincipalsEndpointProvider.FindAsync(
