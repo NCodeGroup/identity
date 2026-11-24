@@ -447,7 +447,7 @@ public class BaseOwnableApiEndpointHandlerTests : IDisposable
         var (factory, manager) = StoreManager();
         var holder1 = Owner("p1", "a1");
         var holder2 = Owner("p2", "a2");
-        var holder3 = Owner("p1", "a3");
+        var holder3 = Owner("p3", "a3");
         var ownership = MockRepository.Create<IResourceOwnershipService>();
         ownership
             .Setup(x =>
@@ -467,18 +467,24 @@ public class BaseOwnableApiEndpointHandlerTests : IDisposable
             "alice",
             "alice"
         );
+        var carolSummary = PrincipalDirectoryMocks.CreateSummary(
+            "p3",
+            PrincipalTypes.LocalAccount,
+            "carol",
+            "carol"
+        );
         var directory = MockRepository.Create<IControlPlanePrincipalDirectory>();
         directory
             .Setup(x =>
                 x.FindAsync(
                     It.Is<ControlPlanePrincipalQuery>(query =>
-                        query.PrincipalIds.SequenceEqual(new[] { "p1", "p2", "p1" })
+                        query.PrincipalIds.SequenceEqual(new[] { "p1", "p2", "p3" })
                         && query.UserNames.Count == 0
                     ),
                     It.IsAny<CancellationToken>()
                 )
             )
-            .ReturnsAsync([aliceSummary])
+            .ReturnsAsync([aliceSummary, carolSummary])
             .Verifiable();
         var node = ResourceNode.For(TenantId, ResourceNodeTypes.Client, ResourceId);
 
@@ -502,7 +508,7 @@ public class BaseOwnableApiEndpointHandlerTests : IDisposable
         Assert.Equal(3, roleListResource.Items.Count);
         Assert.Equal("alice", roleListResource.Items[0].Principal?.UserName);
         Assert.Null(roleListResource.Items[1].Principal);
-        Assert.Equal("alice", roleListResource.Items[2].Principal?.UserName);
+        Assert.Equal("carol", roleListResource.Items[2].Principal?.UserName);
     }
 
     [Fact]
