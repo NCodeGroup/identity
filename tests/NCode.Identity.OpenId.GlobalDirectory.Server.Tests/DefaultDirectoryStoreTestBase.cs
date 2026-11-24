@@ -35,9 +35,13 @@ public abstract class DefaultDirectoryStoreTestBase : IDisposable
     private static DirectoryServerOptions CreateOptions(string controlPlaneTenantId) =>
         new()
         {
-            Issuer = ControlPlaneIssuer,
-            ControlPlaneCell = ControlPlaneCell,
-            ControlPlaneTenantId = controlPlaneTenantId,
+            Issuer = "https://directory.example",
+            ControlPlane = new DirectoryControlPlaneOptions
+            {
+                Cell = ControlPlaneCell,
+                TenantId = controlPlaneTenantId,
+                Issuer = ControlPlaneIssuer,
+            },
         };
 
     private SqliteConnection Connection { get; }

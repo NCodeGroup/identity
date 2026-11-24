@@ -16,7 +16,7 @@ namespace NCode.Identity.OpenId.GlobalDirectory.Server;
 /// <summary>
 /// The authentication gate of the directory API. It runs before the route binds its body, validates the bearer access
 /// token of a request with <see cref="IIssuerAccessTokenValidator"/> against
-/// <see cref="DirectoryServerOptions.Issuer"/> and the audience
+/// <see cref="DirectoryControlPlaneOptions.Issuer"/> and the audience
 /// <see cref="GlobalDirectoryProtocol.DirectoryAudience"/>, and requires the scope
 /// <see cref="GlobalDirectoryProtocol.DirectoryScope"/>. A request that lacks a valid token with the scope is answered
 /// <c>401 Unauthorized</c>, and a request whose issuer cannot be reached is answered <c>503 Service Unavailable</c>
@@ -178,7 +178,7 @@ internal sealed class DirectoryAuthenticationGate(
             return Unauthorized(httpContext);
 
         var result = await Validator.ValidateAsync(
-            Options.Value.Issuer,
+            Options.Value.ControlPlane.Issuer,
             GlobalDirectoryProtocol.DirectoryAudience,
             token,
             cancellationToken

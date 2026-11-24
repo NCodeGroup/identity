@@ -24,6 +24,7 @@
         <ProjectReference Include="..\NCode.Identity.OpenId.GlobalDirectory.Abstractions\NCode.Identity.OpenId.GlobalDirectory.Abstractions.csproj" />
         <ProjectReference Include="..\NCode.Identity.OpenId.Persistence.Abstractions\NCode.Identity.OpenId.Persistence.Abstractions.csproj" />
         <ProjectReference Include="..\NCode.Identity.Persistence.Abstractions\NCode.Identity.Persistence.Abstractions.csproj" />
+        <ProjectReference Include="..\NCode.Identity.Secrets.Persistence.Abstractions\NCode.Identity.Secrets.Persistence.Abstractions.csproj" />
     </ItemGroup>
 
     <ItemGroup>

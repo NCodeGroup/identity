@@ -25,7 +25,7 @@ namespace NCode.Identity.OpenId.GlobalDirectory.Server;
 /// HTTP logging never writes them, and every failure, a lookup that finds nothing included, is an RFC 9457 problem
 /// document: a missing resource is a <c>404 Not Found</c> problem, never an empty body. Every write is bound to the
 /// calling cell: the platform and team writes need the control-plane cell
-/// (<see cref="DirectoryServerOptions.ControlPlaneCell"/>), and a tenant write needs the cell that holds the tenant.
+/// (<see cref="DirectoryControlPlaneOptions.Cell"/>), and a tenant write needs the cell that holds the tenant.
 /// </summary>
 // See ADR-1411. DirectoryAuthenticationGate checks the token before the route binds its body.
 [PublicAPI]
@@ -1253,7 +1253,7 @@ public static class DirectoryEndpoints
         // Only the control-plane cell registers itself as the control plane.
         if (
             descriptor.IsControlPlane
-            && !string.Equals(name, options.Value.ControlPlaneCell, StringComparison.Ordinal)
+            && !string.Equals(name, options.Value.ControlPlane.Cell, StringComparison.Ordinal)
         )
         {
             return Forbidden("Only the control-plane cell registers itself as the control plane.");

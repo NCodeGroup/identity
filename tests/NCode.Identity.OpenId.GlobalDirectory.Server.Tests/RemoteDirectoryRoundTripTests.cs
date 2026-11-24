@@ -12,6 +12,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Moq;
 using NCode.Identity.OpenId.Client;
 using NCode.Identity.Registration;
+using NCode.Identity.Secrets.Persistence;
 using Xunit;
 
 namespace NCode.Identity.OpenId.GlobalDirectory.Server;
@@ -74,18 +75,16 @@ public class RemoteDirectoryRoundTripTests : IAsyncLifetime
         var builder = WebApplication.CreateBuilder();
         builder.WebHost.UseTestServer();
         builder.Configuration.AddInMemoryCollection(
-            new Dictionary<string, string?>
-            {
-                ["DirectoryServer:Issuer"] = ServerIssuer,
-                ["DirectoryServer:ControlPlaneCell"] = CellName,
-                ["DirectoryServer:ControlPlaneTenantId"] = ControlPlaneTenantId,
-                ["AllowedHosts"] = "localhost",
-            }
+            DirectoryServerTestOptions.Create(CellName, ControlPlaneTenantId, ServerIssuer)
         );
         builder.Services.AddDbContextFactory<DirectoryDbContext>(options =>
             options.UseSqlite(Connection)
         );
         builder.Services.AddSingleton(ValidatorMock.Object);
+        builder.Services.AddSingleton<
+            IPublicJwksReader,
+            DirectoryServerTestOptions.AcceptingPublicJwksReader
+        >();
         new ServiceBuilder<OpenIdClientLibrary>(builder.Services).AddOpenIdDirectoryServer(
             builder.Configuration
         );

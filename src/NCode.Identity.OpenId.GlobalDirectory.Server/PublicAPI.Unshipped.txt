@@ -25,14 +25,32 @@ NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryDbContext.Tenants.get -> M
 NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryEndpoints
 NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryEndpoints.extension(Microsoft.AspNetCore.Routing.IEndpointRouteBuilder!)
 NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryEndpoints.extension(Microsoft.AspNetCore.Routing.IEndpointRouteBuilder!).MapDirectory() -> Microsoft.AspNetCore.Routing.RouteGroupBuilder!
+NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryControlPlaneOptions
+NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryControlPlaneOptions.Cell.get -> string!
+NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryControlPlaneOptions.Cell.set -> void
+NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryControlPlaneOptions.ClientJwks.get -> string!
+NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryControlPlaneOptions.ClientJwks.set -> void
+NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryControlPlaneOptions.Issuer.get -> string!
+NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryControlPlaneOptions.Issuer.set -> void
+NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryControlPlaneOptions.Kind.get -> string!
+NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryControlPlaneOptions.Kind.set -> void
+NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryControlPlaneOptions.Region.get -> string!
+NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryControlPlaneOptions.Region.set -> void
+NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryControlPlaneOptions.TenantId.get -> string!
+NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryControlPlaneOptions.TenantId.set -> void
+NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryControlPlaneOptions.DirectoryControlPlaneOptions() -> void
 NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryServerOptions
-NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryServerOptions.ControlPlaneCell.get -> string!
-NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryServerOptions.ControlPlaneCell.set -> void
-NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryServerOptions.ControlPlaneTenantId.get -> string!
-NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryServerOptions.ControlPlaneTenantId.set -> void
+NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryServerOptions.ControlPlane.get -> NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryControlPlaneOptions!
+NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryServerOptions.ControlPlane.set -> void
 NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryServerOptions.DirectoryServerOptions() -> void
 NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryServerOptions.Issuer.get -> string!
 NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryServerOptions.Issuer.set -> void
+NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryServerOptions.KeyRing.get -> string!
+NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryServerOptions.KeyRing.set -> void
+NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryServerOptions.TokenLifetime.get -> System.TimeSpan
+NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryServerOptions.TokenLifetime.set -> void
+static NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryServerOptions.MaxTokenLifetime.get -> System.TimeSpan
+static NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryServerOptions.MinTokenLifetime.get -> System.TimeSpan
 NCode.Identity.OpenId.GlobalDirectory.Server.Entities.CellRecord
 NCode.Identity.OpenId.GlobalDirectory.Server.Entities.CellRecord.CellRecord() -> void
 NCode.Identity.OpenId.GlobalDirectory.Server.Entities.CellRecord.IsControlPlane.get -> bool

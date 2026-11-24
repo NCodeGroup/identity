@@ -197,7 +197,7 @@ public sealed class DefaultDirectoryStoreMoveTests : DefaultDirectoryStoreTestBa
 
         Assert.False(result.IsOffered);
         Assert.Equal(
-            $"The tenant '{ControlPlaneTenantId}' is the control-plane cell's root tenant, which DirectoryServer:ControlPlaneTenantId names, and it never leaves that cell.",
+            $"The tenant '{ControlPlaneTenantId}' is the control-plane cell's root tenant, which DirectoryServer:ControlPlane:TenantId names, and it never leaves that cell.",
             result.ConflictDetail
         );
         Assert.Null(await ReadMoveOfferAsync(ControlPlaneTenantId));
@@ -430,7 +430,7 @@ public sealed class DefaultDirectoryStoreMoveTests : DefaultDirectoryStoreTestBa
 
         Assert.False(result.IsMoved);
         Assert.Equal(
-            $"The tenant '{ControlPlaneTenantId}' is the control-plane cell's root tenant, which DirectoryServer:ControlPlaneTenantId names, and it never leaves that cell.",
+            $"The tenant '{ControlPlaneTenantId}' is the control-plane cell's root tenant, which DirectoryServer:ControlPlane:TenantId names, and it never leaves that cell.",
             result.ConflictDetail
         );
         Assert.Equal(ControlPlaneCell, (await ReadTenantAsync(ControlPlaneTenantId))?.Cell);

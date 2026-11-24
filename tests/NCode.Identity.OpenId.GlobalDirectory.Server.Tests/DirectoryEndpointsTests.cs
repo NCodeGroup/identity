@@ -23,6 +23,7 @@ using NCode.Identity.OpenId.Client;
 using NCode.Identity.OpenId.GlobalDirectory.Server.Entities;
 using NCode.Identity.OpenId.Tenants;
 using NCode.Identity.Registration;
+using NCode.Identity.Secrets.Persistence;
 using Xunit;
 
 namespace NCode.Identity.OpenId.GlobalDirectory.Server;
@@ -103,18 +104,16 @@ public class DirectoryEndpointsTests : IAsyncLifetime
         var builder = WebApplication.CreateBuilder();
         builder.WebHost.UseTestServer();
         builder.Configuration.AddInMemoryCollection(
-            new Dictionary<string, string?>
-            {
-                ["DirectoryServer:Issuer"] = ServerIssuer,
-                ["DirectoryServer:ControlPlaneCell"] = ControlPlaneCell,
-                ["DirectoryServer:ControlPlaneTenantId"] = ControlPlaneTenantId,
-                ["AllowedHosts"] = "localhost",
-            }
+            DirectoryServerTestOptions.Create(ControlPlaneCell, ControlPlaneTenantId, ServerIssuer)
         );
         builder.Services.AddDbContextFactory<DirectoryDbContext>(options =>
             options.UseSqlite(Connection)
         );
         builder.Services.AddSingleton(ValidatorMock.Object);
+        builder.Services.AddSingleton<
+            IPublicJwksReader,
+            DirectoryServerTestOptions.AcceptingPublicJwksReader
+        >();
         new ServiceBuilder<OpenIdClientLibrary>(builder.Services).AddOpenIdDirectoryServer(
             builder.Configuration
         );
@@ -1471,7 +1470,7 @@ public class DirectoryEndpointsTests : IAsyncLifetime
 
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
         Assert.Equal(
-            $"The tenant '{ControlPlaneTenantId}' is the control-plane cell's root tenant, which DirectoryServer:ControlPlaneTenantId names, and it never leaves that cell.",
+            $"The tenant '{ControlPlaneTenantId}' is the control-plane cell's root tenant, which DirectoryServer:ControlPlane:TenantId names, and it never leaves that cell.",
             await ReadProblemDetailAsync(response)
         );
         await AssertControlPlaneTenantStaysInTheControlPlaneCellAsync();
@@ -1682,7 +1681,7 @@ public class DirectoryEndpointsTests : IAsyncLifetime
 
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
         Assert.Equal(
-            $"The tenant '{ControlPlaneTenantId}' is the control-plane cell's root tenant, which DirectoryServer:ControlPlaneTenantId names, and it never leaves that cell.",
+            $"The tenant '{ControlPlaneTenantId}' is the control-plane cell's root tenant, which DirectoryServer:ControlPlane:TenantId names, and it never leaves that cell.",
             await ReadProblemDetailAsync(response)
         );
         await AssertControlPlaneTenantStaysInTheControlPlaneCellAsync();

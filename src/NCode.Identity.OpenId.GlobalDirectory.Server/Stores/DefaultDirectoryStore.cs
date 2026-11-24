@@ -22,9 +22,9 @@ namespace NCode.Identity.OpenId.GlobalDirectory.Server.Stores;
 /// A tenant's limit is enforced from the documents alone. The platform document and the team documents carry the
 /// <c>max_tenants</c> setting, and each team document carries its parent team's identifier, so the directory knows the
 /// lineage and the subtree of every team without any other source. The control-plane cell's root tenant, which
-/// <see cref="DirectoryServerOptions.ControlPlaneTenantId"/> names, is held from configuration, placed in that cell,
-/// before every reservation and issuer change, and is never offered to or moved into another cell; every other tenant,
-/// the root tenant of every other cell included, is reserved and placed by its cell.
+/// <see cref="DirectoryControlPlaneOptions.TenantId"/> names, is held from configuration, placed in that cell, before
+/// every reservation and issuer change, and is never offered to or moved into another cell; every other tenant, the
+/// root tenant of every other cell included, is reserved and placed by its cell.
 /// </remarks>
 // See ADR-1160.
 // See ADR-1411.
@@ -54,11 +54,11 @@ internal sealed class DefaultDirectoryStore(
     private static JsonSerializerOptions JsonOptions { get; } = new(JsonSerializerDefaults.Web);
 
     /// <summary>
-    /// Gets the configuration key of <see cref="DirectoryServerOptions.ControlPlaneTenantId"/>, which the store names
-    /// in each message that refuses the configured tenant.
+    /// Gets the configuration key of <see cref="DirectoryControlPlaneOptions.TenantId"/>, which the store names in each
+    /// message that refuses the configured tenant.
     /// </summary>
     private static string ControlPlaneTenantIdKey =>
-        $"{DirectoryServerOptions.SectionName}:{nameof(DirectoryServerOptions.ControlPlaneTenantId)}";
+        $"{DirectoryServerOptions.SectionName}:{nameof(DirectoryServerOptions.ControlPlane)}:{nameof(DirectoryControlPlaneOptions.TenantId)}";
 
     private IDbContextFactory<DirectoryDbContext> DbContextFactory { get; } = dbContextFactory;
 
@@ -115,8 +115,8 @@ internal sealed class DefaultDirectoryStore(
 
     /// <summary>
     /// Ensures that the directory holds the control-plane cell's root tenant, which
-    /// <see cref="DirectoryServerOptions.ControlPlaneTenantId"/> names, placed in that cell under
-    /// <see cref="DirectoryServerOptions.Issuer"/> and in no team, in a serializable transaction of its own that
+    /// <see cref="DirectoryControlPlaneOptions.TenantId"/> names, placed in that cell under
+    /// <see cref="DirectoryControlPlaneOptions.Issuer"/> and in no team, in a serializable transaction of its own that
     /// commits before the caller's. That cell creates its root tenant without asking the directory, which accepts only
     /// the tokens that tenant issues, so the directory holds it from its own configuration and no other cell reserves
     /// its identifier or its issuer. A record that cell already holds is kept whatever issuer it holds, because that
@@ -130,9 +130,9 @@ internal sealed class DefaultDirectoryStore(
     private async ValueTask EnsureControlPlaneTenantAsync(CancellationToken cancellationToken)
     {
         var serverOptions = ServerOptions.Value;
-        var tenantId = serverOptions.ControlPlaneTenantId;
-        var controlPlaneCell = serverOptions.ControlPlaneCell;
-        var issuer = serverOptions.Issuer;
+        var tenantId = serverOptions.ControlPlane.TenantId;
+        var controlPlaneCell = serverOptions.ControlPlane.Cell;
+        var issuer = serverOptions.ControlPlane.Issuer;
 
         await using var dbContext = await DbContextFactory.CreateDbContextAsync(cancellationToken);
         var executionStrategy = dbContext.Database.CreateExecutionStrategy();
@@ -190,7 +190,7 @@ internal sealed class DefaultDirectoryStore(
                 if (isIssuerHeld || retiredIssuerDetail is not null)
                 {
                     throw new InvalidOperationException(
-                        $"Another tenant holds or retired the issuer that {DirectoryServerOptions.SectionName}:{nameof(DirectoryServerOptions.Issuer)} names, so the directory cannot hold it for the control-plane cell's root tenant '{tenantId}'; set {DirectoryServerOptions.SectionName}:{nameof(DirectoryServerOptions.Issuer)} to the control-plane cell's issuer, which no other tenant holds or retired."
+                        $"Another tenant holds or retired the issuer that {DirectoryServerOptions.SectionName}:{nameof(DirectoryServerOptions.ControlPlane)}:{nameof(DirectoryControlPlaneOptions.Issuer)} names, so the directory cannot hold it for the control-plane cell's root tenant '{tenantId}'; set {DirectoryServerOptions.SectionName}:{nameof(DirectoryServerOptions.ControlPlane)}:{nameof(DirectoryControlPlaneOptions.Issuer)} to the control-plane cell's issuer, which no other tenant holds or retired."
                     );
                 }
 
@@ -218,9 +218,8 @@ internal sealed class DefaultDirectoryStore(
 
     /// <summary>
     /// Gets the detail that refuses an offer or a move of the control-plane cell's root tenant, which
-    /// <see cref="DirectoryServerOptions.ControlPlaneTenantId"/> names: the directory places that tenant in the
-    /// control-plane cell from its own configuration and accepts only the tokens it issues, so it never leaves that
-    /// cell.
+    /// <see cref="DirectoryControlPlaneOptions.TenantId"/> names: the directory places that tenant in the control-plane
+    /// cell from its own configuration and accepts only the tokens it issues, so it never leaves that cell.
     /// </summary>
     /// <param name="tenantId">The identifier of the tenant to offer or move.</param>
     /// <returns>
@@ -229,7 +228,7 @@ internal sealed class DefaultDirectoryStore(
     private string? GetControlPlaneTenantMoveDetailOrDefault(string tenantId)
     {
         var normalizedTenantId = Normalize(tenantId);
-        var controlPlaneTenantId = ServerOptions.Value.ControlPlaneTenantId;
+        var controlPlaneTenantId = ServerOptions.Value.ControlPlane.TenantId;
         var normalizedControlPlaneTenantId = Normalize(controlPlaneTenantId);
         return string.Equals(
             normalizedTenantId,
@@ -1018,7 +1017,7 @@ internal sealed class DefaultDirectoryStore(
         || string.Equals(callerCell, storedCell, StringComparison.Ordinal)
         || string.Equals(
             callerCell,
-            ServerOptions.Value.ControlPlaneCell,
+            ServerOptions.Value.ControlPlane.Cell,
             StringComparison.Ordinal
         );
 
