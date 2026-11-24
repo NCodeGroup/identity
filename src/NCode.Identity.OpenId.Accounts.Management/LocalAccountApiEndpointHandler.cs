@@ -1257,17 +1257,31 @@ internal class LocalAccountApiEndpointHandler(
         }
         else
         {
-            connection = await connectionStore.GetOrDefaultAsync(connectionId, cancellationToken);
+            return await FindLocalConnectionByIdAsync(
+                storeManager,
+                connectionId,
+                cancellationToken
+            );
         }
 
-        var isLocal =
-            connection is not null
-            && string.Equals(
-                connection.Strategy,
-                ConnectionStrategyNames.Local,
-                StringComparison.Ordinal
-            );
-        return isLocal ? connection : null;
+        return connection is not null && ConnectionStrategyNames.IsLocal(connection.Strategy)
+            ? connection
+            : null;
+    }
+
+    // Loads a connection by identifier. A connection that is missing, or whose strategy is not local, is absent.
+    private static async ValueTask<PersistedConnection?> FindLocalConnectionByIdAsync(
+        IStoreManager storeManager,
+        string connectionId,
+        CancellationToken cancellationToken
+    )
+    {
+        var connection = await storeManager
+            .GetStore<IConnectionStore>()
+            .GetOrDefaultAsync(connectionId, cancellationToken);
+        return connection is not null && ConnectionStrategyNames.IsLocal(connection.Strategy)
+            ? connection
+            : null;
     }
 
     // Loads a local account of the connection that a route names, with the connection and the store that holds it. An
@@ -1283,16 +1297,12 @@ internal class LocalAccountApiEndpointHandler(
         CancellationToken cancellationToken
     )
     {
-        var connectionStore = storeManager.GetStore<IConnectionStore>();
-        var connection = await connectionStore.GetOrDefaultAsync(connectionId, cancellationToken);
-        if (
-            connection is null
-            || !string.Equals(
-                connection.Strategy,
-                ConnectionStrategyNames.Local,
-                StringComparison.Ordinal
-            )
-        )
+        var connection = await FindLocalConnectionByIdAsync(
+            storeManager,
+            connectionId,
+            cancellationToken
+        );
+        if (connection is null)
         {
             return null;
         }

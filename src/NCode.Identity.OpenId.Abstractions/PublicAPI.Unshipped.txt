@@ -1107,6 +1107,7 @@ NCode.Identity.OpenId.Connections.ConnectionSignInMethods
 const NCode.Identity.OpenId.Connections.ConnectionSignInMethods.Password = "password" -> string!
 NCode.Identity.OpenId.Connections.ConnectionStrategyNames
 const NCode.Identity.OpenId.Connections.ConnectionStrategyNames.Local = "local" -> string!
+static NCode.Identity.OpenId.Connections.ConnectionStrategyNames.IsLocal(string? strategy) -> bool
 NCode.Identity.OpenId.Connections.IConnectionStrategy
 NCode.Identity.OpenId.Connections.IConnectionStrategy.Name.get -> string!
 NCode.Identity.OpenId.Connections.IConnectionStrategy.SignInMethod.get -> string!

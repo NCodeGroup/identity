@@ -85,13 +85,7 @@ public sealed class LocalAccountStoreCatalog
     {
         ArgumentNullException.ThrowIfNull(connection);
 
-        if (
-            !string.Equals(
-                connection.Strategy,
-                ConnectionStrategyNames.Local,
-                StringComparison.Ordinal
-            )
-        )
+        if (!ConnectionStrategyNames.IsLocal(connection.Strategy))
         {
             throw new InvalidOperationException(
                 $"The connection '{connection.Name}' has the strategy '{connection.Strategy}', not '{ConnectionStrategyNames.Local}', so it has no local-account store."

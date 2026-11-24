@@ -149,5 +149,5 @@ internal class LocalAccountTenantTransferContributor(
     }
 
     private static bool IsLocal(PersistedConnection connection) =>
-        string.Equals(connection.Strategy, ConnectionStrategyNames.Local, StringComparison.Ordinal);
+        ConnectionStrategyNames.IsLocal(connection.Strategy);
 }

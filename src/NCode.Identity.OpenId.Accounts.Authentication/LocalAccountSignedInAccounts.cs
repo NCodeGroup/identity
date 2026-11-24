@@ -17,10 +17,6 @@ internal static class LocalAccountSignedInAccounts
     /// <returns><see langword="true"/> when the connection holds local accounts.</returns>
     public static bool IsLocal(ResolvedConnection connection)
     {
-        return string.Equals(
-            connection.Connection.Strategy,
-            ConnectionStrategyNames.Local,
-            StringComparison.Ordinal
-        );
+        return ConnectionStrategyNames.IsLocal(connection.Connection.Strategy);
     }
 }

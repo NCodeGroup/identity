@@ -86,11 +86,7 @@ internal class DefaultAuthenticatePasswordGrantHandler(
         if (
             selection.IsRefused
             || connection is null
-            || !string.Equals(
-                connection.Connection.Strategy,
-                ConnectionStrategyNames.Local,
-                StringComparison.Ordinal
-            )
+            || !ConnectionStrategyNames.IsLocal(connection.Connection.Strategy)
         )
         {
             var description = selection.ErrorDescription ?? ConnectionNotUsableDescription;

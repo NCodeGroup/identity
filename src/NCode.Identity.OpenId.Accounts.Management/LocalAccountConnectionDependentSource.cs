@@ -26,12 +26,7 @@ internal sealed class LocalAccountConnectionDependentSource(
         CancellationToken cancellationToken
     )
     {
-        var isLocal = string.Equals(
-            connection.Strategy,
-            ConnectionStrategyNames.Local,
-            StringComparison.Ordinal
-        );
-        if (!isLocal)
+        if (!ConnectionStrategyNames.IsLocal(connection.Strategy))
         {
             return false;
         }

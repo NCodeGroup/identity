@@ -170,11 +170,7 @@ internal sealed class LocalAccountInteractivePasswordResetter(
         );
         if (
             connection is not { Connection.IsEnabled: true }
-            || !string.Equals(
-                connection.Strategy.Name,
-                ConnectionStrategyNames.Local,
-                StringComparison.Ordinal
-            )
+            || !ConnectionStrategyNames.IsLocal(connection.Strategy.Name)
             || !connection.Settings.GetValue(OpenIdSettingKeys.PasswordResetEnabled)
         )
         {
