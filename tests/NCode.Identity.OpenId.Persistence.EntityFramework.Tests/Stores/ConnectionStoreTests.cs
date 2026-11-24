@@ -336,7 +336,7 @@ public sealed class ConnectionStoreTests : IDisposable
                 && candidate
                     .Properties.Select(property => property.Name)
                     .SequenceEqual([
-                        nameof(ConnectionEntity.TenantId),
+                        nameof(ConnectionEntity.NormalizedTenantId),
                         nameof(ConnectionEntity.NormalizedName),
                     ])
         );

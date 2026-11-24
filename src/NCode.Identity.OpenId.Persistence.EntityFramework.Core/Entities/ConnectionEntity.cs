@@ -15,8 +15,8 @@ namespace NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities;
 /// Represents an entity framework data contract for a connection: a tenant-scoped, named resource of a registered
 /// strategy that signs end users in. The complimentary DTO for this entity is <c>PersistedConnection</c>.
 /// </summary>
-[Index(nameof(TenantId), nameof(NormalizedConnectionId), IsUnique = true)]
-[Index(nameof(TenantId), nameof(NormalizedName), IsUnique = true)]
+[Index(nameof(NormalizedTenantId), nameof(NormalizedConnectionId), IsUnique = true)]
+[Index(nameof(NormalizedTenantId), nameof(NormalizedName), IsUnique = true)]
 public sealed class ConnectionEntity : ISupportTenantEntity, ISupportConcurrencyToken
 {
     /// <summary>

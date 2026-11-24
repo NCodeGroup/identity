@@ -712,10 +712,12 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
 
                     b.HasKey("Id");
 
-                    b.HasIndex("TenantId", "NormalizedConnectionId")
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("NormalizedTenantId", "NormalizedConnectionId")
                         .IsUnique();
 
-                    b.HasIndex("TenantId", "NormalizedName")
+                    b.HasIndex("NormalizedTenantId", "NormalizedName")
                         .IsUnique();
 
                     b.ToTable("Connections", (string)null);

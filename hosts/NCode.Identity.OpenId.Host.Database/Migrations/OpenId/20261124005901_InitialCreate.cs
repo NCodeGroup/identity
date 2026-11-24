@@ -1053,16 +1053,21 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                 unique: true);
 
             migrationBuilder.CreateIndex(
-                name: "IX_Connections_TenantId_NormalizedConnectionId",
+                name: "IX_Connections_NormalizedTenantId_NormalizedConnectionId",
                 table: "Connections",
-                columns: new[] { "TenantId", "NormalizedConnectionId" },
+                columns: new[] { "NormalizedTenantId", "NormalizedConnectionId" },
                 unique: true);
 
             migrationBuilder.CreateIndex(
-                name: "IX_Connections_TenantId_NormalizedName",
+                name: "IX_Connections_NormalizedTenantId_NormalizedName",
                 table: "Connections",
-                columns: new[] { "TenantId", "NormalizedName" },
+                columns: new[] { "NormalizedTenantId", "NormalizedName" },
                 unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Connections_TenantId",
+                table: "Connections",
+                column: "TenantId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Consents_ClientId",
