@@ -450,10 +450,7 @@ internal class ConnectionApiEndpointHandler(
         catch (JsonPatchException exception)
         {
             Logger.JsonPatchFailed(exception);
-            return TypedResults.Problem(
-                detail: "The JSON Patch document could not be applied.",
-                statusCode: StatusCodes.Status400BadRequest
-            );
+            return ManagementProblems.PatchNotApplied();
         }
 
         connection.DisplayName = model.DisplayName;
@@ -803,10 +800,7 @@ internal class ConnectionApiEndpointHandler(
         catch (JsonPatchException exception)
         {
             Logger.JsonPatchFailed(exception);
-            return TypedResults.Problem(
-                detail: "The JSON Patch document could not be applied.",
-                statusCode: StatusCodes.Status400BadRequest
-            );
+            return ManagementProblems.PatchNotApplied();
         }
 
         var settingsValue = SerializeToElement(jsonObject);

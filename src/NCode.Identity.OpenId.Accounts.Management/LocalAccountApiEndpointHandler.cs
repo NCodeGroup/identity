@@ -561,10 +561,7 @@ internal class LocalAccountApiEndpointHandler(
         }
         catch (JsonPatchException)
         {
-            return TypedResults.Problem(
-                detail: "The JSON Patch document could not be applied.",
-                statusCode: StatusCodes.Status400BadRequest
-            );
+            return ManagementProblems.PatchNotApplied();
         }
 
         model.DisplayName = model.DisplayName?.Trim() ?? string.Empty;

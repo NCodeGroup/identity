@@ -64,4 +64,13 @@ public static class ManagementProblems
             detail: "The resource does not exist.",
             statusCode: StatusCodes.Status404NotFound
         );
+
+    /// <summary>
+    /// Creates the <c>400 Bad Request</c> problem for a JSON Patch document that cannot be applied to its target.
+    /// </summary>
+    public static ProblemHttpResult PatchNotApplied() =>
+        TypedResults.Problem(
+            detail: "The JSON Patch document could not be applied.",
+            statusCode: StatusCodes.Status400BadRequest
+        );
 }
