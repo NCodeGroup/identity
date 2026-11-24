@@ -29,7 +29,6 @@ using NCode.Identity.OpenId.Persistence.Stores;
 using NCode.Identity.OpenId.Platform;
 using NCode.Identity.OpenId.Settings;
 using NCode.Identity.OpenId.Tenants;
-using NCode.Identity.OpenId.Tenants.Keys;
 using NCode.Identity.Persistence.Stores;
 using NCode.Identity.Secrets.Persistence.Auditing;
 using NCode.Identity.Secrets.Persistence.Protection;
@@ -58,7 +57,6 @@ public sealed class PlatformApiEndpointHandlerTests : IDisposable
     private Mock<IMasterKeyManager> MockMasterKeyManager { get; }
     private Mock<IManagementAuditRecorder> MockManagementAuditRecorder { get; }
     private Mock<IPlatformDirectory> MockPlatformDirectory { get; }
-    private Mock<IManagementKeyRevoker> MockManagementKeyRevoker { get; }
     private PlatformApiEndpointHandler Handler { get; }
 
     public PlatformApiEndpointHandlerTests()
@@ -81,7 +79,6 @@ public sealed class PlatformApiEndpointHandlerTests : IDisposable
         MockMasterKeyManager = MockRepository.Create<IMasterKeyManager>();
         MockManagementAuditRecorder = MockRepository.Create<IManagementAuditRecorder>();
         MockPlatformDirectory = MockRepository.Create<IPlatformDirectory>();
-        MockManagementKeyRevoker = MockRepository.Create<IManagementKeyRevoker>();
 
         Handler = CreateHandler(isControlPlane: true);
     }
@@ -99,7 +96,6 @@ public sealed class PlatformApiEndpointHandlerTests : IDisposable
             MockMasterKeyManager.Object,
             MockManagementAuditRecorder.Object,
             MockPlatformDirectory.Object,
-            MockManagementKeyRevoker.Object,
             NullLogger<PlatformApiEndpointHandler>.Instance,
             Options.Create(new CellOptions { IsControlPlane = isControlPlane })
         );

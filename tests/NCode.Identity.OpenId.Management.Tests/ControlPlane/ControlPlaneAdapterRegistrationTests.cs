@@ -31,6 +31,13 @@ public sealed class ControlPlaneAdapterRegistrationTests : IDisposable
         MockRemoteDirectory = MockRepository.Create<IControlPlanePrincipalDirectory>();
     }
 
+    private IPlatformTopology CreateTopology()
+    {
+        var mockTopology = MockRepository.Create<IPlatformTopology>();
+        mockTopology.SetupGet(x => x.HasDirectory).Returns(false);
+        return mockTopology.Object;
+    }
+
     private ServiceProvider BuildServiceProvider(bool isControlPlane, bool registerRemote)
     {
         var serviceCollection = new ServiceCollection();
@@ -41,6 +48,7 @@ public sealed class ControlPlaneAdapterRegistrationTests : IDisposable
         );
         serviceCollection.AddSingleton(MockRepository.Create<IClientPrincipalResolver>().Object);
         serviceCollection.AddSingleton(MockRepository.Create<IStoreManagerFactory>().Object);
+        serviceCollection.AddSingleton(CreateTopology());
         serviceCollection.AddSingleton(MockRepository.Create<IAmbientTenantAccessor>().Object);
         serviceCollection.AddSingleton(MockRepository.Create<ITenantResolver>().Object);
 

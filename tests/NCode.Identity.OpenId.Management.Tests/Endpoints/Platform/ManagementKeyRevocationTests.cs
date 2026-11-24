@@ -6,6 +6,7 @@ using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using NCode.Identity.Cryptography;
@@ -54,7 +55,6 @@ public sealed class ManagementKeyRevocationTests : IDisposable
             MockRepository.Create<IMasterKeyManager>().Object,
             MockManagementAuditRecorder.Object,
             MockRepository.Create<IPlatformDirectory>().Object,
-            MockManagementKeyRevoker.Object,
             NullLogger<PlatformApiEndpointHandler>.Instance,
             Options.Create(new CellOptions { IsControlPlane = true })
         );
@@ -74,10 +74,13 @@ public sealed class ManagementKeyRevocationTests : IDisposable
             .ReturnsAsync(result)
             .Verifiable();
 
-    private static DefaultHttpContext CreateHttpContext()
+    private DefaultHttpContext CreateHttpContext()
     {
         var httpContext = new DefaultHttpContext
         {
+            RequestServices = new ServiceCollection()
+                .AddSingleton(MockManagementKeyRevoker.Object)
+                .BuildServiceProvider(),
             User = new ClaimsPrincipal(new ClaimsIdentity(authenticationType: "test")),
         };
         httpContext.Features.Set<IOpenIdContextFeature>(

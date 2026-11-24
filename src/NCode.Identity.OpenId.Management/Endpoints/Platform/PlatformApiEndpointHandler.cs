@@ -71,7 +71,6 @@ internal class PlatformApiEndpointHandler(
     IMasterKeyManager masterKeyManager,
     IManagementAuditRecorder managementAuditRecorder,
     IPlatformDirectory platformDirectory,
-    IManagementKeyRevoker managementKeyRevoker,
     ILogger<PlatformApiEndpointHandler> logger,
     IOptions<CellOptions> cellOptions
 ) : BaseApiEndpointHandler, IEndpointProvider
@@ -93,7 +92,6 @@ internal class PlatformApiEndpointHandler(
     private IMasterKeyManager MasterKeyManager { get; } = masterKeyManager;
     private IManagementAuditRecorder ManagementAuditRecorder { get; } = managementAuditRecorder;
     private IPlatformDirectory PlatformDirectory { get; } = platformDirectory;
-    private IManagementKeyRevoker ManagementKeyRevoker { get; } = managementKeyRevoker;
     private ILogger<PlatformApiEndpointHandler> Logger { get; } = logger;
     private CellOptions CellOptions { get; } = cellOptions.Value;
 
@@ -391,7 +389,9 @@ internal class PlatformApiEndpointHandler(
             return authorizationFailure;
         }
 
-        var outcome = await ManagementKeyRevoker.RevokeAsync(kid, cancellationToken);
+        var managementKeyRevoker =
+            httpContext.RequestServices.GetRequiredService<IManagementKeyRevoker>();
+        var outcome = await managementKeyRevoker.RevokeAsync(kid, cancellationToken);
         if (!outcome.IsRevoked || outcome.ReplacementKeyId is not { } replacementKeyId)
         {
             return ManagementProblems.ResourceNotFound();
