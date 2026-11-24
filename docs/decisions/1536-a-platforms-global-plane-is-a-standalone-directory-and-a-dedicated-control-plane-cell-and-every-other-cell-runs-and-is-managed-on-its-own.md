@@ -102,8 +102,9 @@ tokens with keys and authority replicated through the directory's change feed.**
 3. **The directory issues the cells' tokens.** The directory has a token endpoint, `POST /directory/v1/token`, which
    grants `client_credentials` to the machine client `cell-<name>` of a registered cell. The client authenticates with
    `private_key_jwt` (RFC 7523): an assertion whose `iss` and `sub` are `cell-<name>`, whose `aud` is the token
-   endpoint's URL, with a `jti` the directory accepts once within the assertion's lifetime, signed by the key of the
-   cell's `Directory:KeyRing`. The directory verifies the assertion against the public keys it holds in that cell's
+   endpoint's URL or the directory's issuer (RFC 7523 section 3), with a `jti` the directory accepts once, remembered in
+   its `IExpiringKeySet` until the assertion's `exp`, and an `exp` at most five minutes ahead, signed by the key of the
+   cell's `Directory:KeyRing`. A failure answers as RFC 6749 section 5.2 says. The directory verifies the assertion against the public keys it holds in that cell's
    record (decision 5). The access token is a JWT that the directory signs with its own key ring
    (`DirectoryServer:KeyRing`, a PEM key from a Secret or keys a key management service holds, as a cell's key rings
    are): `iss` is the directory's own issuer (`DirectoryServer:Issuer`, its public URL), `aud` is `urn:ncode:directory`,
@@ -111,10 +112,11 @@ tokens with keys and authority replicated through the directory's change feed.**
    (`DirectoryServer:TokenLifetime`). The directory validates its own tokens locally and accepts a token of no other
    issuer, so no cell's availability decides whether another cell can reach the directory.
 4. **The control-plane tenant is the trust anchor, pinned in the directory's configuration.**
-   `DirectoryServer:ControlPlane:Cell` names the control-plane cell, `DirectoryServer:ControlPlane:TenantId` and
+   `DirectoryServer:ControlPlane:Cell` names the control-plane cell, `DirectoryServer:ControlPlane:Region` and
+   `DirectoryServer:ControlPlane:Kind` give its region and kind, `DirectoryServer:ControlPlane:TenantId` and
    `DirectoryServer:ControlPlane:Issuer` name its control-plane tenant and that tenant's issuer, and
    `DirectoryServer:ControlPlane:ClientJwks` holds the public keys of the control-plane cell's own machine client. The
-   directory initializes the anchor at startup, before it serves any request: in one serializable transaction, which
+   directory's `DirectoryAnchorInitializer` initializes the anchor at startup, before it serves any request: in one serializable transaction, which
    every start repeats and which changes nothing when the stored anchor already matches, it writes the control-plane
    cell's record with those keys and the control-plane tenant's placement in that cell, as it already holds that tenant
    (ADR-1411, decision 2). Until that transaction commits, the directory's readiness check fails and every route, the
@@ -131,7 +133,9 @@ tokens with keys and authority replicated through the directory's change feed.**
    machine client `cell-<name>` (the public half of its `Directory:KeyRing`, as the `directory-client-jwks` command of
    decision 12 prints it); the control-plane cell writes that record to the directory. `GET /api/cells` and
    `GET /api/cells/{name}` list and read the records, and `DELETE /api/cells/{name}` retires a cell that holds no
-   tenant. A cell whose record is missing or retired is refused at the token endpoint with `invalid_client` and keeps
+   tenant. The anchor writes them to the directory through `PUT /directory/v1/cells/{name}/registration` (region, kind
+   and JWKS) and `DELETE /directory/v1/cells/{name}`, which answers `409` while the cell holds tenants and never
+   reissues a retired name. A cell whose record is missing or retired is refused at the token endpoint with `invalid_client` and keeps
    retrying with backoff, as a cell's registration with the directory retries
    ([`CellRegistrationService`](../../src/NCode.Identity.OpenId.GlobalDirectory/CellRegistrationService.cs)). Once
    authenticated, a cell reports its own descriptor (management URL, region, kind) through
@@ -274,7 +278,13 @@ tokens with keys and authority replicated through the directory's change feed.**
     `CellAdmin`, and its assignments live in the cell. The cell's management API accepts the tokens of two issuers: the
     control-plane tenant's, authorized as decision 8 describes, and its management tenant's, whose principals are
     authorized only by the assignments stored in that cell. A cell's issuer therefore signs only for authority the cell
-    owns. A cell served by `StaticSingle` serves one customer tenant and has no management tenant: it is managed with
+    owns. The cell's management API lists its tenants at `GET /api/cell/tenants`, for a `CellAdmin` at
+    `(cell, <Cell:Name>)` or a `GlobalAdmin`, as `GET /api/tenants` lists with a continuation token; `GET /api/cell`
+    reads the cell, and `GET|POST|DELETE /api/cell/admins` list, grant and remove its `CellAdmin`s. `CellAdmin` is
+    granted only to principals of the management tenant, and its node covers the management tenant itself, so a
+    `CellAdmin` manages that tenant's accounts. `GET /api/me` reports the caller's cell roles
+    (`CallerResource.CellRoles`). `GET /api/me/tenants` stays the caller's explicit assignments, so inherited authority
+    is never confused with it. A cell served by `StaticSingle` serves one customer tenant and has no management tenant: it is managed with
     the control-plane tenant's tokens and recovered offline (decision 12).
 11. **The consoles.** The platform console runs from the control-plane cell's release as a client of the control-plane
     tenant. It manages the platform and the teams and lists and manages the tenants of every cell by calling each cell's
@@ -282,7 +292,11 @@ tokens with keys and authority replicated through the directory's change feed.**
     configuration names (`ManagementConsole:Cells`, the chart's `managementConsole.cells`). It is an aggregator: no
     cell's management depends on it. A cell with a management tenant (decision 10) can run a cell console from its own
     release, a client of that management tenant, which manages only that cell's tenants and keeps working when the
-    global plane is unreachable.
+    global plane is unreachable. `ManagementConsole:Cell` names the cell of a cell console, whose bootstrap document
+    carries `"console": "cell"` and `"cell": "<name>"` (a platform console's says `"console": "platform"`) and whose
+    frontend hides the platform and team surfaces; its home page lists the cell's tenants from `GET /api/cell/tenants`.
+    The platform console has a Cells page that lists the cells, registers one with its JWKS, retires one and shows
+    whether it answers.
 12. **Bootstrap, break-glass and the revocation of a key.** A platform starts in this order, and no step waits on a
     later one:
     1. **Keys first.** Before either release, the operator, or the infrastructure code that provisions the platform,
@@ -307,7 +321,21 @@ tokens with keys and authority replicated through the directory's change feed.**
     every sign-in), an offline command of the host image, run as a Job with the cell's schema-owner credentials as
     `setup` and `secret-protection` are, recovers it: `recover-admin` creates or re-enables a local account in the
     control-plane tenant from a Secret and grants it `GlobalAdmin`, and in a cell with a management tenant it creates or
-    re-enables a `CellAdmin`.
+    re-enables a `CellAdmin`. Two offline operations recover it:
+
+    - `recover-admin` creates or re-enables a local account in the anchor tenant from `Recovery:Admin:*` (`UserName`,
+      `Password`, `Email`, `DisplayName`) and grants `GlobalAdmin` in the control-plane cell or `CellAdmin` in a cell with
+      a management tenant; it refuses a workload cell without one.
+    - `recover-sign-in` repairs a setting that blocks every sign-in. A settings descriptor is `IsSignInCritical` when
+      it can: `allowed_connections`, `default_connection`, `grant_types_enabled`, `password_min_length`,
+      `password_max_length`, `password_failed_attempts_limit`, `password_failed_attempts_window`, `email_mfa_required`,
+      `require_dpop_bound_access_tokens` and `access_token_sender_constraint_required`. The command removes the anchor
+      tenant's own values of those settings (the control-plane tenant, or a cell's management tenant) and, in the
+      control-plane cell, the platform's values too. It re-enables the tenant's default local connection, the
+      management console client and the management resource server, logs each change and records an audit event per
+      change. A workload cell's platform values arrive from the feed and are repaired at the control-plane cell.
+
+    A test proves recovery by acquiring a token and calling the management API after a blocking setting.
 
     **A compromised management signing key is revoked, not retired.** A rollover retires a key, and a retired key stays
     published and verifies tokens for the retirement grace (`tenant_key_retirement_grace`, seven days by default,
@@ -394,6 +422,11 @@ tokens with keys and authority replicated through the directory's change feed.**
 - **One console per cell only.** Rejected, as ADR-1437 rejects it: an operator could not see a team's tenants together,
   and the platform and team views exist only in the control-plane cell. The platform console keeps that view; a cell
   console is a cell's own slice beside it.
+- **Extending `/api/me/tenants` to inherited authority.** A `CellAdmin` would see the cell's tenants without an
+  assignment. Rejected: the route lists explicit assignments, and a listing of inherited authority is
+  `GET /api/cell/tenants`.
+- **Resetting every setting of the anchor tenant.** Recovery would clear a blocking value without knowing which one.
+  Rejected: it would discard intended configuration, so `recover-sign-in` removes only the sign-in-critical settings.
 - **A directory-only mode of the host chart.** One chart would still carry both failure domains' values and versions
   together. Rejected: a chart of its own makes the separation structural.
 
