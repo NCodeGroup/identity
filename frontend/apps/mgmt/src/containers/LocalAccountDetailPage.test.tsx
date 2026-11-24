@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { Provider } from 'react-redux';
 import { createAppStore } from '@ncodegroup/identity-store';
@@ -90,6 +90,14 @@ const claimsUrl = '/claims';
 const metadataUrl = '/metadata';
 
 describe('LocalAccountDetailPage', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
   it('loads and shows the profile claims', async () => {
     installFetch((url) => {
       if (url.endsWith(claimsUrl)) {

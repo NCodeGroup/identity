@@ -21,6 +21,12 @@ export type LocalAccountClaimsEditorProps = {
 
 type ClaimRow = { readonly id: number; readonly type: string; readonly value: string };
 
+/**
+ * The claim type the account's display name supplies. The server's `LocalAccountClaimRules` refuses it in a claims
+ * write, so the editor refuses it too.
+ */
+const NAME_CLAIM_TYPE = 'name';
+
 const reservedNameMessage = 'The display name is the name claim; edit it with the user.';
 
 /**
@@ -53,7 +59,7 @@ export function LocalAccountClaimsEditor({
       (row, index) => row.type !== claims[index]?.type || row.value !== claims[index]?.value,
     );
   const hasBlankType = rows.some((row) => row.type.trim() === '');
-  const hasReservedType = rows.some((row) => row.type.trim() === 'name');
+  const hasReservedType = rows.some((row) => row.type.trim() === NAME_CLAIM_TYPE);
   const canSave = isDirty && !isSaving && !hasBlankType && !hasReservedType;
 
   const update = (index: number, patch: Partial<LocalAccountClaim>) =>
@@ -76,8 +82,8 @@ export function LocalAccountClaimsEditor({
             label="Type"
             value={row.type}
             onChange={(event) => update(index, { type: event.target.value })}
-            error={row.type.trim() === 'name'}
-            helperText={row.type.trim() === 'name' ? reservedNameMessage : undefined}
+            error={row.type.trim() === NAME_CLAIM_TYPE}
+            helperText={row.type.trim() === NAME_CLAIM_TYPE ? reservedNameMessage : undefined}
             size="small"
             slotProps={{ htmlInput: { 'data-testid': `claim-type-${index}` } }}
           />
