@@ -243,8 +243,8 @@ Until the first stable release, the [Unreleased] section describes the product a
   `Polly.RateLimiting` to a consumer: a project that uses one of them, such as `AddStandardResilienceHandler`,
   references that package itself ([#471](https://github.com/NCodeGroup/identity/issues/471),
   [ADR-1385](docs/decisions/1385-no-shipping-package-replaces-its-consumers-logging-generator-or-carries-microsoft-extensions-http-resilience.md)).
-- **Project template v0.111.3.** The repository's plan-and-execute workflow, agent instructions and checks come from
-  project-template v0.111.3. They include the template's pre-release posture, which `- pre-release: untracked` in
+- **Project template v0.113.1.** The repository's plan-and-execute workflow, agent instructions and checks come from
+  project-template v0.113.1. They include the template's pre-release posture, which `- pre-release: untracked` in
   `AGENTS.md`'s Landing section selects, as project-template ADR-0015 records: until the first stable release every text
   describes the family as it is, each plan keeps `## [Unreleased]` a catalog under `### Added` and `### Security`,
   `/review-plan-diff` checks that a plan's texts describe the product as it is, and no change keeps compatibility, so a
@@ -264,29 +264,28 @@ Until the first stable release, the [Unreleased] section describes the product a
   `Tag and publish release` workflow, `.github/workflows/tag-release.yml`, which runs `.template/Publish-Release.ps1` on
   each push to `main` and publishes nothing, because the Landing section says `release: none`; `/ship-plan`'s choice to
   act on a plan's follow-ups next, which files them as issues and has `/finish-plan` end with a `/plan-issue` command
-  for each; Claude Code settings that allow every Bash and PowerShell command, ask before one that mentions `.env` or
-  `secrets`, and deny reading `.env` files and `secrets/`, with a `SessionStart` hook, `.claude/hooks/session-start.sh`,
-  that runs each `.claude/hooks/ensure-*.sh` in a Claude Code cloud session, among them `ensure-pwsh.sh`, which installs
-  `pwsh` where it is missing; `code-review-auto-merge.yml` for NCode Review pin bumps, which turns on auto-merge with
-  the first merge method `main` allows; the template's C# test conventions in
-  `.github/instructions/csharp-tests.instructions.md`; and the template's general decision records in
-  `docs/decisions/project-template/`, the source of truth for the rules they cover. They also include `/best-practices`,
-  which checks the family's OpenSSF Best Practices answers against the repository and writes the prompt that registers
-  or updates them; `/run-issues-all-in`, which takes the issues it names into one plan and one draft pull request and
-  fixes every finding that holds; the OpenSSF Scorecard workflow, `.github/workflows/scorecard.yml`, which publishes the
-  score on each push to `main` and weekly and uploads its findings to code scanning; `CODE_OF_CONDUCT.md`, `ROADMAP.md`,
-  `docs/architecture.md`, `docs/assurance-case.md`, `docs/best-practices-badge.md` and
-  `docs/best-practices-criteria.md`, the documents the OpenSSF Best Practices silver level asks for, of which
-  `ROADMAP.md` gives the family's direction for the next twelve months, `docs/architecture.md` its components and design
-  rules, and `docs/assurance-case.md` its security requirements, threat model, the secure design principles it applies
-  and the weaknesses it counters; and a `Copyright` without the build year, so a rebuild in a later year produces the
-  same assemblies and packages. The workflow commands that post to GitHub run through `gh api` REST routes in a session
-  that refuses GitHub's GraphQL API, such as a Claude Code cloud session; `/ship-plan` and `/run-issues` delete agent
-  attribution lines from the pull request title and description they write, and nothing checks commits or pull requests
-  for attribution (project-template ADR-0018). The template's `file_header_template` is the two-line SPDX header
-  [ADR-1309](docs/decisions/1309-c-files-carry-a-two-line-spdx-header-that-the-build-checks.md) enforces, and
-  `build/dod.ps1` and `.vscode/settings.json` are this repository's own: the `project_owned_files` answer names them, so
-  template updates leave them alone ([#516](https://github.com/NCodeGroup/identity/issues/516),
+  for each; Claude Code settings that allow every Bash and PowerShell command and deny reading `.env` files and
+  `secrets/`, with a `SessionStart` hook, `.claude/hooks/session-start.sh`, that runs each `.claude/hooks/ensure-*.sh`
+  in a Claude Code cloud session, among them `ensure-pwsh.sh`, which installs `pwsh` where it is missing;
+  `code-review-auto-merge.yml` for NCode Review pin bumps, which turns on auto-merge with the first merge method `main`
+  allows; the template's C# test conventions in `.github/instructions/csharp-tests.instructions.md`; and the template's
+  general decision records in `docs/decisions/project-template/`, the source of truth for the rules they cover. They
+  also include `/best-practices`, which checks the family's OpenSSF Best Practices answers against the repository and
+  writes the prompt that registers or updates them; `/run-issues-all-in`, which takes the issues it names into one plan
+  and one draft pull request and fixes every finding that holds; the OpenSSF Scorecard workflow,
+  `.github/workflows/scorecard.yml`, which publishes the score on each push to `main` and weekly and uploads its
+  findings to code scanning; `CODE_OF_CONDUCT.md`, `ROADMAP.md`, `docs/architecture.md`, `docs/assurance-case.md`,
+  `docs/best-practices-badge.md` and `docs/best-practices-criteria.md`, the documents the OpenSSF Best Practices silver
+  level asks for, of which `ROADMAP.md` gives the family's direction for the next twelve months, `docs/architecture.md`
+  its components and design rules, and `docs/assurance-case.md` its security requirements, threat model, the secure
+  design principles it applies and the weaknesses it counters; and a `Copyright` without the build year, so a rebuild in
+  a later year produces the same assemblies and packages. The workflow commands that post to GitHub run through `gh api`
+  REST routes in a session that refuses GitHub's GraphQL API, such as a Claude Code cloud session; `/ship-plan` and
+  `/run-issues` delete agent attribution lines from the pull request title and description they write, and nothing
+  checks commits or pull requests for attribution (project-template ADR-0018). The template's `file_header_template` is
+  the two-line SPDX header [ADR-1309](docs/decisions/1309-c-files-carry-a-two-line-spdx-header-that-the-build-checks.md)
+  enforces, and `build/dod.ps1` and `.vscode/settings.json` are this repository's own: the `project_owned_files` answer
+  names them, so template updates leave them alone ([#516](https://github.com/NCodeGroup/identity/issues/516),
   [#536](https://github.com/NCodeGroup/identity/issues/536), [#542](https://github.com/NCodeGroup/identity/issues/542),
   [#855](https://github.com/NCodeGroup/identity/issues/855), [#899](https://github.com/NCodeGroup/identity/issues/899),
   [#900](https://github.com/NCodeGroup/identity/issues/900)).
