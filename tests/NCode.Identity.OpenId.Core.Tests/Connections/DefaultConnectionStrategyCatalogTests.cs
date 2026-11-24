@@ -71,9 +71,11 @@ public class DefaultConnectionStrategyCatalogTests
     [Fact]
     public void Constructor_WhenStrategyHasNoName_Throws()
     {
-        Assert.Throws<InvalidOperationException>(() =>
+        var exception = Assert.Throws<InvalidOperationException>(() =>
             new DefaultConnectionStrategyCatalog([new TestStrategy("")])
         );
+
+        Assert.Contains(nameof(TestStrategy), exception.Message);
     }
 
     [Fact]

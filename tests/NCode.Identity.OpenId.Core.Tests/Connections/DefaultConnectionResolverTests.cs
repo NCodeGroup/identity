@@ -190,9 +190,9 @@ public class DefaultConnectionResolverTests : BaseTests
         MockStore
             .Setup(x => x.GetEnabledAsync(null, It.IsAny<CancellationToken>()))
             .ReturnsAsync([
-                Connection("zeta"),
-                Connection("unregistered", strategy: "other"),
                 Connection("alpha"),
+                Connection("unregistered", strategy: "other"),
+                Connection("zeta"),
             ]);
 
         var result = await Resolver.GetAllowedAsync(

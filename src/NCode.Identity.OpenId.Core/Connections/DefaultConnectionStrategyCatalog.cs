@@ -34,9 +34,12 @@ internal sealed class DefaultConnectionStrategyCatalog(IEnumerable<IConnectionSt
         {
             var name = strategy.Name;
             if (string.IsNullOrWhiteSpace(name))
+            {
+                var strategyType = strategy.GetType().FullName;
                 throw new InvalidOperationException(
-                    "A connection strategy has a null, empty or whitespace name."
+                    $"The connection strategy '{strategyType}' has a null, empty or whitespace name."
                 );
+            }
 
             if (!strategiesByName.TryAdd(name, strategy))
             {

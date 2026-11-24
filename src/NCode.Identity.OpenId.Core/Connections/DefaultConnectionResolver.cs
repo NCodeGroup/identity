@@ -102,6 +102,7 @@ internal sealed class DefaultConnectionResolver(
         var names = clientSettings.TryGetValue(OpenIdSettingKeys.AllowedConnections, out var listed)
             ? listed
             : null;
+        // The store returns the connections ordered by name ordinally, and the filter below keeps that order.
         var connections = await store.GetEnabledAsync(names, cancellationToken);
 
         var allowed = new List<ResolvedConnection>();
@@ -118,7 +119,7 @@ internal sealed class DefaultConnectionResolver(
                 allowed.Add(resolved);
         }
 
-        return allowed.OrderBy(item => item.Name, StringComparer.Ordinal).ToList();
+        return allowed;
     }
 
     /// <inheritdoc />
