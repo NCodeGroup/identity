@@ -63,8 +63,9 @@ public interface ILocalAccountStore : IStore
     );
 
     /// <summary>
-    /// Verifies a sign-in identifier and password credential in one store call. The store finds the account in the
-    /// identifier's connection by its user name first, then by its email address, as the identifier carries them, calls
+    /// Verifies a sign-in identifier and password credential in one store call. The store runs the lookup of each value
+    /// the identifier carries (its user name and its email address) in the identifier's connection, whatever the other
+    /// finds, so the work does not tell which one matched, and the account that the user name matches wins. It calls
     /// <paramref name="isRefusedAsync"/> once with the identifier of the account it found (or the submitted identifier
     /// when none matches), then verifies once: against the stored hash, or against a dummy hash of the same cost when
     /// <paramref name="isRefusedAsync"/> refuses the password or the store holds no hash it may verify (no account, no

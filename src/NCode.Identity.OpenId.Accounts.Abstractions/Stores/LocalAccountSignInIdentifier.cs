@@ -8,7 +8,8 @@ namespace NCode.Identity.OpenId.Accounts.Stores;
 
 /// <summary>
 /// Contains the identifier an end user presents to sign in to a local connection: a user name, an email address, or
-/// both. A store looks the account up by the user name first, then by the email address.
+/// both. A store runs the lookup of each value the identifier carries, whatever the other finds, so the work does not
+/// tell which one matched, and the match by user name wins.
 /// </summary>
 [PublicAPI]
 [ExcludeFromCodeCoverage]

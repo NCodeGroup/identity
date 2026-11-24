@@ -6301,8 +6301,10 @@ Until the first stable release, the [Unreleased] section describes the product a
   `password_failed_attempts_limit` failures (10 by default, at most 100) fall within `password_failed_attempts_window`
   of the first (15 minutes by default), every password for the account is refused with the answer a wrong password gets
   until the window ends. A verified password, and a password an administrator sets, clear the count.
-  `ILocalAccountStore.VerifyCredentialAsync` looks the account up once, asks its caller's `isRefusedAsync` about the
-  user name the account holds, and returns `LocalAccountVerificationResult` (`UserName`, `Account`, `IsRefused`,
+  `ILocalAccountStore.VerifyCredentialAsync` runs the lookup of each value its `LocalAccountSignInIdentifier` carries
+  (the user name and the email address), every one whatever another finds, and the account the user name matches wins.
+  It asks its caller's `isRefusedAsync` about the found account's `LocalAccountId`, or about the submitted identifier
+  when none matches, and returns `LocalAccountVerificationResult` (`AccountKey`, `Account`, `IsRefused`,
   `IsVerified`); the sign-in, the password grant and the self-service change ask
   `IPasswordAttemptLimiter.IsLimitReachedAsync` through a gate that enforces its answer whatever the store returns, and
   a store that never calls `isRefusedAsync` fails every verification. A password refused at the limit is verified

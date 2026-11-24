@@ -163,10 +163,10 @@ name.**
   within each window. A reset by an administrator clears the count, and an end user waits at most one window.
 - Concurrent attempts can exceed the limit by the number in flight, because the count is read before the verification and
   incremented after it.
-- A sign-in, a password grant or a change of a password runs the lookups its connection's identifier mode names, whatever
-  matches, one read of the counter, and one increment or, after a verified password, one removal of it, each a round
-  trip to the shared state when a deployment uses Valkey. The change finds the signed-in account by its identifier before it, and the grant resolves the
-  principal of a verified password in a second store manager.
+- A sign-in, a password grant or a change of a password runs the lookups its connection's identifier mode names,
+  whatever matches, one read of the counter, and one increment or, after a verified password, one removal of it, each a
+  round trip to the shared state when a deployment uses Valkey. The change finds the signed-in account by its identifier
+  before it, and the grant resolves the principal of a verified password in a second store manager.
 - A password refused at the limit costs one dummy verification and one counter increment, and answers as a wrong password
   does, so neither the answer nor the work tells whether an account has the user name under any spelling that a database
   collation matches.
