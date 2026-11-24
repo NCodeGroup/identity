@@ -22,6 +22,8 @@ public static class TypefaceProbe
     /// </summary>
     public const string MartianMono = "Martian Mono Variable";
 
+    private const int SettleMilliseconds = 5_000;
+
     private const string RecordViolationsScript = """
         window.__policyViolations = []; document.addEventListener('securitypolicyviolation', (event) => window.__policyViolations.push(`${event.violatedDirective} ${event.blockedURI}`));
         """;
@@ -30,12 +32,42 @@ public static class TypefaceProbe
         () => (document.getElementById('root')?.childElementCount ?? 0) > 0
         """;
 
-    private const string LoadFamilyScript = """
-        async (family) => (await document.fonts.load(`16px "${family}"`)).length
+    private const string DeadlineScript = """
+        (milliseconds) => performance.now() + milliseconds
         """;
 
-    private const string CheckFamiliesScript = """
-        (families) => families.every((family) => document.fonts.check(`16px "${family}"`))
+    private const string LoadFamilyScript = """
+        async ({ family, deadline }) => {
+          const timedOut = new Promise((resolve) => setTimeout(resolve, Math.max(0, deadline - performance.now()), []));
+          try {
+            return (await Promise.race([document.fonts.load(`16px "${family}"`), timedOut])).length;
+          } catch {
+            return 0;
+          }
+        }
+        """;
+
+    private const string SettledFamiliesScript = """
+        async ({ families, deadline }) => {
+          const pause = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
+          const settle = () =>
+            Promise.all(families.map((family) => document.fonts.load(`16px "${family}"`))).then(() => document.fonts.ready);
+          for (;;) {
+            const remaining = deadline - performance.now();
+            if (remaining <= 0) {
+              return false;
+            }
+            try {
+              await Promise.race([settle(), pause(remaining)]);
+            } catch {
+              return false;
+            }
+            if (families.every((family) => document.fonts.check(`16px "${family}"`))) {
+              return true;
+            }
+            await pause(50);
+          }
+        }
         """;
 
     private const string ViolationsScript = """
@@ -43,8 +75,9 @@ public static class TypefaceProbe
         """;
 
     /// <summary>
-    /// Opens a page, waits for its bundle to render, loads both typefaces through the page's <c>FontFaceSet</c>, and
-    /// returns what the page fetched and what its policy refused.
+    /// Opens a page, waits for its bundle to render, loads both typefaces through the page's <c>FontFaceSet</c> and
+    /// waits for it to settle, all within five seconds, and returns what the page fetched, what its policy refused and
+    /// what its font set loaded.
     /// </summary>
     /// <param name="context">The browser context to open the page in.</param>
     /// <param name="url">The URL of the page.</param>
@@ -95,11 +128,23 @@ public static class TypefaceProbe
         await page.GotoAsync(url, gotoOptions);
         await page.WaitForFunctionAsync(RenderedScript);
 
-        var instrumentSansFaces = await page.EvaluateAsync<int>(LoadFamilyScript, InstrumentSans);
-        var martianMonoFaces = await page.EvaluateAsync<int>(LoadFamilyScript, MartianMono);
+        var deadline = await page.EvaluateAsync<double>(DeadlineScript, SettleMilliseconds);
 
+        var instrumentSansFaces = await page.EvaluateAsync<int>(
+            LoadFamilyScript,
+            new { family = InstrumentSans, deadline }
+        );
+        var martianMonoFaces = await page.EvaluateAsync<int>(
+            LoadFamilyScript,
+            new { family = MartianMono, deadline }
+        );
+
+        // WebKit can report a family unloaded right after its load resolves, so read the set once it settles.
         string[] families = [InstrumentSans, MartianMono];
-        var bothChecked = await page.EvaluateAsync<bool>(CheckFamiliesScript, families);
+        var bothChecked = await page.EvaluateAsync<bool>(
+            SettledFamiliesScript,
+            new { families, deadline }
+        );
         var policyViolations = await page.EvaluateAsync<string[]>(ViolationsScript);
 
         return new TypefaceProbeResult(
