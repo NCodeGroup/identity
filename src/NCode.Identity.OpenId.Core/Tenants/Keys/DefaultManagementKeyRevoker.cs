@@ -19,12 +19,12 @@ using NCode.Mediator;
 namespace NCode.Identity.OpenId.Tenants.Keys;
 
 /// <summary>
-/// Provides the default implementation of <see cref="IManagementKeyRevoker"/>. In one unit of work it removes the
-/// key from the control-plane tenant, activates the key's pending successor of the same use at once or, when none
-/// exists, generates a successor that is active at once, and records the revocation, so the outbox that the
-/// persistence layer writes publishes the management keys document in the same commit. Once the unit of work has
-/// committed, the revocation is audited, the tenant is announced so every replica reloads its key set, and a revoked
-/// remote key is destroyed in its key management service.
+/// Provides the default implementation of <see cref="IManagementKeyRevoker"/>. In one unit of work it removes the key
+/// from the control-plane tenant, activates the key's pending successor of the same use at once or, when none exists,
+/// generates a successor that is active at once, and records the revocation, so the outbox that the persistence layer
+/// writes publishes the management keys document in the same commit. Once the unit of work has committed, the
+/// revocation is audited, the tenant is announced so every replica reloads its key set, and a revoked remote key is
+/// destroyed in its key management service.
 /// </summary>
 // See ADR-1536 and ADR-1351.
 internal sealed class DefaultManagementKeyRevoker(

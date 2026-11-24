@@ -76,8 +76,8 @@ internal sealed class TenantKeyCustodyReconciler(
     }
 
     /// <summary>
-    /// Runs one pass, when this replica wins the lease of the current window. A pass that fails is logged and run
-    /// again at the next interval.
+    /// Runs one pass, when this replica wins the lease of the current window. A pass that fails is logged and run again
+    /// at the next interval.
     /// </summary>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
     /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation.</returns>

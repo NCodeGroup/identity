@@ -7,8 +7,8 @@ namespace NCode.Identity.OpenId.Setup;
 
 /// <summary>
 /// Creates or restores the administrator of the control-plane tenant when its sign-in is lost: the local account is
-/// created or re-enabled, unlocked and given a new password, and holds <c>GlobalAdmin</c> at the platform node. Register
-/// a custom implementation to replace or extend the default behavior.
+/// created or re-enabled, unlocked and given a new password, and holds <c>GlobalAdmin</c> at the platform node.
+/// Register a custom implementation to replace or extend the default behavior.
 /// </summary>
 [PublicAPI]
 public interface IAdministratorRecoveryService

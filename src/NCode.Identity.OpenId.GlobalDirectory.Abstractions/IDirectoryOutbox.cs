@@ -6,8 +6,8 @@ using JetBrains.Annotations;
 namespace NCode.Identity.OpenId.GlobalDirectory;
 
 /// <summary>
-/// Exposes the documents that the control-plane cell has committed and still has to publish to the directory.
-/// Register a custom implementation to replace the default behavior.
+/// Exposes the documents that the control-plane cell has committed and still has to publish to the directory. Register
+/// a custom implementation to replace the default behavior.
 /// </summary>
 [PublicAPI]
 public interface IDirectoryOutbox
@@ -17,7 +17,8 @@ public interface IDirectoryOutbox
     /// </summary>
     /// <param name="limit">The maximum number of documents to return.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
-    /// <returns>The <see cref="ValueTask{TResult}"/> that represents the asynchronous operation, whose result is the documents ordered by kind, key and revision.</returns>
+    /// <returns>The <see cref="ValueTask{TResult}"/> that represents the asynchronous operation, whose result is the
+    /// documents ordered by kind, key and revision.</returns>
     ValueTask<IReadOnlyList<ReplicatedDocument>> ListPendingAsync(
         int limit,
         CancellationToken cancellationToken
@@ -42,7 +43,8 @@ public interface IDirectoryOutbox
     /// Lists the latest revision of every document that the cell publishes.
     /// </summary>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
-    /// <returns>The <see cref="ValueTask{TResult}"/> that represents the asynchronous operation, whose result is the documents with a <c>null</c> <see cref="ReplicatedDocument.Content"/>.</returns>
+    /// <returns>The <see cref="ValueTask{TResult}"/> that represents the asynchronous operation, whose result is the
+    /// documents with a <c>null</c> <see cref="ReplicatedDocument.Content"/>.</returns>
     ValueTask<IReadOnlyList<ReplicatedDocument>> ListLocalRevisionsAsync(
         CancellationToken cancellationToken
     );
@@ -65,8 +67,8 @@ public interface IDirectoryOutbox
 }
 
 /// <summary>
-/// Wakes the publisher of the directory outbox after a commit wrote outbox entries.
-/// Register a custom implementation to replace the default behavior.
+/// Wakes the publisher of the directory outbox after a commit wrote outbox entries. Register a custom implementation to
+/// replace the default behavior.
 /// </summary>
 [PublicAPI]
 public interface IDirectoryOutboxSignal

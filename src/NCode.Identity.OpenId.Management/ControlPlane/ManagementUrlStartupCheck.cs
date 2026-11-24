@@ -9,10 +9,10 @@ using NCode.Identity.OpenId.Tenants;
 namespace NCode.Identity.OpenId.Management.ControlPlane;
 
 /// <summary>
-/// Stops the host as it starts when the platform has a directory, the cell is the control-plane cell or has a management
-/// tenant, and the origin of <c>Cell:ManagementUrl</c> differs from the origin of the root tenant's issuer, because a
-/// DPoP proof for the management API names the URL the cell registers, and the tenant that issues the management tokens
-/// answers at that origin.
+/// Stops the host as it starts when the platform has a directory, the cell is the control-plane cell or has a
+/// management tenant, and the origin of <c>Cell:ManagementUrl</c> differs from the origin of the root tenant's issuer,
+/// because a DPoP proof for the management API names the URL the cell registers, and the tenant that issues the
+/// management tokens answers at that origin.
 /// </summary>
 /// <param name="platformTopology">The shape of the platform the cell belongs to.</param>
 /// <param name="cellOptions">The options of the cell, which name its management URL.</param>

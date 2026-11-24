@@ -30,8 +30,8 @@ public static class ReplicatedDocumentKinds
 }
 
 /// <summary>
-/// Describes the content of an authority document: the role assignments at one node and, for the platform document,
-/// the control-plane tenant's clients.
+/// Describes the content of an authority document: the role assignments at one node and, for the platform document, the
+/// control-plane tenant's clients.
 /// </summary>
 [PublicAPI]
 [ExcludeFromCodeCoverage]

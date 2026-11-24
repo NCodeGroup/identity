@@ -2346,7 +2346,8 @@ internal sealed class DefaultDirectoryStore(
     /// <param name="dbContext">The <see cref="DirectoryDbContext"/> whose transaction the caller holds.</param>
     /// <param name="normalizedTeamId">The normalized identifier of the team that was retired.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
-    /// <returns>A <see cref="ValueTask"/> that completes when the retire is tracked by <paramref name="dbContext"/>.</returns>
+    /// <returns>A <see cref="ValueTask"/> that completes when the retire is tracked by
+    /// <paramref name="dbContext"/>.</returns>
     private static async ValueTask RetireTeamAuthorityAsync(
         DirectoryDbContext dbContext,
         string normalizedTeamId,

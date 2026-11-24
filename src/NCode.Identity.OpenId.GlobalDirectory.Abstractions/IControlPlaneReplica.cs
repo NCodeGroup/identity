@@ -8,8 +8,8 @@ using NCode.Identity.Secrets.Keys;
 namespace NCode.Identity.OpenId.GlobalDirectory;
 
 /// <summary>
-/// Reads the replica of the control plane's authority and management keys that the cell holds in its own database.
-/// A read never calls the directory or another cell. Register a custom implementation to replace the default behavior.
+/// Reads the replica of the control plane's authority and management keys that the cell holds in its own database. A
+/// read never calls the directory or another cell. Register a custom implementation to replace the default behavior.
 /// </summary>
 [PublicAPI]
 public interface IControlPlaneReplica
@@ -26,8 +26,8 @@ public interface IControlPlaneReplica
     /// Gets the platform and team roles that a principal holds according to the replicated authority documents.
     /// </summary>
     /// <param name="principalId">The control-plane principal identifier.</param>
-    /// <param name="teamId">The team whose roles are read together with those of every team above it, or
-    /// <c>null</c> to read no team roles.</param>
+    /// <param name="teamId">The team whose roles are read together with those of every team above it, or <c>null</c> to
+    /// read no team roles.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
     /// <returns>The <see cref="ValueTask{TResult}"/> that represents the asynchronous operation, containing the
     /// authority.</returns>
@@ -81,8 +81,8 @@ public sealed record ReplicatedAuthority
     public IReadOnlyList<string> TeamRoles { get; init; } = [];
 
     /// <summary>
-    /// Gets the identifier of the control-plane client that the principal acts as, or <c>null</c> when the principal
-    /// is not an enabled client of the control-plane tenant.
+    /// Gets the identifier of the control-plane client that the principal acts as, or <c>null</c> when the principal is
+    /// not an enabled client of the control-plane tenant.
     /// </summary>
     public string? ClientId { get; init; }
 }

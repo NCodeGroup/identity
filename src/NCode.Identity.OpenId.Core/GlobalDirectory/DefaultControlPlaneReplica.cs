@@ -14,8 +14,8 @@ using NCode.Identity.Secrets.Persistence.DataContracts;
 namespace NCode.Identity.OpenId.GlobalDirectory;
 
 /// <summary>
-/// Provides the default implementation of <see cref="IControlPlaneReplica"/>. It reads the replicated documents and
-/// the refused management keys from the cell's own database and never calls the directory or another cell. A team's
+/// Provides the default implementation of <see cref="IControlPlaneReplica"/>. It reads the replicated documents and the
+/// refused management keys from the cell's own database and never calls the directory or another cell. A team's
 /// authority document is read under the lower-cased team identifier, for the team and every team above it in the cell's
 /// mirror of the teams.
 /// </summary>

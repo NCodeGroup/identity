@@ -46,8 +46,8 @@ public sealed class RevokeManagementKeyCommandLine
     public string? KeyId { get; private init; }
 
     /// <summary>
-    /// Gets the reason the arguments are invalid, or <see langword="null"/> when they are. A command with an error
-    /// logs it with the <see cref="Usage"/> when it runs and exits with <c>2</c>.
+    /// Gets the reason the arguments are invalid, or <see langword="null"/> when they are. A command with an error logs
+    /// it with the <see cref="Usage"/> when it runs and exits with <c>2</c>.
     /// </summary>
     public string? Error { get; private init; }
 

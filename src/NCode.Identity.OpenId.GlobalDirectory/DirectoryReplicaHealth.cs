@@ -11,8 +11,8 @@ namespace NCode.Identity.OpenId.GlobalDirectory;
 /// Reports how old the cell's replica of the directory's documents is. It keeps the time of the last feed pass that
 /// completed, an empty page included, and the highest sequence that pass applied, and it observes them as the gauges
 /// <c>ncode.identity.directory.replica.age</c> and <c>ncode.identity.directory.replica.sequence</c>. As a readiness
-/// check it always answers <see cref="HealthStatus.Healthy"/>, because a replica that serves its last known documents is
-/// ready; the data of the result carries the age and the sequence for an operator.
+/// check it always answers <see cref="HealthStatus.Healthy"/>, because a replica that serves its last known documents
+/// is ready; the data of the result carries the age and the sequence for an operator.
 /// </summary>
 internal sealed class DirectoryReplicaHealth : IHealthCheck
 {

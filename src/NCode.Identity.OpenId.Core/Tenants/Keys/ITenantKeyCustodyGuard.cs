@@ -5,8 +5,8 @@ namespace NCode.Identity.OpenId.Tenants.Keys;
 
 /// <summary>
 /// Decides whether this cell may change a tenant's keys. A cell changes the keys of a tenant it holds the custody of,
-/// and leaves the keys of a tenant whose custody is fenced by a move to or from another cell, or that it does not
-/// hold, as they are. The decision reads only the cell's own database.
+/// and leaves the keys of a tenant whose custody is fenced by a move to or from another cell, or that it does not hold,
+/// as they are. The decision reads only the cell's own database.
 /// </summary>
 // See ADR-1404 and ADR-1514.
 internal interface ITenantKeyCustodyGuard

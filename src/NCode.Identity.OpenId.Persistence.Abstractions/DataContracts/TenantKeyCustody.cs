@@ -7,8 +7,8 @@ namespace NCode.Identity.OpenId.Persistence.DataContracts;
 
 /// <summary>
 /// Contains the values of a tenant's key-custody fence, which says whether this cell may use the tenant's keys while a
-/// move to or from another cell is in flight. The set is closed: a move has two sides, and the cell holding the keys
-/// is the third state.
+/// move to or from another cell is in flight. The set is closed: a move has two sides, and the cell holding the keys is
+/// the third state.
 /// </summary>
 [PublicAPI]
 public static class TenantKeyCustody

@@ -12,11 +12,10 @@ using NCode.Identity.Server.Logging;
 namespace NCode.Identity.Server.Recovery;
 
 /// <summary>
-/// The headless <c>recover-admin</c> command of the host: it creates or restores the administrator of the
-/// control-plane cell from the <c>Recovery:Admin:UserName</c>, <c>Recovery:Admin:DisplayName</c>,
-/// <c>Recovery:Admin:Email</c> and <c>Recovery:Admin:Password</c> configuration through
-/// <see cref="IAdministratorRecoveryService"/>, and exits without starting the server. An operator runs it as a one-off
-/// Job when every administrator's sign-in is lost.
+/// The headless <c>recover-admin</c> command of the host: it creates or restores the administrator of the control-plane
+/// cell from the <c>Recovery:Admin:UserName</c>, <c>Recovery:Admin:DisplayName</c>, <c>Recovery:Admin:Email</c> and
+/// <c>Recovery:Admin:Password</c> configuration through <see cref="IAdministratorRecoveryService"/>, and exits without
+/// starting the server. An operator runs it as a one-off Job when every administrator's sign-in is lost.
 /// </summary>
 /// <remarks>
 /// The exit code is <c>0</c> when the administrator is recovered, <c>1</c> when recovery is refused or fails, which the
@@ -43,8 +42,8 @@ public sealed class RecoverAdminCommandLine
         + $"{RecoveryOptions.SectionName}:Admin:Password configuration)";
 
     /// <summary>
-    /// Gets the reason the arguments are invalid, or <see langword="null"/> when they are. A command with an error
-    /// logs it with the <see cref="Usage"/> when it runs and exits with <c>2</c>.
+    /// Gets the reason the arguments are invalid, or <see langword="null"/> when they are. A command with an error logs
+    /// it with the <see cref="Usage"/> when it runs and exits with <c>2</c>.
     /// </summary>
     public string? Error { get; private init; }
 

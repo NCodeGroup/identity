@@ -6,9 +6,9 @@ namespace NCode.Identity.OpenId.GlobalDirectory;
 /// <summary>
 /// Provides the <see cref="IReplicatedDocumentDirectory"/> of a cell that reaches the global directory service over
 /// HTTP. Each method is one call under <c>directory/v1/</c>: <c>PUT platform/authority</c>,
-/// <c>PUT teams/{teamId}/authority</c> and <c>PUT platform/management-keys</c> publish a document and answer the
-/// stored revision, the same paths with <c>GET</c> read it, and <c>GET replicated-revisions</c> lists every revision.
-/// A <c>404</c> answer to a lookup means the directory holds no such document. Every failure of the directory is a
+/// <c>PUT teams/{teamId}/authority</c> and <c>PUT platform/management-keys</c> publish a document and answer the stored
+/// revision, the same paths with <c>GET</c> read it, and <c>GET replicated-revisions</c> lists every revision. A
+/// <c>404</c> answer to a lookup means the directory holds no such document. Every failure of the directory is a
 /// <see cref="DirectoryUnavailableException"/>.
 /// </summary>
 // See ADR-1536.

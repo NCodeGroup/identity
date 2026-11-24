@@ -186,8 +186,8 @@ public interface ITenantStore : IStore<PersistedTenant>
     /// </summary>
     /// <param name="custody">One of the <c>TenantKeyCustody</c> values.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
-    /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation, containing the identifiers of the
-    /// tenants whose custody is the specified value.</returns>
+    /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation, containing the identifiers of
+    /// the tenants whose custody is the specified value.</returns>
     // See ADR-1536.
     ValueTask<IReadOnlyList<string>> ListTenantIdsByKeyCustodyAsync(
         string custody,
@@ -329,8 +329,8 @@ public interface ITenantStore : IStore<PersistedTenant>
     /// <param name="custody">One of the <c>TenantKeyCustody</c> values.</param>
     /// <param name="cell">The name of the other cell of the move, or <c>null</c> when the tenant is held.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
-    /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation, containing <c>true</c>
-    /// when the tenant exists; otherwise <c>false</c>.</returns>
+    /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation, containing <c>true</c> when the
+    /// tenant exists; otherwise <c>false</c>.</returns>
     // See ADR-1536.
     ValueTask<bool> SetKeyCustodyAsync(
         string tenantId,

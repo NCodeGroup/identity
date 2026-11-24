@@ -22,8 +22,8 @@ public interface IDirectoryOutboxStore : IStore
     /// </summary>
     /// <param name="limit">The maximum number of entries to return.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
-    /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation, containing the entries ordered by
-    /// kind, key and revision.</returns>
+    /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation, containing the entries ordered
+    /// by kind, key and revision.</returns>
     ValueTask<IReadOnlyList<PersistedDirectoryOutboxEntry>> ListPendingAsync(
         int limit,
         CancellationToken cancellationToken
@@ -48,7 +48,8 @@ public interface IDirectoryOutboxStore : IStore
     /// Lists the latest revision of every document that the cell publishes.
     /// </summary>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
-    /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation, containing the revisions.</returns>
+    /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation, containing the
+    /// revisions.</returns>
     ValueTask<IReadOnlyList<PersistedSourceRevision>> ListSourceRevisionsAsync(
         CancellationToken cancellationToken
     );

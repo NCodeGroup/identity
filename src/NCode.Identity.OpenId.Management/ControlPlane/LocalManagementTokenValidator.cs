@@ -14,8 +14,8 @@ namespace NCode.Identity.OpenId.Management.ControlPlane;
 
 /// <summary>
 /// Validates a self-issued bearer or DPoP access token for the management audience against the tenant that the
-/// request's OpenID environment selects, and resolves the client the caller acts as. On a platform with a directory
-/// it accepts only a DPoP-bound token sent under the <c>DPoP</c> scheme. It never answers unavailable.
+/// request's OpenID environment selects, and resolves the client the caller acts as. On a platform with a directory it
+/// accepts only a DPoP-bound token sent under the <c>DPoP</c> scheme. It never answers unavailable.
 /// </summary>
 // See ADR-1466 and ADR-1044.
 internal sealed class LocalManagementTokenValidator(

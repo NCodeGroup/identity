@@ -19,9 +19,9 @@ namespace NCode.Identity.OpenId.GlobalDirectory.ControlPlane;
 /// Validates a DPoP-bound access token for the management audience against the management keys that the cell holds in
 /// its replica, so a cell that is not the control plane authenticates a caller without a local lookup and without
 /// calling the control plane. The token is verified with the replicated keys, never through a discovery document or key
-/// set. A token must be sent under the DPoP scheme, must be bound to a key by <c>cnf.jkt</c> and must come with one DPoP
-/// proof for the request, made with that key, whose <c>jti</c> has not been used before (RFC 9449). The principal is
-/// built from the token's claims. A replica that holds no key answers unavailable, and nothing else does.
+/// set. A token must be sent under the DPoP scheme, must be bound to a key by <c>cnf.jkt</c> and must come with one
+/// DPoP proof for the request, made with that key, whose <c>jti</c> has not been used before (RFC 9449). The principal
+/// is built from the token's claims. A replica that holds no key answers unavailable, and nothing else does.
 /// </summary>
 internal sealed class ReplicatedManagementTokenValidator(
     IIssuerAccessTokenValidator accessTokenValidator,
@@ -122,8 +122,8 @@ internal sealed class ReplicatedManagementTokenValidator(
     }
 
     /// <summary>
-    /// Reads the access token from the <c>Authorization</c> header of a request, which must use the DPoP scheme
-    /// (RFC 9449 section 7.1).
+    /// Reads the access token from the <c>Authorization</c> header of a request, which must use the DPoP scheme (RFC
+    /// 9449 section 7.1).
     /// </summary>
     /// <param name="httpContext">The <see cref="HttpContext"/> of the request.</param>
     /// <param name="token">The access token, or an empty string when the header carries none.</param>

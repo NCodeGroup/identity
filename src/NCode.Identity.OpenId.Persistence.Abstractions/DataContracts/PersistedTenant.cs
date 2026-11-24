@@ -65,8 +65,8 @@ public sealed class PersistedTenant : BasePersistedTenantResource
     public string KeyCustody { get; set; } = TenantKeyCustody.Held;
 
     /// <summary>
-    /// Gets or sets the name of the other cell of a move while the tenant is
-    /// <see cref="TenantKeyCustody.Outgoing"/> or <see cref="TenantKeyCustody.Incoming"/>; otherwise <c>null</c>.
+    /// Gets or sets the name of the other cell of a move while the tenant is <see cref="TenantKeyCustody.Outgoing"/> or
+    /// <see cref="TenantKeyCustody.Incoming"/>; otherwise <c>null</c>.
     /// </summary>
     [MaxLength(OpenIdMaxLengths.CellName)]
     public string? KeyCustodyCell { get; set; }

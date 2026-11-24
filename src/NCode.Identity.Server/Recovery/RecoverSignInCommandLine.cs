@@ -17,8 +17,8 @@ namespace NCode.Identity.Server.Recovery;
 /// server. An operator runs it as a one-off Job when a setting refuses every sign-in.
 /// </summary>
 /// <remarks>
-/// The exit code is <c>0</c> when the repair completes, <c>1</c> when it fails, which the command logs, and <c>2</c> for a
-/// usage error or when the cell is a workload cell without a management tenant.
+/// The exit code is <c>0</c> when the repair completes, <c>1</c> when it fails, which the command logs, and <c>2</c>
+/// for a usage error or when the cell is a workload cell without a management tenant.
 /// </remarks>
 // See ADR-1536.
 [PublicAPI]
@@ -37,8 +37,8 @@ public sealed class RecoverSignInCommandLine
     public static string Usage { get; } = $"Usage: {CommandName} (no arguments)";
 
     /// <summary>
-    /// Gets the reason the arguments are invalid, or <see langword="null"/> when they are. A command with an error
-    /// logs it with the <see cref="Usage"/> when it runs and exits with <c>2</c>.
+    /// Gets the reason the arguments are invalid, or <see langword="null"/> when they are. A command with an error logs
+    /// it with the <see cref="Usage"/> when it runs and exits with <c>2</c>.
     /// </summary>
     public string? Error { get; private init; }
 

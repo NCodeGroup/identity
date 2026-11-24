@@ -23,7 +23,8 @@ internal static class ReplicatedDocumentComposer
     /// Composes the JSON content of an authority document.
     /// </summary>
     /// <param name="assignments">The role assignments at the node.</param>
-    /// <param name="clients">The clients of the control-plane tenant, of which only the enabled ones are listed.</param>
+    /// <param name="clients">The clients of the control-plane tenant, of which only the enabled ones are
+    /// listed.</param>
     /// <returns>The JSON content.</returns>
     internal static string ComposeAuthority(
         IEnumerable<RoleAssignmentEntity> assignments,

@@ -131,8 +131,8 @@ internal static class EventIds
     public const int DirectoryTeamParentNotMirrored = Base + 50;
 
     /// <summary>
-    /// Identifies the informational message that a tenant's keys stay unchanged in this cell because the tenant's
-    /// key custody is fenced by a move to or from another cell.
+    /// Identifies the informational message that a tenant's keys stay unchanged in this cell because the tenant's key
+    /// custody is fenced by a move to or from another cell.
     /// </summary>
     public const int TenantKeysFenced = Base + 51;
 

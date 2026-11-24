@@ -39,15 +39,15 @@ public static class DefaultRegistration
         /// <see cref="DirectoryClientOptions.PollInterval"/> one replica of a cell that is not the control plane
         /// mirrors the published team and platform documents into the cell, and a hosted service of the control-plane
         /// cell publishes its outbox of replicated documents to the directory every
-        /// <see cref="DirectoryClientOptions.PublishInterval"/> and when a commit wakes it. A cell that is not the control plane
-        /// (<see cref="CellOptions.IsControlPlane"/> is <c>false</c>) uses the <see cref="IManagementTokenValidator"/>
-        /// that validates management tokens against the management keys that its replica holds and the
-        /// <see cref="IControlPlaneAuthority"/> that answers the roles of a caller from the platform and team
-        /// authority documents that its replica holds, and an <see cref="IControlPlanePrincipalDirectory"/> that
-        /// describes no principal. This registration adds all three as keyed singletons under
-        /// <see cref="ControlPlaneServiceKeys.Remote"/> on every cell and reads no <c>Cell</c> setting; the management
-        /// library resolves them for a cell that is not the control plane and resolves its local adapters for the
-        /// control-plane cell.
+        /// <see cref="DirectoryClientOptions.PublishInterval"/> and when a commit wakes it. A cell that is not the
+        /// control plane (<see cref="CellOptions.IsControlPlane"/> is <c>false</c>) uses the
+        /// <see cref="IManagementTokenValidator"/> that validates management tokens against the management keys that
+        /// its replica holds and the <see cref="IControlPlaneAuthority"/> that answers the roles of a caller from the
+        /// platform and team authority documents that its replica holds, and an
+        /// <see cref="IControlPlanePrincipalDirectory"/> that describes no principal. This registration adds all three
+        /// as keyed singletons under <see cref="ControlPlaneServiceKeys.Remote"/> on every cell and reads no
+        /// <c>Cell</c> setting; the management library resolves them for a cell that is not the control plane and
+        /// resolves its local adapters for the control-plane cell.
         /// </summary>
         /// <param name="configuration">The <see cref="IConfiguration"/> holding the <c>Directory</c> section.</param>
         /// <returns>The same <see cref="IServiceBuilder{T}"/> so that calls can be chained.</returns>

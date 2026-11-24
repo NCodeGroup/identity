@@ -16,8 +16,8 @@ namespace NCode.Identity.OpenId.GlobalDirectory;
 /// <see cref="IDirectoryFeedCheckpoint"/>, pages <see cref="ITeamDirectory.ListChangesAsync"/> until a page is empty,
 /// applies each team change through <see cref="ITeamDocumentApplier"/> and each platform change through
 /// <see cref="IPlatformDocumentApplier"/> and each replicated document through
-/// <see cref="IReplicatedDocumentApplier"/>, and raises the checkpoint to the last change it applied after each page, so
-/// a change that leaves no row behind is not listed again. A change that loses a concurrency race is applied again,
+/// <see cref="IReplicatedDocumentApplier"/>, and raises the checkpoint to the last change it applied after each page,
+/// so a change that leaves no row behind is not listed again. A change that loses a concurrency race is applied again,
 /// which reads its rows again, at most <see cref="ConcurrencyAttempts"/> times. One replica runs each pass, under a
 /// lease on the shared-state port keyed by the poll window. The replica that holds the lease also reconciles every
 /// mirrored team's root key for the cell's region through <see cref="ITeamRootKeyMirror.ReconcileAsync"/> after the

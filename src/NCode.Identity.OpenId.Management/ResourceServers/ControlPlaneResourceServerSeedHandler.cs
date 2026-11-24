@@ -12,10 +12,10 @@ using NCode.Mediator;
 namespace NCode.Identity.OpenId.Management.ResourceServers;
 
 /// <summary>
-/// Seeds the reserved directory (<see cref="GlobalDirectoryProtocol.DirectoryAudience"/>) resource server into the
-/// root plane, which only the control-plane cell's root tenant is seeded in. Other cells request tokens for this
-/// audience with the scope <see cref="GlobalDirectoryProtocol.DirectoryScope"/>. The handler seeds nothing in the
-/// workload plane. It is idempotent: it creates the resource server only when it is absent.
+/// Seeds the reserved directory (<see cref="GlobalDirectoryProtocol.DirectoryAudience"/>) resource server into the root
+/// plane, which only the control-plane cell's root tenant is seeded in. Other cells request tokens for this audience
+/// with the scope <see cref="GlobalDirectoryProtocol.DirectoryScope"/>. The handler seeds nothing in the workload
+/// plane. It is idempotent: it creates the resource server only when it is absent.
 /// </summary>
 internal sealed class ControlPlaneResourceServerSeedHandler(ICryptoService cryptoService)
     : ICommandHandler<SeedTenantCommand>,

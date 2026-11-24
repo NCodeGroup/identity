@@ -35,9 +35,9 @@ namespace NCode.Identity.OpenId.Tenants.Keys;
 /// tenants against that team's effective settings, skips a disabled team, and logs a team it cannot handle before it
 /// goes on to the next. A tenant that holds no key is left to its first materialization, which seeds it in full. A cell
 /// never changes the keys of a tenant whose key custody is fenced by a move to or from another cell, because removing
-/// one destroys a remote key that cell uses. A tenant the pass changed is announced, so every replica evicts it and serves its keys as
-/// they are. The publishing and the announcement follow a committed change, so each runs on its own bounded token,
-/// never the host's stopping token, and the announcement follows whatever the publishing did.
+/// one destroys a remote key that cell uses. A tenant the pass changed is announced, so every replica evicts it and
+/// serves its keys as they are. The publishing and the announcement follow a committed change, so each runs on its own
+/// bounded token, never the host's stopping token, and the announcement follows whatever the publishing did.
 /// </summary>
 // See ADR-1351 (an effect that follows a committed change runs on its own bounded token), ADR-1404 and ADR-1412.
 internal sealed class TenantKeyRolloverService(

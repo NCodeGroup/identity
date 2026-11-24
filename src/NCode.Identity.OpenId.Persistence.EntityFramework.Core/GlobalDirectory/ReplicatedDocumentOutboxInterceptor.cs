@@ -14,8 +14,8 @@ namespace NCode.Identity.OpenId.Persistence.EntityFramework.Core.GlobalDirectory
 /// <summary>
 /// Writes the documents that the control-plane cell replicates to the cells into the outbox, in the same save as the
 /// change that touches them. It runs only when <see cref="IDirectoryOutboxPolicy.IsPublishing"/> is <c>true</c>. For
-/// each touched document it composes the content whole from the database rows overlaid with the tracked changes,
-/// raises the document's source revision and adds an outbox entry, so no writer can forget to publish.
+/// each touched document it composes the content whole from the database rows overlaid with the tracked changes, raises
+/// the document's source revision and adds an outbox entry, so no writer can forget to publish.
 /// </summary>
 // See ADR-1536
 internal sealed class ReplicatedDocumentOutboxInterceptor(

@@ -36,7 +36,8 @@ public interface IReplicatedDocumentStore : IStore
     /// </summary>
     /// <param name="kind">The kind of the documents.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
-    /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation, containing the replicas.</returns>
+    /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation, containing the
+    /// replicas.</returns>
     ValueTask<IReadOnlyList<PersistedReplicatedDocument>> ListByKindAsync(
         string kind,
         CancellationToken cancellationToken
@@ -59,7 +60,8 @@ public interface IReplicatedDocumentStore : IStore
     /// Lists the management keys that the cell refuses.
     /// </summary>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
-    /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation, containing the revoked keys.</returns>
+    /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation, containing the revoked
+    /// keys.</returns>
     ValueTask<IReadOnlyList<PersistedRevokedManagementKey>> ListRevokedKeysAsync(
         CancellationToken cancellationToken
     );

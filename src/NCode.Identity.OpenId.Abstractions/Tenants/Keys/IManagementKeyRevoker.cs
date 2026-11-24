@@ -21,7 +21,8 @@ public interface IManagementKeyRevoker
     /// </summary>
     /// <param name="keyId">The key identifier (<c>kid</c>) of the key to revoke.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
-    /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation, containing the outcome.</returns>
+    /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation, containing the
+    /// outcome.</returns>
     ValueTask<ManagementKeyRevocationResult> RevokeAsync(
         string keyId,
         CancellationToken cancellationToken

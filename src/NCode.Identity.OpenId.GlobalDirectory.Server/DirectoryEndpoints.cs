@@ -1001,7 +1001,8 @@ public static class DirectoryEndpoints
     /// <param name="options">The <see cref="DirectoryServerOptions"/> that name the control-plane cell.</param>
     /// <param name="directory">The <see cref="IReplicatedDocumentDirectory"/> that holds the document.</param>
     /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
-    /// <returns>See <see cref="PublishReplicatedAsync"/>; <c>400 Bad Request</c> also when the team is not valid.</returns>
+    /// <returns>See <see cref="PublishReplicatedAsync"/>; <c>400 Bad Request</c> also when the team is not
+    /// valid.</returns>
     private static async ValueTask<IResult> PublishTeamAuthorityAsync(
         string teamId,
         ReplicatedDocument document,
