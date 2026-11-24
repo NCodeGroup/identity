@@ -431,6 +431,7 @@ describe('App (platform ↔ team ↔ tenant boundary)', () => {
                 name: 'local',
                 displayName: 'Username and password',
                 strategy: 'local',
+                isSystem: true,
                 isEnabled: true,
                 options: { store: 'default' },
               },
@@ -451,7 +452,8 @@ describe('App (platform ↔ team ↔ tenant boundary)', () => {
     renderApp();
 
     fireEvent.click(await screen.findByTestId('platform-tab-users'));
-    expect(await screen.findByRole('heading', { name: 'Users' })).toBeInTheDocument();
+    expect(await screen.findByTestId('data-empty')).toHaveTextContent('No users yet.');
+    expect(screen.getByRole('heading', { name: 'Users' })).toBeInTheDocument();
     expect(window.location.pathname).toBe('/users');
 
     window.history.pushState(null, '', '/tenants/acme/clients');
@@ -459,7 +461,8 @@ describe('App (platform ↔ team ↔ tenant boundary)', () => {
       window.dispatchEvent(new PopStateEvent('popstate'));
     });
     fireEvent.click(await screen.findByTestId('tenant-tab-users'));
-    expect(await screen.findByRole('heading', { name: 'Users' })).toBeInTheDocument();
+    expect(await screen.findByTestId('data-empty')).toHaveTextContent('No users yet.');
+    expect(screen.getByRole('heading', { name: 'Users' })).toBeInTheDocument();
     expect(window.location.pathname).toBe('/tenants/acme/users');
   });
 
