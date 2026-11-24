@@ -34,6 +34,11 @@ internal static class CoreDbContextExtensions
         public DbSet<RevokedManagementKeyEntity> RevokedManagementKeys =>
             context.Set<RevokedManagementKeyEntity>();
 
+        public DbSet<DirectoryOutboxEntity> DirectoryOutbox => context.Set<DirectoryOutboxEntity>();
+
+        public DbSet<ReplicatedSourceRevisionEntity> ReplicatedSourceRevisions =>
+            context.Set<ReplicatedSourceRevisionEntity>();
+
         public DbSet<TeamEntity> Teams => context.Set<TeamEntity>();
 
         public DbSet<RetiredTeamEntity> RetiredTeams => context.Set<RetiredTeamEntity>();

@@ -66,6 +66,7 @@ public static class DefaultRegistration
                 IReplicatedDocumentStore,
                 ReplicatedDocumentStore
             >();
+            serviceCollection.AddStore<TDbContext, IDirectoryOutboxStore, DirectoryOutboxStore>();
             serviceCollection.AddStore<TDbContext, ITenantStore, TenantStore>();
             serviceCollection.AddStore<TDbContext, ITeamStore, TeamStore>();
             serviceCollection.AddStore<TDbContext, IClientStore, ClientStore>();
