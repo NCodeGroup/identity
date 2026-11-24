@@ -16,6 +16,8 @@ name: Code review
 # own app, whose approval meets no required approval. The main ruleset sets the approvals a merge needs (ADR-1261).
 # docs/decisions/project-template/0022-ncode-reviews-approval-gates-the-merge.md and
 # 0036-a-required-approval-is-met-by-ncode-reviews-approver-app.md say why.
+# v1.5.0 was released on 2026-11-21, under the three days ADR-0009 waits: approver-private-key needs it, so it is
+# pinned by that record's commented exception, and this sentence goes once 2026-11-24 has passed.
 #
 # pull_request_target and issue_comment both run this file, the engine pin and the conventions from main, so a pull
 # request can't change its own review. The engine fetches its code only to read it: nothing from it is built, run or
@@ -75,7 +77,7 @@ jobs:
       - name: Review
         # A release's full commit SHA, with its tag in the comment: the action receives the app key, the approver's key
         # and the Bedrock key, and a SHA is the one pin nobody can move. Dependabot opens each bump and updates both.
-        uses: NCodeGroup/code-review@da82720a1fb582551e8d460ddd277f3cdc8b43f1 # v1.4.2
+        uses: NCodeGroup/code-review@a4cdf65d2450e4e1b2b92ed53430ceb8026d4f97 # v1.5.0
         with:
           app-private-key: ${{ secrets.NCODE_REVIEW_APP_PRIVATE_KEY }}
           bedrock-api-key: ${{ secrets.AWS_BEARER_TOKEN_BEDROCK }}
@@ -103,6 +105,6 @@ jobs:
       pull-requests: read
     steps:
       - name: Record the outcomes
-        uses: NCodeGroup/code-review@da82720a1fb582551e8d460ddd277f3cdc8b43f1 # v1.4.2
+        uses: NCodeGroup/code-review@a4cdf65d2450e4e1b2b92ed53430ceb8026d4f97 # v1.5.0
         with:
           app-private-key: ${{ secrets.NCODE_REVIEW_APP_PRIVATE_KEY }}
