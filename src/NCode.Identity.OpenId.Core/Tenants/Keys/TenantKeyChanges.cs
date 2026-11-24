@@ -41,4 +41,9 @@ public static class TenantKeyChanges
     /// The server removed an expired key it provisioned.
     /// </summary>
     public const string Removed = "removed";
+
+    /// <summary>
+    /// The server revoked a key: it left the tenant's key set at once and every cell refuses it.
+    /// </summary>
+    public const string Revoked = "revoked";
 }

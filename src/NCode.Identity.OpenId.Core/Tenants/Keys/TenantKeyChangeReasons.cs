@@ -45,4 +45,9 @@ public static class TenantKeyChangeReasons
     /// The key has expired, so it neither verifies nor decrypts and is not published.
     /// </summary>
     public const string Expired = "expired";
+
+    /// <summary>
+    /// An operator revoked the key because it is compromised.
+    /// </summary>
+    public const string Compromised = "compromised";
 }

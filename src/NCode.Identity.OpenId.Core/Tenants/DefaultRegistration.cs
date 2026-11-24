@@ -86,6 +86,7 @@ internal static class DefaultRegistration
                 DefaultTenantKeyRolloverPlanner
             >();
             serviceCollection.TryAddSingleton<ITenantKeyRollover, DefaultTenantKeyRollover>();
+            serviceCollection.TryAddScoped<IManagementKeyRevoker, DefaultManagementKeyRevoker>();
             serviceCollection.TryAddSingleton<
                 ITenantKeyPlacementGuard,
                 DefaultTenantKeyPlacementGuard

@@ -141,3 +141,12 @@ override NCode.Identity.OpenId.Tenants.Keys.TenantKeyAuditEvent.Resources.get ->
 static NCode.Identity.OpenId.Tenants.Keys.TenantKeyAuditEventNames.For(string! change) -> string!
 const NCode.Identity.OpenId.SecretProtection.MasterKeyBroadcast.ChannelName = "master-key-changed" -> string!
 NCode.Identity.OpenId.SecretProtection.MasterKeyBroadcast
+const NCode.Identity.OpenId.Tenants.Keys.TenantKeyChangeReasons.Compromised = "compromised" -> string!
+const NCode.Identity.OpenId.Tenants.Keys.TenantKeyChanges.Revoked = "revoked" -> string!
+NCode.Identity.OpenId.Tenants.Keys.IManagementKeyRevoker
+NCode.Identity.OpenId.Tenants.Keys.IManagementKeyRevoker.RevokeAsync(string! keyId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.Tenants.Keys.ManagementKeyRevocationResult!>
+NCode.Identity.OpenId.Tenants.Keys.ManagementKeyRevocationResult
+NCode.Identity.OpenId.Tenants.Keys.ManagementKeyRevocationResult.IsRevoked.get -> bool
+NCode.Identity.OpenId.Tenants.Keys.ManagementKeyRevocationResult.ReplacementKeyId.get -> string?
+static NCode.Identity.OpenId.Tenants.Keys.ManagementKeyRevocationResult.NotFound.get -> NCode.Identity.OpenId.Tenants.Keys.ManagementKeyRevocationResult!
+static NCode.Identity.OpenId.Tenants.Keys.ManagementKeyRevocationResult.Revoked(string! replacementKeyId) -> NCode.Identity.OpenId.Tenants.Keys.ManagementKeyRevocationResult!
