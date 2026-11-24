@@ -251,6 +251,11 @@ local-accounts section's records by connection id.
   validation and every host-registered scheme. A path that does not provisions nothing, which fails closed.
 - The model is larger: one more resource, one more scope and one more request parameter. The default connection keeps it
   out of sight for a tenant that needs one.
+- Subject validation reads the subject's connection from the store on every grant, authorization and CIBA request. Each
+  such connection read costs one store manager and one query, plus a parse of the connection's settings, and the
+  standing check of a local account's identities makes one more read per identity. A connection change takes effect on
+  the next request, which is how a disabled connection locks its identities out at once. A cache would delay that
+  disable, so none exists.
 - A smell that this is wrong: strategies that need a second resource of their own for configuration, or clients that
   routinely need connection rules beyond a list and a default.
 
