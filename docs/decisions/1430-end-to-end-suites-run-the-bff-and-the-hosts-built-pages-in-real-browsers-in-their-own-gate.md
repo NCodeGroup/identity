@@ -132,11 +132,11 @@ built frontend bundles in the same browsers.**
     `securitypolicyviolation` event and no Content-Security-Policy console message. An init script records the events
     before the page's own scripts run. The page's font set reports both families loaded once it settles: the probe loads
     them again, waits for `document.fonts.ready` and polls `document.fonts.check` until it holds, because WebKit can
-    report a family unloaded right after its load resolves. It waits five seconds at most and reports a load that fails
-    or never resolves as no face loaded, so a typeface that is blocked or never loads fails the test. Each page's host
-    also serves both typefaces' licenses from the page's assets, which the suite finds by their content-hashed names in
-    the built bundle, opens in each browser and expects as `200` and `text/plain`, starting with the license's copyright
-    line.
+    report a family unloaded right after its load resolves. It waits five seconds at most, reports a load that fails or
+    never resolves as no face loaded, and records why each typeface did not load or the font set did not settle, so a
+    typeface that is blocked or never loads fails the test with its reason. Each page's host also serves both typefaces'
+    licenses from the page's assets, which the suite finds by their content-hashed names in the built bundle, opens in
+    each browser and expects as `200` and `text/plain`, starting with the license's copyright line.
 
 17. **The suites share their plumbing.** `NCode.Identity.EndToEnd.TestSupport` holds `BrowserNames`, `BrowserPool` (one
     headless browser per engine per run, and a fresh context per test that ignores certificate errors), `LoopbackPort`,
