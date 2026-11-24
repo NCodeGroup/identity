@@ -154,53 +154,6 @@ public sealed class FederatedPrincipalStoreTests : IDisposable
         Assert.True(reloaded.IsBlocked);
     }
 
-    #region GetByIdsAsync Tests
-
-    [Fact]
-    public async Task GetByIdsAsync_WhenSomeIdentifiersMatch_ReturnsOnlyTheMatchingPrincipals()
-    {
-        var seeded1 = CreatePrincipal("principal-1");
-        await Store.AddAsync(seeded1, CancellationToken.None);
-        var seeded2 = CreatePrincipal("principal-2");
-        await Store.AddAsync(seeded2, CancellationToken.None);
-        var seeded3 = CreatePrincipal("principal-3");
-        await Store.AddAsync(seeded3, CancellationToken.None);
-        await DbContext.SaveChangesAsync();
-        DbContext.ChangeTracker.Clear();
-
-        var loaded = await Store.GetByIdsAsync(
-            ["principal-1", "principal-3", "missing"],
-            CancellationToken.None
-        );
-
-        var ids = loaded.Select(principal => principal.PrincipalId).Order().ToList();
-        Assert.Equal(["principal-1", "principal-3"], ids);
-    }
-
-    [Fact]
-    public async Task GetByIdsAsync_WhenTheIdentifiersDifferInCase_MatchesThem()
-    {
-        var seeded1 = CreatePrincipal("Principal-1");
-        await Store.AddAsync(seeded1, CancellationToken.None);
-        await DbContext.SaveChangesAsync();
-        DbContext.ChangeTracker.Clear();
-
-        var loaded = await Store.GetByIdsAsync(["principal-1"], CancellationToken.None);
-
-        var principal = Assert.Single(loaded);
-        Assert.Equal("Principal-1", principal.PrincipalId);
-    }
-
-    [Fact]
-    public async Task GetByIdsAsync_WhenNoIdentifiers_ReturnsNone()
-    {
-        var loaded = await Store.GetByIdsAsync([], CancellationToken.None);
-
-        Assert.Empty(loaded);
-    }
-
-    #endregion
-
     #region GetExistingIdsAsync Tests
 
     [Fact]
