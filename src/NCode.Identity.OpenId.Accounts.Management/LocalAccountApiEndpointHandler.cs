@@ -570,6 +570,8 @@ internal class LocalAccountApiEndpointHandler(
         }
 
         model.DisplayName = model.DisplayName?.Trim() ?? string.Empty;
+        model.UserName = string.IsNullOrWhiteSpace(model.UserName) ? null : model.UserName;
+        model.Email = string.IsNullOrWhiteSpace(model.Email) ? null : model.Email;
 
         var ifMatch = httpContext.Request.Headers.IfMatch.ToString();
         var expectedConcurrencyToken = string.IsNullOrEmpty(ifMatch) ? null : ifMatch;

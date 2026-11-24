@@ -1499,6 +1499,28 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
     }
 
     [Fact]
+    public async Task UpdateLocalAccountAsync_WhenThePatchBlanksTheUserName_ValidatesANullUserName()
+    {
+        SetupAuthorizeUpdate(error: null);
+        SetupAccount(CreateAccount());
+        SetupUpdateValidated(null, DisplayName);
+        var patch = new JsonPatchDocument<UpdateLocalAccountRequest>();
+        patch.Replace(x => x.UserName, "  ");
+
+        var result = await Handler.UpdateLocalAccountAsync(
+            CreateHttpContext(),
+            TenantId,
+            ConnectionId,
+            LocalAccountId,
+            patch,
+            CancellationToken.None
+        );
+
+        var problem = Assert.IsType<ProblemHttpResult>(result);
+        Assert.Equal(StatusCodes.Status409Conflict, problem.StatusCode);
+    }
+
+    [Fact]
     public async Task UpdateLocalAccountAsync_WhenThePatchCannotBeApplied_Returns400()
     {
         SetupAuthorizeUpdate(error: null);

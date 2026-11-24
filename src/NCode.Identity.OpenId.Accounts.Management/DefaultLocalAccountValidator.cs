@@ -330,6 +330,19 @@ internal class DefaultLocalAccountValidator(
             return displayNameError;
         }
 
+        // Only an identifier the patch changes is checked, so an account whose identifiers no longer fit its
+        // connection's mode can still be disabled or renamed.
+        var userNameChanged = !string.Equals(
+            model.UserName,
+            account.UserName,
+            StringComparison.Ordinal
+        );
+        var emailChanged = !string.Equals(model.Email, account.Email, StringComparison.Ordinal);
+        if (!userNameChanged && !emailChanged)
+        {
+            return null;
+        }
+
         var proposal = new LocalAccountIdentifierProposal
         {
             UserName = model.UserName,

@@ -790,7 +790,7 @@ public sealed class DefaultLocalAccountValidatorTests : IDisposable
     {
         SetupIdentifiers(LocalAccountIdentifiers.EmailOrUserName);
         SetupUserNameLookup(existing: null);
-        var account = CreateAccount();
+        var account = CreateAccount(userName: "old-name");
         var model = CreateModel();
 
         var error = await Validator.ValidateUpdateAsync(
@@ -810,7 +810,7 @@ public sealed class DefaultLocalAccountValidatorTests : IDisposable
     {
         SetupIdentifiers(LocalAccountIdentifiers.EmailOrUserName);
         SetupUserNameLookup(CreateAccount(localAccountId: "other-account"));
-        var account = CreateAccount();
+        var account = CreateAccount(userName: "old-name");
         var model = CreateModel();
 
         var error = await Validator.ValidateUpdateAsync(
@@ -859,7 +859,7 @@ public sealed class DefaultLocalAccountValidatorTests : IDisposable
             )
             .ReturnsAsync(CreateAccount(localAccountId: "other-account", userName: "bob"))
             .Verifiable();
-        var account = CreateAccount();
+        var account = CreateAccount(userName: "old-name");
         var model = CreateModel();
 
         var error = await Validator.ValidateUpdateAsync(
@@ -879,7 +879,7 @@ public sealed class DefaultLocalAccountValidatorTests : IDisposable
     public async Task ValidateUpdateAsync_WhenTheUserNameEqualsTheAccountsOwnEmail_ReturnsNull()
     {
         SetupIdentifiers(LocalAccountIdentifiers.EmailOrUserName);
-        var own = CreateAccount(userName: Email, email: Email);
+        var own = CreateAccount(userName: "old-name", email: Email);
         MockLocalAccountStore
             .Setup(x =>
                 x.GetByUserNameOrDefaultAsync(ConnectionId, Email, It.IsAny<CancellationToken>())
@@ -909,7 +909,7 @@ public sealed class DefaultLocalAccountValidatorTests : IDisposable
     {
         SetupIdentifiers(LocalAccountIdentifiers.EmailOrUserName);
         SetupUserNameLookup(CreateAccount(localAccountId: LocalAccountId));
-        var account = CreateAccount();
+        var account = CreateAccount(userName: "old-name");
         var model = CreateModel();
 
         var error = await Validator.ValidateUpdateAsync(
@@ -922,6 +922,45 @@ public sealed class DefaultLocalAccountValidatorTests : IDisposable
         );
 
         Assert.Null(error);
+    }
+
+    [Fact]
+    public async Task ValidateUpdateAsync_WhenNoIdentifierChangesOnAnAccountThatBreaksTheMode_ReturnsNull()
+    {
+        var account = CreateAccount(email: null);
+        var model = CreateModel(displayName: "Alice Liddell");
+
+        var error = await Validator.ValidateUpdateAsync(
+            Connection,
+            account,
+            model,
+            null,
+            MockStoreManager.Object,
+            CancellationToken.None
+        );
+
+        Assert.Null(error);
+        MockLocalAccountStore.VerifyNoOtherCalls();
+    }
+
+    [Fact]
+    public async Task ValidateUpdateAsync_WhenThePatchClearsTheLastRequiredIdentifier_Returns400()
+    {
+        SetupIdentifiers(LocalAccountIdentifiers.EmailOrUserName);
+        var account = CreateAccount();
+        var model = CreateModel(userName: null);
+
+        var error = await Validator.ValidateUpdateAsync(
+            Connection,
+            account,
+            model,
+            null,
+            MockStoreManager.Object,
+            CancellationToken.None
+        );
+
+        Assert.NotNull(error);
+        Assert.Equal(StatusCodes.Status400BadRequest, error.StatusCode);
     }
 
     [Fact]
@@ -973,7 +1012,7 @@ public sealed class DefaultLocalAccountValidatorTests : IDisposable
     {
         SetupIdentifiers(LocalAccountIdentifiers.EmailOrUserName);
         SetupUserNameLookup(existing: null);
-        var account = CreateAccount();
+        var account = CreateAccount(userName: "old-name");
         var displayName = new string('a', AccountMaxLengths.DisplayName);
         var model = CreateModel(displayName: displayName);
 
@@ -1014,7 +1053,7 @@ public sealed class DefaultLocalAccountValidatorTests : IDisposable
     public async Task ValidateUpdateAsync_WhenTheEmailIdentifierIsRequiredAndEmailIsMissing_Returns400()
     {
         SetupIdentifiers(LocalAccountIdentifiers.Email);
-        var account = CreateAccount();
+        var account = CreateAccount(email: Email);
         var model = CreateModel();
 
         var error = await Validator.ValidateUpdateAsync(
