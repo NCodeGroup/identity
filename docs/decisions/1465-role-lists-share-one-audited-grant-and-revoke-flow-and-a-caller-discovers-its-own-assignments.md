@@ -76,7 +76,9 @@ audited; and a caller reads its own assignments, teams and tenants from `GET /ap
    `ControlPlanePrincipalQuery` of principal ids and user names with `PrincipalSummaryResource` items. Its local
    adapter, in the control-plane cell, describes the principals from the control-plane tenant's own tables. Its remote
    adapter, in every other cell, posts the query to the control-plane cell and sends a query of more than 100 names in
-   chunks of 100. A list handler never reads names from the serving cell's own tables.
+   chunks of 100. A list handler never reads names from the serving cell's own tables. Names match as the stores key
+   them, ignoring case: a principal identifier or username that differs from the stored one only in case names that
+   principal, and its summary carries the stored casing, which a grant records.
 10. **`POST /control-plane/v1/principals` answers the cells.** It sits behind the cell gate that guards
     `POST /control-plane/v1/authority` and answers `400` when `principalIds` or `userNames` is null or holds a null or
     blank name, and for a query of more than 100 names (`ControlPlanePrincipalQuery.MaxNames`, principal ids plus user
@@ -85,11 +87,15 @@ audited; and a caller reads its own assignments, teams and tenants from `GET /ap
     [ADR-1001](1001-behavior-is-a-service-a-strategy-collection-or-a-mediator-seam-chosen-by-one-ladder.md)): every
     registered describer describes the principals it knows, and the local adapter merges their answers. The
     `local_account` describer gives an account's display name and username, and the `client` describer a client's
-    identifier as its display name. A package that registers another describer adds a principal type, so
-    `PrincipalTypes` holds an open vocabulary. The directory describes every control-plane principal: the registered
-    describers first, then each remaining principal that the federated principal store holds as `federated_user`, named
-    by its first federated identity (ordered by issuer, then subject) as `<subject> (<issuer>)`, or by its principal
-    identifier when it has none. Only an assignment whose principal no longer exists has `principal: null` on its item.
+    identifier as its display name. Each describer reads only the columns that name a principal, through the stores'
+    name projections (`ILocalAccountStore.GetNamesByIdsAsync` and `GetNamesByUserNamesAsync`,
+    `IClientStore.GetNamesByPrincipalsAsync`), never an account's claims or a client's settings or secrets
+    ([ADR-1080](1080-filtered-reads-are-intent-named-store-methods-and-growing-criteria-are-init-only-dtos.md)). A
+    package that registers another describer adds a principal type, so `PrincipalTypes` holds an open vocabulary. The
+    directory describes every control-plane principal: the registered describers first, then each remaining principal
+    that the federated principal store holds as `federated_user`, named by its first federated identity (ordered by
+    issuer, then subject) as `<subject> (<issuer>)`, or by its principal identifier when it has none. Only an assignment
+    whose principal no longer exists has `principal: null` on its item.
 12. **A grant fails closed.** A `userName` resolves through the directory after the flow authorizes and the resource
     exists, and a name or a `principalId` that the control plane does not know answers `400` without echoing it, so a
     mistyped identifier never creates an assignment that no principal holds, and only a caller with grant authority at a
