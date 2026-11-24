@@ -111,18 +111,10 @@ internal static class InteractiveAuthenticationPageRenderer
     /// <param name="writer">The buffer the page is written to.</param>
     /// <param name="frame">The document the page is written into.</param>
     /// <param name="form">The form the page posts.</param>
-    /// <param name="forgotPasswordHref">The address of the forgot-password page the form links to, or
-    /// <see langword="null"/> for no link.</param>
-    /// <param name="connections">The connections the form offers, as name and display name.</param>
-    /// <param name="selected">The name of the connection the form preselects, or <see langword="null"/> for
-    /// none.</param>
     public static void RenderLoginPage(
         IBufferWriter<char> writer,
         InteractivePageFrame frame,
-        InteractivePageForm form,
-        string? forgotPasswordHref,
-        IReadOnlyList<(string Name, string DisplayName)> connections,
-        string? selected
+        InteractivePageForm form
     )
     {
         var locale = frame.Locale;
@@ -135,7 +127,7 @@ internal static class InteractiveAuthenticationPageRenderer
         WriteError(writer, form.ErrorMessage);
         WriteStatus(writer, form.StatusMessage);
         WriteHiddenFields(writer, form, locale);
-        WriteConnectionField(writer, messages, connections, selected);
+        WriteConnectionField(writer, messages, form);
         Write(writer, "<p><label for=\"username\">");
         WriteEncoded(writer, messages.UsernameLabel);
         Write(
@@ -153,10 +145,10 @@ internal static class InteractiveAuthenticationPageRenderer
         );
         WriteEncoded(writer, messages.SignInButton);
         Write(writer, "</button>");
-        if (!string.IsNullOrEmpty(forgotPasswordHref))
+        if (!string.IsNullOrEmpty(form.ForgotPasswordHref))
         {
             Write(writer, "<p><a id=\"forgot-password-link\" href=\"");
-            WriteEncoded(writer, forgotPasswordHref);
+            WriteEncoded(writer, form.ForgotPasswordHref);
             Write(writer, "\">");
             WriteEncoded(writer, messages.ForgotPasswordLink);
             Write(writer, "</a></p>");
@@ -172,15 +164,10 @@ internal static class InteractiveAuthenticationPageRenderer
     /// <param name="writer">The buffer the page is written to.</param>
     /// <param name="frame">The document the page is written into.</param>
     /// <param name="form">The form the page posts.</param>
-    /// <param name="connections">The connections the form offers, as name and display name.</param>
-    /// <param name="selected">The name of the connection the form preselects, or <see langword="null"/> for
-    /// none.</param>
     public static void RenderForgotPasswordPage(
         IBufferWriter<char> writer,
         InteractivePageFrame frame,
-        InteractivePageForm form,
-        IReadOnlyList<(string Name, string DisplayName)> connections,
-        string? selected
+        InteractivePageForm form
     )
     {
         var locale = frame.Locale;
@@ -196,7 +183,7 @@ internal static class InteractiveAuthenticationPageRenderer
         Write(writer, "</h1>");
         WriteError(writer, form.ErrorMessage);
         WriteHiddenFields(writer, form, locale);
-        WriteConnectionField(writer, messages, connections, selected);
+        WriteConnectionField(writer, messages, form);
         Write(writer, "<p>");
         WriteEncoded(writer, messages.ForgotPasswordPrompt);
         Write(writer, "</p><p><label for=\"username\">");
@@ -564,16 +551,14 @@ internal static class InteractiveAuthenticationPageRenderer
     /// </summary>
     /// <param name="writer">The buffer the field is written to.</param>
     /// <param name="messages">The messages of the page's locale.</param>
-    /// <param name="connections">The connections the form offers, as name and display name.</param>
-    /// <param name="selected">The name of the connection the form preselects, or <see langword="null"/> for
-    /// none.</param>
+    /// <param name="form">The form that carries the offered connections and the preselected one.</param>
     private static void WriteConnectionField(
         IBufferWriter<char> writer,
         InteractiveMessages messages,
-        IReadOnlyList<(string Name, string DisplayName)> connections,
-        string? selected
+        InteractivePageForm form
     )
     {
+        var connections = form.Connections;
         if (connections.Count == 0)
         {
             return;
@@ -601,7 +586,7 @@ internal static class InteractiveAuthenticationPageRenderer
         {
             Write(writer, "<option value=\"");
             WriteEncoded(writer, name);
-            var optionEnd = string.Equals(name, selected, StringComparison.Ordinal)
+            var optionEnd = string.Equals(name, form.SelectedConnection, StringComparison.Ordinal)
                 ? "\" selected>"
                 : "\">";
             Write(writer, optionEnd);

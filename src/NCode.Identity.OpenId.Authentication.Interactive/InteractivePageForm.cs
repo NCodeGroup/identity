@@ -26,4 +26,19 @@ internal sealed record InteractivePageForm(AntiforgeryTokenSet Antiforgery)
     /// Gets the message shown above the form as a status, or <see langword="null"/> for none.
     /// </summary>
     public string? StatusMessage { get; init; }
+
+    /// <summary>
+    /// Gets the connections the form offers, as name and display name, or none for a form that carries no connection.
+    /// </summary>
+    public IReadOnlyList<(string Name, string DisplayName)> Connections { get; init; } = [];
+
+    /// <summary>
+    /// Gets the name of the connection the form preselects, or <see langword="null"/> for none.
+    /// </summary>
+    public string? SelectedConnection { get; init; }
+
+    /// <summary>
+    /// Gets the address of the forgot-password page the form links to, or <see langword="null"/> for no link.
+    /// </summary>
+    public string? ForgotPasswordHref { get; init; }
 }

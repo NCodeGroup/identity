@@ -238,16 +238,11 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
             ReturnUrl = returnUrl,
             ErrorMessage = loginError,
             StatusMessage = statusMessage,
+            Connections = ToConnectionViews(offered),
+            SelectedConnection = offered.Preselected?.Name,
+            ForgotPasswordHref = forgotPasswordHref,
         };
-        var connectionViews = ToConnectionViews(offered);
-        InteractiveAuthenticationPageRenderer.RenderLoginPage(
-            html,
-            frame,
-            form,
-            forgotPasswordHref,
-            connectionViews,
-            offered.Preselected?.Name
-        );
+        InteractiveAuthenticationPageRenderer.RenderLoginPage(html, frame, form);
         return new InteractiveHtmlResult(html, security.Policy);
     }
 
@@ -1435,17 +1430,12 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
         {
             ReturnUrl = returnUrl,
             ErrorMessage = errorMessage,
+            Connections = resettable
+                .Select(connection => (connection.Name, connection.Connection.DisplayName))
+                .ToList(),
+            SelectedConnection = selectedName,
         };
-        var connectionViews = resettable
-            .Select(connection => (connection.Name, connection.Connection.DisplayName))
-            .ToList();
-        InteractiveAuthenticationPageRenderer.RenderForgotPasswordPage(
-            html,
-            frame,
-            form,
-            connectionViews,
-            selectedName
-        );
+        InteractiveAuthenticationPageRenderer.RenderForgotPasswordPage(html, frame, form);
         return new InteractiveHtmlResult(html, security.Policy);
     }
 

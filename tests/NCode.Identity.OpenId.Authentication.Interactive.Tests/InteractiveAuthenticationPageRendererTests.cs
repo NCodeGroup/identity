@@ -53,10 +53,7 @@ public class InteractiveAuthenticationPageRendererTests
             CreateForm("__RequestVerificationToken", "token-123") with
             {
                 ReturnUrl = "/connect/authorize",
-            },
-            forgotPasswordHref: null,
-            connections: [],
-            selected: null
+            }
         );
         var html = writer.WrittenSpan.ToString();
 
@@ -87,10 +84,7 @@ public class InteractiveAuthenticationPageRendererTests
             {
                 ReturnUrl = "/",
                 ErrorMessage = "The username or password is incorrect.",
-            },
-            forgotPasswordHref: null,
-            connections: [],
-            selected: null
+            }
         );
         var html = writer.WrittenSpan.ToString();
 
@@ -108,10 +102,7 @@ public class InteractiveAuthenticationPageRendererTests
             CreateForm("__RequestVerificationToken", "t") with
             {
                 ReturnUrl = "\"><script>alert(1)</script>",
-            },
-            forgotPasswordHref: null,
-            connections: [],
-            selected: null
+            }
         );
         var html = writer.WrittenSpan.ToString();
 
@@ -128,10 +119,7 @@ public class InteractiveAuthenticationPageRendererTests
             CreateForm("__RequestVerificationToken", "t") with
             {
                 ReturnUrl = "/",
-            },
-            forgotPasswordHref: null,
-            connections: [],
-            selected: null
+            }
         );
         var html = writer.WrittenSpan.ToString();
 
@@ -151,10 +139,7 @@ public class InteractiveAuthenticationPageRendererTests
             CreateForm("__RequestVerificationToken", "t") with
             {
                 ReturnUrl = "/",
-            },
-            forgotPasswordHref: null,
-            connections: [],
-            selected: null
+            }
         );
         var html = writer.WrittenSpan.ToString();
 
@@ -183,10 +168,7 @@ public class InteractiveAuthenticationPageRendererTests
             {
                 ReturnUrl = "/",
                 ErrorMessage = new string('<', 1000),
-            },
-            forgotPasswordHref: null,
-            connections: [],
-            selected: null
+            }
         );
         var html = writer.WrittenSpan.ToString();
 
@@ -210,10 +192,7 @@ public class InteractiveAuthenticationPageRendererTests
             CreateForm("__RequestVerificationToken", "t") with
             {
                 ReturnUrl = "/",
-            },
-            forgotPasswordHref: null,
-            connections: [],
-            selected: null
+            }
         );
         var html = writer.WrittenSpan.ToString();
 
@@ -247,10 +226,7 @@ public class InteractiveAuthenticationPageRendererTests
             CreateForm("__RequestVerificationToken", "t") with
             {
                 ReturnUrl = "/",
-            },
-            forgotPasswordHref: null,
-            connections: [],
-            selected: null
+            }
         );
         var html = writer.WrittenSpan.ToString();
 
@@ -268,10 +244,7 @@ public class InteractiveAuthenticationPageRendererTests
             CreateForm("__RequestVerificationToken", "t") with
             {
                 ReturnUrl = "/",
-            },
-            forgotPasswordHref: null,
-            connections: [],
-            selected: null
+            }
         );
         var html = writer.WrittenSpan.ToString();
 
@@ -295,10 +268,7 @@ public class InteractiveAuthenticationPageRendererTests
             CreateForm("__RequestVerificationToken", "t") with
             {
                 ReturnUrl = "/",
-            },
-            forgotPasswordHref: null,
-            connections: [],
-            selected: null
+            }
         );
         return writer.WrittenSpan.ToString();
     }
@@ -387,10 +357,8 @@ public class InteractiveAuthenticationPageRendererTests
             CreateForm("__RequestVerificationToken", "t") with
             {
                 ReturnUrl = "/",
-            },
-            forgotPasswordHref: "password/forgot?ReturnUrl=%2F&a=\"b\"",
-            connections: [],
-            selected: null
+                ForgotPasswordHref = "password/forgot?ReturnUrl=%2F&a=\"b\"",
+            }
         );
         var html = writer.WrittenSpan.ToString();
 
@@ -411,10 +379,7 @@ public class InteractiveAuthenticationPageRendererTests
             CreateForm("__RequestVerificationToken", "t") with
             {
                 ReturnUrl = "/",
-            },
-            forgotPasswordHref: null,
-            connections: [],
-            selected: null
+            }
         );
         var html = writer.WrittenSpan.ToString();
 
@@ -432,10 +397,7 @@ public class InteractiveAuthenticationPageRendererTests
             {
                 ReturnUrl = "/",
                 StatusMessage = "Done <b>",
-            },
-            forgotPasswordHref: null,
-            connections: [],
-            selected: null
+            }
         );
         var html = writer.WrittenSpan.ToString();
 
@@ -456,10 +418,9 @@ public class InteractiveAuthenticationPageRendererTests
             CreateForm("__RequestVerificationToken", "t") with
             {
                 ReturnUrl = "/",
-            },
-            forgotPasswordHref: null,
-            connections: [("local", "Username and password"), ("staff", "Staff <b>")],
-            selected: "staff"
+                Connections = [("local", "Username and password"), ("staff", "Staff <b>")],
+                SelectedConnection = "staff",
+            }
         );
         var html = writer.WrittenSpan.ToString();
 
@@ -495,10 +456,9 @@ public class InteractiveAuthenticationPageRendererTests
             CreateForm("__RequestVerificationToken", "t") with
             {
                 ReturnUrl = "/",
-            },
-            forgotPasswordHref: null,
-            connections: [("local", "Username and password")],
-            selected: "local"
+                Connections = [("local", "Username and password")],
+                SelectedConnection = "local",
+            }
         );
         var html = writer.WrittenSpan.ToString();
 
@@ -528,9 +488,9 @@ public class InteractiveAuthenticationPageRendererTests
             CreateForm("__RequestVerificationToken", "t") with
             {
                 ReturnUrl = "/",
-            },
-            connections: [("local", "Username and password"), ("staff", "Staff")],
-            selected: "local"
+                Connections = [("local", "Username and password"), ("staff", "Staff")],
+                SelectedConnection = "local",
+            }
         );
         var html = writer.WrittenSpan.ToString();
 
@@ -864,9 +824,7 @@ public class InteractiveAuthenticationPageRendererTests
             {
                 ReturnUrl = "/continue",
                 ErrorMessage = "Xx problem",
-            },
-            connections: [],
-            selected: null
+            }
         );
         var html = writer.WrittenSpan.ToString();
 
@@ -1049,10 +1007,7 @@ public class InteractiveAuthenticationPageRendererTests
             {
                 ReturnUrl = "/",
                 ErrorMessage = TestLocales.Xx.Messages.InvalidCredentialsError,
-            },
-            forgotPasswordHref: null,
-            connections: [],
-            selected: null
+            }
         );
         var html = writer.WrittenSpan.ToString();
 
@@ -1091,10 +1046,7 @@ public class InteractiveAuthenticationPageRendererTests
             CreateForm("__RequestVerificationToken", "t") with
             {
                 ReturnUrl = "/",
-            },
-            forgotPasswordHref: null,
-            connections: [],
-            selected: null
+            }
         );
         var html = writer.WrittenSpan.ToString();
 
