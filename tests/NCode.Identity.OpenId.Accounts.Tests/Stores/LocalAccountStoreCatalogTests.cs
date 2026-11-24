@@ -168,8 +168,9 @@ public sealed class LocalAccountStoreCatalogTests
 
     [Theory]
     [InlineData("")]
+    [InlineData("  ")]
     [InlineData(null)]
-    public void Constructor_WhenNameIsNullOrEmpty_Throws(string? name)
+    public void Constructor_WhenNameIsNullEmptyOrWhitespace_Throws(string? name)
     {
         var registrations = new[]
         {

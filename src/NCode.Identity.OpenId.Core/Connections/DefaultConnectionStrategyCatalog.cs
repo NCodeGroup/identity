@@ -12,8 +12,8 @@ namespace NCode.Identity.OpenId.Connections;
 /// <see cref="IConnectionStrategy.Name"/>.
 /// </summary>
 /// <remarks>
-/// The registered set is validated when the catalog is composed: a strategy with no name, or a name registered more
-/// than once, is an error, never ignored.
+/// The registered set is validated when the catalog is composed: a strategy with a null, empty or whitespace name, or a
+/// name registered more than once, is an error, never ignored.
 /// </remarks>
 // See ADR-1535.
 internal sealed class DefaultConnectionStrategyCatalog(IEnumerable<IConnectionStrategy> strategies)
@@ -45,8 +45,10 @@ internal sealed class DefaultConnectionStrategyCatalog(IEnumerable<IConnectionSt
         foreach (var strategy in strategies)
         {
             var name = strategy.Name;
-            if (string.IsNullOrEmpty(name))
-                throw new InvalidOperationException("A connection strategy has no name.");
+            if (string.IsNullOrWhiteSpace(name))
+                throw new InvalidOperationException(
+                    "A connection strategy has a null, empty or whitespace name."
+                );
 
             if (!strategiesByName.TryAdd(name, strategy))
             {

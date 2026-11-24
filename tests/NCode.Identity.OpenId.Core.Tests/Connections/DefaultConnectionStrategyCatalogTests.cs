@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using System.Text.Json;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using NCode.Identity.OpenId.Connections;
 using Xunit;
 
@@ -72,5 +74,33 @@ public class DefaultConnectionStrategyCatalogTests
         Assert.Throws<InvalidOperationException>(() =>
             new DefaultConnectionStrategyCatalog([new TestStrategy("")])
         );
+    }
+
+    [Fact]
+    public void Constructor_WhenStrategyNameIsWhitespace_Throws()
+    {
+        Assert.Throws<InvalidOperationException>(() =>
+            new DefaultConnectionStrategyCatalog([new TestStrategy("  ")])
+        );
+    }
+
+    [Fact]
+    public async Task StartAsync_WhenNameIsRegisteredTwice_Throws()
+    {
+        var services = new ServiceCollection();
+        services.AddSingleton<IConnectionStrategy>(new TestStrategy("local"));
+        services.AddSingleton<IConnectionStrategy>(new TestStrategy("local"));
+        services.AddSingleton<IConnectionStrategyCatalog, DefaultConnectionStrategyCatalog>();
+        services.AddSingleton<IHostedService, DefaultConnectionStrategyCatalogWarmup>();
+        await using var provider = services.BuildServiceProvider();
+
+        var warmups = provider.GetServices<IHostedService>();
+
+        foreach (var warmup in warmups)
+        {
+            await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                warmup.StartAsync(CancellationToken.None)
+            );
+        }
     }
 }

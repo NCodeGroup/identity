@@ -3,6 +3,7 @@
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
 using NCode.Identity.Registration;
 
 namespace NCode.Identity.OpenId.Connections;
@@ -30,6 +31,11 @@ internal static class DefaultRegistration
                 IConnectionStrategyCatalog,
                 DefaultConnectionStrategyCatalog
             >();
+            var warmup = ServiceDescriptor.Singleton<
+                IHostedService,
+                DefaultConnectionStrategyCatalogWarmup
+            >();
+            serviceCollection.TryAddEnumerable(warmup);
             serviceCollection.TryAddSingleton<IConnectionResolver, DefaultConnectionResolver>();
             var dependentSource = ServiceDescriptor.Singleton<
                 IConnectionDependentSource,
