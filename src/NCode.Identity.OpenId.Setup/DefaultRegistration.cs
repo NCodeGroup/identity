@@ -97,6 +97,10 @@ public static class DefaultRegistration
                 IAdministratorRecoveryService,
                 DefaultAdministratorRecoveryService
             >();
+            serviceCollection.TryAddSingleton<
+                ISignInRecoveryService,
+                DefaultSignInRecoveryService
+            >();
 
             var hostedServiceDescriptor = ServiceDescriptor.Singleton<
                 IHostedService,

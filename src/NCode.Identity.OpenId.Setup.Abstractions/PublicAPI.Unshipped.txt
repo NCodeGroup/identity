@@ -196,3 +196,22 @@ const NCode.Identity.OpenId.Setup.SetupManagementConsoleOptions.DefaultClientId 
 const NCode.Identity.OpenId.Setup.SetupOptions.SectionName = "Setup" -> string!
 const NCode.Identity.OpenId.Setup.SetupTokenSources.Configured = "configured" -> string!
 const NCode.Identity.OpenId.Setup.SetupTokenSources.Generated = "generated" -> string!
+NCode.Identity.OpenId.Setup.ISignInRecoveryService
+NCode.Identity.OpenId.Setup.ISignInRecoveryService.RepairAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.Setup.SignInRepairResult!>
+NCode.Identity.OpenId.Setup.SignInRepairChange
+NCode.Identity.OpenId.Setup.SignInRepairChange.Before.get -> string?
+NCode.Identity.OpenId.Setup.SignInRepairChange.Before.init -> void
+NCode.Identity.OpenId.Setup.SignInRepairChange.Name.get -> string!
+NCode.Identity.OpenId.Setup.SignInRepairChange.Name.init -> void
+NCode.Identity.OpenId.Setup.SignInRepairChange.Scope.get -> string!
+NCode.Identity.OpenId.Setup.SignInRepairChange.Scope.init -> void
+NCode.Identity.OpenId.Setup.SignInRepairResult
+NCode.Identity.OpenId.Setup.SignInRepairResult.Changes.get -> System.Collections.Generic.IReadOnlyList<NCode.Identity.OpenId.Setup.SignInRepairChange!>!
+NCode.Identity.OpenId.Setup.SignInRepairResult.Changes.init -> void
+NCode.Identity.OpenId.Setup.SignInRepairResult.SignInRepairResult() -> void
+NCode.Identity.OpenId.Setup.SignInRepairScopes
+const NCode.Identity.OpenId.Setup.SignInRepairScopes.Client = "client" -> string!
+const NCode.Identity.OpenId.Setup.SignInRepairScopes.Connection = "connection" -> string!
+const NCode.Identity.OpenId.Setup.SignInRepairScopes.Platform = "platform" -> string!
+const NCode.Identity.OpenId.Setup.SignInRepairScopes.ResourceServer = "resource-server" -> string!
+const NCode.Identity.OpenId.Setup.SignInRepairScopes.Tenant = "tenant" -> string!

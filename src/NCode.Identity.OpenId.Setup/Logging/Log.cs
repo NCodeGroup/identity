@@ -74,4 +74,23 @@ internal static partial class Log
         string principalId,
         bool created
     );
+
+    [LoggerMessage(
+        EventId = EventIds.SignInRepaired,
+        Level = LogLevel.Information,
+        Message = "Repaired sign-in: {Scope} '{Name}' (value before the change: {Before})."
+    )]
+    internal static partial void SignInRepaired(
+        this ILogger logger,
+        string scope,
+        string name,
+        string? before
+    );
+
+    [LoggerMessage(
+        EventId = EventIds.SignInRepairNotPublished,
+        Level = LogLevel.Warning,
+        Message = "The directory could not be reached, so the repaired platform settings are saved but not published."
+    )]
+    internal static partial void SignInRepairNotPublished(this ILogger logger, Exception exception);
 }
