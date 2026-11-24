@@ -32,7 +32,10 @@ namespace NCode.Identity.OpenId.GlobalDirectory.Host.Migrations.Directory
                 {
                     Sequence = table.Column<long>(type: "bigint", nullable: false),
                     TeamId = table.Column<string>(type: "character varying(63)", maxLength: 63, nullable: true),
-                    DocumentJson = table.Column<string>(type: "text", nullable: true)
+                    DocumentJson = table.Column<string>(type: "text", nullable: true),
+                    DocumentKind = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: true),
+                    DocumentKey = table.Column<string>(type: "character varying(63)", maxLength: 63, nullable: true),
+                    Revision = table.Column<long>(type: "bigint", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -50,6 +53,20 @@ namespace NCode.Identity.OpenId.GlobalDirectory.Host.Migrations.Directory
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_Platforms", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "ReplicatedDocuments",
+                columns: table => new
+                {
+                    Kind = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: false),
+                    Key = table.Column<string>(type: "character varying(63)", maxLength: 63, nullable: false),
+                    Revision = table.Column<long>(type: "bigint", nullable: false),
+                    DocumentJson = table.Column<string>(type: "text", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_ReplicatedDocuments", x => new { x.Kind, x.Key });
                 });
 
             migrationBuilder.CreateTable(
@@ -133,6 +150,11 @@ namespace NCode.Identity.OpenId.GlobalDirectory.Host.Migrations.Directory
                 });
 
             migrationBuilder.CreateIndex(
+                name: "IX_Changes_DocumentKind_DocumentKey",
+                table: "Changes",
+                columns: new[] { "DocumentKind", "DocumentKey" });
+
+            migrationBuilder.CreateIndex(
                 name: "IX_RetiredIssuers_NormalizedIssuer",
                 table: "RetiredIssuers",
                 column: "NormalizedIssuer",
@@ -189,6 +211,9 @@ namespace NCode.Identity.OpenId.GlobalDirectory.Host.Migrations.Directory
 
             migrationBuilder.DropTable(
                 name: "Platforms");
+
+            migrationBuilder.DropTable(
+                name: "ReplicatedDocuments");
 
             migrationBuilder.DropTable(
                 name: "RetiredIssuers");
