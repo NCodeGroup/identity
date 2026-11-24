@@ -18,18 +18,15 @@ public sealed class LocalAccountPrincipalDescriberTests : IDisposable
     private static bool Names(IReadOnlyCollection<string> actual, params string[] expected) =>
         actual.SequenceEqual(expected);
 
-    private static PersistedLocalAccount CreateAccount(string localAccountId, string userName) =>
+    private static LocalAccountNameProjection CreateAccount(
+        string localAccountId,
+        string userName
+    ) =>
         new()
         {
-            TenantId = TenantId,
             LocalAccountId = localAccountId,
-            DisplayName = "Alice Admin",
             UserName = userName,
-            Email = null,
-            EmailVerified = false,
-            IsEnabled = true,
-            Claims = [],
-            ConcurrencyToken = "account-ct",
+            DisplayName = "Alice Admin",
         };
 
     private static PersistedFederatedIdentity CreateIdentity(
@@ -82,9 +79,11 @@ public sealed class LocalAccountPrincipalDescriberTests : IDisposable
     [Fact]
     public async Task FindAsync_WhenTheQueryIsEmpty_ReadsNoStore()
     {
+        var query = new ControlPlanePrincipalQuery();
+
         var result = await Describer.FindAsync(
             MockStoreManager.Object,
-            new ControlPlanePrincipalQuery(),
+            query,
             CancellationToken.None
         );
 
@@ -101,7 +100,7 @@ public sealed class LocalAccountPrincipalDescriberTests : IDisposable
             CreateIdentity("https://other.example", "x", "p2"),
             CreateIdentity(AccountConstants.SelfIssuer, "acc-1", "p1"),
         ];
-        IReadOnlyList<PersistedLocalAccount> accounts = [account];
+        IReadOnlyList<LocalAccountNameProjection> accounts = [account];
         MockIdentityStore
             .Setup(x =>
                 x.GetByPrincipalsAsync(
@@ -113,7 +112,7 @@ public sealed class LocalAccountPrincipalDescriberTests : IDisposable
             .Verifiable();
         MockAccountStore
             .Setup(x =>
-                x.GetByIdsAsync(
+                x.GetNamesByIdsAsync(
                     It.Is<IReadOnlyCollection<string>>(y => Names(y, "acc-1")),
                     It.IsAny<CancellationToken>()
                 )
@@ -121,9 +120,11 @@ public sealed class LocalAccountPrincipalDescriberTests : IDisposable
             .ReturnsAsync(accounts)
             .Verifiable();
 
+        var query = new ControlPlanePrincipalQuery { PrincipalIds = ["p1", "p2"] };
+
         var result = await Describer.FindAsync(
             MockStoreManager.Object,
-            new ControlPlanePrincipalQuery { PrincipalIds = ["p1", "p2"] },
+            query,
             CancellationToken.None
         );
 
@@ -152,9 +153,11 @@ public sealed class LocalAccountPrincipalDescriberTests : IDisposable
             .ReturnsAsync(identities)
             .Verifiable();
 
+        var query = new ControlPlanePrincipalQuery { PrincipalIds = ["p2"] };
+
         var result = await Describer.FindAsync(
             MockStoreManager.Object,
-            new ControlPlanePrincipalQuery { PrincipalIds = ["p2"] },
+            query,
             CancellationToken.None
         );
 
@@ -167,11 +170,11 @@ public sealed class LocalAccountPrincipalDescriberTests : IDisposable
         SetupStores();
         var account = CreateAccount("acc-1", "alice");
         var identity = CreateIdentity(AccountConstants.SelfIssuer, "acc-1", "p1");
-        IReadOnlyList<PersistedLocalAccount> accounts = [account];
+        IReadOnlyList<LocalAccountNameProjection> accounts = [account];
         IReadOnlyList<PersistedFederatedIdentity> identities = [identity];
         MockAccountStore
             .Setup(x =>
-                x.GetByUserNamesAsync(
+                x.GetNamesByUserNamesAsync(
                     It.Is<IReadOnlyCollection<string>>(y => Names(y, "alice", "nobody")),
                     It.IsAny<CancellationToken>()
                 )
@@ -189,9 +192,11 @@ public sealed class LocalAccountPrincipalDescriberTests : IDisposable
             .ReturnsAsync(identities)
             .Verifiable();
 
+        var query = new ControlPlanePrincipalQuery { UserNames = ["alice", "nobody"] };
+
         var result = await Describer.FindAsync(
             MockStoreManager.Object,
-            new ControlPlanePrincipalQuery { UserNames = ["alice", "nobody"] },
+            query,
             CancellationToken.None
         );
 
@@ -205,10 +210,10 @@ public sealed class LocalAccountPrincipalDescriberTests : IDisposable
     public async Task FindAsync_WhenNoAccountHasTheUserNames_ReadsNoIdentity()
     {
         SetupStores();
-        IReadOnlyList<PersistedLocalAccount> accounts = [];
+        IReadOnlyList<LocalAccountNameProjection> accounts = [];
         MockAccountStore
             .Setup(x =>
-                x.GetByUserNamesAsync(
+                x.GetNamesByUserNamesAsync(
                     It.Is<IReadOnlyCollection<string>>(y => Names(y, "nobody")),
                     It.IsAny<CancellationToken>()
                 )
@@ -216,9 +221,11 @@ public sealed class LocalAccountPrincipalDescriberTests : IDisposable
             .ReturnsAsync(accounts)
             .Verifiable();
 
+        var query = new ControlPlanePrincipalQuery { UserNames = ["nobody"] };
+
         var result = await Describer.FindAsync(
             MockStoreManager.Object,
-            new ControlPlanePrincipalQuery { UserNames = ["nobody"] },
+            query,
             CancellationToken.None
         );
 
@@ -232,7 +239,7 @@ public sealed class LocalAccountPrincipalDescriberTests : IDisposable
         var account = CreateAccount("acc-1", "alice");
         var identity = CreateIdentity(AccountConstants.SelfIssuer, "acc-1", "p1");
         IReadOnlyList<PersistedFederatedIdentity> identities = [identity];
-        IReadOnlyList<PersistedLocalAccount> accounts = [account];
+        IReadOnlyList<LocalAccountNameProjection> accounts = [account];
         MockIdentityStore
             .Setup(x =>
                 x.GetByPrincipalsAsync(
@@ -244,7 +251,7 @@ public sealed class LocalAccountPrincipalDescriberTests : IDisposable
             .Verifiable();
         MockAccountStore
             .Setup(x =>
-                x.GetByIdsAsync(
+                x.GetNamesByIdsAsync(
                     It.Is<IReadOnlyCollection<string>>(y => Names(y, "acc-1")),
                     It.IsAny<CancellationToken>()
                 )
@@ -253,7 +260,7 @@ public sealed class LocalAccountPrincipalDescriberTests : IDisposable
             .Verifiable();
         MockAccountStore
             .Setup(x =>
-                x.GetByUserNamesAsync(
+                x.GetNamesByUserNamesAsync(
                     It.Is<IReadOnlyCollection<string>>(y => Names(y, "alice")),
                     It.IsAny<CancellationToken>()
                 )
@@ -271,9 +278,11 @@ public sealed class LocalAccountPrincipalDescriberTests : IDisposable
             .ReturnsAsync(identities)
             .Verifiable();
 
+        var query = new ControlPlanePrincipalQuery { PrincipalIds = ["p1"], UserNames = ["alice"] };
+
         var result = await Describer.FindAsync(
             MockStoreManager.Object,
-            new ControlPlanePrincipalQuery { PrincipalIds = ["p1"], UserNames = ["alice"] },
+            query,
             CancellationToken.None
         );
 

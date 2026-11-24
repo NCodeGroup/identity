@@ -37,16 +37,16 @@ internal sealed class ClientPrincipalDescriber(IAmbientTenantAccessor ambientTen
         }
 
         var clientStore = storeManager.GetStore<IClientStore>();
-        var clients = await ReadClientsAsync(clientStore, query.PrincipalIds, cancellationToken);
-        var summaries = new List<PrincipalSummaryResource>(clients.Count);
+        var names = await ReadClientNamesAsync(clientStore, query.PrincipalIds, cancellationToken);
+        var summaries = new List<PrincipalSummaryResource>(names.Count);
 
-        foreach (var client in clients)
+        foreach (var name in names)
         {
             var summary = new PrincipalSummaryResource
             {
-                PrincipalId = client.PrincipalId,
+                PrincipalId = name.PrincipalId,
                 PrincipalType = PrincipalTypes.Client,
-                DisplayName = client.ClientId,
+                DisplayName = name.ClientId,
                 UserName = null,
             };
             summaries.Add(summary);
@@ -56,14 +56,14 @@ internal sealed class ClientPrincipalDescriber(IAmbientTenantAccessor ambientTen
     }
 
     /// <summary>
-    /// Reads the clients that hold any of the principals across tenants, inside an unscoped ambient scope, because a
-    /// principal names at most one client in any tenant.
+    /// Reads the names of the clients that hold any of the principals across tenants, inside an unscoped ambient scope,
+    /// because a principal names at most one client in any tenant.
     /// </summary>
     /// <param name="clientStore">The store that reads the clients.</param>
-    /// <param name="principalIds">The identifiers of the principals whose clients to read.</param>
+    /// <param name="principalIds">The identifiers of the principals whose client names to read.</param>
     /// <param name="cancellationToken">The token that cancels the read.</param>
-    /// <returns>The clients that hold any of the principals.</returns>
-    private async ValueTask<IReadOnlyList<PersistedClient>> ReadClientsAsync(
+    /// <returns>The names of the clients that hold any of the principals.</returns>
+    private async ValueTask<IReadOnlyList<ClientNameProjection>> ReadClientNamesAsync(
         IClientStore clientStore,
         IReadOnlyList<string> principalIds,
         CancellationToken cancellationToken
@@ -71,6 +71,6 @@ internal sealed class ClientPrincipalDescriber(IAmbientTenantAccessor ambientTen
     {
         // A principal names at most one client in any tenant, so the principals are read across tenants. See ADR-1018.
         using var unscoped = AmbientTenantAccessor.BeginUnscoped(UnscopedReason);
-        return await clientStore.GetByPrincipalsAsync(principalIds, cancellationToken);
+        return await clientStore.GetNamesByPrincipalsAsync(principalIds, cancellationToken);
     }
 }

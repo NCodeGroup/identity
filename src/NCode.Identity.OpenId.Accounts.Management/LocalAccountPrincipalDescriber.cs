@@ -62,7 +62,7 @@ internal sealed class LocalAccountPrincipalDescriber : IPrincipalDescriber
         }
 
         var localAccountIds = new List<string>(principalIdBySubject.Keys);
-        var accounts = await accountStore.GetByIdsAsync(localAccountIds, cancellationToken);
+        var accounts = await accountStore.GetNamesByIdsAsync(localAccountIds, cancellationToken);
         foreach (var account in accounts)
         {
             if (principalIdBySubject.TryGetValue(account.LocalAccountId, out var principalId))
@@ -95,7 +95,7 @@ internal sealed class LocalAccountPrincipalDescriber : IPrincipalDescriber
     {
         var summaries = new List<PrincipalSummaryResource>();
 
-        var accounts = await accountStore.GetByUserNamesAsync(userNames, cancellationToken);
+        var accounts = await accountStore.GetNamesByUserNamesAsync(userNames, cancellationToken);
         if (accounts.Count == 0)
         {
             return summaries;
@@ -140,7 +140,7 @@ internal sealed class LocalAccountPrincipalDescriber : IPrincipalDescriber
     /// <returns>The summary, named by the account's display name and username.</returns>
     private static PrincipalSummaryResource ToSummary(
         string principalId,
-        PersistedLocalAccount account
+        LocalAccountNameProjection account
     ) =>
         new()
         {
