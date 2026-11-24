@@ -377,6 +377,19 @@ public sealed class ClientApiEndpointHandlerTests : IAsyncLifetime
             .Verifiable();
     }
 
+    // A create route reads the addressed tenant before it validates or inserts.
+    private void SetupTenant(bool exists)
+    {
+        MockStoreManager
+            .Setup(x => x.GetStore<ITenantStore>())
+            .Returns(MockTenantStore.Object)
+            .Verifiable();
+        MockTenantStore
+            .Setup(x => x.GetOrDefaultAsync(TenantId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(exists ? CreateTenant() : null)
+            .Verifiable();
+    }
+
     // Only a request that changes one of a client's secrets, which the store reads by secret, reads the client too.
     private void SetupClientLookup() =>
         MockClientStore
@@ -948,6 +961,7 @@ public sealed class ClientApiEndpointHandlerTests : IAsyncLifetime
         SetupClientChangedAudit();
         SetupValidSettings();
         SetupStore();
+        SetupTenant(exists: true);
         SetupResourceId("generated-id");
 
         PersistedClient? captured = null;
@@ -1024,6 +1038,7 @@ public sealed class ClientApiEndpointHandlerTests : IAsyncLifetime
         SetupClientChangedAudit();
         SetupValidSettings();
         SetupStore();
+        SetupTenant(exists: true);
         SetupResourceId("generated-id");
 
         PersistedClient? captured = null;
@@ -1104,6 +1119,7 @@ public sealed class ClientApiEndpointHandlerTests : IAsyncLifetime
     {
         SetupValidSettings();
         SetupStore();
+        SetupTenant(exists: true);
         SetupResourceId("generated-id");
         SetupAuthorizeCreate(resourceServerId: null, error: null);
         MockClientValidator
@@ -1141,6 +1157,7 @@ public sealed class ClientApiEndpointHandlerTests : IAsyncLifetime
         SetupAuthorizeCreate(resourceServerId: null, error: null);
         SetupInvalidSettings();
         SetupStoreManager();
+        SetupTenant(exists: true);
         SetupResourceId("generated-id");
         MockClientValidator
             .Setup(x =>
@@ -1173,6 +1190,7 @@ public sealed class ClientApiEndpointHandlerTests : IAsyncLifetime
         SetupAuthorizeCreate(resourceServerId: null, error: null);
         SetupValidSettings();
         SetupStoreManager();
+        SetupTenant(exists: true);
         SetupResourceId("generated-id");
         MockClientValidator
             .Setup(x =>
@@ -1212,6 +1230,7 @@ public sealed class ClientApiEndpointHandlerTests : IAsyncLifetime
         SetupAuthorizeCreate(resourceServerId: null, error: null);
         SetupValidSettings();
         SetupStoreManager();
+        SetupTenant(exists: true);
         SetupResourceId("generated-id");
         MockClientValidator
             .Setup(x =>
@@ -1263,6 +1282,25 @@ public sealed class ClientApiEndpointHandlerTests : IAsyncLifetime
         var problem = Assert.IsType<ValidationProblem>(result);
         Assert.Equal(StatusCodes.Status400BadRequest, problem.StatusCode);
         Assert.Equal(["clientId"], problem.ProblemDetails.Errors.Keys);
+    }
+
+    [Fact]
+    public async Task CreateClientAsync_WhenTheTenantDoesNotExist_ReturnsNotFoundWithoutStoring()
+    {
+        SetupAuthorizeCreate(resourceServerId: null, error: null);
+        SetupStoreManager();
+        SetupTenant(exists: false);
+
+        // Strict mocks: no validator or AddAsync setup, so validating or storing would fail the test.
+        var result = await Handler.CreateClientAsync(
+            CreateHttpContext(authenticated: true),
+            TenantId,
+            new CreateClientRequest { IsDisabled = false, Settings = EmptyObject() },
+            CancellationToken.None
+        );
+
+        var problem = Assert.IsType<ProblemHttpResult>(result);
+        Assert.Equal(StatusCodes.Status404NotFound, problem.StatusCode);
     }
 
     [Fact]
@@ -5908,7 +5946,7 @@ public sealed class ClientApiEndpointHandlerTests : IAsyncLifetime
     #region Map Tests
 
     [Theory]
-    [InlineData("POST", "/clients", new[] { 400, 401, 403, 409, 412, 415 })]
+    [InlineData("POST", "/clients", new[] { 400, 401, 403, 404, 409, 412, 415 })]
     [InlineData("GET", "/clients", new[] { 400, 401, 403 })]
     [InlineData("GET", "/clients/{clientId}", new[] { 401, 403, 404 })]
     [InlineData("PATCH", "/clients/{clientId}", new[] { 400, 401, 403, 404, 409, 412, 415 })]

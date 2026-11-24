@@ -263,11 +263,14 @@ internal class ConnectionApiEndpointHandler(
 
         // The caller holds authority at the tenant's node, but the tenant may not exist: the store's insert would fail on
         // it, so the absent tenant is answered 404 before anything is validated or stored.
-        var tenantStore = storeManager.GetStore<ITenantStore>();
-        var tenant = await tenantStore.GetOrDefaultAsync(tenantId, cancellationToken);
-        if (tenant is null)
+        var tenantNotFound = await GetTenantNotFoundOrDefaultAsync(
+            storeManager,
+            tenantId,
+            cancellationToken
+        );
+        if (tenantNotFound is not null)
         {
-            return ManagementProblems.ResourceNotFound();
+            return tenantNotFound;
         }
 
         var connectionId = CryptoService.GenerateResourceId();

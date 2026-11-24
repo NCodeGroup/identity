@@ -255,6 +255,7 @@ internal class AuditStreamApiEndpointHandler(
             .ProducesValidationProblem()
             .ProducesProblem(StatusCodes.Status401Unauthorized)
             .ProducesProblem(StatusCodes.Status403Forbidden)
+            .ProducesProblem(StatusCodes.Status404NotFound)
             .ProducesProblem(StatusCodes.Status409Conflict)
             .ProducesProblem(StatusCodes.Status412PreconditionFailed)
             .ProducesProblem(StatusCodes.Status415UnsupportedMediaType)
@@ -386,6 +387,7 @@ internal class AuditStreamApiEndpointHandler(
     /// <response code="400">The display name is empty, longer than 300 characters or holds a control character, or the
     /// endpoint is not an absolute <c>https</c> URL of at most 1,000 characters without user information or a
     /// fragment.</response>
+    /// <response code="404">The tenant does not exist.</response>
     /// <response code="409">The tenant holds its maximum number of audit streams, or another of its creates is
     /// running.</response>
     [EndpointName("api/audit-streams/create")]

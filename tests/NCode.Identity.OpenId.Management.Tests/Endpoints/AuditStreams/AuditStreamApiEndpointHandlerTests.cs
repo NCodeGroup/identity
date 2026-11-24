@@ -1142,7 +1142,7 @@ public sealed class AuditStreamApiEndpointHandlerTests : IDisposable
 
     [Theory]
     [InlineData("GET", "/audit-streams", new[] { 400, 401, 403 })]
-    [InlineData("POST", "/audit-streams", new[] { 400, 401, 403, 409, 412, 415 })]
+    [InlineData("POST", "/audit-streams", new[] { 400, 401, 403, 404, 409, 412, 415 })]
     [InlineData("GET", "/audit-streams/{streamId}", new[] { 401, 403, 404 })]
     [InlineData("PATCH", "/audit-streams/{streamId}", new[] { 400, 401, 403, 404, 412, 415 })]
     [InlineData("DELETE", "/audit-streams/{streamId}", new[] { 401, 403, 404, 412 })]
