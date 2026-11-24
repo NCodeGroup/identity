@@ -166,6 +166,19 @@ public sealed class LocalAccountStoreCatalogTests
         Assert.Throws<InvalidOperationException>(() => new LocalAccountStoreCatalog(registrations));
     }
 
+    [Theory]
+    [InlineData("")]
+    [InlineData(null)]
+    public void Constructor_WhenNameIsNullOrEmpty_Throws(string? name)
+    {
+        var registrations = new[]
+        {
+            CreateRegistration(name!, new FakeStore(), new FakeTransferStore()),
+        };
+
+        Assert.Throws<InvalidOperationException>(() => new LocalAccountStoreCatalog(registrations));
+    }
+
     #endregion
 
     #region GetStore Tests

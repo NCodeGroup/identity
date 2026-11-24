@@ -151,8 +151,8 @@ NCode.Identity.OpenId.Accounts.Stores.LocalAccountStoreRegistration.LocalAccount
 NCode.Identity.OpenId.Accounts.Stores.LocalAccountStoreRegistration.Name.get -> string!
 NCode.Identity.OpenId.Accounts.Stores.LocalAccountStoreRegistration.Name.init -> void
 NCode.Identity.OpenId.Accounts.Stores.LocalAccountStoreRegistrationExtensions
-NCode.Identity.OpenId.Accounts.Stores.LocalAccountStoreRegistrationExtensions.extension(Microsoft.Extensions.DependencyInjection.IServiceCollection!)
-NCode.Identity.OpenId.Accounts.Stores.LocalAccountStoreRegistrationExtensions.extension(Microsoft.Extensions.DependencyInjection.IServiceCollection!).AddLocalAccountStore(System.Func<System.IServiceProvider!, NCode.Identity.OpenId.Accounts.Stores.LocalAccountStoreRegistration!>! factory) -> NCode.Identity.Registration.IServiceBuilder<NCode.Identity.OpenId.Accounts.LocalAccountLibrary>!
+NCode.Identity.OpenId.Accounts.Stores.LocalAccountStoreRegistrationExtensions.extension(NCode.Identity.Registration.IServiceBuilder<NCode.Identity.Persistence.StoreManagerLibrary>!)
+NCode.Identity.OpenId.Accounts.Stores.LocalAccountStoreRegistrationExtensions.extension(NCode.Identity.Registration.IServiceBuilder<NCode.Identity.Persistence.StoreManagerLibrary>!).AddLocalAccountStore(System.Func<System.IServiceProvider!, NCode.Identity.OpenId.Accounts.Stores.LocalAccountStoreRegistration!>! factory) -> NCode.Identity.Registration.IServiceBuilder<NCode.Identity.OpenId.Accounts.LocalAccountLibrary>!
 NCode.Identity.OpenId.Accounts.Stores.LocalConnectionStrategy
 NCode.Identity.OpenId.Accounts.Stores.LocalConnectionStrategy.LocalConnectionStrategy(NCode.Identity.OpenId.Accounts.Stores.LocalAccountStoreCatalog! catalog) -> void
 NCode.Identity.OpenId.Accounts.Stores.LocalConnectionStrategy.Name.get -> string!

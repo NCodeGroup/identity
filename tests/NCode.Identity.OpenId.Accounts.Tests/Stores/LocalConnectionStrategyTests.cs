@@ -3,7 +3,9 @@
 
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using NCode.Identity.OpenId.Connections;
+using NCode.Identity.Persistence;
 using NCode.Identity.Registration;
 
 namespace NCode.Identity.OpenId.Accounts.Stores;
@@ -93,8 +95,10 @@ public sealed class LocalConnectionStrategyTests
     {
         var serviceCollection = new ServiceCollection();
 
-        serviceCollection.AddLocalAccountStore(_ => CreateRegistration("default"));
-        var builder = serviceCollection.AddLocalAccountStore(_ => CreateRegistration("other"));
+        var storeManagerBuilder = serviceCollection.NewBuilder<StoreManagerLibrary>();
+
+        storeManagerBuilder.AddLocalAccountStore(_ => CreateRegistration("default"));
+        var builder = storeManagerBuilder.AddLocalAccountStore(_ => CreateRegistration("other"));
 
         Assert.Same(serviceCollection, builder.ServiceCollection);
         Assert.True(serviceCollection.IsRegistered<LocalAccountLibrary>());
@@ -111,6 +115,25 @@ public sealed class LocalConnectionStrategyTests
         var catalog = serviceProvider.GetRequiredService<LocalAccountStoreCatalog>();
         Assert.True(catalog.Contains("default"));
         Assert.True(catalog.Contains("other"));
+    }
+
+    [Fact]
+    public async Task AddLocalAccountStore_WhenTwoStoresShareAName_StartingTheHostedServicesThrows()
+    {
+        var serviceCollection = new ServiceCollection();
+        var storeManagerBuilder = serviceCollection.NewBuilder<StoreManagerLibrary>();
+        storeManagerBuilder.AddLocalAccountStore(_ => CreateRegistration("default"));
+        storeManagerBuilder.AddLocalAccountStore(_ => CreateRegistration("default"));
+
+        await using var serviceProvider = serviceCollection.BuildServiceProvider();
+
+        await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+        {
+            foreach (var hostedService in serviceProvider.GetServices<IHostedService>())
+            {
+                await hostedService.StartAsync(CancellationToken.None);
+            }
+        });
     }
 
     #endregion

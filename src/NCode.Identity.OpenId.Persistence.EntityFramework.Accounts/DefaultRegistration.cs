@@ -52,7 +52,7 @@ public static class DefaultRegistration
             >();
             serviceCollection.TryAddEnumerable(modelContributor);
 
-            return serviceCollection.AddLocalAccountStore(serviceProvider =>
+            return builder.AddLocalAccountStore(serviceProvider =>
                 CreateRegistration(serviceProvider, storeName)
             );
         }

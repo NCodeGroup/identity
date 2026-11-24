@@ -145,7 +145,7 @@ public static class DefaultRegistration
 
             // The store is backing-store-agnostic, so it holds no DbContext; the scoped UserManager is resolved per
             // operation from a fresh scope.
-            return serviceCollection.AddLocalAccountStore(serviceProvider =>
+            return builder.AddLocalAccountStore(serviceProvider =>
                 CreateRegistration<TUser>(serviceProvider, storeName)
             );
         }

@@ -21,7 +21,8 @@ public sealed class LocalAccountStoreCatalog
     /// Initializes a new instance of the <see cref="LocalAccountStoreCatalog"/> class.
     /// </summary>
     /// <param name="registrations">The registered local-account stores.</param>
-    /// <exception cref="InvalidOperationException">Two registrations have the same name.</exception>
+    /// <exception cref="InvalidOperationException">A registration has a null or empty name, or two registrations have
+    /// the same name.</exception>
     public LocalAccountStoreCatalog(IEnumerable<LocalAccountStoreRegistration> registrations)
     {
         ArgumentNullException.ThrowIfNull(registrations);
@@ -31,6 +32,13 @@ public sealed class LocalAccountStoreCatalog
         );
         foreach (var registration in registrations)
         {
+            if (string.IsNullOrEmpty(registration.Name))
+            {
+                throw new InvalidOperationException(
+                    "A local-account store is registered with a null or empty name."
+                );
+            }
+
             if (!Registrations.TryAdd(registration.Name, registration))
             {
                 throw new InvalidOperationException(
