@@ -447,6 +447,17 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
         return names;
     }
 
+    /// <summary>
+    /// Determines whether a user belongs to a connection of a tenant.
+    /// </summary>
+    /// <param name="user">The stored user.</param>
+    /// <param name="tenantId">The identifier of the tenant.</param>
+    /// <param name="connectionId">The identifier of the connection.</param>
+    /// <returns><c>true</c> when the user belongs to the connection of the tenant; otherwise, <c>false</c>.</returns>
+    private static bool IsInConnection(TUser user, string tenantId, string connectionId) =>
+        string.Equals(user.TenantId, tenantId, StringComparison.Ordinal)
+        && string.Equals(user.ConnectionId, connectionId, StringComparison.Ordinal);
+
     private IServiceScopeFactory ServiceScopeFactory { get; } = serviceScopeFactory;
     private IStoreProvider StoreProvider { get; } = storeProvider;
     private AspNetIdentityDummyPasswordHash<TUser> DummyPasswordHash { get; } = dummyPasswordHash;
@@ -1256,15 +1267,4 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
 
         return byUserName ?? byEmail;
     }
-
-    /// <summary>
-    /// Determines whether a user belongs to a connection of a tenant.
-    /// </summary>
-    /// <param name="user">The stored user.</param>
-    /// <param name="tenantId">The identifier of the tenant.</param>
-    /// <param name="connectionId">The identifier of the connection.</param>
-    /// <returns><c>true</c> when the user belongs to the connection of the tenant; otherwise, <c>false</c>.</returns>
-    private static bool IsInConnection(TUser user, string tenantId, string connectionId) =>
-        string.Equals(user.TenantId, tenantId, StringComparison.Ordinal)
-        && string.Equals(user.ConnectionId, connectionId, StringComparison.Ordinal);
 }

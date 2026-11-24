@@ -23,6 +23,23 @@ internal sealed class DefaultConnectionResolver(
     IEffectiveSettingsResolver effectiveSettingsResolver
 ) : IConnectionResolver
 {
+    /// <summary>
+    /// Determines whether a connection is enabled and allowed by the client.
+    /// </summary>
+    /// <param name="clientSettings">The client's effective settings.</param>
+    /// <param name="connection">The stored connection.</param>
+    /// <returns><see langword="true"/> when the connection is enabled and the client allows it.</returns>
+    private static bool IsAllowed(
+        IReadOnlySettingCollection clientSettings,
+        PersistedConnection connection
+    )
+    {
+        if (!connection.IsEnabled)
+            return false;
+
+        return ConnectionAllowances.IsAllowed(clientSettings, connection.Name);
+    }
+
     private IStoreManagerFactory StoreManagerFactory { get; } = storeManagerFactory;
     private IAmbientTenantAccessor AmbientTenantAccessor { get; } = ambientTenantAccessor;
     private IConnectionStrategyCatalog StrategyCatalog { get; } = strategyCatalog;
@@ -173,23 +190,6 @@ internal sealed class DefaultConnectionResolver(
         return connection is not null && IsAllowed(clientSettings, connection)
             ? Resolve(openIdContext, connection)
             : null;
-    }
-
-    /// <summary>
-    /// Determines whether a connection is enabled and allowed by the client.
-    /// </summary>
-    /// <param name="clientSettings">The client's effective settings.</param>
-    /// <param name="connection">The stored connection.</param>
-    /// <returns><see langword="true"/> when the connection is enabled and the client allows it.</returns>
-    private static bool IsAllowed(
-        IReadOnlySettingCollection clientSettings,
-        PersistedConnection connection
-    )
-    {
-        if (!connection.IsEnabled)
-            return false;
-
-        return ConnectionAllowances.IsAllowed(clientSettings, connection.Name);
     }
 
     /// <summary>

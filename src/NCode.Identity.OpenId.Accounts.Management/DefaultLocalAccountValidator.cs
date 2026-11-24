@@ -26,9 +26,6 @@ internal class DefaultLocalAccountValidator(
     LocalAccountStoreCatalog localAccountStoreCatalog
 ) : DefaultResourceValidator(authorizationService), ILocalAccountValidator
 {
-    private LocalAccountPasswords LocalAccountPasswords { get; } = localAccountPasswords;
-    private LocalAccountStoreCatalog LocalAccountStoreCatalog { get; } = localAccountStoreCatalog;
-
     /// <summary>
     /// Checks the identifiers the connection's <c>local_account_identifier</c> setting demands, and bounds the ones the
     /// account carries and the request changes.
@@ -242,6 +239,9 @@ internal class DefaultLocalAccountValidator(
         return existing is not null
             && !string.Equals(existing.LocalAccountId, localAccountId, StringComparison.Ordinal);
     }
+
+    private LocalAccountPasswords LocalAccountPasswords { get; } = localAccountPasswords;
+    private LocalAccountStoreCatalog LocalAccountStoreCatalog { get; } = localAccountStoreCatalog;
 
     /// <summary>
     /// Checks the account's identifiers against the connection's settings: which are required and how long they may be.

@@ -33,6 +33,136 @@ internal class DefaultValidateSubjectAuthenticationHandler(
     ILogger<DefaultValidateSubjectAuthenticationHandler> logger
 ) : ICommandHandler<ValidateSubjectAuthenticationCommand>, ISupportMediatorPriority
 {
+    private static bool IsRequestedAcrSatisfied(
+        ClaimsPrincipal subject,
+        IOpenIdRequest? openIdRequest
+    )
+    {
+        // a subject validated outside a protocol request has no requested acr to satisfy
+        if (openIdRequest is null)
+        {
+            return true;
+        }
+
+        // Per OpenID Connect Core 1.0 §5.5.1.1, acr is only a hard requirement when it is requested as an *essential*
+        // id_token.acr claim with specific values; the issued acr MUST then match one of them. A voluntary request
+        // (including the entire `acr_values` parameter, which the spec defines as voluntary) is best-effort and imposes
+        // no constraint here.
+        var requestClaims = openIdRequest.Parameters.GetValueOrDefault(
+            OpenIdAuthenticationParameters.Claims
+        );
+        if (
+            requestClaims?.IdToken is not { } idTokenClaims
+            || !idTokenClaims.TryGetValue(JoseClaimNames.Payload.Acr, out var acrRequest)
+            || acrRequest is not { Essential: true }
+        )
+        {
+            return true;
+        }
+
+        var requestedValues = GetRequestedAcrValues(acrRequest);
+        if (requestedValues.Count == 0)
+        {
+            // An essential acr request without specific values only asks that acr be returned, not a particular value;
+            // emission is handled by the token pipeline, so there is nothing to enforce.
+            return true;
+        }
+
+        var satisfiedAcr = subject.FindFirstValue(JoseClaimNames.Payload.Acr);
+        return satisfiedAcr is not null && requestedValues.Contains(satisfiedAcr);
+    }
+
+    private static HashSet<string> GetRequestedAcrValues(IRequestClaim acrRequest)
+    {
+        var values = new HashSet<string>(StringComparer.Ordinal);
+
+        if (!string.IsNullOrEmpty(acrRequest.Value))
+        {
+            values.Add(acrRequest.Value);
+        }
+
+        if (acrRequest.Values is not null)
+        {
+            foreach (var value in acrRequest.Values)
+            {
+                if (!string.IsNullOrEmpty(value))
+                {
+                    values.Add(value);
+                }
+            }
+        }
+
+        return values;
+    }
+
+    /// <summary>
+    /// Determines whether the client's settings allow the connection the subject signed in through.
+    /// </summary>
+    /// <param name="connection">The connection the subject signed in through, if any.</param>
+    /// <param name="settings">The client's effective settings.</param>
+    /// <returns><see langword="true"/> when the settings allow the connection.</returns>
+    private static bool IsConnectionAllowed(
+        ResolvedConnection? connection,
+        IReadOnlySettingCollection settings
+    )
+    {
+        return ConnectionAllowances.IsAllowed(settings, connection?.Name);
+    }
+
+    /// <summary>
+    /// Determines whether the subject's connection matches the connection the request names.
+    /// </summary>
+    /// <param name="connection">The connection the subject signed in through, if any.</param>
+    /// <param name="openIdRequest">The protocol request, if any.</param>
+    /// <returns>
+    /// <see langword="true"/> when the request names no connection or names the subject's connection.
+    /// </returns>
+    private static bool IsRequestedConnectionValid(
+        ResolvedConnection? connection,
+        IOpenIdRequest? openIdRequest
+    )
+    {
+        // a subject validated outside a protocol request has no requested connection to match
+        if (openIdRequest is null)
+        {
+            return true;
+        }
+
+        var acrValues = openIdRequest.Parameters.GetValueOrDefault(
+            OpenIdCommonParameters.AcrValues
+        );
+        var connectionParameter = openIdRequest.Parameters.GetValueOrDefault(
+            OpenIdCommonParameters.Connection
+        );
+        var requestedName = ConnectionRequests.GetRequestedName(
+            connectionParameter,
+            acrValues ?? []
+        );
+        // a connection name is compared as the connection store compares it: case-insensitively
+        return requestedName is null
+            || (
+                connection is not null
+                && string.Equals(requestedName, connection.Name, StringComparison.OrdinalIgnoreCase)
+            );
+    }
+
+    private static string? GetReceivedTenantId(SubjectAuthentication subjectAuthentication)
+    {
+        // when we challenge, we store the tenant id in the authentication properties
+        var tenantId = subjectAuthentication.AuthenticationProperties.GetString(
+            OpenIdConstants.AuthenticationPropertyItems.TenantId
+        );
+        return !string.IsNullOrEmpty(tenantId)
+            ? tenantId
+            : subjectAuthentication.Subject.FindFirstValue(JoseClaimNames.Payload.Tid);
+    }
+
+    private static DateTimeOffset? GetAuthTime(ClaimsPrincipal subject)
+    {
+        var authTimeValue = subject.FindFirstValue(JoseClaimNames.Payload.AuthTime);
+        return DateCoercion.TryParseNumericDate(authTimeValue, out var authTime) ? authTime : null;
+    }
+
     private TimeProvider TimeProvider { get; } = timeProvider;
     private IConnectionResolver ConnectionResolver { get; } = connectionResolver;
     private ILogger<DefaultValidateSubjectAuthenticationHandler> Logger { get; } = logger;
@@ -197,130 +327,6 @@ internal class DefaultValidateSubjectAuthenticationHandler(
             operationDisposition.Error ??= errorFactory.AccessDenied(message);
             Logger.SubjectValidationFailed(message);
         }
-    }
-
-    private static bool IsRequestedAcrSatisfied(
-        ClaimsPrincipal subject,
-        IOpenIdRequest? openIdRequest
-    )
-    {
-        // a subject validated outside a protocol request has no requested acr to satisfy
-        if (openIdRequest is null)
-        {
-            return true;
-        }
-
-        // Per OpenID Connect Core 1.0 §5.5.1.1, acr is only a hard requirement when it is requested as an *essential*
-        // id_token.acr claim with specific values; the issued acr MUST then match one of them. A voluntary request
-        // (including the entire `acr_values` parameter, which the spec defines as voluntary) is best-effort and imposes
-        // no constraint here.
-        var requestClaims = openIdRequest.Parameters.GetValueOrDefault(
-            OpenIdAuthenticationParameters.Claims
-        );
-        if (
-            requestClaims?.IdToken is not { } idTokenClaims
-            || !idTokenClaims.TryGetValue(JoseClaimNames.Payload.Acr, out var acrRequest)
-            || acrRequest is not { Essential: true }
-        )
-        {
-            return true;
-        }
-
-        var requestedValues = GetRequestedAcrValues(acrRequest);
-        if (requestedValues.Count == 0)
-        {
-            // An essential acr request without specific values only asks that acr be returned, not a particular value;
-            // emission is handled by the token pipeline, so there is nothing to enforce.
-            return true;
-        }
-
-        var satisfiedAcr = subject.FindFirstValue(JoseClaimNames.Payload.Acr);
-        return satisfiedAcr is not null && requestedValues.Contains(satisfiedAcr);
-    }
-
-    private static HashSet<string> GetRequestedAcrValues(IRequestClaim acrRequest)
-    {
-        var values = new HashSet<string>(StringComparer.Ordinal);
-
-        if (!string.IsNullOrEmpty(acrRequest.Value))
-        {
-            values.Add(acrRequest.Value);
-        }
-
-        if (acrRequest.Values is not null)
-        {
-            foreach (var value in acrRequest.Values)
-            {
-                if (!string.IsNullOrEmpty(value))
-                {
-                    values.Add(value);
-                }
-            }
-        }
-
-        return values;
-    }
-
-    private static bool IsConnectionAllowed(
-        ResolvedConnection? connection,
-        IReadOnlySettingCollection settings
-    )
-    {
-        return ConnectionAllowances.IsAllowed(settings, connection?.Name);
-    }
-
-    /// <summary>
-    /// Determines whether the subject's connection matches the connection the request names.
-    /// </summary>
-    /// <param name="connection">The connection the subject signed in through, if any.</param>
-    /// <param name="openIdRequest">The protocol request, if any.</param>
-    /// <returns>
-    /// <see langword="true"/> when the request names no connection or names the subject's connection.
-    /// </returns>
-    private static bool IsRequestedConnectionValid(
-        ResolvedConnection? connection,
-        IOpenIdRequest? openIdRequest
-    )
-    {
-        // a subject validated outside a protocol request has no requested connection to match
-        if (openIdRequest is null)
-        {
-            return true;
-        }
-
-        var acrValues = openIdRequest.Parameters.GetValueOrDefault(
-            OpenIdCommonParameters.AcrValues
-        );
-        var connectionParameter = openIdRequest.Parameters.GetValueOrDefault(
-            OpenIdCommonParameters.Connection
-        );
-        var requestedName = ConnectionRequests.GetRequestedName(
-            connectionParameter,
-            acrValues ?? []
-        );
-        // a connection name is compared as the connection store compares it: case-insensitively
-        return requestedName is null
-            || (
-                connection is not null
-                && string.Equals(requestedName, connection.Name, StringComparison.OrdinalIgnoreCase)
-            );
-    }
-
-    private static string? GetReceivedTenantId(SubjectAuthentication subjectAuthentication)
-    {
-        // when we challenge, we store the tenant id in the authentication properties
-        var tenantId = subjectAuthentication.AuthenticationProperties.GetString(
-            OpenIdConstants.AuthenticationPropertyItems.TenantId
-        );
-        return !string.IsNullOrEmpty(tenantId)
-            ? tenantId
-            : subjectAuthentication.Subject.FindFirstValue(JoseClaimNames.Payload.Tid);
-    }
-
-    private static DateTimeOffset? GetAuthTime(ClaimsPrincipal subject)
-    {
-        var authTimeValue = subject.FindFirstValue(JoseClaimNames.Payload.AuthTime);
-        return DateCoercion.TryParseNumericDate(authTimeValue, out var authTime) ? authTime : null;
     }
 
     private bool ValidateMaxAge(DateTimeOffset? authTime, TimeSpan? maxAge)

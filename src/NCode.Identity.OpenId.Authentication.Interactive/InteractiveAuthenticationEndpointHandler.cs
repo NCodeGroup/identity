@@ -101,6 +101,487 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
     private const string ReturnUrlItem = "return_url";
     private const string UiLocalesItem = InteractiveAuthenticationPageRenderer.UiLocalesFieldName;
 
+    /// <summary>
+    /// Projects the authenticated cookie principal into the account page's view model.
+    /// </summary>
+    /// <param name="principal">The authenticated cookie principal.</param>
+    /// <param name="subjectId">The subject identifier of the principal, which names the account when it carries no
+    /// name.</param>
+    /// <param name="emailVerification">Whether the connection lets its end users verify their email address.</param>
+    /// <returns>The view model of the account page.</returns>
+    internal static AccountMeResponse BuildMeResponse(
+        ClaimsPrincipal principal,
+        string subjectId,
+        bool emailVerification
+    )
+    {
+        var name =
+            principal.FindFirst(JoseClaimNames.Payload.Name)?.Value
+            ?? principal.FindFirst(JoseClaimNames.Payload.PreferredUsername)?.Value
+            ?? subjectId;
+
+        var amr = principal
+            .FindAll(JoseClaimNames.Payload.Amr)
+            .Select(claim => claim.Value)
+            .ToList();
+
+        var authTimeValue = principal.FindFirst(JoseClaimNames.Payload.AuthTime)?.Value;
+        long? authTime = DateCoercion.TryParseNumericDate(authTimeValue, out var parsedAuthTime)
+            ? parsedAuthTime.ToUnixTimeSeconds()
+            : null;
+
+        var idp = principal.FindFirst(JoseClaimNames.Payload.Idp)?.Value;
+        var sid = principal.FindFirst(JoseClaimNames.Payload.Sid)?.Value;
+        return new AccountMeResponse(subjectId, name, authTime, amr, idp, sid, emailVerification);
+    }
+
+    private static async ValueTask<OperationDisposition<IOpenIdError>> ValidateStandingAsync(
+        OpenIdContext openIdContext,
+        ClaimsPrincipal principal,
+        CancellationToken cancellationToken
+    )
+    {
+        var mediator = openIdContext.Mediator;
+        var operationDisposition = new OperationDisposition<IOpenIdError>();
+
+        var authenticationProperties = new AuthenticationProperties();
+        var subjectId = openIdContext.GetSubjectId(principal) ?? string.Empty;
+        var subjectAuthentication = new SubjectAuthentication(
+            InteractiveAuthenticationDefaults.CookieSchemeName,
+            authenticationProperties,
+            principal,
+            subjectId
+        );
+        var command = new ValidateSubjectStandingCommand(
+            openIdContext,
+            subjectAuthentication,
+            operationDisposition
+        );
+        await mediator.SendAsync(command, cancellationToken);
+
+        return operationDisposition;
+    }
+
+    // Projects a session into the active-sessions page's view model, marking the request's own session.
+    private static SessionSummaryResponse ToSummary(SessionInfo session, string? currentSessionId)
+    {
+        var grant = session.Grant;
+        var isCurrent = string.Equals(
+            session.SessionId,
+            currentSessionId,
+            StringComparison.Ordinal
+        );
+        var createdAt = session.CreatedWhen.ToUnixTimeSeconds();
+        var lastActivityAt = grant.LastActivityWhen.ToUnixTimeSeconds();
+        var expiresAt = session.ExpiresWhen.ToUnixTimeSeconds();
+        return new SessionSummaryResponse(
+            session.SessionId,
+            isCurrent,
+            createdAt,
+            lastActivityAt,
+            expiresAt,
+            grant.AuthenticationMethods ?? [],
+            grant.IdentityProvider,
+            grant.UserAgent,
+            grant.RemoteIpAddress
+        );
+    }
+
+    /// <summary>
+    /// Creates the properties of the pending sign-in cookie, which carry the email code flow, the return URL and the
+    /// language tag the sign-in code page renders in.
+    /// </summary>
+    /// <param name="flowId">The identifier of the email code flow the mailed code belongs to.</param>
+    /// <param name="returnUrl">The return URL the end user continues to once the sign-in completes.</param>
+    /// <param name="languageTag">The language tag the form carried, which is kept only when it is set.</param>
+    /// <param name="pending">
+    /// The properties of the pending sign-in that a resent code renews, whose issue and expiry times the renewed cookie
+    /// keeps, or <see langword="null"/> for a new pending sign-in.
+    /// </param>
+    /// <returns>The properties of the pending sign-in cookie.</returns>
+    internal static AuthenticationProperties CreatePendingSignInProperties(
+        string flowId,
+        string returnUrl,
+        string? languageTag,
+        AuthenticationProperties? pending
+    )
+    {
+        var properties = new AuthenticationProperties();
+        properties.Items[EmailCodeFlowItem] = flowId;
+        properties.Items[ReturnUrlItem] = returnUrl;
+        if (!string.IsNullOrEmpty(languageTag))
+        {
+            properties.Items[UiLocalesItem] = languageTag;
+        }
+
+        // A resent code renews the cookie with the times of the pending sign-in it renews, so the sign-in completes
+        // within the pending lifetime of the password check however many codes are resent. See ADR-1533.
+        if (pending is not null)
+        {
+            properties.IssuedUtc = pending.IssuedUtc;
+            properties.ExpiresUtc = pending.ExpiresUtc;
+        }
+
+        return properties;
+    }
+
+    /// <summary>
+    /// Reads an item of the pending sign-in cookie's properties.
+    /// </summary>
+    /// <param name="properties">The properties of the pending sign-in cookie.</param>
+    /// <param name="name">The name of the item.</param>
+    /// <returns>The value of the item, or <see langword="null"/> when the properties hold no such item.</returns>
+    private static string? ReadPendingItem(AuthenticationProperties properties, string name) =>
+        properties.Items.TryGetValue(name, out var value) ? value : null;
+
+    /// <summary>
+    /// Adds an authentication method reference to the identity unless the identity already carries it.
+    /// </summary>
+    /// <param name="identity">The identity of the signed-in principal.</param>
+    /// <param name="method">The authentication method reference to add.</param>
+    private static void AddAuthenticationMethod(ClaimsIdentity identity, string method)
+    {
+        if (!identity.HasClaim(JoseClaimNames.Payload.Amr, method))
+        {
+            var claim = new Claim(JoseClaimNames.Payload.Amr, method);
+            identity.AddClaim(claim);
+        }
+    }
+
+    /// <summary>
+    /// Gets the offered connections whose end users can reset a password.
+    /// </summary>
+    /// <param name="offered">The connections the sign-in pages offer.</param>
+    /// <returns>The offered connections that enable a password reset, in their offered order.</returns>
+    // See ADR-1533.
+    private static List<ResolvedConnection> GetResettableConnections(
+        IReadOnlyList<ResolvedConnection> offered
+    )
+    {
+        var resettable = new List<ResolvedConnection>();
+        foreach (var candidate in offered)
+        {
+            if (candidate.Settings.GetValue(OpenIdSettingKeys.PasswordResetEnabled))
+            {
+                resettable.Add(candidate);
+            }
+        }
+
+        return resettable;
+    }
+
+    /// <summary>
+    /// Resolves the connection the forgot-password post names the way the forgot-password page chooses one: a blank
+    /// name falls back to the resettable connection the sign-in preselects, else to the only resettable connection,
+    /// else the post is refused as needing a choice, and a name that no connection offers is refused as unavailable.
+    /// </summary>
+    /// <param name="offered">The connections the sign-in pages offer, and the one they preselect.</param>
+    /// <param name="posted">The connection name the form posted.</param>
+    /// <returns>The selected connection, which may not enable a password reset when the post names it; a refusal; or
+    /// neither a connection nor a refusal when no offered connection enables a password reset.</returns>
+    // See ADR-1535.
+    private static ConnectionSelection SelectForForgotPassword(
+        SignInConnections offered,
+        string? posted
+    )
+    {
+        var resettable = GetResettableConnections(offered.Offered);
+        if (resettable.Count == 0)
+        {
+            return new ConnectionSelection();
+        }
+
+        if (string.IsNullOrEmpty(posted))
+        {
+            var preselectedName = SelectResettableConnection(
+                resettable,
+                requested: null,
+                offered.Preselected?.Name
+            );
+            foreach (var candidate in resettable)
+            {
+                if (
+                    resettable.Count == 1
+                    || string.Equals(
+                        candidate.Name,
+                        preselectedName,
+                        StringComparison.OrdinalIgnoreCase
+                    )
+                )
+                {
+                    return new ConnectionSelection { Connection = candidate };
+                }
+            }
+
+            return new ConnectionSelection
+            {
+                ErrorCode = ConnectionSelectionErrors.Required,
+                ErrorDescription = "A connection is required.",
+            };
+        }
+
+        foreach (var candidate in offered.Offered)
+        {
+            if (string.Equals(candidate.Name, posted, StringComparison.OrdinalIgnoreCase))
+            {
+                return new ConnectionSelection { Connection = candidate };
+            }
+        }
+
+        return new ConnectionSelection
+        {
+            ErrorCode = ConnectionSelectionErrors.Unavailable,
+            ErrorDescription = "The connection is not offered.",
+        };
+    }
+
+    /// <summary>
+    /// Maps the reason a connection selection refuses to the error code the sign-in pages redirect with: the
+    /// connection-required code when a choice is missing, else the invalid-request code the caller names.
+    /// </summary>
+    /// <param name="selection">The refused selection.</param>
+    /// <param name="invalidRequestCode">The invalid-request code of the surface that redirects.</param>
+    /// <returns>The error code to redirect with.</returns>
+    // See ADR-1535.
+    private static string GetRefusedConnectionCode(
+        ConnectionSelection selection,
+        string invalidRequestCode
+    ) =>
+        string.Equals(
+            selection.ErrorCode,
+            ConnectionSelectionErrors.Required,
+            StringComparison.Ordinal
+        )
+            ? ConnectionRequiredCode
+            : invalidRequestCode;
+
+    /// <summary>
+    /// Finds the stored name of the resettable connection the forgot-password page preselects: the one the query
+    /// requests, else the preselected connection, each matched case-insensitively as connection names are.
+    /// </summary>
+    /// <param name="resettable">The offered connections whose end users can reset a password.</param>
+    /// <param name="requested">The connection name the query carried.</param>
+    /// <param name="preselected">The name of the connection the sign-in selection preselects, or
+    /// <see langword="null"/>.</param>
+    /// <returns>The stored name of the matching connection, or <see langword="null"/> when none matches.</returns>
+    // See ADR-1535.
+    internal static string? SelectResettableConnection(
+        IReadOnlyList<ResolvedConnection> resettable,
+        string? requested,
+        string? preselected
+    )
+    {
+        foreach (var candidate in resettable)
+        {
+            if (string.Equals(candidate.Name, requested, StringComparison.OrdinalIgnoreCase))
+            {
+                return candidate.Name;
+            }
+        }
+
+        foreach (var candidate in resettable)
+        {
+            if (string.Equals(candidate.Name, preselected, StringComparison.OrdinalIgnoreCase))
+            {
+                return candidate.Name;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Projects the offered connections into the name and display name the page renders.
+    /// </summary>
+    /// <param name="connections">The connections to project.</param>
+    /// <returns>The name and display name of each connection.</returns>
+    [SuppressMessage(
+        "Performance",
+        "CA1859",
+        Justification = "The projection is the read-only list the page form's Connections member takes."
+    )]
+    private static IReadOnlyList<(string Name, string DisplayName)> ToConnectionViews(
+        IReadOnlyList<ResolvedConnection> connections
+    )
+    {
+        var views = new List<(string Name, string DisplayName)>(connections.Count);
+        foreach (var connection in connections)
+        {
+            views.Add((connection.Name, connection.Connection.DisplayName));
+        }
+
+        return views;
+    }
+
+    /// <summary>
+    /// Builds the login page's link to the forgot-password page, which shows while any offered connection lets its end
+    /// users reset a password and carries the preselected connection's name only when that connection does.
+    /// </summary>
+    /// <param name="offered">The connections the page offers.</param>
+    /// <param name="returnUrl">The return URL the login page carried.</param>
+    /// <param name="languageTag">The language tag the login page carried, or <see langword="null"/>.</param>
+    /// <returns>The address of the forgot-password page, or <see langword="null"/> when no offered connection lets its
+    /// end users reset a password.</returns>
+    // See ADR-1533.
+    internal static string? GetForgotPasswordHref(
+        SignInConnections offered,
+        string returnUrl,
+        string? languageTag
+    )
+    {
+        var anyResettable = false;
+        foreach (var candidate in offered.Offered)
+        {
+            if (candidate.Settings.GetValue(OpenIdSettingKeys.PasswordResetEnabled))
+            {
+                anyResettable = true;
+                break;
+            }
+        }
+
+        if (!anyResettable)
+        {
+            return null;
+        }
+
+        var preselected = offered.Preselected;
+        var preselectedResettable =
+            preselected is not null
+            && preselected.Settings.GetValue(OpenIdSettingKeys.PasswordResetEnabled);
+        return BuildForgotPasswordHref(
+            returnUrl,
+            languageTag,
+            preselectedResettable ? preselected?.Name : null
+        );
+    }
+
+    /// <summary>
+    /// Builds the address of the forgot-password page, relative to the surface the page's base names, carrying the
+    /// return URL and the locale the login page carried.
+    /// </summary>
+    /// <param name="returnUrl">The return URL the login page carried, which is left out when it is empty.</param>
+    /// <param name="languageTag">The language tag the login page carried, or <see langword="null"/>.</param>
+    /// <param name="connectionName">The name of the connection the login page preselects, or
+    /// <see langword="null"/>.</param>
+    /// <returns>The address of the forgot-password page.</returns>
+    private static string BuildForgotPasswordHref(
+        string returnUrl,
+        string? languageTag,
+        string? connectionName
+    )
+    {
+        var href = InteractiveAuthenticationPageRenderer.ForgotPasswordFormAction;
+        var separator = '?';
+        if (!string.IsNullOrEmpty(returnUrl))
+        {
+            href += $"{separator}{ReturnUrlName}={Uri.EscapeDataString(returnUrl)}";
+            separator = '&';
+        }
+
+        if (!string.IsNullOrEmpty(connectionName))
+        {
+            href += $"{separator}{ConnectionName}={Uri.EscapeDataString(connectionName)}";
+        }
+
+        return InteractiveLocaleSelector.AppendUiLocalesQuery(href, languageTag);
+    }
+
+    /// <summary>
+    /// Maps the error code the forgot-password and reset-password pages receive to the page's message for it.
+    /// </summary>
+    internal static string? DescribePasswordResetError(
+        string? error,
+        InteractiveMessages messages
+    ) =>
+        error switch
+        {
+            null or "" => null,
+            InteractiveEmailCodeErrors.InvalidCode => messages.InvalidCodeError,
+            InteractiveEmailCodeErrors.TooManyCodes => messages.TooManyCodesError,
+            InteractivePasswordChangeErrors.PasswordMismatch => messages.PasswordMismatchError,
+            InteractivePasswordChangeErrors.InvalidRequest => messages.MissingFieldsError,
+            ConnectionRequiredCode => messages.ConnectionRequiredError,
+            // DefaultInteractivePasswordResetter answers it when no backend holds passwords, which is no refused
+            // password.
+            InteractivePasswordChangeErrors.NotSupported => messages.EmailCodeFailedError,
+            // The password policy's codes are an open vocabulary, so any other code the reset post answers is a
+            // refused password.
+            _ => messages.PasswordRefusedError,
+        };
+
+    /// <summary>
+    /// Maps the error code the sign-in code page receives to the page's message for it.
+    /// </summary>
+    internal static string? DescribeSignInCodeError(string? error, InteractiveMessages messages) =>
+        error switch
+        {
+            null or "" => null,
+            InteractiveEmailCodeErrors.InvalidCode => messages.InvalidCodeError,
+            InteractiveEmailCodeErrors.TooManyCodes => messages.TooManyCodesError,
+            InteractivePasswordChangeErrors.InvalidRequest => messages.MissingFieldsError,
+            InteractiveEmailCodeErrors.NoEmail => messages.NoEmailError,
+            _ => messages.EmailCodeFailedError,
+        };
+
+    /// <summary>
+    /// Maps the error code the login page receives to the page's message for it, so the login form without scripts
+    /// shows the same messages as the single-page form.
+    /// </summary>
+    internal static string? DescribeLoginError(string? error, InteractiveMessages messages) =>
+        error switch
+        {
+            null or "" => null,
+            InvalidCredentialsCode => messages.InvalidCredentialsError,
+            ConnectionRequiredCode => messages.ConnectionRequiredError,
+            OpenIdProtocol.ErrorCodes.InvalidRequest => messages.MissingCredentialsError,
+            OpenIdProtocol.ErrorCodes.AccessDenied => messages.AccessDeniedError,
+            InteractiveEmailCodeErrors.TooManyCodes => messages.TooManyCodesError,
+            _ => messages.SignInFailedError,
+        };
+
+    private static ContentHttpResult BundleMissingResult() =>
+        TypedResults.Content(
+            "The interactive login bundle is not available. Build the 'apps/auth' surface and configure "
+                + "'InteractiveAuthentication:BundleRootPath' to its 'dist' directory.",
+            "text/plain",
+            contentEncoding: SecureEncoding.UTF8,
+            statusCode: StatusCodes.Status503ServiceUnavailable
+        );
+
+    // Guards against an open redirect: a local URL as LocalUrl defines it, or an absolute URL that targets this
+    // same origin (the OP's own continue endpoint), is honored; anything else falls back to the application root.
+    internal static string ResolveSafeReturnUrl(HttpContext httpContext, string? returnUrl)
+    {
+        var request = httpContext.Request;
+        var requestOrigin = $"{request.Scheme}://{request.Host.Value}";
+        return ResolveSafeReturnUrl(returnUrl, requestOrigin);
+    }
+
+    internal static string ResolveSafeReturnUrl(string? returnUrl, string requestOrigin)
+    {
+        if (string.IsNullOrEmpty(returnUrl))
+        {
+            return "/";
+        }
+
+        if (LocalUrl.IsLocal(returnUrl))
+        {
+            return returnUrl;
+        }
+
+        if (
+            AbsoluteUri.TryParse(returnUrl, out var target)
+            && AbsoluteUri.TryParse(requestOrigin, out var origin)
+            && string.Equals(target.Scheme, origin.Scheme, StringComparison.OrdinalIgnoreCase)
+            && string.Equals(target.Authority, origin.Authority, StringComparison.OrdinalIgnoreCase)
+        )
+        {
+            return returnUrl;
+        }
+
+        return "/";
+    }
+
     private IInteractiveCredentialVerifier CredentialVerifier { get; } = credentialVerifier;
     private IPrincipalResolver PrincipalResolver { get; } = principalResolver;
     private IConsentService ConsentService { get; } = consentService;
@@ -358,40 +839,6 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
     }
 
     /// <summary>
-    /// Projects the authenticated cookie principal into the account page's view model.
-    /// </summary>
-    /// <param name="principal">The authenticated cookie principal.</param>
-    /// <param name="subjectId">The subject identifier of the principal, which names the account when it carries no
-    /// name.</param>
-    /// <param name="emailVerification">Whether the connection lets its end users verify their email address.</param>
-    /// <returns>The view model of the account page.</returns>
-    internal static AccountMeResponse BuildMeResponse(
-        ClaimsPrincipal principal,
-        string subjectId,
-        bool emailVerification
-    )
-    {
-        var name =
-            principal.FindFirst(JoseClaimNames.Payload.Name)?.Value
-            ?? principal.FindFirst(JoseClaimNames.Payload.PreferredUsername)?.Value
-            ?? subjectId;
-
-        var amr = principal
-            .FindAll(JoseClaimNames.Payload.Amr)
-            .Select(claim => claim.Value)
-            .ToList();
-
-        var authTimeValue = principal.FindFirst(JoseClaimNames.Payload.AuthTime)?.Value;
-        long? authTime = DateCoercion.TryParseNumericDate(authTimeValue, out var parsedAuthTime)
-            ? parsedAuthTime.ToUnixTimeSeconds()
-            : null;
-
-        var idp = principal.FindFirst(JoseClaimNames.Payload.Idp)?.Value;
-        var sid = principal.FindFirst(JoseClaimNames.Payload.Sid)?.Value;
-        return new AccountMeResponse(subjectId, name, authTime, amr, idp, sid, emailVerification);
-    }
-
-    /// <summary>
     /// Verifies the posted credentials through the registered verifier and, on success, signs in the cookie session and
     /// redirects to the validated local return URL; on failure it redirects back to the login page with an error. An
     /// end user whose standing is refused, such as a blocked principal or a disabled account, signs in nowhere: no
@@ -579,33 +1026,6 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
             languageTag
         );
         return TypedResults.Redirect(loginRedirect);
-    }
-
-    private static async ValueTask<OperationDisposition<IOpenIdError>> ValidateStandingAsync(
-        OpenIdContext openIdContext,
-        ClaimsPrincipal principal,
-        CancellationToken cancellationToken
-    )
-    {
-        var mediator = openIdContext.Mediator;
-        var operationDisposition = new OperationDisposition<IOpenIdError>();
-
-        var authenticationProperties = new AuthenticationProperties();
-        var subjectId = openIdContext.GetSubjectId(principal) ?? string.Empty;
-        var subjectAuthentication = new SubjectAuthentication(
-            InteractiveAuthenticationDefaults.CookieSchemeName,
-            authenticationProperties,
-            principal,
-            subjectId
-        );
-        var command = new ValidateSubjectStandingCommand(
-            openIdContext,
-            subjectAuthentication,
-            operationDisposition
-        );
-        await mediator.SendAsync(command, cancellationToken);
-
-        return operationDisposition;
     }
 
     private async ValueTask EstablishSessionAsync(
@@ -1110,31 +1530,6 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
             .ToList();
         var sessionsResponse = new SessionsResponse(sessionSummaries);
         return TypedResults.Json(sessionsResponse);
-    }
-
-    // Projects a session into the active-sessions page's view model, marking the request's own session.
-    private static SessionSummaryResponse ToSummary(SessionInfo session, string? currentSessionId)
-    {
-        var grant = session.Grant;
-        var isCurrent = string.Equals(
-            session.SessionId,
-            currentSessionId,
-            StringComparison.Ordinal
-        );
-        var createdAt = session.CreatedWhen.ToUnixTimeSeconds();
-        var lastActivityAt = grant.LastActivityWhen.ToUnixTimeSeconds();
-        var expiresAt = session.ExpiresWhen.ToUnixTimeSeconds();
-        return new SessionSummaryResponse(
-            session.SessionId,
-            isCurrent,
-            createdAt,
-            lastActivityAt,
-            expiresAt,
-            grant.AuthenticationMethods ?? [],
-            grant.IdentityProvider,
-            grant.UserAgent,
-            grant.RemoteIpAddress
-        );
     }
 
     /// <summary>
@@ -2105,67 +2500,6 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
     }
 
     /// <summary>
-    /// Creates the properties of the pending sign-in cookie, which carry the email code flow, the return URL and the
-    /// language tag the sign-in code page renders in.
-    /// </summary>
-    /// <param name="flowId">The identifier of the email code flow the mailed code belongs to.</param>
-    /// <param name="returnUrl">The return URL the end user continues to once the sign-in completes.</param>
-    /// <param name="languageTag">The language tag the form carried, which is kept only when it is set.</param>
-    /// <param name="pending">
-    /// The properties of the pending sign-in that a resent code renews, whose issue and expiry times the renewed cookie
-    /// keeps, or <see langword="null"/> for a new pending sign-in.
-    /// </param>
-    /// <returns>The properties of the pending sign-in cookie.</returns>
-    internal static AuthenticationProperties CreatePendingSignInProperties(
-        string flowId,
-        string returnUrl,
-        string? languageTag,
-        AuthenticationProperties? pending
-    )
-    {
-        var properties = new AuthenticationProperties();
-        properties.Items[EmailCodeFlowItem] = flowId;
-        properties.Items[ReturnUrlItem] = returnUrl;
-        if (!string.IsNullOrEmpty(languageTag))
-        {
-            properties.Items[UiLocalesItem] = languageTag;
-        }
-
-        // A resent code renews the cookie with the times of the pending sign-in it renews, so the sign-in completes
-        // within the pending lifetime of the password check however many codes are resent. See ADR-1533.
-        if (pending is not null)
-        {
-            properties.IssuedUtc = pending.IssuedUtc;
-            properties.ExpiresUtc = pending.ExpiresUtc;
-        }
-
-        return properties;
-    }
-
-    /// <summary>
-    /// Reads an item of the pending sign-in cookie's properties.
-    /// </summary>
-    /// <param name="properties">The properties of the pending sign-in cookie.</param>
-    /// <param name="name">The name of the item.</param>
-    /// <returns>The value of the item, or <see langword="null"/> when the properties hold no such item.</returns>
-    private static string? ReadPendingItem(AuthenticationProperties properties, string name) =>
-        properties.Items.TryGetValue(name, out var value) ? value : null;
-
-    /// <summary>
-    /// Adds an authentication method reference to the identity unless the identity already carries it.
-    /// </summary>
-    /// <param name="identity">The identity of the signed-in principal.</param>
-    /// <param name="method">The authentication method reference to add.</param>
-    private static void AddAuthenticationMethod(ClaimsIdentity identity, string method)
-    {
-        if (!identity.HasClaim(JoseClaimNames.Payload.Amr, method))
-        {
-            var claim = new Claim(JoseClaimNames.Payload.Amr, method);
-            identity.AddClaim(claim);
-        }
-    }
-
-    /// <summary>
     /// Determines whether the connection lets its end users verify their address, which the me response reports to the
     /// bundle.
     /// </summary>
@@ -2220,281 +2554,6 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
             cancellationToken
         );
     }
-
-    /// <summary>
-    /// Gets the offered connections whose end users can reset a password.
-    /// </summary>
-    /// <param name="offered">The connections the sign-in pages offer.</param>
-    /// <returns>The offered connections that enable a password reset, in their offered order.</returns>
-    // See ADR-1533.
-    private static List<ResolvedConnection> GetResettableConnections(
-        IReadOnlyList<ResolvedConnection> offered
-    )
-    {
-        var resettable = new List<ResolvedConnection>();
-        foreach (var candidate in offered)
-        {
-            if (candidate.Settings.GetValue(OpenIdSettingKeys.PasswordResetEnabled))
-            {
-                resettable.Add(candidate);
-            }
-        }
-
-        return resettable;
-    }
-
-    /// <summary>
-    /// Resolves the connection the forgot-password post names the way the forgot-password page chooses one: a blank
-    /// name falls back to the resettable connection the sign-in preselects, else to the only resettable connection,
-    /// else the post is refused as needing a choice, and a name that no connection offers is refused as unavailable.
-    /// </summary>
-    /// <param name="offered">The connections the sign-in pages offer, and the one they preselect.</param>
-    /// <param name="posted">The connection name the form posted.</param>
-    /// <returns>The selected connection, which may not enable a password reset when the post names it; a refusal; or
-    /// neither a connection nor a refusal when no offered connection enables a password reset.</returns>
-    // See ADR-1535.
-    private static ConnectionSelection SelectForForgotPassword(
-        SignInConnections offered,
-        string? posted
-    )
-    {
-        var resettable = GetResettableConnections(offered.Offered);
-        if (resettable.Count == 0)
-        {
-            return new ConnectionSelection();
-        }
-
-        if (string.IsNullOrEmpty(posted))
-        {
-            var preselectedName = SelectResettableConnection(
-                resettable,
-                requested: null,
-                offered.Preselected?.Name
-            );
-            foreach (var candidate in resettable)
-            {
-                if (
-                    resettable.Count == 1
-                    || string.Equals(
-                        candidate.Name,
-                        preselectedName,
-                        StringComparison.OrdinalIgnoreCase
-                    )
-                )
-                {
-                    return new ConnectionSelection { Connection = candidate };
-                }
-            }
-
-            return new ConnectionSelection
-            {
-                ErrorCode = ConnectionSelectionErrors.Required,
-                ErrorDescription = "A connection is required.",
-            };
-        }
-
-        foreach (var candidate in offered.Offered)
-        {
-            if (string.Equals(candidate.Name, posted, StringComparison.OrdinalIgnoreCase))
-            {
-                return new ConnectionSelection { Connection = candidate };
-            }
-        }
-
-        return new ConnectionSelection
-        {
-            ErrorCode = ConnectionSelectionErrors.Unavailable,
-            ErrorDescription = "The connection is not offered.",
-        };
-    }
-
-    /// <summary>
-    /// Maps the reason a connection selection refuses to the error code the sign-in pages redirect with: the
-    /// connection-required code when a choice is missing, else the invalid-request code the caller names.
-    /// </summary>
-    /// <param name="selection">The refused selection.</param>
-    /// <param name="invalidRequestCode">The invalid-request code of the surface that redirects.</param>
-    /// <returns>The error code to redirect with.</returns>
-    // See ADR-1535.
-    private static string GetRefusedConnectionCode(
-        ConnectionSelection selection,
-        string invalidRequestCode
-    ) =>
-        string.Equals(
-            selection.ErrorCode,
-            ConnectionSelectionErrors.Required,
-            StringComparison.Ordinal
-        )
-            ? ConnectionRequiredCode
-            : invalidRequestCode;
-
-    /// <summary>
-    /// Finds the stored name of the resettable connection the forgot-password page preselects: the one the query
-    /// requests, else the preselected connection, each matched case-insensitively as connection names are.
-    /// </summary>
-    /// <param name="resettable">The offered connections whose end users can reset a password.</param>
-    /// <param name="requested">The connection name the query carried.</param>
-    /// <param name="preselected">The name of the connection the sign-in selection preselects, or
-    /// <see langword="null"/>.</param>
-    /// <returns>The stored name of the matching connection, or <see langword="null"/> when none matches.</returns>
-    // See ADR-1535.
-    internal static string? SelectResettableConnection(
-        IReadOnlyList<ResolvedConnection> resettable,
-        string? requested,
-        string? preselected
-    )
-    {
-        foreach (var candidate in resettable)
-        {
-            if (string.Equals(candidate.Name, requested, StringComparison.OrdinalIgnoreCase))
-            {
-                return candidate.Name;
-            }
-        }
-
-        foreach (var candidate in resettable)
-        {
-            if (string.Equals(candidate.Name, preselected, StringComparison.OrdinalIgnoreCase))
-            {
-                return candidate.Name;
-            }
-        }
-
-        return null;
-    }
-
-    /// <summary>
-    /// Projects the offered connections into the name and display name the page renders.
-    /// </summary>
-    /// <param name="connections">The connections to project.</param>
-    /// <returns>The name and display name of each connection.</returns>
-    [SuppressMessage(
-        "Performance",
-        "CA1859",
-        Justification = "The projection is the read-only list the page form's Connections member takes."
-    )]
-    private static IReadOnlyList<(string Name, string DisplayName)> ToConnectionViews(
-        IReadOnlyList<ResolvedConnection> connections
-    )
-    {
-        var views = new List<(string Name, string DisplayName)>(connections.Count);
-        foreach (var connection in connections)
-        {
-            views.Add((connection.Name, connection.Connection.DisplayName));
-        }
-
-        return views;
-    }
-
-    /// <summary>
-    /// Builds the login page's link to the forgot-password page, which shows while any offered connection lets its end
-    /// users reset a password and carries the preselected connection's name only when that connection does.
-    /// </summary>
-    /// <param name="offered">The connections the page offers.</param>
-    /// <param name="returnUrl">The return URL the login page carried.</param>
-    /// <param name="languageTag">The language tag the login page carried, or <see langword="null"/>.</param>
-    /// <returns>The address of the forgot-password page, or <see langword="null"/> when no offered connection lets its
-    /// end users reset a password.</returns>
-    // See ADR-1533.
-    internal static string? GetForgotPasswordHref(
-        SignInConnections offered,
-        string returnUrl,
-        string? languageTag
-    )
-    {
-        var anyResettable = false;
-        foreach (var candidate in offered.Offered)
-        {
-            if (candidate.Settings.GetValue(OpenIdSettingKeys.PasswordResetEnabled))
-            {
-                anyResettable = true;
-                break;
-            }
-        }
-
-        if (!anyResettable)
-        {
-            return null;
-        }
-
-        var preselected = offered.Preselected;
-        var preselectedResettable =
-            preselected is not null
-            && preselected.Settings.GetValue(OpenIdSettingKeys.PasswordResetEnabled);
-        return BuildForgotPasswordHref(
-            returnUrl,
-            languageTag,
-            preselectedResettable ? preselected?.Name : null
-        );
-    }
-
-    /// <summary>
-    /// Builds the address of the forgot-password page, relative to the surface the page's base names, carrying the
-    /// return URL and the locale the login page carried.
-    /// </summary>
-    /// <param name="returnUrl">The return URL the login page carried, which is left out when it is empty.</param>
-    /// <param name="languageTag">The language tag the login page carried, or <see langword="null"/>.</param>
-    /// <param name="connectionName">The name of the connection the login page preselects, or
-    /// <see langword="null"/>.</param>
-    /// <returns>The address of the forgot-password page.</returns>
-    private static string BuildForgotPasswordHref(
-        string returnUrl,
-        string? languageTag,
-        string? connectionName
-    )
-    {
-        var href = InteractiveAuthenticationPageRenderer.ForgotPasswordFormAction;
-        var separator = '?';
-        if (!string.IsNullOrEmpty(returnUrl))
-        {
-            href += $"{separator}{ReturnUrlName}={Uri.EscapeDataString(returnUrl)}";
-            separator = '&';
-        }
-
-        if (!string.IsNullOrEmpty(connectionName))
-        {
-            href += $"{separator}{ConnectionName}={Uri.EscapeDataString(connectionName)}";
-        }
-
-        return InteractiveLocaleSelector.AppendUiLocalesQuery(href, languageTag);
-    }
-
-    /// <summary>
-    /// Maps the error code the forgot-password and reset-password pages receive to the page's message for it.
-    /// </summary>
-    internal static string? DescribePasswordResetError(
-        string? error,
-        InteractiveMessages messages
-    ) =>
-        error switch
-        {
-            null or "" => null,
-            InteractiveEmailCodeErrors.InvalidCode => messages.InvalidCodeError,
-            InteractiveEmailCodeErrors.TooManyCodes => messages.TooManyCodesError,
-            InteractivePasswordChangeErrors.PasswordMismatch => messages.PasswordMismatchError,
-            InteractivePasswordChangeErrors.InvalidRequest => messages.MissingFieldsError,
-            ConnectionRequiredCode => messages.ConnectionRequiredError,
-            // DefaultInteractivePasswordResetter answers it when no backend holds passwords, which is no refused
-            // password.
-            InteractivePasswordChangeErrors.NotSupported => messages.EmailCodeFailedError,
-            // The password policy's codes are an open vocabulary, so any other code the reset post answers is a
-            // refused password.
-            _ => messages.PasswordRefusedError,
-        };
-
-    /// <summary>
-    /// Maps the error code the sign-in code page receives to the page's message for it.
-    /// </summary>
-    internal static string? DescribeSignInCodeError(string? error, InteractiveMessages messages) =>
-        error switch
-        {
-            null or "" => null,
-            InteractiveEmailCodeErrors.InvalidCode => messages.InvalidCodeError,
-            InteractiveEmailCodeErrors.TooManyCodes => messages.TooManyCodesError,
-            InteractivePasswordChangeErrors.InvalidRequest => messages.MissingFieldsError,
-            InteractiveEmailCodeErrors.NoEmail => messages.NoEmailError,
-            _ => messages.EmailCodeFailedError,
-        };
 
     /// <summary>
     /// Redirects to a page of the surface with the query values that are set, in a page that renders in the locale the
@@ -2645,22 +2704,6 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
         return LocaleSelector.Select(httpContext, settings, languageTag);
     }
 
-    /// <summary>
-    /// Maps the error code the login page receives to the page's message for it, so the login form without scripts
-    /// shows the same messages as the single-page form.
-    /// </summary>
-    internal static string? DescribeLoginError(string? error, InteractiveMessages messages) =>
-        error switch
-        {
-            null or "" => null,
-            InvalidCredentialsCode => messages.InvalidCredentialsError,
-            ConnectionRequiredCode => messages.ConnectionRequiredError,
-            OpenIdProtocol.ErrorCodes.InvalidRequest => messages.MissingCredentialsError,
-            OpenIdProtocol.ErrorCodes.AccessDenied => messages.AccessDeniedError,
-            InteractiveEmailCodeErrors.TooManyCodes => messages.TooManyCodesError,
-            _ => messages.SignInFailedError,
-        };
-
     private AntiforgeryTokenSet IssueAntiforgeryTokens(HttpContext httpContext)
     {
         var tokens = Antiforgery.GetAndStoreTokens(httpContext);
@@ -2684,15 +2727,6 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
 
         return tokens;
     }
-
-    private static ContentHttpResult BundleMissingResult() =>
-        TypedResults.Content(
-            "The interactive login bundle is not available. Build the 'apps/auth' surface and configure "
-                + "'InteractiveAuthentication:BundleRootPath' to its 'dist' directory.",
-            "text/plain",
-            contentEncoding: SecureEncoding.UTF8,
-            statusCode: StatusCodes.Status503ServiceUnavailable
-        );
 
     private string BuildLoginUrl(HttpContext httpContext, string returnUrl) =>
         $"{SurfacePaths.GetSurfacePath(httpContext, InteractiveAuthenticationDefaults.LoginPath)}?{ReturnUrlName}={Uri.EscapeDataString(returnUrl)}";
@@ -2730,39 +2764,5 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
         var escapedError = Uri.EscapeDataString(error);
         var urlWithError = loginUrl + $"&{ErrorQueryName}={escapedError}";
         return InteractiveLocaleSelector.AppendUiLocalesQuery(urlWithError, languageTag);
-    }
-
-    // Guards against an open redirect: a local URL as LocalUrl defines it, or an absolute URL that targets this
-    // same origin (the OP's own continue endpoint), is honored; anything else falls back to the application root.
-    internal static string ResolveSafeReturnUrl(HttpContext httpContext, string? returnUrl)
-    {
-        var request = httpContext.Request;
-        var requestOrigin = $"{request.Scheme}://{request.Host.Value}";
-        return ResolveSafeReturnUrl(returnUrl, requestOrigin);
-    }
-
-    internal static string ResolveSafeReturnUrl(string? returnUrl, string requestOrigin)
-    {
-        if (string.IsNullOrEmpty(returnUrl))
-        {
-            return "/";
-        }
-
-        if (LocalUrl.IsLocal(returnUrl))
-        {
-            return returnUrl;
-        }
-
-        if (
-            AbsoluteUri.TryParse(returnUrl, out var target)
-            && AbsoluteUri.TryParse(requestOrigin, out var origin)
-            && string.Equals(target.Scheme, origin.Scheme, StringComparison.OrdinalIgnoreCase)
-            && string.Equals(target.Authority, origin.Authority, StringComparison.OrdinalIgnoreCase)
-        )
-        {
-            return returnUrl;
-        }
-
-        return "/";
     }
 }

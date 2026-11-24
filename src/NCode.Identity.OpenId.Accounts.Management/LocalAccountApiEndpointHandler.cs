@@ -86,6 +86,127 @@ internal class LocalAccountApiEndpointHandler(
 {
     private const string PrincipalRoleRemovalReason = "principal role removal";
 
+    private static LocalAccountClaimsResource ToClaimsResource(
+        string tenantId,
+        PersistedLocalAccount account
+    ) =>
+        new()
+        {
+            TenantId = tenantId,
+            LocalAccountId = account.LocalAccountId,
+            Claims = account
+                .Claims.Select(claim => new LocalAccountClaim
+                {
+                    Type = claim.Type,
+                    Value = claim.Value,
+                })
+                .ToList(),
+            ConcurrencyToken = account.ConcurrencyToken,
+        };
+
+    private static LocalAccountMetadataResource ToMetadataResource(
+        string tenantId,
+        string localAccountId,
+        PersistedFederatedPrincipal principal
+    ) =>
+        new()
+        {
+            TenantId = tenantId,
+            LocalAccountId = localAccountId,
+            PrincipalId = principal.PrincipalId,
+            ProfileMetadata = principal.ProfileMetadata,
+            SystemMetadata = principal.SystemMetadata,
+            ConcurrencyToken = principal.ConcurrencyToken,
+        };
+
+    /// <summary>
+    /// Loads a connection by identifier.
+    /// </summary>
+    /// <returns>The local connection, or <see langword="null"/> when the connection is missing or its strategy is not
+    /// local.</returns>
+    private static async ValueTask<PersistedConnection?> FindLocalConnectionByIdAsync(
+        IStoreManager storeManager,
+        string connectionId,
+        CancellationToken cancellationToken
+    )
+    {
+        var connection = await storeManager
+            .GetStore<IConnectionStore>()
+            .GetOrDefaultAsync(connectionId, cancellationToken);
+        return AsLocal(connection);
+    }
+
+    /// <summary>
+    /// Narrows a connection to a local connection.
+    /// </summary>
+    /// <remarks>
+    /// This is the one check that a connection is local, which every lookup applies.
+    /// </remarks>
+    /// <param name="connection">The connection to check, or <see langword="null"/>.</param>
+    /// <returns>The connection when its strategy is local; otherwise <see langword="null"/>.</returns>
+    private static PersistedConnection? AsLocal(PersistedConnection? connection) =>
+        connection is not null && ConnectionStrategyNames.IsLocal(connection.Strategy)
+            ? connection
+            : null;
+
+    /// <summary>
+    /// Resolves the principal behind the identity of an account in its connection.
+    /// </summary>
+    /// <remarks>
+    /// A route resolves the principal before its write, so the effect that follows the commit is one call.
+    /// </remarks>
+    /// <param name="storeManager">The store manager that reads the identity.</param>
+    /// <param name="connectionId">The identifier of the connection that holds the account.</param>
+    /// <param name="localAccountId">The identifier of the local account.</param>
+    /// <param name="cancellationToken">The token that cancels the read.</param>
+    /// <returns>The identifier of the principal, or <see langword="null"/> when the account has no identity.</returns>
+    private static async ValueTask<string?> FindPrincipalIdAsync(
+        IStoreManager storeManager,
+        string connectionId,
+        string localAccountId,
+        CancellationToken cancellationToken
+    )
+    {
+        var identity = await storeManager
+            .GetStore<IFederatedIdentityStore>()
+            .GetByConnectionSubjectAsync(connectionId, localAccountId, cancellationToken);
+        return identity?.PrincipalId;
+    }
+
+    /// <summary>
+    /// Resolves the principals behind the identities of a page of accounts in one store call.
+    /// </summary>
+    /// <remarks>
+    /// An account with no identity has no entry.
+    /// </remarks>
+    /// <param name="storeManager">The store manager that reads the identities.</param>
+    /// <param name="connectionId">The identifier of the connection that holds the accounts.</param>
+    /// <param name="localAccountIds">The identifiers of the local accounts.</param>
+    /// <param name="cancellationToken">The token that cancels the read.</param>
+    /// <returns>The principal identifier of each account that has an identity, keyed by local account
+    /// identifier.</returns>
+    private static async ValueTask<IReadOnlyDictionary<string, string>> FindPrincipalIdsAsync(
+        IStoreManager storeManager,
+        string connectionId,
+        IReadOnlyCollection<string> localAccountIds,
+        CancellationToken cancellationToken
+    )
+    {
+        var identities = await storeManager
+            .GetStore<IFederatedIdentityStore>()
+            .GetByConnectionSubjectsAsync(connectionId, localAccountIds, cancellationToken);
+        var principalIds = new Dictionary<string, string>(
+            identities.Count,
+            StringComparer.OrdinalIgnoreCase
+        );
+        foreach (var identity in identities)
+        {
+            principalIds[identity.Subject] = identity.PrincipalId;
+        }
+
+        return principalIds;
+    }
+
     private IStoreManagerFactory StoreManagerFactory { get; } = storeManagerFactory;
 
     /// <inheritdoc />
@@ -796,13 +917,7 @@ internal class LocalAccountApiEndpointHandler(
         await target.Store.UpdateAsync(account, cancellationToken);
         await storeManager.SaveChangesAsync(cancellationToken);
 
-        return await RecordEnabledChangeAsync(
-            httpContext,
-            route,
-            account,
-            target.PrincipalId,
-            cancellationToken
-        );
+        return await RecordEnabledChangeAsync(httpContext, route, target, cancellationToken);
     }
 
     /// <summary>
@@ -851,13 +966,7 @@ internal class LocalAccountApiEndpointHandler(
             );
         }
 
-        return await RecordEnabledChangeAsync(
-            httpContext,
-            route,
-            account,
-            principalId,
-            cancellationToken
-        );
+        return await RecordEnabledChangeAsync(httpContext, route, target, cancellationToken);
     }
 
     /// <summary>
@@ -923,16 +1032,20 @@ internal class LocalAccountApiEndpointHandler(
     /// <summary>
     /// Audits the enabling or disabling of a local account and answers the request.
     /// </summary>
+    /// <param name="httpContext">The request's context, whose response takes the entity tag.</param>
+    /// <param name="route">The route that names the account.</param>
+    /// <param name="target">The loaded account, whose principal the audit record names.</param>
+    /// <param name="cancellationToken">The token that cancels the request.</param>
     /// <returns>The no-content result, with the account's concurrency token as the entity tag.</returns>
     private async ValueTask<IResult> RecordEnabledChangeAsync(
         HttpContext httpContext,
         AccountRoute route,
-        PersistedLocalAccount account,
-        string? principalId,
+        AccountChangeTarget target,
         CancellationToken cancellationToken
     )
     {
-        var resource = ToLocalAccountResource(account, principalId);
+        var account = target.Account;
+        var resource = ToLocalAccountResource(account, target.PrincipalId);
         var resourceValues = ToResourceValues(resource);
         await ManagementAuditRecorder.RecordLocalAccountChangedAsync(
             httpContext,
@@ -1273,39 +1386,15 @@ internal class LocalAccountApiEndpointHandler(
         return TypedResults.NoContent();
     }
 
-    private static LocalAccountClaimsResource ToClaimsResource(
-        string tenantId,
-        PersistedLocalAccount account
-    ) =>
-        new()
-        {
-            TenantId = tenantId,
-            LocalAccountId = account.LocalAccountId,
-            Claims = account
-                .Claims.Select(claim => new LocalAccountClaim
-                {
-                    Type = claim.Type,
-                    Value = claim.Value,
-                })
-                .ToList(),
-            ConcurrencyToken = account.ConcurrencyToken,
-        };
-
-    private static LocalAccountMetadataResource ToMetadataResource(
-        string tenantId,
-        string localAccountId,
-        PersistedFederatedPrincipal principal
-    ) =>
-        new()
-        {
-            TenantId = tenantId,
-            LocalAccountId = localAccountId,
-            PrincipalId = principal.PrincipalId,
-            ProfileMetadata = principal.ProfileMetadata,
-            SystemMetadata = principal.SystemMetadata,
-            ConcurrencyToken = principal.ConcurrencyToken,
-        };
-
+    /// <summary>
+    /// Resolves the principal behind the identity of a local account of a connection.
+    /// </summary>
+    /// <param name="storeManager">The store manager that reads the account, its identity and the principal.</param>
+    /// <param name="connectionId">The identifier of the connection that holds the account.</param>
+    /// <param name="localAccountId">The identifier of the local account.</param>
+    /// <param name="cancellationToken">The token that cancels the reads.</param>
+    /// <returns>The principal, or <see langword="null"/> when the connection is missing or not local, the account is
+    /// absent, or the account has no identity or principal.</returns>
     private async ValueTask<PersistedFederatedPrincipal?> ResolvePrincipalAsync(
         IStoreManager storeManager,
         string connectionId,
@@ -1366,29 +1455,6 @@ internal class LocalAccountApiEndpointHandler(
 
         return AsLocal(connection);
     }
-
-    /// <summary>
-    /// Loads a connection by identifier.
-    /// </summary>
-    /// <returns>The local connection, or <see langword="null"/> when the connection is missing or its strategy is not
-    /// local.</returns>
-    private static async ValueTask<PersistedConnection?> FindLocalConnectionByIdAsync(
-        IStoreManager storeManager,
-        string connectionId,
-        CancellationToken cancellationToken
-    )
-    {
-        var connection = await storeManager
-            .GetStore<IConnectionStore>()
-            .GetOrDefaultAsync(connectionId, cancellationToken);
-        return AsLocal(connection);
-    }
-
-    // The one check that a connection is local, which every lookup applies.
-    private static PersistedConnection? AsLocal(PersistedConnection? connection) =>
-        connection is not null && ConnectionStrategyNames.IsLocal(connection.Strategy)
-            ? connection
-            : null;
 
     /// <summary>
     /// Loads a local account of the connection that a route names, with the connection and the store that holds it.
@@ -1457,43 +1523,4 @@ internal class LocalAccountApiEndpointHandler(
         string reason,
         CancellationToken cancellationToken
     ) => await SessionService.RevokeAllAsync(tenantContext, principalId, reason, cancellationToken);
-
-    // Resolves the principal behind the account's identity in its connection, if the account has one. A route resolves
-    // it before its write, so the effect that follows the commit is one call.
-    private static async ValueTask<string?> FindPrincipalIdAsync(
-        IStoreManager storeManager,
-        string connectionId,
-        string localAccountId,
-        CancellationToken cancellationToken
-    )
-    {
-        var identity = await storeManager
-            .GetStore<IFederatedIdentityStore>()
-            .GetByConnectionSubjectAsync(connectionId, localAccountId, cancellationToken);
-        return identity?.PrincipalId;
-    }
-
-    // Resolves the principals behind the identities of a page of accounts in one store call, keyed by the local
-    // account id. An account with no identity has no entry.
-    private static async ValueTask<IReadOnlyDictionary<string, string>> FindPrincipalIdsAsync(
-        IStoreManager storeManager,
-        string connectionId,
-        IReadOnlyCollection<string> localAccountIds,
-        CancellationToken cancellationToken
-    )
-    {
-        var identities = await storeManager
-            .GetStore<IFederatedIdentityStore>()
-            .GetByConnectionSubjectsAsync(connectionId, localAccountIds, cancellationToken);
-        var principalIds = new Dictionary<string, string>(
-            identities.Count,
-            StringComparer.OrdinalIgnoreCase
-        );
-        foreach (var identity in identities)
-        {
-            principalIds[identity.Subject] = identity.PrincipalId;
-        }
-
-        return principalIds;
-    }
 }
