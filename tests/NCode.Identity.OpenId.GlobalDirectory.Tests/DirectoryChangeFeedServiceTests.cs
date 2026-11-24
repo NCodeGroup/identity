@@ -30,6 +30,8 @@ public class DirectoryChangeFeedServiceTests : BaseTests
 
     private Mock<IPlatformDocumentApplier> PlatformDocumentApplierMock { get; }
 
+    private Mock<IReplicatedDocumentApplier> ReplicatedDocumentApplierMock { get; }
+
     private Mock<IDirectoryFeedCheckpoint> FeedCheckpointMock { get; }
 
     private Mock<IExpiringKeySet> ExpiringKeySetMock { get; }
@@ -40,6 +42,7 @@ public class DirectoryChangeFeedServiceTests : BaseTests
         TeamDocumentApplierMock = CreateStrictMock<ITeamDocumentApplier>();
         TeamRootKeyMirrorMock = CreateStrictMock<ITeamRootKeyMirror>();
         PlatformDocumentApplierMock = CreateStrictMock<IPlatformDocumentApplier>();
+        ReplicatedDocumentApplierMock = CreateStrictMock<IReplicatedDocumentApplier>();
         FeedCheckpointMock = CreateStrictMock<IDirectoryFeedCheckpoint>();
         ExpiringKeySetMock = CreateStrictMock<IExpiringKeySet>();
     }
@@ -50,6 +53,7 @@ public class DirectoryChangeFeedServiceTests : BaseTests
             TeamDocumentApplierMock.Object,
             TeamRootKeyMirrorMock.Object,
             PlatformDocumentApplierMock.Object,
+            ReplicatedDocumentApplierMock.Object,
             FeedCheckpointMock.Object,
             ExpiringKeySetMock.Object,
             Options.Create(new CellOptions { IsControlPlane = isControlPlane }),
@@ -228,6 +232,65 @@ public class DirectoryChangeFeedServiceTests : BaseTests
             .Setup(x => x.ApplyAsync(platform, It.IsAny<CancellationToken>()))
             .Returns(ValueTask.CompletedTask)
             .Verifiable(Times.Once);
+
+        using var service = CreateService();
+
+        await service.RunAsync(CancellationToken.None);
+    }
+
+    [Fact]
+    public async Task RunAsync_WhenTheChangeIsAReplicatedChange_AppliesTheReplicatedDocument()
+    {
+        var replicated = new ReplicatedDocument
+        {
+            Kind = ReplicatedDocumentKinds.PlatformAuthority,
+            Revision = 2,
+            Content = JsonElement.Parse("{}"),
+        };
+
+        SetupLease(true);
+        SetupAppliedSequence(3);
+        SetupPage(3, new DirectoryChange { Sequence = 4, Replicated = replicated });
+        SetupPage(4);
+        SetupRecordedSequence(4);
+        SetupReconcile(Times.Once());
+        ReplicatedDocumentApplierMock
+            .Setup(x => x.ApplyAsync(replicated, It.IsAny<CancellationToken>()))
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable(Times.Once);
+
+        using var service = CreateService();
+
+        await service.RunAsync(CancellationToken.None);
+    }
+
+    [Fact]
+    public async Task RunAsync_WhenAReplicatedChangeFails_DoesNotApplyTheChangesAfterIt()
+    {
+        var first = new ReplicatedDocument
+        {
+            Kind = ReplicatedDocumentKinds.ManagementKeys,
+            Revision = 1,
+            Content = JsonElement.Parse("{}"),
+        };
+        var second = CreateTeamDocument("team-b", 2);
+
+        SetupLease(true);
+        SetupAppliedSequence(0);
+        SetupPage(
+            0,
+            new DirectoryChange { Sequence = 1, Replicated = first },
+            TeamChange(2, second)
+        );
+        SetupReconcile(Times.Once());
+        ReplicatedDocumentApplierMock
+            .Setup(x => x.ApplyAsync(first, It.IsAny<CancellationToken>()))
+            .Returns(() => throw new InvalidOperationException("The row cannot be written."))
+            .Verifiable(Times.Once);
+        TeamDocumentApplierMock
+            .Setup(x => x.ApplyAsync(second, It.IsAny<CancellationToken>()))
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable(Times.Never);
 
         using var service = CreateService();
 

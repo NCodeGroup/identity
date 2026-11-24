@@ -95,6 +95,11 @@ public static class DefaultRegistration
             serviceCollection.Replace(platformDirectory);
             var cellDirectory = ServiceDescriptor.Singleton<ICellDirectory, RemoteCellDirectory>();
             serviceCollection.Replace(cellDirectory);
+            var replicatedDirectory = ServiceDescriptor.Singleton<
+                IReplicatedDocumentDirectory,
+                RemoteReplicatedDocumentDirectory
+            >();
+            serviceCollection.Replace(replicatedDirectory);
             var platformTopology = ServiceDescriptor.Singleton<
                 IPlatformTopology,
                 DirectoryPlatformTopology

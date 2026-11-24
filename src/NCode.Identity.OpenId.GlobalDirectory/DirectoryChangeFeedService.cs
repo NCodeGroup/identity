@@ -15,7 +15,8 @@ namespace NCode.Identity.OpenId.GlobalDirectory;
 /// <see cref="DirectoryClientOptions.PollInterval"/>: it reads the highest sequence the cell has applied from
 /// <see cref="IDirectoryFeedCheckpoint"/>, pages <see cref="ITeamDirectory.ListChangesAsync"/> until a page is empty,
 /// applies each team change through <see cref="ITeamDocumentApplier"/> and each platform change through
-/// <see cref="IPlatformDocumentApplier"/>, and raises the checkpoint to the last change it applied after each page, so
+/// <see cref="IPlatformDocumentApplier"/> and each replicated document through
+/// <see cref="IReplicatedDocumentApplier"/>, and raises the checkpoint to the last change it applied after each page, so
 /// a change that leaves no row behind is not listed again. A change that loses a concurrency race is applied again,
 /// which reads its rows again, at most <see cref="ConcurrencyAttempts"/> times. One replica runs each pass, under a
 /// lease on the shared-state port keyed by the poll window. The replica that holds the lease also reconciles every
@@ -35,6 +36,7 @@ internal sealed class DirectoryChangeFeedService(
     ITeamDocumentApplier teamDocumentApplier,
     ITeamRootKeyMirror teamRootKeyMirror,
     IPlatformDocumentApplier platformDocumentApplier,
+    IReplicatedDocumentApplier replicatedDocumentApplier,
     IDirectoryFeedCheckpoint feedCheckpoint,
     IExpiringKeySet expiringKeySet,
     IOptions<CellOptions> cellOptions,
@@ -67,6 +69,8 @@ internal sealed class DirectoryChangeFeedService(
     private ITeamDocumentApplier TeamDocumentApplier { get; } = teamDocumentApplier;
     private ITeamRootKeyMirror TeamRootKeyMirror { get; } = teamRootKeyMirror;
     private IPlatformDocumentApplier PlatformDocumentApplier { get; } = platformDocumentApplier;
+    private IReplicatedDocumentApplier ReplicatedDocumentApplier { get; } =
+        replicatedDocumentApplier;
     private IDirectoryFeedCheckpoint FeedCheckpoint { get; } = feedCheckpoint;
     private IExpiringKeySet ExpiringKeySet { get; } = expiringKeySet;
     private IOptions<CellOptions> CellOptionsAccessor { get; } = cellOptions;
@@ -239,7 +243,8 @@ internal sealed class DirectoryChangeFeedService(
 
     /// <summary>
     /// Applies one change of the feed: a team change with a document applies the team's document, a team change without
-    /// one retires the team, and a platform change applies the platform's document.
+    /// one retires the team, a platform change applies the platform's document, and a replicated change applies the
+    /// replicated document.
     /// </summary>
     /// <param name="change">The <see cref="DirectoryChange"/> to apply.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
@@ -260,6 +265,10 @@ internal sealed class DirectoryChangeFeedService(
         else if (change.Platform is not null)
         {
             await PlatformDocumentApplier.ApplyAsync(change.Platform, cancellationToken);
+        }
+        else if (change.Replicated is not null)
+        {
+            await ReplicatedDocumentApplier.ApplyAsync(change.Replicated, cancellationToken);
         }
     }
 }
