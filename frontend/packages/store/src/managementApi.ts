@@ -131,8 +131,9 @@ export type CellTenantsResource = {
 };
 
 /**
- * One page of the tenants of every cell. `cursors` maps each answering cell that has more tenants to its cursor, keyed
- * `''` for the control plane when no cell is named; it is empty on the last page.
+ * One page of the tenants of every cell. `cursors` maps each cell that has more tenants, or whose request failed, to
+ * the cursor of its next request, keyed `''` for the control plane when no cell is named; it is empty when no cell has
+ * more and none failed.
  */
 export type CellTenantsPage = CellTenantsResource & {
   readonly cursors: Readonly<Record<string, string>>;
@@ -147,8 +148,9 @@ const CONTROL_PLANE_CURSOR = '';
 /**
  * Lists one page of the tenants at `url` in every cell the console forwards to and merges them, each tagged with its
  * cell. `cursors` is empty for the first page, which asks every cell; otherwise only the cells it names are asked, each
- * with its cursor. A cell that fails is reported as unavailable. With no named cell the control plane answers alone,
- * and its failure fails the query.
+ * with its cursor. A cell that fails is reported as unavailable and keeps the cursor it was asked with (`''` for a
+ * first page), so the next page asks it again. With no named cell the control plane answers alone, and its failure
+ * fails the query.
  */
 async function listTenantsInEveryCell(
   cells: readonly string[],
@@ -185,15 +187,17 @@ async function listTenantsInEveryCell(
   const results = await Promise.all(
     asked.map(async ([cell, cursor]) => ({
       cell,
+      cursor,
       result: await fetchWithBQ(pageRequest(cell, cursor)),
     })),
   );
   const items: CellTenantResource[] = [];
   const unavailableCells: string[] = [];
   const nextCursors: Record<string, string> = {};
-  for (const { cell, result } of results) {
+  for (const { cell, cursor, result } of results) {
     if (result.error) {
       unavailableCells.push(cell);
+      nextCursors[cell] = cursor;
       continue;
     }
     const collection = result.data as CollectionResource<TenantResource>;
@@ -205,12 +209,15 @@ async function listTenantsInEveryCell(
   return { data: { items, unavailableCells, cursors: nextCursors } };
 }
 
-/** The tenants of every page read so far and the distinct cells that failed to answer a page. */
+/**
+ * The tenants of every page read so far and the cells that failed to answer the last page: every next page asks each
+ * cell whose last request failed, so a cell that answers again is no longer unavailable.
+ */
 export const pagedTenants = (
   data: { readonly pages: readonly CellTenantsPage[] } | undefined,
 ): CellTenantsResource => ({
   items: data?.pages.flatMap((page) => page.items) ?? [],
-  unavailableCells: [...new Set(data?.pages.flatMap((page) => page.unavailableCells) ?? [])],
+  unavailableCells: data?.pages.at(-1)?.unavailableCells ?? [],
 });
 
 /** The names of the cells the console forwards to, from the loaded runtime configuration. */
@@ -326,7 +333,7 @@ export const managementApi = createApi({
       query: ({ pageParam }) => withParams('api/teams', cursorParams(pageParam)),
       providesTags: (result) => [
         { type: 'Team' as const, id: platformTag(LIST_TAG) },
-        ...(result?.pages.flatMap((page) => page.items) ?? []).map((t) => ({
+        ...pagedItems(result).map((t) => ({
           type: 'Team' as const,
           id: platformTag(t.teamId),
         })),
@@ -354,7 +361,7 @@ export const managementApi = createApi({
         withParams(`api/teams/${encodeURIComponent(teamId)}/teams`, cursorParams(pageParam)),
       providesTags: (result, _error, { teamId }) => [
         { type: 'Team' as const, id: teamTag(teamId, LIST_TAG) },
-        ...(result?.pages.flatMap((page) => page.items) ?? []).map((t) => ({
+        ...pagedItems(result).map((t) => ({
           type: 'Team' as const,
           id: platformTag(t.teamId),
         })),
@@ -516,7 +523,7 @@ export const managementApi = createApi({
         ),
       providesTags: (result, _error, { tenantId }) => [
         { type: 'Client' as const, id: tenantTag(tenantId, LIST_TAG) },
-        ...(result?.pages.flatMap((page) => page.items) ?? []).map((c) => ({
+        ...pagedItems(result).map((c) => ({
           type: 'Client' as const,
           id: tenantTag(tenantId, c.clientId),
         })),
@@ -740,7 +747,7 @@ export const managementApi = createApi({
         withParams(`${ownerApiPath(owner)}/clients`, cursorParams(pageParam)),
       providesTags: (result, _error, owner) => [
         { type: 'Client' as const, id: scopeTagId(ownerScope(owner), LIST_TAG) },
-        ...(result?.pages.flatMap((page) => page.items) ?? []).map((c) => ({
+        ...pagedItems(result).map((c) => ({
           type: 'Client' as const,
           id: tenantTag(c.tenantId, c.clientId),
         })),
@@ -772,7 +779,7 @@ export const managementApi = createApi({
       },
       providesTags: (result, _error, owner) => [
         { type: 'LocalAccount' as const, id: localAccountListTag(owner) },
-        ...(result?.pages.flatMap((page) => page.items) ?? []).map((a) => ({
+        ...pagedItems(result).map((a) => ({
           type: 'LocalAccount' as const,
           id: tenantTag(a.tenantId, a.localAccountId),
         })),
@@ -924,7 +931,7 @@ export const managementApi = createApi({
         ),
       providesTags: (result, _error, { tenantId }) => [
         { type: 'ResourceServer' as const, id: tenantTag(tenantId, LIST_TAG) },
-        ...(result?.pages.flatMap((page) => page.items) ?? []).map((r) => ({
+        ...pagedItems(result).map((r) => ({
           type: 'ResourceServer' as const,
           id: tenantTag(tenantId, r.resourceServerId),
         })),
@@ -1055,7 +1062,7 @@ export const managementApi = createApi({
         ),
       providesTags: (result, _error, { tenantId }) => [
         { type: 'Grant' as const, id: tenantTag(tenantId, LIST_TAG) },
-        ...(result?.pages.flatMap((page) => page.items) ?? []).map((g) => ({
+        ...pagedItems(result).map((g) => ({
           type: 'Grant' as const,
           id: tenantTag(tenantId, g.grantId),
         })),

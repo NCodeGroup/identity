@@ -4066,6 +4066,86 @@ describe('tenant pages', () => {
     expect(pagedTenants(next.data).items.map((t) => t.tenantId)).toEqual(['a', 'b']);
   });
 
+  it('retries a cell whose next page failed with the cursor it was asked with', async () => {
+    const calls: string[] = [];
+    let failed = false;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = (input as Request).url;
+        calls.push(url);
+        if (!url.includes('/cells/eu-1/')) {
+          return jsonResponse({ items: [tenant('c')] });
+        }
+        if (!url.includes('cursor=t1')) {
+          return jsonResponse({ items: [tenant('a')], continuationToken: 't1' });
+        }
+        if (!failed) {
+          failed = true;
+          return jsonResponse({ title: 'down' }, 503);
+        }
+        return jsonResponse({ items: [tenant('b')] });
+      }),
+    );
+    const store = cellStore();
+    const arg = { teamId: 'acme' };
+
+    await store.dispatch(managementApi.endpoints.listTenants.initiate(arg));
+    const second = await store.dispatch(
+      managementApi.endpoints.listTenants.initiate(arg, { direction: 'forward' }),
+    );
+    const third = await store.dispatch(
+      managementApi.endpoints.listTenants.initiate(arg, { direction: 'forward' }),
+    );
+
+    expect(pagedTenants(second.data).unavailableCells).toEqual(['eu-1']);
+    expect(second.hasNextPage).toBe(true);
+    expect(calls.filter((url) => url.includes('cursor=t1'))).toEqual([
+      'https://api.test/cells/eu-1/api/teams/acme/tenants?cursor=t1',
+      'https://api.test/cells/eu-1/api/teams/acme/tenants?cursor=t1',
+    ]);
+    expect(pagedTenants(third.data).items.map((t) => t.tenantId)).toEqual(['a', 'c', 'b']);
+    expect(pagedTenants(third.data).unavailableCells).toEqual([]);
+    expect(third.hasNextPage).toBe(false);
+  });
+
+  it('retries a cell whose first page failed with its first page', async () => {
+    const calls: string[] = [];
+    let failed = false;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = (input as Request).url;
+        calls.push(url);
+        if (url.includes('/cells/us-1/') && !failed) {
+          failed = true;
+          return jsonResponse({ title: 'down' }, 503);
+        }
+        return jsonResponse({ items: [tenant(url.includes('/cells/us-1/') ? 'c' : 'a')] });
+      }),
+    );
+    const store = cellStore();
+    const arg = { teamId: 'acme' };
+
+    const first = await store.dispatch(managementApi.endpoints.listTenants.initiate(arg));
+    const next = await store.dispatch(
+      managementApi.endpoints.listTenants.initiate(arg, { direction: 'forward' }),
+    );
+
+    expect(first.hasNextPage).toBe(true);
+    expect(calls.at(-1)).toBe('https://api.test/cells/us-1/api/teams/acme/tenants');
+    expect(calls).toHaveLength(3);
+    expect(pagedTenants(next.data).items.map((t) => t.tenantId)).toEqual(['a', 'c']);
+    expect(pagedTenants(next.data).unavailableCells).toEqual([]);
+  });
+
+  it('names only the cells whose last request failed', () => {
+    const page = (unavailableCells: string[]) => ({ items: [], unavailableCells, cursors: {} });
+
+    expect(pagedTenants({ pages: [page(['eu-1']), page([])] }).unavailableCells).toEqual([]);
+    expect(pagedTenants({ pages: [] })).toEqual({ items: [], unavailableCells: [] });
+  });
+
   it('fails the caller tenants when the control plane fails', async () => {
     vi.stubGlobal(
       'fetch',
