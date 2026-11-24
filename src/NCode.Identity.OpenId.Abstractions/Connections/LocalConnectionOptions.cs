@@ -1,6 +1,7 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using JetBrains.Annotations;
 
@@ -18,4 +19,10 @@ public sealed class LocalConnectionOptions
     /// </summary>
     [JsonPropertyName("store")]
     public required string Store { get; init; }
+
+    /// <summary>
+    /// Gets or sets the members that this version of the type does not know, so that they survive a round trip.
+    /// </summary>
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? ExtensionData { get; set; }
 }
