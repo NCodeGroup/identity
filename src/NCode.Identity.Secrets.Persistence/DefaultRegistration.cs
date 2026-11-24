@@ -47,6 +47,8 @@ public static class DefaultRegistration
         /// protected under the owner's master key.</description></item>
         /// <item><description><see cref="ISecretImporter"/> - Imports externally supplied secret key
         /// material.</description></item>
+        /// <item><description><see cref="IPublicJwksReader"/> - Reads a public JSON Web Key Set into verification-only
+        /// secret keys.</description></item>
         /// <item><description><see cref="ISecretVerifierSchemeCatalog"/> - Looks up the registered
         /// <see cref="ISecretVerifierScheme"/> instances, which the <see cref="SecretVerifierSchemes.Sha256"/> and
         /// <see cref="SecretVerifierSchemes.Pbkdf2Sha256"/> schemes join as a collection.</description></item>
@@ -99,6 +101,7 @@ public static class DefaultRegistration
             serviceCollection.TryAddSingleton<ISecretSerializer, DefaultSecretSerializer>();
             serviceCollection.TryAddSingleton<ISecretGenerator, DefaultSecretGenerator>();
             serviceCollection.TryAddSingleton<ISecretImporter, DefaultSecretImporter>();
+            serviceCollection.TryAddSingleton<IPublicJwksReader, DefaultPublicJwksReader>();
             serviceCollection.TryAddSingleton<
                 IRemoteSecretDestroyer,
                 DefaultRemoteSecretDestroyer

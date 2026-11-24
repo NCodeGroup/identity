@@ -702,3 +702,5 @@ override NCode.Identity.Secrets.Persistence.Auditing.RootKeyAuditEvent.EventName
 override NCode.Identity.Secrets.Persistence.Auditing.RootKeyAuditEvent.Resources.get -> System.Collections.Generic.IReadOnlyList<NCode.Identity.Events.Audit.AuditResource!>!
 const NCode.Identity.Secrets.Persistence.Protection.SecretOwner.PlatformOwnerId = "platform" -> string!
 static NCode.Identity.Secrets.Persistence.Protection.SecretOwner.Platform.get -> NCode.Identity.Secrets.Persistence.Protection.SecretOwner
+NCode.Identity.Secrets.Persistence.IPublicJwksReader
+NCode.Identity.Secrets.Persistence.IPublicJwksReader.TryRead(System.Text.Json.JsonElement jwks, out System.Collections.Generic.IReadOnlyList<NCode.Identity.Secrets.Keys.SecretKey!>? keys, out string? error) -> bool
