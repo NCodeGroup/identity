@@ -161,6 +161,32 @@ internal class FederatedPrincipalStore(
     }
 
     /// <inheritdoc />
+    public async ValueTask<IReadOnlyList<string>> GetExistingIdsAsync(
+        IReadOnlyCollection<string> principalIds,
+        CancellationToken cancellationToken
+    )
+    {
+        if (principalIds.Count == 0)
+        {
+            return [];
+        }
+
+        var normalizedPrincipalIds = new List<string>(principalIds.Count);
+        foreach (var principalId in principalIds)
+        {
+            var normalizedPrincipalId = Normalize(principalId);
+            normalizedPrincipalIds.Add(normalizedPrincipalId);
+        }
+
+        return await DbContext
+            .FederatedPrincipals.Where(entity =>
+                normalizedPrincipalIds.Contains(entity.NormalizedPrincipalId)
+            )
+            .Select(entity => entity.PrincipalId)
+            .ToListAsync(cancellationToken);
+    }
+
+    /// <inheritdoc />
     public async ValueTask UpdateAsync(
         PersistedFederatedPrincipal principal,
         CancellationToken cancellationToken
