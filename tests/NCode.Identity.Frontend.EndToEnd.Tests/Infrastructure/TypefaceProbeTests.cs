@@ -13,10 +13,14 @@ public sealed class TypefaceProbeTests(FrontendEnvironment environment)
 
     private const string LaggingCheckScript = """
         const check = FontFaceSet.prototype.check;
-        let lagging = 1;
+        window.__fontChecks = 0;
         FontFaceSet.prototype.check = function (...args) {
-          return lagging-- > 0 ? false : check.apply(this, args);
+          return window.__fontChecks++ === 0 ? false : check.apply(this, args);
         };
+        """;
+
+    private const string FontChecksScript = """
+        () => window.__fontChecks
         """;
 
     private const string NeverSettlingFontSetScript = """
@@ -45,11 +49,16 @@ public sealed class TypefaceProbeTests(FrontendEnvironment environment)
             $"{origin}{LoginPagePath}",
             CancellationToken.None
         );
+        var page = Assert.Single(context.Pages);
+        var fontChecks = await page.EvaluateAsync<int>(FontChecksScript);
 
         Assert.Equal(1, result.InstrumentSansFaces);
         Assert.Equal(1, result.MartianMonoFaces);
         Assert.True(result.BothChecked);
         Assert.Empty(result.FontFailures);
+
+        // The probe found a family unchecked on its first read of both, so it read the font set again.
+        Assert.True(fontChecks > 2);
     }
 
     [Theory, MemberData(nameof(BrowserNames.All), MemberType = typeof(BrowserNames))]
