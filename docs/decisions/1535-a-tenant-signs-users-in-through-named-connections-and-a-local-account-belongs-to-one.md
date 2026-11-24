@@ -131,11 +131,12 @@ are:
 Both name columns are nullable and a null never conflicts, so a connection may do without user names or without emails.
 The setting `local_account_identifier` (`email`, `user_name` or `email_or_user_name`, default `email_or_user_name`,
 replace-merged, applying to tenants and connections) decides which identifier an account must have: `email` requires an
-email, `user_name` a user name, and `email_or_user_name` at least one. A sign-in identifier is looked up as a user name
-first, then as an email, as the setting allows. The two fields never shadow each other within a connection, whatever the
-setting says, because it can change later: a user name never equals another account's email and an email never equals
-another account's user name, so a sign-in identifier names one account. An account whose own user name equals its own
-email is allowed. The database indexes back each field; the validators guard the pair.
+email, `user_name` a user name, and `email_or_user_name` at least one. A sign-in runs the lookup of each value its mode
+names, a user name and an email, whichever form the identifier takes and whatever the other finds, so the work does not
+tell which one matched; the user name's match wins. The two fields never shadow each other within a connection, whatever
+the setting says, because it can change later: a user name never equals another account's email and an email never
+equals another account's user name, so a sign-in identifier names one account. An account whose own user name equals its
+own email is allowed. The database indexes back each field; the validators guard the pair.
 
 `ILocalAccountStore` takes the connection id on every lookup that is scoped to a connection
 (`GetByUserNameOrDefaultAsync`, `GetByEmailOrDefaultAsync` and `GetPageAsync`), and its
@@ -256,6 +257,13 @@ local-accounts section's records by connection id.
   standing check of a local account's identities makes one more read per identity. A connection change takes effect on
   the next request, which is how a disabled connection locks its identities out at once. A cache would delay that
   disable, so none exists.
+- A client's `allowed_connections` and `default_connection`, and the tenant's `default_connection`, name a connection
+  and nothing checks them when a connection is deleted: a delete answers `409` only for the dependents its sources
+  report. Those names are soft references. A listed name that names no connection allows nothing, so
+  `allowed_connections` fails closed, an unusable `default_connection` preselects nothing, and a connection created
+  later under the same name is offered again, which is the settings owner's choice, because a connection's name is the
+  tenant's own address for it. A dependent source would scan every client's settings document on each delete for a
+  configuration the settings already treat safely.
 - A smell that this is wrong: strategies that need a second resource of their own for configuration, or clients that
   routinely need connection rules beyond a list and a default.
 
