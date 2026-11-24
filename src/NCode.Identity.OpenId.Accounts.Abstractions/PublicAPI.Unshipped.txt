@@ -159,3 +159,6 @@ NCode.Identity.OpenId.Accounts.Stores.LocalConnectionStrategy.Name.get -> string
 NCode.Identity.OpenId.Accounts.Stores.LocalConnectionStrategy.SignInMethod.get -> string!
 NCode.Identity.OpenId.Accounts.Stores.LocalConnectionStrategy.ValidateOptions(System.Text.Json.JsonElement options) -> string?
 NCode.Identity.OpenId.Accounts.Stores.LocalConnectionStrategy.ValidateOptionsChange(System.Text.Json.JsonElement current, System.Text.Json.JsonElement proposed) -> string?
+NCode.Identity.OpenId.Accounts.Stores.LocalAccountAttemptKeys
+static NCode.Identity.OpenId.Accounts.Stores.LocalAccountAttemptKeys.ForAccount(string! localAccountId) -> string!
+static NCode.Identity.OpenId.Accounts.Stores.LocalAccountAttemptKeys.ForIdentifier(string! submitted) -> string!

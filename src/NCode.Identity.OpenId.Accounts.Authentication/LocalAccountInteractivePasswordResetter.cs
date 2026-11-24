@@ -263,10 +263,11 @@ internal sealed class LocalAccountInteractivePasswordResetter(
             );
         }
 
+        var attemptKey = LocalAccountAttemptKeys.ForAccount(account.LocalAccountId);
         await PostCommitSecurityEffects.ResetPasswordAttemptsAsync(
             openIdContext.Tenant.TenantId,
             connection.ConnectionId,
-            account.LocalAccountId
+            attemptKey
         );
 
         await AuditEventRecorder.RecordPasswordResetAsync(

@@ -294,10 +294,11 @@ internal class LocalAccountApiEndpointHandler(
         // The password an administrator sets replaces the one being guessed, so its failed attempts start over. The
         // change is committed, so clearing them runs on its own bounded token, a failure is logged, and the audit
         // record follows. See ADR-1237 and ADR-1351.
+        var attemptKey = LocalAccountAttemptKeys.ForAccount(localAccountId);
         await PostCommitSecurityEffects.ResetPasswordAttemptsAsync(
             tenantId,
             connection.ConnectionId,
-            localAccountId
+            attemptKey
         );
 
         var resource = ToLocalAccountResource(account, creation.PrincipalId);
@@ -952,10 +953,11 @@ internal class LocalAccountApiEndpointHandler(
         // The password an administrator sets replaces the one being guessed, so its failed attempts start over. The
         // change is committed, so clearing them runs on its own bounded token, a failure is logged, and the audit
         // record follows. See ADR-1237 and ADR-1351.
+        var attemptKey = LocalAccountAttemptKeys.ForAccount(account.LocalAccountId);
         await PostCommitSecurityEffects.ResetPasswordAttemptsAsync(
             tenantId,
             connection.ConnectionId,
-            account.LocalAccountId
+            attemptKey
         );
 
         await ManagementAuditRecorder.RecordLocalAccountChangedAsync(

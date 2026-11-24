@@ -205,8 +205,11 @@ internal sealed class LocalAccountStore(
             );
         // The limit counts the account the store found, or the identifier the end user submitted, and a refused
         // password is verified against the dummy hash, so a refusal costs what a wrong password costs. See ADR-1237.
-        var accountKey =
-            entity?.LocalAccountId ?? identifier.UserName ?? identifier.Email ?? string.Empty;
+        var accountKey = entity is null
+            ? LocalAccountAttemptKeys.ForIdentifier(
+                identifier.UserName ?? identifier.Email ?? string.Empty
+            )
+            : LocalAccountAttemptKeys.ForAccount(entity.LocalAccountId);
         var isRefused = await isRefusedAsync(accountKey, cancellationToken);
         // A disabled account's credential is verified too, so the sign-in can tell the end user why it is refused.
         // See ADR-1229.

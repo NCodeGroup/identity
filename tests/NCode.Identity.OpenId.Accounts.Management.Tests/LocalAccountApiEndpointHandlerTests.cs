@@ -825,7 +825,13 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
         MockPostCommitSecurityEffects
-            .Setup(x => x.ResetPasswordAttemptsAsync(TenantId, ConnectionId, LocalAccountId))
+            .Setup(x =>
+                x.ResetPasswordAttemptsAsync(
+                    TenantId,
+                    ConnectionId,
+                    LocalAccountAttemptKeys.ForAccount(LocalAccountId)
+                )
+            )
             .Callback(() => Calls.Add("attempts"))
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
@@ -867,7 +873,13 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
         MockPostCommitSecurityEffects
-            .Setup(x => x.ResetPasswordAttemptsAsync(TenantId, ConnectionId, LocalAccountId))
+            .Setup(x =>
+                x.ResetPasswordAttemptsAsync(
+                    TenantId,
+                    ConnectionId,
+                    LocalAccountAttemptKeys.ForAccount(LocalAccountId)
+                )
+            )
             .Callback(() => Calls.Add("attempts"))
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
@@ -1047,7 +1059,13 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
         MockPostCommitSecurityEffects
-            .Setup(x => x.ResetPasswordAttemptsAsync(TenantId, ConnectionId, "id-1"))
+            .Setup(x =>
+                x.ResetPasswordAttemptsAsync(
+                    TenantId,
+                    ConnectionId,
+                    LocalAccountAttemptKeys.ForAccount("id-1")
+                )
+            )
             .Callback(() => Calls.Add("attempts"))
             .Returns(ValueTask.CompletedTask)
             .Verifiable();

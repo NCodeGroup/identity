@@ -265,6 +265,45 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
     }
 
     [Fact]
+    public async Task VerifyCredentialAsync_WhenTheIdentifierEqualsAnAccountId_AsksTheGateAboutTheIdentifier()
+    {
+        var passwordHasher = CreatePasswordHasher();
+        var passwordStore = CreatePasswordStore();
+        var (store, userManager) = CreateStore(passwordHasher.Object, passwordStore.Object);
+        SetupDummyPasswordHash(passwordHasher);
+        userManager
+            .Setup(x => x.FindByNameAsync(LocalAccountId))
+            .ReturnsAsync((TestTenantUser?)null)
+            .Verifiable();
+        passwordHasher
+            .Setup(x =>
+                x.VerifyHashedPassword(It.IsAny<TestTenantUser>(), DummyPasswordHash, Password)
+            )
+            .Returns(PasswordVerificationResult.Failed)
+            .Verifiable();
+        var askedAccountKeys = new List<string>();
+
+        var result = await store.VerifyCredentialAsync(
+            new LocalAccountSignInIdentifier
+            {
+                ConnectionId = ConnectionId,
+                UserName = LocalAccountId,
+            },
+            PasswordBytes,
+            (accountKey, _) =>
+            {
+                askedAccountKeys.Add(accountKey);
+                return ValueTask.FromResult(false);
+            },
+            CancellationToken.None
+        );
+
+        var expected = LocalAccountAttemptKeys.ForIdentifier(LocalAccountId);
+        Assert.Equal(expected, Assert.Single(askedAccountKeys));
+        Assert.Equal(expected, result.AccountKey);
+    }
+
+    [Fact]
     public async Task VerifyCredentialAsync_WhenNeitherTheUserNameNorTheEmailIsFound_RunsBothLookups()
     {
         var passwordHasher = CreatePasswordHasher();
@@ -347,8 +386,11 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
             CancellationToken.None
         );
 
-        Assert.Equal(LocalAccountId, Assert.Single(askedAccountKeys));
-        Assert.Equal(LocalAccountId, result.AccountKey);
+        Assert.Equal(
+            LocalAccountAttemptKeys.ForAccount(LocalAccountId),
+            Assert.Single(askedAccountKeys)
+        );
+        Assert.Equal(LocalAccountAttemptKeys.ForAccount(LocalAccountId), result.AccountKey);
     }
 
     [Fact]
@@ -737,7 +779,7 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
 
         Assert.True(result.IsRefused);
         Assert.Null(result.Account);
-        Assert.Equal(LocalAccountId, result.AccountKey);
+        Assert.Equal(LocalAccountAttemptKeys.ForAccount(LocalAccountId), result.AccountKey);
     }
 
     [Fact]
@@ -780,8 +822,11 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
             CancellationToken.None
         );
 
-        Assert.Equal(LocalAccountId, Assert.Single(askedAccountKeys));
-        Assert.Equal(LocalAccountId, result.AccountKey);
+        Assert.Equal(
+            LocalAccountAttemptKeys.ForAccount(LocalAccountId),
+            Assert.Single(askedAccountKeys)
+        );
+        Assert.Equal(LocalAccountAttemptKeys.ForAccount(LocalAccountId), result.AccountKey);
         Assert.False(result.IsRefused);
         Assert.Null(result.Account);
     }

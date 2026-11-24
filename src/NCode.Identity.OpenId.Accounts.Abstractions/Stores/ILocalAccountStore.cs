@@ -66,21 +66,24 @@ public interface ILocalAccountStore : IStore
     /// Verifies a sign-in identifier and password credential in one store call. The store runs the lookup of each value
     /// the identifier carries (its user name and its email address) in the identifier's connection, whatever the other
     /// finds, so the work does not tell which one matched, and the account that the user name matches wins. It calls
-    /// <paramref name="isRefusedAsync"/> once with the identifier of the account it found (or the submitted identifier
-    /// when none matches), then verifies once: against the stored hash, or against a dummy hash of the same cost when
-    /// <paramref name="isRefusedAsync"/> refuses the password or the store holds no hash it may verify (no account, no
-    /// password, a lockout against guessing). A refused or failed verification therefore costs the same work whether or
-    /// not an account matches. The store verifies the NFC form of the password first, and the password as submitted as
-    /// a fallback, and may upgrade a stored hash to the current parameters on success. A valid credential's account is
-    /// returned whether or not it is enabled, so its caller can tell the end user why it cannot sign in.
+    /// <paramref name="isRefusedAsync"/> once with the key of the account it found or of the submitted identifier when
+    /// none matches (<see cref="LocalAccountAttemptKeys.ForAccount"/> and <see
+    /// cref="LocalAccountAttemptKeys.ForIdentifier"/>, which also build <see
+    /// cref="LocalAccountVerificationResult.AccountKey"/>), then verifies once: against the stored hash, or against a
+    /// dummy hash of the same cost when <paramref name="isRefusedAsync"/> refuses the password or the store holds no
+    /// hash it may verify (no account, no password, a lockout against guessing). A refused or failed verification
+    /// therefore costs the same work whether or not an account matches. The store verifies the NFC form of the password
+    /// first, and the password as submitted as a fallback, and may upgrade a stored hash to the current parameters on
+    /// success. A valid credential's account is returned whether or not it is enabled, so its caller can tell the end
+    /// user why it cannot sign in.
     /// </summary>
     /// <param name="identifier">The <see cref="LocalAccountSignInIdentifier"/> presented by the end-user, with the
     /// connection that holds the account.</param>
     /// <param name="password">The UTF-8 bytes of the password as submitted by the end-user, carried in a caller-owned
     /// buffer so the sensitive material can be zeroed after use.</param>
     /// <param name="isRefusedAsync">The function that the store calls once, after it looks up the account and before it
-    /// verifies the password, with the identifier of the account it found (or the submitted identifier when none
-    /// matches); it returns <c>true</c> to refuse the password, such as when the account reached its limit of failed
+    /// verifies the password, with the key of the account it found or of the submitted identifier when none matches; it
+    /// returns <c>true</c> to refuse the password, such as when the account reached its limit of failed
     /// attempts.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
     /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation, containing the

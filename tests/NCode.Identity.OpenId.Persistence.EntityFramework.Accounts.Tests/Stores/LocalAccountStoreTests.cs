@@ -385,7 +385,7 @@ public sealed class LocalAccountStoreTests : IDisposable
         Assert.True(result.IsRefused);
         Assert.Null(result.Account);
         Assert.Equal("plain:dummy", Assert.Single(Hasher.VerifiedHashes));
-        Assert.Equal("account-1", result.AccountKey);
+        Assert.Equal(LocalAccountAttemptKeys.ForAccount("account-1"), result.AccountKey);
     }
 
     [Fact]
@@ -411,8 +411,11 @@ public sealed class LocalAccountStoreTests : IDisposable
             CancellationToken.None
         );
 
-        Assert.Equal("account-1", Assert.Single(askedUserNames));
-        Assert.Equal("account-1", result.AccountKey);
+        Assert.Equal(
+            LocalAccountAttemptKeys.ForAccount("account-1"),
+            Assert.Single(askedUserNames)
+        );
+        Assert.Equal(LocalAccountAttemptKeys.ForAccount("account-1"), result.AccountKey);
         Assert.True(result.IsVerified);
     }
 
@@ -433,9 +436,44 @@ public sealed class LocalAccountStoreTests : IDisposable
             CancellationToken.None
         );
 
-        Assert.Equal("Nobody", Assert.Single(askedUserNames));
-        Assert.Equal("Nobody", result.AccountKey);
+        Assert.Equal(
+            LocalAccountAttemptKeys.ForIdentifier("Nobody"),
+            Assert.Single(askedUserNames)
+        );
+        Assert.Equal(LocalAccountAttemptKeys.ForIdentifier("Nobody"), result.AccountKey);
         Assert.Equal("plain:dummy", Assert.Single(Hasher.VerifiedHashes));
+    }
+
+    [Fact]
+    public async Task VerifyCredentialAsync_WhenTheIdentifierEqualsAnAccountId_AsksTheGateAboutTheIdentifier()
+    {
+        var store = CreateStoreWithPasswords();
+        await AddWithPasswordAndDetachAsync(
+            store,
+            CreateAccount("account-1", "alice"),
+            "secret",
+            CancellationToken.None
+        );
+        var askedKeys = new List<string>();
+
+        var result = await store.VerifyCredentialAsync(
+            new LocalAccountSignInIdentifier
+            {
+                ConnectionId = ConnectionId,
+                UserName = "account-1",
+            },
+            SecureEncoding.UTF8.GetBytes("secret"),
+            (key, _) =>
+            {
+                askedKeys.Add(key);
+                return ValueTask.FromResult(false);
+            },
+            CancellationToken.None
+        );
+
+        var expected = LocalAccountAttemptKeys.ForIdentifier("account-1");
+        Assert.Equal(expected, Assert.Single(askedKeys));
+        Assert.Equal(expected, result.AccountKey);
     }
 
     [Fact]

@@ -55,8 +55,9 @@ name.**
    `ILocalAccountStore`, so it applies to every store.
 2. **One counter holds the failures of one account.** The key is `ExpiringKeys.Create("password-attempts", tenantId,
    connectionId, digest)`, so attempts are counted per `(tenant, connection, account)`. The digest is the SHA-256 of the
-   length-prefixed UTF-8 bytes of the account key, so the shared state holds no user name. The account key is the found
-   account's `LocalAccountId`, or the submitted identifier, folded, when no account matches. The folding is
+   length-prefixed UTF-8 bytes of the account key, so the shared state holds no user name. The account key is `account:`
+   plus the found account's `LocalAccountId`, or `identifier:` plus the submitted identifier when no account matches,
+   folded, so a submitted identifier never shares an account's count. The folding is
    `Normalize(NormalizationForm.FormKC)`, then `ToUpperInvariant()`, then `ToLowerInvariant()`. The lookup of the
    verification itself finds the account. The store compares names in its database,
    whose collation can match spellings that differ in .NET, such as a trailing space under a padding collation or an

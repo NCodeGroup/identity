@@ -341,7 +341,7 @@ public class LocalAccountInteractivePasswordResetterTests : BaseTests
                 x.ResetPasswordAttemptsAsync(
                     TenantId,
                     LocalAccountStoreSetup.ConnectionId,
-                    LocalAccountId
+                    LocalAccountAttemptKeys.ForAccount(LocalAccountId)
                 )
             )
             .Callback(() =>

@@ -554,7 +554,11 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
 
         // The limit counts the account the store found, or the identifier the end user submitted, and a refused password
         // is verified against the dummy hash, so a refusal costs what a wrong password costs. See ADR-1237.
-        var accountKey = user?.Id ?? identifier.UserName ?? identifier.Email ?? string.Empty;
+        var accountKey = user is null
+            ? LocalAccountAttemptKeys.ForIdentifier(
+                identifier.UserName ?? identifier.Email ?? string.Empty
+            )
+            : LocalAccountAttemptKeys.ForAccount(user.Id);
         var isRefused = await isRefusedAsync(accountKey, cancellationToken);
         var passwordHash = isRefused ? null : storedHash;
 
