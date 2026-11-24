@@ -223,8 +223,10 @@ internal class DefaultAuthenticatePasswordGrantHandler(
 
         await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
         var store = LocalAccountStoreCatalog.GetStore(storeManager, connection.Connection);
-        var identifier = LocalAccountInteractiveCredentialVerifier.CreateIdentifier(
-            connection,
+        var mode = connection.Settings.GetValue(OpenIdSettingKeys.LocalAccountIdentifier);
+        var identifier = LocalAccountSignInIdentifier.ForSubmitted(
+            connection.ConnectionId,
+            mode,
             userName
         );
 

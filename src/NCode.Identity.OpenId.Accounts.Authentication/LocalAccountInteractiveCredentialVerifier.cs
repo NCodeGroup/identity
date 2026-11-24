@@ -101,7 +101,12 @@ internal sealed class LocalAccountInteractiveCredentialVerifier(
 
         await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
         var store = LocalAccountStoreCatalog.GetStore(storeManager, connection.Connection);
-        var identifier = CreateIdentifier(connection, username);
+        var mode = connection.Settings.GetValue(OpenIdSettingKeys.LocalAccountIdentifier);
+        var identifier = LocalAccountSignInIdentifier.ForSubmitted(
+            connection.ConnectionId,
+            mode,
+            username
+        );
 
         // The store asks the gate once, with the account key it holds, between its lookup and its verification. The gate
         // refuses a result that a store verified after a refusal and fails a store that never asked, so no store lifts
@@ -122,36 +127,5 @@ internal sealed class LocalAccountInteractiveCredentialVerifier(
         }
 
         return result;
-    }
-
-    /// <summary>
-    /// Builds the identifier a store looks an account up by, from the submitted value and the connection's
-    /// <c>local_account_identifier</c> setting: an email address, a user name, or either.
-    /// </summary>
-    internal static LocalAccountSignInIdentifier CreateIdentifier(
-        ResolvedConnection connection,
-        string submitted
-    )
-    {
-        var mode = connection.Settings.GetValue(OpenIdSettingKeys.LocalAccountIdentifier);
-        return mode switch
-        {
-            LocalAccountIdentifiers.Email => new LocalAccountSignInIdentifier
-            {
-                ConnectionId = connection.ConnectionId,
-                Email = submitted,
-            },
-            LocalAccountIdentifiers.UserName => new LocalAccountSignInIdentifier
-            {
-                ConnectionId = connection.ConnectionId,
-                UserName = submitted,
-            },
-            _ => new LocalAccountSignInIdentifier
-            {
-                ConnectionId = connection.ConnectionId,
-                UserName = submitted,
-                Email = submitted,
-            },
-        };
     }
 }

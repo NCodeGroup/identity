@@ -1,8 +1,8 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
-using System.Diagnostics.CodeAnalysis;
 using JetBrains.Annotations;
+using NCode.Identity.OpenId.Connections;
 
 namespace NCode.Identity.OpenId.Accounts.Stores;
 
@@ -12,7 +12,6 @@ namespace NCode.Identity.OpenId.Accounts.Stores;
 /// tell which one matched, and the match by user name wins.
 /// </summary>
 [PublicAPI]
-[ExcludeFromCodeCoverage]
 public sealed class LocalAccountSignInIdentifier
 {
     /// <summary>
@@ -29,4 +28,37 @@ public sealed class LocalAccountSignInIdentifier
     /// Gets the email address to look up, or <c>null</c> when the identifier is not an email address.
     /// </summary>
     public string? Email { get; init; }
+
+    /// <summary>
+    /// Builds the identifier a store looks an account up by, from the value an end user submitted and the connection's
+    /// <c>local_account_identifier</c> mode: an email address, a user name, or either.
+    /// </summary>
+    /// <param name="connectionId">The identifier of the local connection whose accounts are searched.</param>
+    /// <param name="mode">The connection's <c>local_account_identifier</c> setting.</param>
+    /// <param name="submitted">The value the end user submitted.</param>
+    /// <returns>The identifier that carries each value the mode looks the submitted value up as.</returns>
+    public static LocalAccountSignInIdentifier ForSubmitted(
+        string connectionId,
+        string mode,
+        string submitted
+    ) =>
+        mode switch
+        {
+            LocalAccountIdentifiers.Email => new LocalAccountSignInIdentifier
+            {
+                ConnectionId = connectionId,
+                Email = submitted,
+            },
+            LocalAccountIdentifiers.UserName => new LocalAccountSignInIdentifier
+            {
+                ConnectionId = connectionId,
+                UserName = submitted,
+            },
+            _ => new LocalAccountSignInIdentifier
+            {
+                ConnectionId = connectionId,
+                UserName = submitted,
+                Email = submitted,
+            },
+        };
 }

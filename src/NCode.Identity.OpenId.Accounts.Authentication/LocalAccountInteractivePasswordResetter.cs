@@ -315,23 +315,28 @@ internal sealed class LocalAccountInteractivePasswordResetter(
     )
     {
         var mode = connection.Settings.GetValue(OpenIdSettingKeys.LocalAccountIdentifier);
+        var identifier = LocalAccountSignInIdentifier.ForSubmitted(
+            connection.ConnectionId,
+            mode,
+            submitted
+        );
 
         PersistedLocalAccount? byUserName = null;
-        if (mode != LocalAccountIdentifiers.Email)
+        if (identifier.UserName is not null)
         {
             byUserName = await accountStore.GetByUserNameOrDefaultAsync(
-                connection.ConnectionId,
-                submitted,
+                identifier.ConnectionId,
+                identifier.UserName,
                 cancellationToken
             );
         }
 
         PersistedLocalAccount? byEmail = null;
-        if (mode != LocalAccountIdentifiers.UserName)
+        if (identifier.Email is not null)
         {
             byEmail = await accountStore.GetByEmailOrDefaultAsync(
-                connection.ConnectionId,
-                submitted,
+                identifier.ConnectionId,
+                identifier.Email,
                 cancellationToken
             );
         }

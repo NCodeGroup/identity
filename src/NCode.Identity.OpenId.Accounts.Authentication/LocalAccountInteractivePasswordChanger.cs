@@ -101,7 +101,7 @@ internal sealed class LocalAccountInteractivePasswordChanger(
             out Memory<byte> currentBuffer
         );
 
-        // The store asks the gate once, with the user name it holds, between its lookup and its verification, and a
+        // The store asks the gate once, with the account key it holds, between its lookup and its verification, and a
         // password refused at the limit is verified against its dummy hash and counts as a failure, as a wrong one
         // does. The gate refuses a result that a store verified after a refusal and fails a store that never asked, so
         // no store lifts the limit. See ADR-1237.
