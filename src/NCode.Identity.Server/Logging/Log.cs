@@ -269,4 +269,42 @@ internal static partial class Log
         this ILogger logger,
         Exception exception
     );
+
+    [LoggerMessage(
+        EventId = EventIds.RevokeManagementKeyCommandUsageInvalid,
+        Level = LogLevel.Error,
+        Message = "The revoke-management-key command line is invalid: {Error} {Usage}"
+    )]
+    internal static partial void RevokeManagementKeyCommandUsageInvalid(
+        this ILogger logger,
+        string error,
+        string usage
+    );
+
+    [LoggerMessage(
+        EventId = EventIds.RevokeManagementKeyCommandOnTheControlPlane,
+        Level = LogLevel.Error,
+        Message = "The control-plane cell revokes a management key through the management API; run the revoke-management-key command in a workload cell."
+    )]
+    internal static partial void RevokeManagementKeyCommandOnTheControlPlane(this ILogger logger);
+
+    [LoggerMessage(
+        EventId = EventIds.RevokeManagementKeyCommandRevoked,
+        Level = LogLevel.Information,
+        Message = "Recorded the management key '{KeyId}' as revoked; the cell refuses every token it signed."
+    )]
+    internal static partial void RevokeManagementKeyCommandRevoked(
+        this ILogger logger,
+        string keyId
+    );
+
+    [LoggerMessage(
+        EventId = EventIds.RevokeManagementKeyCommandFailed,
+        Level = LogLevel.Error,
+        Message = "The revoke-management-key command failed; the key is not revoked."
+    )]
+    internal static partial void RevokeManagementKeyCommandFailed(
+        this ILogger logger,
+        Exception exception
+    );
 }

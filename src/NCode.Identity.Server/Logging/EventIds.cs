@@ -50,4 +50,24 @@ internal static class EventIds
     /// Identifies the error that the setup command failed with an exception, so the instance is not set up.
     /// </summary>
     public const int InstanceSetupCommandFailed = Base + 27;
+
+    /// <summary>
+    /// Identifies the error that the revoke-management-key command line is invalid.
+    /// </summary>
+    public const int RevokeManagementKeyCommandUsageInvalid = Base + 28;
+
+    /// <summary>
+    /// Identifies the error that the revoke-management-key command ran on the control-plane cell.
+    /// </summary>
+    public const int RevokeManagementKeyCommandOnTheControlPlane = Base + 29;
+
+    /// <summary>
+    /// Identifies the information that the revoke-management-key command recorded a key as revoked.
+    /// </summary>
+    public const int RevokeManagementKeyCommandRevoked = Base + 30;
+
+    /// <summary>
+    /// Identifies the error that the revoke-management-key command failed with an exception.
+    /// </summary>
+    public const int RevokeManagementKeyCommandFailed = Base + 31;
 }

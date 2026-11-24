@@ -20,6 +20,7 @@ using NCode.Identity.Secrets.AzureKeyVault;
 using NCode.Identity.Secrets.GoogleCloudKms;
 using NCode.Identity.Server;
 using NCode.Identity.Server.InstanceSetup;
+using NCode.Identity.Server.Recovery;
 using NCode.Identity.Server.SecretProtection;
 using NCode.Identity.SharedState.Valkey;
 
@@ -31,13 +32,17 @@ using NCode.Identity.SharedState.Valkey;
 // point can return an exit code.
 
 // OFFLINE COMMANDS: 'secret-protection rewrap|rewrap-recovery' rewraps the master keys (ADR-1408), and 'setup' creates
-// the root administrator of an uninitialized instance from the 'Setup:Root' configuration (ADR-1512). Each exits without
-// serving, for a one-off Job that runs this image. The host is built without a command's arguments, which a
+// the root administrator of an uninitialized instance from the 'Setup:Root' configuration (ADR-1512), and
+// 'revoke-management-key <kid>' refuses a management key in a workload cell (ADR-1536). Each exits without serving, for a one-off Job that runs this image. The host is built without a command's arguments, which a
 // command-line configuration provider would read as configuration.
 var secretProtectionCommand = SecretProtectionCommandLine.Parse(args);
 var instanceSetupCommand = InstanceSetupCommandLine.Parse(args);
+var revokeManagementKeyCommand = RevokeManagementKeyCommandLine.Parse(args);
 var secretProtectionHostArguments = SecretProtectionCommandLine.GetHostArguments(args);
-var hostArguments = InstanceSetupCommandLine.GetHostArguments(secretProtectionHostArguments);
+var instanceSetupHostArguments = InstanceSetupCommandLine.GetHostArguments(
+    secretProtectionHostArguments
+);
+var hostArguments = RevokeManagementKeyCommandLine.GetHostArguments(instanceSetupHostArguments);
 var builder = WebApplication.CreateBuilder(hostArguments);
 
 var configuration = builder.Configuration;
@@ -210,6 +215,12 @@ if (instanceSetupCommand is not null)
 {
     await using (app)
         return await instanceSetupCommand.RunAsync(app.Services, CancellationToken.None);
+}
+
+if (revokeManagementKeyCommand is not null)
+{
+    await using (app)
+        return await revokeManagementKeyCommand.RunAsync(app.Services, CancellationToken.None);
 }
 
 // MUST be the first middleware, before even the forwarded headers: it refuses a request whose connection does not carry

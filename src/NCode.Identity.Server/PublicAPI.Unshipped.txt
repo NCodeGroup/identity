@@ -231,3 +231,11 @@ NCode.Identity.Server.InstanceSetup.InstanceSetupCommandLine.RunAsync(System.ISe
 static NCode.Identity.Server.InstanceSetup.InstanceSetupCommandLine.GetHostArguments(string![]! args) -> string![]!
 static NCode.Identity.Server.InstanceSetup.InstanceSetupCommandLine.Parse(System.Collections.Generic.IReadOnlyList<string!>! args) -> NCode.Identity.Server.InstanceSetup.InstanceSetupCommandLine?
 static NCode.Identity.Server.InstanceSetup.InstanceSetupCommandLine.Usage.get -> string!
+const NCode.Identity.Server.Recovery.RevokeManagementKeyCommandLine.CommandName = "revoke-management-key" -> string!
+NCode.Identity.Server.Recovery.RevokeManagementKeyCommandLine
+NCode.Identity.Server.Recovery.RevokeManagementKeyCommandLine.Error.get -> string?
+NCode.Identity.Server.Recovery.RevokeManagementKeyCommandLine.KeyId.get -> string?
+NCode.Identity.Server.Recovery.RevokeManagementKeyCommandLine.RunAsync(System.IServiceProvider! services, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<int>
+static NCode.Identity.Server.Recovery.RevokeManagementKeyCommandLine.GetHostArguments(string![]! args) -> string![]!
+static NCode.Identity.Server.Recovery.RevokeManagementKeyCommandLine.Parse(System.Collections.Generic.IReadOnlyList<string!>! args) -> NCode.Identity.Server.Recovery.RevokeManagementKeyCommandLine?
+static NCode.Identity.Server.Recovery.RevokeManagementKeyCommandLine.Usage.get -> string!
