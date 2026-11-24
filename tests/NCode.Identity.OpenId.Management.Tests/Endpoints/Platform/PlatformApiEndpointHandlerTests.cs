@@ -29,6 +29,7 @@ using NCode.Identity.OpenId.Persistence.Stores;
 using NCode.Identity.OpenId.Platform;
 using NCode.Identity.OpenId.Settings;
 using NCode.Identity.OpenId.Tenants;
+using NCode.Identity.OpenId.Tenants.Keys;
 using NCode.Identity.Persistence.Stores;
 using NCode.Identity.Secrets.Persistence.Auditing;
 using NCode.Identity.Secrets.Persistence.Protection;
@@ -57,6 +58,7 @@ public sealed class PlatformApiEndpointHandlerTests : IDisposable
     private Mock<IMasterKeyManager> MockMasterKeyManager { get; }
     private Mock<IManagementAuditRecorder> MockManagementAuditRecorder { get; }
     private Mock<IPlatformDirectory> MockPlatformDirectory { get; }
+    private Mock<IManagementKeyRevoker> MockManagementKeyRevoker { get; }
     private PlatformApiEndpointHandler Handler { get; }
 
     public PlatformApiEndpointHandlerTests()
@@ -79,6 +81,7 @@ public sealed class PlatformApiEndpointHandlerTests : IDisposable
         MockMasterKeyManager = MockRepository.Create<IMasterKeyManager>();
         MockManagementAuditRecorder = MockRepository.Create<IManagementAuditRecorder>();
         MockPlatformDirectory = MockRepository.Create<IPlatformDirectory>();
+        MockManagementKeyRevoker = MockRepository.Create<IManagementKeyRevoker>();
 
         Handler = CreateHandler(isControlPlane: true);
     }
@@ -96,6 +99,7 @@ public sealed class PlatformApiEndpointHandlerTests : IDisposable
             MockMasterKeyManager.Object,
             MockManagementAuditRecorder.Object,
             MockPlatformDirectory.Object,
+            MockManagementKeyRevoker.Object,
             NullLogger<PlatformApiEndpointHandler>.Instance,
             Options.Create(new CellOptions { IsControlPlane = isControlPlane })
         );
@@ -1809,6 +1813,7 @@ public sealed class PlatformApiEndpointHandlerTests : IDisposable
     [InlineData("GET", "/platform/effective-settings", new[] { 401, 403, 404 })]
     [InlineData("GET", "/platform/encryption-keys", new[] { 401, 403, 404 })]
     [InlineData("POST", "/platform/encryption-keys/rekey", new[] { 401, 403, 404, 409, 412 })]
+    [InlineData("POST", "/platform/management-keys/{kid}/revoke", new[] { 401, 403, 404 })]
     public async Task Map_Always_DeclaresAndDescribesEveryProblemARouteAnswers(
         string httpMethod,
         string routePattern,
@@ -1841,6 +1846,7 @@ public sealed class PlatformApiEndpointHandlerTests : IDisposable
 
         Assert.Contains("/platform/settings", routes);
         Assert.Contains("/platform/encryption-keys/rekey", routes);
+        Assert.Contains("/platform/management-keys/{kid}/revoke", routes);
     }
 
     [Fact]
