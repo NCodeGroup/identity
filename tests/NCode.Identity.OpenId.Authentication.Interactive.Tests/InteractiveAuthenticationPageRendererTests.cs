@@ -444,6 +444,54 @@ public class InteractiveAuthenticationPageRendererTests
             html,
             StringComparison.Ordinal
         );
+        Assert.DoesNotContain("<option value=\"\"", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void RenderLoginPage_WithSeveralConnectionsAndNonePreselected_WritesASelectedBlankFirstOption()
+    {
+        var writer = new ArrayBufferWriter<char>();
+        InteractiveAuthenticationPageRenderer.RenderLoginPage(
+            writer,
+            CreateFrame(),
+            CreateForm("__RequestVerificationToken", "t") with
+            {
+                ReturnUrl = "/",
+                Connections = [("local", "Username and password"), ("staff", "Staff")],
+                SelectedConnection = null,
+            }
+        );
+        var html = writer.WrittenSpan.ToString();
+
+        Assert.Contains(
+            "<select id=\"connection\" name=\"connection\"><option value=\"\" selected></option><option value=\"local\">",
+            html,
+            StringComparison.Ordinal
+        );
+        Assert.DoesNotContain("\" selected>Username", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void RenderForgotPasswordPage_WithSeveralConnectionsAndNonePreselected_WritesASelectedBlankFirstOption()
+    {
+        var writer = new ArrayBufferWriter<char>();
+        InteractiveAuthenticationPageRenderer.RenderForgotPasswordPage(
+            writer,
+            CreateFrame(),
+            CreateForm("__RequestVerificationToken", "t") with
+            {
+                ReturnUrl = "/",
+                Connections = [("local", "Username and password"), ("staff", "Staff")],
+                SelectedConnection = null,
+            }
+        );
+        var html = writer.WrittenSpan.ToString();
+
+        Assert.Contains(
+            "<select id=\"connection\" name=\"connection\"><option value=\"\" selected></option><option value=\"local\">",
+            html,
+            StringComparison.Ordinal
+        );
     }
 
     [Fact]

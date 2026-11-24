@@ -94,12 +94,15 @@ export function readServerPage(container: HTMLElement, activeElement: Element | 
   let connections: ServerConnection[] = [];
   let selectedConnection: string | null = null;
   if (picker) {
-    connections = Array.from(picker.options).map((option) => ({
-      name: option.value,
-      displayName: option.textContent ?? option.value,
-    }));
-    const selected = Array.from(picker.options).find((option) => option.hasAttribute('selected'));
-    selectedConnection = selected ? selected.value : null;
+    // The blank option the host writes when it preselects none asks for a choice; it is not a connection.
+    connections = Array.from(picker.options)
+      .filter((option) => option.value !== '')
+      .map((option) => ({
+        name: option.value,
+        displayName: option.textContent ?? option.value,
+      }));
+    // The picker's live value, so a choice made before the bundle loaded is kept.
+    selectedConnection = picker.value === '' ? null : picker.value;
   } else if (hidden) {
     connections = [{ name: hidden.value, displayName: hidden.value }];
     selectedConnection = hidden.value;

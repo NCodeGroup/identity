@@ -547,7 +547,8 @@ internal static class InteractiveAuthenticationPageRenderer
 
     /// <summary>
     /// Writes the field that carries the connection a form signs in through: a select when several connections are
-    /// offered, a hidden input when one is, and nothing when none is.
+    /// offered, a hidden input when one is, and nothing when none is. The select starts with a selected blank option
+    /// when the form preselects no connection.
     /// </summary>
     /// <param name="writer">The buffer the field is written to.</param>
     /// <param name="messages">The messages of the page's locale.</param>
@@ -582,6 +583,13 @@ internal static class InteractiveAuthenticationPageRenderer
                 + ConnectionFieldName
                 + "\">"
         );
+        // With none preselected, a selected blank option asks for a choice, so a page without JavaScript never posts
+        // a connection the end user did not pick.
+        if (string.IsNullOrEmpty(form.SelectedConnection))
+        {
+            Write(writer, "<option value=\"\" selected></option>");
+        }
+
         foreach (var (name, displayName) in connections)
         {
             Write(writer, "<option value=\"");

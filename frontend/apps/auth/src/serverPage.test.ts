@@ -137,8 +137,23 @@ describe('readServerPage', () => {
 
     const page = readServerPage(container, null);
 
-    expect(page.connections).toHaveLength(3);
+    expect(page.connections).toEqual([
+      { name: 'local', displayName: 'Local' },
+      { name: 'corp', displayName: 'Corp' },
+    ]);
     expect(page.selectedConnection).toBeNull();
+  });
+
+  it('reads the live value of the picker, not its selected attribute', () => {
+    const container = pageOf(
+      '<select id="connection" name="connection"><option value=""></option><option value="local">Local</option><option value="corp">Corp</option></select>',
+    );
+    container.querySelector<HTMLSelectElement>('select#connection')!.value = 'corp';
+
+    const page = readServerPage(container, null);
+
+    expect(page.selectedConnection).toBe('corp');
+    expect(page.connections.map((connection) => connection.name)).toEqual(['local', 'corp']);
   });
 
   it('names an option by its value when it has no text', () => {
