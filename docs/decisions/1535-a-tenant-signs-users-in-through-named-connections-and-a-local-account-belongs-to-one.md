@@ -136,10 +136,13 @@ names, a user name and an email, whichever form the identifier takes and whateve
 tell which one matched; the user name's match wins. The two fields never shadow each other within a connection, whatever
 the setting says, because it can change later: a user name never equals another account's email and an email never
 equals another account's user name, so a sign-in identifier names one account. An account whose own user name equals its
-own email is allowed. The database indexes back each field; the validators guard the pair. The pair rule is the pure
-logic `LocalAccountIdentifierShadowing` in `NCode.Identity.OpenId.Accounts.Abstractions`, which both validators call:
-the management validator and the seeded-account validator of `NCode.Identity.Server`, implementation packages that
-cannot reference each other.
+own email is allowed. The database indexes back each field; the validators guard the pair. The per-field unique indexes
+hold whatever the timing; the validators check the pair before the write and the check is not atomic with it, so two
+concurrent writes can leave one account's user name equal to another's email, and a sign-in with that identifier finds
+the account whose user name matches, because the user name's match wins. The pair rule is the pure logic
+`LocalAccountIdentifierShadowing` in `NCode.Identity.OpenId.Accounts.Abstractions`, which both validators call: the
+management validator and the seeded-account validator of `NCode.Identity.Server`, implementation packages that cannot
+reference each other.
 
 The three modes are a closed vocabulary, which [ADR-1150](1150-vocabularies-are-open-unless-provably-closed.md)'s
 three-part test allows. They are fixed by the model: each names which of a local account's two identifier fields, the
