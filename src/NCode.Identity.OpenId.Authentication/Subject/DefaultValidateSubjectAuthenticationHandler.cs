@@ -126,6 +126,12 @@ internal class DefaultValidateSubjectAuthenticationHandler(
         return HandleConnectionAndAcrAsync(command, cancellationToken);
     }
 
+    /// <summary>
+    /// Validates the connection the subject signed in through and the requested acr values.
+    /// </summary>
+    /// <param name="command">The command that validates the subject.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    /// <returns>A task that completes when the validation has recorded any error on the command.</returns>
     private async ValueTask HandleConnectionAndAcrAsync(
         ValidateSubjectAuthenticationCommand command,
         CancellationToken cancellationToken
@@ -260,18 +266,17 @@ internal class DefaultValidateSubjectAuthenticationHandler(
         IReadOnlySettingCollection settings
     )
     {
-        // An unset allowlist imposes no restriction (ADR-1010); a set allowlist (which merges as a
-        // ceiling via intersection) is explicit, so a narrowed-to-empty list denies every connection.
-        if (!settings.TryGetValue(OpenIdSettingKeys.AllowedConnections, out var allowed))
-        {
-            return true;
-        }
-
-        // a connection name is compared as the connection store compares it: case-insensitively
-        return connection is not null
-            && allowed.Contains(connection.Name, StringComparer.OrdinalIgnoreCase);
+        return ConnectionAllowances.IsAllowed(settings, connection?.Name);
     }
 
+    /// <summary>
+    /// Determines whether the subject's connection matches the connection the request names.
+    /// </summary>
+    /// <param name="connection">The connection the subject signed in through, if any.</param>
+    /// <param name="openIdRequest">The protocol request, if any.</param>
+    /// <returns>
+    /// <see langword="true"/> when the request names no connection or names the subject's connection.
+    /// </returns>
     private static bool IsRequestedConnectionValid(
         ResolvedConnection? connection,
         IOpenIdRequest? openIdRequest

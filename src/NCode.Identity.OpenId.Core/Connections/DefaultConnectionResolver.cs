@@ -142,6 +142,15 @@ internal sealed class DefaultConnectionResolver(
         return new ConnectionSelection { Connection = selected };
     }
 
+    /// <summary>
+    /// Finds the enabled connection of a name that the client allows and resolves it.
+    /// </summary>
+    /// <param name="openIdContext">The context of the request.</param>
+    /// <param name="store">The tenant's connection store.</param>
+    /// <param name="clientSettings">The client's effective settings.</param>
+    /// <param name="name">The name of the connection.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    /// <returns>The resolved connection, or <see langword="null"/> when none is usable.</returns>
     private async ValueTask<ResolvedConnection?> FindUsableAsync(
         OpenIdContext openIdContext,
         IConnectionStore store,
@@ -156,6 +165,12 @@ internal sealed class DefaultConnectionResolver(
             : null;
     }
 
+    /// <summary>
+    /// Determines whether a connection is enabled and allowed by the client.
+    /// </summary>
+    /// <param name="clientSettings">The client's effective settings.</param>
+    /// <param name="connection">The stored connection.</param>
+    /// <returns><see langword="true"/> when the connection is enabled and the client allows it.</returns>
     private static bool IsAllowed(
         IReadOnlySettingCollection clientSettings,
         PersistedConnection connection
@@ -164,10 +179,16 @@ internal sealed class DefaultConnectionResolver(
         if (!connection.IsEnabled)
             return false;
 
-        return !clientSettings.TryGetValue(OpenIdSettingKeys.AllowedConnections, out var allowed)
-            || allowed.Contains(connection.Name, StringComparer.OrdinalIgnoreCase);
+        return ConnectionAllowances.IsAllowed(clientSettings, connection.Name);
     }
 
+    /// <summary>
+    /// Resolves a stored connection through its registered strategy and its effective settings.
+    /// </summary>
+    /// <param name="openIdContext">The context of the request.</param>
+    /// <param name="connection">The stored connection.</param>
+    /// <returns>The resolved connection, or <see langword="null"/> when no strategy of its name is
+    /// registered.</returns>
     private ResolvedConnection? Resolve(OpenIdContext openIdContext, PersistedConnection connection)
     {
         if (!StrategyCatalog.TryGetStrategy(connection.Strategy, out var strategy))
