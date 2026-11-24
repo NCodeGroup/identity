@@ -119,6 +119,19 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
         );
     }
 
+    // A store whose collaborators are strict mocks with no setups, so a call that reaches one fails the test.
+    private AspNetIdentityLocalAccountStore<TestTenantUser> CreateStoreWithoutServices()
+    {
+        var scopeFactory = Mocks.Create<IServiceScopeFactory>();
+        var storeProvider = Mocks.Create<IStoreProvider>();
+        return new AspNetIdentityLocalAccountStore<TestTenantUser>(
+            scopeFactory.Object,
+            storeProvider.Object,
+            new AspNetIdentityDummyPasswordHash<TestTenantUser>(),
+            TenantAccessor
+        );
+    }
+
     private Mock<IPasswordHasher<TestTenantUser>> CreatePasswordHasher() =>
         Mocks.Create<IPasswordHasher<TestTenantUser>>();
 
@@ -1207,6 +1220,31 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
     #region AddAsync Tests
 
     [Fact]
+    public async Task AddAsync_WhenTheUserNameEqualsTheAccountId_Throws()
+    {
+        var store = CreateStoreWithoutServices();
+        var account = new PersistedLocalAccount
+        {
+            TenantId = string.Empty,
+            ConnectionId = ConnectionId,
+            LocalAccountId = LocalAccountId,
+            UserName = LocalAccountId,
+            DisplayName = "Alice Example",
+            Email = null,
+            EmailVerified = false,
+            IsEnabled = true,
+            Claims = [],
+            ConcurrencyToken = string.Empty,
+        };
+
+        var exception = await Assert.ThrowsAsync<ArgumentException>(async () =>
+            await store.AddAsync(account, null, CancellationToken.None)
+        );
+
+        Assert.Equal("account", exception.ParamName);
+    }
+
+    [Fact]
     public async Task AddAsync_WhenPasswordAndClaims_StoresTheHashAndCreatesUserWithIdAndClaims()
     {
         var passwordHasher = CreatePasswordHasher();
@@ -1364,6 +1402,31 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
     #endregion
 
     #region UpdateAsync Tests
+
+    [Fact]
+    public async Task UpdateAsync_WhenTheUserNameEqualsTheAccountId_Throws()
+    {
+        var store = CreateStoreWithoutServices();
+        var account = new PersistedLocalAccount
+        {
+            TenantId = string.Empty,
+            ConnectionId = ConnectionId,
+            LocalAccountId = LocalAccountId,
+            UserName = LocalAccountId,
+            DisplayName = "Alice Example",
+            Email = null,
+            EmailVerified = false,
+            IsEnabled = true,
+            Claims = [],
+            ConcurrencyToken = string.Empty,
+        };
+
+        var exception = await Assert.ThrowsAsync<ArgumentException>(async () =>
+            await store.UpdateAsync(account, CancellationToken.None)
+        );
+
+        Assert.Equal("account", exception.ParamName);
+    }
 
     [Fact]
     public async Task UpdateAsync_WhenMissing_Throws()
@@ -1604,6 +1667,35 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
     #endregion
 
     #region ImportAsync Tests
+
+    [Fact]
+    public async Task ImportAsync_WhenARecordsUserNameEqualsTheAccountId_Throws()
+    {
+        var store = CreateStoreWithoutServices();
+        var record = new LocalAccountTransferRecord
+        {
+            LocalAccountId = LocalAccountId,
+            UserName = LocalAccountId,
+            DisplayName = "Alice Example",
+            NormalizedUserName = LocalAccountId,
+            Email = null,
+            NormalizedEmail = null,
+            EmailVerified = false,
+            PasswordHash = null,
+            SecurityStamp = SecurityStamp,
+            IsEnabled = true,
+            LockoutEnabled = false,
+            LockoutEnd = null,
+            AccessFailedCount = 0,
+            Claims = [],
+        };
+
+        var exception = await Assert.ThrowsAsync<ArgumentException>(async () =>
+            await store.ImportAsync(ConnectionId, [record], CancellationToken.None)
+        );
+
+        Assert.Equal("records", exception.ParamName);
+    }
 
     [Fact]
     public async Task ImportAsync_WhenARecordIsDisabledAndLockoutIsUnsupported_ThrowsBeforeCreatingIt()

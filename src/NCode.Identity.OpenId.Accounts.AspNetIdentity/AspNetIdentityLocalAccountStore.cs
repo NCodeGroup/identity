@@ -91,7 +91,7 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
             TenantId = string.Empty,
             ConnectionId = user.ConnectionId,
             LocalAccountId = user.Id,
-            UserName = ToAccountUserName(user, userName),
+            UserName = ToAccountUserName(user.Id, userName),
             DisplayName = user.DisplayName,
             Email = user.Email,
             EmailVerified = user.EmailConfirmed,
@@ -109,14 +109,46 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
     }
 
     /// <summary>
-    /// Gets the user name of the local account that a user maps to. A user whose ASP.NET Core Identity user name is its
-    /// identifier has no user name, because the store sets that user name only to satisfy the user manager.
+    /// Determines whether a user has no user name. A user whose ASP.NET Core Identity user name is its identifier has
+    /// none, because the store sets that user name only to satisfy the user manager. Every in-memory check of the rule
+    /// calls this method, and the queries that filter on it write the same comparison as a translatable expression.
     /// </summary>
-    /// <param name="user">The stored user.</param>
+    /// <param name="id">The user's identifier.</param>
+    /// <param name="userName">The user's ASP.NET Core Identity user name.</param>
+    /// <returns><c>true</c> when the user has no user name; otherwise, <c>false</c>.</returns>
+    private static bool HasNoUserName(string id, string? userName) =>
+        string.Equals(userName, id, StringComparison.Ordinal);
+
+    /// <summary>
+    /// Gets the user name of the local account that a user maps to.
+    /// </summary>
+    /// <param name="id">The user's identifier.</param>
     /// <param name="userName">The user's ASP.NET Core Identity user name.</param>
     /// <returns>The local account's user name, or <c>null</c> when it has none.</returns>
-    private static string? ToAccountUserName(TUser user, string userName) =>
-        string.Equals(userName, user.Id, StringComparison.Ordinal) ? null : userName;
+    private static string? ToAccountUserName(string id, string userName) =>
+        HasNoUserName(id, userName) ? null : userName;
+
+    /// <summary>
+    /// Refuses an account whose user name is its own identifier, which the store would read back as no user name.
+    /// </summary>
+    /// <param name="localAccountId">The account's identifier.</param>
+    /// <param name="userName">The account's user name, or <c>null</c> when it has none.</param>
+    /// <param name="paramName">The name of the parameter that carries the account.</param>
+    /// <exception cref="ArgumentException">The user name equals the account's identifier.</exception>
+    private static void ThrowIfUserNameIsId(
+        string localAccountId,
+        string? userName,
+        string paramName
+    )
+    {
+        if (userName is not null && HasNoUserName(localAccountId, userName))
+        {
+            throw new ArgumentException(
+                "A local account's user name cannot equal its own identifier, which the store keeps for an account with no user name.",
+                paramName
+            );
+        }
+    }
 
     /// <summary>
     /// Enables a user by clearing its lockout end date through the user manager when the store supports lockout. A
@@ -406,9 +438,7 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
             {
                 LocalAccountId = row.Id,
                 ConnectionId = row.ConnectionId,
-                UserName = string.Equals(userName, row.Id, StringComparison.Ordinal)
-                    ? null
-                    : userName,
+                UserName = ToAccountUserName(row.Id, userName),
                 DisplayName = row.DisplayName,
             };
             names.Add(name);
@@ -434,12 +464,15 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
         where TStore : IStore => StoreProvider.GetStore<TStore>();
 
     /// <inheritdoc />
+    /// <exception cref="ArgumentException">The account's user name equals its own identifier.</exception>
     public async ValueTask AddAsync(
         PersistedLocalAccount account,
         ReadOnlyMemory<byte>? password,
         CancellationToken cancellationToken
     )
     {
+        ThrowIfUserNameIsId(account.LocalAccountId, account.UserName, nameof(account));
+
         await using var scope = ServiceScopeFactory.CreateAsyncScope();
         var userManager = scope.ServiceProvider.GetRequiredService<UserManager<TUser>>();
         using var connectionScope = AmbientLookupConnection.BeginScope(account.ConnectionId);
@@ -496,11 +529,14 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
     }
 
     /// <inheritdoc />
+    /// <exception cref="ArgumentException">The account's user name equals its own identifier.</exception>
     public async ValueTask UpdateAsync(
         PersistedLocalAccount account,
         CancellationToken cancellationToken
     )
     {
+        ThrowIfUserNameIsId(account.LocalAccountId, account.UserName, nameof(account));
+
         await using var scope = ServiceScopeFactory.CreateAsyncScope();
         var userManager = scope.ServiceProvider.GetRequiredService<UserManager<TUser>>();
 
@@ -594,8 +630,8 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
                 cancellationToken
             );
 
-        // The limit counts the account the store found, or the identifier the end user submitted, and a refused password
-        // is verified against the dummy hash, so a refusal costs what a wrong password costs. See ADR-1237.
+        // The limit counts the account the store found, or the identifier the end user submitted, and a refused
+        // password is verified against the dummy hash, so a refusal costs what a wrong password costs. See ADR-1237.
         var accountKey = user is null
             ? LocalAccountAttemptKeys.ForIdentifier(
                 identifier.UserName ?? identifier.Email ?? string.Empty
@@ -730,6 +766,7 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
             normalizedNames.Add(normalizedName);
         }
 
+        // The query form of HasNoUserName, which a query provider translates.
         var matchingUsers = GetConnectionUsers(userManager, connectionId)
             .Where(user =>
                 normalizedNames.Contains(user.NormalizedUserName) && user.UserName != user.Id
@@ -859,7 +896,7 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
                 nameof(IdentityUser.SecurityStamp),
                 user.Id
             );
-            var accountUserName = ToAccountUserName(user, userName);
+            var accountUserName = ToAccountUserName(user.Id, userName);
             var passwordHash = await passwordStore.GetPasswordHashAsync(user, cancellationToken);
             var claims = await userManager.GetClaimsAsync(user);
             var isEnabled =
@@ -901,6 +938,7 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
     /// store contracts write one user at a time. Only a move imports a tenant's local accounts, while the tenant is
     /// disabled, so the cost is accepted.
     /// </remarks>
+    /// <exception cref="ArgumentException">A record's user name equals its own identifier.</exception>
     // See ADR-1514.
     public async ValueTask ImportAsync(
         string connectionId,
@@ -908,6 +946,11 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
         CancellationToken cancellationToken
     )
     {
+        foreach (var record in records)
+        {
+            ThrowIfUserNameIsId(record.LocalAccountId, record.UserName, nameof(records));
+        }
+
         await using var scope = ServiceScopeFactory.CreateAsyncScope();
         var userManager = scope.ServiceProvider.GetRequiredService<UserManager<TUser>>();
         using var connectionScope = AmbientLookupConnection.BeginScope(connectionId);
@@ -1139,7 +1182,7 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
         return
             user is not null
             && IsInConnection(user, tenantId, connectionId)
-            && !string.Equals(user.UserName, user.Id, StringComparison.Ordinal)
+            && !HasNoUserName(user.Id, user.UserName)
             ? user
             : null;
     }
@@ -1214,6 +1257,13 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
         return byUserName ?? byEmail;
     }
 
+    /// <summary>
+    /// Determines whether a user belongs to a connection of a tenant.
+    /// </summary>
+    /// <param name="user">The stored user.</param>
+    /// <param name="tenantId">The identifier of the tenant.</param>
+    /// <param name="connectionId">The identifier of the connection.</param>
+    /// <returns><c>true</c> when the user belongs to the connection of the tenant; otherwise, <c>false</c>.</returns>
     private static bool IsInConnection(TUser user, string tenantId, string connectionId) =>
         string.Equals(user.TenantId, tenantId, StringComparison.Ordinal)
         && string.Equals(user.ConnectionId, connectionId, StringComparison.Ordinal);
