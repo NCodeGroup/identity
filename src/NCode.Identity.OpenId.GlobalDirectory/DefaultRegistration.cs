@@ -36,7 +36,9 @@ public static class DefaultRegistration
         /// service that registers the cell with the directory when the host starts, retrying while the directory is
         /// unavailable, and a hosted service that follows the directory's change feed: every
         /// <see cref="DirectoryClientOptions.PollInterval"/> one replica of a cell that is not the control plane
-        /// mirrors the published team and platform documents into the cell. A cell that is not the control plane
+        /// mirrors the published team and platform documents into the cell, and a hosted service of the control-plane
+        /// cell publishes its outbox of replicated documents to the directory every
+        /// <see cref="DirectoryClientOptions.PublishInterval"/> and when a commit wakes it. A cell that is not the control plane
         /// (<see cref="CellOptions.IsControlPlane"/> is <c>false</c>) uses the <see cref="IManagementTokenValidator"/>
         /// that validates management tokens against <c>Cell:ControlPlane:Issuer</c> and the
         /// <see cref="IControlPlaneAuthority"/> that asks the control-plane cell's <c>control-plane/v1/authority</c>
@@ -141,6 +143,11 @@ public static class DefaultRegistration
                 DirectoryChangeFeedService
             >();
             serviceCollection.TryAddEnumerable(changeFeedService);
+            var outboxPublisher = ServiceDescriptor.Singleton<
+                IHostedService,
+                DirectoryOutboxPublisher
+            >();
+            serviceCollection.TryAddEnumerable(outboxPublisher);
 
             return builder;
         }

@@ -64,4 +64,10 @@ public sealed class DirectoryClientOptions
     /// default is 5 seconds.
     /// </summary>
     public TimeSpan TokenFailureCacheDuration { get; set; } = TimeSpan.FromSeconds(5);
+
+    /// <summary>
+    /// Gets or sets how long the control-plane cell's publisher waits for a wake-up when its outbox is empty before it
+    /// looks again. It is a timer period, from 1 millisecond to about 49.7 days. The default is 5 seconds.
+    /// </summary>
+    public TimeSpan PublishInterval { get; set; } = TimeSpan.FromSeconds(5);
 }

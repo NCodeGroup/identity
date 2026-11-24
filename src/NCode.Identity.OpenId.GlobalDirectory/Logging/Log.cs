@@ -56,4 +56,40 @@ internal static partial class Log
         Exception exception,
         long sequence
     );
+
+    [LoggerMessage(
+        EventId = EventIds.DirectoryOutboxUnavailable,
+        Level = LogLevel.Warning,
+        Message = "Publishing the outbox to the global directory failed on attempt {Attempt} because the directory is unavailable; retrying in {Delay}."
+    )]
+    internal static partial void DirectoryOutboxUnavailable(
+        this ILogger logger,
+        Exception exception,
+        int attempt,
+        TimeSpan delay
+    );
+
+    [LoggerMessage(
+        EventId = EventIds.DirectoryOutboxPublishFailed,
+        Level = LogLevel.Error,
+        Message = "Publishing the outbox to the global directory failed on attempt {Attempt}; retrying in {Delay}."
+    )]
+    internal static partial void DirectoryOutboxPublishFailed(
+        this ILogger logger,
+        Exception exception,
+        int attempt,
+        TimeSpan delay
+    );
+
+    [LoggerMessage(
+        EventId = EventIds.DirectoryOutboxRepublished,
+        Level = LogLevel.Information,
+        Message = "Republished the {Kind} document '{Key}' at revision {Revision}, because the global directory held a higher one."
+    )]
+    internal static partial void DirectoryOutboxRepublished(
+        this ILogger logger,
+        string kind,
+        string key,
+        long revision
+    );
 }

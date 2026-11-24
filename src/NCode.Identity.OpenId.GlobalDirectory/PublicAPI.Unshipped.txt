@@ -11,6 +11,8 @@ NCode.Identity.OpenId.GlobalDirectory.DirectoryClientOptions.KeyRing.get -> stri
 NCode.Identity.OpenId.GlobalDirectory.DirectoryClientOptions.KeyRing.set -> void
 NCode.Identity.OpenId.GlobalDirectory.DirectoryClientOptions.PollInterval.get -> System.TimeSpan
 NCode.Identity.OpenId.GlobalDirectory.DirectoryClientOptions.PollInterval.set -> void
+NCode.Identity.OpenId.GlobalDirectory.DirectoryClientOptions.PublishInterval.get -> System.TimeSpan
+NCode.Identity.OpenId.GlobalDirectory.DirectoryClientOptions.PublishInterval.set -> void
 NCode.Identity.OpenId.GlobalDirectory.DirectoryClientOptions.RequestTimeout.get -> System.TimeSpan
 NCode.Identity.OpenId.GlobalDirectory.DirectoryClientOptions.RequestTimeout.set -> void
 NCode.Identity.OpenId.GlobalDirectory.DirectoryClientOptions.TokenFailureCacheDuration.get -> System.TimeSpan

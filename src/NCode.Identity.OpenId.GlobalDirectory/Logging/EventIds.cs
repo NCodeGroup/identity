@@ -37,4 +37,22 @@ internal static class EventIds
     /// change after it, and the next interval retries it.
     /// </summary>
     public const int DirectoryChangeApplyFailed = Base + 4;
+
+    /// <summary>
+    /// Identifies the warning that publishing the control-plane cell's outbox failed because the directory is
+    /// unavailable; the publisher retries after a delay.
+    /// </summary>
+    public const int DirectoryOutboxUnavailable = Base + 5;
+
+    /// <summary>
+    /// Identifies the error that publishing the control-plane cell's outbox failed; the publisher retries after a
+    /// delay.
+    /// </summary>
+    public const int DirectoryOutboxPublishFailed = Base + 6;
+
+    /// <summary>
+    /// Identifies the information that the publisher republished a document whose local revision was behind the
+    /// directory's.
+    /// </summary>
+    public const int DirectoryOutboxRepublished = Base + 7;
 }
