@@ -245,40 +245,6 @@ internal sealed class LocalAccountStore(
     }
 
     /// <inheritdoc />
-    public async ValueTask<IReadOnlyList<PersistedLocalAccount>> GetByIdsAsync(
-        IReadOnlyCollection<string> localAccountIds,
-        CancellationToken cancellationToken
-    )
-    {
-        if (localAccountIds.Count == 0)
-        {
-            return [];
-        }
-
-        var normalizedIds = new List<string>(localAccountIds.Count);
-        foreach (var localAccountId in localAccountIds)
-        {
-            var normalizedId = Normalize(localAccountId);
-            normalizedIds.Add(normalizedId);
-        }
-
-        var entities = await Accounts
-            .Include(entity => entity.Tenant)
-            .Include(entity => entity.Claims)
-            .Where(entity => normalizedIds.Contains(entity.NormalizedLocalAccountId))
-            .ToListAsync(cancellationToken);
-
-        var accounts = new List<PersistedLocalAccount>(entities.Count);
-        foreach (var entity in entities)
-        {
-            var account = MapFromEntity(entity);
-            accounts.Add(account);
-        }
-
-        return accounts;
-    }
-
-    /// <inheritdoc />
     public async ValueTask<IReadOnlyList<LocalAccountNameProjection>> GetNamesByIdsAsync(
         IReadOnlyCollection<string> localAccountIds,
         CancellationToken cancellationToken
@@ -305,40 +271,6 @@ internal sealed class LocalAccountStore(
                 DisplayName = entity.DisplayName,
             })
             .ToListAsync(cancellationToken);
-    }
-
-    /// <inheritdoc />
-    public async ValueTask<IReadOnlyList<PersistedLocalAccount>> GetByUserNamesAsync(
-        IReadOnlyCollection<string> userNames,
-        CancellationToken cancellationToken
-    )
-    {
-        if (userNames.Count == 0)
-        {
-            return [];
-        }
-
-        var normalizedUserNames = new List<string>(userNames.Count);
-        foreach (var userName in userNames)
-        {
-            var normalizedUserName = Normalize(userName);
-            normalizedUserNames.Add(normalizedUserName);
-        }
-
-        var entities = await Accounts
-            .Include(entity => entity.Tenant)
-            .Include(entity => entity.Claims)
-            .Where(entity => normalizedUserNames.Contains(entity.NormalizedUserName))
-            .ToListAsync(cancellationToken);
-
-        var accounts = new List<PersistedLocalAccount>(entities.Count);
-        foreach (var entity in entities)
-        {
-            var account = MapFromEntity(entity);
-            accounts.Add(account);
-        }
-
-        return accounts;
     }
 
     /// <inheritdoc />

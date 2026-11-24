@@ -104,19 +104,6 @@ public interface ILocalAccountStore : IStore
     );
 
     /// <summary>
-    /// Gets the local accounts from the store that have any of the specified opaque identifiers (their self-issued
-    /// subjects); an identifier no account has contributes none.
-    /// </summary>
-    /// <param name="localAccountIds">The opaque identifiers of the local accounts.</param>
-    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
-    /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation, containing the matching
-    /// <see cref="PersistedLocalAccount"/> records in no particular order.</returns>
-    ValueTask<IReadOnlyList<PersistedLocalAccount>> GetByIdsAsync(
-        IReadOnlyCollection<string> localAccountIds,
-        CancellationToken cancellationToken
-    );
-
-    /// <summary>
     /// Gets the names of the local accounts from the store that have any of the specified opaque identifiers (their
     /// self-issued subjects); an identifier no account has contributes none. It reads none of the accounts' claims.
     /// </summary>
@@ -138,19 +125,6 @@ public interface ILocalAccountStore : IStore
     /// <see cref="PersistedLocalAccount"/> if found; otherwise <c>null</c>.</returns>
     ValueTask<PersistedLocalAccount?> GetByUserNameOrDefaultAsync(
         string userName,
-        CancellationToken cancellationToken
-    );
-
-    /// <summary>
-    /// Gets the local accounts from the store that have any of the specified usernames (login handles); a name no
-    /// account has contributes none.
-    /// </summary>
-    /// <param name="userNames">The usernames of the local accounts.</param>
-    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
-    /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation, containing the matching
-    /// <see cref="PersistedLocalAccount"/> records in no particular order.</returns>
-    ValueTask<IReadOnlyList<PersistedLocalAccount>> GetByUserNamesAsync(
-        IReadOnlyCollection<string> userNames,
         CancellationToken cancellationToken
     );
 

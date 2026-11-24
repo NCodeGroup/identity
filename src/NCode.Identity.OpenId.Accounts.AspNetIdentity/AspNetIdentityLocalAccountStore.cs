@@ -371,29 +371,6 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
         );
 
     /// <summary>
-    /// Maps each user of a list to a <see cref="PersistedLocalAccount"/>.
-    /// </summary>
-    /// <param name="userManager">The <see cref="UserManager{TUser}"/> that reads the claims and lockout.</param>
-    /// <param name="users">The stored users to map.</param>
-    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
-    /// <returns>The local accounts that the users map to, in the order of the users.</returns>
-    private static async ValueTask<IReadOnlyList<PersistedLocalAccount>> MapAllAsync(
-        UserManager<TUser> userManager,
-        List<TUser> users,
-        CancellationToken cancellationToken
-    )
-    {
-        var accounts = new List<PersistedLocalAccount>(users.Count);
-        foreach (var user in users)
-        {
-            var account = await MapAsync(userManager, user, cancellationToken);
-            accounts.Add(account);
-        }
-
-        return accounts;
-    }
-
-    /// <summary>
     /// Reads the names of the users that a query yields, fetching only the identifier, user name and display name
     /// columns.
     /// </summary>
@@ -666,31 +643,6 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
     }
 
     /// <inheritdoc />
-    /// <remarks>
-    /// The matching users are read in one query. ASP.NET Core Identity's claim store reads the claims of one user at a
-    /// time, so each matched account's claims are read with a call of its own, one query per account over ASP.NET Core
-    /// Identity's Entity Framework store.
-    /// </remarks>
-    public async ValueTask<IReadOnlyList<PersistedLocalAccount>> GetByIdsAsync(
-        IReadOnlyCollection<string> localAccountIds,
-        CancellationToken cancellationToken
-    )
-    {
-        if (localAccountIds.Count == 0)
-        {
-            return [];
-        }
-
-        await using var scope = ServiceScopeFactory.CreateAsyncScope();
-        var userManager = scope.ServiceProvider.GetRequiredService<UserManager<TUser>>();
-
-        var ids = new List<string>(localAccountIds);
-        var matchingUsers = GetTenantUsers(userManager).Where(user => ids.Contains(user.Id));
-        var users = await ToListAsync(matchingUsers, cancellationToken);
-        return await MapAllAsync(userManager, users, cancellationToken);
-    }
-
-    /// <inheritdoc />
     public async ValueTask<IReadOnlyList<LocalAccountNameProjection>> GetNamesByIdsAsync(
         IReadOnlyCollection<string> localAccountIds,
         CancellationToken cancellationToken
@@ -708,44 +660,6 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
         var matchingUsers = GetTenantUsers(userManager).Where(user => ids.Contains(user.Id));
 
         return await ReadNamesAsync(matchingUsers, cancellationToken);
-    }
-
-    /// <inheritdoc />
-    /// <remarks>
-    /// The matching users are read in one query. ASP.NET Core Identity's claim store reads the claims of one user at a
-    /// time, so each matched account's claims are read with a call of its own, one query per account over ASP.NET Core
-    /// Identity's Entity Framework store.
-    /// </remarks>
-    public async ValueTask<IReadOnlyList<PersistedLocalAccount>> GetByUserNamesAsync(
-        IReadOnlyCollection<string> userNames,
-        CancellationToken cancellationToken
-    )
-    {
-        if (userNames.Count == 0)
-        {
-            return [];
-        }
-
-        await using var scope = ServiceScopeFactory.CreateAsyncScope();
-        var userManager = scope.ServiceProvider.GetRequiredService<UserManager<TUser>>();
-
-        // As FindByNameAsync: a user name is unique only within a tenant.
-        if (GetCurrentTenantId() is null)
-        {
-            return AmbientTenantAccessor.IsUnscoped ? throw CreateUserNameScopeException() : [];
-        }
-
-        var normalizedNames = new List<string?>(userNames.Count);
-        foreach (var userName in userNames)
-        {
-            var normalizedName = userManager.NormalizeName(userName);
-            normalizedNames.Add(normalizedName);
-        }
-
-        var matchingUsers = GetTenantUsers(userManager)
-            .Where(user => normalizedNames.Contains(user.NormalizedUserName));
-        var users = await ToListAsync(matchingUsers, cancellationToken);
-        return await MapAllAsync(userManager, users, cancellationToken);
     }
 
     /// <inheritdoc />
