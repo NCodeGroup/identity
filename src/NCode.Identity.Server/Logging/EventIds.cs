@@ -105,4 +105,29 @@ internal static class EventIds
     /// Identifies the error that the recover-admin command failed with an exception.
     /// </summary>
     public const int RecoverAdminCommandFailed = Base + 38;
+
+    /// <summary>
+    /// Identifies the error that the recover-sign-in command line is invalid.
+    /// </summary>
+    public const int RecoverSignInCommandUsageInvalid = Base + 39;
+
+    /// <summary>
+    /// Identifies the error that the recover-sign-in command ran in a workload cell without a management tenant.
+    /// </summary>
+    public const int RecoverSignInCommandNoManagementTenant = Base + 40;
+
+    /// <summary>
+    /// Identifies the information that the recover-sign-in command made one change.
+    /// </summary>
+    public const int RecoverSignInCommandChanged = Base + 41;
+
+    /// <summary>
+    /// Identifies the information that the recover-sign-in command repaired the sign-in.
+    /// </summary>
+    public const int RecoverSignInCommandRepaired = Base + 42;
+
+    /// <summary>
+    /// Identifies the error that the recover-sign-in command failed with an exception.
+    /// </summary>
+    public const int RecoverSignInCommandFailed = Base + 43;
 }

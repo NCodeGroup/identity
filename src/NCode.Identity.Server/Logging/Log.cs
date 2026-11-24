@@ -368,4 +368,51 @@ internal static partial class Log
         this ILogger logger,
         Exception exception
     );
+
+    [LoggerMessage(
+        EventId = EventIds.RecoverSignInCommandUsageInvalid,
+        Level = LogLevel.Error,
+        Message = "The recover-sign-in command line is invalid: {Error} {Usage}"
+    )]
+    internal static partial void RecoverSignInCommandUsageInvalid(
+        this ILogger logger,
+        string error,
+        string usage
+    );
+
+    [LoggerMessage(
+        EventId = EventIds.RecoverSignInCommandNoManagementTenant,
+        Level = LogLevel.Error,
+        Message = "The recover-sign-in command repairs the management tenant of a cell; this cell is a workload cell without one."
+    )]
+    internal static partial void RecoverSignInCommandNoManagementTenant(this ILogger logger);
+
+    [LoggerMessage(
+        EventId = EventIds.RecoverSignInCommandChanged,
+        Level = LogLevel.Information,
+        Message = "Repaired the sign-in: {Scope} '{Name}' changed; the value before was {Before}."
+    )]
+    internal static partial void RecoverSignInCommandChanged(
+        this ILogger logger,
+        string scope,
+        string name,
+        string? before
+    );
+
+    [LoggerMessage(
+        EventId = EventIds.RecoverSignInCommandRepaired,
+        Level = LogLevel.Information,
+        Message = "The recover-sign-in command made {Count} change(s)."
+    )]
+    internal static partial void RecoverSignInCommandRepaired(this ILogger logger, int count);
+
+    [LoggerMessage(
+        EventId = EventIds.RecoverSignInCommandFailed,
+        Level = LogLevel.Error,
+        Message = "The recover-sign-in command failed; the sign-in is not repaired."
+    )]
+    internal static partial void RecoverSignInCommandFailed(
+        this ILogger logger,
+        Exception exception
+    );
 }

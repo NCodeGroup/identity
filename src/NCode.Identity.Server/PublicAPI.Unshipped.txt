@@ -246,3 +246,10 @@ NCode.Identity.Server.Recovery.RecoverAdminCommandLine.RunAsync(System.IServiceP
 static NCode.Identity.Server.Recovery.RecoverAdminCommandLine.GetHostArguments(string![]! args) -> string![]!
 static NCode.Identity.Server.Recovery.RecoverAdminCommandLine.Parse(System.Collections.Generic.IReadOnlyList<string!>! args) -> NCode.Identity.Server.Recovery.RecoverAdminCommandLine?
 static NCode.Identity.Server.Recovery.RecoverAdminCommandLine.Usage.get -> string!
+const NCode.Identity.Server.Recovery.RecoverSignInCommandLine.CommandName = "recover-sign-in" -> string!
+NCode.Identity.Server.Recovery.RecoverSignInCommandLine
+NCode.Identity.Server.Recovery.RecoverSignInCommandLine.Error.get -> string?
+NCode.Identity.Server.Recovery.RecoverSignInCommandLine.RunAsync(System.IServiceProvider! services, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<int>
+static NCode.Identity.Server.Recovery.RecoverSignInCommandLine.GetHostArguments(string![]! args) -> string![]!
+static NCode.Identity.Server.Recovery.RecoverSignInCommandLine.Parse(System.Collections.Generic.IReadOnlyList<string!>! args) -> NCode.Identity.Server.Recovery.RecoverSignInCommandLine?
+static NCode.Identity.Server.Recovery.RecoverSignInCommandLine.Usage.get -> string!
