@@ -38,6 +38,7 @@ public class LocalAccountMailComposerTests
                 AuthorizationErrorTitle = "AuthorizationErrorTitle",
                 InvalidCredentialsError = "InvalidCredentialsError",
                 MissingCredentialsError = "MissingCredentialsError",
+                ConnectionRequiredError = "ConnectionRequiredError",
                 AccessDeniedError = "AccessDeniedError",
                 SignInFailedError = "SignInFailedError",
                 ForgotPasswordLink = "ForgotPasswordLink",

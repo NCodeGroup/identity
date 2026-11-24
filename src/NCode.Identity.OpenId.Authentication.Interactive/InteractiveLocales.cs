@@ -50,6 +50,7 @@ public static class InteractiveLocales
                 AuthorizationErrorTitle = "Authorization error",
                 InvalidCredentialsError = "The username or password is incorrect.",
                 MissingCredentialsError = "Enter both a username and a password.",
+                ConnectionRequiredError = "Choose a connection.",
                 AccessDeniedError = "This account cannot sign in. Contact your administrator.",
                 SignInFailedError = "Sign-in failed. Please try again.",
                 ForgotPasswordLink = "Forgot your password?",
@@ -117,6 +118,7 @@ public static class InteractiveLocales
                 InvalidCredentialsError = "Der Benutzername oder das Passwort ist falsch.",
                 MissingCredentialsError =
                     "Geben Sie sowohl einen Benutzernamen als auch ein Passwort ein.",
+                ConnectionRequiredError = "Wählen Sie eine Verbindung aus.",
                 AccessDeniedError =
                     "Dieses Konto kann sich nicht anmelden. Wenden Sie sich an Ihren Administrator.",
                 SignInFailedError =
@@ -186,6 +188,7 @@ public static class InteractiveLocales
                 AuthorizationErrorTitle = "Error de autorización",
                 InvalidCredentialsError = "El nombre de usuario o la contraseña no son correctos.",
                 MissingCredentialsError = "Introduzca un nombre de usuario y una contraseña.",
+                ConnectionRequiredError = "Elija una conexión.",
                 AccessDeniedError =
                     "Esta cuenta no puede iniciar sesión. Póngase en contacto con su administrador.",
                 SignInFailedError = "No se pudo iniciar sesión. Inténtelo de nuevo.",
@@ -254,6 +257,7 @@ public static class InteractiveLocales
                 AuthorizationErrorTitle = "Erreur d’autorisation",
                 InvalidCredentialsError = "Le nom d’utilisateur ou le mot de passe est incorrect.",
                 MissingCredentialsError = "Saisissez un nom d’utilisateur et un mot de passe.",
+                ConnectionRequiredError = "Choisissez une connexion.",
                 AccessDeniedError =
                     "Ce compte ne peut pas se connecter. Contactez votre administrateur.",
                 SignInFailedError = "La connexion a échoué. Veuillez réessayer.",

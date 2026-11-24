@@ -193,6 +193,7 @@ describe('describeLoginError', () => {
     expect(describeLoginError(null, en)).toBeNull();
     expect(describeLoginError('invalid_credentials', en)).toMatch(/incorrect/i);
     expect(describeLoginError('invalid_request', en)).toMatch(/username and a password/i);
+    expect(describeLoginError('connection_required', en)).toBe(en.loginErrors.connectionRequired);
     expect(describeLoginError('access_denied', en)).toMatch(/cannot sign in/i);
     expect(describeLoginError('too_many_codes', en)).toBe(en.emailCodeErrors.tooManyCodes);
     expect(describeLoginError('boom', en)).toMatch(/failed/i);
@@ -244,6 +245,12 @@ describe('describeEmailCodeError', () => {
 
   it('maps a missing field to the login message for it', () => {
     expect(describeEmailCodeError('invalid_request', en)).toBe(en.emailCodeErrors.missingFields);
+  });
+
+  it('maps a missing connection to the login message for it', () => {
+    expect(describeEmailCodeError('connection_required', en)).toBe(
+      en.loginErrors.connectionRequired,
+    );
   });
 
   it('maps the password policy codes through the change-password messages', () => {

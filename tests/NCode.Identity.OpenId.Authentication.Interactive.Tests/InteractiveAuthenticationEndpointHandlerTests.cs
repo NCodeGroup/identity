@@ -363,6 +363,55 @@ public sealed class InteractiveAuthenticationEndpointHandlerTests : IDisposable
     }
 
     [Fact]
+    public async Task PostForgotPasswordAsync_WhenNoConnectionIsPosted_RedirectsBackWithConnectionRequired()
+    {
+        var mockCatalog = MockRepository.Create<IUiLocaleCatalog>();
+        mockCatalog.SetupGet(x => x.Locales).Returns([TestLocales.Xx]).Verifiable();
+        var mockContext = MockRepository.Create<OpenIdContext>();
+        var mockFeature = MockRepository.Create<IOpenIdContextFeature>();
+        mockFeature.SetupGet(x => x.OpenIdContext).Returns(mockContext.Object).Verifiable();
+
+        var mockConnections = MockRepository.Create<ISignInConnectionService>();
+        mockConnections
+            .Setup(x => x.SelectAsync(mockContext.Object, null, "", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(
+                new ConnectionSelection { ErrorDescription = "No connection is available." }
+            )
+            .Verifiable();
+
+        var mockTenantResolver = MockRepository.Create<ITenantResolver>();
+        mockTenantResolver
+            .Setup(x => x.GetTenantRoute())
+            .Returns(RoutePatternFactory.Parse("/{tenantId}"))
+            .Verifiable();
+
+        using var serviceProvider = new ServiceCollection().AddRouting().BuildServiceProvider();
+        using var bundle = new SinglePageBundle<InteractiveBundleShell>(null, _ => null);
+        var handler = CreateHandler(
+            mockCatalog.Object,
+            mockTenantResolver.Object,
+            serviceProvider,
+            bundle,
+            signInConnectionService: mockConnections.Object
+        );
+
+        var httpContext = new DefaultHttpContext();
+        httpContext.Features.Set(mockFeature.Object);
+        httpContext.Request.RouteValues["tenantId"] = "acme";
+
+        var result = await handler.PostForgotPasswordAsync(
+            httpContext,
+            "alice",
+            connection: "",
+            returnUrl: null,
+            uiLocales: null
+        );
+
+        var redirect = Assert.IsType<RedirectHttpResult>(result);
+        Assert.Equal("/acme/account/password/forgot?error=connection_required", redirect.Url);
+    }
+
+    [Fact]
     public async Task PostForgotPasswordAsync_WhenTheSelectedConnectionDisablesReset_IsNotFound()
     {
         var mockCatalog = MockRepository.Create<IUiLocaleCatalog>();
@@ -980,6 +1029,69 @@ public sealed class InteractiveAuthenticationEndpointHandlerTests : IDisposable
         Assert.Equal(messages.TooManyCodesError, result);
     }
 
+    [Fact]
+    public void DescribeLoginError_WhenNoConnectionIsChosen_ReturnsTheConnectionRequiredMessage()
+    {
+        var messages = TestLocales.Xx.Messages;
+
+        var result = InteractiveAuthenticationEndpointHandler.DescribeLoginError(
+            InteractiveAuthenticationEndpointHandler.ConnectionRequiredCode,
+            messages
+        );
+
+        Assert.Equal(messages.ConnectionRequiredError, result);
+    }
+
+    [Fact]
+    public async Task PostLoginAsync_WhenNoConnectionIsPosted_RedirectsBackWithConnectionRequired()
+    {
+        var mockCatalog = MockRepository.Create<IUiLocaleCatalog>();
+        mockCatalog.SetupGet(x => x.Locales).Returns([TestLocales.Xx]).Verifiable();
+        var mockContext = MockRepository.Create<OpenIdContext>();
+        var mockFeature = MockRepository.Create<IOpenIdContextFeature>();
+        mockFeature.SetupGet(x => x.OpenIdContext).Returns(mockContext.Object).Verifiable();
+
+        var mockConnections = MockRepository.Create<ISignInConnectionService>();
+        mockConnections
+            .Setup(x => x.SelectAsync(mockContext.Object, "/", "", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(
+                new ConnectionSelection { ErrorDescription = "No connection is available." }
+            )
+            .Verifiable();
+
+        var mockTenantResolver = MockRepository.Create<ITenantResolver>();
+        mockTenantResolver
+            .Setup(x => x.GetTenantRoute())
+            .Returns(RoutePatternFactory.Parse("/{tenantId}"))
+            .Verifiable();
+
+        using var serviceProvider = new ServiceCollection().AddRouting().BuildServiceProvider();
+        using var bundle = new SinglePageBundle<InteractiveBundleShell>(null, _ => null);
+        var handler = CreateHandler(
+            mockCatalog.Object,
+            mockTenantResolver.Object,
+            serviceProvider,
+            bundle,
+            signInConnectionService: mockConnections.Object
+        );
+
+        var httpContext = new DefaultHttpContext();
+        httpContext.Features.Set(mockFeature.Object);
+        httpContext.Request.RouteValues["tenantId"] = "acme";
+
+        var result = await handler.PostLoginAsync(
+            httpContext,
+            "alice",
+            "secret",
+            connection: "",
+            returnUrl: null,
+            uiLocales: null
+        );
+
+        var redirect = Assert.IsType<RedirectHttpResult>(result);
+        Assert.Contains("error=connection_required", redirect.Url, StringComparison.Ordinal);
+    }
+
     #endregion
 
     #region DescribeSignInCodeError Tests
@@ -1038,6 +1150,19 @@ public sealed class InteractiveAuthenticationEndpointHandlerTests : IDisposable
         );
 
         Assert.Equal(messages.PasswordRefusedError, result);
+    }
+
+    [Fact]
+    public void DescribePasswordResetError_WhenNoConnectionIsChosen_ReturnsTheConnectionRequiredMessage()
+    {
+        var messages = TestLocales.Xx.Messages;
+
+        var result = InteractiveAuthenticationEndpointHandler.DescribePasswordResetError(
+            InteractiveAuthenticationEndpointHandler.ConnectionRequiredCode,
+            messages
+        );
+
+        Assert.Equal(messages.ConnectionRequiredError, result);
     }
 
     [Fact]

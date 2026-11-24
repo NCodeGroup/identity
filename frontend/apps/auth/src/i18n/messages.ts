@@ -24,6 +24,7 @@ export type Messages = {
   readonly loginErrors: {
     readonly invalidCredentials: string;
     readonly invalidRequest: string;
+    readonly connectionRequired: string;
     readonly accessDenied: string;
     readonly fallback: string;
   };

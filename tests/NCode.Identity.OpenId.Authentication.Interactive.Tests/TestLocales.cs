@@ -31,6 +31,7 @@ internal static class TestLocales
                 AuthorizationErrorTitle = "Xx error title",
                 InvalidCredentialsError = "Xx invalid credentials",
                 MissingCredentialsError = "Xx missing credentials",
+                ConnectionRequiredError = "Xx connection required",
                 AccessDeniedError = "Xx access denied",
                 SignInFailedError = "Xx sign-in failed",
                 ForgotPasswordLink = "Xx forgot link",

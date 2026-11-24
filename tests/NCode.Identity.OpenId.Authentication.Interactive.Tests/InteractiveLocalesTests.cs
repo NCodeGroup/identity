@@ -90,6 +90,7 @@ public class InteractiveLocalesTests
             messages.AuthorizationErrorTitle,
             messages.InvalidCredentialsError,
             messages.MissingCredentialsError,
+            messages.ConnectionRequiredError,
             messages.AccessDeniedError,
             messages.SignInFailedError,
             messages.ForgotPasswordLink,
@@ -153,6 +154,7 @@ public class InteractiveLocalesTests
                 [
                     messages.InvalidCredentialsError,
                     messages.MissingCredentialsError,
+                    messages.ConnectionRequiredError,
                     messages.AccessDeniedError,
                     messages.SignInFailedError,
                 ];
@@ -198,6 +200,7 @@ public class InteractiveLocalesTests
             messages.AuthorizationErrorTitle,
             messages.InvalidCredentialsError,
             messages.MissingCredentialsError,
+            messages.ConnectionRequiredError,
             messages.AccessDeniedError,
             messages.SignInFailedError,
             messages.ForgotPasswordLink,

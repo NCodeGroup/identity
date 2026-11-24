@@ -72,6 +72,9 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
     // The `error` query value the login page reads back when the credentials are wrong.
     private const string InvalidCredentialsCode = "invalid_credentials";
 
+    // The `error` query value the login and forgot-password pages read back when the form posts no connection.
+    internal const string ConnectionRequiredCode = "connection_required";
+
     // The `error` and `status` query values the change-password page reads back to show its message.
     private const string ErrorQueryName = "error";
     private const string StatusQueryName = "status";
@@ -432,10 +435,15 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
         );
         if (selection.Connection is not { } selectedConnection)
         {
+            // The service answers a posted name it does not offer and an empty one with the same refusal, so the
+            // handler tells them apart by the posted name.
+            var refusedConnectionCode = string.IsNullOrEmpty(connection)
+                ? ConnectionRequiredCode
+                : OpenIdProtocol.ErrorCodes.InvalidRequest;
             var refusedConnectionRedirect = BuildLoginRedirect(
                 httpContext,
                 safeReturnUrl,
-                OpenIdProtocol.ErrorCodes.InvalidRequest,
+                refusedConnectionCode,
                 languageTag
             );
             return TypedResults.Redirect(refusedConnectionRedirect);
@@ -1493,12 +1501,16 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
         );
         if (string.IsNullOrEmpty(username) || selection.Connection is not { } selectedConnection)
         {
+            var forgotError =
+                selection.Connection is null && string.IsNullOrEmpty(connection)
+                    ? ConnectionRequiredCode
+                    : InteractivePasswordChangeErrors.InvalidRequest;
             return RedirectToSurfacePage(
                 httpContext,
                 InteractiveAuthenticationDefaults.PasswordForgotPath,
                 languageTag,
                 (ReturnUrlName, carriedReturnUrl),
-                (ErrorQueryName, InteractivePasswordChangeErrors.InvalidRequest)
+                (ErrorQueryName, forgotError)
             );
         }
 
@@ -2350,6 +2362,7 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
             InteractiveEmailCodeErrors.TooManyCodes => messages.TooManyCodesError,
             InteractivePasswordChangeErrors.PasswordMismatch => messages.PasswordMismatchError,
             InteractivePasswordChangeErrors.InvalidRequest => messages.MissingFieldsError,
+            ConnectionRequiredCode => messages.ConnectionRequiredError,
             // DefaultInteractivePasswordResetter answers it when no backend holds passwords, which is no refused
             // password.
             InteractivePasswordChangeErrors.NotSupported => messages.EmailCodeFailedError,
@@ -2530,6 +2543,7 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
         {
             null or "" => null,
             InvalidCredentialsCode => messages.InvalidCredentialsError,
+            ConnectionRequiredCode => messages.ConnectionRequiredError,
             OpenIdProtocol.ErrorCodes.InvalidRequest => messages.MissingCredentialsError,
             OpenIdProtocol.ErrorCodes.AccessDenied => messages.AccessDeniedError,
             InteractiveEmailCodeErrors.TooManyCodes => messages.TooManyCodesError,
