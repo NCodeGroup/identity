@@ -609,7 +609,9 @@ internal class AuditStreamApiEndpointHandler(
     /// <param name="tenantId">The identifier of the OpenID Tenant.</param>
     /// <param name="streamId">The identifier of the audit stream.</param>
     /// <param name="request">The JSON Patch document that modifies the audit stream.</param>
-    /// <param name="ifMatch">The <c>If-Match</c> header that names the entity tag the update applies to.</param>
+    /// <param name="ifMatch">The optional <c>If-Match</c> header that must match the current audit stream. It accepts
+    /// <c>*</c>, a quoted strong entity tag or a comma-separated list of them, or the bare
+    /// <c>concurrencyToken</c>.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
     /// <response code="200">The updated audit stream.</response>
     /// <response code="400">The JSON Patch document cannot be applied, or the patched stream is invalid as for a

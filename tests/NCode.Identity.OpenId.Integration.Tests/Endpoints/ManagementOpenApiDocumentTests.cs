@@ -189,6 +189,9 @@ public class ManagementOpenApiDocumentTests
         "patch"
     )]
     [InlineData("/api/tenants/{tenantId}/clients/{clientId}", "patch")]
+    [InlineData("/api/tenants/{tenantId}/connections/{connectionId}", "patch")]
+    [InlineData("/api/tenants/{tenantId}/connections/{connectionId}/settings", "patch")]
+    [InlineData("/api/tenants/{tenantId}/audit-streams/{streamId}", "patch")]
     public async Task ManagementOperations_ThatCheckIfMatch_DeclareTheIfMatchHeader(
         string path,
         string method
@@ -205,7 +208,9 @@ public class ManagementOpenApiDocumentTests
             item => item.GetProperty("name").GetString() == "If-Match"
         );
         Assert.Equal("header", parameter.GetProperty("in").GetString());
-        Assert.False(string.IsNullOrWhiteSpace(parameter.GetProperty("description").GetString()));
+        var description = parameter.GetProperty("description").GetString();
+        Assert.False(string.IsNullOrWhiteSpace(description));
+        Assert.Contains("concurrencyToken", description, StringComparison.Ordinal);
     }
 
     #endregion

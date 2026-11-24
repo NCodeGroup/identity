@@ -386,7 +386,9 @@ internal class ConnectionApiEndpointHandler(
     /// <param name="tenantId">The identifier of the OpenID Tenant.</param>
     /// <param name="connectionId">The identifier of the connection.</param>
     /// <param name="request">The JSON Patch document that modifies the connection.</param>
-    /// <param name="ifMatch">The <c>If-Match</c> header that names the entity tag the update applies to.</param>
+    /// <param name="ifMatch">The optional <c>If-Match</c> header that must match the current connection. It accepts
+    /// <c>*</c>, a quoted strong entity tag or a comma-separated list of them, or the bare
+    /// <c>concurrencyToken</c>.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
     /// <response code="200">The updated connection.</response>
     /// <response code="400">The JSON Patch document cannot be applied, or the patched connection is invalid as for a
@@ -743,7 +745,9 @@ internal class ConnectionApiEndpointHandler(
     /// <param name="tenantId">The identifier of the OpenID Tenant.</param>
     /// <param name="connectionId">The identifier of the connection.</param>
     /// <param name="request">The JSON Patch document that modifies the settings.</param>
-    /// <param name="ifMatch">The <c>If-Match</c> header that names the entity tag the update applies to.</param>
+    /// <param name="ifMatch">The optional <c>If-Match</c> header that must match the current connection settings. It
+    /// accepts <c>*</c>, a quoted strong entity tag or a comma-separated list of them, or the bare
+    /// <c>concurrencyToken</c>.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
     /// <response code="204">The settings were updated.</response>
     /// <response code="400">The JSON Patch document cannot be applied to the settings, or the patched settings are not valid for a connection.</response>
