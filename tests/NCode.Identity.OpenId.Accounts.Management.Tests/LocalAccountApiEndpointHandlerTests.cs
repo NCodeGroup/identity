@@ -768,6 +768,44 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
         Assert.Equal(["audit"], Calls);
     }
 
+    [Fact]
+    public async Task SetEnabledAsync_WhenEnablingInAConnectionThatIsNotLocal_Returns404()
+    {
+        SetupAuthorizeUpdate(error: null);
+        SetupStoreManagerCreated();
+        SetupConnection(CreateConnection(ConnectionId, strategy: "other"));
+
+        var result = await Handler.EnableLocalAccountAsync(
+            CreateHttpContext(),
+            TenantId,
+            ConnectionId,
+            LocalAccountId,
+            CancellationToken.None
+        );
+
+        var problem = Assert.IsType<ProblemHttpResult>(result);
+        Assert.Equal(StatusCodes.Status404NotFound, problem.StatusCode);
+    }
+
+    [Fact]
+    public async Task SetEnabledAsync_WhenDisablingInAConnectionThatIsNotLocal_Returns404()
+    {
+        SetupAuthorizeUpdate(error: null);
+        SetupStoreManagerCreated();
+        SetupConnection(CreateConnection(ConnectionId, strategy: "other"));
+
+        var result = await Handler.DisableLocalAccountAsync(
+            CreateHttpContext(),
+            TenantId,
+            ConnectionId,
+            LocalAccountId,
+            CancellationToken.None
+        );
+
+        var problem = Assert.IsType<ProblemHttpResult>(result);
+        Assert.Equal(StatusCodes.Status404NotFound, problem.StatusCode);
+    }
+
     #endregion
 
     #region ResetPasswordAsync Tests
