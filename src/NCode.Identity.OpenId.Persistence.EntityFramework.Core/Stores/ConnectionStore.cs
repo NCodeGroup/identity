@@ -146,6 +146,63 @@ internal sealed class ConnectionStore(
     }
 
     /// <inheritdoc />
+    public async ValueTask<IReadOnlyList<PersistedConnection>> GetEnabledAsync(
+        IReadOnlyCollection<string>? names,
+        CancellationToken cancellationToken
+    )
+    {
+        var query = DbContext
+            .Connections.Include(entity => entity.Tenant)
+            .Where(entity => entity.IsEnabled);
+
+        if (names is not null)
+        {
+            var normalizedNames = names.Select(Normalize).ToList();
+            query = query.Where(entity => normalizedNames.Contains(entity.NormalizedName));
+        }
+
+        var entities = await query.ToListAsync(cancellationToken);
+        return await MapOrderedAsync(entities, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public async ValueTask<IReadOnlyList<PersistedConnection>> GetByStrategyAsync(
+        string strategy,
+        CancellationToken cancellationToken
+    )
+    {
+        ArgumentException.ThrowIfNullOrEmpty(strategy);
+
+        var entities = await DbContext
+            .Connections.Include(entity => entity.Tenant)
+            .Where(entity => entity.Strategy == strategy)
+            .ToListAsync(cancellationToken);
+        return await MapOrderedAsync(entities, cancellationToken);
+    }
+
+    /// <summary>
+    /// Maps entities to connections ordered by name ordinally; the database collation decides the order of names, so
+    /// the ordinal order is fixed in memory.
+    /// </summary>
+    /// <param name="entities">The entities to map.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    /// <returns>The mapped connections.</returns>
+    private async ValueTask<IReadOnlyList<PersistedConnection>> MapOrderedAsync(
+        IEnumerable<ConnectionEntity> entities,
+        CancellationToken cancellationToken
+    )
+    {
+        var items = new List<PersistedConnection>();
+        foreach (var entity in entities.OrderBy(entity => entity.Name, StringComparer.Ordinal))
+        {
+            var item = await MapFromEntityAsync(entity, cancellationToken);
+            items.Add(item);
+        }
+
+        return items;
+    }
+
+    /// <inheritdoc />
     public async ValueTask<PersistedConnection?> GetByNameOrDefaultAsync(
         string name,
         CancellationToken cancellationToken

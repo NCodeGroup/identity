@@ -139,15 +139,18 @@ internal class LocalAccountTenantTransferContributor(
         await storeManager.SaveChangesAsync(cancellationToken);
     }
 
-    private static async ValueTask<List<PersistedConnection>> GetLocalConnectionsAsync(
+    /// <summary>
+    /// Gets the tenant's connections of the <c>local</c> strategy, enabled or not.
+    /// </summary>
+    /// <param name="storeManager">The store manager of the unit of work.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    /// <returns>The local connections.</returns>
+    private static async ValueTask<IReadOnlyList<PersistedConnection>> GetLocalConnectionsAsync(
         IStoreManager storeManager,
         CancellationToken cancellationToken
     )
     {
-        var all = await storeManager.GetStore<IConnectionStore>().GetAllAsync(cancellationToken);
-        return all.Where(IsLocal).ToList();
+        var store = storeManager.GetStore<IConnectionStore>();
+        return await store.GetByStrategyAsync(ConnectionStrategyNames.Local, cancellationToken);
     }
-
-    private static bool IsLocal(PersistedConnection connection) =>
-        ConnectionStrategyNames.IsLocal(connection.Strategy);
 }

@@ -59,16 +59,10 @@ internal class DefaultSignInConnectionService(
         var allowed = await ConnectionResolver.GetAllowedAsync(
             openIdContext,
             clientSettings,
+            ConnectionSignInMethods.Password,
             cancellationToken
         );
-        var offered = allowed
-            .Where(connection =>
-                string.Equals(
-                    connection.Strategy.SignInMethod,
-                    ConnectionSignInMethods.Password,
-                    StringComparison.Ordinal
-                )
-            )
+        IReadOnlyList<ResolvedConnection> offered = allowed
             .Where(connection =>
                 requestedName is null
                 || string.Equals(connection.Name, requestedName, StringComparison.OrdinalIgnoreCase)
@@ -110,17 +104,26 @@ internal class DefaultSignInConnectionService(
             : new ConnectionSelection { Connection = selected };
     }
 
+    /// <summary>
+    /// Chooses the connection the sign-in preselects from the offered ones.
+    /// </summary>
+    /// <param name="openIdContext">The context of the request.</param>
+    /// <param name="clientSettings">The client's effective settings.</param>
+    /// <param name="requestedName">The connection name the request asks for, if any.</param>
+    /// <param name="offered">The connections the sign-in offers.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    /// <returns>The preselected connection, or <see langword="null"/> when none is.</returns>
     private async ValueTask<ResolvedConnection?> PreselectAsync(
         OpenIdContext openIdContext,
         IReadOnlySettingCollection clientSettings,
         string? requestedName,
-        List<ResolvedConnection> offered,
+        IReadOnlyList<ResolvedConnection> offered,
         CancellationToken cancellationToken
     )
     {
         if (requestedName is not null)
         {
-            return offered.FirstOrDefault();
+            return offered.Count > 0 ? offered[0] : null;
         }
 
         var selection = await ConnectionResolver.SelectAsync(

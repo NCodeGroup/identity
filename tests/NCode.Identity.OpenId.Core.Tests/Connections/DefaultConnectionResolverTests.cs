@@ -21,11 +21,14 @@ public class DefaultConnectionResolverTests : BaseTests
 {
     private const string TenantId = "tenant-1";
 
-    private sealed class TestStrategy(string name) : IConnectionStrategy
+    private sealed class TestStrategy(
+        string name,
+        string signInMethod = ConnectionSignInMethods.Password
+    ) : IConnectionStrategy
     {
         public string Name { get; } = name;
 
-        public string SignInMethod => ConnectionSignInMethods.Password;
+        public string SignInMethod { get; } = signInMethod;
 
         public string? ValidateOptions(JsonElement options) => null;
 
@@ -83,7 +86,10 @@ public class DefaultConnectionResolverTests : BaseTests
         Resolver = new DefaultConnectionResolver(
             MockStoreManagerFactory.Object,
             MockAmbientTenantAccessor.Object,
-            new DefaultConnectionStrategyCatalog([new TestStrategy("local")]),
+            new DefaultConnectionStrategyCatalog([
+                new TestStrategy("local"),
+                new TestStrategy("federated", "redirect"),
+            ]),
             MockSettingsResolver.Object
         );
     }
@@ -179,13 +185,12 @@ public class DefaultConnectionResolverTests : BaseTests
     }
 
     [Fact]
-    public async Task GetAllowedAsync_WhenNoAllowList_ReturnsEnabledRegisteredOrderedByName()
+    public async Task GetAllowedAsync_WhenNoAllowList_ReadsEveryEnabledConnectionOrderedByName()
     {
         MockStore
-            .Setup(x => x.GetAllAsync(It.IsAny<CancellationToken>()))
+            .Setup(x => x.GetEnabledAsync(null, It.IsAny<CancellationToken>()))
             .ReturnsAsync([
                 Connection("zeta"),
-                Connection("disabled", isEnabled: false),
                 Connection("unregistered", strategy: "other"),
                 Connection("alpha"),
             ]);
@@ -193,6 +198,7 @@ public class DefaultConnectionResolverTests : BaseTests
         var result = await Resolver.GetAllowedAsync(
             MockContext.Object,
             ClientSettings(allowed: null),
+            ConnectionSignInMethods.Password,
             CancellationToken.None
         );
 
@@ -200,19 +206,44 @@ public class DefaultConnectionResolverTests : BaseTests
     }
 
     [Fact]
-    public async Task GetAllowedAsync_WhenAllowListIsSet_ReturnsOnlyTheListedNames()
+    public async Task GetAllowedAsync_WhenAllowListIsSet_ReadsOnlyTheListedNames()
     {
         MockStore
-            .Setup(x => x.GetAllAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync([Connection("alpha"), Connection("zeta")]);
+            .Setup(x =>
+                x.GetEnabledAsync(
+                    It.Is<IReadOnlyCollection<string>>(names =>
+                        names.SequenceEqual(new[] { "ZETA" })
+                    ),
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync([Connection("zeta")]);
 
         var result = await Resolver.GetAllowedAsync(
             MockContext.Object,
             ClientSettings(allowed: ["ZETA"]),
+            ConnectionSignInMethods.Password,
             CancellationToken.None
         );
 
         Assert.Equal(["zeta"], result.Select(item => item.Name));
+    }
+
+    [Fact]
+    public async Task GetAllowedAsync_WhenStrategyHasAnotherSignInMethod_OmitsIt()
+    {
+        MockStore
+            .Setup(x => x.GetEnabledAsync(null, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([Connection("alpha"), Connection("corp", strategy: "federated")]);
+
+        var result = await Resolver.GetAllowedAsync(
+            MockContext.Object,
+            ClientSettings(allowed: null),
+            ConnectionSignInMethods.Password,
+            CancellationToken.None
+        );
+
+        Assert.Equal(["alpha"], result.Select(item => item.Name));
     }
 
     [Fact]

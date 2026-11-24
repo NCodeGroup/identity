@@ -62,17 +62,19 @@ public sealed class ConnectionStoreTests : IDisposable
     private static PersistedConnection CreateConnection(
         string connectionId = ConnectionId,
         string name = "Local",
-        bool isSystem = false
+        bool isSystem = false,
+        string strategy = "local",
+        bool isEnabled = true
     ) =>
         new()
         {
             TenantId = TenantId,
             ConnectionId = connectionId,
             Name = name,
-            Strategy = "local",
+            Strategy = strategy,
             DisplayName = "Username and password",
             IsSystem = isSystem,
-            IsEnabled = true,
+            IsEnabled = isEnabled,
             Options = JsonSerializer.SerializeToElement(new { store = "default" }),
             Settings = new PersistedConnectionSettings
             {
@@ -225,6 +227,114 @@ public sealed class ConnectionStoreTests : IDisposable
         var all = await Store.GetAllAsync(CancellationToken.None);
 
         Assert.Empty(all);
+    }
+
+    [Fact]
+    public async Task GetEnabledAsync_WhenNoNames_ReturnsEnabledConnectionsOrderedByName()
+    {
+        await SeedTenantAsync(CancellationToken.None);
+        await Store.AddAsync(CreateConnection("conn-b", "beta"), CancellationToken.None);
+        await Store.AddAsync(
+            CreateConnection("conn-c", "gamma", isEnabled: false),
+            CancellationToken.None
+        );
+        await Store.AddAsync(CreateConnection("conn-a", "alpha"), CancellationToken.None);
+        await DbContext.SaveChangesAsync();
+        DbContext.ChangeTracker.Clear();
+
+        var enabled = await Store.GetEnabledAsync(null, CancellationToken.None);
+
+        Assert.Equal(["alpha", "beta"], enabled.Select(connection => connection.Name));
+    }
+
+    [Fact]
+    public async Task GetEnabledAsync_WhenNamesDifferInCase_MatchesThemCaseInsensitively()
+    {
+        await SeedTenantAsync(CancellationToken.None);
+        await Store.AddAsync(CreateConnection("conn-a", "Alpha"), CancellationToken.None);
+        await Store.AddAsync(CreateConnection("conn-b", "beta"), CancellationToken.None);
+        await DbContext.SaveChangesAsync();
+        DbContext.ChangeTracker.Clear();
+
+        var enabled = await Store.GetEnabledAsync(["ALPHA"], CancellationToken.None);
+
+        Assert.Equal(["Alpha"], enabled.Select(connection => connection.Name));
+    }
+
+    [Fact]
+    public async Task GetEnabledAsync_WhenNamesAreEmpty_ReturnsNothing()
+    {
+        await SeedTenantAsync(CancellationToken.None);
+        await AddAndSaveAsync(CreateConnection("conn-a", "alpha"), CancellationToken.None);
+        DbContext.ChangeTracker.Clear();
+
+        var enabled = await Store.GetEnabledAsync([], CancellationToken.None);
+
+        Assert.Empty(enabled);
+    }
+
+    [Fact]
+    public async Task GetEnabledAsync_WhenAListedConnectionIsDisabled_OmitsIt()
+    {
+        await SeedTenantAsync(CancellationToken.None);
+        await AddAndSaveAsync(
+            CreateConnection("conn-a", "alpha", isEnabled: false),
+            CancellationToken.None
+        );
+        DbContext.ChangeTracker.Clear();
+
+        var enabled = await Store.GetEnabledAsync(["alpha"], CancellationToken.None);
+
+        Assert.Empty(enabled);
+    }
+
+    [Fact]
+    public async Task GetEnabledAsync_WhenAnotherTenantIsAmbient_OmitsTheTenantsConnections()
+    {
+        await SeedTenantAsync(CancellationToken.None);
+        await AddAndSaveAsync(CreateConnection("conn-a", "alpha"), CancellationToken.None);
+        DbContext.ChangeTracker.Clear();
+        AmbientIsUnscoped = false;
+        AmbientTenantId = "tenant-2";
+
+        var enabled = await Store.GetEnabledAsync(null, CancellationToken.None);
+
+        Assert.Empty(enabled);
+    }
+
+    [Fact]
+    public async Task GetByStrategyAsync_ReturnsEnabledAndDisabledConnectionsOfThatStrategyOnly()
+    {
+        await SeedTenantAsync(CancellationToken.None);
+        await Store.AddAsync(
+            CreateConnection("conn-b", "beta", isEnabled: false),
+            CancellationToken.None
+        );
+        await Store.AddAsync(CreateConnection("conn-a", "alpha"), CancellationToken.None);
+        await Store.AddAsync(
+            CreateConnection("conn-c", "corp", strategy: "federated"),
+            CancellationToken.None
+        );
+        await DbContext.SaveChangesAsync();
+        DbContext.ChangeTracker.Clear();
+
+        var local = await Store.GetByStrategyAsync("local", CancellationToken.None);
+
+        Assert.Equal(["alpha", "beta"], local.Select(connection => connection.Name));
+    }
+
+    [Fact]
+    public async Task GetByStrategyAsync_WhenAnotherTenantIsAmbient_OmitsTheTenantsConnections()
+    {
+        await SeedTenantAsync(CancellationToken.None);
+        await AddAndSaveAsync(CreateConnection("conn-a", "alpha"), CancellationToken.None);
+        DbContext.ChangeTracker.Clear();
+        AmbientIsUnscoped = false;
+        AmbientTenantId = "tenant-2";
+
+        var local = await Store.GetByStrategyAsync("local", CancellationToken.None);
+
+        Assert.Empty(local);
     }
 
     [Fact]

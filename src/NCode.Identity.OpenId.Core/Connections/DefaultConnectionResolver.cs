@@ -69,22 +69,31 @@ internal sealed class DefaultConnectionResolver(
     public async ValueTask<IReadOnlyList<ResolvedConnection>> GetAllowedAsync(
         OpenIdContext openIdContext,
         IReadOnlySettingCollection clientSettings,
+        string signInMethod,
         CancellationToken cancellationToken
     )
     {
         ArgumentNullException.ThrowIfNull(openIdContext);
         ArgumentNullException.ThrowIfNull(clientSettings);
+        ArgumentException.ThrowIfNullOrEmpty(signInMethod);
 
         using var tenantScope = AmbientTenantAccessor.BeginScope(openIdContext.Tenant.TenantId);
         await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
         var store = storeManager.GetStore<IConnectionStore>();
 
-        var connections = await store.GetAllAsync(cancellationToken);
+        // An unset allow list allows every enabled connection; a set one limits the read to its names.
+        var names = clientSettings.TryGetValue(OpenIdSettingKeys.AllowedConnections, out var listed)
+            ? listed
+            : null;
+        var connections = await store.GetEnabledAsync(names, cancellationToken);
 
         var allowed = new List<ResolvedConnection>();
         foreach (var connection in connections)
         {
-            if (!IsAllowed(clientSettings, connection))
+            if (
+                !StrategyCatalog.TryGetStrategy(connection.Strategy, out var strategy)
+                || !string.Equals(strategy.SignInMethod, signInMethod, StringComparison.Ordinal)
+            )
                 continue;
 
             var resolved = Resolve(openIdContext, connection);

@@ -37,6 +37,35 @@ public interface IConnectionStore : IStore<PersistedConnection>
     ValueTask<IReadOnlyList<PersistedConnection>> GetAllAsync(CancellationToken cancellationToken);
 
     /// <summary>
+    /// Gets the enabled connections of the tenant, optionally limited to a set of names, ordered by
+    /// <see cref="PersistedConnection.Name"/> ordinally. Names are matched case-insensitively, as the connection store
+    /// compares them. The result reads the database, so it omits a connection added earlier in the same unit of work.
+    /// </summary>
+    /// <param name="names">The names to limit the result to, or <see langword="null"/> for every enabled connection; an
+    /// empty set matches no connection.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation, containing the
+    /// connections.</returns>
+    ValueTask<IReadOnlyList<PersistedConnection>> GetEnabledAsync(
+        IReadOnlyCollection<string>? names,
+        CancellationToken cancellationToken
+    );
+
+    /// <summary>
+    /// Gets the connections of the tenant whose strategy is the named one, enabled or not, ordered by
+    /// <see cref="PersistedConnection.Name"/> ordinally. The result reads the database, so it omits a connection added
+    /// earlier in the same unit of work.
+    /// </summary>
+    /// <param name="strategy">The name of the strategy, compared ordinally.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation, containing the
+    /// connections.</returns>
+    ValueTask<IReadOnlyList<PersistedConnection>> GetByStrategyAsync(
+        string strategy,
+        CancellationToken cancellationToken
+    );
+
+    /// <summary>
     /// Attempts to get a <see cref="PersistedConnection"/> from the store by its opaque identifier. The lookup sees a
     /// connection added earlier in the same unit of work.
     /// </summary>

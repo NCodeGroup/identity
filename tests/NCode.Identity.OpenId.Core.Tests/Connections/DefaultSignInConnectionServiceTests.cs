@@ -97,7 +97,12 @@ public class DefaultSignInConnectionServiceTests : BaseTests
     ) =>
         MockConnectionResolver
             .Setup(x =>
-                x.GetAllowedAsync(MockContext.Object, settings, It.IsAny<CancellationToken>())
+                x.GetAllowedAsync(
+                    MockContext.Object,
+                    settings,
+                    ConnectionSignInMethods.Password,
+                    It.IsAny<CancellationToken>()
+                )
             )
             .ReturnsAsync(allowed);
 
@@ -149,24 +154,6 @@ public class DefaultSignInConnectionServiceTests : BaseTests
         );
 
         Assert.Equal(["local", "other"], result.Offered.Select(x => x.Name));
-        Assert.Same(local, result.Preselected);
-    }
-
-    [Fact]
-    public async Task GetOfferedAsync_WhenStrategyDoesNotVerifyPasswords_OmitsIt()
-    {
-        var local = Resolved("local");
-        var federated = Resolved("federated", "redirect");
-        SetupAllowed(MockTenantSettings.Object, local, federated);
-        SetupDefault(MockTenantSettings.Object, federated);
-
-        var result = await Service.GetOfferedAsync(
-            MockContext.Object,
-            null,
-            CancellationToken.None
-        );
-
-        Assert.Same(local, Assert.Single(result.Offered));
         Assert.Same(local, result.Preselected);
     }
 

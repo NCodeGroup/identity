@@ -44,18 +44,21 @@ public interface IConnectionResolver
     );
 
     /// <summary>
-    /// Gets the connections a client may use: the enabled connections with a registered strategy that the client's
-    /// <c>allowed_connections</c> setting allows, ordered by name.
+    /// Gets the connections a client may use: the enabled connections with a registered strategy of the given sign-in
+    /// method that the client's <c>allowed_connections</c> setting allows, ordered by name.
     /// </summary>
     /// <param name="openIdContext">The <see cref="OpenIdContext"/> whose tenant owns the connections.</param>
     /// <param name="clientSettings">The effective settings of the client, or of the tenant when no client is
     /// known.</param>
+    /// <param name="signInMethod">The sign-in method of the strategies to keep, compared ordinally, such as
+    /// <see cref="ConnectionSignInMethods.Password"/>.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
     /// <returns>The <see cref="ValueTask{TResult}"/> that represents the asynchronous operation, containing the allowed
     /// connections.</returns>
     ValueTask<IReadOnlyList<ResolvedConnection>> GetAllowedAsync(
         OpenIdContext openIdContext,
         IReadOnlySettingCollection clientSettings,
+        string signInMethod,
         CancellationToken cancellationToken
     );
 
