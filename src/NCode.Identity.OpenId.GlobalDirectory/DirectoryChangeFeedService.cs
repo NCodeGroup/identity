@@ -38,6 +38,7 @@ internal sealed class DirectoryChangeFeedService(
     IPlatformDocumentApplier platformDocumentApplier,
     IReplicatedDocumentApplier replicatedDocumentApplier,
     IDirectoryFeedCheckpoint feedCheckpoint,
+    DirectoryReplicaHealth replicaHealth,
     IExpiringKeySet expiringKeySet,
     IOptions<CellOptions> cellOptions,
     IOptions<DirectoryClientOptions> directoryClientOptions,
@@ -72,6 +73,7 @@ internal sealed class DirectoryChangeFeedService(
     private IReplicatedDocumentApplier ReplicatedDocumentApplier { get; } =
         replicatedDocumentApplier;
     private IDirectoryFeedCheckpoint FeedCheckpoint { get; } = feedCheckpoint;
+    private DirectoryReplicaHealth ReplicaHealth { get; } = replicaHealth;
     private IExpiringKeySet ExpiringKeySet { get; } = expiringKeySet;
     private IOptions<CellOptions> CellOptionsAccessor { get; } = cellOptions;
     private IOptions<DirectoryClientOptions> Options { get; } = directoryClientOptions;
@@ -151,12 +153,16 @@ internal sealed class DirectoryChangeFeedService(
             return;
 
         var after = await FeedCheckpoint.GetAppliedSequenceAsync(cancellationToken);
+        var reachedEnd = false;
 
         while (true)
         {
             var changes = await TeamDirectory.ListChangesAsync(after, PageSize, cancellationToken);
             if (changes.Count == 0)
+            {
+                reachedEnd = true;
                 break;
+            }
 
             var previous = after;
             var allApplied = true;
@@ -186,6 +192,10 @@ internal sealed class DirectoryChangeFeedService(
         }
 
         await ReconcileRootKeysAsync(cancellationToken);
+
+        // Only a pass that read the feed to its end, the empty page included, leaves the replica current.
+        if (reachedEnd)
+            ReplicaHealth.RecordPass(after);
     }
 
     /// <summary>

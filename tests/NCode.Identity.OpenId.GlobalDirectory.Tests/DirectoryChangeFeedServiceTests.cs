@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using System.Collections.Immutable;
+using System.Diagnostics.Metrics;
 using System.Text.Json;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -36,6 +37,8 @@ public class DirectoryChangeFeedServiceTests : BaseTests
 
     private Mock<IExpiringKeySet> ExpiringKeySetMock { get; }
 
+    private DirectoryReplicaHealth ReplicaHealth { get; }
+
     public DirectoryChangeFeedServiceTests()
     {
         TeamDirectoryMock = CreateStrictMock<ITeamDirectory>();
@@ -45,6 +48,18 @@ public class DirectoryChangeFeedServiceTests : BaseTests
         ReplicatedDocumentApplierMock = CreateStrictMock<IReplicatedDocumentApplier>();
         FeedCheckpointMock = CreateStrictMock<IDirectoryFeedCheckpoint>();
         ExpiringKeySetMock = CreateStrictMock<IExpiringKeySet>();
+        ReplicaHealth = new DirectoryReplicaHealth(
+            TimeProvider,
+            new TestMeterFactory(),
+            Options.Create(new CellOptions { Name = "cell-a" })
+        );
+    }
+
+    private sealed class TestMeterFactory : IMeterFactory
+    {
+        public Meter Create(MeterOptions options) => new(options);
+
+        public void Dispose() { }
     }
 
     private DirectoryChangeFeedService CreateService(bool isControlPlane = false) =>
@@ -55,6 +70,7 @@ public class DirectoryChangeFeedServiceTests : BaseTests
             PlatformDocumentApplierMock.Object,
             ReplicatedDocumentApplierMock.Object,
             FeedCheckpointMock.Object,
+            ReplicaHealth,
             ExpiringKeySetMock.Object,
             Options.Create(new CellOptions { IsControlPlane = isControlPlane }),
             Options.Create(new DirectoryClientOptions { PollInterval = PollInterval }),
