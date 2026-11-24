@@ -448,6 +448,56 @@ public sealed class InteractiveAuthenticationEndpointHandlerTests : IDisposable
 
     #endregion
 
+    #region GetForgotPasswordHref Tests
+
+    [Fact]
+    public void GetForgotPasswordHref_WhenOnlyANonPreselectedConnectionEnablesReset_ShowsTheLinkWithoutAName()
+    {
+        var off = CreateConnection(passwordResetEnabled: false);
+        var on = CreateConnection(passwordResetEnabled: true);
+
+        var href = InteractiveAuthenticationEndpointHandler.GetForgotPasswordHref(
+            new SignInConnections { Offered = [off, on], Preselected = off },
+            "",
+            null
+        );
+
+        Assert.NotNull(href);
+        Assert.DoesNotContain("connection=", href);
+    }
+
+    [Fact]
+    public void GetForgotPasswordHref_WhenEveryOfferedConnectionDisablesReset_HidesTheLink()
+    {
+        var first = CreateConnection(passwordResetEnabled: false);
+        var second = CreateConnection(passwordResetEnabled: false);
+
+        var href = InteractiveAuthenticationEndpointHandler.GetForgotPasswordHref(
+            new SignInConnections { Offered = [first, second], Preselected = null },
+            "",
+            null
+        );
+
+        Assert.Null(href);
+    }
+
+    [Fact]
+    public void GetForgotPasswordHref_WhenThePreselectedConnectionEnablesReset_CarriesItsName()
+    {
+        var on = CreateConnection(passwordResetEnabled: true);
+
+        var href = InteractiveAuthenticationEndpointHandler.GetForgotPasswordHref(
+            new SignInConnections { Offered = [on], Preselected = on },
+            "",
+            null
+        );
+
+        Assert.NotNull(href);
+        Assert.Contains("connection=local", href);
+    }
+
+    #endregion
+
     #region GetEmailPageAsync Tests
 
     [Fact]

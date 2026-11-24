@@ -220,19 +220,11 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
             ? frame.Locale.Messages.PasswordResetStatus
             : null;
 
-        // The link to the forgot-password page appears only while the connection lets its end users reset a password.
+        // The link to the forgot-password page appears while any offered connection lets its end users reset a password.
         // See ADR-1533.
-        string? forgotPasswordHref = null;
-        if (IsPasswordResetEnabled(httpContext, offered.Preselected))
-        {
-            var carriedUiLocales = query[InteractiveAuthenticationPageRenderer.UiLocalesFieldName];
-            var carriedLanguageTag = LocaleSelector.GetCarriedLanguageTag(carriedUiLocales);
-            forgotPasswordHref = BuildForgotPasswordHref(
-                returnUrl,
-                carriedLanguageTag,
-                offered.Preselected?.Name
-            );
-        }
+        var carriedUiLocales = query[InteractiveAuthenticationPageRenderer.UiLocalesFieldName];
+        var carriedLanguageTag = LocaleSelector.GetCarriedLanguageTag(carriedUiLocales);
+        var forgotPasswordHref = GetForgotPasswordHref(offered, returnUrl, carriedLanguageTag);
         var form = new InteractivePageForm(tokens)
         {
             ReturnUrl = returnUrl,
@@ -2228,23 +2220,38 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
             .ToList();
 
     /// <summary>
-    /// Determines whether the connection lets its end users reset a password, which the login page's link to the
-    /// forgot-password page shows.
+    /// Builds the login page's link to the forgot-password page, which shows while any offered connection lets its end
+    /// users reset a password and carries the preselected connection's name only when that connection does.
     /// </summary>
-    /// <param name="httpContext">The current request.</param>
-    /// <param name="connection">The connection the page preselects, whose settings decide, or <see langword="null"/>
-    /// for the tenant's settings.</param>
-    /// <returns><see langword="true"/> when the connection lets its end users reset a password.</returns>
+    /// <param name="offered">The connections the page offers.</param>
+    /// <param name="returnUrl">The return URL the login page carried.</param>
+    /// <param name="languageTag">The language tag the login page carried, or <see langword="null"/>.</param>
+    /// <returns>The address of the forgot-password page, or <see langword="null"/> when no offered connection lets its
+    /// end users reset a password.</returns>
     // See ADR-1533.
-    private static bool IsPasswordResetEnabled(
-        HttpContext httpContext,
-        ResolvedConnection? connection
+    internal static string? GetForgotPasswordHref(
+        SignInConnections offered,
+        string returnUrl,
+        string? languageTag
     )
     {
-        var settings =
-            connection?.Settings
-            ?? httpContext.GetOpenIdContext().Tenant.SettingsProvider.Collection;
-        return settings.GetValue(OpenIdSettingKeys.PasswordResetEnabled);
+        var anyResettable = offered.Offered.Any(candidate =>
+            candidate.Settings.GetValue(OpenIdSettingKeys.PasswordResetEnabled)
+        );
+        if (!anyResettable)
+        {
+            return null;
+        }
+
+        var preselected = offered.Preselected;
+        var preselectedResettable =
+            preselected is not null
+            && preselected.Settings.GetValue(OpenIdSettingKeys.PasswordResetEnabled);
+        return BuildForgotPasswordHref(
+            returnUrl,
+            languageTag,
+            preselectedResettable ? preselected?.Name : null
+        );
     }
 
     /// <summary>
