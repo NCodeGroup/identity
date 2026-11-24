@@ -1139,9 +1139,14 @@ NCode.Identity.OpenId.Connections.ConnectionSelection
 NCode.Identity.OpenId.Connections.ConnectionSelection.Connection.get -> NCode.Identity.OpenId.Connections.ResolvedConnection?
 NCode.Identity.OpenId.Connections.ConnectionSelection.Connection.init -> void
 NCode.Identity.OpenId.Connections.ConnectionSelection.ConnectionSelection() -> void
+NCode.Identity.OpenId.Connections.ConnectionSelection.ErrorCode.get -> string?
+NCode.Identity.OpenId.Connections.ConnectionSelection.ErrorCode.init -> void
 NCode.Identity.OpenId.Connections.ConnectionSelection.ErrorDescription.get -> string?
 NCode.Identity.OpenId.Connections.ConnectionSelection.ErrorDescription.init -> void
 NCode.Identity.OpenId.Connections.ConnectionSelection.IsRefused.get -> bool
+NCode.Identity.OpenId.Connections.ConnectionSelectionErrors
+const NCode.Identity.OpenId.Connections.ConnectionSelectionErrors.Required = "required" -> string!
+const NCode.Identity.OpenId.Connections.ConnectionSelectionErrors.Unavailable = "unavailable" -> string!
 NCode.Identity.OpenId.Connections.IConnectionDependentSource
 NCode.Identity.OpenId.Connections.IConnectionDependentSource.HasDependentsAsync(NCode.Identity.Persistence.Stores.IStoreManager! storeManager, NCode.Identity.OpenId.Persistence.DataContracts.PersistedConnection! connection, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<bool>
 NCode.Identity.OpenId.Connections.IConnectionResolver

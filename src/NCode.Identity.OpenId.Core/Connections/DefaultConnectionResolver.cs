@@ -132,6 +132,7 @@ internal sealed class DefaultConnectionResolver(
             return requested is null
                 ? new ConnectionSelection
                 {
+                    ErrorCode = ConnectionSelectionErrors.Unavailable,
                     ErrorDescription = "The requested connection is not available to the client.",
                 }
                 : new ConnectionSelection { Connection = requested };

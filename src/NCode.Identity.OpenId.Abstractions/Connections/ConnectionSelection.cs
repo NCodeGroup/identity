@@ -19,6 +19,12 @@ public sealed class ConnectionSelection
     public ResolvedConnection? Connection { get; init; }
 
     /// <summary>
+    /// Gets the machine-readable code of why the request is refused, one of the <see cref="ConnectionSelectionErrors"/>
+    /// values, or <see langword="null"/> when it is not refused.
+    /// </summary>
+    public string? ErrorCode { get; init; }
+
+    /// <summary>
     /// Gets the description of why the request is refused, or <see langword="null"/> when it is not refused.
     /// </summary>
     public string? ErrorDescription { get; init; }

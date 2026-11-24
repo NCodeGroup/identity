@@ -106,12 +106,8 @@ public class DefaultSignInConnectionServiceTests : BaseTests
             )
             .ReturnsAsync(allowed);
 
-    private void SetupDefault(IReadOnlySettingCollection settings, ResolvedConnection? selected) =>
-        MockConnectionResolver
-            .Setup(x =>
-                x.SelectAsync(MockContext.Object, settings, null, It.IsAny<CancellationToken>())
-            )
-            .ReturnsAsync(new ConnectionSelection { Connection = selected });
+    private static void SetupDefault(Mock<IReadOnlySettingCollection> settings, string? name) =>
+        settings.Setup(x => x.GetValue(It.IsAny<SettingKey<string>>())).Returns(name!);
 
     // A parked request of a client with the settings, naming the connection and acr values.
     private IReadOnlySettingCollection SetupRequest(string? connection, string[] acrValues)
@@ -124,7 +120,9 @@ public class DefaultSignInConnectionServiceTests : BaseTests
             .Setup(x => x.ReadAsync(MockContext.Object, ReturnUrl, It.IsAny<CancellationToken>()))
             .ReturnsAsync(mockRequest.Object);
 
-        var clientSettings = Mock.Of<IReadOnlySettingCollection>();
+        var mockClientSettings = CreateStrictMock<IReadOnlySettingCollection>();
+        SetupDefault(mockClientSettings, null);
+        var clientSettings = mockClientSettings.Object;
         var mockClient = CreateStrictMock<OpenIdClient>();
         mockClient.SetupGet(x => x.Settings).Returns(clientSettings);
         MockClientResolver
@@ -145,7 +143,7 @@ public class DefaultSignInConnectionServiceTests : BaseTests
         var local = Resolved("local");
         var other = Resolved("other");
         SetupAllowed(MockTenantSettings.Object, local, other);
-        SetupDefault(MockTenantSettings.Object, local);
+        SetupDefault(MockTenantSettings, "LOCAL");
 
         var result = await Service.GetOfferedAsync(
             MockContext.Object,
@@ -161,7 +159,7 @@ public class DefaultSignInConnectionServiceTests : BaseTests
     public async Task GetOfferedAsync_WhenNoDefaultAndSeveralOffered_PreselectsNothing()
     {
         SetupAllowed(MockTenantSettings.Object, Resolved("a"), Resolved("b"));
-        SetupDefault(MockTenantSettings.Object, null);
+        SetupDefault(MockTenantSettings, null);
 
         var result = await Service.GetOfferedAsync(
             MockContext.Object,
@@ -178,7 +176,7 @@ public class DefaultSignInConnectionServiceTests : BaseTests
     {
         var only = Resolved("a");
         SetupAllowed(MockTenantSettings.Object, only);
-        SetupDefault(MockTenantSettings.Object, null);
+        SetupDefault(MockTenantSettings, null);
 
         var result = await Service.GetOfferedAsync(
             MockContext.Object,
@@ -246,7 +244,7 @@ public class DefaultSignInConnectionServiceTests : BaseTests
         var local = Resolved("local");
         var other = Resolved("other");
         SetupAllowed(MockTenantSettings.Object, local, other);
-        SetupDefault(MockTenantSettings.Object, local);
+        SetupDefault(MockTenantSettings, "LOCAL");
 
         var result = await Service.SelectAsync(
             MockContext.Object,
@@ -263,7 +261,7 @@ public class DefaultSignInConnectionServiceTests : BaseTests
     public async Task SelectAsync_WhenPostedNameIsNotOffered_IsRefused()
     {
         SetupAllowed(MockTenantSettings.Object, Resolved("local"));
-        SetupDefault(MockTenantSettings.Object, null);
+        SetupDefault(MockTenantSettings, null);
 
         var result = await Service.SelectAsync(
             MockContext.Object,
@@ -274,6 +272,7 @@ public class DefaultSignInConnectionServiceTests : BaseTests
 
         Assert.True(result.IsRefused);
         Assert.Null(result.Connection);
+        Assert.Equal(ConnectionSelectionErrors.Unavailable, result.ErrorCode);
     }
 
     [Fact]
@@ -281,7 +280,7 @@ public class DefaultSignInConnectionServiceTests : BaseTests
     {
         var local = Resolved("local");
         SetupAllowed(MockTenantSettings.Object, local, Resolved("other"));
-        SetupDefault(MockTenantSettings.Object, local);
+        SetupDefault(MockTenantSettings, "LOCAL");
 
         var result = await Service.SelectAsync(
             MockContext.Object,
@@ -297,7 +296,7 @@ public class DefaultSignInConnectionServiceTests : BaseTests
     public async Task SelectAsync_WhenNoNamePostedAndNothingPreselected_IsRefused()
     {
         SetupAllowed(MockTenantSettings.Object, Resolved("a"), Resolved("b"));
-        SetupDefault(MockTenantSettings.Object, null);
+        SetupDefault(MockTenantSettings, null);
 
         var result = await Service.SelectAsync(
             MockContext.Object,
@@ -307,5 +306,50 @@ public class DefaultSignInConnectionServiceTests : BaseTests
         );
 
         Assert.Equal("No connection is available for the sign-in.", result.ErrorDescription);
+        Assert.Equal(ConnectionSelectionErrors.Required, result.ErrorCode);
+    }
+
+    [Fact]
+    public async Task SelectAsync_WhenNoConnectionIsOffered_IsUnavailable()
+    {
+        SetupAllowed(MockTenantSettings.Object);
+        SetupDefault(MockTenantSettings, null);
+
+        var result = await Service.SelectAsync(
+            MockContext.Object,
+            null,
+            "",
+            CancellationToken.None
+        );
+
+        Assert.True(result.IsRefused);
+        Assert.Equal(ConnectionSelectionErrors.Unavailable, result.ErrorCode);
+    }
+
+    [Fact]
+    public async Task SelectAsync_PreselectsADefaultSpelledInAnotherCaseWithoutTheResolver()
+    {
+        var local = Resolved("local");
+        SetupAllowed(MockTenantSettings.Object, local, Resolved("other"));
+        SetupDefault(MockTenantSettings, "LOCAL");
+
+        var result = await Service.SelectAsync(
+            MockContext.Object,
+            null,
+            null,
+            CancellationToken.None
+        );
+
+        Assert.Same(local, result.Connection);
+        MockConnectionResolver.Verify(
+            x =>
+                x.SelectAsync(
+                    It.IsAny<OpenIdContext>(),
+                    It.IsAny<IReadOnlySettingCollection>(),
+                    It.IsAny<string?>(),
+                    It.IsAny<CancellationToken>()
+                ),
+            Times.Never
+        );
     }
 }

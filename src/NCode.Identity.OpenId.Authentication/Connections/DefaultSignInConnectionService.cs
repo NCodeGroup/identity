@@ -5,6 +5,7 @@ using NCode.Identity.OpenId.Authentication.Clients;
 using NCode.Identity.OpenId.Authentication.Consent;
 using NCode.Identity.OpenId.Connections;
 using NCode.Identity.OpenId.Contexts;
+using NCode.Identity.OpenId.Settings;
 using NCode.Identity.Settings;
 
 namespace NCode.Identity.OpenId.Authentication.Connections;
@@ -62,20 +63,20 @@ internal class DefaultSignInConnectionService(
             ConnectionSignInMethods.Password,
             cancellationToken
         );
-        IReadOnlyList<ResolvedConnection> offered = allowed
-            .Where(connection =>
+        var offeredList = new List<ResolvedConnection>(allowed.Count);
+        foreach (var connection in allowed)
+        {
+            if (
                 requestedName is null
                 || string.Equals(connection.Name, requestedName, StringComparison.OrdinalIgnoreCase)
             )
-            .ToList();
+            {
+                offeredList.Add(connection);
+            }
+        }
 
-        var preselected = await PreselectAsync(
-            openIdContext,
-            clientSettings,
-            requestedName,
-            offered,
-            cancellationToken
-        );
+        IReadOnlyList<ResolvedConnection> offered = offeredList;
+        var preselected = Preselect(clientSettings, requestedName, offered);
 
         return new SignInConnections { Offered = offered, Preselected = preselected };
     }
@@ -90,35 +91,45 @@ internal class DefaultSignInConnectionService(
     {
         var connections = await GetOfferedAsync(openIdContext, returnUrl, cancellationToken);
 
-        var selected = string.IsNullOrEmpty(postedName)
-            ? connections.Preselected
-            : connections.Offered.FirstOrDefault(connection =>
-                string.Equals(connection.Name, postedName, StringComparison.OrdinalIgnoreCase)
-            );
+        if (string.IsNullOrEmpty(postedName))
+        {
+            if (connections.Preselected is not null)
+                return new ConnectionSelection { Connection = connections.Preselected };
 
-        return selected is null
-            ? new ConnectionSelection
+            return new ConnectionSelection
             {
+                ErrorCode =
+                    connections.Offered.Count > 1
+                        ? ConnectionSelectionErrors.Required
+                        : ConnectionSelectionErrors.Unavailable,
                 ErrorDescription = "No connection is available for the sign-in.",
-            }
-            : new ConnectionSelection { Connection = selected };
+            };
+        }
+
+        foreach (var connection in connections.Offered)
+        {
+            if (string.Equals(connection.Name, postedName, StringComparison.OrdinalIgnoreCase))
+                return new ConnectionSelection { Connection = connection };
+        }
+
+        return new ConnectionSelection
+        {
+            ErrorCode = ConnectionSelectionErrors.Unavailable,
+            ErrorDescription = "No connection is available for the sign-in.",
+        };
     }
 
     /// <summary>
     /// Chooses the connection the sign-in preselects from the offered ones.
     /// </summary>
-    /// <param name="openIdContext">The context of the request.</param>
     /// <param name="clientSettings">The client's effective settings.</param>
     /// <param name="requestedName">The connection name the request asks for, if any.</param>
     /// <param name="offered">The connections the sign-in offers.</param>
-    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
     /// <returns>The preselected connection, or <see langword="null"/> when none is.</returns>
-    private async ValueTask<ResolvedConnection?> PreselectAsync(
-        OpenIdContext openIdContext,
+    private static ResolvedConnection? Preselect(
         IReadOnlySettingCollection clientSettings,
         string? requestedName,
-        IReadOnlyList<ResolvedConnection> offered,
-        CancellationToken cancellationToken
+        IReadOnlyList<ResolvedConnection> offered
     )
     {
         if (requestedName is not null)
@@ -126,25 +137,13 @@ internal class DefaultSignInConnectionService(
             return offered.Count > 0 ? offered[0] : null;
         }
 
-        var selection = await ConnectionResolver.SelectAsync(
-            openIdContext,
-            clientSettings,
-            requestedName: null,
-            cancellationToken
-        );
-        var defaultConnection = selection.Connection;
-        if (defaultConnection is not null)
+        var defaultName = clientSettings.GetValue(OpenIdSettingKeys.DefaultConnection);
+        if (!string.IsNullOrEmpty(defaultName))
         {
-            var match = offered.FirstOrDefault(connection =>
-                string.Equals(
-                    connection.ConnectionId,
-                    defaultConnection.ConnectionId,
-                    StringComparison.Ordinal
-                )
-            );
-            if (match is not null)
+            foreach (var connection in offered)
             {
-                return match;
+                if (string.Equals(connection.Name, defaultName, StringComparison.OrdinalIgnoreCase))
+                    return connection;
             }
         }
 
