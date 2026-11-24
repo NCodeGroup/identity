@@ -97,7 +97,8 @@ public static class HostDatabase
         return new OpenIdDbContext(
             optionsBuilder.Options,
             ambientTenantAccessor,
-            modelContributors
+            modelContributors,
+            []
         );
     }
 

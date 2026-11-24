@@ -20,7 +20,8 @@ namespace NCode.Identity.OpenId.Persistence.EntityFramework;
 public class OpenIdDbContext(
     DbContextOptions<OpenIdDbContext> options,
     IAmbientTenantAccessor ambientTenantAccessor,
-    IEnumerable<IOpenIdModelContributor> modelContributors
+    IEnumerable<IOpenIdModelContributor> modelContributors,
+    IEnumerable<IOpenIdSaveChangesInterceptor> saveChangesInterceptors
 ) : DbContext(options)
 {
     private IAmbientTenantAccessor AmbientTenantAccessor { get; } = ambientTenantAccessor;
@@ -28,6 +29,9 @@ public class OpenIdDbContext(
     // Stateless singletons: the model is built once and cached, and the context factory (AddDbContextFactory)
     // creates a context per use.
     private IEnumerable<IOpenIdModelContributor> ModelContributors { get; } = modelContributors;
+
+    private IEnumerable<IOpenIdSaveChangesInterceptor> SaveChangesInterceptors { get; } =
+        saveChangesInterceptors;
 
     /// <summary>
     /// Gets the normalized identifier of the ambient tenant for the current request, or <c>null</c> when tenant-bound
@@ -140,6 +144,14 @@ public class OpenIdDbContext(
     {
         var interceptor = new ConcurrencyTokenSaveChangesInterceptor();
         optionsBuilder.AddInterceptors(interceptor);
+
+        // Satellite interceptors run after the concurrency tokens are regenerated, so the rows they add in the same
+        // save carry their own tokens.
+        foreach (var saveChangesInterceptor in SaveChangesInterceptors)
+        {
+            optionsBuilder.AddInterceptors(saveChangesInterceptor);
+        }
+
         UseSplitQueriesByDefault(optionsBuilder);
     }
 

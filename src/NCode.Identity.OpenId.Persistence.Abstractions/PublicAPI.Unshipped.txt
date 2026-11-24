@@ -837,6 +837,11 @@ NCode.Identity.OpenId.Persistence.Stores.IDirectoryOutboxStore
 NCode.Identity.OpenId.Persistence.Stores.IDirectoryOutboxStore.ListPendingAsync(int limit, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<NCode.Identity.OpenId.Persistence.DataContracts.PersistedDirectoryOutboxEntry!>!>
 NCode.Identity.OpenId.Persistence.Stores.IDirectoryOutboxStore.ListSourceRevisionsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<NCode.Identity.OpenId.Persistence.DataContracts.PersistedSourceRevision!>!>
 NCode.Identity.OpenId.Persistence.Stores.IDirectoryOutboxStore.RemoveThroughAsync(string! kind, string! key, long revision, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+NCode.Identity.OpenId.Persistence.Stores.IDirectoryOutboxNotifier
+NCode.Identity.OpenId.Persistence.Stores.IDirectoryOutboxNotifier.Notify() -> void
+NCode.Identity.OpenId.Persistence.Stores.IDirectoryOutboxPolicy
+NCode.Identity.OpenId.Persistence.Stores.IDirectoryOutboxPolicy.ControlPlaneTenantId.get -> string!
+NCode.Identity.OpenId.Persistence.Stores.IDirectoryOutboxPolicy.IsPublishing.get -> bool
 const NCode.Identity.OpenId.Persistence.OpenIdMaxLengths.KeyCustody = 16 -> int
 NCode.Identity.OpenId.Persistence.DataContracts.PersistedTenant.KeyCustody.get -> string!
 NCode.Identity.OpenId.Persistence.DataContracts.PersistedTenant.KeyCustody.set -> void

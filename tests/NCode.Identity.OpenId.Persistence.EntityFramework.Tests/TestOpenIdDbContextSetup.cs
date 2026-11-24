@@ -6,6 +6,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using NCode.Identity.OpenId.Persistence.EntityFramework.Core.GlobalDirectory;
+using NCode.Identity.OpenId.Persistence.Stores;
 using NCode.Identity.OpenId.Persistence.Tenants;
 using NCode.Identity.Persistence;
 using NCode.Identity.Persistence.Stores;
@@ -33,6 +35,15 @@ internal static class TestOpenIdDbContextSetup
         serviceCollection.TryAddEnumerable(
             ServiceDescriptor.Singleton<IOpenIdModelContributor, CoreModelContributor>()
         );
+        serviceCollection.TryAddEnumerable(
+            ServiceDescriptor.Singleton<
+                IOpenIdSaveChangesInterceptor,
+                ReplicatedDocumentOutboxInterceptor
+            >()
+        );
+        serviceCollection.TryAddSingleton<IDirectoryOutboxPolicy, NoOpDirectoryOutboxPolicy>();
+        serviceCollection.TryAddSingleton<IDirectoryOutboxNotifier, NoOpDirectoryOutboxNotifier>();
+        serviceCollection.TryAddSingleton(TimeProvider.System);
         serviceCollection.TryAddSingleton<
             IAmbientTenantAccessor,
             TestUnscopedAmbientTenantAccessor

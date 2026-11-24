@@ -196,7 +196,8 @@ public sealed class RowLevelSecurityEndToEndTests(PostgresFixture fixture)
         return new OpenIdDbContext(
             optionsBuilder.Options,
             accessor,
-            fixture.ServiceProvider.GetServices<IOpenIdModelContributor>()
+            fixture.ServiceProvider.GetServices<IOpenIdModelContributor>(),
+            []
         );
     }
 
