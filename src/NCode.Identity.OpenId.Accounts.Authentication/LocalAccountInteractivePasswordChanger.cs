@@ -7,7 +7,6 @@ using NCode.Identity.OpenId.Accounts.Stores;
 using NCode.Identity.OpenId.Authentication.Auditing;
 using NCode.Identity.OpenId.Authentication.Interactive;
 using NCode.Identity.OpenId.Authentication.Passwords;
-using NCode.Identity.OpenId.Connections;
 using NCode.Identity.OpenId.Contexts;
 using NCode.Identity.Persistence.Stores;
 
@@ -25,7 +24,7 @@ namespace NCode.Identity.OpenId.Accounts.Authentication;
 // See ADR-1230.
 internal sealed class LocalAccountInteractivePasswordChanger(
     IStoreManagerFactory storeManagerFactory,
-    IConnectionResolver connectionResolver,
+    LocalAccountSignedInAccountFinder signedInAccountFinder,
     LocalAccountStoreCatalog localAccountStoreCatalog,
     IPasswordPolicy passwordPolicy,
     IPasswordAttemptLimiter passwordAttemptLimiter,
@@ -33,7 +32,8 @@ internal sealed class LocalAccountInteractivePasswordChanger(
 ) : IInteractivePasswordChanger
 {
     private IStoreManagerFactory StoreManagerFactory { get; } = storeManagerFactory;
-    private IConnectionResolver ConnectionResolver { get; } = connectionResolver;
+    private LocalAccountSignedInAccountFinder SignedInAccountFinder { get; } =
+        signedInAccountFinder;
     private LocalAccountStoreCatalog LocalAccountStoreCatalog { get; } = localAccountStoreCatalog;
     private IPasswordPolicy PasswordPolicy { get; } = passwordPolicy;
     private IPasswordAttemptLimiter PasswordAttemptLimiter { get; } = passwordAttemptLimiter;
@@ -51,11 +51,9 @@ internal sealed class LocalAccountInteractivePasswordChanger(
         await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
 
         // A principal that links several local accounts has no single password to change.
-        var found = await LocalAccountSignedInAccounts.FindAsync(
+        var found = await SignedInAccountFinder.FindAsync(
             storeManager,
             openIdContext,
-            ConnectionResolver,
-            LocalAccountStoreCatalog,
             principal,
             cancellationToken
         );

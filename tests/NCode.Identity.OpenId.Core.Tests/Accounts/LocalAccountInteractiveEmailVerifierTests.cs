@@ -49,10 +49,15 @@ public class LocalAccountInteractiveEmailVerifierTests : BaseTests
         MockEmailCodes = CreateStrictMock<ILocalAccountEmailCodes>();
         MockAuditEventRecorder = CreateStrictMock<IAuditEventRecorder>();
         MockConnectionResolver = CreateStrictMock<IConnectionResolver>();
+        var catalog = LocalAccountStoreSetup.CreateCatalog(MockLocalAccountStore);
         Verifier = new LocalAccountInteractiveEmailVerifier(
             MockStoreManagerFactory.Object,
-            MockConnectionResolver.Object,
-            LocalAccountStoreSetup.CreateCatalog(MockLocalAccountStore),
+            new LocalAccountSignedInAccountFinder(
+                MockStoreManagerFactory.Object,
+                MockConnectionResolver.Object,
+                catalog
+            ),
+            catalog,
             MockEmailCodes.Object,
             MockAuditEventRecorder.Object
         );

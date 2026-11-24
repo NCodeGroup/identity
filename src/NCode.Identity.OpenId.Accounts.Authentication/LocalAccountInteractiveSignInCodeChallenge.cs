@@ -8,7 +8,6 @@ using NCode.Identity.OpenId.Accounts.DataContracts;
 using NCode.Identity.OpenId.Accounts.Stores;
 using NCode.Identity.OpenId.Authentication.Auditing;
 using NCode.Identity.OpenId.Authentication.Interactive;
-using NCode.Identity.OpenId.Connections;
 using NCode.Identity.OpenId.Contexts;
 using NCode.Identity.Persistence.Stores;
 
@@ -25,14 +24,15 @@ namespace NCode.Identity.OpenId.Accounts.Authentication;
 // See ADR-1533.
 internal sealed class LocalAccountInteractiveSignInCodeChallenge(
     IStoreManagerFactory storeManagerFactory,
-    IConnectionResolver connectionResolver,
+    LocalAccountSignedInAccountFinder signedInAccountFinder,
     LocalAccountStoreCatalog localAccountStoreCatalog,
     ILocalAccountEmailCodes emailCodes,
     IAuditEventRecorder auditEventRecorder
 ) : IInteractiveSignInCodeChallenge
 {
     private IStoreManagerFactory StoreManagerFactory { get; } = storeManagerFactory;
-    private IConnectionResolver ConnectionResolver { get; } = connectionResolver;
+    private LocalAccountSignedInAccountFinder SignedInAccountFinder { get; } =
+        signedInAccountFinder;
     private LocalAccountStoreCatalog LocalAccountStoreCatalog { get; } = localAccountStoreCatalog;
     private ILocalAccountEmailCodes EmailCodes { get; } = emailCodes;
     private IAuditEventRecorder AuditEventRecorder { get; } = auditEventRecorder;
@@ -45,11 +45,8 @@ internal sealed class LocalAccountInteractiveSignInCodeChallenge(
         CancellationToken cancellationToken
     )
     {
-        var found = await LocalAccountSignedInAccounts.FindAsync(
-            StoreManagerFactory,
+        var found = await SignedInAccountFinder.FindAsync(
             openIdContext,
-            ConnectionResolver,
-            LocalAccountStoreCatalog,
             principal,
             cancellationToken
         );
@@ -135,11 +132,9 @@ internal sealed class LocalAccountInteractiveSignInCodeChallenge(
     {
         await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
 
-        var found = await LocalAccountSignedInAccounts.FindAsync(
+        var found = await SignedInAccountFinder.FindAsync(
             storeManager,
             openIdContext,
-            ConnectionResolver,
-            LocalAccountStoreCatalog,
             principal,
             cancellationToken
         );

@@ -59,10 +59,15 @@ public class LocalAccountInteractivePasswordChangerTests : BaseTests
             TenantId,
             CreateLooseMock<IReadOnlySettingCollection>().Object
         );
+        var catalog = LocalAccountStoreSetup.CreateCatalog(MockLocalAccountStore);
         Changer = new LocalAccountInteractivePasswordChanger(
             MockStoreManagerFactory.Object,
-            MockConnectionResolver.Object,
-            LocalAccountStoreSetup.CreateCatalog(MockLocalAccountStore),
+            new LocalAccountSignedInAccountFinder(
+                MockStoreManagerFactory.Object,
+                MockConnectionResolver.Object,
+                catalog
+            ),
+            catalog,
             MockPasswordPolicy.Object,
             MockPasswordAttemptLimiter.Object,
             MockAuditEventRecorder.Object
