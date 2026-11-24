@@ -55,7 +55,9 @@ Markers belong to library layers and to dependency-inverted seams that are regis
 - `AddLocalAccountEntityFramework` and `AddAspNetIdentityLocalAccountStore<TUser>`, and any custom store, take
   `IServiceBuilder<StoreManagerLibrary>` and mint and return `IServiceBuilder<LocalAccountLibrary>`
   (`NCode.Identity.OpenId.Accounts.Abstractions`). A capability cannot be written without a store; the cost is that a
-  custom store mints and returns the marker too.
+  custom store mints and returns the marker too. The registration every such store calls, `AddLocalAccountStore()`,
+  also adds a hosted warm-up that resolves the store catalog as the host starts, so a store with an empty name, or two
+  stores of one name, stops the host.
 - Contract-only packages, cross-library helpers and `IInteractiveCredentialVerifier` own no marker. The verifier is
   registered after its consumer, so there is no builder to thread and a missing verifier fails at resolution. A seam
   marker applies exactly when the seam is registered before its dependent.
