@@ -53,11 +53,15 @@ static NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryServerOptions.MaxTo
 static NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryServerOptions.MinTokenLifetime.get -> System.TimeSpan
 NCode.Identity.OpenId.GlobalDirectory.Server.Entities.CellRecord
 NCode.Identity.OpenId.GlobalDirectory.Server.Entities.CellRecord.CellRecord() -> void
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.CellRecord.ClientJwksJson.get -> string?
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.CellRecord.ClientJwksJson.set -> void
 NCode.Identity.OpenId.GlobalDirectory.Server.Entities.CellRecord.IsControlPlane.get -> bool
 NCode.Identity.OpenId.GlobalDirectory.Server.Entities.CellRecord.IsControlPlane.set -> void
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.CellRecord.IsRetired.get -> bool
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.CellRecord.IsRetired.set -> void
 NCode.Identity.OpenId.GlobalDirectory.Server.Entities.CellRecord.Kind.get -> string!
 NCode.Identity.OpenId.GlobalDirectory.Server.Entities.CellRecord.Kind.set -> void
-NCode.Identity.OpenId.GlobalDirectory.Server.Entities.CellRecord.ManagementUrl.get -> string!
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.CellRecord.ManagementUrl.get -> string?
 NCode.Identity.OpenId.GlobalDirectory.Server.Entities.CellRecord.ManagementUrl.set -> void
 NCode.Identity.OpenId.GlobalDirectory.Server.Entities.CellRecord.Name.get -> string!
 NCode.Identity.OpenId.GlobalDirectory.Server.Entities.CellRecord.Name.set -> void

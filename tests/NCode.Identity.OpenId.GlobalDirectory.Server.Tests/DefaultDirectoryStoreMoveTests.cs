@@ -16,7 +16,7 @@ public sealed class DefaultDirectoryStoreMoveTests : DefaultDirectoryStoreTestBa
         string region,
         CancellationToken cancellationToken = default
     ) =>
-        await Cells.RegisterAsync(
+        await ReportCellAsync(
             new CellDescriptor
             {
                 Name = name,

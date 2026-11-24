@@ -11,6 +11,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Moq;
 using NCode.Identity.OpenId.Client;
+using NCode.Identity.OpenId.GlobalDirectory.Server.Entities;
 using NCode.Identity.Registration;
 using NCode.Identity.Secrets.Persistence;
 using Xunit;
@@ -172,6 +173,34 @@ public class RemoteDirectoryRoundTripTests : IAsyncLifetime
         return new IssuerAccessTokenResult(payload, ServerIssuer);
     }
 
+    /// <summary>
+    /// Stores the registration of the cell that a descriptor describes, as the control-plane cell's initializer or its
+    /// registration route does, then has the cell report the descriptor through the remote adapter.
+    /// </summary>
+    private async ValueTask ReportCellAsync(
+        CellDescriptor descriptor,
+        CancellationToken cancellationToken = default
+    )
+    {
+        var services = (App ?? throw new InvalidOperationException()).Services;
+        var dbContextFactory = services.GetRequiredService<IDbContextFactory<DirectoryDbContext>>();
+        await using (var dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken))
+        {
+            dbContext.Cells.Add(
+                new CellRecord
+                {
+                    Name = descriptor.Name,
+                    Region = descriptor.Region,
+                    Kind = descriptor.Kind,
+                    ClientJwksJson = """{"keys":[]}""",
+                }
+            );
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+
+        await Cells.RegisterAsync(descriptor, cancellationToken);
+    }
+
     private static string SettingsWithLimit(int maxTenants) =>
         JsonSerializer.Serialize(new Dictionary<string, object> { ["max_tenants"] = maxTenants });
 
@@ -277,7 +306,7 @@ public class RemoteDirectoryRoundTripTests : IAsyncLifetime
     [Fact]
     public async Task PlaceAsync_WhenTheTenantHasNoIssuer_AnswersAPlacementWithoutAnIssuer()
     {
-        await Cells.RegisterAsync(
+        await ReportCellAsync(
             new CellDescriptor
             {
                 Name = CellName,
@@ -313,7 +342,7 @@ public class RemoteDirectoryRoundTripTests : IAsyncLifetime
     [Fact]
     public async Task PlaceAsync_WhenTheTenantIsReserved_AnswersThePlacement()
     {
-        await Cells.RegisterAsync(
+        await ReportCellAsync(
             new CellDescriptor
             {
                 Name = CellName,
@@ -675,7 +704,7 @@ public class RemoteDirectoryRoundTripTests : IAsyncLifetime
     {
         Assert.Null(await Cells.GetOrDefaultAsync(CellName, CancellationToken.None));
 
-        await Cells.RegisterAsync(
+        await ReportCellAsync(
             new CellDescriptor
             {
                 Name = CellName,

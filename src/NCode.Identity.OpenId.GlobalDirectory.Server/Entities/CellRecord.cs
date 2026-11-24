@@ -24,9 +24,20 @@ public sealed class CellRecord
     public required string Kind { get; set; }
 
     /// <summary>
-    /// Gets or sets the URL of the cell's management API.
+    /// Gets or sets the URL of the cell's management API, or <c>null</c> until the cell reports its descriptor.
     /// </summary>
-    public required string ManagementUrl { get; set; }
+    public string? ManagementUrl { get; set; }
+
+    /// <summary>
+    /// Gets or sets the JSON Web Key Set that holds the public keys the cell's client assertions are verified with, or
+    /// <c>null</c> when the cell is not registered.
+    /// </summary>
+    public string? ClientJwksJson { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether the cell is retired. A retired cell's name is never reissued.
+    /// </summary>
+    public bool IsRetired { get; set; }
 
     /// <summary>
     /// Gets or sets a value indicating whether the cell is the control-plane cell.

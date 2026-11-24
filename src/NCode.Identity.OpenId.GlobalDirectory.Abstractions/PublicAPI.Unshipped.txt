@@ -38,6 +38,15 @@ NCode.Identity.OpenId.GlobalDirectory.CellOptions.Name.get -> string!
 NCode.Identity.OpenId.GlobalDirectory.CellOptions.Name.set -> void
 NCode.Identity.OpenId.GlobalDirectory.CellOptions.Region.get -> string!
 NCode.Identity.OpenId.GlobalDirectory.CellOptions.Region.set -> void
+NCode.Identity.OpenId.GlobalDirectory.CellRegistration
+NCode.Identity.OpenId.GlobalDirectory.CellRegistration.Jwks.get -> System.Text.Json.JsonElement
+NCode.Identity.OpenId.GlobalDirectory.CellRegistration.Jwks.init -> void
+NCode.Identity.OpenId.GlobalDirectory.CellRegistration.Kind.get -> string!
+NCode.Identity.OpenId.GlobalDirectory.CellRegistration.Kind.init -> void
+NCode.Identity.OpenId.GlobalDirectory.CellRegistration.Name.get -> string!
+NCode.Identity.OpenId.GlobalDirectory.CellRegistration.Name.init -> void
+NCode.Identity.OpenId.GlobalDirectory.CellRegistration.Region.get -> string!
+NCode.Identity.OpenId.GlobalDirectory.CellRegistration.Region.init -> void
 NCode.Identity.OpenId.GlobalDirectory.ControlPlaneOptions
 NCode.Identity.OpenId.GlobalDirectory.ControlPlaneOptions.ControlPlaneOptions() -> void
 NCode.Identity.OpenId.GlobalDirectory.ControlPlaneOptions.Issuer.get -> string?

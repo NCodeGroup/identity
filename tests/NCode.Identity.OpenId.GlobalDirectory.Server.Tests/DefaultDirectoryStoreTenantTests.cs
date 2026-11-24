@@ -11,7 +11,7 @@ public sealed class DefaultDirectoryStoreTenantTests : DefaultDirectoryStoreTest
 {
     private async ValueTask RegisterCellAsync(CancellationToken cancellationToken = default)
     {
-        await Cells.RegisterAsync(
+        await ReportCellAsync(
             new CellDescriptor
             {
                 Name = CellName,

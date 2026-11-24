@@ -21,9 +21,9 @@ public sealed class DefaultDirectoryStoreCellTests : DefaultDirectoryStoreTestBa
     [Fact]
     public async Task RegisterAsync_WhenTheCellIsNew_StoresTheDescriptor()
     {
-        var descriptor = CreateCell("cell-a") with { IsControlPlane = true };
+        var descriptor = CreateCell("cell-a");
 
-        await Cells.RegisterAsync(descriptor, CancellationToken.None);
+        await ReportCellAsync(descriptor, CancellationToken.None);
 
         var stored = await Cells.GetOrDefaultAsync("cell-a", CancellationToken.None);
         Assert.Equal(descriptor, stored);
@@ -32,13 +32,8 @@ public sealed class DefaultDirectoryStoreCellTests : DefaultDirectoryStoreTestBa
     [Fact]
     public async Task RegisterAsync_WhenTheCellIsRegisteredAgain_ReplacesTheDescriptor()
     {
-        await Cells.RegisterAsync(CreateCell("cell-a"), CancellationToken.None);
-        var changed = CreateCell("cell-a", region: "region-b") with
-        {
-            Kind = CellKinds.Dedicated,
-            ManagementUrl = "https://moved.example/",
-            IsControlPlane = true,
-        };
+        await ReportCellAsync(CreateCell("cell-a"), CancellationToken.None);
+        var changed = CreateCell("cell-a") with { ManagementUrl = "https://moved.example/" };
 
         await Cells.RegisterAsync(changed, CancellationToken.None);
 
@@ -49,11 +44,11 @@ public sealed class DefaultDirectoryStoreCellTests : DefaultDirectoryStoreTestBa
     [Fact]
     public async Task RegisterAsync_WhenAnotherCellReportsTheManagementUrl_ThrowsAndStoresNothing()
     {
-        await Cells.RegisterAsync(CreateCell("cell-a"), CancellationToken.None);
+        await ReportCellAsync(CreateCell("cell-a"), CancellationToken.None);
         var other = CreateCell("cell-b") with { ManagementUrl = "https://cell-a.example/" };
 
         var exception = await Assert.ThrowsAsync<CellDirectoryConflictException>(async () =>
-            await Cells.RegisterAsync(other, CancellationToken.None)
+            await ReportCellAsync(other, CancellationToken.None)
         );
 
         Assert.Contains("cell-a", exception.Message);
@@ -66,18 +61,18 @@ public sealed class DefaultDirectoryStoreCellTests : DefaultDirectoryStoreTestBa
     [InlineData("https://cell-a.example:443/")]
     public async Task RegisterAsync_WhenTheManagementUrlDiffersOnlyInForm_Throws(string url)
     {
-        await Cells.RegisterAsync(CreateCell("cell-a"), CancellationToken.None);
+        await ReportCellAsync(CreateCell("cell-a"), CancellationToken.None);
         var other = CreateCell("cell-b") with { ManagementUrl = url };
 
         await Assert.ThrowsAsync<CellDirectoryConflictException>(async () =>
-            await Cells.RegisterAsync(other, CancellationToken.None)
+            await ReportCellAsync(other, CancellationToken.None)
         );
     }
 
     [Fact]
     public async Task RegisterAsync_WhenTheSameCellReportsItsUrlAgain_Accepts()
     {
-        await Cells.RegisterAsync(CreateCell("cell-a"), CancellationToken.None);
+        await ReportCellAsync(CreateCell("cell-a"), CancellationToken.None);
 
         await Cells.RegisterAsync(CreateCell("cell-a"), CancellationToken.None);
 
@@ -91,8 +86,8 @@ public sealed class DefaultDirectoryStoreCellTests : DefaultDirectoryStoreTestBa
     [Fact]
     public async Task ListAsync_WhenCellsAreRegistered_ReturnsThemByName()
     {
-        await Cells.RegisterAsync(CreateCell("cell-b"), CancellationToken.None);
-        await Cells.RegisterAsync(CreateCell("cell-a"), CancellationToken.None);
+        await ReportCellAsync(CreateCell("cell-b"), CancellationToken.None);
+        await ReportCellAsync(CreateCell("cell-a"), CancellationToken.None);
 
         var cells = await Cells.ListAsync(CancellationToken.None);
 

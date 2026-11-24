@@ -128,6 +128,30 @@ public class DirectoryEndpointsTests : IAsyncLifetime
         await using (var dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken))
         {
             await dbContext.Database.EnsureCreatedAsync(cancellationToken);
+
+            // The control-plane cell registered each cell, which then reports its descriptor.
+            foreach (var name in new[] { ControlPlaneCell, "a", "b" })
+            {
+                if (
+                    await dbContext.Cells.AnyAsync(entity => entity.Name == name, cancellationToken)
+                )
+                {
+                    continue;
+                }
+
+                dbContext.Cells.Add(
+                    new CellRecord
+                    {
+                        Name = name,
+                        Region = "region-a",
+                        Kind = CellKinds.Shared,
+                        IsControlPlane = name == ControlPlaneCell,
+                        ClientJwksJson = """{"keys":[]}""",
+                    }
+                );
+            }
+
+            await dbContext.SaveChangesAsync(cancellationToken);
         }
 
         await app.StartAsync(cancellationToken);
@@ -1350,6 +1374,17 @@ public class DirectoryEndpointsTests : IAsyncLifetime
         var services = (App ?? throw new InvalidOperationException()).Services;
         var cells = services.GetRequiredService<ICellDirectory>();
         var tenants = services.GetRequiredService<ITenantDirectory>();
+
+        var dbContextFactory = services.GetRequiredService<IDbContextFactory<DirectoryDbContext>>();
+        await using (var dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken))
+        {
+            var cellB = await dbContext.Cells.SingleAsync(
+                entity => entity.Name == "b",
+                cancellationToken
+            );
+            cellB.Region = targetRegion;
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
 
         await cells.RegisterAsync(CreateCell("a"), cancellationToken);
         await cells.RegisterAsync(

@@ -96,6 +96,48 @@ public abstract class DefaultDirectoryStoreTestBase : IDisposable
 
     protected ICellDirectory Cells => Store;
 
+    internal DefaultDirectoryStore CellRegistry => Store;
+
+    /// <summary>
+    /// Registers a cell with an empty key set and has it report its descriptor, as a cell of the platform does.
+    /// </summary>
+    protected async ValueTask ReportCellAsync(
+        CellDescriptor descriptor,
+        CancellationToken cancellationToken = default
+    )
+    {
+        if (descriptor.Name == ControlPlaneCell)
+        {
+            // The directory holds the control-plane cell's registration from its configuration.
+            await using var dbContext = await DbContextFactory.CreateDbContextAsync(
+                cancellationToken
+            );
+            dbContext.Cells.Add(
+                new CellRecord
+                {
+                    Name = descriptor.Name,
+                    Region = descriptor.Region,
+                    Kind = descriptor.Kind,
+                    IsControlPlane = true,
+                    ClientJwksJson = """{"keys":[]}""",
+                }
+            );
+            await dbContext.SaveChangesAsync(cancellationToken);
+            await Cells.RegisterAsync(descriptor, cancellationToken);
+            return;
+        }
+
+        var registration = new CellRegistration
+        {
+            Name = descriptor.Name,
+            Region = descriptor.Region,
+            Kind = descriptor.Kind,
+            Jwks = JsonElement.Parse("""{"keys":[]}"""),
+        };
+        await Store.RegisterCellAsync(registration, cancellationToken);
+        await Cells.RegisterAsync(descriptor, cancellationToken);
+    }
+
     protected IPlatformDirectory Platform => Store;
 
     protected IReplicatedDocumentDirectory Replicated => Store;

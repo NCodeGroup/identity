@@ -595,7 +595,10 @@ internal sealed class DefaultDirectoryStore(
 
                 var from = await dbContext
                     .Cells.AsNoTracking()
-                    .SingleOrDefaultAsync(entity => entity.Name == fromCell, cancellationToken);
+                    .SingleOrDefaultAsync(
+                        entity => entity.Name == fromCell && !entity.IsRetired,
+                        cancellationToken
+                    );
                 if (from is null)
                 {
                     return MoveResult.Conflict($"The cell '{fromCell}' is not registered.");
@@ -603,7 +606,10 @@ internal sealed class DefaultDirectoryStore(
 
                 var to = await dbContext
                     .Cells.AsNoTracking()
-                    .SingleOrDefaultAsync(entity => entity.Name == toCell, cancellationToken);
+                    .SingleOrDefaultAsync(
+                        entity => entity.Name == toCell && !entity.IsRetired,
+                        cancellationToken
+                    );
                 if (to is null)
                 {
                     return MoveResult.Conflict($"The cell '{toCell}' is not registered.");
@@ -710,7 +716,10 @@ internal sealed class DefaultDirectoryStore(
 
                 var from = await dbContext
                     .Cells.AsNoTracking()
-                    .SingleOrDefaultAsync(entity => entity.Name == fromCell, cancellationToken);
+                    .SingleOrDefaultAsync(
+                        entity => entity.Name == fromCell && !entity.IsRetired,
+                        cancellationToken
+                    );
                 if (from is null)
                 {
                     return MoveOfferResult.Conflict($"The cell '{fromCell}' is not registered.");
@@ -718,7 +727,10 @@ internal sealed class DefaultDirectoryStore(
 
                 var to = await dbContext
                     .Cells.AsNoTracking()
-                    .SingleOrDefaultAsync(entity => entity.Name == toCell, cancellationToken);
+                    .SingleOrDefaultAsync(
+                        entity => entity.Name == toCell && !entity.IsRetired,
+                        cancellationToken
+                    );
                 if (to is null)
                 {
                     return MoveOfferResult.Conflict($"The cell '{toCell}' is not registered.");
@@ -1982,12 +1994,49 @@ internal sealed class DefaultDirectoryStore(
                     cancellationToken
                 );
 
+                // A cell reports only what the control-plane cell registered, under the region and kind it
+                // registered, and a retired cell reports nothing.
+                if (cell is null || cell.ClientJwksJson is null)
+                {
+                    throw new CellDirectoryConflictException(
+                        $"The cell '{descriptor.Name}' is not registered."
+                    );
+                }
+
+                if (cell.IsRetired)
+                {
+                    throw new CellDirectoryConflictException(
+                        $"The cell '{descriptor.Name}' is retired."
+                    );
+                }
+
+                var isRegionSame = string.Equals(
+                    cell.Region,
+                    descriptor.Region,
+                    StringComparison.Ordinal
+                );
+                var isKindSame = string.Equals(
+                    cell.Kind,
+                    descriptor.Kind,
+                    StringComparison.Ordinal
+                );
+                if (!isRegionSame || !isKindSame)
+                {
+                    throw new CellDirectoryConflictException(
+                        $"The cell '{descriptor.Name}' is registered in the region '{cell.Region}' as the kind '{cell.Kind}'."
+                    );
+                }
+
                 // No two cells report one management URL: a caller's DPoP proof is bound to the URL it names.
                 var normalizedUrl = NormalizeManagementUrl(descriptor.ManagementUrl);
                 var otherCells = await dbContext
                     .Cells.AsNoTracking()
-                    .Where(entity => entity.Name != descriptor.Name)
-                    .Select(entity => new { entity.Name, entity.ManagementUrl })
+                    .Where(entity => entity.Name != descriptor.Name && entity.ManagementUrl != null)
+                    .Select(entity => new
+                    {
+                        entity.Name,
+                        ManagementUrl = entity.ManagementUrl ?? string.Empty,
+                    })
                     .ToListAsync(cancellationToken);
                 var conflicting = otherCells.FirstOrDefault(other =>
                 {
@@ -2001,24 +2050,90 @@ internal sealed class DefaultDirectoryStore(
                     );
                 }
 
+                // Whether a cell is the control-plane cell is the directory's own fact, never the cell's report.
+                cell.ManagementUrl = descriptor.ManagementUrl;
+
+                await dbContext.SaveChangesAsync(cancellationToken);
+                await transaction.CommitAsync(cancellationToken);
+            },
+            cancellationToken
+        );
+    }
+
+    /// <summary>
+    /// Registers a cell, or replaces the key set of a registered cell, in a serializable transaction. The cell's name,
+    /// region and kind are the registration's, and a registered cell's region and kind never change.
+    /// </summary>
+    /// <param name="registration">The <see cref="CellRegistration"/> of the cell.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <returns>A <see cref="ValueTask"/> that completes when the registration is stored.</returns>
+    /// <exception cref="CellDirectoryConflictException">
+    /// The name is the control-plane cell's or a retired cell's, or the cell is registered in another region or as
+    /// another kind.
+    /// </exception>
+    public async ValueTask RegisterCellAsync(
+        CellRegistration registration,
+        CancellationToken cancellationToken
+    )
+    {
+        var name = registration.Name;
+        ThrowIfControlPlaneCell(name, "registered");
+        var jwksJson = registration.Jwks.GetRawText();
+
+        await using var dbContext = await DbContextFactory.CreateDbContextAsync(cancellationToken);
+        var executionStrategy = dbContext.Database.CreateExecutionStrategy();
+        await executionStrategy.ExecuteAsync(
+            async _ =>
+            {
+                // A retried attempt starts from the database, not from the failed attempt's tracked entities.
+                dbContext.ChangeTracker.Clear();
+                await using var transaction = await dbContext.Database.BeginTransactionAsync(
+                    IsolationLevel.Serializable,
+                    cancellationToken
+                );
+
+                var cell = await dbContext.Cells.SingleOrDefaultAsync(
+                    entity => entity.Name == name,
+                    cancellationToken
+                );
                 if (cell is null)
                 {
                     var newCell = new CellRecord
                     {
-                        Name = descriptor.Name,
-                        Region = descriptor.Region,
-                        Kind = descriptor.Kind,
-                        ManagementUrl = descriptor.ManagementUrl,
-                        IsControlPlane = descriptor.IsControlPlane,
+                        Name = name,
+                        Region = registration.Region,
+                        Kind = registration.Kind,
+                        ClientJwksJson = jwksJson,
                     };
                     dbContext.Cells.Add(newCell);
                 }
                 else
                 {
-                    cell.Region = descriptor.Region;
-                    cell.Kind = descriptor.Kind;
-                    cell.ManagementUrl = descriptor.ManagementUrl;
-                    cell.IsControlPlane = descriptor.IsControlPlane;
+                    if (cell.IsRetired)
+                    {
+                        throw new CellDirectoryConflictException(
+                            $"The cell '{name}' is retired, and a retired name is never reissued."
+                        );
+                    }
+
+                    var isRegionSame = string.Equals(
+                        cell.Region,
+                        registration.Region,
+                        StringComparison.Ordinal
+                    );
+                    var isKindSame = string.Equals(
+                        cell.Kind,
+                        registration.Kind,
+                        StringComparison.Ordinal
+                    );
+                    if (!isRegionSame || !isKindSame)
+                    {
+                        throw new CellDirectoryConflictException(
+                            $"The cell '{name}' is registered in the region '{cell.Region}' as the kind '{cell.Kind}'."
+                        );
+                    }
+
+                    cell.ClientJwksJson = jwksJson;
                 }
 
                 await dbContext.SaveChangesAsync(cancellationToken);
@@ -2026,6 +2141,110 @@ internal sealed class DefaultDirectoryStore(
             },
             cancellationToken
         );
+    }
+
+    /// <summary>
+    /// Retires a registered cell in a serializable transaction. The cell keeps its name, which is never reissued, and
+    /// holds no key set and no management URL afterward. A cell that is already retired stays as it is.
+    /// </summary>
+    /// <param name="name">The name of the cell.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <returns>A <see cref="ValueTask"/> that completes when the cell is retired.</returns>
+    /// <exception cref="CellDirectoryConflictException">
+    /// The name is the control-plane cell's, no cell is registered under it, or a tenant is placed in the cell.
+    /// </exception>
+    public async ValueTask RetireCellAsync(string name, CancellationToken cancellationToken)
+    {
+        ThrowIfControlPlaneCell(name, "retired");
+
+        await using var dbContext = await DbContextFactory.CreateDbContextAsync(cancellationToken);
+        var executionStrategy = dbContext.Database.CreateExecutionStrategy();
+        await executionStrategy.ExecuteAsync(
+            async _ =>
+            {
+                // A retried attempt starts from the database, not from the failed attempt's tracked entities.
+                dbContext.ChangeTracker.Clear();
+                await using var transaction = await dbContext.Database.BeginTransactionAsync(
+                    IsolationLevel.Serializable,
+                    cancellationToken
+                );
+
+                var cell = await dbContext.Cells.SingleOrDefaultAsync(
+                    entity => entity.Name == name,
+                    cancellationToken
+                );
+                if (cell is null)
+                {
+                    throw new CellDirectoryConflictException(
+                        $"The cell '{name}' is not registered."
+                    );
+                }
+
+                if (cell.IsRetired)
+                {
+                    return;
+                }
+
+                var isHoldingTenants = await dbContext.Tenants.AnyAsync(
+                    entity => entity.Cell == name && entity.State != TenantRecord.StateRetired,
+                    cancellationToken
+                );
+                if (isHoldingTenants)
+                {
+                    throw new CellDirectoryConflictException(
+                        $"The cell '{name}' holds tenants, so it cannot be retired."
+                    );
+                }
+
+                cell.IsRetired = true;
+                cell.ClientJwksJson = null;
+                cell.ManagementUrl = null;
+
+                await dbContext.SaveChangesAsync(cancellationToken);
+                await transaction.CommitAsync(cancellationToken);
+            },
+            cancellationToken
+        );
+    }
+
+    /// <summary>
+    /// Gets the key set that a registered cell's client assertions are verified with.
+    /// </summary>
+    /// <param name="name">The name of the cell.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <returns>The JSON Web Key Set of the cell, or <c>null</c> when no unretired cell is registered under the
+    /// name.</returns>
+    public async ValueTask<JsonElement?> GetCellClientKeysAsync(
+        string name,
+        CancellationToken cancellationToken
+    )
+    {
+        await using var dbContext = await DbContextFactory.CreateDbContextAsync(cancellationToken);
+
+        var jwksJson = await dbContext
+            .Cells.AsNoTracking()
+            .Where(entity => entity.Name == name && !entity.IsRetired)
+            .Select(entity => entity.ClientJwksJson)
+            .SingleOrDefaultAsync(cancellationToken);
+        return jwksJson is null ? null : JsonElement.Parse(jwksJson);
+    }
+
+    /// <summary>
+    /// Refuses a registration or retirement of the control-plane cell, which the directory holds from its own
+    /// configuration.
+    /// </summary>
+    /// <param name="name">The name of the cell.</param>
+    /// <param name="action">The word that completes "the control-plane cell is never ...".</param>
+    /// <exception cref="CellDirectoryConflictException">The name is the control-plane cell's.</exception>
+    private void ThrowIfControlPlaneCell(string name, string action)
+    {
+        var controlPlaneCell = ServerOptions.Value.ControlPlane.Cell;
+        if (string.Equals(name, controlPlaneCell, StringComparison.Ordinal))
+        {
+            throw new CellDirectoryConflictException(
+                $"The cell '{name}' is the control-plane cell, which is never {action}."
+            );
+        }
     }
 
     /// <inheritdoc />
@@ -2037,6 +2256,7 @@ internal sealed class DefaultDirectoryStore(
 
         var records = await dbContext
             .Cells.AsNoTracking()
+            .Where(entity => entity.ManagementUrl != null && !entity.IsRetired)
             .OrderBy(entity => entity.Name)
             .ToListAsync(cancellationToken);
         return [.. records.Select(ToDescriptor)];
@@ -2052,7 +2272,10 @@ internal sealed class DefaultDirectoryStore(
 
         var record = await dbContext
             .Cells.AsNoTracking()
-            .SingleOrDefaultAsync(entity => entity.Name == name, cancellationToken);
+            .SingleOrDefaultAsync(
+                entity => entity.Name == name && entity.ManagementUrl != null && !entity.IsRetired,
+                cancellationToken
+            );
         return record is null ? null : ToDescriptor(record);
     }
 
@@ -2082,7 +2305,7 @@ internal sealed class DefaultDirectoryStore(
             Name = record.Name,
             Region = record.Region,
             Kind = record.Kind,
-            ManagementUrl = record.ManagementUrl,
+            ManagementUrl = record.ManagementUrl ?? string.Empty,
             IsControlPlane = record.IsControlPlane,
         };
 
