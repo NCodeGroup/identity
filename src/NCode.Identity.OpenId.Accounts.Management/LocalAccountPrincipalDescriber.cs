@@ -39,7 +39,7 @@ internal sealed class LocalAccountPrincipalDescriber(
     /// A summary per account that an identity of a requested principal names in a local connection, or an empty list,
     /// without reading accounts, when no principal has such an identity.
     /// </returns>
-    private async ValueTask<List<PrincipalSummaryResource>> DescribeByPrincipalIdsAsync(
+    private async ValueTask<IReadOnlyList<PrincipalSummaryResource>> DescribeByPrincipalIdsAsync(
         IStoreManager storeManager,
         IReadOnlyList<string> principalIds,
         CancellationToken cancellationToken
@@ -117,7 +117,7 @@ internal sealed class LocalAccountPrincipalDescriber(
     /// A summary per account whose identity is found, or an empty list, without reading identities, when no account
     /// matches, and without reading accounts when the tenant has no default local connection.
     /// </returns>
-    private async ValueTask<List<PrincipalSummaryResource>> DescribeByUserNamesAsync(
+    private async ValueTask<IReadOnlyList<PrincipalSummaryResource>> DescribeByUserNamesAsync(
         IStoreManager storeManager,
         IReadOnlyList<string> userNames,
         CancellationToken cancellationToken

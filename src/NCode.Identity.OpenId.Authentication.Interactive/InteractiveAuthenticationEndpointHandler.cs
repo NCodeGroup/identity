@@ -267,19 +267,20 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
     /// <param name="offered">The connections the sign-in pages offer.</param>
     /// <returns>The offered connections that enable a password reset, in their offered order.</returns>
     // See ADR-1533.
-    private static List<ResolvedConnection> GetResettableConnections(
+    private static IReadOnlyList<ResolvedConnection> GetResettableConnections(
         IReadOnlyList<ResolvedConnection> offered
     )
     {
-        var resettable = new List<ResolvedConnection>();
+        var resettableList = new List<ResolvedConnection>();
         foreach (var candidate in offered)
         {
             if (IsResettable(candidate))
             {
-                resettable.Add(candidate);
+                resettableList.Add(candidate);
             }
         }
 
+        IReadOnlyList<ResolvedConnection> resettable = resettableList;
         return resettable;
     }
 
