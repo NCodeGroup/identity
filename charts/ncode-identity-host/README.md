@@ -447,6 +447,26 @@ created either. Setup imports each JWK Set by value, so neither client needs a `
 Delete both Secrets once the instance is initialized. The guide
 [The first use of a deployed instance](../../docs/first-deployed-instance.md) walks through the whole first use.
 
+## Recovery
+
+Three offline commands of the host image repair an instance that no one can sign in to or manage. Each renders a Job per
+release revision, with the credentials of the schema owner and no hook; enable one only while it is needed.
+
+| Value                                        | Meaning                                                                                       |
+| -------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `recovery.recoverAdmin.enabled`              | Runs `recover-admin`, which creates or re-enables an administrator account in the anchor tenant (`false`). |
+| `recovery.recoverAdmin.existingSecret`       | A Secret holding the administrator's credentials. Required when enabled.                      |
+| `recovery.recoverAdmin.userNameKey`          | The key of the user name in that Secret (`userName`).                                         |
+| `recovery.recoverAdmin.passwordKey`          | The key of the password in that Secret (`password`).                                          |
+| `recovery.recoverAdmin.emailKey`             | The key of the email address in that Secret (`email`); the Secret may omit it.                |
+| `recovery.recoverAdmin.displayNameKey`       | The key of the display name in that Secret (`displayName`); the Secret may omit it.           |
+| `recovery.recoverSignIn.enabled`             | Runs `recover-sign-in`, which repairs the settings that block every sign-in (`false`).        |
+| `recovery.revokeManagementKey.keyId`         | Runs `revoke-management-key` for this `kid`; empty renders no Job.                            |
+| `recovery.backoffLimit`                      | How often a Job retries (`2`).                                                                |
+| `recovery.activeDeadlineSeconds`             | How long a Job may run, in seconds (`300`).                                                   |
+
+The Jobs pass the Secret's values as `Recovery__Admin__*`. Delete the Secret once the account is recovered.
+
 ## Secret protection
 
 The host encrypts every stored secret, and the Data Protection key ring, under a root key held outside the database, so

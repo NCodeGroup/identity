@@ -494,6 +494,32 @@ setup:
     # The automation client's public JWK Set, a JSON object with a non-empty keys array. Never the private key.
     jwks: ""
 
+# Offline recovery of an instance, each a one-off Job from the host image that runs for this release revision with the
+# credentials of the schema owner: recover-admin creates or re-enables an administrator account in the anchor tenant,
+# recover-sign-in repairs the settings that block every sign-in, and revoke-management-key revokes a management signing
+# key in this cell. Enable one only while it is needed, and delete its Secret afterwards.
+recovery:
+  recoverAdmin:
+    enabled: false
+    # Secret holding the administrator's user name, email, display name and password under the keys below. Required when
+    # enabled.
+    existingSecret: ""
+    # The key of the administrator's user name in existingSecret.
+    userNameKey: userName
+    # The key of the administrator's email address in existingSecret. The key may be absent from the Secret.
+    emailKey: email
+    # The key of the administrator's display name in existingSecret. The key may be absent from the Secret.
+    displayNameKey: displayName
+    # The key of the administrator's password in existingSecret.
+    passwordKey: password
+  recoverSignIn:
+    enabled: false
+  revokeManagementKey:
+    # The kid of the management signing key to revoke in this cell. Empty renders no Job.
+    keyId: ""
+  backoffLimit: 2
+  activeDeadlineSeconds: 300
+
 # Settings of the platform, the scope every tenant inherits from.
 platform:
   # Grant type names the host adds to the baseline grant_types_supported (the platform setting grant_types_enabled), such

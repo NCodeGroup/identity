@@ -1,0 +1,31 @@
+# The smallest production release plus the three offline recovery Jobs: recover-admin from a Secret, recover-sign-in and
+# revoke-management-key.
+cell:
+  name: ci-recovery
+  region: ci
+  isControlPlane: true
+allowedHosts:
+  - id.example.com
+tenantResolution:
+  staticSingle:
+    issuer: https://id.example.com
+database:
+  existingSecret: identity-database
+  runtimeRole: ncode_identity_app
+migrations:
+  database:
+    existingSecret: identity-database-owner
+secretProtection:
+  rootKeyProvider: local
+  local:
+    keySecret: identity-root-key
+  recovery:
+    publicKeyConfigMap: identity-recovery-key
+recovery:
+  recoverAdmin:
+    enabled: true
+    existingSecret: identity-recovery-admin
+  recoverSignIn:
+    enabled: true
+  revokeManagementKey:
+    keyId: ci-management-key
