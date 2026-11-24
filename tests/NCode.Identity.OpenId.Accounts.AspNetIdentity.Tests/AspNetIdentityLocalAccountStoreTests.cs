@@ -868,6 +868,89 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
 
     #endregion
 
+    #region GetNamesByIdsAsync Tests
+
+    [Fact]
+    public async Task GetNamesByIdsAsync_WhenSomeIdentifiersMatch_ReturnsTheirNamesWithoutReadingClaims()
+    {
+        var (store, userManager) = CreateStore();
+        var user = CreateUser();
+        user.DisplayName = "Alice Example";
+        var other = CreateUser();
+        other.Id = "user-2";
+        other.UserName = "bob";
+        other.DisplayName = "Bob Example";
+        var unrequested = CreateUser();
+        unrequested.Id = "user-3";
+        SetupUsers(userManager, user, other, unrequested);
+        var query = new[] { LocalAccountId, "user-2", "missing" };
+
+        var result = await store.GetNamesByIdsAsync(query, CancellationToken.None);
+
+        var ordered = result.OrderBy(name => name.LocalAccountId, StringComparer.Ordinal).ToList();
+        Assert.Equal(2, ordered.Count);
+        Assert.Equal(LocalAccountId, ordered[0].LocalAccountId);
+        Assert.Equal(UserName, ordered[0].UserName);
+        Assert.Equal("Alice Example", ordered[0].DisplayName);
+        Assert.Equal("user-2", ordered[1].LocalAccountId);
+        Assert.Equal("bob", ordered[1].UserName);
+        Assert.Equal("Bob Example", ordered[1].DisplayName);
+    }
+
+    [Fact]
+    public async Task GetNamesByIdsAsync_WhenTheUserIsOfAnotherTenant_ReturnsNone()
+    {
+        var (store, userManager) = CreateStore();
+        var user = CreateUser();
+        user.TenantId = OtherTenantId;
+        SetupUsers(userManager, user);
+        var query = new[] { LocalAccountId };
+
+        var result = await store.GetNamesByIdsAsync(query, CancellationToken.None);
+
+        Assert.Empty(result);
+    }
+
+    [Fact]
+    public async Task GetNamesByIdsAsync_WhenAUserHasNoUserName_Throws()
+    {
+        var (store, userManager) = CreateStore();
+        var user = CreateUser();
+        user.UserName = null;
+        SetupUsers(userManager, user);
+        var query = new[] { LocalAccountId };
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await store.GetNamesByIdsAsync(query, CancellationToken.None)
+        );
+
+        Assert.Equal(
+            $"The stored local account '{LocalAccountId}' has no {nameof(IdentityUser.UserName)}, which ASP.NET Core Identity's user manager stores with every user.",
+            exception.Message
+        );
+    }
+
+    [Fact]
+    public async Task GetNamesByIdsAsync_WhenNoIdentifiers_ReturnsNone()
+    {
+        var scopeFactory = Mocks.Create<IServiceScopeFactory>();
+        var storeProvider = Mocks.Create<IStoreProvider>();
+        var dummyPasswordHash = new AspNetIdentityDummyPasswordHash<TestTenantUser>();
+        var store = new AspNetIdentityLocalAccountStore<TestTenantUser>(
+            scopeFactory.Object,
+            storeProvider.Object,
+            dummyPasswordHash,
+            TenantAccessor
+        );
+        var query = Array.Empty<string>();
+
+        var result = await store.GetNamesByIdsAsync(query, CancellationToken.None);
+
+        Assert.Empty(result);
+    }
+
+    #endregion
+
     #region GetByUserNamesAsync Tests
 
     [Fact]
@@ -939,6 +1022,92 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
         );
 
         var result = await store.GetByUserNamesAsync([], CancellationToken.None);
+
+        Assert.Empty(result);
+    }
+
+    #endregion
+
+    #region GetNamesByUserNamesAsync Tests
+
+    [Fact]
+    public async Task GetNamesByUserNamesAsync_WhenSomeUserNamesMatch_ReturnsTheirNames()
+    {
+        var (store, userManager) = CreateStore();
+        var user = CreateUser();
+        user.NormalizedUserName = "NORM-ALICE";
+        user.DisplayName = "Alice Example";
+        var other = CreateUser();
+        other.Id = "user-2";
+        other.UserName = "bob";
+        other.NormalizedUserName = "NORM-BOB";
+        other.DisplayName = "Bob Example";
+        var unrequested = CreateUser();
+        unrequested.Id = "user-3";
+        unrequested.NormalizedUserName = "NORM-CAROL";
+        userManager.Setup(x => x.NormalizeName("alice")).Returns("NORM-ALICE").Verifiable();
+        userManager.Setup(x => x.NormalizeName("bob")).Returns("NORM-BOB").Verifiable();
+        userManager.Setup(x => x.NormalizeName("missing")).Returns("NORM-MISSING").Verifiable();
+        SetupUsers(userManager, user, other, unrequested);
+        var query = new[] { "alice", "bob", "missing" };
+
+        var result = await store.GetNamesByUserNamesAsync(query, CancellationToken.None);
+
+        var ordered = result.OrderBy(name => name.LocalAccountId, StringComparer.Ordinal).ToList();
+        Assert.Equal(2, ordered.Count);
+        Assert.Equal(LocalAccountId, ordered[0].LocalAccountId);
+        Assert.Equal(UserName, ordered[0].UserName);
+        Assert.Equal("Alice Example", ordered[0].DisplayName);
+        Assert.Equal("user-2", ordered[1].LocalAccountId);
+        Assert.Equal("bob", ordered[1].UserName);
+        Assert.Equal("Bob Example", ordered[1].DisplayName);
+    }
+
+    [Fact]
+    public async Task GetNamesByUserNamesAsync_WithoutTenantScope_ReturnsNone()
+    {
+        var (store, _) = CreateStore();
+        TenantScope.Dispose();
+        var query = new[] { UserName };
+
+        var result = await store.GetNamesByUserNamesAsync(query, CancellationToken.None);
+
+        Assert.Empty(result);
+    }
+
+    [Fact]
+    public async Task GetNamesByUserNamesAsync_UnscopedScope_Throws()
+    {
+        var (store, _) = CreateStore();
+        TenantScope.Dispose();
+        using var unscoped = TenantAccessor.BeginUnscoped("test");
+        var query = new[] { UserName };
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await store.GetNamesByUserNamesAsync(query, CancellationToken.None)
+        );
+
+        Assert.Equal(
+            "A local account is found by user name only inside a tenant scope, because a user name is unique only within a tenant.",
+            exception.Message
+        );
+    }
+
+    [Fact]
+    public async Task GetNamesByUserNamesAsync_WhenNoUserNames_ReturnsNone()
+    {
+        var scopeFactory = Mocks.Create<IServiceScopeFactory>();
+        var storeProvider = Mocks.Create<IStoreProvider>();
+        var dummyPasswordHash = new AspNetIdentityDummyPasswordHash<TestTenantUser>();
+        var store = new AspNetIdentityLocalAccountStore<TestTenantUser>(
+            scopeFactory.Object,
+            storeProvider.Object,
+            dummyPasswordHash,
+            TenantAccessor
+        );
+        var query = Array.Empty<string>();
+
+        var result = await store.GetNamesByUserNamesAsync(query, CancellationToken.None);
 
         Assert.Empty(result);
     }
