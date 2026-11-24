@@ -56,6 +56,17 @@ internal sealed class LocalAccountInteractivePasswordResetter(
         account is { IsEnabled: true, EmailVerified: true, Email: { Length: > 0 } };
 
     /// <summary>
+    /// Determines whether a connection allows password resets, which holds only for an enabled connection of the local
+    /// strategy whose <c>password_reset_enabled</c> setting is on.
+    /// </summary>
+    /// <param name="connection">The connection the reset is for, or <see langword="null"/> when there is none.</param>
+    /// <returns><see langword="true"/> when the connection allows resets.</returns>
+    private static bool IsResetAllowed([NotNullWhen(true)] ResolvedConnection? connection) =>
+        connection is { Connection.IsEnabled: true }
+        && ConnectionStrategyNames.IsLocal(connection.Connection.Strategy)
+        && connection.Settings.GetValue(OpenIdSettingKeys.PasswordResetEnabled);
+
+    /// <summary>
     /// Finds the account the end user named, through the lookups the connection's <c>local_account_identifier</c>
     /// setting names. Both lookups run whatever the first finds, and the user name's match wins.
     /// </summary>
@@ -117,11 +128,7 @@ internal sealed class LocalAccountInteractivePasswordResetter(
     {
         // A disabled connection, a connection of another strategy and a connection with resets off all answer as a
         // tenant that has resets off does, with no remote work, as ResetPasswordAsync refuses them.
-        if (
-            !connection.Connection.IsEnabled
-            || !ConnectionStrategyNames.IsLocal(connection.Connection.Strategy)
-            || !connection.Settings.GetValue(OpenIdSettingKeys.PasswordResetEnabled)
-        )
+        if (!IsResetAllowed(connection))
         {
             return CryptoService.GenerateUrlSafeKey();
         }
@@ -215,11 +222,7 @@ internal sealed class LocalAccountInteractivePasswordResetter(
             match.ConnectionId,
             cancellationToken
         );
-        if (
-            connection is not { Connection.IsEnabled: true }
-            || !ConnectionStrategyNames.IsLocal(connection.Strategy.Name)
-            || !connection.Settings.GetValue(OpenIdSettingKeys.PasswordResetEnabled)
-        )
+        if (!IsResetAllowed(connection))
         {
             return InteractivePasswordChangeResult.NotSupported;
         }
