@@ -89,6 +89,13 @@ public sealed class LocalAccountStoreCatalog
         return registration.CreateTransferStore(storeManager);
     }
 
+    /// <summary>
+    /// Gets the registration of the store that a local connection's options select.
+    /// </summary>
+    /// <param name="connection">The local connection.</param>
+    /// <returns>The registration of the connection's store.</returns>
+    /// <exception cref="InvalidOperationException">The connection is not a local connection, or its store is not
+    /// registered.</exception>
     private LocalAccountStoreRegistration GetRegistration(PersistedConnection connection)
     {
         ArgumentNullException.ThrowIfNull(connection);

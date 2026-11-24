@@ -16,6 +16,14 @@ namespace NCode.Identity.OpenId.Management.Endpoints.Connections;
 internal sealed class DefaultConnectionValidator(IConnectionStrategyCatalog strategyCatalog)
     : IConnectionValidator
 {
+    /// <summary>
+    /// Creates the <c>400 Bad Request</c> error with the specified detail.
+    /// </summary>
+    /// <param name="detail">The explanation the caller reads.</param>
+    /// <returns>The error to return to the caller.</returns>
+    private static ManagementError BadRequest(string detail) =>
+        new() { StatusCode = StatusCodes.Status400BadRequest, Detail = detail };
+
     /// <inheritdoc />
     public async ValueTask<ManagementError?> ValidateCreateAsync(
         PersistedConnection connection,
@@ -61,6 +69,12 @@ internal sealed class DefaultConnectionValidator(IConnectionStrategyCatalog stra
         return ValueTask.FromResult(result);
     }
 
+    /// <summary>
+    /// Validates an updated connection's content and the change from its previous options.
+    /// </summary>
+    /// <param name="connection">The connection with its updated values.</param>
+    /// <param name="previousOptions">The options the connection had before the update.</param>
+    /// <returns>The first error found, or <see langword="null"/> when the update is valid.</returns>
     private ManagementError? ValidateUpdate(
         PersistedConnection connection,
         JsonElement previousOptions
@@ -81,6 +95,11 @@ internal sealed class DefaultConnectionValidator(IConnectionStrategyCatalog stra
         return changeError is null ? null : BadRequest(changeError);
     }
 
+    /// <summary>
+    /// Validates the strategy, options and display name of a connection.
+    /// </summary>
+    /// <param name="connection">The connection to validate.</param>
+    /// <returns>The first error found, or <see langword="null"/> when the content is valid.</returns>
     private ManagementError? ValidateContent(PersistedConnection connection)
     {
         if (!strategyCatalog.TryGetStrategy(connection.Strategy, out var strategy))
@@ -99,7 +118,4 @@ internal sealed class DefaultConnectionValidator(IConnectionStrategyCatalog stra
         );
         return displayNameError is null ? null : BadRequest(displayNameError);
     }
-
-    private static ManagementError BadRequest(string detail) =>
-        new() { StatusCode = StatusCodes.Status400BadRequest, Detail = detail };
 }

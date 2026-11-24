@@ -20,8 +20,14 @@ public static partial class ConnectionNameRules
     /// </summary>
     public const int MaxLength = 128;
 
-    // '\z' rather than '$', which also matches before a trailing newline.
-    // {0,127} is MaxLength minus the first character, which the pattern matches apart.
+    /// <summary>
+    /// Gets the pattern that a valid connection name matches.
+    /// </summary>
+    /// <returns>The generated regular expression.</returns>
+    /// <remarks>
+    /// '\z' rather than '$', which also matches before a trailing newline. {0,127} is MaxLength minus the first
+    /// character, which the pattern matches apart.
+    /// </remarks>
     [GeneratedRegex(@"^[A-Za-z0-9][A-Za-z0-9_-]{0,127}\z", RegexOptions.CultureInvariant)]
     private static partial Regex NameRegex();
 

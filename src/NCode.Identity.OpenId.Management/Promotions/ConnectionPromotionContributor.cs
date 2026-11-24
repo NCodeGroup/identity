@@ -30,6 +30,134 @@ internal class ConnectionPromotionContributor(
     ICryptoService cryptoService
 ) : ITenantPromotionContributor
 {
+    /// <summary>
+    /// Applies a promotion to the target tenant's existing connection and records its audit event.
+    /// </summary>
+    /// <param name="context">The promotion context that supplies the store manager and collects audit events.</param>
+    /// <param name="promotion">The promotion of the connection.</param>
+    /// <param name="target">The target tenant's connection to update.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    /// <returns>A task that completes when the connection is updated.</returns>
+    private static async ValueTask UpdateAsync(
+        TenantPromotionContext context,
+        ConnectionPromotion promotion,
+        PersistedConnection target,
+        CancellationToken cancellationToken
+    )
+    {
+        var store = context.StoreManager.GetStore<IConnectionStore>();
+        var source = promotion.Source;
+
+        if (IsConnectionChanged(source, target))
+        {
+            target.DisplayName = source.DisplayName;
+            target.IsEnabled = source.IsEnabled;
+            target.Options = source.Options;
+            await store.UpdateAsync(target, cancellationToken);
+        }
+
+        if (promotion.IsSettingsChanged)
+        {
+            target.Settings.Value = promotion.Settings.Document;
+            await store.UpdateSettingsAsync(target.Settings, cancellationToken);
+        }
+
+        AddAuditEvent(context, target, ResourceChangeTypes.Updated);
+    }
+
+    /// <summary>
+    /// Determines whether the source connection differs from the target's in display name, enabled state or options.
+    /// </summary>
+    /// <param name="source">The source tenant's connection.</param>
+    /// <param name="target">The target tenant's connection.</param>
+    /// <returns><see langword="true"/> when the target needs updating; otherwise, <see langword="false"/>.</returns>
+    private static bool IsConnectionChanged(
+        TenantConfigurationConnection source,
+        PersistedConnection target
+    ) =>
+        !string.Equals(target.DisplayName, source.DisplayName, StringComparison.Ordinal)
+        || target.IsEnabled != source.IsEnabled
+        || !JsonElement.DeepEquals(target.Options, source.Options);
+
+    /// <summary>
+    /// Adds the audit event of a connection change to the promotion context.
+    /// </summary>
+    /// <param name="context">The promotion context that collects audit events.</param>
+    /// <param name="connection">The connection that changed.</param>
+    /// <param name="changeType">The kind of change, a <see cref="ResourceChangeTypes"/> value.</param>
+    private static void AddAuditEvent(
+        TenantPromotionContext context,
+        PersistedConnection connection,
+        string changeType
+    )
+    {
+        var resource = ToResource(connection);
+        var resourceValues = JsonSerializer.SerializeToElement(resource, JsonSerializerOptions.Web);
+        var auditEvent = new ConnectionChangedAuditEvent
+        {
+            EventSource = AuditEventSources.Management,
+            TenantId = context.TargetTenant.TenantId,
+            ResourceId = connection.ConnectionId,
+            ChangeType = changeType,
+            ResourceValues = resourceValues,
+            Outcome = AuditOutcome.Success,
+        };
+        context.AddAuditEvent(auditEvent);
+    }
+
+    /// <summary>
+    /// Maps a persisted connection to its management resource.
+    /// </summary>
+    /// <param name="connection">The connection to map.</param>
+    /// <returns>The resource that the audit event records.</returns>
+    private static ConnectionResource ToResource(PersistedConnection connection) =>
+        new()
+        {
+            TenantId = connection.TenantId,
+            ConnectionId = connection.ConnectionId,
+            ConcurrencyToken = connection.ConcurrencyToken,
+            Name = connection.Name,
+            DisplayName = connection.DisplayName,
+            Strategy = connection.Strategy,
+            IsSystem = connection.IsSystem,
+            IsEnabled = connection.IsEnabled,
+            Options = connection.Options,
+        };
+
+    /// <summary>
+    /// Adds an error for each invalid or duplicate content value of a source connection.
+    /// </summary>
+    /// <param name="source">The source tenant's connection.</param>
+    /// <param name="seenNames">The names of the connections already checked, which this call adds to.</param>
+    /// <param name="errors">The list that receives the errors.</param>
+    private static void AddContentErrors(
+        TenantConfigurationConnection source,
+        HashSet<string> seenNames,
+        List<string> errors
+    )
+    {
+        var nameError = ConnectionContentRules.GetNameErrorOrDefault(source.Name);
+        if (nameError is not null)
+        {
+            errors.Add($"The connection '{source.Name}' is invalid: {nameError}");
+        }
+
+        var displayNameError = ConnectionContentRules.GetDisplayNameErrorOrDefault(
+            source.DisplayName
+        );
+        if (displayNameError is not null)
+        {
+            errors.Add($"The connection '{source.Name}' is invalid: {displayNameError}");
+        }
+
+        if (!seenNames.Add(source.Name))
+        {
+            errors.Add(
+                $"The source tenant lists the connection name '{source.Name}' more than once, and a name is unique within a tenant."
+            );
+        }
+    }
+
     private IPromotedSettingsComposer PromotedSettingsComposer { get; } = promotedSettingsComposer;
 
     private ISettingSerializer SettingSerializer { get; } = settingSerializer;
@@ -129,6 +257,13 @@ internal class ConnectionPromotionContributor(
         }
     }
 
+    /// <summary>
+    /// Creates a connection in the target tenant from a promotion and records its audit event.
+    /// </summary>
+    /// <param name="context">The promotion context that supplies the store manager and collects audit events.</param>
+    /// <param name="promotion">The promotion of the connection.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    /// <returns>A task that completes when the connection is added.</returns>
     private async ValueTask CreateAsync(
         TenantPromotionContext context,
         ConnectionPromotion promotion,
@@ -164,75 +299,12 @@ internal class ConnectionPromotionContributor(
         AddAuditEvent(context, connection, ResourceChangeTypes.Created);
     }
 
-    private static async ValueTask UpdateAsync(
-        TenantPromotionContext context,
-        ConnectionPromotion promotion,
-        PersistedConnection target,
-        CancellationToken cancellationToken
-    )
-    {
-        var store = context.StoreManager.GetStore<IConnectionStore>();
-        var source = promotion.Source;
-
-        if (IsConnectionChanged(source, target))
-        {
-            target.DisplayName = source.DisplayName;
-            target.IsEnabled = source.IsEnabled;
-            target.Options = source.Options;
-            await store.UpdateAsync(target, cancellationToken);
-        }
-
-        if (promotion.IsSettingsChanged)
-        {
-            target.Settings.Value = promotion.Settings.Document;
-            await store.UpdateSettingsAsync(target.Settings, cancellationToken);
-        }
-
-        AddAuditEvent(context, target, ResourceChangeTypes.Updated);
-    }
-
-    private static bool IsConnectionChanged(
-        TenantConfigurationConnection source,
-        PersistedConnection target
-    ) =>
-        !string.Equals(target.DisplayName, source.DisplayName, StringComparison.Ordinal)
-        || target.IsEnabled != source.IsEnabled
-        || !JsonElement.DeepEquals(target.Options, source.Options);
-
-    private static void AddAuditEvent(
-        TenantPromotionContext context,
-        PersistedConnection connection,
-        string changeType
-    )
-    {
-        var resource = ToResource(connection);
-        var resourceValues = JsonSerializer.SerializeToElement(resource, JsonSerializerOptions.Web);
-        var auditEvent = new ConnectionChangedAuditEvent
-        {
-            EventSource = AuditEventSources.Management,
-            TenantId = context.TargetTenant.TenantId,
-            ResourceId = connection.ConnectionId,
-            ChangeType = changeType,
-            ResourceValues = resourceValues,
-            Outcome = AuditOutcome.Success,
-        };
-        context.AddAuditEvent(auditEvent);
-    }
-
-    private static ConnectionResource ToResource(PersistedConnection connection) =>
-        new()
-        {
-            TenantId = connection.TenantId,
-            ConnectionId = connection.ConnectionId,
-            ConcurrencyToken = connection.ConcurrencyToken,
-            Name = connection.Name,
-            DisplayName = connection.DisplayName,
-            Strategy = connection.Strategy,
-            IsSystem = connection.IsSystem,
-            IsEnabled = connection.IsEnabled,
-            Options = connection.Options,
-        };
-
+    /// <summary>
+    /// Computes the promotion of every source connection against the target tenant's connections.
+    /// </summary>
+    /// <param name="context">The promotion context that supplies the source configuration and the target scope.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    /// <returns>The action, settings and errors of each connection's promotion.</returns>
     private async ValueTask<ConnectionPromotionComputation> ComputeAsync(
         TenantPromotionContext context,
         CancellationToken cancellationToken
@@ -312,34 +384,12 @@ internal class ConnectionPromotionContributor(
         return computation;
     }
 
-    private static void AddContentErrors(
-        TenantConfigurationConnection source,
-        HashSet<string> seenNames,
-        List<string> errors
-    )
-    {
-        var nameError = ConnectionContentRules.GetNameErrorOrDefault(source.Name);
-        if (nameError is not null)
-        {
-            errors.Add($"The connection '{source.Name}' is invalid: {nameError}");
-        }
-
-        var displayNameError = ConnectionContentRules.GetDisplayNameErrorOrDefault(
-            source.DisplayName
-        );
-        if (displayNameError is not null)
-        {
-            errors.Add($"The connection '{source.Name}' is invalid: {displayNameError}");
-        }
-
-        if (!seenNames.Add(source.Name))
-        {
-            errors.Add(
-                $"The source tenant lists the connection name '{source.Name}' more than once, and a name is unique within a tenant."
-            );
-        }
-    }
-
+    /// <summary>
+    /// Adds an error when a source connection's strategy or options cannot be promoted onto the target.
+    /// </summary>
+    /// <param name="source">The source tenant's connection.</param>
+    /// <param name="target">The target tenant's connection of the same name, or <see langword="null"/>.</param>
+    /// <param name="errors">The list that receives the errors.</param>
     private void AddStrategyErrors(
         TenantConfigurationConnection source,
         PersistedConnection? target,

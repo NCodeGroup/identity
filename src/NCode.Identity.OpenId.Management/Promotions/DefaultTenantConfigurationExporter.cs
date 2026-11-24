@@ -27,6 +27,106 @@ internal class DefaultTenantConfigurationExporter(
 {
     private const int PageLimit = 100;
 
+    private static async ValueTask ReadClientGrantsAsync(
+        IClientGrantStore grantStore,
+        string clientId,
+        List<TenantConfigurationClientGrant> clientGrants,
+        CancellationToken cancellationToken
+    )
+    {
+        string? grantCursor = null;
+        do
+        {
+            var grantPageRequest = new PageRequest { Cursor = grantCursor, Limit = PageLimit };
+            var grantPage = await grantStore.GetPageAsync(
+                clientId,
+                grantPageRequest,
+                cancellationToken
+            );
+
+            var configurationGrants = grantPage.Items.Select(
+                grant => new TenantConfigurationClientGrant
+                {
+                    ClientId = clientId,
+                    ResourceServerId = grant.ResourceServerId,
+                    Scopes = [.. grant.Scopes],
+                }
+            );
+            clientGrants.AddRange(configurationGrants);
+
+            grantCursor = grantPage.NextCursor;
+        } while (grantCursor is not null);
+    }
+
+    /// <summary>
+    /// Reads every connection of the source tenant into its configuration form.
+    /// </summary>
+    /// <param name="storeManager">The unit of work that the connection store works in.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    /// <returns>The tenant's connections.</returns>
+    private static async ValueTask<List<TenantConfigurationConnection>> ReadConnectionsAsync(
+        IStoreManager storeManager,
+        CancellationToken cancellationToken
+    )
+    {
+        var store = storeManager.GetStore<IConnectionStore>();
+        var connections = await store.GetAllAsync(cancellationToken);
+
+        return
+        [
+            .. connections.Select(connection => new TenantConfigurationConnection
+            {
+                Name = connection.Name,
+                Strategy = connection.Strategy,
+                DisplayName = connection.DisplayName,
+                IsEnabled = connection.IsEnabled,
+                Options = connection.Options,
+                Settings = connection.Settings.Value,
+            }),
+        ];
+    }
+
+    private static async ValueTask<
+        List<TenantConfigurationResourceServer>
+    > ReadResourceServersAsync(IStoreManager storeManager, CancellationToken cancellationToken)
+    {
+        var store = storeManager.GetStore<IResourceServerStore>();
+        var resourceServers = new List<TenantConfigurationResourceServer>();
+
+        string? cursor = null;
+        do
+        {
+            var pageRequest = new PageRequest { Cursor = cursor, Limit = PageLimit };
+            var page = await store.GetPageAsync(pageRequest, cancellationToken);
+
+            var configurationResourceServers = page.Items.Select(
+                resourceServer => new TenantConfigurationResourceServer
+                {
+                    ResourceServerId = resourceServer.ResourceServerId,
+                    Identifier = resourceServer.Identifier,
+                    Name = resourceServer.Name,
+                    IsSystem = resourceServer.IsSystem,
+                    IsDisabled = resourceServer.IsDisabled,
+                    Settings = resourceServer.Settings.Value,
+                    Scopes =
+                    [
+                        .. resourceServer.Scopes.Select(scope => new TenantConfigurationScope
+                        {
+                            Value = scope.Value,
+                            Description = scope.Description,
+                            IsSystem = scope.IsSystem,
+                        }),
+                    ],
+                }
+            );
+            resourceServers.AddRange(configurationResourceServers);
+
+            cursor = page.NextCursor;
+        } while (cursor is not null);
+
+        return resourceServers;
+    }
+
     private IStoreManagerFactory StoreManagerFactory { get; } = storeManagerFactory;
 
     private IAmbientTenantAccessor AmbientTenantAccessor { get; } = ambientTenantAccessor;
@@ -119,99 +219,5 @@ internal class DefaultTenantConfigurationExporter(
 
             clientCursor = clientPage.NextCursor;
         } while (clientCursor is not null);
-    }
-
-    private static async ValueTask ReadClientGrantsAsync(
-        IClientGrantStore grantStore,
-        string clientId,
-        List<TenantConfigurationClientGrant> clientGrants,
-        CancellationToken cancellationToken
-    )
-    {
-        string? grantCursor = null;
-        do
-        {
-            var grantPageRequest = new PageRequest { Cursor = grantCursor, Limit = PageLimit };
-            var grantPage = await grantStore.GetPageAsync(
-                clientId,
-                grantPageRequest,
-                cancellationToken
-            );
-
-            var configurationGrants = grantPage.Items.Select(
-                grant => new TenantConfigurationClientGrant
-                {
-                    ClientId = clientId,
-                    ResourceServerId = grant.ResourceServerId,
-                    Scopes = [.. grant.Scopes],
-                }
-            );
-            clientGrants.AddRange(configurationGrants);
-
-            grantCursor = grantPage.NextCursor;
-        } while (grantCursor is not null);
-    }
-
-    private static async ValueTask<List<TenantConfigurationConnection>> ReadConnectionsAsync(
-        IStoreManager storeManager,
-        CancellationToken cancellationToken
-    )
-    {
-        var store = storeManager.GetStore<IConnectionStore>();
-        var connections = await store.GetAllAsync(cancellationToken);
-
-        return
-        [
-            .. connections.Select(connection => new TenantConfigurationConnection
-            {
-                Name = connection.Name,
-                Strategy = connection.Strategy,
-                DisplayName = connection.DisplayName,
-                IsEnabled = connection.IsEnabled,
-                Options = connection.Options,
-                Settings = connection.Settings.Value,
-            }),
-        ];
-    }
-
-    private static async ValueTask<
-        List<TenantConfigurationResourceServer>
-    > ReadResourceServersAsync(IStoreManager storeManager, CancellationToken cancellationToken)
-    {
-        var store = storeManager.GetStore<IResourceServerStore>();
-        var resourceServers = new List<TenantConfigurationResourceServer>();
-
-        string? cursor = null;
-        do
-        {
-            var pageRequest = new PageRequest { Cursor = cursor, Limit = PageLimit };
-            var page = await store.GetPageAsync(pageRequest, cancellationToken);
-
-            var configurationResourceServers = page.Items.Select(
-                resourceServer => new TenantConfigurationResourceServer
-                {
-                    ResourceServerId = resourceServer.ResourceServerId,
-                    Identifier = resourceServer.Identifier,
-                    Name = resourceServer.Name,
-                    IsSystem = resourceServer.IsSystem,
-                    IsDisabled = resourceServer.IsDisabled,
-                    Settings = resourceServer.Settings.Value,
-                    Scopes =
-                    [
-                        .. resourceServer.Scopes.Select(scope => new TenantConfigurationScope
-                        {
-                            Value = scope.Value,
-                            Description = scope.Description,
-                            IsSystem = scope.IsSystem,
-                        }),
-                    ],
-                }
-            );
-            resourceServers.AddRange(configurationResourceServers);
-
-            cursor = page.NextCursor;
-        } while (cursor is not null);
-
-        return resourceServers;
     }
 }

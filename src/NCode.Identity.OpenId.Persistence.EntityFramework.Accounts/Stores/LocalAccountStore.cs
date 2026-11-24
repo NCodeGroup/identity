@@ -34,6 +34,56 @@ internal sealed class LocalAccountStore(
         ILocalAccountStore,
         ILocalAccountTransferStore
 {
+    private static string NextSecurityStamp() => Guid.NewGuid().ToString("N");
+
+    // The store keeps no lockout counter, so a disabled account is the account locked out for good.
+    private static LocalAccountTransferRecord MapToTransferRecord(LocalAccountEntity entity) =>
+        new()
+        {
+            LocalAccountId = entity.LocalAccountId,
+            UserName = entity.UserName,
+            DisplayName = entity.DisplayName,
+            NormalizedUserName = entity.NormalizedUserName,
+            Email = entity.Email,
+            NormalizedEmail = entity.NormalizedEmail,
+            EmailVerified = entity.EmailVerified,
+            PasswordHash = entity.PasswordHash,
+            SecurityStamp = entity.SecurityStamp,
+            IsEnabled = entity.IsEnabled,
+            LockoutEnabled = !entity.IsEnabled,
+            LockoutEnd = entity.IsEnabled ? null : DateTimeOffset.MaxValue,
+            AccessFailedCount = 0,
+            Claims = entity
+                .Claims.Select(claim => new PersistedLocalAccountClaim
+                {
+                    Type = claim.Type,
+                    Value = claim.Value,
+                })
+                .ToList(),
+        };
+
+    private static PersistedLocalAccount MapFromEntity(LocalAccountEntity entity) =>
+        new()
+        {
+            TenantId = entity.Tenant.TenantId,
+            ConnectionId = entity.Connection.ConnectionId,
+            LocalAccountId = entity.LocalAccountId,
+            UserName = entity.UserName,
+            DisplayName = entity.DisplayName,
+            Email = entity.Email,
+            EmailVerified = entity.EmailVerified,
+            SecurityStamp = entity.SecurityStamp,
+            IsEnabled = entity.IsEnabled,
+            Claims = entity
+                .Claims.Select(claim => new PersistedLocalAccountClaim
+                {
+                    Type = claim.Type,
+                    Value = claim.Value,
+                })
+                .ToList(),
+            ConcurrencyToken = entity.ConcurrencyToken,
+        };
+
     /// <inheritdoc />
     protected override IStoreProvider StoreProvider { get; } = storeProvider;
 
@@ -561,8 +611,6 @@ internal sealed class LocalAccountStore(
         Accounts.RemoveRange(entities);
     }
 
-    private static string NextSecurityStamp() => Guid.NewGuid().ToString("N");
-
     private async ValueTask<TenantEntity> GetTenantEntityAsync(
         string tenantId,
         CancellationToken cancellationToken
@@ -581,6 +629,16 @@ internal sealed class LocalAccountStore(
             );
     }
 
+    /// <summary>
+    /// Gets the connection entity with the specified identifier within the ambient tenant, or in every tenant when the
+    /// context is unscoped.
+    /// </summary>
+    /// <param name="connectionId">The identifier of the connection.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    /// <returns>The connection entity, or <see langword="null"/> when none matches.</returns>
+    /// <remarks>
+    /// The change tracker answers first, so a connection added in the same unit of work resolves.
+    /// </remarks>
     private async ValueTask<ConnectionEntity?> GetConnectionOrDefaultAsync(
         string connectionId,
         CancellationToken cancellationToken
@@ -605,6 +663,17 @@ internal sealed class LocalAccountStore(
                 );
     }
 
+    /// <summary>
+    /// Gets the connection entity with the specified identifier within the specified tenant.
+    /// </summary>
+    /// <param name="tenantEntity">The tenant that owns the connection.</param>
+    /// <param name="connectionId">The identifier of the connection.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    /// <returns>The connection entity.</returns>
+    /// <exception cref="InvalidOperationException">The tenant has no such connection.</exception>
+    /// <remarks>
+    /// The change tracker answers first, so a connection added in the same unit of work resolves.
+    /// </remarks>
     private async ValueTask<ConnectionEntity> GetTenantConnectionAsync(
         TenantEntity tenantEntity,
         string connectionId,
@@ -638,6 +707,13 @@ internal sealed class LocalAccountStore(
             );
     }
 
+    /// <summary>
+    /// Gets the account of a connection with the specified user name.
+    /// </summary>
+    /// <param name="connectionEntity">The connection that holds the account.</param>
+    /// <param name="userName">The user name, before normalization.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    /// <returns>The account entity, or <see langword="null"/> when none matches.</returns>
     private ValueTask<LocalAccountEntity?> GetEntityByUserNameOrDefaultAsync(
         ConnectionEntity connectionEntity,
         string userName,
@@ -654,6 +730,13 @@ internal sealed class LocalAccountStore(
         );
     }
 
+    /// <summary>
+    /// Gets the account of a connection with the specified email address.
+    /// </summary>
+    /// <param name="connectionEntity">The connection that holds the account.</param>
+    /// <param name="email">The email address, before normalization.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    /// <returns>The account entity, or <see langword="null"/> when none matches.</returns>
     private ValueTask<LocalAccountEntity?> GetEntityByEmailOrDefaultAsync(
         ConnectionEntity connectionEntity,
         string email,
@@ -669,8 +752,17 @@ internal sealed class LocalAccountStore(
         );
     }
 
-    // Each value the identifier carries is looked up whatever the other finds, so the work does not tell which one
-    // matched; the user name's match wins.
+    /// <summary>
+    /// Gets the account of a connection that the sign-in identifier names by user name or email address.
+    /// </summary>
+    /// <param name="connectionEntity">The connection that holds the account.</param>
+    /// <param name="identifier">The identifier, which carries a user name, an email address or both.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    /// <returns>The account entity, or <see langword="null"/> when none matches.</returns>
+    /// <remarks>
+    /// Each value the identifier carries is looked up whatever the other finds, so the work does not tell which one
+    /// matched; the user name's match wins.
+    /// </remarks>
     private async ValueTask<LocalAccountEntity?> GetEntityByIdentifierOrDefaultAsync(
         ConnectionEntity connectionEntity,
         LocalAccountSignInIdentifier identifier,
@@ -723,52 +815,4 @@ internal sealed class LocalAccountStore(
                 $"A local account with '{localAccountId}' was not found."
             );
     }
-
-    // The store keeps no lockout counter, so a disabled account is the account locked out for good.
-    private static LocalAccountTransferRecord MapToTransferRecord(LocalAccountEntity entity) =>
-        new()
-        {
-            LocalAccountId = entity.LocalAccountId,
-            UserName = entity.UserName,
-            DisplayName = entity.DisplayName,
-            NormalizedUserName = entity.NormalizedUserName,
-            Email = entity.Email,
-            NormalizedEmail = entity.NormalizedEmail,
-            EmailVerified = entity.EmailVerified,
-            PasswordHash = entity.PasswordHash,
-            SecurityStamp = entity.SecurityStamp,
-            IsEnabled = entity.IsEnabled,
-            LockoutEnabled = !entity.IsEnabled,
-            LockoutEnd = entity.IsEnabled ? null : DateTimeOffset.MaxValue,
-            AccessFailedCount = 0,
-            Claims = entity
-                .Claims.Select(claim => new PersistedLocalAccountClaim
-                {
-                    Type = claim.Type,
-                    Value = claim.Value,
-                })
-                .ToList(),
-        };
-
-    private static PersistedLocalAccount MapFromEntity(LocalAccountEntity entity) =>
-        new()
-        {
-            TenantId = entity.Tenant.TenantId,
-            ConnectionId = entity.Connection.ConnectionId,
-            LocalAccountId = entity.LocalAccountId,
-            UserName = entity.UserName,
-            DisplayName = entity.DisplayName,
-            Email = entity.Email,
-            EmailVerified = entity.EmailVerified,
-            SecurityStamp = entity.SecurityStamp,
-            IsEnabled = entity.IsEnabled,
-            Claims = entity
-                .Claims.Select(claim => new PersistedLocalAccountClaim
-                {
-                    Type = claim.Type,
-                    Value = claim.Value,
-                })
-                .ToList(),
-            ConcurrencyToken = entity.ConcurrencyToken,
-        };
 }

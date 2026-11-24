@@ -36,6 +36,14 @@ internal class DefaultPrincipalResolver(
     private IClientPrincipalResolver ClientPrincipalResolver { get; } = clientPrincipalResolver;
     private IConnectionResolver ConnectionResolver { get; } = connectionResolver;
 
+    /// <summary>
+    /// Resolves the enabled connection that the user's server-owned connection claim names.
+    /// </summary>
+    /// <param name="openIdContext">The context of the request.</param>
+    /// <param name="user">The user whose claims carry the connection claim.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    /// <returns>The connection, or <see langword="null"/> when the claim is absent or the connection is
+    /// disabled.</returns>
     private async ValueTask<ResolvedConnection?> ResolveEnabledConnectionAsync(
         OpenIdContext openIdContext,
         ClaimsPrincipal user,

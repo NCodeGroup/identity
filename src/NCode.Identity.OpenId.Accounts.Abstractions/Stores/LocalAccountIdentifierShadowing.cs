@@ -13,16 +13,6 @@ namespace NCode.Identity.OpenId.Accounts.Stores;
 public sealed class LocalAccountIdentifierShadowing
 {
     /// <summary>
-    /// Gets a value indicating whether the proposed user name is the email address of another account.
-    /// </summary>
-    public bool UserNameIsAnEmail { get; init; }
-
-    /// <summary>
-    /// Gets a value indicating whether the proposed email address is the user name of another account.
-    /// </summary>
-    public bool EmailIsAUserName { get; init; }
-
-    /// <summary>
     /// Finds the accounts of a connection that a proposed user name or email address would shadow.
     /// </summary>
     /// <param name="store">The <see cref="ILocalAccountStore"/> of the connection.</param>
@@ -66,6 +56,12 @@ public sealed class LocalAccountIdentifierShadowing
         };
     }
 
+    /// <summary>
+    /// Determines whether a found account is a different account from the one the proposal is for.
+    /// </summary>
+    /// <param name="foundLocalAccountId">The identifier of the account found, or <see langword="null"/>.</param>
+    /// <param name="proposal">The proposal being checked.</param>
+    /// <returns><see langword="true"/> when an account was found and it is not the proposal's own account.</returns>
     private static bool IsOtherAccount(
         string? foundLocalAccountId,
         LocalAccountIdentifierProposal proposal
@@ -78,4 +74,14 @@ public sealed class LocalAccountIdentifierShadowing
                 StringComparison.Ordinal
             );
     }
+
+    /// <summary>
+    /// Gets a value indicating whether the proposed user name is the email address of another account.
+    /// </summary>
+    public bool UserNameIsAnEmail { get; init; }
+
+    /// <summary>
+    /// Gets a value indicating whether the proposed email address is the user name of another account.
+    /// </summary>
+    public bool EmailIsAUserName { get; init; }
 }

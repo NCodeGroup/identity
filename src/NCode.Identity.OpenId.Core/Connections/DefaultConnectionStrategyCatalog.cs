@@ -19,24 +19,12 @@ namespace NCode.Identity.OpenId.Connections;
 internal sealed class DefaultConnectionStrategyCatalog(IEnumerable<IConnectionStrategy> strategies)
     : IConnectionStrategyCatalog
 {
-    private FrozenDictionary<string, IConnectionStrategy> StrategiesByName { get; } =
-        Index(strategies);
-
-    /// <inheritdoc />
-    public IReadOnlyCollection<IConnectionStrategy> Strategies => StrategiesByName.Values;
-
-    /// <inheritdoc />
-    public bool TryGetStrategy(string name, [MaybeNullWhen(false)] out IConnectionStrategy strategy)
-    {
-        if (string.IsNullOrEmpty(name))
-        {
-            strategy = null;
-            return false;
-        }
-
-        return StrategiesByName.TryGetValue(name, out strategy);
-    }
-
+    /// <summary>
+    /// Indexes the strategies by their names.
+    /// </summary>
+    /// <param name="strategies">The registered strategies.</param>
+    /// <returns>The strategies keyed by name.</returns>
+    /// <exception cref="InvalidOperationException">A strategy has no name, or two strategies share a name.</exception>
     private static FrozenDictionary<string, IConnectionStrategy> Index(
         IEnumerable<IConnectionStrategy> strategies
     )
@@ -59,5 +47,23 @@ internal sealed class DefaultConnectionStrategyCatalog(IEnumerable<IConnectionSt
         }
 
         return strategiesByName.ToFrozenDictionary(StringComparer.Ordinal);
+    }
+
+    private FrozenDictionary<string, IConnectionStrategy> StrategiesByName { get; } =
+        Index(strategies);
+
+    /// <inheritdoc />
+    public IReadOnlyCollection<IConnectionStrategy> Strategies => StrategiesByName.Values;
+
+    /// <inheritdoc />
+    public bool TryGetStrategy(string name, [MaybeNullWhen(false)] out IConnectionStrategy strategy)
+    {
+        if (string.IsNullOrEmpty(name))
+        {
+            strategy = null;
+            return false;
+        }
+
+        return StrategiesByName.TryGetValue(name, out strategy);
     }
 }

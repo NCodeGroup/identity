@@ -90,6 +90,40 @@ public static class DefaultRegistration
         innerHasher as NormalizingPasswordHasher<TUser>
         ?? new NormalizingPasswordHasher<TUser>(innerHasher);
 
+    /// <summary>
+    /// Creates the registration of the store under the specified name.
+    /// </summary>
+    /// <param name="serviceProvider">The service provider that creates the store.</param>
+    /// <param name="storeName">The name of the store.</param>
+    /// <returns>The registration whose factories create the store.</returns>
+    private static LocalAccountStoreRegistration CreateRegistration<TUser>(
+        IServiceProvider serviceProvider,
+        string storeName
+    )
+        where TUser : IdentityUser, ITenantBoundUser, new() =>
+        new()
+        {
+            Name = storeName,
+            CreateStore = storeManager => CreateStore<TUser>(serviceProvider, storeManager),
+            CreateTransferStore = storeManager => CreateStore<TUser>(serviceProvider, storeManager),
+        };
+
+    /// <summary>
+    /// Creates the store over the specified store manager.
+    /// </summary>
+    /// <param name="serviceProvider">The service provider that supplies the store's dependencies.</param>
+    /// <param name="storeManager">The store manager the store reads and writes through.</param>
+    /// <returns>The new store.</returns>
+    private static AspNetIdentityLocalAccountStore<TUser> CreateStore<TUser>(
+        IServiceProvider serviceProvider,
+        IStoreManager storeManager
+    )
+        where TUser : IdentityUser, ITenantBoundUser, new() =>
+        ActivatorUtilities.CreateInstance<AspNetIdentityLocalAccountStore<TUser>>(
+            serviceProvider,
+            storeManager
+        );
+
     /// <param name="builder">The builder proving the store-manager framework (the Entity Framework persistence) is
     /// registered — the adapter registers a factory the store manager resolves.</param>
     extension(IServiceBuilder<StoreManagerLibrary> builder)
@@ -150,26 +184,4 @@ public static class DefaultRegistration
             );
         }
     }
-
-    private static LocalAccountStoreRegistration CreateRegistration<TUser>(
-        IServiceProvider serviceProvider,
-        string storeName
-    )
-        where TUser : IdentityUser, ITenantBoundUser, new() =>
-        new()
-        {
-            Name = storeName,
-            CreateStore = storeManager => CreateStore<TUser>(serviceProvider, storeManager),
-            CreateTransferStore = storeManager => CreateStore<TUser>(serviceProvider, storeManager),
-        };
-
-    private static AspNetIdentityLocalAccountStore<TUser> CreateStore<TUser>(
-        IServiceProvider serviceProvider,
-        IStoreManager storeManager
-    )
-        where TUser : IdentityUser, ITenantBoundUser, new() =>
-        ActivatorUtilities.CreateInstance<AspNetIdentityLocalAccountStore<TUser>>(
-            serviceProvider,
-            storeManager
-        );
 }

@@ -21,6 +21,47 @@ namespace NCode.Identity.OpenId.Persistence.EntityFramework.Accounts;
 [PublicAPI]
 public static class DefaultRegistration
 {
+    /// <summary>
+    /// Creates the registration of the store under the specified name.
+    /// </summary>
+    /// <param name="serviceProvider">The service provider that creates the store.</param>
+    /// <param name="storeName">The name of the store.</param>
+    /// <returns>The registration whose factories create the store.</returns>
+    private static LocalAccountStoreRegistration CreateRegistration(
+        IServiceProvider serviceProvider,
+        string storeName
+    ) =>
+        new()
+        {
+            Name = storeName,
+            CreateStore = storeManager => CreateStore(serviceProvider, storeManager),
+            CreateTransferStore = storeManager => CreateStore(serviceProvider, storeManager),
+        };
+
+    /// <summary>
+    /// Creates the store over the specified store manager.
+    /// </summary>
+    /// <param name="serviceProvider">The service provider that supplies the store's dependencies.</param>
+    /// <param name="storeManager">The store manager the store reads and writes through.</param>
+    /// <returns>The new store.</returns>
+    private static LocalAccountStore CreateStore(
+        IServiceProvider serviceProvider,
+        IStoreManager storeManager
+    )
+    {
+        var service = storeManager.GetService(typeof(OpenIdDbContext));
+        var dbContext =
+            service as OpenIdDbContext
+            ?? throw new InvalidOperationException(
+                "The store manager does not provide an OpenIdDbContext, which the local-account store requires."
+            );
+        return ActivatorUtilities.CreateInstance<LocalAccountStore>(
+            serviceProvider,
+            storeManager,
+            dbContext
+        );
+    }
+
     /// <param name="builder">The builder proving the store-manager framework
     /// (<c>AddEntityFrameworkCorePersistence</c>) is registered.</param>
     extension(IServiceBuilder<StoreManagerLibrary> builder)
@@ -56,34 +97,5 @@ public static class DefaultRegistration
                 CreateRegistration(serviceProvider, storeName)
             );
         }
-    }
-
-    private static LocalAccountStoreRegistration CreateRegistration(
-        IServiceProvider serviceProvider,
-        string storeName
-    ) =>
-        new()
-        {
-            Name = storeName,
-            CreateStore = storeManager => CreateStore(serviceProvider, storeManager),
-            CreateTransferStore = storeManager => CreateStore(serviceProvider, storeManager),
-        };
-
-    private static LocalAccountStore CreateStore(
-        IServiceProvider serviceProvider,
-        IStoreManager storeManager
-    )
-    {
-        var service = storeManager.GetService(typeof(OpenIdDbContext));
-        var dbContext =
-            service as OpenIdDbContext
-            ?? throw new InvalidOperationException(
-                "The store manager does not provide an OpenIdDbContext, which the local-account store requires."
-            );
-        return ActivatorUtilities.CreateInstance<LocalAccountStore>(
-            serviceProvider,
-            storeManager,
-            dbContext
-        );
     }
 }

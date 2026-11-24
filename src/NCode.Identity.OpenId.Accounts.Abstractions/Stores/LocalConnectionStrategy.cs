@@ -15,6 +15,18 @@ internal sealed class LocalConnectionStrategy(LocalAccountStoreCatalog catalog)
 {
     private const string StoreProperty = "store";
 
+    /// <summary>
+    /// Reads the store name from a connection's options.
+    /// </summary>
+    /// <param name="options">The options of a local connection.</param>
+    /// <returns>The store name, or <see langword="null"/> when the options name none.</returns>
+    private static string? ReadStore(JsonElement options) =>
+        options.ValueKind == JsonValueKind.Object
+        && options.TryGetProperty(StoreProperty, out var store)
+        && store.ValueKind == JsonValueKind.String
+            ? store.GetString()
+            : null;
+
     /// <inheritdoc/>
     public string Name => ConnectionStrategyNames.Local;
 
@@ -56,11 +68,4 @@ internal sealed class LocalConnectionStrategy(LocalAccountStoreCatalog catalog)
             ? null
             : "The store of a local connection cannot change.";
     }
-
-    private static string? ReadStore(JsonElement options) =>
-        options.ValueKind == JsonValueKind.Object
-        && options.TryGetProperty(StoreProperty, out var store)
-        && store.ValueKind == JsonValueKind.String
-            ? store.GetString()
-            : null;
 }
