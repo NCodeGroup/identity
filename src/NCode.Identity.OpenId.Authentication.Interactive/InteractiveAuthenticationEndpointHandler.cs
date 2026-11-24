@@ -1,6 +1,7 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using System.Diagnostics.CodeAnalysis;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Authentication;
@@ -67,6 +68,9 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
 
     // The `action` form value that confirms a logout; any other value declines it.
     private const string LogoutAction = "logout";
+
+    // The `error` query value the login page reads back when the credentials are wrong.
+    private const string InvalidCredentialsCode = "invalid_credentials";
 
     // The `error` and `status` query values the change-password page reads back to show its message.
     private const string ErrorQueryName = "error";
@@ -230,7 +234,7 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
             ReturnUrl = returnUrl,
             ErrorMessage = loginError,
             StatusMessage = statusMessage,
-            Connections = ToConnectionViews(offered),
+            Connections = ToConnectionViews(offered.Offered),
             SelectedConnection = offered.Preselected?.Name,
             ForgotPasswordHref = forgotPasswordHref,
         };
@@ -413,7 +417,7 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
             var invalidRequestRedirect = BuildLoginRedirect(
                 httpContext,
                 safeReturnUrl,
-                "invalid_request",
+                OpenIdProtocol.ErrorCodes.InvalidRequest,
                 languageTag
             );
             return TypedResults.Redirect(invalidRequestRedirect);
@@ -431,7 +435,7 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
             var refusedConnectionRedirect = BuildLoginRedirect(
                 httpContext,
                 safeReturnUrl,
-                "invalid_request",
+                OpenIdProtocol.ErrorCodes.InvalidRequest,
                 languageTag
             );
             return TypedResults.Redirect(refusedConnectionRedirect);
@@ -451,7 +455,7 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
             var invalidCredentialsRedirect = BuildLoginRedirect(
                 httpContext,
                 safeReturnUrl,
-                "invalid_credentials",
+                InvalidCredentialsCode,
                 languageTag
             );
             return TypedResults.Redirect(invalidCredentialsRedirect);
@@ -785,7 +789,7 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
             var invalidRequestRedirect = BuildLoginRedirect(
                 httpContext,
                 safeReturnUrl,
-                "invalid_request",
+                OpenIdProtocol.ErrorCodes.InvalidRequest,
                 languageTag
             );
             return TypedResults.Redirect(invalidRequestRedirect);
@@ -797,7 +801,7 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
             var invalidRequestRedirect = BuildLoginRedirect(
                 httpContext,
                 safeReturnUrl,
-                "invalid_request",
+                OpenIdProtocol.ErrorCodes.InvalidRequest,
                 languageTag
             );
             return TypedResults.Redirect(invalidRequestRedirect);
@@ -1384,11 +1388,14 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
         var query = httpContext.Request.Query;
         var returnUrl = query[ReturnUrlName].ToString();
         var offered = await GetOfferedAsync(httpContext, returnUrl, httpContext.RequestAborted);
-        var resettable = offered
-            .Offered.Where(candidate =>
-                candidate.Settings.GetValue(OpenIdSettingKeys.PasswordResetEnabled)
-            )
-            .ToList();
+        var resettable = new List<ResolvedConnection>();
+        foreach (var candidate in offered.Offered)
+        {
+            if (candidate.Settings.GetValue(OpenIdSettingKeys.PasswordResetEnabled))
+            {
+                resettable.Add(candidate);
+            }
+        }
         if (resettable.Count == 0)
         {
             return TypedResults.NotFound();
@@ -1406,25 +1413,18 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
         var html = InteractiveHtmlResult.CreateBuffer();
         var requestedConnection = query[ConnectionName].ToString();
         var preselectedName = offered.Preselected?.Name;
-        var selectedName =
-            resettable.Any(candidate =>
-                string.Equals(candidate.Name, requestedConnection, StringComparison.Ordinal)
-            )
-                ? requestedConnection
-            : resettable.Any(candidate =>
-                string.Equals(candidate.Name, preselectedName, StringComparison.Ordinal)
-            )
-                ? preselectedName
-            : null;
+        var selectedName = SelectResettableConnection(
+            resettable,
+            requestedConnection,
+            preselectedName
+        );
         var errorQueryValue = query[ErrorQueryName].ToString();
         var errorMessage = DescribePasswordResetError(errorQueryValue, frame.Locale.Messages);
         var form = new InteractivePageForm(tokens)
         {
             ReturnUrl = returnUrl,
             ErrorMessage = errorMessage,
-            Connections = resettable
-                .Select(connection => (connection.Name, connection.Connection.DisplayName))
-                .ToList(),
+            Connections = ToConnectionViews(resettable),
             SelectedConnection = selectedName,
         };
         InteractiveAuthenticationPageRenderer.RenderForgotPasswordPage(html, frame, form);
@@ -2213,16 +2213,62 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
     }
 
     /// <summary>
+    /// Finds the stored name of the resettable connection the forgot-password page preselects: the one the query
+    /// requests, else the preselected connection, each matched case-insensitively as connection names are.
+    /// </summary>
+    /// <param name="resettable">The offered connections whose end users can reset a password.</param>
+    /// <param name="requested">The connection name the query carried.</param>
+    /// <param name="preselected">The name of the connection the sign-in selection preselects, or
+    /// <see langword="null"/>.</param>
+    /// <returns>The stored name of the matching connection, or <see langword="null"/> when none matches.</returns>
+    // See ADR-1535.
+    internal static string? SelectResettableConnection(
+        IReadOnlyList<ResolvedConnection> resettable,
+        string? requested,
+        string? preselected
+    )
+    {
+        foreach (var candidate in resettable)
+        {
+            if (string.Equals(candidate.Name, requested, StringComparison.OrdinalIgnoreCase))
+            {
+                return candidate.Name;
+            }
+        }
+
+        foreach (var candidate in resettable)
+        {
+            if (string.Equals(candidate.Name, preselected, StringComparison.OrdinalIgnoreCase))
+            {
+                return candidate.Name;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
     /// Projects the offered connections into the name and display name the page renders.
     /// </summary>
-    /// <param name="offered">The offered connections.</param>
-    /// <returns>The name and display name of each offered connection.</returns>
-    private static List<(string Name, string DisplayName)> ToConnectionViews(
-        SignInConnections offered
-    ) =>
-        offered
-            .Offered.Select(connection => (connection.Name, connection.Connection.DisplayName))
-            .ToList();
+    /// <param name="connections">The connections to project.</param>
+    /// <returns>The name and display name of each connection.</returns>
+    [SuppressMessage(
+        "Performance",
+        "CA1859",
+        Justification = "The projection is the read-only list the page form's Connections member takes."
+    )]
+    private static IReadOnlyList<(string Name, string DisplayName)> ToConnectionViews(
+        IReadOnlyList<ResolvedConnection> connections
+    )
+    {
+        var views = new List<(string Name, string DisplayName)>(connections.Count);
+        foreach (var connection in connections)
+        {
+            views.Add((connection.Name, connection.Connection.DisplayName));
+        }
+
+        return views;
+    }
 
     /// <summary>
     /// Builds the login page's link to the forgot-password page, which shows while any offered connection lets its end
@@ -2483,8 +2529,8 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
         error switch
         {
             null or "" => null,
-            "invalid_credentials" => messages.InvalidCredentialsError,
-            "invalid_request" => messages.MissingCredentialsError,
+            InvalidCredentialsCode => messages.InvalidCredentialsError,
+            OpenIdProtocol.ErrorCodes.InvalidRequest => messages.MissingCredentialsError,
             OpenIdProtocol.ErrorCodes.AccessDenied => messages.AccessDeniedError,
             InteractiveEmailCodeErrors.TooManyCodes => messages.TooManyCodesError,
             _ => messages.SignInFailedError,

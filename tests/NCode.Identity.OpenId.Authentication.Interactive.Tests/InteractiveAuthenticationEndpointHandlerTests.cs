@@ -448,6 +448,52 @@ public sealed class InteractiveAuthenticationEndpointHandlerTests : IDisposable
 
     #endregion
 
+    #region SelectResettableConnection Tests
+
+    [Fact]
+    public void SelectResettableConnection_WhenTheRequestNamesTheConnectionInAnotherCase_ReturnsItsStoredName()
+    {
+        var on = CreateConnection(passwordResetEnabled: true);
+
+        var selected = InteractiveAuthenticationEndpointHandler.SelectResettableConnection(
+            [on],
+            "LOCAL",
+            null
+        );
+
+        Assert.Equal("local", selected);
+    }
+
+    [Fact]
+    public void SelectResettableConnection_WhenOnlyThePreselectedNameMatchesInAnotherCase_ReturnsItsStoredName()
+    {
+        var on = CreateConnection(passwordResetEnabled: true);
+
+        var selected = InteractiveAuthenticationEndpointHandler.SelectResettableConnection(
+            [on],
+            "other",
+            "Local"
+        );
+
+        Assert.Equal("local", selected);
+    }
+
+    [Fact]
+    public void SelectResettableConnection_WhenNothingMatches_ReturnsNull()
+    {
+        var on = CreateConnection(passwordResetEnabled: true);
+
+        var selected = InteractiveAuthenticationEndpointHandler.SelectResettableConnection(
+            [on],
+            "other",
+            null
+        );
+
+        Assert.Null(selected);
+    }
+
+    #endregion
+
     #region GetForgotPasswordHref Tests
 
     [Fact]
