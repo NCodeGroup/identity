@@ -489,8 +489,8 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
             );
         }
 
-        // A connection that requires the email second factor keeps the end user, whose password is verified, in the pending
-        // sign-in cookie: no session is created until the mailed code is right.
+        // A connection that requires the email second factor keeps the end user, whose password is verified, in the
+        // pending sign-in cookie: no session is created until the mailed code is right.
         // See ADR-1533.
         var connectionSettings = selectedConnection.Settings;
         if (connectionSettings.GetValue(OpenIdSettingKeys.EmailMfaRequired))
