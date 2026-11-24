@@ -1356,6 +1356,36 @@ public class HostApplicationFactory : WebApplicationFactory<HostApiMarker>
     }
 
     /// <summary>
+    /// Ensures the tenant exists and replaces the settings document of its connection of the given name, so the
+    /// connection's settings narrow the tenant's. Call it before the factory serves a request.
+    /// </summary>
+    /// <param name="connectionName">The connection's name.</param>
+    /// <param name="settings">The connection's settings document.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    public async ValueTask SeedConnectionSettingsAsync(
+        string connectionName,
+        IReadOnlyDictionary<string, object> settings,
+        CancellationToken cancellationToken
+    )
+    {
+        await EnsureTenantPersistedAsync(cancellationToken);
+
+        using var scope = CreateTenantScope();
+        var storeManagerFactory = scope.ServiceProvider.GetRequiredService<IStoreManagerFactory>();
+        await using var storeManager = await storeManagerFactory.CreateAsync(cancellationToken);
+        var connectionStore = storeManager.GetStore<IConnectionStore>();
+        var connection =
+            await connectionStore.GetByNameOrDefaultAsync(connectionName, cancellationToken)
+            ?? throw new InvalidOperationException(
+                $"The tenant has no '{connectionName}' connection."
+            );
+
+        connection.Settings.Value = System.Text.Json.JsonSerializer.SerializeToElement(settings);
+        await connectionStore.UpdateSettingsAsync(connection.Settings, cancellationToken);
+        await storeManager.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <summary>
     /// Replaces the settings document that the store holds for the tenant. It writes through the store, without the
     /// management API's checks and without evicting the tenant that the host materialized, so a management request
     /// reads a document the settings vocabulary may not honor while the caller's token still validates.

@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using NCode.Identity.Mail;
+using NCode.Identity.OpenId.Connections;
 using NCode.Identity.OpenId.Host;
 using NCode.Identity.OpenId.Integration.Tests.Infrastructure;
 using NCode.Identity.OpenId.Settings;
@@ -244,6 +245,67 @@ public class InteractiveSignInCodeTests
         Assert.Equal(HttpStatusCode.OK, pageResponse.StatusCode);
         var body = await pageResponse.Content.ReadAsStringAsync(CancellationToken.None);
         Assert.Contains("id=\"verify\"", body);
+    }
+
+    [Fact]
+    public async Task PostLogin_WhenTheConnectionRequiresTheSecondFactor_RedirectsToTheCodePageWithoutASession()
+    {
+        var transport = new CapturingMailTransport();
+        using var factory = new HostApplicationFactory();
+        await factory.SeedConnectionSettingsAsync(
+            ConnectionDefaults.Name,
+            new Dictionary<string, object> { [OpenIdSettingNames.EmailMfaRequired] = true },
+            CancellationToken.None
+        );
+        await factory.SeedLocalAccountAsync(
+            UserName,
+            Password,
+            Email,
+            emailVerified: true,
+            CancellationToken.None
+        );
+        using var host = factory.WithWebHostBuilder(UseTransport(transport));
+        var client = CreateClient(host);
+
+        var (location, pendingCookie, sessionCookie) = await SubmitPasswordAsync(
+            client,
+            CancellationToken.None
+        );
+
+        Assert.Equal(LoginCodePath, location.AbsolutePath);
+        Assert.NotNull(pendingCookie);
+        Assert.Null(sessionCookie);
+    }
+
+    [Fact]
+    public async Task PostLogin_WhenNeitherTheTenantNorTheConnectionRequiresTheSecondFactor_SignsIn()
+    {
+        var transport = new CapturingMailTransport();
+        using var factory = new HostApplicationFactory();
+        await factory.SeedConnectionSettingsAsync(
+            ConnectionDefaults.Name,
+            new Dictionary<string, object> { [OpenIdSettingNames.EmailMfaRequired] = false },
+            CancellationToken.None
+        );
+        await factory.SeedLocalAccountAsync(
+            UserName,
+            Password,
+            Email,
+            emailVerified: true,
+            CancellationToken.None
+        );
+        using var host = factory.WithWebHostBuilder(UseTransport(transport));
+        var client = CreateClient(host);
+
+        var (location, pendingCookie, sessionCookie) = await SubmitPasswordAsync(
+            client,
+            CancellationToken.None
+        );
+
+        Assert.Equal(ReturnUrl, location.AbsolutePath);
+        Assert.Null(pendingCookie);
+        Assert.NotNull(sessionCookie);
+        Assert.Empty(transport.Delivered);
     }
 
     [Fact]

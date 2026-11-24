@@ -82,6 +82,21 @@ public sealed class ConnectionStoreTests : IDisposable
             },
         };
 
+    private static PersistedRoleAssignment CreateAssignment(
+        string assignmentId,
+        string resourceId
+    ) =>
+        new()
+        {
+            TenantId = TenantId,
+            AssignmentId = assignmentId,
+            PrincipalId = "subject-1",
+            RoleName = "Owner",
+            ResourceType = OpenIdResourceTypes.Connection,
+            ResourceId = resourceId,
+            ConcurrencyToken = string.Empty,
+        };
+
     private async ValueTask SeedTenantAsync(CancellationToken cancellationToken)
     {
         DbContext.SeedTeam(Provider.GetRequiredService<ISurrogateKeyGenerator>(), "platform");
@@ -321,6 +336,40 @@ public sealed class ConnectionStoreTests : IDisposable
 
         var reloaded = await Store.GetOrDefaultAsync(ConnectionId, CancellationToken.None);
         Assert.Null(reloaded);
+    }
+
+    [Fact]
+    public async Task RemoveAsync_RemovesTheRoleAssignmentsAtTheConnectionsNode()
+    {
+        await SeedTenantAsync(CancellationToken.None);
+        await AddAndSaveAsync(CreateConnection(), CancellationToken.None);
+        await AddAndSaveAsync(CreateConnection("conn-2", "other"), CancellationToken.None);
+        var roleAssignmentStore = new RoleAssignmentStore(
+            Mock.Of<IStoreProvider>(),
+            Provider.GetRequiredService<ISurrogateKeyGenerator>(),
+            TestPageCursorProtector.Instance,
+            DbContext
+        );
+        await roleAssignmentStore.AddAsync(
+            CreateAssignment("assign-1", ConnectionId),
+            CancellationToken.None
+        );
+        await roleAssignmentStore.AddAsync(
+            CreateAssignment("assign-2", "conn-2"),
+            CancellationToken.None
+        );
+        await DbContext.SaveChangesAsync();
+        DbContext.ChangeTracker.Clear();
+
+        await Store.RemoveAsync(ConnectionId, CancellationToken.None);
+        await DbContext.SaveChangesAsync();
+        DbContext.ChangeTracker.Clear();
+
+        var remaining = await DbContext
+            .RoleAssignments.IgnoreQueryFilters()
+            .Select(entity => entity.AssignmentId)
+            .ToListAsync();
+        Assert.Equal(["assign-2"], remaining);
     }
 
     [Fact]
