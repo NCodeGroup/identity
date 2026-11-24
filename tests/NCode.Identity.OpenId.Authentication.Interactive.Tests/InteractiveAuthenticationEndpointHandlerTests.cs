@@ -693,8 +693,8 @@ public sealed class InteractiveAuthenticationEndpointHandlerTests : IDisposable
     [Fact]
     public void GetForgotPasswordHref_WhenOnlyANonPreselectedConnectionEnablesReset_ShowsTheLinkWithoutAName()
     {
-        var off = CreateConnection(passwordResetEnabled: false);
-        var on = CreateConnection(passwordResetEnabled: true);
+        var off = CreateConnection(passwordResetEnabled: false, name: "off");
+        var on = CreateConnection(passwordResetEnabled: true, name: "on");
 
         var href = InteractiveAuthenticationEndpointHandler.GetForgotPasswordHref(
             new SignInConnections { Offered = [off, on], Preselected = off },
@@ -734,6 +734,22 @@ public sealed class InteractiveAuthenticationEndpointHandlerTests : IDisposable
 
         Assert.NotNull(href);
         Assert.Contains("connection=local", href);
+    }
+
+    [Fact]
+    public void GetForgotPasswordHref_WhenThePreselectedConnectionIsNotTheFirstResettable_CarriesItsStoredName()
+    {
+        var first = CreateConnection(passwordResetEnabled: true, name: "first");
+        var preselected = CreateConnection(passwordResetEnabled: true, name: "Second");
+
+        var href = InteractiveAuthenticationEndpointHandler.GetForgotPasswordHref(
+            new SignInConnections { Offered = [first, preselected], Preselected = preselected },
+            "",
+            null
+        );
+
+        Assert.NotNull(href);
+        Assert.Contains("connection=Second", href);
     }
 
     #endregion

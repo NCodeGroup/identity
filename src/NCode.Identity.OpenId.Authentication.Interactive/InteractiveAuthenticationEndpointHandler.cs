@@ -253,6 +253,15 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
     }
 
     /// <summary>
+    /// Determines whether the end users of a connection can reset a password.
+    /// </summary>
+    /// <param name="connection">The connection to test.</param>
+    /// <returns><see langword="true"/> when the connection enables a password reset.</returns>
+    // See ADR-1533.
+    private static bool IsResettable(ResolvedConnection connection) =>
+        connection.Settings.GetValue(OpenIdSettingKeys.PasswordResetEnabled);
+
+    /// <summary>
     /// Gets the offered connections whose end users can reset a password.
     /// </summary>
     /// <param name="offered">The connections the sign-in pages offer.</param>
@@ -265,7 +274,7 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
         var resettable = new List<ResolvedConnection>();
         foreach (var candidate in offered)
         {
-            if (candidate.Settings.GetValue(OpenIdSettingKeys.PasswordResetEnabled))
+            if (IsResettable(candidate))
             {
                 resettable.Add(candidate);
             }
@@ -415,7 +424,7 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
 
     /// <summary>
     /// Builds the login page's link to the forgot-password page, which shows while any offered connection lets its end
-    /// users reset a password and carries the preselected connection's name only when that connection does.
+    /// users reset a password and carries the connection the forgot-password page preselects.
     /// </summary>
     /// <param name="offered">The connections the page offers.</param>
     /// <param name="returnUrl">The return URL the login page carried.</param>
@@ -429,30 +438,18 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
         string? languageTag
     )
     {
-        var anyResettable = false;
-        foreach (var candidate in offered.Offered)
-        {
-            if (candidate.Settings.GetValue(OpenIdSettingKeys.PasswordResetEnabled))
-            {
-                anyResettable = true;
-                break;
-            }
-        }
-
-        if (!anyResettable)
+        var resettable = GetResettableConnections(offered.Offered);
+        if (resettable.Count == 0)
         {
             return null;
         }
 
-        var preselected = offered.Preselected;
-        var preselectedResettable =
-            preselected is not null
-            && preselected.Settings.GetValue(OpenIdSettingKeys.PasswordResetEnabled);
-        return BuildForgotPasswordHref(
-            returnUrl,
-            languageTag,
-            preselectedResettable ? preselected?.Name : null
+        var preselectedName = SelectResettableConnection(
+            resettable,
+            requested: null,
+            offered.Preselected?.Name
         );
+        return BuildForgotPasswordHref(returnUrl, languageTag, preselectedName);
     }
 
     /// <summary>
@@ -710,8 +707,8 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
             ? frame.Locale.Messages.PasswordResetStatus
             : null;
 
-        // The link to the forgot-password page appears while any offered connection lets its end users reset a password.
-        // See ADR-1533.
+        // The link to the forgot-password page appears while any offered connection lets its end users reset a
+        // password. See ADR-1533.
         var carriedUiLocales = query[InteractiveAuthenticationPageRenderer.UiLocalesFieldName];
         var carriedLanguageTag = LocaleSelector.GetCarriedLanguageTag(carriedUiLocales);
         var forgotPasswordHref = GetForgotPasswordHref(offered, returnUrl, carriedLanguageTag);
@@ -1657,7 +1654,8 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
             httpContext.RequestAborted
         );
 
-        // A full sign-out revokes the request's own session too, so clear the login cookie and return to the login page.
+        // A full sign-out revokes the request's own session too, so clear the login cookie and return to the login
+        // page.
         await httpContext.SignOutAsync(InteractiveAuthenticationDefaults.CookieSchemeName);
         var loginPath = SurfacePaths.GetSurfacePath(
             httpContext,
@@ -1902,10 +1900,7 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
             );
         }
 
-        if (
-            selection.Connection is not { } selectedConnection
-            || !selectedConnection.Settings.GetValue(OpenIdSettingKeys.PasswordResetEnabled)
-        )
+        if (selection.Connection is not { } selectedConnection || !IsResettable(selectedConnection))
         {
             return TypedResults.NotFound();
         }
