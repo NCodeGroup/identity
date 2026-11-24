@@ -43,6 +43,9 @@ git config core.hooksPath .githooks
 # (CSharpier check + restore + build + pack + all tests + coverage):
 ./build/dod.ps1
 
+# The test command — the fast gate: parallel builds, skips coverage + packing, and runs every test project.
+./build/dod.ps1 -Fast
+
 # The local pre-push gate — parallel builds, skips coverage + packing, and runs only the test
 # projects the branch's changes reach (against origin/main). Keeps CSharpier, analyzers, and
 # warnings-as-errors.
