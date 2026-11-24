@@ -356,8 +356,8 @@ public sealed class LocalAccountStoreConnectionTests : IDisposable
             CancellationToken.None
         );
 
-        Assert.Equal("account-1", Assert.Single(askedKeys));
-        Assert.Equal("account-1", result.AccountKey);
+        Assert.Equal(LocalAccountAttemptKeys.ForAccount("account-1"), Assert.Single(askedKeys));
+        Assert.Equal(LocalAccountAttemptKeys.ForAccount("account-1"), result.AccountKey);
         Assert.True(result.IsVerified);
     }
 
@@ -377,8 +377,8 @@ public sealed class LocalAccountStoreConnectionTests : IDisposable
             CancellationToken.None
         );
 
-        Assert.Equal("nobody", Assert.Single(askedKeys));
-        Assert.Equal("nobody", result.AccountKey);
+        Assert.Equal(LocalAccountAttemptKeys.ForIdentifier("nobody"), Assert.Single(askedKeys));
+        Assert.Equal(LocalAccountAttemptKeys.ForIdentifier("nobody"), result.AccountKey);
         Assert.False(result.IsVerified);
     }
 

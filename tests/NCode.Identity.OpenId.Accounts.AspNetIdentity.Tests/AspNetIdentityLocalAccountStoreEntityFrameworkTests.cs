@@ -302,7 +302,7 @@ public sealed class AspNetIdentityLocalAccountStoreEntityFrameworkTests : IAsync
         Assert.Equal("user-1", byEmail.LocalAccountId);
         Assert.Null(byIdAsUserName);
         Assert.True(verified.IsVerified);
-        Assert.Equal("user-1", verified.AccountKey);
+        Assert.Equal(LocalAccountAttemptKeys.ForAccount("user-1"), verified.AccountKey);
     }
 
     [Fact]
