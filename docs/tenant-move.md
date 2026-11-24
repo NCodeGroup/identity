@@ -28,8 +28,9 @@ relative to the API of the cell that each stage names.
 - **Who may move a tenant.** The routes that disable, export, import and release a tenant need the update operation at
   the platform node, which a platform administrator (the `GlobalAdmin` role) holds. A team administrator or a tenant
   administrator cannot move a tenant, and the console shows the Move action to platform administrators only. The caller
-  needs that authority in **both** cells. A cell other than the control-plane cell asks the control-plane cell, so one
-  platform administrator holds it everywhere, and such a cell answers `503` while it cannot reach the control plane.
+  needs that authority in **both** cells. A cell other than the control-plane cell decides from the platform authority
+  that the directory's change feed replicates into its own database, so one platform administrator holds it everywhere
+  and no cell calls another.
 - **Both cells are in one region.** `<source>` and `<target>` have the same `Cell:Region`. The import refuses a package
   from another region with `422`, and the directory refuses a move between cells of different regions with `409`.
 - **A tenant the deployment does not require.** `<source>`'s root tenant, which under the static strategy is its one
@@ -38,6 +39,15 @@ relative to the API of the cell that each stage names.
 - **A directory that knows both cells.** The move changes the tenant's placement in the global directory, so both cells
   reach the same directory (`Directory:Url`) and are registered in it. A platform of one cell has no other cell to move
   a tenant to: the local directory adapter answers every move with a conflict.
+- **A key-custody fence on each side.** Each cell records for every tenant whether it holds the tenant's keys:
+  `held`, `outgoing` (a move to the cell that the record names is under way) or `incoming` (the tenant arrived from the
+  cell that the record names and the directory has not yet confirmed the move). The export sets `outgoing` before it
+  asks the directory for the move offer and clears it when the offer is refused. The import inserts the tenant
+  `incoming` and sets `held` once the directory confirms the move. Key rollover and secret deletion read only this local
+  record, so they work through a directory outage. Enabling a fenced tenant needs the directory: the cell reads the
+  tenant's placement live and sets `held` only when the directory places the tenant in this cell. It answers `503` while
+  the directory is unavailable and `409` while the directory places the tenant elsewhere. A reconciler that runs every
+  15 minutes sets `held` for an `incoming` tenant that the directory places in the cell.
 - **A tenant within a move's ceiling.** A tenant travels as one package of at most 64 MiB, its local accounts included,
   and the import admits a request body of at most 64 MiB plus 64 KiB. The export refuses a larger tenant with `422`, and
   a proxy in front of `<target>`'s management API admits a request body of that size.

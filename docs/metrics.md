@@ -137,6 +137,32 @@ Counter, unit `{message}`, meter `NCode.Identity.Mail`. Recorded once for each d
 | ---------------------------- | ------------------------------------------------------- |
 | `ncode.identity.mail.result` | `delivered`, `failed` (the transport raised an error)   |
 
+### `ncode.identity.directory.replica.age`
+
+Observable gauge, unit `s`. The seconds since a cell last applied a page of the directory's change feed, so a cell
+whose replica falls behind shows a growing value.
+
+| Attribute   | Values                                |
+| ----------- | ------------------------------------- |
+| `cell.name` | The `Cell:Name` of the reporting cell |
+
+### `ncode.identity.directory.replica.sequence`
+
+Observable gauge, unit `{sequence}`. The sequence of the last change that a cell applied from the directory's change feed.
+
+| Attribute   | Values                                |
+| ----------- | ------------------------------------- |
+| `cell.name` | The `Cell:Name` of the reporting cell |
+
+### `ncode.identity.directory.outbox.published`
+
+Counter, unit `{document}`. Recorded in the control-plane cell for each replicated document that the directory
+acknowledges from the cell's outbox.
+
+| Attribute   | Values                                 |
+| ----------- | -------------------------------------- |
+| `cell.name` | The `Cell:Name` of the publishing cell |
+
 ### `ncode.identity.bff.token.refresh.duration`
 
 Histogram, unit `s`, meter `NCode.Identity.Bff`. Recorded once for each request that needed a refreshed user access

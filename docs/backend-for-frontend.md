@@ -1309,6 +1309,15 @@ client `mgmt-console` of the control-plane tenant
   authority's origin, the URL the OP compares a DPoP proof's `htu` with, and machine callers call it there too
   ([ADR-1437](decisions/1437-the-management-console-is-a-confidential-client-whose-own-bff-host-serves-only-the-console.md)).
 
+**Platform console and cell console.** A console host is one of two kinds. The platform console is the client of the
+control-plane tenant and an aggregator: it forwards to the management API of every cell that `ManagementConsole:Cells`
+names, and its bootstrap document says `"console": "platform"`. A cell console sets `ManagementConsole:Cell` to the
+name of one cell and is the client of that cell's management tenant. It calls only that cell, its bootstrap document
+says `"console": "cell"` and `"cell": "<name>"`, and its frontend hides the platform and team surfaces and lists the
+cell's tenants on its home page. Both consoles forward the user's DPoP-bound management token, and a platform with a
+directory refuses a management token sent under `Bearer`
+([ADR-1536](decisions/1536-a-platforms-global-plane-is-a-standalone-directory-and-a-dedicated-control-plane-cell-and-every-other-cell-runs-and-is-managed-on-its-own.md)).
+
 `AddManagementConsole(configuration)` composes `AddIdentityBff` and binds the `ManagementConsole` section strictly, and
 `MapManagementConsole()` maps the console's endpoints. The host's `Program.cs` adds only the transport layer every host
 composes from `NCode.Identity.AspNetCore`: forwarded headers trusted from the proxies the `ForwardedHeaders` section names, and
