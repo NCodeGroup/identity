@@ -180,26 +180,27 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
     /// Reads a query into a list, asynchronously when the provider offers <see cref="IAsyncEnumerable{T}"/> and
     /// synchronously otherwise.
     /// </summary>
+    /// <typeparam name="TItem">The type of the items that the query yields.</typeparam>
     /// <param name="query">The query to read.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
-    /// <returns>The users that the query yields, which is an empty list when it yields none.</returns>
-    private static async ValueTask<List<TUser>> ToListAsync(
-        IQueryable<TUser> query,
+    /// <returns>The items that the query yields, which is an empty list when it yields none.</returns>
+    private static async ValueTask<List<TItem>> ToListAsync<TItem>(
+        IQueryable<TItem> query,
         CancellationToken cancellationToken
     )
     {
-        if (query is not IAsyncEnumerable<TUser> asyncUsers)
+        if (query is not IAsyncEnumerable<TItem> asyncItems)
         {
             return query.ToList();
         }
 
-        var users = new List<TUser>();
-        await foreach (var user in asyncUsers.WithCancellation(cancellationToken))
+        var items = new List<TItem>();
+        await foreach (var item in asyncItems.WithCancellation(cancellationToken))
         {
-            users.Add(user);
+            items.Add(item);
         }
 
-        return users;
+        return items;
     }
 
     /// <summary>
@@ -390,6 +391,43 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
         }
 
         return accounts;
+    }
+
+    /// <summary>
+    /// Reads the names of the users that a query yields, fetching only the identifier, user name and display name
+    /// columns.
+    /// </summary>
+    /// <param name="users">The query of users whose names are read.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <returns>The names of the users that the query yields, in the order of the query.</returns>
+    /// <exception cref="InvalidOperationException">A user has no user name.</exception>
+    private static async ValueTask<IReadOnlyList<LocalAccountNameProjection>> ReadNamesAsync(
+        IQueryable<TUser> users,
+        CancellationToken cancellationToken
+    )
+    {
+        var rowQuery = users.Select(user => new
+        {
+            user.Id,
+            user.UserName,
+            user.DisplayName,
+        });
+        var rows = await ToListAsync(rowQuery, cancellationToken);
+
+        var names = new List<LocalAccountNameProjection>(rows.Count);
+        foreach (var row in rows)
+        {
+            var userName = GetRequiredMember(row.UserName, nameof(IdentityUser.UserName), row.Id);
+            var name = new LocalAccountNameProjection
+            {
+                LocalAccountId = row.Id,
+                UserName = userName,
+                DisplayName = row.DisplayName,
+            };
+            names.Add(name);
+        }
+
+        return names;
     }
 
     private IServiceScopeFactory ServiceScopeFactory { get; } = serviceScopeFactory;
@@ -653,6 +691,26 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
     }
 
     /// <inheritdoc />
+    public async ValueTask<IReadOnlyList<LocalAccountNameProjection>> GetNamesByIdsAsync(
+        IReadOnlyCollection<string> localAccountIds,
+        CancellationToken cancellationToken
+    )
+    {
+        if (localAccountIds.Count == 0)
+        {
+            return [];
+        }
+
+        await using var scope = ServiceScopeFactory.CreateAsyncScope();
+        var userManager = scope.ServiceProvider.GetRequiredService<UserManager<TUser>>();
+
+        var ids = new List<string>(localAccountIds);
+        var matchingUsers = GetTenantUsers(userManager).Where(user => ids.Contains(user.Id));
+
+        return await ReadNamesAsync(matchingUsers, cancellationToken);
+    }
+
+    /// <inheritdoc />
     /// <remarks>
     /// The matching users are read in one query. ASP.NET Core Identity's claim store reads the claims of one user at a
     /// time, so each matched account's claims are read with a call of its own, one query per account over ASP.NET Core
@@ -688,6 +746,39 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
             .Where(user => normalizedNames.Contains(user.NormalizedUserName));
         var users = await ToListAsync(matchingUsers, cancellationToken);
         return await MapAllAsync(userManager, users, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public async ValueTask<IReadOnlyList<LocalAccountNameProjection>> GetNamesByUserNamesAsync(
+        IReadOnlyCollection<string> userNames,
+        CancellationToken cancellationToken
+    )
+    {
+        if (userNames.Count == 0)
+        {
+            return [];
+        }
+
+        await using var scope = ServiceScopeFactory.CreateAsyncScope();
+        var userManager = scope.ServiceProvider.GetRequiredService<UserManager<TUser>>();
+
+        // As FindByNameAsync: a user name is unique only within a tenant.
+        if (GetCurrentTenantId() is null)
+        {
+            return AmbientTenantAccessor.IsUnscoped ? throw CreateUserNameScopeException() : [];
+        }
+
+        var normalizedNames = new List<string?>(userNames.Count);
+        foreach (var userName in userNames)
+        {
+            var normalizedName = userManager.NormalizeName(userName);
+            normalizedNames.Add(normalizedName);
+        }
+
+        var matchingUsers = GetTenantUsers(userManager)
+            .Where(user => normalizedNames.Contains(user.NormalizedUserName));
+
+        return await ReadNamesAsync(matchingUsers, cancellationToken);
     }
 
     /// <inheritdoc />
