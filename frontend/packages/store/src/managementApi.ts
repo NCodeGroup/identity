@@ -42,6 +42,8 @@ import {
   type GrantResource,
   type GrantRevocationResult,
   type ImportRemoteSecretRequest,
+  type LocalAccountClaimsResource,
+  type LocalAccountMetadataResource,
   type LocalAccountResource,
   type MachineClientOwner,
   type ManagementCapabilitiesResource,
@@ -49,6 +51,8 @@ import {
   type RoleHolderResource,
   type PromoteTenantRequest,
   type ResetLocalAccountPasswordRequest,
+  type SetLocalAccountClaimsRequest,
+  type SetLocalAccountMetadataRequest,
   type PublicKeyResource,
   type ResourceServerResource,
   type RoleList,
@@ -82,6 +86,26 @@ import {
 } from '@ncodegroup/identity-api';
 import { dynamicBaseQuery, type ApiRootState, type CellFetchArgs } from './baseQuery.js';
 
+/** Reads a collection one page at a time: the first page has no cursor and each page's token names the next. */
+const collectionPages = {
+  initialPageParam: '',
+  getNextPageParam: (lastPage: CollectionResource<unknown>): string | undefined =>
+    lastPage.continuationToken || undefined,
+};
+
+/** The `cursor` parameter of a page after the first. */
+const cursorParams = (pageParam: string): Record<string, string> =>
+  pageParam ? { cursor: pageParam } : {};
+
+/** The request of a collection call: `url`, with `params` only when it has a key. */
+const withParams = (url: string, params: Record<string, string>): FetchArgs =>
+  Object.keys(params).length > 0 ? { url, params } : { url };
+
+/** The items of every page read so far, in order. */
+export const pagedItems = <T>(
+  data: { readonly pages: readonly CollectionResource<T>[] } | undefined,
+): readonly T[] => data?.pages.flatMap((page) => page.items) ?? [];
+
 /** The cell a tenant-scoped call addresses; `undefined` addresses the control plane. */
 type CellArg = { readonly cell: string | undefined };
 
@@ -106,46 +130,95 @@ export type CellTenantsResource = {
   readonly unavailableCells: readonly string[];
 };
 
+/**
+ * One page of the tenants of every cell. `cursors` maps each cell that has more tenants, or whose request failed, to
+ * the cursor of its next request, keyed `''` for the control plane when no cell is named; it is empty when no cell has
+ * more and none failed.
+ */
+export type CellTenantsPage = CellTenantsResource & {
+  readonly cursors: Readonly<Record<string, string>>;
+};
+
 /** The answer of one call of a query: its data or its error. */
 type CellQueryResult = { data?: unknown; error?: FetchBaseQueryError | undefined };
 
+/** The key of the control plane's cursor when no cell is named. */
+const CONTROL_PLANE_CURSOR = '';
+
 /**
- * Lists the tenants at `url` in every cell the console forwards to and merges them, each tagged with its cell. A cell
- * that fails is reported as unavailable. With no named cell the control plane answers alone, and its failure fails the
- * query.
+ * Lists one page of the tenants at `url` in every cell the console forwards to and merges them, each tagged with its
+ * cell. `cursors` is empty for the first page, which asks every cell; otherwise only the cells it names are asked, each
+ * with its cursor. A cell that fails is reported as unavailable and keeps the cursor it was asked with (`''` for a
+ * first page), so the next page asks it again. With no named cell the control plane answers alone, and its failure
+ * fails the query.
  */
 async function listTenantsInEveryCell(
   cells: readonly string[],
   url: string,
+  cursors: Readonly<Record<string, string>>,
   fetchWithBQ: (args: CellFetchArgs) => CellQueryResult | PromiseLike<CellQueryResult>,
 ): Promise<
-  | { data: CellTenantsResource; error?: undefined }
-  | { error: FetchBaseQueryError; data?: undefined }
+  { data: CellTenantsPage; error?: undefined } | { error: FetchBaseQueryError; data?: undefined }
 > {
+  const pageRequest = (cell: string, cursor: string): CellFetchArgs => ({
+    ...withParams(url, cursorParams(cursor)),
+    ...(cell ? { cell } : {}),
+  });
+
   if (cells.length === 0) {
-    const result = await fetchWithBQ({ url });
+    const result = await fetchWithBQ(pageRequest('', cursors[CONTROL_PLANE_CURSOR] ?? ''));
     if (result.error) {
       return { error: result.error };
     }
-    const { items } = result.data as CollectionResource<TenantResource>;
-    return { data: { items, unavailableCells: [] } };
+    const { items, continuationToken } = result.data as CollectionResource<TenantResource>;
+    return {
+      data: {
+        items,
+        unavailableCells: [],
+        cursors: continuationToken ? { [CONTROL_PLANE_CURSOR]: continuationToken } : {},
+      },
+    };
   }
 
+  const asked: (readonly [string, string])[] =
+    Object.keys(cursors).length === 0
+      ? cells.map((cell) => [cell, ''] as const)
+      : Object.entries(cursors).filter(([cell]) => cells.includes(cell));
   const results = await Promise.all(
-    cells.map(async (cell) => ({ cell, result: await fetchWithBQ({ url, cell }) })),
+    asked.map(async ([cell, cursor]) => ({
+      cell,
+      cursor,
+      result: await fetchWithBQ(pageRequest(cell, cursor)),
+    })),
   );
   const items: CellTenantResource[] = [];
   const unavailableCells: string[] = [];
-  for (const { cell, result } of results) {
+  const nextCursors: Record<string, string> = {};
+  for (const { cell, cursor, result } of results) {
     if (result.error) {
       unavailableCells.push(cell);
+      nextCursors[cell] = cursor;
       continue;
     }
     const collection = result.data as CollectionResource<TenantResource>;
     items.push(...collection.items.map((tenant) => ({ ...tenant, cell })));
+    if (collection.continuationToken) {
+      nextCursors[cell] = collection.continuationToken;
+    }
   }
-  return { data: { items, unavailableCells } };
+  return { data: { items, unavailableCells, cursors: nextCursors } };
 }
+
+/**
+ * The tenants of every page read so far and the cells that failed to answer the last page: every next page asks each
+ * cell whose last request failed, so a cell that answers again is no longer unavailable.
+ */
+export const pagedTenants = (
+  data: { readonly pages: readonly CellTenantsPage[] } | undefined,
+): CellTenantsResource => ({
+  items: data?.pages.flatMap((page) => page.items) ?? [],
+  unavailableCells: data?.pages.at(-1)?.unavailableCells ?? [],
+});
 
 /** The names of the cells the console forwards to, from the loaded runtime configuration. */
 const runtimeCells = (api: { getState: () => unknown }): readonly string[] => {
@@ -178,6 +251,10 @@ const localAccountsPath = (owner: LocalAccountOwner): CellFetchArgs =>
 const localAccountListTag = (owner: LocalAccountOwner): string =>
   owner.kind === 'platform' ? platformTag(LIST_TAG) : tenantTag(owner.tenantId, LIST_TAG);
 
+/** The path of one tenant local account. */
+const localAccountPath = (tenantId: string, localAccountId: string): string =>
+  `api/tenants/${encodeURIComponent(tenantId)}/local-accounts/${encodeURIComponent(localAccountId)}`;
+
 /** The route of one tenant local account, addressed to the cell that holds the tenant. */
 const localAccountItem = (
   { tenantId, localAccountId, cell }: WithCell<{ tenantId: string; localAccountId: string }>,
@@ -185,7 +262,7 @@ const localAccountItem = (
   method: 'DELETE' | 'POST',
 ): CellFetchArgs =>
   inCell(cell, {
-    url: `api/tenants/${encodeURIComponent(tenantId)}/local-accounts/${encodeURIComponent(localAccountId)}${suffix}`,
+    url: `${localAccountPath(tenantId, localAccountId)}${suffix}`,
     method,
   });
 
@@ -232,19 +309,31 @@ export const managementApi = createApi({
     }),
     // The caller's tenants in every cell, merged (see listTenantsInEveryCell).
     listCallerTenants: build.query<CellTenantsResource, void>({
-      queryFn: (_arg, api, _extraOptions, fetchWithBQ) =>
-        listTenantsInEveryCell(runtimeCells(api), 'api/me/tenants', fetchWithBQ),
+      queryFn: async (_arg, api, _extraOptions, fetchWithBQ) => {
+        const result = await listTenantsInEveryCell(
+          runtimeCells(api),
+          'api/me/tenants',
+          {},
+          fetchWithBQ,
+        );
+        if (result.error) {
+          return { error: result.error };
+        }
+        const { items, unavailableCells } = result.data;
+        return { data: { items, unavailableCells } };
+      },
       providesTags: [{ type: 'Caller', id: callerTag }],
     }),
     listCells: build.query<CellResource[], void>({
       query: () => 'api/cells',
       providesTags: [{ type: 'Cell', id: LIST_TAG }],
     }),
-    listTeams: build.query<CollectionResource<TeamResource>, void>({
-      query: () => 'api/teams',
+    listTeams: build.infiniteQuery<CollectionResource<TeamResource>, void, string>({
+      infiniteQueryOptions: collectionPages,
+      query: ({ pageParam }) => withParams('api/teams', cursorParams(pageParam)),
       providesTags: (result) => [
         { type: 'Team' as const, id: platformTag(LIST_TAG) },
-        ...(result?.items ?? []).map((t) => ({
+        ...pagedItems(result).map((t) => ({
           type: 'Team' as const,
           id: platformTag(t.teamId),
         })),
@@ -262,11 +351,17 @@ export const managementApi = createApi({
       ],
     }),
     // The child teams of one team; each child's own tag lives in the platform scope, where its id is unique.
-    listChildTeams: build.query<CollectionResource<TeamResource>, { teamId: string }>({
-      query: ({ teamId }) => `api/teams/${encodeURIComponent(teamId)}/teams`,
+    listChildTeams: build.infiniteQuery<
+      CollectionResource<TeamResource>,
+      { teamId: string },
+      string
+    >({
+      infiniteQueryOptions: collectionPages,
+      query: ({ queryArg: { teamId }, pageParam }) =>
+        withParams(`api/teams/${encodeURIComponent(teamId)}/teams`, cursorParams(pageParam)),
       providesTags: (result, _error, { teamId }) => [
         { type: 'Team' as const, id: teamTag(teamId, LIST_TAG) },
-        ...(result?.items ?? []).map((t) => ({
+        ...pagedItems(result).map((t) => ({
           type: 'Team' as const,
           id: platformTag(t.teamId),
         })),
@@ -326,18 +421,28 @@ export const managementApi = createApi({
       },
       keepUnusedDataFor: 0,
     }),
-    // The tenants of one team in every cell, merged (see listTenantsInEveryCell); each tenant's own tag lives in the
-    // platform scope, where its id is unique.
-    listTenants: build.query<CellTenantsResource, { teamId: string }>({
-      queryFn: ({ teamId }, api, _extraOptions, fetchWithBQ) =>
+    // The tenants of one team in every cell, merged a page at a time (see listTenantsInEveryCell); each tenant's own
+    // tag lives in the platform scope, where its id is unique.
+    listTenants: build.infiniteQuery<
+      CellTenantsPage,
+      { teamId: string },
+      Readonly<Record<string, string>>
+    >({
+      infiniteQueryOptions: {
+        initialPageParam: {},
+        getNextPageParam: (page) =>
+          Object.keys(page.cursors).length > 0 ? page.cursors : undefined,
+      },
+      queryFn: ({ queryArg: { teamId }, pageParam }, api, _extraOptions, fetchWithBQ) =>
         listTenantsInEveryCell(
           runtimeCells(api),
           `api/teams/${encodeURIComponent(teamId)}/tenants`,
+          pageParam,
           fetchWithBQ,
         ),
       providesTags: (result, _error, { teamId }) => [
         { type: 'Tenant' as const, id: teamTag(teamId, LIST_TAG) },
-        ...(result?.items ?? []).map((t) => ({
+        ...pagedTenants(result).items.map((t) => ({
           type: 'Tenant' as const,
           id: platformTag(t.tenantId),
         })),
@@ -402,18 +507,23 @@ export const managementApi = createApi({
       keepUnusedDataFor: 0,
     }),
     // `resourceServerId` lists only the clients that act for that resource server.
-    listClients: build.query<
+    listClients: build.infiniteQuery<
       CollectionResource<ClientResource>,
-      WithCell<{ tenantId: string; resourceServerId?: string }>
+      WithCell<{ tenantId: string; resourceServerId?: string }>,
+      string
     >({
-      query: ({ tenantId, resourceServerId, cell }) =>
-        inCell(cell, {
-          url: `api/tenants/${encodeURIComponent(tenantId)}/clients`,
-          ...(resourceServerId ? { params: { resourceServerId } } : {}),
-        }),
+      infiniteQueryOptions: collectionPages,
+      query: ({ queryArg: { tenantId, resourceServerId, cell }, pageParam }) =>
+        inCell(
+          cell,
+          withParams(`api/tenants/${encodeURIComponent(tenantId)}/clients`, {
+            ...(resourceServerId ? { resourceServerId } : {}),
+            ...cursorParams(pageParam),
+          }),
+        ),
       providesTags: (result, _error, { tenantId }) => [
         { type: 'Client' as const, id: tenantTag(tenantId, LIST_TAG) },
-        ...(result?.items ?? []).map((c) => ({
+        ...pagedItems(result).map((c) => ({
           type: 'Client' as const,
           id: tenantTag(tenantId, c.clientId),
         })),
@@ -627,11 +737,17 @@ export const managementApi = createApi({
     }),
     // The machine clients the platform or a team owns (ADR-1466). Each lives in the control-plane tenant, so its item
     // tag is that tenant's and a change through the tenant's client routes refetches the owner's list.
-    listMachineClients: build.query<CollectionResource<ClientResource>, MachineClientOwner>({
-      query: (owner) => `${ownerApiPath(owner)}/clients`,
+    listMachineClients: build.infiniteQuery<
+      CollectionResource<ClientResource>,
+      MachineClientOwner,
+      string
+    >({
+      infiniteQueryOptions: collectionPages,
+      query: ({ queryArg: owner, pageParam }) =>
+        withParams(`${ownerApiPath(owner)}/clients`, cursorParams(pageParam)),
       providesTags: (result, _error, owner) => [
         { type: 'Client' as const, id: scopeTagId(ownerScope(owner), LIST_TAG) },
-        ...(result?.items ?? []).map((c) => ({
+        ...pagedItems(result).map((c) => ({
           type: 'Client' as const,
           id: tenantTag(c.tenantId, c.clientId),
         })),
@@ -651,11 +767,19 @@ export const managementApi = createApi({
         ...(result ? [{ type: 'Client' as const, id: tenantTag(result.tenantId, LIST_TAG) }] : []),
       ],
     }),
-    listLocalAccounts: build.query<CollectionResource<LocalAccountResource>, LocalAccountOwner>({
-      query: (owner) => localAccountsPath(owner),
+    listLocalAccounts: build.infiniteQuery<
+      CollectionResource<LocalAccountResource>,
+      LocalAccountOwner,
+      string
+    >({
+      infiniteQueryOptions: collectionPages,
+      query: ({ queryArg: owner, pageParam }) => {
+        const { url, cell } = localAccountsPath(owner);
+        return inCell(cell, withParams(url, cursorParams(pageParam)));
+      },
       providesTags: (result, _error, owner) => [
         { type: 'LocalAccount' as const, id: localAccountListTag(owner) },
-        ...(result?.items ?? []).map((a) => ({
+        ...pagedItems(result).map((a) => ({
           type: 'LocalAccount' as const,
           id: tenantTag(a.tenantId, a.localAccountId),
         })),
@@ -681,7 +805,7 @@ export const managementApi = createApi({
     >({
       query: ({ tenantId, localAccountId, concurrencyToken, fields, cell }) =>
         inCell(cell, {
-          url: `api/tenants/${encodeURIComponent(tenantId)}/local-accounts/${encodeURIComponent(localAccountId)}`,
+          url: localAccountPath(tenantId, localAccountId),
           method: 'PATCH',
           body: replacePatch({ ...fields }),
           headers: { 'If-Match': concurrencyToken },
@@ -723,7 +847,7 @@ export const managementApi = createApi({
     >({
       query: ({ tenantId, localAccountId, body, cell }) =>
         inCell(cell, {
-          url: `api/tenants/${encodeURIComponent(tenantId)}/local-accounts/${encodeURIComponent(localAccountId)}/password`,
+          url: `${localAccountPath(tenantId, localAccountId)}/password`,
           method: 'POST',
           body,
         }),
@@ -731,15 +855,83 @@ export const managementApi = createApi({
         { type: 'LocalAccount', id: tenantTag(tenantId, localAccountId) },
       ],
     }),
-    listResourceServers: build.query<
-      CollectionResource<ResourceServerResource>,
-      WithCell<{ tenantId: string }>
+    getLocalAccountClaims: build.query<
+      LocalAccountClaimsResource,
+      WithCell<{ tenantId: string; localAccountId: string }>
     >({
-      query: ({ tenantId, cell }) =>
-        inCell(cell, `api/tenants/${encodeURIComponent(tenantId)}/resource-servers`),
+      query: ({ tenantId, localAccountId, cell }) =>
+        inCell(cell, `${localAccountPath(tenantId, localAccountId)}/claims`),
+      providesTags: (_result, _error, { tenantId, localAccountId }) => [
+        { type: 'LocalAccount', id: tenantTag(tenantId, localAccountId) },
+      ],
+    }),
+    getLocalAccountMetadata: build.query<
+      LocalAccountMetadataResource,
+      WithCell<{ tenantId: string; localAccountId: string }>
+    >({
+      query: ({ tenantId, localAccountId, cell }) =>
+        inCell(cell, `${localAccountPath(tenantId, localAccountId)}/metadata`),
+      providesTags: (_result, _error, { tenantId, localAccountId }) => [
+        { type: 'LocalAccount', id: tenantTag(tenantId, localAccountId) },
+      ],
+    }),
+    setLocalAccountClaims: build.mutation<
+      LocalAccountClaimsResource,
+      WithCell<{
+        tenantId: string;
+        localAccountId: string;
+        concurrencyToken: string;
+        body: SetLocalAccountClaimsRequest;
+      }>
+    >({
+      query: ({ tenantId, localAccountId, concurrencyToken, body, cell }) =>
+        inCell(cell, {
+          url: `${localAccountPath(tenantId, localAccountId)}/claims`,
+          method: 'PUT',
+          body,
+          headers: { 'If-Match': concurrencyToken },
+        }),
+      invalidatesTags: (_result, _error, { tenantId, localAccountId }) => [
+        { type: 'LocalAccount', id: tenantTag(tenantId, localAccountId) },
+      ],
+    }),
+    setLocalAccountMetadata: build.mutation<
+      LocalAccountMetadataResource,
+      WithCell<{
+        tenantId: string;
+        localAccountId: string;
+        concurrencyToken: string;
+        body: SetLocalAccountMetadataRequest;
+      }>
+    >({
+      query: ({ tenantId, localAccountId, concurrencyToken, body, cell }) =>
+        inCell(cell, {
+          url: `${localAccountPath(tenantId, localAccountId)}/metadata`,
+          method: 'PATCH',
+          body,
+          headers: { 'If-Match': concurrencyToken },
+        }),
+      invalidatesTags: (_result, _error, { tenantId, localAccountId }) => [
+        { type: 'LocalAccount', id: tenantTag(tenantId, localAccountId) },
+      ],
+    }),
+    listResourceServers: build.infiniteQuery<
+      CollectionResource<ResourceServerResource>,
+      WithCell<{ tenantId: string }>,
+      string
+    >({
+      infiniteQueryOptions: collectionPages,
+      query: ({ queryArg: { tenantId, cell }, pageParam }) =>
+        inCell(
+          cell,
+          withParams(
+            `api/tenants/${encodeURIComponent(tenantId)}/resource-servers`,
+            cursorParams(pageParam),
+          ),
+        ),
       providesTags: (result, _error, { tenantId }) => [
         { type: 'ResourceServer' as const, id: tenantTag(tenantId, LIST_TAG) },
-        ...(result?.items ?? []).map((r) => ({
+        ...pagedItems(result).map((r) => ({
           type: 'ResourceServer' as const,
           id: tenantTag(tenantId, r.resourceServerId),
         })),
@@ -853,21 +1045,24 @@ export const managementApi = createApi({
         { type: 'ResourceServer', id: tenantTag(tenantId, resourceServerId) },
       ],
     }),
-    listGrants: build.query<
+    listGrants: build.infiniteQuery<
       CollectionResource<GrantResource>,
-      WithCell<{ tenantId: string; subjectId?: string; clientId?: string }>
+      WithCell<{ tenantId: string; subjectId?: string; clientId?: string }>,
+      string
     >({
-      query: ({ tenantId, subjectId, clientId, cell }) =>
-        inCell(cell, {
-          url: `api/tenants/${encodeURIComponent(tenantId)}/grants`,
-          params: {
+      infiniteQueryOptions: collectionPages,
+      query: ({ queryArg: { tenantId, subjectId, clientId, cell }, pageParam }) =>
+        inCell(
+          cell,
+          withParams(`api/tenants/${encodeURIComponent(tenantId)}/grants`, {
             ...(subjectId ? { subjectId } : {}),
             ...(clientId ? { clientId } : {}),
-          },
-        }),
+            ...cursorParams(pageParam),
+          }),
+        ),
       providesTags: (result, _error, { tenantId }) => [
         { type: 'Grant' as const, id: tenantTag(tenantId, LIST_TAG) },
-        ...(result?.items ?? []).map((g) => ({
+        ...pagedItems(result).map((g) => ({
           type: 'Grant' as const,
           id: tenantTag(tenantId, g.grantId),
         })),
@@ -1183,13 +1378,13 @@ export const managementApi = createApi({
     }),
     addRoleAssignment: build.mutation<
       RoleHolderResource,
-      WithCell<{ list: RoleList; principalId: string }>
+      WithCell<{ list: RoleList; holder: AddRoleHolderRequest }>
     >({
-      query: ({ list, principalId, cell }) =>
+      query: ({ list, holder, cell }) =>
         inCell(cell, {
           url: roleListApiPath(list),
           method: 'POST',
-          body: { principalId } satisfies AddRoleHolderRequest,
+          body: holder,
         }),
       // A role change can change the caller's own access, its authority over every role list and its authority over any
       // scope's limits.
@@ -1213,17 +1408,17 @@ export const {
   useGetCallerQuery,
   useListCallerTeamsQuery,
   useListCallerTenantsQuery,
-  useListTenantsQuery,
+  useListTenantsInfiniteQuery,
   useGetTenantQuery,
   useGetTenantAddressQuery,
   useLazyGetTenantConfigurationQuery,
   useGetNewTenantAddressQuery,
   useListCellsQuery,
-  useListTeamsQuery,
+  useListTeamsInfiniteQuery,
   useGetTeamQuery,
   useGetTeamUsageQuery,
-  useListClientsQuery,
-  useListResourceServersQuery,
+  useListClientsInfiniteQuery,
+  useListResourceServersInfiniteQuery,
   useCreateTeamMutation,
   useUpdateTeamMutation,
   useDeleteTeamMutation,
@@ -1239,22 +1434,26 @@ export const {
   useCreateClientMutation,
   useUpdateClientMutation,
   useDeleteClientMutation,
-  useListMachineClientsQuery,
+  useListMachineClientsInfiniteQuery,
   useCreateMachineClientMutation,
-  useListLocalAccountsQuery,
+  useListLocalAccountsInfiniteQuery,
   useCreateLocalAccountMutation,
   useUpdateLocalAccountMutation,
   useDeleteLocalAccountMutation,
   useEnableLocalAccountMutation,
   useDisableLocalAccountMutation,
   useResetLocalAccountPasswordMutation,
+  useGetLocalAccountClaimsQuery,
+  useGetLocalAccountMetadataQuery,
+  useSetLocalAccountClaimsMutation,
+  useSetLocalAccountMetadataMutation,
   useCreateResourceServerMutation,
   useUpdateResourceServerMutation,
   useDeleteResourceServerMutation,
   useCreateScopeMutation,
   useUpdateScopeMutation,
   useDeleteScopeMutation,
-  useListGrantsQuery,
+  useListGrantsInfiniteQuery,
   useRevokeGrantMutation,
   useRevokeGrantsMutation,
   useCreateInitialAccessTokenMutation,
@@ -1282,6 +1481,6 @@ export const {
   useListRoleAssignmentsQuery,
   useAddRoleAssignmentMutation,
   useRemoveRoleAssignmentMutation,
-  useListChildTeamsQuery,
+  useListChildTeamsInfiniteQuery,
   useCreateChildTeamMutation,
 } = managementApi;

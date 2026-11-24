@@ -22,10 +22,13 @@ public sealed class ControlPlaneAdapterRegistrationTests : IDisposable
 
     private Mock<IControlPlaneAuthority> MockRemoteAuthority { get; }
 
+    private Mock<IControlPlanePrincipalDirectory> MockRemoteDirectory { get; }
+
     public ControlPlaneAdapterRegistrationTests()
     {
         MockRemoteValidator = MockRepository.Create<IManagementTokenValidator>();
         MockRemoteAuthority = MockRepository.Create<IControlPlaneAuthority>();
+        MockRemoteDirectory = MockRepository.Create<IControlPlanePrincipalDirectory>();
     }
 
     private ServiceProvider BuildServiceProvider(bool isControlPlane, bool registerRemote)
@@ -51,6 +54,10 @@ public sealed class ControlPlaneAdapterRegistrationTests : IDisposable
                 ControlPlaneServiceKeys.Remote,
                 MockRemoteAuthority.Object
             );
+            serviceCollection.AddKeyedSingleton(
+                ControlPlaneServiceKeys.Remote,
+                MockRemoteDirectory.Object
+            );
         }
 
         return serviceCollection.BuildServiceProvider();
@@ -72,6 +79,8 @@ public sealed class ControlPlaneAdapterRegistrationTests : IDisposable
         Assert.IsType<LocalControlPlaneAuthority>(
             serviceProvider.GetRequiredService<IControlPlaneAuthority>()
         );
+        var directory = serviceProvider.GetRequiredService<IControlPlanePrincipalDirectory>();
+        Assert.IsType<LocalControlPlanePrincipalDirectory>(directory);
     }
 
     [Fact]
@@ -90,6 +99,8 @@ public sealed class ControlPlaneAdapterRegistrationTests : IDisposable
             MockRemoteAuthority.Object,
             serviceProvider.GetRequiredService<IControlPlaneAuthority>()
         );
+        var directory = serviceProvider.GetRequiredService<IControlPlanePrincipalDirectory>();
+        Assert.Same(MockRemoteDirectory.Object, directory);
     }
 
     [Fact]
@@ -106,6 +117,8 @@ public sealed class ControlPlaneAdapterRegistrationTests : IDisposable
         Assert.IsType<LocalControlPlaneAuthority>(
             serviceProvider.GetRequiredService<IControlPlaneAuthority>()
         );
+        var directory = serviceProvider.GetRequiredService<IControlPlanePrincipalDirectory>();
+        Assert.IsType<LocalControlPlanePrincipalDirectory>(directory);
     }
 
     #endregion

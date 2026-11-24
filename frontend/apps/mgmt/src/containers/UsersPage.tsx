@@ -1,3 +1,4 @@
+import { useMemo, useState } from 'react';
 import AddIcon from '@mui/icons-material/Add';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
@@ -9,11 +10,17 @@ import {
   LocalAccountFormDialog,
   LocalAccountPasswordDialog,
   LocalAccountTable,
+  LoadMoreButton,
   emptyLocalAccountFormValues,
   type LocalAccountFormValues,
 } from '@ncodegroup/identity-ui';
-import { useListLocalAccountsQuery, type LocalAccountOwner } from '@ncodegroup/identity-store';
+import {
+  pagedItems,
+  useListLocalAccountsInfiniteQuery,
+  type LocalAccountOwner,
+} from '@ncodegroup/identity-store';
 import { useTenantCell } from '../tenantCell.js';
+import { LocalAccountDetailPage } from './LocalAccountDetailPage.js';
 import { useLocalAccountAdministration } from './useLocalAccountAdministration.js';
 
 export type UsersPageProps = {
@@ -32,10 +39,13 @@ export function UsersPage({ owner }: UsersPageProps) {
   const cell = useTenantCell();
   const storeOwner: LocalAccountOwner =
     owner.kind === 'tenant' ? { kind: 'tenant', tenantId: owner.tenantId, cell } : owner;
-  const { data, isLoading, error } = useListLocalAccountsQuery(storeOwner);
-  const accounts = data?.items ?? [];
+  const { data, isLoading, error, hasNextPage, isFetchingNextPage, fetchNextPage } =
+    useListLocalAccountsInfiniteQuery(storeOwner);
+  const accounts = useMemo(() => pagedItems(data), [data]);
   const admin = useLocalAccountAdministration({ owner: storeOwner, accounts });
   const { dialog } = admin;
+  const [selectedId, setSelectedId] = useState<string | undefined>();
+  const selected = accounts.find((account) => account.localAccountId === selectedId);
 
   const isEditing = dialog.kind === 'edit';
   const formInitial: LocalAccountFormValues =
@@ -49,6 +59,16 @@ export function UsersPage({ owner }: UsersPageProps) {
           confirmPassword: '',
         }
       : emptyLocalAccountFormValues;
+
+  if (selected) {
+    return (
+      <LocalAccountDetailPage
+        account={selected}
+        cell={storeOwner.kind === 'tenant' ? storeOwner.cell : undefined}
+        onBack={() => setSelectedId(undefined)}
+      />
+    );
+  }
 
   return (
     <>
@@ -82,12 +102,18 @@ export function UsersPage({ owner }: UsersPageProps) {
       >
         <LocalAccountTable
           accounts={accounts}
+          onSelect={setSelectedId}
           onEdit={admin.openEdit}
           onResetPassword={admin.openPassword}
           onToggleEnabled={(id) => void admin.toggleEnabled(id)}
           onDelete={admin.openDelete}
         />
       </DataStateBoundary>
+      <LoadMoreButton
+        hasMore={hasNextPage}
+        isLoading={isFetchingNextPage}
+        onLoadMore={() => void fetchNextPage()}
+      />
 
       <LocalAccountFormDialog
         open={dialog.kind === 'create' || dialog.kind === 'edit'}

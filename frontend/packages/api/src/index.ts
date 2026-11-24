@@ -30,6 +30,9 @@ export type {
   GrantRevocationResult,
   ImportRemoteSecretRequest,
   KeyBitSizes,
+  LocalAccountClaim,
+  LocalAccountClaimsResource,
+  LocalAccountMetadataResource,
   LocalAccountResource,
   ManagementCapabilitiesResource,
   ManagementProblem,
@@ -38,8 +41,11 @@ export type {
   RemoteKeyAlgorithmCapability,
   RemoteKeyProviderCapability,
   ResetLocalAccountPasswordRequest,
+  SetLocalAccountClaimsRequest,
+  SetLocalAccountMetadataRequest,
   ResourceServerResource,
   RoleAssignmentResource,
+  PrincipalSummaryResource,
   RoleHolderResource,
   RoleListResource,
   RotateSecretRequest,
@@ -107,6 +113,7 @@ export {
   type RoleOwner,
   type SecretOwner,
 } from './owner.js';
+export { PRINCIPAL_TYPES } from './principalTypes.js';
 export {
   isPlatformScope,
   LIST_TAG,

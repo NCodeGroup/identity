@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import AddIcon from '@mui/icons-material/Add';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -6,6 +6,7 @@ import Typography from '@mui/material/Typography';
 import {
   ConfirmDialog,
   DataStateBoundary,
+  LoadMoreButton,
   TenantEnvironmentFilter,
   TenantFormDialog,
   TenantPromotionDialog,
@@ -25,6 +26,7 @@ import {
 import type { PromoteTenantRequest, TenantPromotionResource } from '@ncodegroup/identity-api';
 import {
   apiErrorMessage,
+  pagedTenants,
   useAppSelector,
   useCreateTenantMutation,
   useDeleteTenantMutation,
@@ -32,7 +34,7 @@ import {
   useGetTenantAddressQuery,
   useLazyGetTenantConfigurationQuery,
   useListCellsQuery,
-  useListTenantsQuery,
+  useListTenantsInfiniteQuery,
   usePreviewTenantPromotionMutation,
   usePromoteTenantMutation,
   useUpdateTenantMutation,
@@ -120,9 +122,9 @@ export function TenantsPage({
   onOpenTenant,
   addressPreviewDelayMs = defaultAddressPreviewDelayMs,
 }: TenantsPageProps) {
-  const { data, isLoading, error } = useListTenantsQuery({ teamId });
-  const tenants = data?.items ?? [];
-  const unavailableCells = data?.unavailableCells ?? [];
+  const { data, isLoading, error, hasNextPage, isFetchingNextPage, fetchNextPage } =
+    useListTenantsInfiniteQuery({ teamId });
+  const { items: tenants, unavailableCells } = useMemo(() => pagedTenants(data), [data]);
 
   // The console forwards to the cells its bootstrap names; the platform's cell list supplies each one's region.
   const runtime = useAppSelector((state) => state.config.runtime);
@@ -421,6 +423,11 @@ export function TenantsPage({
           onDelete={openDelete}
         />
       </DataStateBoundary>
+      <LoadMoreButton
+        hasMore={hasNextPage}
+        isLoading={isFetchingNextPage}
+        onLoadMore={() => void fetchNextPage()}
+      />
 
       <TenantFormDialog
         open={formOpen}

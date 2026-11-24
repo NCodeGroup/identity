@@ -450,8 +450,10 @@ NCode.Identity.OpenId.Management.Clients.IHostManagedClientPolicy
 NCode.Identity.OpenId.Management.Clients.IHostManagedClientPolicy.IsHostManaged(string! tenantId, string! clientId) -> bool
 NCode.Identity.OpenId.Management.Contracts.AddRoleHolderRequest
 NCode.Identity.OpenId.Management.Contracts.AddRoleHolderRequest.AddRoleHolderRequest() -> void
-NCode.Identity.OpenId.Management.Contracts.AddRoleHolderRequest.PrincipalId.get -> string!
+NCode.Identity.OpenId.Management.Contracts.AddRoleHolderRequest.PrincipalId.get -> string?
 NCode.Identity.OpenId.Management.Contracts.AddRoleHolderRequest.PrincipalId.init -> void
+NCode.Identity.OpenId.Management.Contracts.AddRoleHolderRequest.UserName.get -> string?
+NCode.Identity.OpenId.Management.Contracts.AddRoleHolderRequest.UserName.init -> void
 NCode.Identity.OpenId.Management.Contracts.Clients.ClientResource
 NCode.Identity.OpenId.Management.Contracts.Clients.ClientResource.ClientId.get -> string!
 NCode.Identity.OpenId.Management.Contracts.Clients.ClientResource.ClientId.init -> void
@@ -637,6 +639,16 @@ NCode.Identity.OpenId.Management.Contracts.Cells.CellResource.Name.init -> void
 NCode.Identity.OpenId.Management.Contracts.Cells.CellResource.Region.get -> string!
 NCode.Identity.OpenId.Management.Contracts.Cells.CellResource.Region.init -> void
 NCode.Identity.OpenId.Management.Contracts.ManagementProblemMembers
+NCode.Identity.OpenId.Management.Contracts.PrincipalSummaryResource
+NCode.Identity.OpenId.Management.Contracts.PrincipalSummaryResource.DisplayName.get -> string!
+NCode.Identity.OpenId.Management.Contracts.PrincipalSummaryResource.DisplayName.init -> void
+NCode.Identity.OpenId.Management.Contracts.PrincipalSummaryResource.PrincipalId.get -> string!
+NCode.Identity.OpenId.Management.Contracts.PrincipalSummaryResource.PrincipalId.init -> void
+NCode.Identity.OpenId.Management.Contracts.PrincipalSummaryResource.PrincipalSummaryResource() -> void
+NCode.Identity.OpenId.Management.Contracts.PrincipalSummaryResource.PrincipalType.get -> string!
+NCode.Identity.OpenId.Management.Contracts.PrincipalSummaryResource.PrincipalType.init -> void
+NCode.Identity.OpenId.Management.Contracts.PrincipalSummaryResource.UserName.get -> string?
+NCode.Identity.OpenId.Management.Contracts.PrincipalSummaryResource.UserName.init -> void
 NCode.Identity.OpenId.Management.Contracts.RoleAssignmentResource
 NCode.Identity.OpenId.Management.Contracts.RoleAssignmentResource.AssignmentId.get -> string!
 NCode.Identity.OpenId.Management.Contracts.RoleAssignmentResource.AssignmentId.init -> void
@@ -656,6 +668,8 @@ NCode.Identity.OpenId.Management.Contracts.RoleHolderResource.AssignmentId.get -
 NCode.Identity.OpenId.Management.Contracts.RoleHolderResource.AssignmentId.init -> void
 NCode.Identity.OpenId.Management.Contracts.RoleHolderResource.PrincipalId.get -> string!
 NCode.Identity.OpenId.Management.Contracts.RoleHolderResource.PrincipalId.init -> void
+NCode.Identity.OpenId.Management.Contracts.RoleHolderResource.Principal.get -> NCode.Identity.OpenId.Management.Contracts.PrincipalSummaryResource?
+NCode.Identity.OpenId.Management.Contracts.RoleHolderResource.Principal.init -> void
 NCode.Identity.OpenId.Management.Contracts.RoleHolderResource.RoleHolderResource() -> void
 NCode.Identity.OpenId.Management.Contracts.RoleHolderResource.RoleName.get -> string!
 NCode.Identity.OpenId.Management.Contracts.RoleHolderResource.RoleName.init -> void
@@ -1482,3 +1496,18 @@ NCode.Identity.OpenId.Management.Transfers.TenantTransferSection.Json.init -> vo
 NCode.Identity.OpenId.Management.Transfers.TenantTransferSection.Name.get -> string!
 NCode.Identity.OpenId.Management.Transfers.TenantTransferSection.Name.init -> void
 NCode.Identity.OpenId.Management.Transfers.TenantTransferSection.TenantTransferSection() -> void
+NCode.Identity.OpenId.Management.ControlPlane.ControlPlanePrincipalQuery
+const NCode.Identity.OpenId.Management.ControlPlane.ControlPlanePrincipalQuery.MaxNames = 100 -> int
+NCode.Identity.OpenId.Management.ControlPlane.ControlPlanePrincipalQuery.ControlPlanePrincipalQuery() -> void
+NCode.Identity.OpenId.Management.ControlPlane.ControlPlanePrincipalQuery.PrincipalIds.get -> System.Collections.Generic.IReadOnlyList<string!>!
+NCode.Identity.OpenId.Management.ControlPlane.ControlPlanePrincipalQuery.PrincipalIds.init -> void
+NCode.Identity.OpenId.Management.ControlPlane.ControlPlanePrincipalQuery.UserNames.get -> System.Collections.Generic.IReadOnlyList<string!>!
+NCode.Identity.OpenId.Management.ControlPlane.ControlPlanePrincipalQuery.UserNames.init -> void
+NCode.Identity.OpenId.Management.ControlPlane.IControlPlanePrincipalDirectory
+NCode.Identity.OpenId.Management.ControlPlane.IControlPlanePrincipalDirectory.FindAsync(NCode.Identity.OpenId.Management.ControlPlane.ControlPlanePrincipalQuery! query, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<NCode.Identity.OpenId.Management.Contracts.PrincipalSummaryResource!>!>
+NCode.Identity.OpenId.Management.Principals.IPrincipalDescriber
+NCode.Identity.OpenId.Management.Principals.IPrincipalDescriber.FindAsync(NCode.Identity.Persistence.Stores.IStoreManager! storeManager, NCode.Identity.OpenId.Management.ControlPlane.ControlPlanePrincipalQuery! query, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<NCode.Identity.OpenId.Management.Contracts.PrincipalSummaryResource!>!>
+NCode.Identity.OpenId.Management.Principals.PrincipalTypes
+const NCode.Identity.OpenId.Management.Principals.PrincipalTypes.Client = "client" -> string!
+const NCode.Identity.OpenId.Management.Principals.PrincipalTypes.FederatedUser = "federated_user" -> string!
+const NCode.Identity.OpenId.Management.Principals.PrincipalTypes.LocalAccount = "local_account" -> string!

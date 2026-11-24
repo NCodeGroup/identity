@@ -20,6 +20,7 @@ using NCode.Identity.OpenId.Management.Auditing;
 using NCode.Identity.OpenId.Management.Authorization;
 using NCode.Identity.OpenId.Management.Contracts.EncryptionKeys;
 using NCode.Identity.OpenId.Management.Contracts.Teams;
+using NCode.Identity.OpenId.Management.ControlPlane;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
 using NCode.Identity.OpenId.Settings;
@@ -61,6 +62,7 @@ public sealed class TeamRootKeyApiEndpointHandlerTests : IDisposable
     private Mock<IResourceOwnershipService> MockResourceOwnershipService { get; }
     private Mock<IManagementAuditRecorder> MockManagementAuditRecorder { get; }
     private Mock<IMediator> MockMediator { get; }
+    private Mock<IControlPlanePrincipalDirectory> MockPrincipalDirectory { get; }
     private TeamApiEndpointHandler Handler { get; }
 
     public TeamRootKeyApiEndpointHandlerTests()
@@ -84,6 +86,7 @@ public sealed class TeamRootKeyApiEndpointHandlerTests : IDisposable
         MockResourceOwnershipService = MockRepository.Create<IResourceOwnershipService>();
         MockManagementAuditRecorder = MockRepository.Create<IManagementAuditRecorder>();
         MockMediator = MockRepository.Create<IMediator>();
+        MockPrincipalDirectory = MockRepository.Create<IControlPlanePrincipalDirectory>();
 
         Handler = CreateHandler(isControlPlane: true);
     }
@@ -104,6 +107,7 @@ public sealed class TeamRootKeyApiEndpointHandlerTests : IDisposable
             MockClientCoherenceValidator.Object,
             MockTeamClientCoherenceChecker.Object,
             MockResourceOwnershipService.Object,
+            MockPrincipalDirectory.Object,
             MockManagementAuditRecorder.Object,
             NullLogger<TeamApiEndpointHandler>.Instance,
             Options.Create(new CellOptions { IsControlPlane = isControlPlane, Region = OwnRegion })

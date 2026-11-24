@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import AddIcon from '@mui/icons-material/Add';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -10,15 +10,17 @@ import {
   DataStateBoundary,
   GrantTable,
   InitialAccessTokenFormDialog,
+  LoadMoreButton,
   RevealInitialAccessTokenDialog,
   type InitialAccessTokenFormValues,
 } from '@ncodegroup/identity-ui';
 import type { CreatedInitialAccessTokenResource, GrantResource } from '@ncodegroup/identity-api';
 import {
   apiErrorMessage,
+  pagedItems,
   useCreateInitialAccessTokenMutation,
-  useListGrantsQuery,
-  useListResourceServersQuery,
+  useListGrantsInfiniteQuery,
+  useListResourceServersInfiniteQuery,
   useRevokeGrantMutation,
   useRevokeGrantsMutation,
   type ApiError,
@@ -62,24 +64,41 @@ export function GrantsPage({ tenantId }: GrantsPageProps) {
   const trimmedClient = clientId.trim();
   const hasFilter = trimmedSubject.length > 0 || trimmedClient.length > 0;
 
-  const { data, isLoading, error } = useListGrantsQuery({
-    tenantId,
-    ...(trimmedSubject ? { subjectId: trimmedSubject } : {}),
-    ...(trimmedClient ? { clientId: trimmedClient } : {}),
-    cell,
-  });
-  const grants = data?.items ?? [];
+  const { data, isLoading, error, hasNextPage, isFetchingNextPage, fetchNextPage } =
+    useListGrantsInfiniteQuery({
+      tenantId,
+      ...(trimmedSubject ? { subjectId: trimmedSubject } : {}),
+      ...(trimmedClient ? { clientId: trimmedClient } : {}),
+      cell,
+    });
+  const grants = useMemo(() => pagedItems(data), [data]);
 
   const [revokeGrant, { isLoading: isRevoking }] = useRevokeGrantMutation();
   const [revokeGrants, { isLoading: isRevokingMany }] = useRevokeGrantsMutation();
   const [mintToken, { isLoading: isMinting }] = useCreateInitialAccessTokenMutation();
 
   const [dialog, setDialog] = useState<DialogState>(closed);
-  const { data: resourceServerData } = useListResourceServersQuery(
-    { tenantId, cell },
-    { skip: dialog.kind !== 'mint' },
+  const {
+    data: resourceServerData,
+    hasNextPage: hasMoreResourceServers,
+    isFetchingNextPage: isFetchingMoreResourceServers,
+    fetchNextPage: fetchMoreResourceServers,
+  } = useListResourceServersInfiniteQuery({ tenantId, cell }, { skip: dialog.kind !== 'mint' });
+  // The select lists every resource server, so the pages load while the mint dialog is open.
+  useEffect(() => {
+    if (dialog.kind === 'mint' && hasMoreResourceServers && !isFetchingMoreResourceServers) {
+      void fetchMoreResourceServers();
+    }
+  }, [
+    dialog.kind,
+    hasMoreResourceServers,
+    isFetchingMoreResourceServers,
+    fetchMoreResourceServers,
+  ]);
+  const resourceServers = useMemo(
+    () => pagedItems(resourceServerData).filter((r) => !r.isSystem),
+    [resourceServerData],
   );
-  const resourceServers = (resourceServerData?.items ?? []).filter((r) => !r.isSystem);
   const [dialogError, setDialogError] = useState<string>();
   const [mintError, setMintError] = useState<string>();
 
@@ -209,6 +228,11 @@ export function GrantsPage({ tenantId }: GrantsPageProps) {
       >
         <GrantTable grants={grants} now={now} onRevoke={openRevoke} />
       </DataStateBoundary>
+      <LoadMoreButton
+        hasMore={hasNextPage}
+        isLoading={isFetchingNextPage}
+        onLoadMore={() => void fetchNextPage()}
+      />
 
       <ConfirmDialog
         open={dialog.kind === 'revoke'}

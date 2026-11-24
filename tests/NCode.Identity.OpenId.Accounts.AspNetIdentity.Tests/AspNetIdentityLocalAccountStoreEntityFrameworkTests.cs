@@ -231,6 +231,44 @@ public sealed class AspNetIdentityLocalAccountStoreEntityFrameworkTests : IAsync
 
     #endregion
 
+    #region GetNamesByIdsAsync Tests
+
+    [Fact]
+    public async Task GetNamesByIdsAsync_WhenTheAccountIsStored_ReturnsItsNames()
+    {
+        var account = CreateAccount();
+        await Store.AddAsync(account, FirstPassword, CancellationToken.None);
+        var query = new[] { LocalAccountId };
+
+        var names = await Store.GetNamesByIdsAsync(query, CancellationToken.None);
+
+        var name = Assert.Single(names);
+        Assert.Equal(LocalAccountId, name.LocalAccountId);
+        Assert.Equal(UserName, name.UserName);
+        Assert.Equal("Alice Example", name.DisplayName);
+    }
+
+    #endregion
+
+    #region GetNamesByUserNamesAsync Tests
+
+    [Fact]
+    public async Task GetNamesByUserNamesAsync_WhenTheAccountIsStored_ReturnsItsNames()
+    {
+        var account = CreateAccount();
+        await Store.AddAsync(account, FirstPassword, CancellationToken.None);
+        var query = new[] { UserName };
+
+        var names = await Store.GetNamesByUserNamesAsync(query, CancellationToken.None);
+
+        var name = Assert.Single(names);
+        Assert.Equal(LocalAccountId, name.LocalAccountId);
+        Assert.Equal(UserName, name.UserName);
+        Assert.Equal("Alice Example", name.DisplayName);
+    }
+
+    #endregion
+
     #region SetPasswordAsync Tests
 
     [Fact]

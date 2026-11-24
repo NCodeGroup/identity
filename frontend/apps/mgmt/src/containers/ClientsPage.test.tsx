@@ -119,6 +119,31 @@ describe('ClientsPage (list states and scope)', () => {
   });
 });
 
+describe('ClientsPage (paging)', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('loads the next page', async () => {
+    const calls = installFetch((url, method) => {
+      if (url.includes('/api/tenants/acme/clients') && method === 'GET') {
+        return url.includes('cursor=next')
+          ? jsonResponse({ items: [legacy] })
+          : jsonResponse({ items: [web], continuationToken: 'next' });
+      }
+      throw new Error(`Unexpected ${method} ${url}`);
+    });
+
+    renderPage();
+    fireEvent.click(await screen.findByTestId('load-more'));
+
+    expect(await screen.findByTestId('client-row-legacy')).toBeInTheDocument();
+    expect(screen.getByTestId('client-row-web')).toBeInTheDocument();
+    expect(calls.some((c) => c.url.includes('cursor=next'))).toBe(true);
+    await waitFor(() => expect(screen.queryByTestId('load-more')).not.toBeInTheDocument());
+  });
+});
+
 describe('ClientsPage (tenant-scoped CRUD wiring)', () => {
   beforeEach(() => {
     vi.restoreAllMocks();

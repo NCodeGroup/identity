@@ -175,5 +175,29 @@ public class ManagementOpenApiDocumentTests
         );
     }
 
+    [Theory]
+    [InlineData("/api/tenants/{tenantId}/local-accounts/{localAccountId}", "patch")]
+    [InlineData("/api/tenants/{tenantId}/local-accounts/{localAccountId}/claims", "put")]
+    [InlineData("/api/tenants/{tenantId}/local-accounts/{localAccountId}/metadata", "patch")]
+    [InlineData("/api/tenants/{tenantId}/clients/{clientId}", "patch")]
+    public async Task ManagementOperations_ThatCheckIfMatch_DeclareTheIfMatchHeader(
+        string path,
+        string method
+    )
+    {
+        using var factory = new HostApplicationFactory();
+
+        var document = await GetDocumentAsync(factory, CancellationToken.None);
+
+        var operation = document.GetProperty("paths").GetProperty(path).GetProperty(method);
+        var items = operation.GetProperty("parameters").EnumerateArray();
+        var parameter = Assert.Single(
+            items,
+            item => item.GetProperty("name").GetString() == "If-Match"
+        );
+        Assert.Equal("header", parameter.GetProperty("in").GetString());
+        Assert.False(string.IsNullOrWhiteSpace(parameter.GetProperty("description").GetString()));
+    }
+
     #endregion
 }

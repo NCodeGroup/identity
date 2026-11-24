@@ -245,6 +245,64 @@ internal sealed class LocalAccountStore(
     }
 
     /// <inheritdoc />
+    public async ValueTask<IReadOnlyList<LocalAccountNameProjection>> GetNamesByIdsAsync(
+        IReadOnlyCollection<string> localAccountIds,
+        CancellationToken cancellationToken
+    )
+    {
+        if (localAccountIds.Count == 0)
+        {
+            return [];
+        }
+
+        var normalizedIds = new List<string>(localAccountIds.Count);
+        foreach (var localAccountId in localAccountIds)
+        {
+            var normalizedId = Normalize(localAccountId);
+            normalizedIds.Add(normalizedId);
+        }
+
+        return await Accounts
+            .Where(entity => normalizedIds.Contains(entity.NormalizedLocalAccountId))
+            .Select(entity => new LocalAccountNameProjection
+            {
+                LocalAccountId = entity.LocalAccountId,
+                UserName = entity.UserName,
+                DisplayName = entity.DisplayName,
+            })
+            .ToListAsync(cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public async ValueTask<IReadOnlyList<LocalAccountNameProjection>> GetNamesByUserNamesAsync(
+        IReadOnlyCollection<string> userNames,
+        CancellationToken cancellationToken
+    )
+    {
+        if (userNames.Count == 0)
+        {
+            return [];
+        }
+
+        var normalizedUserNames = new List<string>(userNames.Count);
+        foreach (var userName in userNames)
+        {
+            var normalizedUserName = Normalize(userName);
+            normalizedUserNames.Add(normalizedUserName);
+        }
+
+        return await Accounts
+            .Where(entity => normalizedUserNames.Contains(entity.NormalizedUserName))
+            .Select(entity => new LocalAccountNameProjection
+            {
+                LocalAccountId = entity.LocalAccountId,
+                UserName = entity.UserName,
+                DisplayName = entity.DisplayName,
+            })
+            .ToListAsync(cancellationToken);
+    }
+
+    /// <inheritdoc />
     public async ValueTask RemoveAsync(string localAccountId, CancellationToken cancellationToken)
     {
         var entity = await GetEntityByIdOrDefaultAsync(localAccountId, cancellationToken);
