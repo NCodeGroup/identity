@@ -21,7 +21,6 @@ public sealed class ControlPlaneResourceServerSeedHandlerTests : IDisposable
 
     private const string TenantId = "tenant-1";
     private const string DirectoryIdentifier = GlobalDirectoryProtocol.DirectoryAudience;
-    private const string ControlPlaneIdentifier = GlobalDirectoryProtocol.ControlPlaneAudience;
 
     #region Helpers
 
@@ -62,14 +61,14 @@ public sealed class ControlPlaneResourceServerSeedHandlerTests : IDisposable
     #region HandleAsync
 
     [Fact]
-    public async Task HandleAsync_WhenRootPlaneAndAbsent_SeedsBothResourceServers()
+    public async Task HandleAsync_WhenRootPlaneAndAbsent_SeedsTheDirectoryResourceServer()
     {
         var manager = MockRepository.Create<IStoreManager>();
         var store = MockRepository.Create<IResourceServerStore>();
         var crypto = MockRepository.Create<ICryptoService>();
 
         manager.Setup(x => x.GetStore<IResourceServerStore>()).Returns(store.Object).Verifiable();
-        foreach (var identifier in new[] { DirectoryIdentifier, ControlPlaneIdentifier })
+        foreach (var identifier in new[] { DirectoryIdentifier })
         {
             store
                 .Setup(x =>
@@ -98,7 +97,7 @@ public sealed class ControlPlaneResourceServerSeedHandlerTests : IDisposable
             CancellationToken.None
         );
 
-        Assert.Equal(2, captured.Count);
+        Assert.Single(captured);
 
         var directory = Assert.Single(captured, rs => rs.Identifier == DirectoryIdentifier);
         Assert.True(directory.IsSystem);
@@ -106,23 +105,17 @@ public sealed class ControlPlaneResourceServerSeedHandlerTests : IDisposable
         var directoryScope = Assert.Single(directory.Scopes);
         Assert.Equal("directory", directoryScope.Value);
         Assert.True(directoryScope.IsSystem);
-
-        var controlPlane = Assert.Single(captured, rs => rs.Identifier == ControlPlaneIdentifier);
-        Assert.True(controlPlane.IsSystem);
-        var controlPlaneScope = Assert.Single(controlPlane.Scopes);
-        Assert.Equal(GlobalDirectoryProtocol.ControlPlaneScope, controlPlaneScope.Value);
-        Assert.True(controlPlaneScope.IsSystem);
     }
 
     [Fact]
-    public async Task HandleAsync_WhenRootPlaneAndAbsent_SeedsBothWithEmptyObjectSettings()
+    public async Task HandleAsync_WhenRootPlaneAndAbsent_SeedsWithEmptyObjectSettings()
     {
         var manager = MockRepository.Create<IStoreManager>();
         var store = MockRepository.Create<IResourceServerStore>();
         var crypto = MockRepository.Create<ICryptoService>();
 
         manager.Setup(x => x.GetStore<IResourceServerStore>()).Returns(store.Object).Verifiable();
-        foreach (var identifier in new[] { DirectoryIdentifier, ControlPlaneIdentifier })
+        foreach (var identifier in new[] { DirectoryIdentifier })
         {
             store
                 .Setup(x =>
@@ -151,7 +144,7 @@ public sealed class ControlPlaneResourceServerSeedHandlerTests : IDisposable
             CancellationToken.None
         );
 
-        Assert.Equal(2, captured.Count);
+        Assert.Single(captured);
         Assert.All(
             captured,
             rs => Assert.True(JsonElement.DeepEquals(JsonElements.EmptyObject, rs.Settings.Value))
@@ -173,14 +166,14 @@ public sealed class ControlPlaneResourceServerSeedHandlerTests : IDisposable
     }
 
     [Fact]
-    public async Task HandleAsync_WhenBothPresent_DoesNothing()
+    public async Task HandleAsync_WhenPresent_DoesNothing()
     {
         var manager = MockRepository.Create<IStoreManager>();
         var store = MockRepository.Create<IResourceServerStore>();
         var crypto = MockRepository.Create<ICryptoService>();
 
         manager.Setup(x => x.GetStore<IResourceServerStore>()).Returns(store.Object).Verifiable();
-        foreach (var identifier in new[] { DirectoryIdentifier, ControlPlaneIdentifier })
+        foreach (var identifier in new[] { DirectoryIdentifier })
         {
             store
                 .Setup(x =>
@@ -196,53 +189,6 @@ public sealed class ControlPlaneResourceServerSeedHandlerTests : IDisposable
             CreateCommand(manager.Object, TenantPlane.Root),
             CancellationToken.None
         );
-    }
-
-    [Fact]
-    public async Task HandleAsync_WhenOnlyDirectoryPresent_SeedsControlPlaneOnly()
-    {
-        var manager = MockRepository.Create<IStoreManager>();
-        var store = MockRepository.Create<IResourceServerStore>();
-        var crypto = MockRepository.Create<ICryptoService>();
-
-        manager.Setup(x => x.GetStore<IResourceServerStore>()).Returns(store.Object).Verifiable();
-        store
-            .Setup(x =>
-                x.GetByIdentifierOrDefaultAsync(DirectoryIdentifier, It.IsAny<CancellationToken>())
-            )
-            .ReturnsAsync(CreateExisting(DirectoryIdentifier))
-            .Verifiable();
-        store
-            .Setup(x =>
-                x.GetByIdentifierOrDefaultAsync(
-                    ControlPlaneIdentifier,
-                    It.IsAny<CancellationToken>()
-                )
-            )
-            .ReturnsAsync((PersistedResourceServer?)null)
-            .Verifiable();
-        crypto
-            .Setup(x => x.GenerateKey(16, BinaryEncodings.Base64Url))
-            .Returns("generated-rs-id")
-            .Verifiable();
-
-        PersistedResourceServer? captured = null;
-        store
-            .Setup(x =>
-                x.AddAsync(It.IsAny<PersistedResourceServer>(), It.IsAny<CancellationToken>())
-            )
-            .Callback((PersistedResourceServer rs, CancellationToken _) => captured = rs)
-            .Returns(ValueTask.CompletedTask)
-            .Verifiable();
-
-        var handler = CreateHandler(crypto.Object);
-        await handler.HandleAsync(
-            CreateCommand(manager.Object, TenantPlane.Root),
-            CancellationToken.None
-        );
-
-        Assert.NotNull(captured);
-        Assert.Equal(ControlPlaneIdentifier, captured.Identifier);
     }
 
     #endregion

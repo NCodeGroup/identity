@@ -16,8 +16,8 @@ public class DefaultCellTokenSourceTests : BaseTests
     private const string KeyRing = "cell-a-ring";
     private const string DirectoryAudience = "urn:ncode:directory";
     private const string DirectoryScope = "directory";
-    private const string ControlPlaneAudience = "urn:ncode:control-plane";
-    private const string ControlPlaneScope = "control-plane";
+    private const string OtherAudience = "urn:example:other-api";
+    private const string OtherScope = "other-api";
 
     private static TimeSpan RequestTimeout { get; } = TimeSpan.FromSeconds(10);
 
@@ -200,8 +200,8 @@ public class DefaultCellTokenSourceTests : BaseTests
             CancellationToken.None
         );
         var controlPlane = await TokenSource.GetAccessTokenAsync(
-            ControlPlaneAudience,
-            ControlPlaneScope,
+            OtherAudience,
+            OtherScope,
             CancellationToken.None
         );
         var directoryAgain = await TokenSource.GetAccessTokenAsync(
@@ -210,8 +210,8 @@ public class DefaultCellTokenSourceTests : BaseTests
             CancellationToken.None
         );
         var controlPlaneAgain = await TokenSource.GetAccessTokenAsync(
-            ControlPlaneAudience,
-            ControlPlaneScope,
+            OtherAudience,
+            OtherScope,
             CancellationToken.None
         );
 
@@ -222,8 +222,8 @@ public class DefaultCellTokenSourceTests : BaseTests
         Assert.Equal(2, requests.Count);
         Assert.Equal([DirectoryAudience], requests[0].Resources);
         Assert.Equal(DirectoryScope, requests[0].Scope);
-        Assert.Equal([ControlPlaneAudience], requests[1].Resources);
-        Assert.Equal(ControlPlaneScope, requests[1].Scope);
+        Assert.Equal([OtherAudience], requests[1].Resources);
+        Assert.Equal(OtherScope, requests[1].Scope);
     }
 
     [Fact]
@@ -236,7 +236,7 @@ public class DefaultCellTokenSourceTests : BaseTests
             .Setup(x =>
                 x.RequestTokenAsync(
                     It.IsAny<ClientRegistration>(),
-                    It.Is<TokenRequest>(r => r.Scope == ControlPlaneScope),
+                    It.Is<TokenRequest>(r => r.Scope == OtherScope),
                     It.IsAny<CancellationToken>()
                 )
             )
@@ -254,8 +254,8 @@ public class DefaultCellTokenSourceTests : BaseTests
             .Verifiable(Times.Once);
 
         var cached = await TokenSource.GetAccessTokenAsync(
-            ControlPlaneAudience,
-            ControlPlaneScope,
+            OtherAudience,
+            OtherScope,
             CancellationToken.None
         );
         var directoryTask = TokenSource
@@ -263,7 +263,7 @@ public class DefaultCellTokenSourceTests : BaseTests
             .AsTask();
 
         var controlPlaneTask = TokenSource
-            .GetAccessTokenAsync(ControlPlaneAudience, ControlPlaneScope, CancellationToken.None)
+            .GetAccessTokenAsync(OtherAudience, OtherScope, CancellationToken.None)
             .AsTask();
 
         Assert.True(controlPlaneTask.IsCompletedSuccessfully);
@@ -290,14 +290,10 @@ public class DefaultCellTokenSourceTests : BaseTests
             .Verifiable(Times.Once);
 
         var exception = await Assert.ThrowsAsync<DirectoryUnavailableException>(async () =>
-            await TokenSource.GetAccessTokenAsync(
-                ControlPlaneAudience,
-                ControlPlaneScope,
-                CancellationToken.None
-            )
+            await TokenSource.GetAccessTokenAsync(OtherAudience, OtherScope, CancellationToken.None)
         );
 
-        Assert.Contains(ControlPlaneAudience, exception.Message);
+        Assert.Contains(OtherAudience, exception.Message);
     }
 
     [Fact]

@@ -180,11 +180,6 @@ public static class DefaultRegistration
             // /api tree.
             builder.AddEndpointGroup<ManagementRootGroup>();
 
-            // Serves the control-plane authority to the other cells, beside the /api tree and only in the
-            // control-plane cell.
-            builder.AddEndpointProvider<ControlPlaneAuthorityEndpointProvider>();
-            builder.AddEndpointProvider<ControlPlanePrincipalsEndpointProvider>();
-
             return builder.NewBuilder<OpenIdManagementLibrary>();
         }
     }
