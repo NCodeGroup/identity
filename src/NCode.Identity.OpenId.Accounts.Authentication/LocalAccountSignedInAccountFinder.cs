@@ -1,6 +1,7 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using System.Diagnostics.CodeAnalysis;
 using System.Security.Claims;
 using NCode.Identity.OpenId.Accounts.DataContracts;
 using NCode.Identity.OpenId.Accounts.Stores;
@@ -94,53 +95,71 @@ internal sealed class LocalAccountSignedInAccountFinder(
         // A principal that names the connection it signed in through acts on that connection's account alone; one that
         // names none and links several local accounts has no single account to act on.
         var signedInConnectionId = principal.FindFirstValue(ConnectionClaimTypes.Connection);
-        var localIdentities =
-            new List<(PersistedFederatedIdentity Identity, ResolvedConnection Connection)>();
-        foreach (var identity in identities)
-        {
-            var connection = await ConnectionResolver.GetByIdOrDefaultAsync(
-                openIdContext,
-                identity.ConnectionId,
-                cancellationToken
-            );
-            if (
-                connection is null
-                || !connection.Connection.IsEnabled
-                || !ConnectionStrategyNames.IsLocal(connection.Connection.Strategy)
-            )
-            {
-                continue;
-            }
-
-            localIdentities.Add((identity, connection));
-        }
-
-        int selectedIndex;
+        PersistedFederatedIdentity? localIdentity = null;
+        ResolvedConnection? localConnection = null;
         if (string.IsNullOrEmpty(signedInConnectionId))
         {
-            if (localIdentities.Count != 1)
+            var localCount = 0;
+            foreach (var identity in identities)
+            {
+                var connection = await ConnectionResolver.GetByIdOrDefaultAsync(
+                    openIdContext,
+                    identity.ConnectionId,
+                    cancellationToken
+                );
+                if (!IsEnabledLocal(connection))
+                {
+                    continue;
+                }
+
+                localCount++;
+                localIdentity = identity;
+                localConnection = connection;
+            }
+
+            if (localCount != 1)
             {
                 return null;
             }
-
-            selectedIndex = 0;
         }
         else
         {
-            selectedIndex = localIdentities.FindIndex(x =>
-                string.Equals(
-                    x.Identity.ConnectionId,
-                    signedInConnectionId,
-                    StringComparison.Ordinal
+            foreach (var identity in identities)
+            {
+                if (
+                    string.Equals(
+                        identity.ConnectionId,
+                        signedInConnectionId,
+                        StringComparison.Ordinal
+                    )
                 )
+                {
+                    localIdentity = identity;
+                    break;
+                }
+            }
+
+            if (localIdentity is null)
+            {
+                return null;
+            }
+
+            localConnection = await ConnectionResolver.GetByIdOrDefaultAsync(
+                openIdContext,
+                localIdentity.ConnectionId,
+                cancellationToken
             );
-            if (selectedIndex < 0)
+            if (!IsEnabledLocal(localConnection))
             {
                 return null;
             }
         }
 
-        var (localIdentity, localConnection) = localIdentities[selectedIndex];
+        if (localIdentity is null || localConnection is null)
+        {
+            return null;
+        }
+
         var accountStore = Catalog.GetStore(storeManager, localConnection.Connection);
         var account = await accountStore.GetByIdOrDefaultAsync(
             localIdentity.Subject,
@@ -153,4 +172,15 @@ internal sealed class LocalAccountSignedInAccountFinder(
 
         return (account, localConnection);
     }
+
+    /// <summary>
+    /// Determines whether a resolved connection exists, is enabled and is a local connection.
+    /// </summary>
+    /// <param name="connection">The <see cref="ResolvedConnection"/>, or <see langword="null"/> when none
+    /// resolved.</param>
+    /// <returns><see langword="true"/> when the connection is an enabled local one.</returns>
+    private static bool IsEnabledLocal([NotNullWhen(true)] ResolvedConnection? connection) =>
+        connection is not null
+        && connection.Connection.IsEnabled
+        && ConnectionStrategyNames.IsLocal(connection.Connection.Strategy);
 }

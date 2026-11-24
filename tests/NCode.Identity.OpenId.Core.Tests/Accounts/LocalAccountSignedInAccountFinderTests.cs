@@ -231,6 +231,38 @@ public class LocalAccountSignedInAccountFinderTests : BaseTests
     }
 
     [Fact]
+    public async Task FindAsync_WhenAConnectionClaim_ResolvesOnlyTheClaimedConnection()
+    {
+        var principal = CreatePrincipal(SecondConnectionId);
+        var mockContext = CreateContext(principal, PrincipalId);
+        SetupIdentities(
+            Identity(FirstConnectionId, FirstAccountId),
+            Identity(SecondConnectionId, SecondAccountId)
+        );
+        SetupConnection(SecondConnectionId);
+        SetupAccount(SecondConnectionId, SecondAccountId);
+
+        var result = await Finder.FindAsync(
+            MockStoreManager.Object,
+            mockContext.Object,
+            principal,
+            CancellationToken.None
+        );
+
+        Assert.NotNull(result);
+        Assert.Equal(SecondAccountId, result.Value.Account.LocalAccountId);
+        MockConnectionResolver.Verify(
+            x =>
+                x.GetByIdOrDefaultAsync(
+                    It.IsAny<OpenIdContext>(),
+                    FirstConnectionId,
+                    It.IsAny<CancellationToken>()
+                ),
+            Times.Never
+        );
+    }
+
+    [Fact]
     public async Task FindAsync_WhenOneLocalIdentityBesideANonLocalIdentity_ReturnsTheLocalAccount()
     {
         var principal = CreatePrincipal();
