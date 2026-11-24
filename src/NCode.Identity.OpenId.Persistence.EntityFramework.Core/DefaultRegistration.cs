@@ -61,6 +61,11 @@ public static class DefaultRegistration
                 IDirectoryFeedCheckpointStore,
                 DirectoryFeedCheckpointStore
             >();
+            serviceCollection.AddStore<
+                TDbContext,
+                IReplicatedDocumentStore,
+                ReplicatedDocumentStore
+            >();
             serviceCollection.AddStore<TDbContext, ITenantStore, TenantStore>();
             serviceCollection.AddStore<TDbContext, ITeamStore, TeamStore>();
             serviceCollection.AddStore<TDbContext, IClientStore, ClientStore>();

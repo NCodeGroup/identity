@@ -28,6 +28,12 @@ internal static class CoreDbContextExtensions
         public DbSet<DirectoryFeedCheckpointEntity> DirectoryFeedCheckpoints =>
             context.Set<DirectoryFeedCheckpointEntity>();
 
+        public DbSet<ReplicatedDocumentEntity> ReplicatedDocuments =>
+            context.Set<ReplicatedDocumentEntity>();
+
+        public DbSet<RevokedManagementKeyEntity> RevokedManagementKeys =>
+            context.Set<RevokedManagementKeyEntity>();
+
         public DbSet<TeamEntity> Teams => context.Set<TeamEntity>();
 
         public DbSet<RetiredTeamEntity> RetiredTeams => context.Set<RetiredTeamEntity>();
