@@ -74,7 +74,6 @@ internal class DefaultValidateAuthorizationRequestHandler(
             openIdContext,
             openIdClient,
             authorizationRequest,
-            ConnectionResolver,
             cancellationToken
         );
 
@@ -104,13 +103,19 @@ internal class DefaultValidateAuthorizationRequestHandler(
         }
     }
 
-    // A requested connection (the connection parameter, else the first idp: acr value) must name an enabled
-    // connection the client's allowed_connections allows.
-    internal static async ValueTask ValidateRequestedConnectionAsync(
+    /// <summary>
+    /// Validates the requested connection. A requested connection (the <c>connection</c> parameter, else the first
+    /// <c>idp:</c> <c>acr_values</c> value) must name an enabled connection that the client's
+    /// <c>allowed_connections</c> allows; a request that names none is not checked.
+    /// </summary>
+    /// <param name="openIdContext">The <see cref="OpenIdContext"/> of the request.</param>
+    /// <param name="openIdClient">The <see cref="OpenIdClient"/> whose settings select the connection.</param>
+    /// <param name="authorizationRequest">The authorization request that may name a connection.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    private async ValueTask ValidateRequestedConnectionAsync(
         OpenIdContext openIdContext,
         OpenIdClient openIdClient,
         IAuthorizationRequest authorizationRequest,
-        IConnectionResolver connectionResolver,
         CancellationToken cancellationToken
     )
     {
@@ -121,7 +126,7 @@ internal class DefaultValidateAuthorizationRequestHandler(
         if (requestedName is null)
             return;
 
-        var selection = await connectionResolver.SelectAsync(
+        var selection = await ConnectionResolver.SelectAsync(
             openIdContext,
             openIdClient.Settings,
             requestedName,

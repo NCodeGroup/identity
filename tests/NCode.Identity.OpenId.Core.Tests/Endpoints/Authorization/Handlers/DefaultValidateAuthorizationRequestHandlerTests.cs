@@ -4,8 +4,11 @@
 using System.Buffers.Text;
 using Moq;
 using NCode.Identity.OpenId.Authentication.Clients;
+using NCode.Identity.OpenId.Authentication.Endpoints.Authorization.Commands;
 using NCode.Identity.OpenId.Authentication.Endpoints.Authorization.Handlers;
 using NCode.Identity.OpenId.Authentication.Endpoints.Authorization.Messages;
+using NCode.Identity.OpenId.Authentication.Endpoints.Authorization.Results;
+using NCode.Identity.OpenId.Authentication.ResourceServers;
 using NCode.Identity.OpenId.Connections;
 using NCode.Identity.OpenId.Contexts;
 using NCode.Identity.OpenId.Environments;
@@ -816,13 +819,16 @@ public class DefaultValidateAuthorizationRequestHandlerTests : BaseTests
 
     #region requested connection
 
-    private (
-        OpenIdContext context,
-        OpenIdClient client,
-        Mock<IConnectionResolver> resolver,
-        Func<string?> capturedCode,
-        Func<string?> capturedDescription
-    ) CreateConnectionScaffold()
+    private sealed record ConnectionScaffold(
+        DefaultValidateAuthorizationRequestHandler Handler,
+        OpenIdContext Context,
+        OpenIdClient Client,
+        Mock<IConnectionResolver> Resolver,
+        Func<string?> CapturedCode,
+        Func<string?> CapturedDescription
+    );
+
+    private ConnectionScaffold CreateConnectionScaffold()
     {
         string? capturedCode = null;
         var mockError = CreateLooseMock<IOpenIdError>();
@@ -833,140 +839,184 @@ public class DefaultValidateAuthorizationRequestHandlerTests : BaseTests
             .Callback<string>(code => capturedCode = code)
             .Returns(mockError.Object);
 
+        var mockTenantSettings = CreateLooseMock<IReadOnlySettingCollection>();
+        var mockSettingsProvider = CreateLooseMock<IReadOnlySettingCollectionProvider>();
+        mockSettingsProvider.SetupGet(x => x.Collection).Returns(mockTenantSettings.Object);
+        var mockTenant = CreateLooseMock<OpenIdTenant>();
+        mockTenant.SetupGet(x => x.SettingsProvider).Returns(mockSettingsProvider.Object);
+
         var mockContext = CreateLooseMock<OpenIdContext>();
         mockContext.SetupGet(x => x.ErrorFactory).Returns(mockErrorFactory.Object);
+        mockContext.SetupGet(x => x.Tenant).Returns(mockTenant.Object);
 
         var mockClientSettings = CreateLooseMock<IReadOnlySettingCollection>();
+        IReadOnlyCollection<string> methods = [OpenIdProtocol.CodeChallengeMethods.S256];
+        mockClientSettings
+            .Setup(x => x.GetValue(OpenIdSettingKeys.CodeChallengeMethodsSupported))
+            .Returns(methods);
         var mockClient = CreateLooseMock<OpenIdClient>();
         mockClient.SetupGet(x => x.Settings).Returns(mockClientSettings.Object);
 
-        return (
+        var mockClientScopeService = CreateLooseMock<IClientScopeService>();
+        IReadOnlyCollection<string> allowedScopes = [OpenIdProtocol.ScopeTypes.OpenId];
+        mockClientScopeService
+            .Setup(x =>
+                x.GetAllowedScopesAsync(
+                    It.IsAny<string>(),
+                    It.IsAny<string>(),
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync(allowedScopes);
+
+        var mockCatalog = CreateLooseMock<ISecurityProfileCatalog>();
+        var mockResolver = CreateStrictMock<IConnectionResolver>();
+
+        var handler = new DefaultValidateAuthorizationRequestHandler(
+            mockClientScopeService.Object,
+            mockCatalog.Object,
+            mockResolver.Object
+        );
+
+        return new ConnectionScaffold(
+            handler,
             mockContext.Object,
             mockClient.Object,
-            CreateStrictMock<IConnectionResolver>(),
+            mockResolver,
             () => capturedCode,
             () => mockError.Object.Description
         );
     }
 
-    private static ValueTask InvokeValidateRequestedConnectionAsync(
-        OpenIdContext context,
-        OpenIdClient client,
+    private ValueTask ValidateAsync(
+        ConnectionScaffold scaffold,
         IAuthorizationRequest request,
-        IConnectionResolver resolver,
         CancellationToken cancellationToken
-    ) =>
-        DefaultValidateAuthorizationRequestHandler.ValidateRequestedConnectionAsync(
-            context,
-            client,
-            request,
-            resolver,
-            cancellationToken
+    )
+    {
+        var mockResponseModeHandler = CreateLooseMock<IAuthorizationResponseModeHandler>();
+        var delivery = new AuthorizationResponseDelivery(
+            "https://client.example/callback",
+            mockResponseModeHandler.Object,
+            null
         );
+        var command = new ValidateAuthorizationRequestCommand(
+            scaffold.Context,
+            scaffold.Client,
+            request,
+            delivery
+        );
+        return scaffold.Handler.HandleAsync(command, cancellationToken);
+    }
 
+    // A request that passes every check other than the requested connection.
     private Mock<IAuthorizationRequest> CreateConnectionRequest(
         string? connection,
         params string[] acrValues
     )
     {
+        var mockMessage = CreateLooseMock<IAuthorizationRequestMessage>();
+        mockMessage.SetupGet(x => x.RedirectUri).Returns("https://client.example/callback");
+
+        IReadOnlyList<string> acr = acrValues;
+        IReadOnlyList<string> responseTypes = [OpenIdProtocol.ResponseTypes.Code];
+        IReadOnlyList<string> scopes = [OpenIdProtocol.ScopeTypes.OpenId];
+        IReadOnlyList<string> none = [];
+
         var mockRequest = CreateLooseMock<IAuthorizationRequest>();
-        IReadOnlyList<string> values = acrValues;
+        mockRequest.SetupGet(x => x.OriginalRequestMessage).Returns(mockMessage.Object);
         mockRequest.SetupGet(x => x.Connection).Returns(connection);
-        mockRequest.SetupGet(x => x.AcrValues).Returns(values);
+        mockRequest.SetupGet(x => x.AcrValues).Returns(acr);
+        mockRequest.SetupGet(x => x.ResponseTypes).Returns(responseTypes);
+        mockRequest.SetupGet(x => x.Scopes).Returns(scopes);
+        mockRequest.SetupGet(x => x.PromptTypes).Returns(none);
+        mockRequest.SetupGet(x => x.Resources).Returns(none);
+        mockRequest.SetupGet(x => x.CodeChallenge).Returns(CodeChallenge);
+        mockRequest
+            .SetupGet(x => x.CodeChallengeMethod)
+            .Returns(OpenIdProtocol.CodeChallengeMethods.S256);
         return mockRequest;
     }
 
     [Fact]
-    public async Task ValidateRequestedConnectionAsync_WhenNoConnectionIsRequested_DoesNotSelect()
+    public async Task HandleAsync_WhenNoConnectionIsRequested_DoesNotSelect()
     {
-        var (context, client, resolver, _, _) = CreateConnectionScaffold();
+        var scaffold = CreateConnectionScaffold();
         var mockRequest = CreateConnectionRequest(null);
 
-        await InvokeValidateRequestedConnectionAsync(
-            context,
-            client,
-            mockRequest.Object,
-            resolver.Object,
-            CancellationToken.None
-        );
+        await ValidateAsync(scaffold, mockRequest.Object, CancellationToken.None);
 
-        resolver.VerifyNoOtherCalls();
+        scaffold.Resolver.VerifyNoOtherCalls();
     }
 
     [Fact]
-    public async Task ValidateRequestedConnectionAsync_WhenTheConnectionIsAvailable_DoesNotThrow()
+    public async Task HandleAsync_WhenTheConnectionIsAvailable_DoesNotThrow()
     {
-        var (context, client, resolver, _, _) = CreateConnectionScaffold();
+        var scaffold = CreateConnectionScaffold();
         var mockRequest = CreateConnectionRequest("corp");
-        resolver
-            .Setup(x =>
-                x.SelectAsync(context, client.Settings, "corp", It.IsAny<CancellationToken>())
+        scaffold
+            .Resolver.Setup(x =>
+                x.SelectAsync(
+                    scaffold.Context,
+                    scaffold.Client.Settings,
+                    "corp",
+                    It.IsAny<CancellationToken>()
+                )
             )
             .ReturnsAsync(new ConnectionSelection());
 
-        await InvokeValidateRequestedConnectionAsync(
-            context,
-            client,
-            mockRequest.Object,
-            resolver.Object,
-            CancellationToken.None
-        );
+        await ValidateAsync(scaffold, mockRequest.Object, CancellationToken.None);
 
-        resolver.VerifyAll();
+        scaffold.Resolver.VerifyAll();
     }
 
     [Fact]
-    public async Task ValidateRequestedConnectionAsync_WhenTheIdpAcrValueNamesTheConnection_SelectsIt()
+    public async Task HandleAsync_WhenTheIdpAcrValueNamesTheConnection_SelectsIt()
     {
-        var (context, client, resolver, _, _) = CreateConnectionScaffold();
+        var scaffold = CreateConnectionScaffold();
         var mockRequest = CreateConnectionRequest(null, "urn:other", "idp:corp");
-        resolver
-            .Setup(x =>
-                x.SelectAsync(context, client.Settings, "corp", It.IsAny<CancellationToken>())
+        scaffold
+            .Resolver.Setup(x =>
+                x.SelectAsync(
+                    scaffold.Context,
+                    scaffold.Client.Settings,
+                    "corp",
+                    It.IsAny<CancellationToken>()
+                )
             )
             .ReturnsAsync(new ConnectionSelection());
 
-        await InvokeValidateRequestedConnectionAsync(
-            context,
-            client,
-            mockRequest.Object,
-            resolver.Object,
-            CancellationToken.None
-        );
+        await ValidateAsync(scaffold, mockRequest.Object, CancellationToken.None);
 
-        resolver.VerifyAll();
+        scaffold.Resolver.VerifyAll();
     }
 
     [Theory]
     [InlineData("unknown")]
     [InlineData("disabled")]
     [InlineData("not-allowed")]
-    public async Task ValidateRequestedConnectionAsync_WhenTheConnectionIsNotAvailable_IsInvalidRequest(
-        string name
-    )
+    public async Task HandleAsync_WhenTheConnectionIsNotAvailable_IsInvalidRequest(string name)
     {
-        var (context, client, resolver, capturedCode, capturedDescription) =
-            CreateConnectionScaffold();
+        var scaffold = CreateConnectionScaffold();
         var mockRequest = CreateConnectionRequest(name);
         const string description = "The requested connection is not available to the client.";
-        resolver
-            .Setup(x =>
-                x.SelectAsync(context, client.Settings, name, It.IsAny<CancellationToken>())
+        scaffold
+            .Resolver.Setup(x =>
+                x.SelectAsync(
+                    scaffold.Context,
+                    scaffold.Client.Settings,
+                    name,
+                    It.IsAny<CancellationToken>()
+                )
             )
             .ReturnsAsync(new ConnectionSelection { ErrorDescription = description });
 
         await Assert.ThrowsAsync<OpenIdException>(async () =>
-            await InvokeValidateRequestedConnectionAsync(
-                context,
-                client,
-                mockRequest.Object,
-                resolver.Object,
-                CancellationToken.None
-            )
+            await ValidateAsync(scaffold, mockRequest.Object, CancellationToken.None)
         );
 
-        Assert.Equal(OpenIdProtocol.ErrorCodes.InvalidRequest, capturedCode());
-        Assert.Equal(description, capturedDescription());
+        Assert.Equal(OpenIdProtocol.ErrorCodes.InvalidRequest, scaffold.CapturedCode());
+        Assert.Equal(description, scaffold.CapturedDescription());
     }
 
     #endregion
