@@ -14,6 +14,7 @@ using NCode.Identity.OpenId.Authentication.Endpoints.UserInfo.Commands;
 using NCode.Identity.OpenId.Authentication.Persistence;
 using NCode.Identity.OpenId.Connections;
 using NCode.Identity.OpenId.Contexts;
+using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
 using NCode.Identity.Persistence.Stores;
 using NCode.Mediator;
@@ -78,6 +79,7 @@ internal sealed class DefaultGetLocalAccountUserInfoClaimsHandler(
         var account = await ResolveLocalAccountAsync(
             openIdContext,
             subjectAuthentication.PrincipalId,
+            subjectAuthentication.Subject,
             cancellationToken
         );
         if (account is null)
@@ -190,6 +192,7 @@ internal sealed class DefaultGetLocalAccountUserInfoClaimsHandler(
     private async ValueTask<PersistedLocalAccount?> ResolveLocalAccountAsync(
         OpenIdContext openIdContext,
         string principalId,
+        ClaimsPrincipal subject,
         CancellationToken cancellationToken
     )
     {
@@ -200,6 +203,11 @@ internal sealed class DefaultGetLocalAccountUserInfoClaimsHandler(
         var identityStore = storeManager.GetStore<IFederatedIdentityStore>();
         var identities = await identityStore.GetByPrincipalAsync(principalId, cancellationToken);
 
+        // A principal can hold local identities in several connections, so the account is the one in the connection
+        // the subject signed in through; a subject without that claim names an account only when there is one.
+        var signedInConnectionId = subject.FindFirstValue(ConnectionClaimTypes.Connection);
+        var localIdentities =
+            new List<(PersistedFederatedIdentity Identity, ResolvedConnection Connection)>();
         foreach (var identity in identities)
         {
             var connection = await ConnectionResolver.GetByIdOrDefaultAsync(
@@ -212,11 +220,32 @@ internal sealed class DefaultGetLocalAccountUserInfoClaimsHandler(
                 continue;
             }
 
-            var accountStore = Catalog.GetStore(storeManager, connection.Connection);
-            return await accountStore.GetByIdOrDefaultAsync(identity.Subject, cancellationToken);
+            if (string.IsNullOrEmpty(signedInConnectionId))
+            {
+                localIdentities.Add((identity, connection));
+                continue;
+            }
+
+            if (
+                string.Equals(identity.ConnectionId, signedInConnectionId, StringComparison.Ordinal)
+            )
+            {
+                var accountStore = Catalog.GetStore(storeManager, connection.Connection);
+                return await accountStore.GetByIdOrDefaultAsync(
+                    identity.Subject,
+                    cancellationToken
+                );
+            }
         }
 
-        return null;
+        if (localIdentities.Count != 1)
+        {
+            return null;
+        }
+
+        var (localIdentity, localConnection) = localIdentities[0];
+        var localStore = Catalog.GetStore(storeManager, localConnection.Connection);
+        return await localStore.GetByIdOrDefaultAsync(localIdentity.Subject, cancellationToken);
     }
 
     private static void TryAdd(IDictionary<string, object> claims, string claimType, object value)
