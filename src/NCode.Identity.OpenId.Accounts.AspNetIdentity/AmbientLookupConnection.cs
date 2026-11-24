@@ -29,24 +29,12 @@ internal static class AmbientLookupConnection
 
         var previous = Current.Value;
         Current.Value = connectionId;
-        return new Scope(previous);
+        return new AmbientLookupConnectionScope(previous);
     }
 
-    private sealed class Scope(string? previous) : IDisposable
-    {
-        private bool IsDisposed { get; set; }
-
-        private string? Previous { get; } = previous;
-
-        public void Dispose()
-        {
-            if (IsDisposed)
-            {
-                return;
-            }
-
-            IsDisposed = true;
-            Current.Value = Previous;
-        }
-    }
+    /// <summary>
+    /// Makes <paramref name="previous"/> the connection of the current scope.
+    /// </summary>
+    /// <param name="previous">The identifier of the connection to restore, or <c>null</c> for none.</param>
+    internal static void Restore(string? previous) => Current.Value = previous;
 }
