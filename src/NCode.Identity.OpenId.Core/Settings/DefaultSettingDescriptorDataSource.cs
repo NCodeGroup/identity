@@ -1530,10 +1530,11 @@ internal class DefaultSettingDescriptorDataSource(
 
             // require_dpop_bound_access_tokens: whether the client must present a valid DPoP proof at the token
             // endpoint (RFC 9449), default false. Floor (Or): once a parent requires it, a child cannot un-require it.
+            // Scopes: a resource server's requirement applies to every token request that targets it, at issuance.
             yield return new SettingDescriptor<bool>
             {
                 Name = OpenIdSettingNames.RequireDPoPBoundAccessTokens,
-                AppliesTo = Clients,
+                AppliesTo = ClientsAndResourceServers,
                 Default = false,
 
                 IsDiscoverable = IsNonStdDiscoverable,

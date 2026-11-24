@@ -60,6 +60,7 @@ internal class DefaultAccessTokenPolicyService(
     {
         var settings = CombineSettings(openIdClient.Settings, resolution);
 
+        EnsureDPoPBinding(openIdContext, settings, confirmation);
         EnsureSenderConstraint(openIdContext, settings, confirmation);
 
         return new AccessTokenPolicy
@@ -99,6 +100,29 @@ internal class DefaultAccessTokenPolicyService(
         }
 
         return settings;
+    }
+
+    // A targeted resource server that requires DPoP-bound access tokens refuses a token request without a DPoP proof, as
+    // a client's own requirement does at the token endpoint.
+    private static void EnsureDPoPBinding(
+        OpenIdContext openIdContext,
+        IReadOnlySettingCollection settings,
+        TokenConfirmation confirmation
+    )
+    {
+        if (
+            !settings.GetValue(OpenIdSettingKeys.RequireDPoPBoundAccessTokens)
+            || !string.IsNullOrEmpty(confirmation.JwkThumbprint)
+        )
+        {
+            return;
+        }
+
+        throw openIdContext
+            .ErrorFactory.Create(OpenIdProtocol.ErrorCodes.InvalidDPoPProof)
+            .WithDescription("A DPoP proof is required but was not presented.")
+            .WithStatusCode(StatusCodes.Status400BadRequest)
+            .AsException();
     }
 
     // A required sender constraint is met only by a binding whose 'cnf' method every targeted resource server verifies;
