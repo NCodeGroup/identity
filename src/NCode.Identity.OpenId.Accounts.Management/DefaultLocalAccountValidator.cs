@@ -186,9 +186,9 @@ internal class DefaultLocalAccountValidator(
     }
 
     /// <summary>
-    /// Checks the account's identifiers against the connection's settings and its store.
+    /// Checks the account's identifiers against the connection's settings: which are required and how long they may be.
     /// </summary>
-    private async ValueTask<ManagementError?> ValidateIdentifiersAsync(
+    private async ValueTask<ManagementError?> ValidateIdentifierRequirementsAsync(
         PersistedConnection connection,
         LocalAccountIdentifierProposal proposal,
         IStoreManager storeManager,
@@ -207,14 +207,21 @@ internal class DefaultLocalAccountValidator(
         }
 
         var mode = settings.GetValue(OpenIdSettingKeys.LocalAccountIdentifier);
-        var identifierError = GetIdentifierErrorOrDefault(mode, proposal.UserName, proposal.Email);
-        if (identifierError is not null)
-        {
-            return identifierError;
-        }
+        return GetIdentifierErrorOrDefault(mode, proposal.UserName, proposal.Email);
+    }
 
+    /// <summary>
+    /// Checks the account's identifiers against the connection's store for conflicts.
+    /// </summary>
+    private ValueTask<ManagementError?> ValidateIdentifiersAvailableAsync(
+        PersistedConnection connection,
+        LocalAccountIdentifierProposal proposal,
+        IStoreManager storeManager,
+        CancellationToken cancellationToken
+    )
+    {
         var store = LocalAccountStoreCatalog.GetStore(storeManager, connection);
-        return await CheckIdentifiersAvailableAsync(
+        return CheckIdentifiersAvailableAsync(
             store,
             connection.ConnectionId,
             proposal,
@@ -289,18 +296,28 @@ internal class DefaultLocalAccountValidator(
             UserName = account.UserName,
             Email = account.Email,
         };
-        var identifierError = await ValidateIdentifiersAsync(
+        var requirementError = await ValidateIdentifierRequirementsAsync(
             connection,
             proposal,
             storeManager,
             cancellationToken
         );
-        if (identifierError is not null)
+        if (requirementError is not null)
         {
-            return identifierError;
+            return requirementError;
         }
 
-        return GetDisplayNameErrorOrDefault(account.DisplayName);
+        if (GetDisplayNameErrorOrDefault(account.DisplayName) is { } displayNameError)
+        {
+            return displayNameError;
+        }
+
+        return await ValidateIdentifiersAvailableAsync(
+            connection,
+            proposal,
+            storeManager,
+            cancellationToken
+        );
     }
 
     /// <inheritdoc />
@@ -349,7 +366,18 @@ internal class DefaultLocalAccountValidator(
             Email = model.Email,
             LocalAccountId = account.LocalAccountId,
         };
-        return await ValidateIdentifiersAsync(
+        var requirementError = await ValidateIdentifierRequirementsAsync(
+            connection,
+            proposal,
+            storeManager,
+            cancellationToken
+        );
+        if (requirementError is not null)
+        {
+            return requirementError;
+        }
+
+        return await ValidateIdentifiersAvailableAsync(
             connection,
             proposal,
             storeManager,

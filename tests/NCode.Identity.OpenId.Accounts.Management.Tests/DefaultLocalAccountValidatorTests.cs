@@ -663,10 +663,46 @@ public sealed class DefaultLocalAccountValidatorTests : IDisposable
     }
 
     [Fact]
-    public async Task ValidateCreateAsync_WhenDisplayNameIsBlank_Returns400()
+    public async Task ValidateCreateAsync_WhenTheEmailIsTakenAndTheDisplayNameIsBlank_Returns400()
+    {
+        SetupIdentifiers(LocalAccountIdentifiers.EmailOrUserName);
+        var account = CreateAccount(email: Email, displayName: "   ");
+
+        var error = await Validator.ValidateCreateAsync(
+            Connection,
+            account,
+            MockStoreManager.Object,
+            CancellationToken.None
+        );
+
+        Assert.NotNull(error);
+        Assert.Equal(StatusCodes.Status400BadRequest, error.StatusCode);
+        Assert.Equal("The display name is required.", error.Detail);
+    }
+
+    [Fact]
+    public async Task ValidateCreateAsync_WhenTheEmailIsTakenAndTheDisplayNameIsValid_Returns409()
     {
         SetupIdentifiers(LocalAccountIdentifiers.EmailOrUserName);
         SetupUserNameLookup(existing: null);
+        SetupEmailLookup(CreateAccount(localAccountId: "other-account", email: Email));
+        var account = CreateAccount(email: Email);
+
+        var error = await Validator.ValidateCreateAsync(
+            Connection,
+            account,
+            MockStoreManager.Object,
+            CancellationToken.None
+        );
+
+        Assert.NotNull(error);
+        Assert.Equal(StatusCodes.Status409Conflict, error.StatusCode);
+    }
+
+    [Fact]
+    public async Task ValidateCreateAsync_WhenDisplayNameIsBlank_Returns400()
+    {
+        SetupIdentifiers(LocalAccountIdentifiers.EmailOrUserName);
         var account = CreateAccount(displayName: "   ");
 
         var error = await Validator.ValidateCreateAsync(
@@ -685,7 +721,6 @@ public sealed class DefaultLocalAccountValidatorTests : IDisposable
     public async Task ValidateCreateAsync_WhenDisplayNameIsTooLong_Returns400()
     {
         SetupIdentifiers(LocalAccountIdentifiers.EmailOrUserName);
-        SetupUserNameLookup(existing: null);
         var displayName = new string('a', AccountMaxLengths.DisplayName + 1);
         var account = CreateAccount(displayName: displayName);
 
