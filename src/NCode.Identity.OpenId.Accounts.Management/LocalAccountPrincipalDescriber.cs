@@ -39,7 +39,10 @@ internal sealed class LocalAccountPrincipalDescriber : IPrincipalDescriber
     {
         var summaries = new List<PrincipalSummaryResource>();
 
-        var identities = await identityStore.GetByPrincipalsAsync(principalIds, cancellationToken);
+        var identities = await identityStore.GetNamesByPrincipalsAsync(
+            principalIds,
+            cancellationToken
+        );
 
         var principalIdBySubject = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         foreach (var identity in identities)

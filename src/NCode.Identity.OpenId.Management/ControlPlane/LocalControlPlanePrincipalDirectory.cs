@@ -104,23 +104,17 @@ internal sealed class LocalControlPlanePrincipalDirectory(
     )
     {
         var principalStore = storeManager.GetStore<IFederatedPrincipalStore>();
-        var principals = await principalStore.GetByIdsAsync(principalIds, cancellationToken);
-        if (principals.Count == 0)
+        var foundIds = await principalStore.GetExistingIdsAsync(principalIds, cancellationToken);
+        if (foundIds.Count == 0)
         {
             return [];
         }
 
-        var foundIds = new List<string>(principals.Count);
-        foreach (var principal in principals)
-        {
-            foundIds.Add(principal.PrincipalId);
-        }
-
         var identityStore = storeManager.GetStore<IFederatedIdentityStore>();
-        var identities = await identityStore.GetByPrincipalsAsync(foundIds, cancellationToken);
+        var identities = await identityStore.GetNamesByPrincipalsAsync(foundIds, cancellationToken);
 
         // A principal is named by its first identity, ordered by issuer, then subject.
-        var firstIdentities = new Dictionary<string, PersistedFederatedIdentity>(
+        var firstIdentities = new Dictionary<string, FederatedIdentityNameProjection>(
             StringComparer.OrdinalIgnoreCase
         );
         foreach (var identity in identities)
@@ -136,15 +130,15 @@ internal sealed class LocalControlPlanePrincipalDirectory(
             firstIdentities[identity.PrincipalId] = identity;
         }
 
-        var summaries = new List<PrincipalSummaryResource>(principals.Count);
-        foreach (var principal in principals)
+        var summaries = new List<PrincipalSummaryResource>(foundIds.Count);
+        foreach (var principalId in foundIds)
         {
-            var displayName = firstIdentities.TryGetValue(principal.PrincipalId, out var first)
+            var displayName = firstIdentities.TryGetValue(principalId, out var first)
                 ? $"{first.Subject} ({first.Issuer})"
-                : principal.PrincipalId;
+                : principalId;
             var summary = new PrincipalSummaryResource
             {
-                PrincipalId = principal.PrincipalId,
+                PrincipalId = principalId,
                 PrincipalType = PrincipalTypes.FederatedUser,
                 DisplayName = displayName,
                 UserName = null,
@@ -161,7 +155,10 @@ internal sealed class LocalControlPlanePrincipalDirectory(
     /// <param name="left">The identity to place.</param>
     /// <param name="right">The identity to compare with.</param>
     /// <returns><see langword="true"/> when <paramref name="left"/> sorts before <paramref name="right"/>.</returns>
-    private static bool IsBefore(PersistedFederatedIdentity left, PersistedFederatedIdentity right)
+    private static bool IsBefore(
+        FederatedIdentityNameProjection left,
+        FederatedIdentityNameProjection right
+    )
     {
         var byIssuer = string.CompareOrdinal(left.Issuer, right.Issuer);
         return byIssuer != 0

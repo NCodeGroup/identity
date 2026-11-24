@@ -15,6 +15,7 @@ public sealed class LocalAccountPrincipalDescriberTests : IDisposable
 {
     private const string TenantId = "control-plane";
 
+    // An expression tree cannot call a non-array params collection in its expanded form (CS9226).
     private static bool Names(IReadOnlyCollection<string> actual, params string[] expected) =>
         actual.SequenceEqual(expected);
 
@@ -43,6 +44,18 @@ public sealed class LocalAccountPrincipalDescriberTests : IDisposable
             Subject = subject,
             JoinKey = null,
             ConcurrencyToken = "identity-ct",
+        };
+
+    private static FederatedIdentityNameProjection CreateIdentityName(
+        string issuer,
+        string subject,
+        string principalId
+    ) =>
+        new()
+        {
+            PrincipalId = principalId,
+            Issuer = issuer,
+            Subject = subject,
         };
 
     private MockRepository MockRepository { get; } = new(MockBehavior.Strict);
@@ -95,15 +108,15 @@ public sealed class LocalAccountPrincipalDescriberTests : IDisposable
     {
         SetupStores();
         var account = CreateAccount("acc-1", "alice");
-        IReadOnlyList<PersistedFederatedIdentity> identities =
+        IReadOnlyList<FederatedIdentityNameProjection> identities =
         [
-            CreateIdentity("https://other.example", "x", "p2"),
-            CreateIdentity(AccountConstants.SelfIssuer, "acc-1", "p1"),
+            CreateIdentityName("https://other.example", "x", "p2"),
+            CreateIdentityName(AccountConstants.SelfIssuer, "acc-1", "p1"),
         ];
         IReadOnlyList<LocalAccountNameProjection> accounts = [account];
         MockIdentityStore
             .Setup(x =>
-                x.GetByPrincipalsAsync(
+                x.GetNamesByPrincipalsAsync(
                     It.Is<IReadOnlyCollection<string>>(y => Names(y, "p1", "p2")),
                     It.IsAny<CancellationToken>()
                 )
@@ -139,13 +152,13 @@ public sealed class LocalAccountPrincipalDescriberTests : IDisposable
     public async Task FindAsync_WhenNoPrincipalHasASelfIssuedIdentity_ReadsNoAccount()
     {
         SetupStores();
-        IReadOnlyList<PersistedFederatedIdentity> identities =
+        IReadOnlyList<FederatedIdentityNameProjection> identities =
         [
-            CreateIdentity("https://other.example", "x", "p2"),
+            CreateIdentityName("https://other.example", "x", "p2"),
         ];
         MockIdentityStore
             .Setup(x =>
-                x.GetByPrincipalsAsync(
+                x.GetNamesByPrincipalsAsync(
                     It.Is<IReadOnlyCollection<string>>(y => Names(y, "p2")),
                     It.IsAny<CancellationToken>()
                 )
@@ -238,16 +251,18 @@ public sealed class LocalAccountPrincipalDescriberTests : IDisposable
         SetupStores();
         var account = CreateAccount("acc-1", "alice");
         var identity = CreateIdentity(AccountConstants.SelfIssuer, "acc-1", "p1");
+        var identityName = CreateIdentityName(AccountConstants.SelfIssuer, "acc-1", "p1");
         IReadOnlyList<PersistedFederatedIdentity> identities = [identity];
+        IReadOnlyList<FederatedIdentityNameProjection> identityNames = [identityName];
         IReadOnlyList<LocalAccountNameProjection> accounts = [account];
         MockIdentityStore
             .Setup(x =>
-                x.GetByPrincipalsAsync(
+                x.GetNamesByPrincipalsAsync(
                     It.Is<IReadOnlyCollection<string>>(y => Names(y, "p1")),
                     It.IsAny<CancellationToken>()
                 )
             )
-            .ReturnsAsync(identities)
+            .ReturnsAsync(identityNames)
             .Verifiable();
         MockAccountStore
             .Setup(x =>

@@ -19,55 +19,49 @@ public sealed class LocalControlPlanePrincipalDirectoryTests : IDisposable
     private static void SetupPrincipalsRead(
         Mock<IFederatedPrincipalStore> store,
         string[] principalIds,
-        params PersistedFederatedPrincipal[] found
-    ) =>
+        params IEnumerable<string> foundIds
+    )
+    {
+        IReadOnlyList<string> found = [.. foundIds];
         store
             .Setup(x =>
-                x.GetByIdsAsync(
+                x.GetExistingIdsAsync(
                     It.Is<IReadOnlyCollection<string>>(c => c.SequenceEqual(principalIds)),
                     It.IsAny<CancellationToken>()
                 )
             )
             .ReturnsAsync(found)
             .Verifiable();
+    }
 
     private static void SetupIdentitiesRead(
         Mock<IFederatedIdentityStore> store,
         string[] principalIds,
-        params PersistedFederatedIdentity[] found
-    ) =>
+        params IEnumerable<FederatedIdentityNameProjection> foundIdentities
+    )
+    {
+        IReadOnlyList<FederatedIdentityNameProjection> found = [.. foundIdentities];
         store
             .Setup(x =>
-                x.GetByPrincipalsAsync(
+                x.GetNamesByPrincipalsAsync(
                     It.Is<IReadOnlyCollection<string>>(c => c.SequenceEqual(principalIds)),
                     It.IsAny<CancellationToken>()
                 )
             )
             .ReturnsAsync(found)
             .Verifiable();
+    }
 
-    private static PersistedFederatedPrincipal CreateFederatedPrincipal(string principalId) =>
-        new()
-        {
-            TenantId = RootTenantId,
-            PrincipalId = principalId,
-            ConcurrencyToken = "token",
-        };
-
-    private static PersistedFederatedIdentity CreateFederatedIdentity(
+    private static FederatedIdentityNameProjection CreateFederatedIdentity(
         string principalId,
         string issuer,
         string subject
     ) =>
         new()
         {
-            TenantId = RootTenantId,
-            FederatedIdentityId = $"{issuer}|{subject}",
             PrincipalId = principalId,
             Issuer = issuer,
             Subject = subject,
-            JoinKey = null,
-            ConcurrencyToken = "token",
         };
 
     private MockRepository MockRepository { get; } = new(MockBehavior.Strict);
@@ -88,7 +82,7 @@ public sealed class LocalControlPlanePrincipalDirectoryTests : IDisposable
     }
 
     private LocalControlPlanePrincipalDirectory CreateDirectory(
-        params IPrincipalDescriber[] describers
+        params IEnumerable<IPrincipalDescriber> describers
     ) =>
         new(
             MockStoreManagerFactory.Object,
@@ -121,9 +115,10 @@ public sealed class LocalControlPlanePrincipalDirectoryTests : IDisposable
     private Mock<IPrincipalDescriber> CreateDescriber(
         string[] principalIds,
         string[] userNames,
-        params PrincipalSummaryResource[] summaries
+        params IEnumerable<PrincipalSummaryResource> summaries
     )
     {
+        IReadOnlyList<PrincipalSummaryResource> found = [.. summaries];
         var describer = MockRepository.Create<IPrincipalDescriber>();
         describer
             .Setup(x =>
@@ -136,7 +131,7 @@ public sealed class LocalControlPlanePrincipalDirectoryTests : IDisposable
                     It.IsAny<CancellationToken>()
                 )
             )
-            .ReturnsAsync(summaries)
+            .ReturnsAsync(found)
             .Verifiable();
         return describer;
     }
@@ -245,13 +240,11 @@ public sealed class LocalControlPlanePrincipalDirectoryTests : IDisposable
         var identities = SetupFederatedIdentityStore();
         var query = new ControlPlanePrincipalQuery { PrincipalIds = ["p1", "p2"] };
         var describer = CreateDescriber(["p1", "p2"], []);
-        var principal1 = CreateFederatedPrincipal("p1");
-        var principal2 = CreateFederatedPrincipal("p2");
         var identityB = CreateFederatedIdentity("p1", "https://b.example", "a");
         var identityC = CreateFederatedIdentity("p2", "https://c.example", "x");
         var identityZ = CreateFederatedIdentity("p1", "https://a.example", "z");
         var identityY = CreateFederatedIdentity("p1", "https://a.example", "y");
-        SetupPrincipalsRead(principals, ["p1", "p2"], principal1, principal2);
+        SetupPrincipalsRead(principals, ["p1", "p2"], "p1", "p2");
         SetupIdentitiesRead(identities, ["p1", "p2"], identityB, identityC, identityZ, identityY);
         var directory = CreateDirectory(describer.Object);
 
@@ -282,10 +275,9 @@ public sealed class LocalControlPlanePrincipalDirectoryTests : IDisposable
         var identities = SetupFederatedIdentityStore();
         var query = new ControlPlanePrincipalQuery { PrincipalIds = ["p1"] };
         var describer = CreateDescriber(["p1"], []);
-        var principal = CreateFederatedPrincipal("p1");
         var firstIdentity = CreateFederatedIdentity("p1", "https://a.example", "a");
         var laterIdentity = CreateFederatedIdentity("p1", "https://b.example", "a");
-        SetupPrincipalsRead(principals, ["p1"], principal);
+        SetupPrincipalsRead(principals, ["p1"], "p1");
         SetupIdentitiesRead(identities, ["p1"], firstIdentity, laterIdentity);
         var directory = CreateDirectory(describer.Object);
 
@@ -330,8 +322,7 @@ public sealed class LocalControlPlanePrincipalDirectoryTests : IDisposable
         var identities = SetupFederatedIdentityStore();
         var query = new ControlPlanePrincipalQuery { PrincipalIds = ["p1"] };
         var describer = CreateDescriber(["p1"], []);
-        var principal = CreateFederatedPrincipal("p1");
-        SetupPrincipalsRead(principals, ["p1"], principal);
+        SetupPrincipalsRead(principals, ["p1"], "p1");
         SetupIdentitiesRead(identities, ["p1"]);
         var directory = CreateDirectory(describer.Object);
 
