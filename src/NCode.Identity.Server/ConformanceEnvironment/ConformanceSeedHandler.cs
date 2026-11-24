@@ -269,12 +269,16 @@ internal sealed class ConformanceSeedHandler(
             ConcurrencyToken = string.Empty,
         };
 
+        var seeded = new SeededLocalAccount
+        {
+            AccountKind = "conformance test user",
+            Tenant = context.Tenant,
+            Connection = connection,
+            Store = store,
+            Account = account,
+        };
         await SeededLocalAccountValidator.EnsureCanBeSeededAsync(
-            "conformance test user",
-            context.Tenant,
-            connection,
-            store,
-            account,
+            seeded,
             password,
             cancellationToken
         );

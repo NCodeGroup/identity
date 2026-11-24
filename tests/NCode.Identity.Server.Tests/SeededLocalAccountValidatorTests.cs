@@ -55,6 +55,16 @@ public class SeededLocalAccountValidatorTests : BaseTests
             ConcurrencyToken = string.Empty,
         };
 
+    private SeededLocalAccount CreateSeeded() =>
+        new()
+        {
+            AccountKind = "developer administrator",
+            Tenant = CreateTenant(),
+            Connection = LocalConnectionTestData.CreateConnection(TenantId),
+            Store = MockLocalAccountStore.Object,
+            Account = CreateAccount(),
+        };
+
     private IReadOnlySettingCollection SetupTenantResolution()
     {
         var platform = CreateLooseMock<ISettingCollection>().Object;
@@ -142,11 +152,7 @@ public class SeededLocalAccountValidatorTests : BaseTests
         SetupPolicy(connectionSettings, PasswordPolicyResult.Accepted);
 
         await Validator.EnsureCanBeSeededAsync(
-            "developer administrator",
-            CreateTenant(),
-            LocalConnectionTestData.CreateConnection(TenantId),
-            MockLocalAccountStore.Object,
-            CreateAccount(),
+            CreateSeeded(),
             "dev-admin-password",
             CancellationToken.None
         );
@@ -166,15 +172,7 @@ public class SeededLocalAccountValidatorTests : BaseTests
         );
 
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
-            await Validator.EnsureCanBeSeededAsync(
-                "developer administrator",
-                CreateTenant(),
-                LocalConnectionTestData.CreateConnection(TenantId),
-                MockLocalAccountStore.Object,
-                CreateAccount(),
-                "short",
-                CancellationToken.None
-            )
+            await Validator.EnsureCanBeSeededAsync(CreateSeeded(), "short", CancellationToken.None)
         );
 
         Assert.Contains("'admin'", exception.Message, StringComparison.Ordinal);
@@ -188,11 +186,7 @@ public class SeededLocalAccountValidatorTests : BaseTests
 
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
             await Validator.EnsureCanBeSeededAsync(
-                "developer administrator",
-                CreateTenant(),
-                LocalConnectionTestData.CreateConnection(TenantId),
-                MockLocalAccountStore.Object,
-                CreateAccount(),
+                CreateSeeded(),
                 "dev-admin-password",
                 CancellationToken.None
             )
@@ -212,11 +206,7 @@ public class SeededLocalAccountValidatorTests : BaseTests
 
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
             await Validator.EnsureCanBeSeededAsync(
-                "developer administrator",
-                CreateTenant(),
-                LocalConnectionTestData.CreateConnection(TenantId),
-                MockLocalAccountStore.Object,
-                CreateAccount(),
+                CreateSeeded(),
                 "dev-admin-password",
                 CancellationToken.None
             )

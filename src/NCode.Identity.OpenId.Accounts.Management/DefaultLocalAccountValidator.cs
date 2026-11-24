@@ -100,33 +100,30 @@ internal class DefaultLocalAccountValidator(
     }
 
     /// <summary>
-    /// Checks that the username and the email address are unique within the connection; a match against a different
-    /// account (or any account, on create) conflicts.
+    /// Checks that the username and the email address are unique within the connection and that neither is the
+    /// identifier of the other field on another account; a match against a different account (or any account, on
+    /// create) conflicts.
     /// </summary>
     /// <param name="store">The <see cref="ILocalAccountStore"/> of the connection.</param>
     /// <param name="connectionId">The identifier of the connection.</param>
-    /// <param name="userName">The proposed username, or <c>null</c>.</param>
-    /// <param name="email">The proposed email address, or <c>null</c>.</param>
-    /// <param name="localAccountId">The identifier of the account being updated, or <c>null</c> on create.</param>
+    /// <param name="proposal">The <see cref="LocalAccountIdentifierProposal"/> to check.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
     /// <returns>A <see cref="ManagementError"/> describing the conflict, or <c>null</c> when both are free.</returns>
     private static async ValueTask<ManagementError?> CheckIdentifiersAvailableAsync(
         ILocalAccountStore store,
         string connectionId,
-        string? userName,
-        string? email,
-        string? localAccountId,
+        LocalAccountIdentifierProposal proposal,
         CancellationToken cancellationToken
     )
     {
-        if (!string.IsNullOrWhiteSpace(userName))
+        if (!string.IsNullOrWhiteSpace(proposal.UserName))
         {
             var existing = await store.GetByUserNameOrDefaultAsync(
                 connectionId,
-                userName,
+                proposal.UserName,
                 cancellationToken
             );
-            if (IsOtherAccount(existing, localAccountId))
+            if (IsOtherAccount(existing, proposal.LocalAccountId))
             {
                 return new ManagementError
                 {
@@ -136,14 +133,14 @@ internal class DefaultLocalAccountValidator(
             }
         }
 
-        if (!string.IsNullOrWhiteSpace(email))
+        if (!string.IsNullOrWhiteSpace(proposal.Email))
         {
             var existing = await store.GetByEmailOrDefaultAsync(
                 connectionId,
-                email,
+                proposal.Email,
                 cancellationToken
             );
-            if (IsOtherAccount(existing, localAccountId))
+            if (IsOtherAccount(existing, proposal.LocalAccountId))
             {
                 return new ManagementError
                 {
@@ -155,40 +152,28 @@ internal class DefaultLocalAccountValidator(
 
         // An identifier of one field never equals another account's identifier of the other field, so a sign-in
         // identifier names one account whatever the connection's local_account_identifier is later set to.
-        if (!string.IsNullOrWhiteSpace(userName))
+        var shadowing = await LocalAccountIdentifierShadowing.FindAsync(
+            store,
+            connectionId,
+            proposal,
+            cancellationToken
+        );
+        if (shadowing.UserNameIsAnEmail)
         {
-            var shadowed = await store.GetByEmailOrDefaultAsync(
-                connectionId,
-                userName,
-                cancellationToken
-            );
-            if (IsOtherAccount(shadowed, localAccountId))
+            return new ManagementError
             {
-                return new ManagementError
-                {
-                    StatusCode = StatusCodes.Status409Conflict,
-                    Detail =
-                        "The specified username is the email address of another local account.",
-                };
-            }
+                StatusCode = StatusCodes.Status409Conflict,
+                Detail = "The specified username is the email address of another local account.",
+            };
         }
 
-        if (!string.IsNullOrWhiteSpace(email))
+        if (shadowing.EmailIsAUserName)
         {
-            var shadowed = await store.GetByUserNameOrDefaultAsync(
-                connectionId,
-                email,
-                cancellationToken
-            );
-            if (IsOtherAccount(shadowed, localAccountId))
+            return new ManagementError
             {
-                return new ManagementError
-                {
-                    StatusCode = StatusCodes.Status409Conflict,
-                    Detail =
-                        "The specified email address is the username of another local account.",
-                };
-            }
+                StatusCode = StatusCodes.Status409Conflict,
+                Detail = "The specified email address is the username of another local account.",
+            };
         }
 
         return null;
@@ -205,17 +190,14 @@ internal class DefaultLocalAccountValidator(
     /// </summary>
     private async ValueTask<ManagementError?> ValidateIdentifiersAsync(
         PersistedConnection connection,
-        string tenantId,
-        string? userName,
-        string? email,
-        string? localAccountId,
+        LocalAccountIdentifierProposal proposal,
         IStoreManager storeManager,
         CancellationToken cancellationToken
     )
     {
         var (settings, error) = await LocalAccountPasswords.ResolveConnectionSettingsAsync(
             storeManager,
-            tenantId,
+            connection.TenantId,
             connection,
             cancellationToken
         );
@@ -225,7 +207,7 @@ internal class DefaultLocalAccountValidator(
         }
 
         var mode = settings.GetValue(OpenIdSettingKeys.LocalAccountIdentifier);
-        var identifierError = GetIdentifierErrorOrDefault(mode, userName, email);
+        var identifierError = GetIdentifierErrorOrDefault(mode, proposal.UserName, proposal.Email);
         if (identifierError is not null)
         {
             return identifierError;
@@ -235,9 +217,7 @@ internal class DefaultLocalAccountValidator(
         return await CheckIdentifiersAvailableAsync(
             store,
             connection.ConnectionId,
-            userName,
-            email,
-            localAccountId,
+            proposal,
             cancellationToken
         );
     }
@@ -304,12 +284,14 @@ internal class DefaultLocalAccountValidator(
         CancellationToken cancellationToken
     )
     {
+        var proposal = new LocalAccountIdentifierProposal
+        {
+            UserName = account.UserName,
+            Email = account.Email,
+        };
         var identifierError = await ValidateIdentifiersAsync(
             connection,
-            account.TenantId,
-            account.UserName,
-            account.Email,
-            localAccountId: null,
+            proposal,
             storeManager,
             cancellationToken
         );
@@ -348,12 +330,15 @@ internal class DefaultLocalAccountValidator(
             return displayNameError;
         }
 
+        var proposal = new LocalAccountIdentifierProposal
+        {
+            UserName = model.UserName,
+            Email = model.Email,
+            LocalAccountId = account.LocalAccountId,
+        };
         return await ValidateIdentifiersAsync(
             connection,
-            account.TenantId,
-            model.UserName,
-            model.Email,
-            account.LocalAccountId,
+            proposal,
             storeManager,
             cancellationToken
         );

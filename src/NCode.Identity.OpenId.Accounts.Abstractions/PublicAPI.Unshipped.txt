@@ -79,6 +79,21 @@ NCode.Identity.OpenId.Accounts.Stores.LocalAccountSignInIdentifier.Email.init ->
 NCode.Identity.OpenId.Accounts.Stores.LocalAccountSignInIdentifier.LocalAccountSignInIdentifier() -> void
 NCode.Identity.OpenId.Accounts.Stores.LocalAccountSignInIdentifier.UserName.get -> string?
 NCode.Identity.OpenId.Accounts.Stores.LocalAccountSignInIdentifier.UserName.init -> void
+NCode.Identity.OpenId.Accounts.Stores.LocalAccountIdentifierProposal
+NCode.Identity.OpenId.Accounts.Stores.LocalAccountIdentifierProposal.Email.get -> string?
+NCode.Identity.OpenId.Accounts.Stores.LocalAccountIdentifierProposal.Email.init -> void
+NCode.Identity.OpenId.Accounts.Stores.LocalAccountIdentifierProposal.LocalAccountId.get -> string?
+NCode.Identity.OpenId.Accounts.Stores.LocalAccountIdentifierProposal.LocalAccountId.init -> void
+NCode.Identity.OpenId.Accounts.Stores.LocalAccountIdentifierProposal.LocalAccountIdentifierProposal() -> void
+NCode.Identity.OpenId.Accounts.Stores.LocalAccountIdentifierProposal.UserName.get -> string?
+NCode.Identity.OpenId.Accounts.Stores.LocalAccountIdentifierProposal.UserName.init -> void
+NCode.Identity.OpenId.Accounts.Stores.LocalAccountIdentifierShadowing
+NCode.Identity.OpenId.Accounts.Stores.LocalAccountIdentifierShadowing.EmailIsAUserName.get -> bool
+NCode.Identity.OpenId.Accounts.Stores.LocalAccountIdentifierShadowing.EmailIsAUserName.init -> void
+NCode.Identity.OpenId.Accounts.Stores.LocalAccountIdentifierShadowing.LocalAccountIdentifierShadowing() -> void
+NCode.Identity.OpenId.Accounts.Stores.LocalAccountIdentifierShadowing.UserNameIsAnEmail.get -> bool
+NCode.Identity.OpenId.Accounts.Stores.LocalAccountIdentifierShadowing.UserNameIsAnEmail.init -> void
+static NCode.Identity.OpenId.Accounts.Stores.LocalAccountIdentifierShadowing.FindAsync(NCode.Identity.OpenId.Accounts.Stores.ILocalAccountStore! store, string! connectionId, NCode.Identity.OpenId.Accounts.Stores.LocalAccountIdentifierProposal! proposal, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.Accounts.Stores.LocalAccountIdentifierShadowing!>
 NCode.Identity.OpenId.Accounts.Stores.LocalAccountTransferRecord
 NCode.Identity.OpenId.Accounts.Stores.LocalAccountTransferRecord.AccessFailedCount.get -> int
 NCode.Identity.OpenId.Accounts.Stores.LocalAccountTransferRecord.AccessFailedCount.init -> void

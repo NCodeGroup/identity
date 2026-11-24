@@ -392,12 +392,16 @@ internal sealed class DeveloperInteractiveSeedHandler(
             ConcurrencyToken = string.Empty,
         };
 
+        var seeded = new SeededLocalAccount
+        {
+            AccountKind = "developer administrator",
+            Tenant = context.Tenant,
+            Connection = connection,
+            Store = store,
+            Account = account,
+        };
         await SeededLocalAccountValidator.EnsureCanBeSeededAsync(
-            "developer administrator",
-            context.Tenant,
-            connection,
-            store,
-            account,
+            seeded,
             password,
             cancellationToken
         );
