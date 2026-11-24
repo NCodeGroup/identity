@@ -24,6 +24,8 @@ public static class TypefaceProbe
 
     private const int SettleMilliseconds = 5_000;
 
+    private const int PollMilliseconds = 50;
+
     private const string RecordViolationsScript = """
         window.__policyViolations = []; document.addEventListener('securitypolicyviolation', (event) => window.__policyViolations.push(`${event.violatedDirective} ${event.blockedURI}`));
         """;
@@ -48,7 +50,7 @@ public static class TypefaceProbe
         """;
 
     private const string SettledFamiliesScript = """
-        async ({ families, deadline }) => {
+        async ({ families, deadline, pollMilliseconds }) => {
           const pause = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
           const settle = () =>
             Promise.all(families.map((family) => document.fonts.load(`16px "${family}"`))).then(() => document.fonts.ready);
@@ -65,7 +67,7 @@ public static class TypefaceProbe
             if (families.every((family) => document.fonts.check(`16px "${family}"`))) {
               return true;
             }
-            await pause(Math.min(50, Math.max(0, deadline - performance.now())));
+            await pause(Math.min(pollMilliseconds, Math.max(0, deadline - performance.now())));
           }
         }
         """;
@@ -130,21 +132,23 @@ public static class TypefaceProbe
 
         var deadline = await page.EvaluateAsync<double>(DeadlineScript, SettleMilliseconds);
 
+        var instrumentSansLoad = new { family = InstrumentSans, deadline };
         var instrumentSansFaces = await page.EvaluateAsync<int>(
             LoadFamilyScript,
-            new { family = InstrumentSans, deadline }
+            instrumentSansLoad
         );
-        var martianMonoFaces = await page.EvaluateAsync<int>(
-            LoadFamilyScript,
-            new { family = MartianMono, deadline }
-        );
+        var martianMonoLoad = new { family = MartianMono, deadline };
+        var martianMonoFaces = await page.EvaluateAsync<int>(LoadFamilyScript, martianMonoLoad);
 
         // WebKit can report a family unloaded right after its load resolves, so read the set once it settles.
         string[] families = [InstrumentSans, MartianMono];
-        var bothChecked = await page.EvaluateAsync<bool>(
-            SettledFamiliesScript,
-            new { families, deadline }
-        );
+        var settle = new
+        {
+            families,
+            deadline,
+            pollMilliseconds = PollMilliseconds,
+        };
+        var bothChecked = await page.EvaluateAsync<bool>(SettledFamiliesScript, settle);
         var policyViolations = await page.EvaluateAsync<string[]>(ViolationsScript);
 
         return new TypefaceProbeResult(
