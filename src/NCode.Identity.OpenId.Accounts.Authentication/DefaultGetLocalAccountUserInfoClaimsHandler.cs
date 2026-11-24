@@ -12,10 +12,7 @@ using NCode.Identity.OpenId.Accounts.Stores;
 using NCode.Identity.OpenId.Authentication.Endpoints.Authorization.Messages;
 using NCode.Identity.OpenId.Authentication.Endpoints.UserInfo.Commands;
 using NCode.Identity.OpenId.Authentication.Persistence;
-using NCode.Identity.OpenId.Connections;
 using NCode.Identity.OpenId.Contexts;
-using NCode.Identity.OpenId.Persistence.DataContracts;
-using NCode.Identity.OpenId.Persistence.Stores;
 using NCode.Identity.Persistence.Stores;
 using NCode.Mediator;
 
@@ -37,14 +34,13 @@ namespace NCode.Identity.OpenId.Accounts.Authentication;
 internal sealed class DefaultGetLocalAccountUserInfoClaimsHandler(
     IStoreManagerFactory storeManagerFactory,
     IPersistedGrantService persistedGrantService,
-    IConnectionResolver connectionResolver,
-    LocalAccountStoreCatalog catalog
+    LocalAccountSignedInAccountFinder signedInAccountFinder
 ) : ICommandHandler<GetUserInfoClaimsCommand>, ISupportMediatorPriority
 {
     private IStoreManagerFactory StoreManagerFactory { get; } = storeManagerFactory;
     private IPersistedGrantService PersistedGrantService { get; } = persistedGrantService;
-    private IConnectionResolver ConnectionResolver { get; } = connectionResolver;
-    private LocalAccountStoreCatalog Catalog { get; } = catalog;
+    private LocalAccountSignedInAccountFinder SignedInAccountFinder { get; } =
+        signedInAccountFinder;
 
     /// <inheritdoc />
     public int MediatorPriority => DefaultMediatorPriorities.Low;
@@ -78,7 +74,6 @@ internal sealed class DefaultGetLocalAccountUserInfoClaimsHandler(
 
         var account = await ResolveLocalAccountAsync(
             openIdContext,
-            subjectAuthentication.PrincipalId,
             subjectAuthentication.Subject,
             cancellationToken
         );
@@ -191,7 +186,6 @@ internal sealed class DefaultGetLocalAccountUserInfoClaimsHandler(
 
     private async ValueTask<PersistedLocalAccount?> ResolveLocalAccountAsync(
         OpenIdContext openIdContext,
-        string principalId,
         ClaimsPrincipal subject,
         CancellationToken cancellationToken
     )
@@ -200,52 +194,13 @@ internal sealed class DefaultGetLocalAccountUserInfoClaimsHandler(
 
         // The principal owns an identity in a local connection whose subject is the local account id (ADR-1051); the
         // caller presenting a non-local (external-IdP) principal simply resolves no local account and is skipped.
-        var identityStore = storeManager.GetStore<IFederatedIdentityStore>();
-        var identities = await identityStore.GetByPrincipalAsync(principalId, cancellationToken);
-
-        // A principal can hold local identities in several connections, so the account is the one in the connection
-        // the subject signed in through; a subject without that claim names an account only when there is one.
-        var signedInConnectionId = subject.FindFirstValue(ConnectionClaimTypes.Connection);
-        var localIdentities =
-            new List<(PersistedFederatedIdentity Identity, ResolvedConnection Connection)>();
-        foreach (var identity in identities)
-        {
-            var connection = await ConnectionResolver.GetByIdOrDefaultAsync(
-                openIdContext,
-                identity.ConnectionId,
-                cancellationToken
-            );
-            if (connection is null || !LocalAccountSignedInAccounts.IsLocal(connection))
-            {
-                continue;
-            }
-
-            if (string.IsNullOrEmpty(signedInConnectionId))
-            {
-                localIdentities.Add((identity, connection));
-                continue;
-            }
-
-            if (
-                string.Equals(identity.ConnectionId, signedInConnectionId, StringComparison.Ordinal)
-            )
-            {
-                var accountStore = Catalog.GetStore(storeManager, connection.Connection);
-                return await accountStore.GetByIdOrDefaultAsync(
-                    identity.Subject,
-                    cancellationToken
-                );
-            }
-        }
-
-        if (localIdentities.Count != 1)
-        {
-            return null;
-        }
-
-        var (localIdentity, localConnection) = localIdentities[0];
-        var localStore = Catalog.GetStore(storeManager, localConnection.Connection);
-        return await localStore.GetByIdOrDefaultAsync(localIdentity.Subject, cancellationToken);
+        var found = await SignedInAccountFinder.FindAsync(
+            storeManager,
+            openIdContext,
+            subject,
+            cancellationToken
+        );
+        return found?.Account;
     }
 
     private static void TryAdd(IDictionary<string, object> claims, string claimType, object value)

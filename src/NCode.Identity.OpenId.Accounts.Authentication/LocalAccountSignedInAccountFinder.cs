@@ -36,8 +36,8 @@ internal sealed class LocalAccountSignedInAccountFinder(
     /// operation.</param>
     /// <returns>
     /// The <see cref="PersistedLocalAccount"/> with its <see cref="ResolvedConnection"/>, or <see langword="null"/>
-    /// when the principal has no identifier, links no or several local-connection identities, or has no account. The
-    /// caller checks whether the account is enabled.
+    /// when the principal has no identifier, links no or several enabled local-connection identities and names none, or
+    /// has no account. The caller checks whether the account is enabled.
     /// </returns>
     public async ValueTask<(
         PersistedLocalAccount Account,
@@ -54,7 +54,8 @@ internal sealed class LocalAccountSignedInAccountFinder(
     }
 
     /// <summary>
-    /// Finds the local account behind the single local-connection identity of the signed-in end user's principal.
+    /// Finds the local account behind the signed-in end user's identity in an enabled local connection: the one in the
+    /// connection the principal's connection claim names, otherwise the single such identity.
     /// </summary>
     /// <param name="storeManager">The <see cref="IStoreManager"/> whose stores are read.</param>
     /// <param name="openIdContext">The resolved <see cref="OpenIdContext"/> that reads the principal's
@@ -64,8 +65,8 @@ internal sealed class LocalAccountSignedInAccountFinder(
     /// operation.</param>
     /// <returns>
     /// The <see cref="PersistedLocalAccount"/> with its <see cref="ResolvedConnection"/>, or <see langword="null"/>
-    /// when the principal has no identifier, links no or several local-connection identities, or has no account. The
-    /// caller checks whether the account is enabled.
+    /// when the principal has no identifier, links no or several enabled local-connection identities and names none, or
+    /// has no account. The caller checks whether the account is enabled.
     /// </returns>
     public async ValueTask<(
         PersistedLocalAccount Account,
@@ -87,7 +88,9 @@ internal sealed class LocalAccountSignedInAccountFinder(
 
         var identities = await identityStore.GetByPrincipalAsync(principalId, cancellationToken);
 
-        // A principal that links several local accounts has no single account to act on.
+        // A principal that links several local accounts has no single account to act on, unless the principal names the
+        // connection it signed in through.
+        var signedInConnectionId = principal.FindFirstValue(ConnectionClaimTypes.Connection);
         var localIdentities =
             new List<(PersistedFederatedIdentity Identity, ResolvedConnection Connection)>();
         foreach (var identity in identities)
@@ -97,7 +100,11 @@ internal sealed class LocalAccountSignedInAccountFinder(
                 identity.ConnectionId,
                 cancellationToken
             );
-            if (connection is null || !LocalAccountSignedInAccounts.IsLocal(connection))
+            if (
+                connection is null
+                || !connection.Connection.IsEnabled
+                || !LocalAccountSignedInAccounts.IsLocal(connection)
+            )
             {
                 continue;
             }
@@ -105,12 +112,21 @@ internal sealed class LocalAccountSignedInAccountFinder(
             localIdentities.Add((identity, connection));
         }
 
-        if (localIdentities.Count != 1)
+        var signedInIndex = string.IsNullOrEmpty(signedInConnectionId)
+            ? -1
+            : localIdentities.FindIndex(x =>
+                string.Equals(
+                    x.Identity.ConnectionId,
+                    signedInConnectionId,
+                    StringComparison.Ordinal
+                )
+            );
+        if (signedInIndex < 0 && localIdentities.Count != 1)
         {
             return null;
         }
 
-        var (localIdentity, localConnection) = localIdentities[0];
+        var (localIdentity, localConnection) = localIdentities[Math.Max(signedInIndex, 0)];
         var accountStore = Catalog.GetStore(storeManager, localConnection.Connection);
         var account = await accountStore.GetByIdOrDefaultAsync(
             localIdentity.Subject,

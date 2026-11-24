@@ -54,8 +54,11 @@ public class DefaultGetLocalAccountUserInfoClaimsHandlerTests : BaseTests
         Handler = new DefaultGetLocalAccountUserInfoClaimsHandler(
             MockStoreManagerFactory.Object,
             MockPersistedGrantService.Object,
-            MockConnectionResolver.Object,
-            LocalAccountStoreSetup.CreateCatalog(MockLocalAccountStore)
+            new LocalAccountSignedInAccountFinder(
+                MockStoreManagerFactory.Object,
+                MockConnectionResolver.Object,
+                LocalAccountStoreSetup.CreateCatalog(MockLocalAccountStore)
+            )
         );
     }
 
@@ -198,6 +201,7 @@ public class DefaultGetLocalAccountUserInfoClaimsHandlerTests : BaseTests
         );
 
         var mockContext = CreateStrictMock<OpenIdContext>();
+        mockContext.Setup(x => x.GetSubjectId(subjectAuthentication.Subject)).Returns(PrincipalId);
         if (!string.IsNullOrEmpty(jti))
         {
             var mockTenant = CreateStrictMock<OpenIdTenant>();
@@ -429,10 +433,7 @@ public class DefaultGetLocalAccountUserInfoClaimsHandlerTests : BaseTests
         var first = LocalIdentity();
         var second = OtherLocalIdentity();
         SetupIdentities(claimedFirst ? [second, first] : [first, second]);
-        if (!claimedFirst)
-        {
-            SetupConnection(LocalAccountStoreSetup.ConnectionId);
-        }
+        SetupConnection(LocalAccountStoreSetup.ConnectionId);
 
         SetupConnection(OtherConnectionId);
         MockLocalAccountStore
@@ -493,6 +494,39 @@ public class DefaultGetLocalAccountUserInfoClaimsHandlerTests : BaseTests
         await Handler.HandleAsync(command, CancellationToken.None);
 
         Assert.Equal("user@localhost", claims[JoseClaimNames.Payload.Email]);
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenTheLocalConnectionIsDisabled_ServesNothing()
+    {
+        SetupStoreManager();
+        SetupIdentities(LocalIdentity());
+        MockConnectionResolver
+            .Setup(x =>
+                x.GetByIdOrDefaultAsync(
+                    It.IsAny<OpenIdContext>(),
+                    LocalAccountStoreSetup.ConnectionId,
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync(
+                LocalAccountSignedInAccountFinderTests.CreateDisabledConnection(
+                    TenantId,
+                    CreateStrictMock<IReadOnlySettingCollection>().Object,
+                    LocalAccountStoreSetup.ConnectionId
+                )
+            );
+
+        var claims = new Dictionary<string, object>();
+        var command = CreateCommand(
+            claims,
+            OpenIdProtocol.ScopeTypes.OpenId,
+            OpenIdProtocol.ScopeTypes.Email
+        );
+
+        await Handler.HandleAsync(command, CancellationToken.None);
+
+        Assert.Empty(claims);
     }
 
     [Fact]
