@@ -51,5 +51,15 @@ public sealed class LocalAccountSignInIdentifierTests
         Assert.Equal("ada", identifier.Email);
     }
 
+    [Fact]
+    public void ForSubmitted_WithUnknownMode_Throws()
+    {
+        var exception = Assert.Throws<ArgumentOutOfRangeException>(() =>
+            LocalAccountSignInIdentifier.ForSubmitted("connection-1", "phone", "ada")
+        );
+
+        Assert.Equal("mode", exception.ParamName);
+    }
+
     #endregion
 }

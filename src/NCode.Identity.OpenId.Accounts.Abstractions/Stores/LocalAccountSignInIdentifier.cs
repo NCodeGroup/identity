@@ -37,6 +37,9 @@ public sealed class LocalAccountSignInIdentifier
     /// <param name="mode">The connection's <c>local_account_identifier</c> setting.</param>
     /// <param name="submitted">The value the end user submitted.</param>
     /// <returns>The identifier that carries each value the mode looks the submitted value up as.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// The <paramref name="mode"/> names no known identifier mode.
+    /// </exception>
     public static LocalAccountSignInIdentifier ForSubmitted(
         string connectionId,
         string mode,
@@ -54,11 +57,16 @@ public sealed class LocalAccountSignInIdentifier
                 ConnectionId = connectionId,
                 UserName = submitted,
             },
-            _ => new LocalAccountSignInIdentifier
+            LocalAccountIdentifiers.EmailOrUserName => new LocalAccountSignInIdentifier
             {
                 ConnectionId = connectionId,
                 UserName = submitted,
                 Email = submitted,
             },
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(mode),
+                mode,
+                "The local account identifier mode is not one the family defines."
+            ),
         };
 }
