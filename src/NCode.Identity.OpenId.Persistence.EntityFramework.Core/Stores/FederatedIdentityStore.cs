@@ -266,6 +266,39 @@ internal class FederatedIdentityStore(
     }
 
     /// <inheritdoc />
+    public async ValueTask<
+        IReadOnlyList<FederatedIdentityNameProjection>
+    > GetNamesByPrincipalsAsync(
+        IReadOnlyCollection<string> principalIds,
+        CancellationToken cancellationToken
+    )
+    {
+        if (principalIds.Count == 0)
+        {
+            return [];
+        }
+
+        var normalizedPrincipalIds = new List<string>(principalIds.Count);
+        foreach (var principalId in principalIds)
+        {
+            var normalizedPrincipalId = Normalize(principalId);
+            normalizedPrincipalIds.Add(normalizedPrincipalId);
+        }
+
+        return await DbContext
+            .FederatedIdentities.Where(entity =>
+                normalizedPrincipalIds.Contains(entity.FederatedPrincipal.NormalizedPrincipalId)
+            )
+            .Select(entity => new FederatedIdentityNameProjection
+            {
+                PrincipalId = entity.FederatedPrincipal.PrincipalId,
+                Issuer = entity.Issuer,
+                Subject = entity.Subject,
+            })
+            .ToListAsync(cancellationToken);
+    }
+
+    /// <inheritdoc />
     public async ValueTask<IReadOnlyList<PersistedFederatedIdentity>> GetByJoinKeyAsync(
         string joinKey,
         CancellationToken cancellationToken

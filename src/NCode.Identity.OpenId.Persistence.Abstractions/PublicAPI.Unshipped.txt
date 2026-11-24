@@ -62,6 +62,14 @@ NCode.Identity.OpenId.Persistence.DataContracts.ClientNameProjection.ClientId.in
 NCode.Identity.OpenId.Persistence.DataContracts.ClientNameProjection.ClientNameProjection() -> void
 NCode.Identity.OpenId.Persistence.DataContracts.ClientNameProjection.PrincipalId.get -> string!
 NCode.Identity.OpenId.Persistence.DataContracts.ClientNameProjection.PrincipalId.init -> void
+NCode.Identity.OpenId.Persistence.DataContracts.FederatedIdentityNameProjection
+NCode.Identity.OpenId.Persistence.DataContracts.FederatedIdentityNameProjection.FederatedIdentityNameProjection() -> void
+NCode.Identity.OpenId.Persistence.DataContracts.FederatedIdentityNameProjection.Issuer.get -> string!
+NCode.Identity.OpenId.Persistence.DataContracts.FederatedIdentityNameProjection.Issuer.init -> void
+NCode.Identity.OpenId.Persistence.DataContracts.FederatedIdentityNameProjection.PrincipalId.get -> string!
+NCode.Identity.OpenId.Persistence.DataContracts.FederatedIdentityNameProjection.PrincipalId.init -> void
+NCode.Identity.OpenId.Persistence.DataContracts.FederatedIdentityNameProjection.Subject.get -> string!
+NCode.Identity.OpenId.Persistence.DataContracts.FederatedIdentityNameProjection.Subject.init -> void
 NCode.Identity.OpenId.Persistence.DataContracts.ISupportPersistedClientResource
 NCode.Identity.OpenId.Persistence.DataContracts.ISupportPersistedResourceServerResource
 NCode.Identity.OpenId.Persistence.DataContracts.ISupportPersistedPlatformResource
@@ -335,6 +343,7 @@ NCode.Identity.OpenId.Persistence.Stores.IFederatedIdentityStore.GetByIssuerSubj
 NCode.Identity.OpenId.Persistence.Stores.IFederatedIdentityStore.GetByJoinKeyAsync(string! joinKey, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<NCode.Identity.OpenId.Persistence.DataContracts.PersistedFederatedIdentity!>!>
 NCode.Identity.OpenId.Persistence.Stores.IFederatedIdentityStore.GetByPrincipalAsync(string! principalId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<NCode.Identity.OpenId.Persistence.DataContracts.PersistedFederatedIdentity!>!>
 NCode.Identity.OpenId.Persistence.Stores.IFederatedIdentityStore.GetByPrincipalsAsync(System.Collections.Generic.IReadOnlyCollection<string!>! principalIds, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<NCode.Identity.OpenId.Persistence.DataContracts.PersistedFederatedIdentity!>!>
+NCode.Identity.OpenId.Persistence.Stores.IFederatedIdentityStore.GetNamesByPrincipalsAsync(System.Collections.Generic.IReadOnlyCollection<string!>! principalIds, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<NCode.Identity.OpenId.Persistence.DataContracts.FederatedIdentityNameProjection!>!>
 NCode.Identity.OpenId.Persistence.Stores.IFederatedIdentityStore.GetOrDefaultAsync(string! federatedIdentityId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.Persistence.DataContracts.PersistedFederatedIdentity?>
 NCode.Identity.OpenId.Persistence.Stores.IFederatedIdentityStore.RemoveAsync(string! federatedIdentityId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 NCode.Identity.OpenId.Persistence.Stores.IFederatedPrincipalStore
