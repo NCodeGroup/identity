@@ -1362,7 +1362,8 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
     public async Task UpdateLocalAccountAsync_WithAnIfMatch_ValidatesItsToken()
     {
         SetupAuthorizeUpdate(error: null);
-        SetupAccount(CreateAccount());
+        var existing = CreateAccount();
+        SetupAccount(existing);
         var staleError = new ManagementError
         {
             StatusCode = StatusCodes.Status412PreconditionFailed,
