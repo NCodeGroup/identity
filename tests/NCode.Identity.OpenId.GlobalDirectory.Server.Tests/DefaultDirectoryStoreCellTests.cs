@@ -46,6 +46,44 @@ public sealed class DefaultDirectoryStoreCellTests : DefaultDirectoryStoreTestBa
         Assert.Single(await Cells.ListAsync(CancellationToken.None));
     }
 
+    [Fact]
+    public async Task RegisterAsync_WhenAnotherCellReportsTheManagementUrl_ThrowsAndStoresNothing()
+    {
+        await Cells.RegisterAsync(CreateCell("cell-a"), CancellationToken.None);
+        var other = CreateCell("cell-b") with { ManagementUrl = "https://cell-a.example/" };
+
+        var exception = await Assert.ThrowsAsync<CellDirectoryConflictException>(async () =>
+            await Cells.RegisterAsync(other, CancellationToken.None)
+        );
+
+        Assert.Contains("cell-a", exception.Message);
+        Assert.Null(await Cells.GetOrDefaultAsync("cell-b", CancellationToken.None));
+    }
+
+    [Theory]
+    [InlineData("https://CELL-A.example/")]
+    [InlineData("https://cell-a.example")]
+    [InlineData("https://cell-a.example:443/")]
+    public async Task RegisterAsync_WhenTheManagementUrlDiffersOnlyInForm_Throws(string url)
+    {
+        await Cells.RegisterAsync(CreateCell("cell-a"), CancellationToken.None);
+        var other = CreateCell("cell-b") with { ManagementUrl = url };
+
+        await Assert.ThrowsAsync<CellDirectoryConflictException>(async () =>
+            await Cells.RegisterAsync(other, CancellationToken.None)
+        );
+    }
+
+    [Fact]
+    public async Task RegisterAsync_WhenTheSameCellReportsItsUrlAgain_Accepts()
+    {
+        await Cells.RegisterAsync(CreateCell("cell-a"), CancellationToken.None);
+
+        await Cells.RegisterAsync(CreateCell("cell-a"), CancellationToken.None);
+
+        Assert.Single(await Cells.ListAsync(CancellationToken.None));
+    }
+
     #endregion
 
     #region ListAsync Tests

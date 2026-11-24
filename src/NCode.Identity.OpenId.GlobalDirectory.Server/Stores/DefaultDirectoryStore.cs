@@ -1982,6 +1982,26 @@ internal sealed class DefaultDirectoryStore(
                     entity => entity.Name == descriptor.Name,
                     cancellationToken
                 );
+
+                // No two cells report one management URL: a caller's DPoP proof is bound to the URL it names.
+                var normalizedUrl = NormalizeManagementUrl(descriptor.ManagementUrl);
+                var otherCells = await dbContext
+                    .Cells.AsNoTracking()
+                    .Where(entity => entity.Name != descriptor.Name)
+                    .Select(entity => new { entity.Name, entity.ManagementUrl })
+                    .ToListAsync(cancellationToken);
+                var conflicting = otherCells.FirstOrDefault(other =>
+                {
+                    var otherUrl = NormalizeManagementUrl(other.ManagementUrl);
+                    return string.Equals(otherUrl, normalizedUrl, StringComparison.Ordinal);
+                });
+                if (conflicting is not null)
+                {
+                    throw new CellDirectoryConflictException(
+                        $"The management URL is already reported by the cell '{conflicting.Name}'."
+                    );
+                }
+
                 if (cell is null)
                 {
                     var newCell = new CellRecord
@@ -2035,6 +2055,21 @@ internal sealed class DefaultDirectoryStore(
             .Cells.AsNoTracking()
             .SingleOrDefaultAsync(entity => entity.Name == name, cancellationToken);
         return record is null ? null : ToDescriptor(record);
+    }
+
+    /// <summary>
+    /// Normalizes a management URL for comparison: lower-case scheme and host, the default port dropped and no trailing
+    /// slash.
+    /// </summary>
+    /// <param name="url">The management URL to normalize.</param>
+    /// <returns>The normalized form of <paramref name="url"/>.</returns>
+    private static string NormalizeManagementUrl(string url)
+    {
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri))
+            return url.TrimEnd('/').ToLowerInvariant();
+
+        var origin = uri.GetComponents(UriComponents.SchemeAndServer, UriFormat.UriEscaped);
+        return origin.ToLowerInvariant() + uri.AbsolutePath.TrimEnd('/');
     }
 
     /// <summary>

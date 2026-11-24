@@ -2707,6 +2707,30 @@ public class DirectoryEndpointsTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task RegisterCell_WhenAnotherCellReportsTheManagementUrl_AnswersConflict()
+    {
+        Authenticate(clientId: "cell-a");
+        var first = await Client.PutAsJsonAsync(
+            "/directory/v1/cells/a",
+            CreateCell("a"),
+            WebOptions
+        );
+        Assert.Equal(HttpStatusCode.OK, first.StatusCode);
+        Authenticate(clientId: "cell-b");
+
+        var response = await Client.PutAsJsonAsync(
+            "/directory/v1/cells/b",
+            CreateCell("b") with
+            {
+                ManagementUrl = "https://a.example/",
+            },
+            WebOptions
+        );
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+    }
+
+    [Fact]
     public async Task RegisterCell_WhenAnotherCellClaimsToBeTheControlPlane_AnswersForbidden()
     {
         Authenticate();

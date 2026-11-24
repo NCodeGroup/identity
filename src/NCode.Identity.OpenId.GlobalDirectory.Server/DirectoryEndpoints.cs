@@ -269,6 +269,7 @@ public static class DirectoryEndpoints
             .MapPut("{name}", RegisterCellAsync)
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status403Forbidden)
+            .ProducesProblem(StatusCodes.Status409Conflict)
             .ProducesProblem(StatusCodes.Status415UnsupportedMediaType);
         group.MapGet("", ListCellsAsync);
         group.MapGet("{name}", GetCellAsync).ProducesProblem(StatusCodes.Status404NotFound);
@@ -1205,7 +1206,8 @@ public static class DirectoryEndpoints
     /// or longer than the directory stores, the management URL is not an absolute <c>https</c> URL (or an <c>http</c>
     /// URL in local development) without user information, a query or a fragment, the name or the region is not a
     /// <see cref="CellLabelRules"/> label, or the descriptor names a cell other than the route's; <c>403 Forbidden</c>
-    /// when the cell is not the caller or claims to be the control plane without being it.
+    /// when the cell is not the caller or claims to be the control plane without being it; <c>409 Conflict</c> when
+    /// another cell reports the management URL.
     /// </returns>
     private static async ValueTask<IResult> RegisterCellAsync(
         string name,
@@ -1256,7 +1258,15 @@ public static class DirectoryEndpoints
             return Forbidden("Only the control-plane cell registers itself as the control plane.");
         }
 
-        await directory.RegisterAsync(descriptor, cancellationToken);
+        try
+        {
+            await directory.RegisterAsync(descriptor, cancellationToken);
+        }
+        catch (CellDirectoryConflictException exception)
+        {
+            return Conflict(exception.Message);
+        }
+
         return TypedResults.Ok();
     }
 
