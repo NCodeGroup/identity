@@ -96,7 +96,7 @@ internal class DefaultSignInConnectionService(
             ConnectionSignInMethods.Password,
             cancellationToken
         );
-        var offeredList = new List<ResolvedConnection>(allowed.Count);
+        var offered = new List<ResolvedConnection>(allowed.Count);
         foreach (var connection in allowed)
         {
             if (
@@ -104,11 +104,10 @@ internal class DefaultSignInConnectionService(
                 || string.Equals(connection.Name, requestedName, StringComparison.OrdinalIgnoreCase)
             )
             {
-                offeredList.Add(connection);
+                offered.Add(connection);
             }
         }
 
-        IReadOnlyList<ResolvedConnection> offered = offeredList;
         var preselected = Preselect(clientSettings, requestedName, offered);
 
         return new SignInConnections { Offered = offered, Preselected = preselected };

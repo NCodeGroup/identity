@@ -1,7 +1,6 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
-using System.Diagnostics.CodeAnalysis;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Authentication;
@@ -271,16 +270,15 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
         IReadOnlyList<ResolvedConnection> offered
     )
     {
-        var resettableList = new List<ResolvedConnection>();
+        var resettable = new List<ResolvedConnection>();
         foreach (var candidate in offered)
         {
             if (IsResettable(candidate))
             {
-                resettableList.Add(candidate);
+                resettable.Add(candidate);
             }
         }
 
-        IReadOnlyList<ResolvedConnection> resettable = resettableList;
         return resettable;
     }
 
@@ -405,11 +403,6 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
     /// </summary>
     /// <param name="connections">The connections to project.</param>
     /// <returns>The name and display name of each connection.</returns>
-    [SuppressMessage(
-        "Performance",
-        "CA1859",
-        Justification = "The projection is the read-only list the page form's Connections member takes."
-    )]
     private static IReadOnlyList<(string Name, string DisplayName)> ToConnectionViews(
         IReadOnlyList<ResolvedConnection> connections
     )

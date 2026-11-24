@@ -111,6 +111,9 @@ dotnet_diagnostic.CA1000.severity = none
 # CA1720: type-name identifiers (e.g. the CommonParameterParsers String/StringSet/StringList family)
 # are deliberate and intention-revealing for a parsing/serialization surface.
 dotnet_diagnostic.CA1720.severity = none
+# Signatures speak in read-only interfaces (IReadOnlyList<T>, IReadOnlyCollection<T>, IReadOnlySet<T>), which CA1859
+# contradicts for non-public members by asking for the concrete type.
+dotnet_diagnostic.CA1859.severity = none
 # Unused using directives rot the same in every tree, so IDE0005 is enforced solution-wide. It is hidden by
 # default under AnalysisLevel 'latest-recommended', so it must be raised explicitly to reach the build gate.
 # Clean violations with: dotnet format style --diagnostics IDE0005
