@@ -1,6 +1,6 @@
 # 1536. A platform's global plane is a standalone directory and a dedicated control-plane cell, and every other cell runs and is managed on its own
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-11-23
 - **Deciders:** NCode Group
 
@@ -90,7 +90,10 @@ tokens with keys and authority replicated through the directory's change feed.**
    release, compute, a database or a Valkey with a cell that serves customer tenants, and each is released, scaled and
    restored on its own. A platform of one cell, with the local directory adapters (no `Directory:Url`), has no global
    plane: its one cell serves the control-plane tenant and every other tenant, as ADR-1411 decision 3 describes, and
-   nothing in this record changes it.
+   nothing in this record changes it. One seam, `IPlatformTopology`, answers `HasDirectory`, `IsControlPlaneCell` and
+   `HasManagementTenant`: the host registers the local answer (no directory), the directory client replaces it when
+   `Directory:Url` is set, and every rule that holds only on a platform with a directory (DPoP-only management tokens,
+   the dedicated control-plane cell, the outbox) reads it.
 2. **The directory is a release of its own.** It is deployed by its own chart, `ncode-identity-directory`, published
    beside `ncode-identity-host`, from the `ncode-identity-directory` image, with its own database, its own route and
    backend TLS, and one replica, because it keeps its single-use state in process. The host chart keeps only a cell's
@@ -145,37 +148,62 @@ tokens with keys and authority replicated through the directory's change feed.**
    customer's tenant runs on.
 7. **The control-plane cell publishes the authority and its keys through an outbox, and the feed replicates them.**
    Beside the team and platform documents, the control-plane cell publishes to the directory, and the change feed
-   carries to every cell, three more kinds of document. The **platform authority** document lists every role assignment
-   at the platform node, and a **team authority** document per team lists every role assignment at that team's node;
-   each assignment is a `(principalId, roleName)` pair. The **management keys** document holds the public keys of the
-   control-plane tenant that verify management tokens (audience `urn:ncode:management`) and the key identifiers it has
-   revoked (decision 12).
+   carries to every cell, three more kinds of document, each one envelope, a `ReplicatedDocument` of `Kind`, `Key`,
+   `Revision` and `Content`, where `Content` is null for a retired document:
+   - The `platform-authority` document (key empty) lists every role assignment at the platform node and the enabled
+     clients of the control-plane tenant: `{ assignments: [{ principalId, roleName }], clients: [{ principalId,
+     clientId }] }`. The clients let a workload cell know, offline, whether a token's subject is a client acting for
+     itself, which is the audit actor, without calling the control-plane cell.
+   - The `team-authority` document (key is the team identifier) lists every role assignment at that team's node, with
+     the platform document's `assignments` shape and no `clients`.
+   - The `management-keys` document (key empty) holds the public keys of the control-plane tenant that verify management
+     tokens (audience `urn:ncode:management`) and the key identifiers it has revoked (decision 12): `{ keys: [{ kid,
+     secretType, algorithm, use, keySizeBits, publicKey, activatesWhen, retiresWhen, expiresWhen }], revokedKeyIds: []
+     }`. `publicKey` is the persisted secret's base64url public material. Keys that activate later are included, so a
+     successor reaches every cell before it signs, and a cell ignores an expired entry.
+
+   The following hold for every document:
    - **Source revisions.** Each document carries a source revision, a number the control-plane cell keeps per document
-     and raises by one in the transaction that changes what the document holds: the grant or revocation of an assignment
-     at its node, a team's creation or retirement, or a change of the key set by the key rollover
-     ([ADR-1404](1404-a-tenants-provisioned-keys-roll-over-ahead-of-retirement-and-expire-after-a-grace.md)), which
-     adds, activates and retires keys, or by a revocation.
-   - **A transactional outbox.** The same transaction writes the whole document at its new revision to an outbox table
-     in the control-plane cell's database, so a change and its publication commit or roll back together, and nothing
-     reaches the directory before its change commits.
-   - **Ordered, idempotent publishing.** A publisher drains the outbox: each commit wakes it, and it also runs at every
-     start and every few seconds. It sends each document's rows in revision order, skips a row that a newer row of the
-     same document supersedes, because a document is published whole, and deletes a row only once the directory
+     in a row of its own, a concurrency token, so two transactions that change one document serialize. The revision
+     rises by one in the transaction that changes what the document holds: the grant or revocation of an assignment at
+     its node, a team's creation or retirement, a change of the control-plane tenant's clients, or a change of its key
+     set by the key rollover ([ADR-1404](1404-a-tenants-provisioned-keys-roll-over-ahead-of-retirement-and-expire-after-a-grace.md)),
+     which adds, activates and retires keys, or by a revocation.
+   - **A transactional outbox enforced in the persistence layer.** An Entity Framework Core `SaveChangesInterceptor`,
+     `ReplicatedDocumentOutboxInterceptor`, runs only in the control-plane cell of a platform with a directory
+     (`IDirectoryOutboxPolicy`, which reads `IPlatformTopology`). In `SavingChangesAsync` it finds the tracked changes
+     that touch a replicated document, composes each touched document whole from the database rows overlaid with the
+     tracked changes, raises its source revision and adds a `DirectoryOutbox` row in the same `SaveChanges`, so a change
+     and its publication commit or roll back together and nothing reaches the directory before its change commits. No
+     writer can forget it: setup, recovery, the management API and key rollover all go through `SaveChanges`.
+   - **Ordered, idempotent publishing.** The `DirectoryOutboxPublisher` runs in the control-plane cell only. A commit
+     wakes it (`IDirectoryOutboxSignal`), and it also runs at every start and every `Directory:PublishInterval`, five
+     seconds by default. It sends each document's newest pending row, in revision order, because a document is published
+     whole and a newer row supersedes an older one, and deletes the rows up to a revision only once the directory
      acknowledges it, retrying with backoff until then.
    - **Stale publications change nothing.** The directory keeps each document's latest revision and stores a publication
-     only when its revision is higher. A publication that is not higher changes nothing and is answered with the stored
-     revision, so a retried publication is idempotent and a delayed one never overwrites a newer one.
+     only when its revision is higher. A publication that is not higher answers `200` with the stored revision and
+     changes nothing, so a retried publication is idempotent and a delayed one never overwrites a newer one.
    - **Crash and restore recovery.** A crash between the commit and the publication leaves the row in the outbox, and
-     the publisher sends it at the next start. At startup the publisher also reads the revisions the directory holds,
-     and a document whose local revision is behind the directory's, as after a restore of the control-plane cell's
-     database, is republished from its current state at the revision after the directory's.
+     the publisher sends it at the next start. At startup the publisher also reads the revisions the directory holds
+     (`GET /directory/v1/replicated-revisions`), and a document whose local revision is behind the directory's, as after
+     a restore of the control-plane cell's database, is republished from its current state at the revision after the
+     directory's.
+   - **Routes.** The directory maps `PUT` and `GET /directory/v1/platform/authority`, `PUT` and
+     `GET /directory/v1/teams/{teamId}/authority`, `PUT` and `GET /directory/v1/platform/management-keys` and
+     `GET /directory/v1/replicated-revisions`. Only the anchor cell may `PUT` a document or read the revisions (`403`
+     otherwise), a document whose `Kind` or `Key` differs from its route is `400`, and every cell may `GET` a document.
 
-   The feed keeps each document's latest change, as it keeps each team's latest document (ADR-1411, decision 5), with
-   the same ordering, the same 64 KiB document limit and the same page limit, and each change carries its source
-   revision. A retired team's authority document is retired with it. These documents hold opaque principal identifiers,
-   role names, public keys and key identifiers, never a name, an email address or a credential, so the directory still
-   holds no personal data of an end user. A cell applies them in feed order into its own tables, under the checkpoint it
-   already keeps, and applies a document only when its revision is higher than the one it holds.
+   The feed carries each document as `DirectoryChange.Replicated`, keeps each document's latest change, as it keeps each
+   team's latest document (ADR-1411, decision 5), with the same ordering, the same 64 KiB document limit and the same
+   page limit, and each change carries its source revision. A retired team's authority document is retired with it.
+   These documents hold opaque principal identifiers, role names, client identifiers, public keys and key identifiers,
+   never a name, an email address or a credential, so the directory still holds no personal data of an end user. A cell
+   applies them in feed order into its own tables, under the checkpoint it already keeps: `ReplicatedDocuments` holds one
+   row per document with its revision, and `RevokedManagementKeys` holds each revoked key identifier, its revocation time
+   and its source. It applies a document only when its revision is higher than the one it holds and merges the revoked
+   identifiers, so no later document returns a revoked key. In the control-plane cell `RevokedManagementKeys` is the
+   source of the revoked list.
 8. **Every cell authenticates and authorizes management requests from its own data, and a management token is usable
    only at the cell it is presented to.** The remote `IManagementTokenValidator` validates a management token against
    the replicated management keys: issuer `Cell:ControlPlane:Issuer`, audience `urn:ncode:management`, and a key the
@@ -184,10 +212,15 @@ tokens with keys and authority replicated through the directory's change feed.**
      sender-constrained by DPoP ([RFC 9449](https://datatracker.ietf.org/doc/html/rfc9449)). The control-plane tenant
      issues a token for the audience `urn:ncode:management` only to a token request that carries a DPoP proof, so every
      such token is bound by `cnf.jkt`, and the management API of every cell of the platform, the control-plane cell's
-     included, answers `401` to a management token without that binding or one sent under the `Bearer` scheme.
+     included, answers `401` to a management token without that binding or one sent under the `Bearer` scheme. The
+     setting `require_dpop_bound_access_tokens` applies to a resource server as well as to a client: a token request
+     whose resources include a resource server with it set must carry a DPoP proof. The management resource server is
+     seeded with it `true` on a platform with a directory, in the control-plane tenant and in every cell's management
+     tenant. A platform of one cell accepts `Bearer` and DPoP both.
    - **A proof names the cell it is sent to.** A management request carries one DPoP proof. The cell compares its `htu`
-     with its own configured management URL (`Cell:ManagementUrl`; the control-plane cell checks at startup that its
-     management URL has the origin of the control-plane tenant's published URL, which its proofs are compared with),
+     with its own configured management URL (`Cell:ManagementUrl`; a control-plane cell, and a cell with a management
+     tenant, checks at startup that its management URL has the origin of its root tenant's issuer and refuses to start
+     otherwise),
      never with the request's `Host`, and accepts its `jti` once. A cell that receives a token therefore holds nothing
      it can use at another cell: the proof it received names its own URL, and only the client holds the private key that
      makes a proof for another cell's. Because the directory refuses two cells the same management URL (decision 5), no
@@ -201,7 +234,12 @@ tokens with keys and authority replicated through the directory's change feed.**
    assignments stay in the tenant's cell. No cell calls another cell to authorize a request: the control-plane cell maps
    no authority endpoint, and no cell holds a token for the audience `urn:ncode:control-plane`, which does not exist. A
    cell whose replica holds no management keys yet refuses management tokens with `503`, and a cell with keys accepts
-   them whatever the control-plane cell's or the directory's state.
+   them whatever the control-plane cell's or the directory's state. A workload cell holds no control-plane user names,
+   because the directory holds no personal data, so its `IControlPlanePrincipalDirectory` names only the principals of
+   its own management tenant. A role holder from the control-plane tenant is listed by identifier and granted by
+   identifier, which the cell accepts without an existence check, and a username names a principal of the cell's own
+   management tenant. The platform console grants control-plane users by the identifier it resolves at the
+   control-plane cell.
 9. **Replicated authority is statically stable.** A cell authorizes from the authority and keys it last applied, with no
    staleness cutoff, and it never takes an unreachable directory for a grant or a revocation. A granted or revoked role
    reaches every cell within the publish latency plus one feed poll. The publish latency is the time until the directory
@@ -212,6 +250,19 @@ tokens with keys and authority replicated through the directory's change feed.**
    cell within the management token's lifetime (`access_token_lifetime`, five minutes by default), whatever the state of
    the outbox or the feed. Each cell reports the age of its last applied feed page as a metric and in its readiness
    detail, so an operator sees a replica that has stopped advancing.
+
+   **Key custody is local.** A tenant's key custody, whether this cell may roll over and delete the secrets of its keys,
+   is a fence the cell keeps on the tenant's own row, never a read of the directory.
+   `PersistedTenant.KeyCustody` is `held`, `outgoing` or `incoming`, provably closed because a move has two sides, and
+   `KeyCustodyCell` names the other cell. Export sets `outgoing`, with the target cell, before it asks the directory for
+   the offer, and clears it when the offer is refused. Import inserts the tenant `incoming`, with the source cell, and
+   sets `held` once the directory confirms the move, and release-moved deletes the tenant. A fenced tenant is enabled
+   only after a live read finds it placed in this cell, which sets `held`: the read answers `503` when the directory
+   cannot be reached and `409` when the tenant is placed elsewhere. `DefaultTenantKeyCustodyGuard` reads only the local
+   row, so key rollover and secret deletion never read the directory and keep working through any directory outage.
+   `TenantKeyCustodyReconciler` runs every 15 minutes, on one replica per window, and sets `held` for an `incoming`
+   tenant that the directory places in this cell. `RootTenantRules.IsTrustAnchor`, the control-plane tenant of the
+   control-plane cell, is never fenced.
 10. **A cell has a management issuer of its own.** A cell that serves its tenants through a dynamic tenant-resolution
     strategy (`DynamicByHost`, `DynamicByPath`) has a management tenant: its root tenant, seeded in the workload plane
     with the management scopes of the tenant families only. The resource node type `cell` and the built-in role
@@ -381,11 +432,10 @@ tokens with keys and authority replicated through the directory's change feed.**
   state.
 - `CellAdmin` and the cell node widen the authority hierarchy by one node type that sits beside the team chain, never in
   it.
-- The record is accepted only once the gaps a design review found are resolved here: key custody that does not read the
-  directory ([#944](https://github.com/NCodeGroup/identity/issues/944)), and a `CellAdmin`'s tenant listing and the
-  repair of a setting that blocks every sign-in ([#945](https://github.com/NCodeGroup/identity/issues/945)). The work is
+- Key rollover and secret deletion keep working through any directory outage, because a tenant's key custody is a local
+  fence ([#944](https://github.com/NCodeGroup/identity/issues/944)). The work is
   [#940](https://github.com/NCodeGroup/identity/issues/940).
-- When this record is accepted, the records and documents that describe the control plane in a shared cell are rewritten
+- The records and documents that describe the control plane in a shared cell are rewritten
   in place to match it
   ([ADR-1508](1508-a-decision-record-is-rewritten-when-its-decision-changes-and-relates-only-to-template-records.md)):
   ADR-1411 (decisions 2 to 5, 15 and 19, and its consequences), ADR-1417 (decision 5, its options and consequences),
