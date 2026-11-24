@@ -257,5 +257,14 @@ public sealed class DefaultPasswordAttemptLimiterTests : BaseTests
         Assert.NotEqual(firstKey, secondKey);
     }
 
+    [Fact]
+    public void CreateKey_SeparatesConnectionIdsThatDifferOnlyByCase()
+    {
+        var firstKey = DefaultPasswordAttemptLimiter.CreateKey(TenantId, "Connection-a", UserName);
+        var secondKey = DefaultPasswordAttemptLimiter.CreateKey(TenantId, "connection-a", UserName);
+
+        Assert.NotEqual(firstKey, secondKey);
+    }
+
     #endregion
 }

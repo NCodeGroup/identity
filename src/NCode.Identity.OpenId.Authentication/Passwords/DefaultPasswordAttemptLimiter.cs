@@ -85,8 +85,7 @@ internal class DefaultPasswordAttemptLimiter(
     internal static string CreateKey(string tenantId, string connectionId, string accountKey)
     {
         var normalizedKey = NormalizeAccountKey(accountKey);
-        var foldedConnectionId = connectionId.ToLowerInvariant();
-        return ExpiringKeys.Create(Purpose, tenantId, foldedConnectionId, normalizedKey);
+        return ExpiringKeys.Create(Purpose, tenantId, connectionId, normalizedKey);
     }
 
     // The stores compare names differently (EF lower-cases; ASP.NET Core Identity composes and upper-cases), and
