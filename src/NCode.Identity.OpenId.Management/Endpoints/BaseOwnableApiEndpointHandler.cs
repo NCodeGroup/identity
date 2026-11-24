@@ -1,6 +1,7 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using System.Collections.Frozen;
 using System.Diagnostics.CodeAnalysis;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
@@ -160,25 +161,29 @@ internal abstract class BaseOwnableApiEndpointHandler : BaseApiEndpointHandler
     /// The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.
     /// </param>
     /// <returns>
-    /// A <see cref="ValueTask{TResult}"/> whose result maps each described principal's identifier to its summary; a
-    /// principal the control plane does not know has no entry.
+    /// A <see cref="ValueTask{TResult}"/> whose result maps each described principal's identifier to its summary,
+    /// comparing identifiers ignoring case, as the stores match them; a principal the control plane does not know has
+    /// no entry.
     /// </returns>
     private async ValueTask<IReadOnlyDictionary<string, PrincipalSummaryResource>> DescribeAsync(
         List<string> principalIds,
         CancellationToken cancellationToken
     )
     {
-        var summaries = new Dictionary<string, PrincipalSummaryResource>(StringComparer.Ordinal);
         if (principalIds.Count == 0)
         {
-            return summaries;
+            return FrozenDictionary<string, PrincipalSummaryResource>.Empty;
         }
 
         var query = new ControlPlanePrincipalQuery { PrincipalIds = principalIds };
         var found = await ControlPlanePrincipalDirectory.FindAsync(query, cancellationToken);
+        var summaries = new Dictionary<string, PrincipalSummaryResource>(
+            found.Count,
+            StringComparer.OrdinalIgnoreCase
+        );
         foreach (var summary in found)
         {
-            summaries[summary.PrincipalId] = summary;
+            summaries.TryAdd(summary.PrincipalId, summary);
         }
 
         return summaries;
@@ -264,14 +269,12 @@ internal abstract class BaseOwnableApiEndpointHandler : BaseApiEndpointHandler
             cancellationToken
         );
         var canChange = await canChangeAsync(storeManager, cancellationToken);
-        var seenPrincipalIds = new HashSet<string>(StringComparer.Ordinal);
         var principalIds = new List<string>(assignments.Count);
+        // A role list holds each principal at most once, by the unique index of role assignments, so the identifiers
+        // need no dedupe.
         foreach (var assignment in assignments)
         {
-            if (seenPrincipalIds.Add(assignment.PrincipalId))
-            {
-                principalIds.Add(assignment.PrincipalId);
-            }
+            principalIds.Add(assignment.PrincipalId);
         }
 
         var summaries = await DescribeAsync(principalIds, cancellationToken);
