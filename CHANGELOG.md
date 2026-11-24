@@ -4880,7 +4880,9 @@ Until the first stable release, the [Unreleased] section describes the product a
 
 - **An identity is keyed by the connection that authenticated it.** A federated identity is unique on
   `(tenant, connection, subject)` and the connection comes from a server-owned claim, never from an upstream claim; a
-  disabled connection's subjects are refused with `access_denied`; failed-password limits count per connection account
+  disabled connection's subjects are refused with `access_denied`; failed-password limits count per connection account;
+  a disabled connection, and a connection whose strategy is not `local`, mails no password reset code and refuses a
+  reset, answering a reset request as a tenant with resets off does, so the answer tells nothing about an account
   ([#931](https://github.com/NCodeGroup/identity/issues/931),
   [ADR-1535](docs/decisions/1535-a-tenant-signs-users-in-through-named-connections-and-a-local-account-belongs-to-one.md)).
 
