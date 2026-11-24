@@ -8,8 +8,8 @@ namespace NCode.Identity.OpenId.Accounts.AspNetIdentity;
 
 /// <summary>
 /// Normalizes the names and emails that ASP.NET Core Identity looks users up by, and prefixes each with the normalized
-/// identifier of the ambient tenant and the connection of the ambient connection scope
-/// (<c>{normalizedTenantId}|{normalizedConnectionId}|{value}</c>), so a user name or email is unique per connection and
+/// identifier of the ambient tenant and the id of the connection of the ambient connection scope, which it writes
+/// verbatim (<c>{normalizedTenantId}|{connectionId}|{value}</c>), so a user name or email is unique per connection and
 /// a lookup in one connection never finds a user of another.
 /// </summary>
 /// <remarks>
@@ -41,12 +41,13 @@ internal class TenantLookupNormalizer(IAmbientTenantAccessor ambientTenantAccess
 
     /// <summary>
     /// Normalizes <paramref name="value"/> to its NFC, upper-case invariant form and prefixes it with the ambient
-    /// tenant's and the ambient connection's lower-case invariant identifiers, each followed by a <c>|</c> separator.
+    /// tenant's lower-case invariant identifier and the ambient connection's id, written verbatim because it is an
+    /// opaque, case-significant key, each followed by a <c>|</c> separator.
     /// </summary>
     /// <param name="value">The user name or email to normalize, or <see langword="null"/>.</param>
     /// <returns>
-    /// The prefixed normalized value (<c>{normalizedTenantId}|{normalizedConnectionId}|{value}</c>), or
-    /// <see langword="null"/> when <paramref name="value"/> is <see langword="null"/>.
+    /// The prefixed normalized value (<c>{normalizedTenantId}|{connectionId}|{value}</c>), or <see langword="null"/>
+    /// when <paramref name="value"/> is <see langword="null"/>.
     /// </returns>
     /// <exception cref="InvalidOperationException">
     /// <paramref name="value"/> is not <see langword="null"/> and the ambient tenant accessor has no tenant, which is
@@ -72,6 +73,6 @@ internal class TenantLookupNormalizer(IAmbientTenantAccessor ambientTenantAccess
             );
 
         var upper = value.Normalize().ToUpperInvariant();
-        return $"{tenantId.ToLowerInvariant()}|{connectionId.ToLowerInvariant()}|{upper}";
+        return $"{tenantId.ToLowerInvariant()}|{connectionId}|{upper}";
     }
 }

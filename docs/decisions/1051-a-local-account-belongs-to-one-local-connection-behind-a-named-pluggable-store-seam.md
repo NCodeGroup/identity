@@ -125,16 +125,17 @@ packages the core does not depend on:
   `NCode.Identity.OpenId.Accounts.AspNetIdentity` (`TUser : IdentityUser, ITenantBoundUser, new()`) implements the seam
   over `UserManager<TUser>`. `ITenantBoundUser`, the contract of a user that belongs to one tenant and one connection
   (`ConnectionId`), is in `NCode.Identity.OpenId.Accounts.Abstractions`. The adapter's lookup normalizer prefixes
-  `{normalizedTenantId}|{normalizedConnectionId}|` from an ambient connection scope that the store opens around each
-  `UserManager` call, so Identity's own unique index on `NormalizedUserName` is unique per connection. An account with
-  no user name is stored with Identity's `UserName` set to its `LocalAccountId` and read back as `null`. The adapter
-  treats Identity's lockout as disabled. Because such a store does not take part in the `OpenIdDbContext` unit of work,
-  `EntityStoreManager` resolves it through a DbContext-less store-factory fallback. The adapter stays store-agnostic: it
-  names no Entity Framework Core type. The opt-in `NCode.Identity.OpenId.Accounts.AspNetIdentity.EntityFrameworkCore`
-  package references only the accounts abstractions of the family and holds `HasTenantLookupLengths()` for a host whose
-  Identity model is an `IdentityDbContext`, which sizes `UserName`, `NormalizedUserName`, `Email` and `NormalizedEmail`
-  from `AccountMaxLengths`, which counts the connection id in the prefix, in one call, tested over a real Identity model.
-  A host on another store sizes the four columns itself.
+  `{normalizedTenantId}|{connectionId}|`, the connection id written verbatim, from an ambient connection scope that the
+  store opens around each `UserManager` call, so Identity's own unique index on `NormalizedUserName` is unique per
+  connection. An account with no user name is stored with Identity's `UserName` set to its `LocalAccountId` and read
+  back as `null`. The adapter treats Identity's lockout as disabled. Because such a store does not take part in the
+  `OpenIdDbContext` unit of work, `EntityStoreManager` resolves it through a DbContext-less store-factory fallback. The
+  adapter stays store-agnostic: it names no Entity Framework Core type. The opt-in
+  `NCode.Identity.OpenId.Accounts.AspNetIdentity.EntityFrameworkCore` package references only the accounts abstractions
+  of the family and holds `HasTenantLookupLengths()` for a host whose Identity model is an `IdentityDbContext`, which
+  sizes `UserName`, `NormalizedUserName`, `Email` and `NormalizedEmail` from `AccountMaxLengths`, which counts the
+  connection id in the prefix, in one call, tested over a real Identity model. A host on another store sizes the four
+  columns itself.
 
 Any other store (LDAP, a bespoke table, an external API) is a third implementation of the same seam, registered with
 `AddLocalAccountStore(...)`.

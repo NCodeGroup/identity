@@ -26,7 +26,7 @@ public sealed class TenantLookupNormalizerTests
 
         var normalized = Normalizer.NormalizeName("Alice");
 
-        Assert.Equal("tenant-a|connection-1|ALICE", normalized);
+        Assert.Equal("tenant-a|Connection-1|ALICE", normalized);
     }
 
     [Fact]
@@ -64,6 +64,26 @@ public sealed class TenantLookupNormalizerTests
             second = Normalizer.NormalizeName("alice");
         }
 
+        Assert.NotEqual(first, second);
+    }
+
+    [Fact]
+    public void NormalizeName_WhenConnectionIdsDifferOnlyInCase_ReturnsDifferentValues()
+    {
+        using var scope = Accessor.BeginScope("tenant-a");
+        string? first;
+        string? second;
+        using (AmbientLookupConnection.BeginScope("AbCd"))
+        {
+            first = Normalizer.NormalizeName("alice");
+        }
+
+        using (AmbientLookupConnection.BeginScope("abcd"))
+        {
+            second = Normalizer.NormalizeName("alice");
+        }
+
+        Assert.Equal("tenant-a|AbCd|ALICE", first);
         Assert.NotEqual(first, second);
     }
 
@@ -154,7 +174,7 @@ public sealed class TenantLookupNormalizerTests
 
         var normalized = Normalizer.NormalizeEmail("Alice@Example.com");
 
-        Assert.Equal("tenant-a|connection-1|ALICE@EXAMPLE.COM", normalized);
+        Assert.Equal("tenant-a|Connection-1|ALICE@EXAMPLE.COM", normalized);
     }
 
     [Fact]

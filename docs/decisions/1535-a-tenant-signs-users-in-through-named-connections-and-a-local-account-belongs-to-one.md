@@ -166,10 +166,10 @@ store remains a compile error
 connection that names an unregistered store is refused when it is written.
 
 The ASP.NET Core Identity adapter's `ITenantBoundUser` carries a `ConnectionId`. Its lookup normalizer prefixes
-`{normalizedTenantId}|{normalizedConnectionId}|` from an ambient connection scope that the store opens around each
-`UserManager` call, so Identity's own unique index on `NormalizedUserName` is unique per connection. An account with no
-user name is stored with Identity's `UserName` set to its `LocalAccountId` and read back as `null`, and
-`AccountMaxLengths` counts the connection id in the prefix.
+`{normalizedTenantId}|{connectionId}|`, the connection id written verbatim, from an ambient connection scope that the
+store opens around each `UserManager` call, so Identity's own unique index on `NormalizedUserName` is unique per
+connection. An account with no user name is stored with Identity's `UserName` set to its `LocalAccountId` and read back
+as `null`, and `AccountMaxLengths` counts the connection id in the prefix.
 
 ### 5. `connection` is a setting scope beneath `tenant`
 
