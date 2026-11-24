@@ -94,6 +94,8 @@ public abstract class DefaultDirectoryStoreTestBase : IDisposable
 
     protected IPlatformDirectory Platform => Store;
 
+    protected IReplicatedDocumentDirectory Replicated => Store;
+
     public void Dispose()
     {
         Dispose(true);

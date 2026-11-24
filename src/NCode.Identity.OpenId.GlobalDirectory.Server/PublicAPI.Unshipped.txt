@@ -17,6 +17,7 @@ NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryDbContext.Changes.get -> M
 NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryDbContext.DirectoryDbContext(Microsoft.EntityFrameworkCore.DbContextOptions<NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryDbContext!>! options) -> void
 NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryDbContext.Platforms.get -> Microsoft.EntityFrameworkCore.DbSet<NCode.Identity.OpenId.GlobalDirectory.Server.Entities.PlatformRecord!>!
 NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryDbContext.RetiredIssuers.get -> Microsoft.EntityFrameworkCore.DbSet<NCode.Identity.OpenId.GlobalDirectory.Server.Entities.RetiredIssuerRecord!>!
+NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryDbContext.ReplicatedDocuments.get -> Microsoft.EntityFrameworkCore.DbSet<NCode.Identity.OpenId.GlobalDirectory.Server.Entities.ReplicatedDocumentRecord!>!
 NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryDbContext.Sequences.get -> Microsoft.EntityFrameworkCore.DbSet<NCode.Identity.OpenId.GlobalDirectory.Server.Entities.DirectorySequenceRecord!>!
 NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryDbContext.Teams.get -> Microsoft.EntityFrameworkCore.DbSet<NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TeamRecord!>!
 NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryDbContext.TenantMoveOffers.get -> Microsoft.EntityFrameworkCore.DbSet<NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TenantMoveOfferRecord!>!
@@ -46,6 +47,12 @@ NCode.Identity.OpenId.GlobalDirectory.Server.Entities.CellRecord.Region.get -> s
 NCode.Identity.OpenId.GlobalDirectory.Server.Entities.CellRecord.Region.set -> void
 NCode.Identity.OpenId.GlobalDirectory.Server.Entities.DirectoryChangeRecord
 NCode.Identity.OpenId.GlobalDirectory.Server.Entities.DirectoryChangeRecord.DirectoryChangeRecord() -> void
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.DirectoryChangeRecord.DocumentKey.get -> string?
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.DirectoryChangeRecord.DocumentKey.set -> void
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.DirectoryChangeRecord.DocumentKind.get -> string?
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.DirectoryChangeRecord.DocumentKind.set -> void
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.DirectoryChangeRecord.Revision.get -> long?
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.DirectoryChangeRecord.Revision.set -> void
 NCode.Identity.OpenId.GlobalDirectory.Server.Entities.DirectoryChangeRecord.DocumentJson.get -> string?
 NCode.Identity.OpenId.GlobalDirectory.Server.Entities.DirectoryChangeRecord.DocumentJson.set -> void
 NCode.Identity.OpenId.GlobalDirectory.Server.Entities.DirectoryChangeRecord.Sequence.get -> long
@@ -58,6 +65,16 @@ NCode.Identity.OpenId.GlobalDirectory.Server.Entities.DirectorySequenceRecord.Id
 NCode.Identity.OpenId.GlobalDirectory.Server.Entities.DirectorySequenceRecord.Id.init -> void
 NCode.Identity.OpenId.GlobalDirectory.Server.Entities.DirectorySequenceRecord.LastSequence.get -> long
 NCode.Identity.OpenId.GlobalDirectory.Server.Entities.DirectorySequenceRecord.LastSequence.set -> void
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.ReplicatedDocumentRecord
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.ReplicatedDocumentRecord.DocumentJson.get -> string?
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.ReplicatedDocumentRecord.DocumentJson.set -> void
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.ReplicatedDocumentRecord.Key.get -> string!
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.ReplicatedDocumentRecord.Key.init -> void
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.ReplicatedDocumentRecord.Kind.get -> string!
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.ReplicatedDocumentRecord.Kind.init -> void
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.ReplicatedDocumentRecord.ReplicatedDocumentRecord() -> void
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.ReplicatedDocumentRecord.Revision.get -> long
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.ReplicatedDocumentRecord.Revision.set -> void
 NCode.Identity.OpenId.GlobalDirectory.Server.Entities.PlatformRecord
 NCode.Identity.OpenId.GlobalDirectory.Server.Entities.PlatformRecord.DocumentJson.get -> string!
 NCode.Identity.OpenId.GlobalDirectory.Server.Entities.PlatformRecord.DocumentJson.set -> void

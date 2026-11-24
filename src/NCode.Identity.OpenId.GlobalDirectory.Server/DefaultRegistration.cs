@@ -27,7 +27,7 @@ public static class DefaultRegistration
     {
         /// <summary>
         /// Registers the directory server's store as the <see cref="ITenantDirectory"/>, <see cref="ITeamDirectory"/>,
-        /// <see cref="ICellDirectory"/> and <see cref="IPlatformDirectory"/> that <see cref="DirectoryEndpoints"/>
+        /// <see cref="ICellDirectory"/>, <see cref="IPlatformDirectory"/> and <see cref="IReplicatedDocumentDirectory"/> that <see cref="DirectoryEndpoints"/>
         /// serves, and binds <see cref="DirectoryServerOptions"/> strictly from the <c>DirectoryServer</c> section,
         /// which must name the issuer, the control-plane cell and that cell's root tenant and is validated when the
         /// host starts. The host registers the <see cref="Microsoft.EntityFrameworkCore.IDbContextFactory{TContext}"/>
@@ -82,6 +82,9 @@ public static class DefaultRegistration
                 serviceProvider.GetRequiredService<DefaultDirectoryStore>()
             );
             serviceCollection.TryAddSingleton<IPlatformDirectory>(serviceProvider =>
+                serviceProvider.GetRequiredService<DefaultDirectoryStore>()
+            );
+            serviceCollection.TryAddSingleton<IReplicatedDocumentDirectory>(serviceProvider =>
                 serviceProvider.GetRequiredService<DefaultDirectoryStore>()
             );
 

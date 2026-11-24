@@ -40,7 +40,8 @@ internal sealed class DefaultDirectoryStore(
         IDirectoryTeamWriter,
         ITeamDirectory,
         ICellDirectory,
-        IPlatformDirectory
+        IPlatformDirectory,
+        IReplicatedDocumentDirectory
 {
     private const string WriteForbiddenDetail =
         "Only the cell that holds a tenant, or the control-plane cell, writes it.";
@@ -1793,6 +1794,9 @@ internal sealed class DefaultDirectoryStore(
                 dbContext.Changes.Add(change);
                 await dbContext.SaveChangesAsync(token);
 
+                // The team's authority document ends with the team.
+                await RetireTeamAuthorityAsync(dbContext, normalizedTeamId, token);
+
                 if (team is null)
                 {
                     team = new TeamRecord
@@ -1902,6 +1906,22 @@ internal sealed class DefaultDirectoryStore(
             }
 
             pageBytes += documentBytes;
+
+            if (record.DocumentKind is { } documentKind)
+            {
+                var replicatedChange = new DirectoryChange
+                {
+                    Sequence = record.Sequence,
+                    Replicated = ToReplicatedDocument(
+                        documentKind,
+                        record.DocumentKey ?? "",
+                        record.Revision ?? 0,
+                        record.DocumentJson
+                    ),
+                };
+                changes.Add(replicatedChange);
+                continue;
+            }
 
             if (record.TeamId is null)
             {
@@ -2069,7 +2089,7 @@ internal sealed class DefaultDirectoryStore(
                 // A change carries the platform's whole document, so the feed keeps only the platform's latest
                 // change.
                 await dbContext
-                    .Changes.Where(entity => entity.TeamId == null)
+                    .Changes.Where(entity => entity.TeamId == null && entity.DocumentKind == null)
                     .ExecuteDeleteAsync(token);
                 dbContext.Changes.Add(change);
                 await dbContext.SaveChangesAsync(token);
@@ -2146,6 +2166,215 @@ internal sealed class DefaultDirectoryStore(
             JsonOptions
         );
         return document with { Sequence = sequence };
+    }
+
+    #endregion
+
+    #region IReplicatedDocumentDirectory
+
+    /// <inheritdoc />
+    /// <exception cref="InvalidOperationException">
+    /// The content is longer than <see cref="DirectoryLimits.MaxDocumentBytes"/> bytes.
+    /// </exception>
+    async ValueTask<long> IReplicatedDocumentDirectory.PublishAsync(
+        ReplicatedDocument document,
+        CancellationToken cancellationToken
+    )
+    {
+        var contentJson = document.Content?.GetRawText();
+        var contentBytes = contentJson is null ? 0 : SecureEncoding.UTF8.GetByteCount(contentJson);
+        if (contentBytes > DirectoryLimits.MaxDocumentBytes)
+        {
+            throw new InvalidOperationException(
+                $"The document is {contentBytes} bytes, and a published document is at most {DirectoryLimits.MaxDocumentBytes} bytes."
+            );
+        }
+
+        var key = Normalize(document.Key);
+
+        await using var dbContext = await DbContextFactory.CreateDbContextAsync(cancellationToken);
+        var executionStrategy = dbContext.Database.CreateExecutionStrategy();
+        return await executionStrategy.ExecuteAsync(
+            async token =>
+            {
+                // A retried attempt starts from the database, not from the failed attempt's tracked entities.
+                dbContext.ChangeTracker.Clear();
+                await using var transaction = await dbContext.Database.BeginTransactionAsync(
+                    IsolationLevel.Serializable,
+                    token
+                );
+
+                var stored = await dbContext.ReplicatedDocuments.SingleOrDefaultAsync(
+                    entity => entity.Kind == document.Kind && entity.Key == key,
+                    token
+                );
+                if (stored is not null && stored.Revision >= document.Revision)
+                {
+                    return stored.Revision;
+                }
+
+                var change = new DirectoryChangeRecord
+                {
+                    Sequence = await NextSequenceAsync(dbContext, token),
+                    DocumentKind = document.Kind,
+                    DocumentKey = key,
+                    Revision = document.Revision,
+                    DocumentJson = contentJson,
+                };
+
+                // A change carries the document whole, so the feed keeps only its latest change.
+                await dbContext
+                    .Changes.Where(entity =>
+                        entity.DocumentKind == document.Kind && entity.DocumentKey == key
+                    )
+                    .ExecuteDeleteAsync(token);
+                dbContext.Changes.Add(change);
+
+                if (stored is null)
+                {
+                    stored = new ReplicatedDocumentRecord { Kind = document.Kind, Key = key };
+                    dbContext.ReplicatedDocuments.Add(stored);
+                }
+
+                stored.Revision = document.Revision;
+                stored.DocumentJson = contentJson;
+
+                await dbContext.SaveChangesAsync(token);
+                await transaction.CommitAsync(token);
+                return document.Revision;
+            },
+            cancellationToken
+        );
+    }
+
+    /// <inheritdoc />
+    /// <exception cref="JsonException">The stored content is not JSON.</exception>
+    async ValueTask<ReplicatedDocument?> IReplicatedDocumentDirectory.GetOrDefaultAsync(
+        string kind,
+        string key,
+        CancellationToken cancellationToken
+    )
+    {
+        var normalizedKey = Normalize(key);
+
+        await using var dbContext = await DbContextFactory.CreateDbContextAsync(cancellationToken);
+        var stored = await dbContext
+            .ReplicatedDocuments.AsNoTracking()
+            .SingleOrDefaultAsync(
+                entity => entity.Kind == kind && entity.Key == normalizedKey,
+                cancellationToken
+            );
+        return stored is null
+            ? null
+            : ToReplicatedDocument(stored.Kind, stored.Key, stored.Revision, stored.DocumentJson);
+    }
+
+    /// <inheritdoc />
+    async ValueTask<
+        IReadOnlyList<ReplicatedDocument>
+    > IReplicatedDocumentDirectory.ListRevisionsAsync(CancellationToken cancellationToken)
+    {
+        await using var dbContext = await DbContextFactory.CreateDbContextAsync(cancellationToken);
+
+        var records = await dbContext
+            .ReplicatedDocuments.AsNoTracking()
+            .OrderBy(entity => entity.Kind)
+            .ThenBy(entity => entity.Key)
+            .Select(entity => new
+            {
+                entity.Kind,
+                entity.Key,
+                entity.Revision,
+            })
+            .ToListAsync(cancellationToken);
+
+        var revisions = new List<ReplicatedDocument>(records.Count);
+        foreach (var record in records)
+        {
+            var revision = new ReplicatedDocument
+            {
+                Kind = record.Kind,
+                Key = record.Key,
+                Revision = record.Revision,
+            };
+            revisions.Add(revision);
+        }
+
+        return revisions;
+    }
+
+    /// <summary>
+    /// Retires a team's authority document when the directory holds one with content: its content becomes <c>null</c>
+    /// at the same revision, and the feed keeps only that change for the document. The caller runs in a serializable
+    /// transaction and has saved the counter row that numbers the changes.
+    /// </summary>
+    /// <param name="dbContext">The <see cref="DirectoryDbContext"/> whose transaction the caller holds.</param>
+    /// <param name="normalizedTeamId">The normalized identifier of the team that was retired.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <returns>A <see cref="ValueTask"/> that completes when the retire is tracked by <paramref name="dbContext"/>.</returns>
+    private static async ValueTask RetireTeamAuthorityAsync(
+        DirectoryDbContext dbContext,
+        string normalizedTeamId,
+        CancellationToken cancellationToken
+    )
+    {
+        var kind = ReplicatedDocumentKinds.TeamAuthority;
+        var stored = await dbContext.ReplicatedDocuments.SingleOrDefaultAsync(
+            entity => entity.Kind == kind && entity.Key == normalizedTeamId,
+            cancellationToken
+        );
+        if (stored?.DocumentJson is null)
+        {
+            return;
+        }
+
+        var change = new DirectoryChangeRecord
+        {
+            Sequence = await NextSequenceAsync(dbContext, cancellationToken),
+            DocumentKind = kind,
+            DocumentKey = normalizedTeamId,
+            Revision = stored.Revision,
+            DocumentJson = null,
+        };
+
+        await dbContext
+            .Changes.Where(entity =>
+                entity.DocumentKind == kind && entity.DocumentKey == normalizedTeamId
+            )
+            .ExecuteDeleteAsync(cancellationToken);
+        dbContext.Changes.Add(change);
+        stored.DocumentJson = null;
+    }
+
+    /// <summary>
+    /// Builds a replicated document from its stored parts.
+    /// </summary>
+    /// <param name="kind">The kind of the document.</param>
+    /// <param name="key">The key of the document.</param>
+    /// <param name="revision">The revision of the document.</param>
+    /// <param name="contentJson">The stored content as JSON text, or <c>null</c> for a retired document.</param>
+    /// <returns>The <see cref="ReplicatedDocument"/> that the parts describe.</returns>
+    /// <exception cref="JsonException">The stored content is not JSON.</exception>
+    private static ReplicatedDocument ToReplicatedDocument(
+        string kind,
+        string key,
+        long revision,
+        string? contentJson
+    )
+    {
+        JsonElement? content = null;
+        if (contentJson is not null)
+        {
+            content = JsonElement.Parse(contentJson);
+        }
+
+        return new ReplicatedDocument
+        {
+            Kind = kind,
+            Key = key,
+            Revision = revision,
+            Content = content,
+        };
     }
 
     #endregion

@@ -47,6 +47,11 @@ internal static class DirectoryLimits
     public const int MaxManagementUrlLength = 2000;
 
     /// <summary>
+    /// The most characters the kind of a replicated document holds.
+    /// </summary>
+    public const int MaxDocumentKindLength = 64;
+
+    /// <summary>
     /// The most bytes that the JSON of a published team or platform document holds, so a page of the change feed holds
     /// whole documents within the response a cell reads.
     /// </summary>
