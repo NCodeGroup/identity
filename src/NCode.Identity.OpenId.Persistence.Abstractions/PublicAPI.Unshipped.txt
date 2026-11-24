@@ -853,3 +853,4 @@ const NCode.Identity.OpenId.Persistence.DataContracts.TenantKeyCustody.Held = "h
 const NCode.Identity.OpenId.Persistence.DataContracts.TenantKeyCustody.Incoming = "incoming" -> string!
 const NCode.Identity.OpenId.Persistence.DataContracts.TenantKeyCustody.Outgoing = "outgoing" -> string!
 NCode.Identity.OpenId.Persistence.Stores.ITenantStore.SetKeyCustodyAsync(string! tenantId, string! custody, string? cell, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<bool>
+NCode.Identity.OpenId.Persistence.Stores.ITenantStore.ListTenantIdsByKeyCustodyAsync(string! custody, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<string!>!>

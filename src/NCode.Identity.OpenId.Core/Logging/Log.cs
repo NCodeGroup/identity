@@ -534,4 +534,40 @@ internal static partial class Log
         string tenantId,
         Exception exception
     );
+
+    /// <summary>
+    /// Logs that a tenant's incoming key custody was held because the directory places the tenant in this cell.
+    /// </summary>
+    [LoggerMessage(
+        EventId = EventIds.TenantKeyCustodyHeld,
+        Level = LogLevel.Information,
+        Message = "The directory places the tenant '{TenantId}' in this cell, so the cell holds its keys"
+    )]
+    internal static partial void TenantKeyCustodyHeld(this ILogger logger, string tenantId);
+
+    /// <summary>
+    /// Logs that the tenant key custody reconciliation pass could not reach the global directory.
+    /// </summary>
+    [LoggerMessage(
+        EventId = EventIds.TenantKeyCustodyDirectoryUnavailable,
+        Level = LogLevel.Warning,
+        Message = "The global directory is unavailable, so the tenant key custody reconciliation pass is skipped; it runs again at the next interval"
+    )]
+    internal static partial void TenantKeyCustodyDirectoryUnavailable(
+        this ILogger logger,
+        Exception exception
+    );
+
+    /// <summary>
+    /// Logs that the tenant key custody reconciliation pass failed.
+    /// </summary>
+    [LoggerMessage(
+        EventId = EventIds.TenantKeyCustodyPassFailed,
+        Level = LogLevel.Warning,
+        Message = "The tenant key custody reconciliation pass failed; it runs again at the next interval"
+    )]
+    internal static partial void TenantKeyCustodyPassFailed(
+        this ILogger logger,
+        Exception exception
+    );
 }

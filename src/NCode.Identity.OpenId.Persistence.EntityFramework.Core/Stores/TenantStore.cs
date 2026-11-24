@@ -431,6 +431,19 @@ internal class TenantStore(
             .ToListAsync(cancellationToken);
     }
 
+    /// <inheritdoc />
+    public async ValueTask<IReadOnlyList<string>> ListTenantIdsByKeyCustodyAsync(
+        string custody,
+        CancellationToken cancellationToken
+    )
+    {
+        return await DbContext
+            .Tenants.Where(entity => entity.KeyCustody == custody)
+            .OrderBy(entity => entity.Id)
+            .Select(entity => entity.TenantId)
+            .ToListAsync(cancellationToken);
+    }
+
     /// <summary>
     /// Extracts the host component of an issuer and normalizes it for a sargable lookup. Returns <c>null</c> when the
     /// tenant has no issuer, or when the issuer is not an absolute URI — in which case the tenant simply is not

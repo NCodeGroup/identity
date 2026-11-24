@@ -97,6 +97,7 @@ internal static class DefaultRegistration
             >();
             serviceCollection.TryAddEnumerable(keySeedHandler);
             serviceCollection.AddHostedService<TenantKeyRolloverService>();
+            serviceCollection.AddHostedService<TenantKeyCustodyReconciler>();
 
             serviceCollection.TryAddSingleton(TimeProvider.System);
 

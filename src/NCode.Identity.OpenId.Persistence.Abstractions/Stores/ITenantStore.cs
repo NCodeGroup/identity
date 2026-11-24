@@ -182,6 +182,19 @@ public interface ITenantStore : IStore<PersistedTenant>
     );
 
     /// <summary>
+    /// Gets the identifiers of every tenant whose key-custody fence has the specified value.
+    /// </summary>
+    /// <param name="custody">One of the <c>TenantKeyCustody</c> values.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation, containing the identifiers of the
+    /// tenants whose custody is the specified value.</returns>
+    // See ADR-1536.
+    ValueTask<IReadOnlyList<string>> ListTenantIdsByKeyCustodyAsync(
+        string custody,
+        CancellationToken cancellationToken
+    );
+
+    /// <summary>
     /// Gets the <see cref="PersistedTenantSettings"/> instance from the store with the specified identifier.
     /// </summary>
     /// <param name="tenantId">The identifier of the OpenId Tenant.</param>

@@ -147,4 +147,20 @@ internal static class EventIds
     /// not complete, so the identifier stays reserved for this cell.
     /// </summary>
     public const int TenantCreationReleaseFailed = Base + 53;
+
+    /// <summary>
+    /// Identifies the informational message that the directory places a tenant in this cell, so its incoming key
+    /// custody is held.
+    /// </summary>
+    public const int TenantKeyCustodyHeld = Base + 54;
+
+    /// <summary>
+    /// Identifies the warning that the tenant key custody reconciliation pass could not reach the global directory.
+    /// </summary>
+    public const int TenantKeyCustodyDirectoryUnavailable = Base + 55;
+
+    /// <summary>
+    /// Identifies the warning that the tenant key custody reconciliation pass failed.
+    /// </summary>
+    public const int TenantKeyCustodyPassFailed = Base + 56;
 }
