@@ -308,83 +308,89 @@ registrar's name servers (section 7) can't find the MX records until that cache 
 
 ## 9. Run the cells of a platform
 
-A platform is a global directory over independent cells, and a cell is a host, its database, its Valkey and its KMS keys,
-in one region ([ADR-1411](decisions/1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md),
-[Cells and the global directory](hosting-analysis.md#cells-and-the-global-directory)). Registering a cell's machine
-client is manual because only an operator holds the platform authority that creates it and the private keys it signs
-with. A platform of one cell skips this section: with no `directory.url` the cell uses local adapters and needs no
-other service.
+A platform of more than one cell has a global plane of two isolated parts: the global directory, which runs as a release
+of its own (the chart `ncode-identity-directory`) with its own database and issues the cells' tokens itself, and the
+control-plane cell, which is dedicated to the control-plane tenant, the platform's trust anchor. Every other cell, a
+workload cell, authenticates and authorizes management requests from authority and keys replicated into its own
+database, and calls no other cell
+([ADR-1536](decisions/1536-a-platforms-global-plane-is-a-standalone-directory-and-a-dedicated-control-plane-cell-and-every-other-cell-runs-and-is-managed-on-its-own.md),
+[ADR-1411](decisions/1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md),
+[Cells and the global directory](hosting-analysis.md#cells-and-the-global-directory)). A cell is a host, its database,
+its Valkey and its KMS keys, in one region. The steps below follow the order of ADR-1536 decision 12, and no step waits
+on a later one. They are manual because only an operator holds the private keys and the platform authority that
+register a cell. A platform of one cell skips this section: with no `directory.url` the cell uses local adapters and
+needs no other service.
 
-Each cell that sets `directory.url` authenticates to the directory and to the control-plane cell as the machine client
-`cell-{name}` of the control-plane cell's root tenant, where `{name}` is the cell's `cell.name`. The client uses
-`private_key_jwt`, and the cell holds its private keys as a named key ring. Every cell of a platform with a directory
-sets it, the control-plane cell included: a control-plane cell without `directory.url` keeps the local adapters, so its
-teams and platform changes never reach the directory and no other cell mirrors them. Steps 3 to 5 give one cell its
-directory client. The control-plane cell can carry its client's values, and run the directory, from its first release:
-it creates its root tenant and gives it its keys without the directory, so it serves before the directory can answer it,
-and its own calls to the directory fail and are retried until step 4 registers its client. Run steps 3 to 5 for each
-other cell once the directory runs.
+1. **Provision the keys.** Before either release, provision the directory's signing key and the control-plane cell's
+   directory-client key, each a PEM key in a Secret or a key that a key management service holds. The directory's key
+   ring is the one `keyRing` names in the `ncode-identity-directory` chart (`DirectoryServer:KeyRing`); the control-plane
+   cell's is the one `directory.keyRing` names in the host chart (`Directory:KeyRing`). Each has at least one key. A
+   workload cell has a client key of its own, provisioned the same way before its own step 4.
+2. **Print the control-plane cell's public keys.** Run the host image's `directory-client-jwks` command with the
+   control-plane cell's `Directory:KeyRing` configured, for example
+   `docker run <host image> directory-client-jwks`, with the key ring's Secret mounted or its key management service
+   reachable. It prints the public JWKS of the key ring's keys. Put it into the directory chart's
+   `controlPlane.clientJwks`, beside `controlPlane.cell`, `controlPlane.region`, `controlPlane.kind`,
+   `controlPlane.tenantId` and `controlPlane.issuer`, which pin the anchor.
+3. **Install the directory.** Install the chart `ncode-identity-directory` with the anchor values of step 2, its
+   `keyRing` and `keys`, its own database (the runtime role's connection and the schema owner's connection, each from a
+   Secret), its serving certificate and its route, as the chart's README lists. It initializes the anchor's record and
+   placement before it serves, and answers `503` until then. It runs as one replica, and its database is its own, never
+   a cell's.
+4. **Install the control-plane cell.** Install the host chart with `cell.isControlPlane=true`, its directory client
+   (`directory.url`, `directory.clientId`, `directory.keyRing` and `directory.keys`, which the host reads as
+   `Directory:Url`, `Directory:ClientId`, `Directory:KeyRing` and `KeyRings:{name}`), `cell.managementUrl` and the setup
+   Job, as [first use of a deployed instance](first-deployed-instance.md) describes. The cell creates its control-plane
+   tenant locally without asking the directory, and setup creates the root `GlobalAdmin` and registers the platform
+   console's client. Its first call to the directory is its token request, signed with the key the anchor pins. The
+   control-plane cell serves only the control-plane tenant.
+5. **Register each workload cell.** Provision the cell's directory-client key and print its public JWKS with
+   `directory-client-jwks`, as in steps 1 and 2. As a `GlobalAdmin`, through the platform console's Cells page or the
+   control-plane cell's management API, send the cell's registration:
 
-1. **Set up the control-plane cell.** Deploy the cell with `cell.isControlPlane=true` and set the platform up once, as
-   [first use of a deployed instance](first-deployed-instance.md) describes. Setup runs in the control-plane cell only.
-   Its root tenant must allow `client_credentials` ([section 6 of that runbook](first-deployed-instance.md#6-enable-grants)),
-   because every cell's client uses that grant. The control-plane cell seeds the system resource servers
-   `urn:ncode:directory` (scope `directory`) and `urn:ncode:control-plane` (scope `control-plane`) into its root tenant,
-   and every client of that tenant can request them.
-2. **Run the directory.** Deploy the directory host with `directory.enabled=true`, `directory.issuer` set to the
-   control-plane cell's issuer, `directory.controlPlaneCell` set to its name, `directory.controlPlaneTenantId` set to
-   its root tenant's identifier when the directory runs in a release of another cell or under a strategy other than
-   `StaticSingle` (the control-plane cell's own `StaticSingle` release derives it), `directory.allowedHosts`, its own
-   database (the runtime role's connection in `directory.database`, whose role `directory.database.runtimeRole` names,
-   and the schema owner's connection in `directory.migrations.database`, each from a Secret that holds the finished
-   connection string, `existingSecret`, or the connection's parts, `directory.database.parts.existingSecret` and
-   `directory.migrations.database.parts.existingSecret`), its serving certificate (`directory.backendTls`, which the
-   chart issues by default) and its route (`directory.ingress` or `directory.httpRoute`), as the chart's
-   [The cell](../charts/ncode-identity-host/README.md#the-cell) section lists. The directory accepts bearer tokens of
-   the control-plane cell's issuer for audience `urn:ncode:directory` and scope `directory`. It runs as one replica, and
-   its database is its own, never a cell's.
-3. **Create the cell's key ring.** Generate a signing key for the cell, either a PEM file or a key in a key management
-   service, and keep its private half with the cell. The key ring has the name you choose for `directory.keyRing`, and
-   at least one key.
-4. **Register the cell's machine client** in the control-plane cell's root tenant with `POST /api/platform/clients`, as a
-   caller with platform authority, such as the
-   [automation client](first-deployed-instance.md#the-automation-client). Only the control-plane cell maps the route.
-   The control-plane cell's own client is `cell-{name}` under its own `cell.name`, in that same root tenant. The body
-   names:
+   ```http
+   PUT /api/cells/{name}
+   ```
 
-   | Member       | Value                                                                                          |
-   | ------------ | ---------------------------------------------------------------------------------------------- |
-   | `clientId`   | `cell-{name}`                                                                                  |
-   | `isDisabled` | `false`                                                                                        |
-   | `settings`   | `token_endpoint_auth_method` `private_key_jwt`, and `grant_types_supported` `["client_credentials"]` |
-   | `jwks`       | The public keys of the cell's key ring, as a JWK Set                                           |
+   The body names the cell's region, its kind and its JWKS. The control-plane cell writes the registration to the
+   directory. `DELETE /api/cells/{name}` retires a cell: the directory answers `409` while the cell holds tenants and
+   never reissues a retired name.
+   `GET /api/cells` lists the cells and whether each answers.
+6. **Install each workload cell.** Install the host chart with the cell's own `cell.name`, its directory client
+   (`directory.url`, `directory.clientId` set to the registered `{name}`, `directory.keyRing` and `directory.keys`),
+   `cell.controlPlaneIssuer` set to the control-plane cell's issuer and `cell.managementUrl` set to the origin of the
+   cell's own root tenant's issuer. The host refuses to start when `Cell:ManagementUrl` is empty or its origin is not the
+   root tenant's issuer origin. When the cell's tenant-resolution strategy is dynamic, the cell has a management tenant of
+   its own, and its cell setup Job (`setup.job`) creates the first `CellAdmin` and the cell console's client. Under the
+   `StaticSingle` strategy, give every workload cell its own `tenantResolution.staticSingle.tenantId`: a tenant
+   identifier is unique across the platform's cells, and the cell reserves and places its tenant in the directory when
+   it first creates it.
 
-   The response is `201`, and `409` when a client of that identifier exists. The client carries no scope setting: the
-   cell requests the scopes `directory` and `control-plane` in its token requests, and the system resource servers of
-   step 1 are available to every client of the tenant.
-5. **Deploy the cell with the directory client's values**, or give them to the control-plane cell, in its first release
-   or a later one: `directory.url`, `directory.clientId` (`cell-{name}`), `directory.keyRing` and `directory.keys`
-   (`directory.keys.pemSecret` or `directory.keys.remoteKeys`), `cell.controlPlaneIssuer` set to the control-plane
-   cell's issuer, which is the control-plane cell's own issuer when you give them to it, and `cell.managementUrl` set to
-   the URL of the cell's management API, which the cell registers with the directory. The host reads them as
-   `Directory:Url`, `Directory:ClientId`, `Directory:KeyRing`, `Cell:ManagementUrl` and `KeyRings:{name}`, where
-   `{name}` is the key ring's name, and the key ring signs the client's assertions. The host refuses to start when
-   `Directory:ClientId` is not `cell-` followed by `Cell:Name` or `Cell:ManagementUrl` is empty. Values of the chart are
-   in its [The cell](../charts/ncode-identity-host/README.md#the-cell) section; its `database` and `migrations.database`
-   values are the cell's own two roles and are never the directory's. Under the `StaticSingle` strategy, give every cell
-   other than the control-plane cell its own `tenantResolution.staticSingle.tenantId`: a tenant identifier is unique
-   across the platform's cells, the cell reserves and places its tenant in the directory when it first creates it, and
-   it does not create a tenant whose identifier another cell holds. Under the host and path strategies, a cell that is
-   not the control plane and gives its root tenant an issuer (`TenantResolution:Root:Issuer`) names it with a
-   `TenantResolution:Root:TenantId` no other cell uses, because the cell reserves it in the directory; without an issuer
-   its root tenant is created in the cell alone.
+**Verify:** the directory reports ready and the control-plane cell starts and reports ready. A cell's token request
+signed with its key ring, at the directory's token endpoint, returns a token for the directory. Creating a tenant in a
+cell reserves its identifier in the directory and places it in the cell, and fails with `503` while the directory is
+unreachable; a tenant that is already created keeps serving whether or not the directory is reachable. A team created
+in the control-plane cell reaches the directory, and every other cell mirrors it. A `GlobalAdmin`'s token, bound to a
+DPoP proof, calls the management API of a workload cell, which validates it against the keys it replicated.
 
-**Verify:** the cell starts and reports ready. A client-credentials token request for the client `cell-{name}`, signed
-with the key ring, at the control-plane cell's root issuer returns a token for the audience `urn:ncode:directory` with
-the scope `directory`. Creating a tenant in the cell reserves its identifier in the directory and places it in the cell,
-and so does the cell's own tenant when the cell first serves it, and fails with `503` while the directory is
-unreachable. A tenant that is already created keeps serving whether or not the directory is reachable. Once the
-control-plane cell runs with its client, a team created in it reaches the directory, and the other cells mirror it.
+### Break-glass
+
+When the platform's administrators are locked out, or a setting refuses every sign-in, recover offline with the host
+image's commands, each run as a Job with the cell's schema-owner credentials, as `setup` and `secret-protection` are
+([ADR-1512](decisions/1512-an-instance-is-set-up-once-through-a-one-time-setup-token-that-creates-a-root-global-administrator.md)):
+
+- `recover-admin` creates or re-enables a local account in the anchor tenant from `Recovery:Admin:*` (`UserName`,
+  `Password`, `Email`, `DisplayName`, from a Secret) and grants `GlobalAdmin` in the control-plane cell or `CellAdmin` in
+  a cell with a management tenant. It refuses a workload cell without a management tenant.
+- `recover-sign-in` removes the anchor tenant's own values of the settings that can block every sign-in, and in the
+  control-plane cell the platform's values too, and re-enables the tenant's default local connection, the management
+  console client and the management resource server. It logs and audits each change. A workload cell's platform values
+  arrive from the directory's feed, so repair them in the control-plane cell.
+- `revoke-management-key <kid>` removes a compromised management signing key from a cell's replica and records its
+  identifier as revoked, which closes the exposure of a cell that cannot reach the directory. The control-plane cell's
+  management API revokes the key for every cell through `POST /api/platform/management-keys/{kid}/revoke`.
+
+The host chart's `recovery.*` values render each command as a Job.
 
 ## 10. Close out
 
