@@ -942,14 +942,17 @@ export const managementApi = createApi({
         { type: 'LocalAccount', id: tenantTag(tenantId, localAccountId) },
       ],
     }),
-    listConnections: build.query<
+    listConnections: build.infiniteQuery<
       CollectionResource<ConnectionResource>,
-      WithCell<{ tenantId: string }>
+      WithCell<{ tenantId: string }>,
+      string
     >({
-      query: ({ tenantId, cell }) => inCell(cell, connectionsPath(tenantId)),
+      infiniteQueryOptions: collectionPages,
+      query: ({ queryArg: { tenantId, cell }, pageParam }) =>
+        inCell(cell, withParams(connectionsPath(tenantId), cursorParams(pageParam))),
       providesTags: (result, _error, { tenantId }) => [
         { type: 'Connection' as const, id: tenantTag(tenantId, LIST_TAG) },
-        ...(result?.items ?? []).map((c) => ({
+        ...pagedItems(result).map((c) => ({
           type: 'Connection' as const,
           id: tenantTag(tenantId, c.connectionId),
         })),
@@ -1592,7 +1595,7 @@ export const {
   useGetLocalAccountMetadataQuery,
   useSetLocalAccountClaimsMutation,
   useSetLocalAccountMetadataMutation,
-  useListConnectionsQuery,
+  useListConnectionsInfiniteQuery,
   useGetConnectionQuery,
   useCreateConnectionMutation,
   useUpdateConnectionMutation,

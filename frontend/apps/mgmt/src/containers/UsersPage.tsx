@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import AddIcon from '@mui/icons-material/Add';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
@@ -17,7 +17,7 @@ import {
 } from '@ncodegroup/identity-ui';
 import {
   pagedItems,
-  useListConnectionsQuery,
+  useListConnectionsInfiniteQuery,
   useListLocalAccountsInfiniteQuery,
   type LocalAccountOwner,
 } from '@ncodegroup/identity-store';
@@ -49,9 +49,19 @@ export function UsersPage({ owner }: UsersPageProps) {
 
 function TenantUsers({ tenantId }: { readonly tenantId: string }) {
   const cell = useTenantCell();
-  const { data, isLoading, error } = useListConnectionsQuery({ tenantId, cell });
+  const { data, isLoading, error, hasNextPage, isFetchingNextPage, fetchNextPage } =
+    useListConnectionsInfiniteQuery({ tenantId, cell });
   const [selectedId, setSelectedId] = useState<string>();
-  const connections = (data?.items ?? []).filter((c) => c.strategy === localStrategy);
+  // The picker offers every local connection, so the pages are read to the end.
+  useEffect(() => {
+    if (hasNextPage && !isFetchingNextPage) {
+      void fetchNextPage();
+    }
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
+  const connections = useMemo(
+    () => pagedItems(data).filter((c) => c.strategy === localStrategy),
+    [data],
+  );
   const selected =
     connections.find((c) => c.connectionId === selectedId) ??
     connections.find((c) => c.name === 'local') ??

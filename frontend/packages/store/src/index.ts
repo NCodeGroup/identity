@@ -58,7 +58,7 @@ export {
   useGetLocalAccountMetadataQuery,
   useSetLocalAccountClaimsMutation,
   useSetLocalAccountMetadataMutation,
-  useListConnectionsQuery,
+  useListConnectionsInfiniteQuery,
   useGetConnectionQuery,
   useCreateConnectionMutation,
   useUpdateConnectionMutation,

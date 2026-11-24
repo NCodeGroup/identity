@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import AddIcon from '@mui/icons-material/Add';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -8,15 +8,17 @@ import {
   ConnectionFormDialog,
   ConnectionTable,
   DataStateBoundary,
+  LoadMoreButton,
   emptyConnectionFormValues,
   type ConnectionFormValues,
 } from '@ncodegroup/identity-ui';
 import type { ConnectionResource } from '@ncodegroup/identity-api';
 import {
   apiErrorMessage,
+  pagedItems,
   useCreateConnectionMutation,
   useDeleteConnectionMutation,
-  useListConnectionsQuery,
+  useListConnectionsInfiniteQuery,
   useUpdateConnectionMutation,
   type ApiError,
 } from '@ncodegroup/identity-store';
@@ -43,8 +45,9 @@ const closed: DialogState = { kind: 'none' };
  */
 export function ConnectionsPage({ tenantId }: ConnectionsPageProps) {
   const cell = useTenantCell();
-  const { data, isLoading, error } = useListConnectionsQuery({ tenantId, cell });
-  const connections = data?.items ?? [];
+  const { data, isLoading, error, hasNextPage, isFetchingNextPage, fetchNextPage } =
+    useListConnectionsInfiniteQuery({ tenantId, cell });
+  const connections = useMemo(() => pagedItems(data), [data]);
 
   const [createConnection, { isLoading: isCreating }] = useCreateConnectionMutation();
   const [updateConnection, { isLoading: isUpdating }] = useUpdateConnectionMutation();
@@ -185,6 +188,11 @@ export function ConnectionsPage({ tenantId }: ConnectionsPageProps) {
           onDelete={openDelete}
         />
       </DataStateBoundary>
+      <LoadMoreButton
+        hasMore={hasNextPage}
+        isLoading={isFetchingNextPage}
+        onLoadMore={() => void fetchNextPage()}
+      />
 
       <ConnectionFormDialog
         open={formOpen}

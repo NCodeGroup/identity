@@ -80,6 +80,28 @@ describe('ConnectionsPage', () => {
     );
   });
 
+  it('loads the next page of connections', async () => {
+    const staff = {
+      ...local,
+      connectionId: 'c-staff',
+      name: 'staff',
+      displayName: 'Staff directory',
+    };
+    const calls = installFetch((url) =>
+      url.includes('cursor=next')
+        ? jsonResponse({ items: [staff] })
+        : jsonResponse({ items: [local], continuationToken: 'next' }),
+    );
+
+    renderPage();
+    fireEvent.click(await screen.findByTestId('load-more'));
+
+    expect(await screen.findByTestId('connection-row-c-staff')).toBeInTheDocument();
+    expect(screen.getByTestId('connection-row-c-local')).toBeInTheDocument();
+    expect(calls.some((c) => c.url.includes(`${listUrl}?cursor=next`))).toBe(true);
+    await waitFor(() => expect(screen.queryByTestId('load-more')).not.toBeInTheDocument());
+  });
+
   it('reports a failure to load the connection list', async () => {
     installFetch(() => jsonResponse({ title: 'Internal Server Error' }, 500));
 

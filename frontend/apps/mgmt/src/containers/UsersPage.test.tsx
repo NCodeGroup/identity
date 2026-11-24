@@ -65,11 +65,21 @@ type Call = {
 function installFetch(
   handler: (url: string, method: string) => Response,
   connections: readonly (typeof localConnection)[] = [localConnection],
+  nextConnections: readonly (typeof localConnection)[] = [],
 ) {
   const calls: Call[] = [];
   const inner = handler;
-  handler = (url, method) =>
-    url.endsWith(connectionsUrl) ? jsonResponse({ items: connections }) : inner(url, method);
+  handler = (url, method) => {
+    if (url.endsWith(`${connectionsUrl}?cursor=next`)) {
+      return jsonResponse({ items: nextConnections });
+    }
+    return url.endsWith(connectionsUrl)
+      ? jsonResponse({
+          items: connections,
+          ...(nextConnections.length > 0 ? { continuationToken: 'next' } : {}),
+        })
+      : inner(url, method);
+  };
   const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
     const request = input as Request;
     calls.push({
@@ -162,6 +172,33 @@ describe('UsersPage (list states)', () => {
 
     expect(await screen.findByTestId('local-account-row-a2')).toHaveTextContent('Grace');
     expect(calls.some((c) => c.url.endsWith('/connections/conn-2/local-accounts'))).toBe(true);
+  });
+});
+
+describe('UsersPage (connection paging)', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('offers the local connections of every page', async () => {
+    const staff = {
+      ...localConnection,
+      connectionId: 'conn-2',
+      name: 'staff',
+      displayName: 'Staff directory',
+    };
+    const calls = installFetch(() => jsonResponse({ items: [ada] }), [localConnection], [staff]);
+
+    renderPage();
+
+    expect(await screen.findByTestId('local-account-row-a1')).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByTestId('users-connection').children).toHaveLength(2));
+    expect(calls.some((c) => c.url.includes('/connections?cursor=next'))).toBe(true);
+    expect(screen.getByTestId('users-connection')).toHaveValue('conn-1');
   });
 });
 

@@ -3957,6 +3957,34 @@ describe('managementApi connections', () => {
     ]);
   });
 
+  it('listConnections reads the next page with the continuation token', async () => {
+    const calls: string[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = (input as Request).url;
+        calls.push(url);
+        return url.includes('cursor=t1')
+          ? jsonResponse({ items: [{ ...connection, connectionId: 'c2' }] })
+          : jsonResponse({ items: [connection], continuationToken: 't1' });
+      }),
+    );
+    const store = createStore();
+    const arg = { tenantId: 'acme', cell: undefined };
+
+    await store.dispatch(managementApi.endpoints.listConnections.initiate(arg));
+    const next = await store.dispatch(
+      managementApi.endpoints.listConnections.initiate(arg, { direction: 'forward' }),
+    );
+
+    expect(calls).toEqual([
+      'https://api.test/api/tenants/acme/connections',
+      'https://api.test/api/tenants/acme/connections?cursor=t1',
+    ]);
+    expect(next.hasNextPage).toBe(false);
+    expect(pagedItems(next.data)).toHaveLength(2);
+  });
+
   it('listConnections reports a failed read without tagging any item', async () => {
     mockFetch(jsonResponse({ title: 'Boom' }, 500));
     const store = createStore();
@@ -4244,7 +4272,7 @@ describe('managementApi connections', () => {
     const hooks = await import('./managementApi.js');
 
     for (const name of [
-      'useListConnectionsQuery',
+      'useListConnectionsInfiniteQuery',
       'useGetConnectionQuery',
       'useCreateConnectionMutation',
       'useUpdateConnectionMutation',
