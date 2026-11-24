@@ -475,6 +475,12 @@ seams, facades, and `InternalsVisibleTo` wiring that make code mockable — live
   of what the page fetched (`TypefaceProbe`). Open a page with `WaitUntilState.Load` and wait for the bundle to render:
   a page that polls never reaches `NetworkIdle`
   ([ADR-1430](../../docs/decisions/1430-end-to-end-suites-run-the-bff-and-the-hosts-built-pages-in-real-browsers-in-their-own-gate.md)).
+- 👁 **Read a page's font set only once it settles, within a bound.** WebKit can report a family unloaded through
+  `document.fonts.check` right after `document.fonts.load` resolves, so load the families again, await
+  `document.fonts.ready` and poll `check` until it holds or one deadline passes, and report a load that rejects or never
+  resolves as no face loaded, with the reason it failed, so a typeface that is blocked or never loads fails the test
+  within the bound and says why (`TypefaceProbe`)
+  ([ADR-1430](../../docs/decisions/1430-end-to-end-suites-run-the-bff-and-the-hosts-built-pages-in-real-browsers-in-their-own-gate.md)).
 - 👁 **An end-to-end suite is not hermetic by design.** Every host stays on loopback over the run's throwaway
   certificate, the container reaches the host only through `TestcontainersSettings.ExposeHostPortsAsync`, and
   credentials are generated per run
