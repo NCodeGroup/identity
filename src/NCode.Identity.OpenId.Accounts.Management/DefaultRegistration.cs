@@ -69,6 +69,7 @@ public static class DefaultRegistration
                 DefaultLocalAccountValidator
             >();
             serviceCollection.TryAddSingleton<LocalAccountPasswords>();
+            serviceCollection.TryAddSingleton<ControlPlaneDefaultConnectionReader>();
             serviceCollection.TryAddSingleton<ILocalAccountCreator, DefaultLocalAccountCreator>();
 
             // A local connection that holds accounts cannot be deleted (ADR-1535).

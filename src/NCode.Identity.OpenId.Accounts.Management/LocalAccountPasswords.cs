@@ -7,7 +7,6 @@ using NCode.Identity.OpenId.Accounts.DataContracts;
 using NCode.Identity.OpenId.Authentication.Passwords;
 using NCode.Identity.OpenId.Management;
 using NCode.Identity.OpenId.Persistence.DataContracts;
-using NCode.Identity.OpenId.Persistence.Stores;
 using NCode.Identity.OpenId.Settings;
 using NCode.Identity.Persistence.Stores;
 using NCode.Identity.Settings;
@@ -36,15 +35,18 @@ internal sealed class LocalAccountPasswords(
         ManagementError? Error
     )> ResolveConnectionSettingsAsync(
         IStoreManager storeManager,
-        string tenantId,
         PersistedConnection connection,
         CancellationToken cancellationToken
     )
     {
-        var tenant = await storeManager
-            .GetStore<ITenantStore>()
-            .GetOrDefaultAsync(tenantId, cancellationToken);
-        if (tenant is null)
+        var tenantId = connection.TenantId;
+        var tenantSettings = await ControlPlaneDefaultConnectionReader.ReadTenantSettingsAsync(
+            EffectiveSettingsResolver,
+            storeManager,
+            tenantId,
+            cancellationToken
+        );
+        if (tenantSettings is null)
         {
             var error = new ManagementError
             {
@@ -54,16 +56,6 @@ internal sealed class LocalAccountPasswords(
             return (null, error);
         }
 
-        var teamSettings = await EffectiveSettingsResolver.ResolveTeamAsync(
-            tenant.TeamId,
-            cancellationToken
-        );
-        var tenantSettings = EffectiveSettingsResolver.ResolveStored(
-            teamSettings,
-            OpenIdSettingScopes.Tenant,
-            tenantId,
-            tenant.Settings.Value
-        );
         var connectionSettings = EffectiveSettingsResolver.ResolveStored(
             tenantSettings,
             OpenIdSettingScopes.Connection,
@@ -85,7 +77,6 @@ internal sealed class LocalAccountPasswords(
     {
         var (settings, error) = await ResolveConnectionSettingsAsync(
             storeManager,
-            account.TenantId,
             connection,
             cancellationToken
         );

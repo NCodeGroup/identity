@@ -16,6 +16,7 @@ using NCode.Identity.OpenId.Management.Auditing;
 using NCode.Identity.OpenId.Management.Endpoints;
 using NCode.Identity.OpenId.Persistence.Tenants;
 using NCode.Identity.OpenId.Settings;
+using NCode.Identity.OpenId.Tenants;
 using NCode.Identity.Persistence.Stores;
 using NCode.Identity.Registration.AspNetCore;
 
@@ -55,6 +56,11 @@ public sealed class PlatformLocalAccountEndpointProviderTests : IDisposable
         var openIdContextFactory = MockRepository.Create<IOpenIdContextFactory>().Object;
         var postCommitSecurityEffects = MockRepository.Create<IPostCommitSecurityEffects>().Object;
         var ambientTenantAccessor = MockRepository.Create<IAmbientTenantAccessor>().Object;
+        var tenantResolver = MockRepository.Create<ITenantResolver>().Object;
+        var defaultConnectionReader = new ControlPlaneDefaultConnectionReader(
+            tenantResolver,
+            effectiveSettingsResolver
+        );
         var handler = new LocalAccountApiEndpointHandler(
             storeManagerFactory,
             authorizationService,
@@ -67,7 +73,8 @@ public sealed class PlatformLocalAccountEndpointProviderTests : IDisposable
             localAccountPasswords,
             postCommitSecurityEffects,
             ambientTenantAccessor,
-            localAccountStoreCatalog
+            localAccountStoreCatalog,
+            defaultConnectionReader
         );
 
         var cellOptions = new CellOptions { IsControlPlane = isControlPlane };

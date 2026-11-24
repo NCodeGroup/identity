@@ -241,10 +241,48 @@ public abstract class ManagementApiEndpointHandler
     /// <typeparam name="TItem">The type of the persisted item.</typeparam>
     /// <typeparam name="TResource">The type of the response representation.</typeparam>
     /// <returns>An <see cref="IResult"/> representing the outcome of the request.</returns>
-    protected internal virtual async ValueTask<IResult> ProcessListAsync<TItem, TResource>(
+    protected internal virtual ValueTask<IResult> ProcessListAsync<TItem, TResource>(
         HttpContext httpContext,
         object authorizationResource,
         Func<ValueTask<PagedResult<TItem>>> fetchPageAsync,
+        Func<TItem, TResource> mapper,
+        CancellationToken cancellationToken
+    )
+    {
+        async ValueTask<PagedResult<TItem>?> FetchAsync() => await fetchPageAsync();
+
+        return ProcessListOrNotFoundAsync(
+            httpContext,
+            authorizationResource,
+            FetchAsync,
+            mapper,
+            cancellationToken
+        );
+    }
+
+    /// <summary>
+    /// Processes an HTTP collection <c>GET</c> request whose family may be missing: authorizes the caller to enumerate
+    /// the family once, then fetches, maps, and returns a single page, or answers <c>404 Not Found</c> when the fetch
+    /// reports that the family does not exist. Authorization runs before the fetch, so a refused caller gets
+    /// <c>403 Forbidden</c> whether or not the family exists, and the family is never read for it.
+    /// </summary>
+    /// <param name="httpContext">The <see cref="HttpContext"/> for the current request.</param>
+    /// <param name="authorizationResource">The node the list is authorized at with
+    /// <see cref="Operations.List"/>.</param>
+    /// <param name="fetchPageAsync">A function that fetches the page once authorization has succeeded, or returns
+    /// <c>null</c> when the family does not exist.</param>
+    /// <param name="mapper">A function that maps a persisted item to its response representation.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <typeparam name="TItem">The type of the persisted item.</typeparam>
+    /// <typeparam name="TResource">The type of the response representation.</typeparam>
+    /// <returns>An <see cref="IResult"/> representing the outcome of the request.</returns>
+    protected internal virtual async ValueTask<IResult> ProcessListOrNotFoundAsync<
+        TItem,
+        TResource
+    >(
+        HttpContext httpContext,
+        object authorizationResource,
+        Func<ValueTask<PagedResult<TItem>?>> fetchPageAsync,
         Func<TItem, TResource> mapper,
         CancellationToken cancellationToken
     )
@@ -261,6 +299,10 @@ public abstract class ManagementApiEndpointHandler
         }
 
         var page = await fetchPageAsync();
+        if (page is null)
+        {
+            return ManagementProblems.ResourceNotFound();
+        }
 
         var items = page.Items.Select(mapper).ToList();
         var collectionResource = new CollectionResource<TResource>

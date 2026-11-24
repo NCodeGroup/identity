@@ -130,8 +130,10 @@ public sealed class LocalAccountPrincipalDescriberTests : IDisposable
 
         Describer = new LocalAccountPrincipalDescriber(
             catalog,
-            MockTenantResolver.Object,
-            MockEffectiveSettingsResolver.Object
+            new ControlPlaneDefaultConnectionReader(
+                MockTenantResolver.Object,
+                MockEffectiveSettingsResolver.Object
+            )
         );
     }
 

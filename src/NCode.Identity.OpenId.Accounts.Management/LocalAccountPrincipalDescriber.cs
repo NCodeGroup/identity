@@ -9,8 +9,6 @@ using NCode.Identity.OpenId.Management.ControlPlane;
 using NCode.Identity.OpenId.Management.Principals;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
-using NCode.Identity.OpenId.Settings;
-using NCode.Identity.OpenId.Tenants;
 using NCode.Identity.Persistence.Stores;
 
 namespace NCode.Identity.OpenId.Accounts.Management;
@@ -23,14 +21,12 @@ namespace NCode.Identity.OpenId.Accounts.Management;
 // See ADR-1465.
 internal sealed class LocalAccountPrincipalDescriber(
     LocalAccountStoreCatalog localAccountStoreCatalog,
-    ITenantResolver tenantResolver,
-    IEffectiveSettingsResolver effectiveSettingsResolver
+    ControlPlaneDefaultConnectionReader defaultConnectionReader
 ) : IPrincipalDescriber
 {
     private LocalAccountStoreCatalog LocalAccountStoreCatalog { get; } = localAccountStoreCatalog;
-    private ITenantResolver TenantResolver { get; } = tenantResolver;
-    private IEffectiveSettingsResolver EffectiveSettingsResolver { get; } =
-        effectiveSettingsResolver;
+    private ControlPlaneDefaultConnectionReader DefaultConnectionReader { get; } =
+        defaultConnectionReader;
 
     /// <summary>
     /// Describes the local accounts that own an identity, in a local connection, of each requested principal.
@@ -129,7 +125,7 @@ internal sealed class LocalAccountPrincipalDescriber(
     {
         var summaries = new List<PrincipalSummaryResource>();
 
-        var connection = await FindDefaultConnectionAsync(storeManager, cancellationToken);
+        var connection = await DefaultConnectionReader.FindAsync(storeManager, cancellationToken);
         if (connection is null || !ConnectionStrategyNames.IsLocal(connection.Strategy))
         {
             return summaries;
@@ -176,43 +172,6 @@ internal sealed class LocalAccountPrincipalDescriber(
         }
 
         return summaries;
-    }
-
-    /// <summary>
-    /// Finds the default connection of the control-plane tenant from the stored tenant and team documents, as the
-    /// platform's local-account routes do.
-    /// </summary>
-    /// <param name="storeManager">The store manager that reads the tenant and the connection.</param>
-    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
-    /// <returns>The connection that the tenant's <c>default_connection</c> setting names, or <c>null</c> when the
-    /// tenant or the connection does not exist.</returns>
-    private async ValueTask<PersistedConnection?> FindDefaultConnectionAsync(
-        IStoreManager storeManager,
-        CancellationToken cancellationToken
-    )
-    {
-        var tenantId = TenantResolver.GetControlPlaneTenantId();
-        var tenantStore = storeManager.GetStore<ITenantStore>();
-        var tenant = await tenantStore.GetOrDefaultAsync(tenantId, cancellationToken);
-        if (tenant is null)
-        {
-            return null;
-        }
-
-        var teamSettings = await EffectiveSettingsResolver.ResolveTeamAsync(
-            tenant.TeamId,
-            cancellationToken
-        );
-        var tenantSettings = EffectiveSettingsResolver.ResolveStored(
-            teamSettings,
-            OpenIdSettingScopes.Tenant,
-            tenantId,
-            tenant.Settings.Value
-        );
-        var defaultName = tenantSettings.GetValue(OpenIdSettingKeys.DefaultConnection);
-
-        var connectionStore = storeManager.GetStore<IConnectionStore>();
-        return await connectionStore.GetByNameOrDefaultAsync(defaultName, cancellationToken);
     }
 
     /// <summary>

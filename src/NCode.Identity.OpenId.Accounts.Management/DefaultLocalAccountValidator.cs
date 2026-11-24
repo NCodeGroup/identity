@@ -255,7 +255,6 @@ internal class DefaultLocalAccountValidator(
     {
         var (settings, error) = await LocalAccountPasswords.ResolveConnectionSettingsAsync(
             storeManager,
-            connection.TenantId,
             connection,
             cancellationToken
         );

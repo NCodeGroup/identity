@@ -166,6 +166,7 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
     private Mock<IPasswordPolicy> MockPasswordPolicy { get; }
     private Mock<IPostCommitSecurityEffects> MockPostCommitSecurityEffects { get; }
     private Mock<IAmbientTenantAccessor> MockAmbientTenantAccessor { get; }
+    private Mock<ITenantResolver> MockTenantResolver { get; }
     private PersistedConnection Connection { get; }
     private LocalAccountApiEndpointHandler Handler { get; }
     private List<string> Calls { get; } = [];
@@ -190,6 +191,7 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
         MockPasswordPolicy = MockRepository.Create<IPasswordPolicy>();
         MockPostCommitSecurityEffects = MockRepository.Create<IPostCommitSecurityEffects>();
         MockAmbientTenantAccessor = MockRepository.Create<IAmbientTenantAccessor>();
+        MockTenantResolver = MockRepository.Create<ITenantResolver>();
 
         Connection = CreateConnection(ConnectionId);
         var localAccountStoreCatalog = new LocalAccountStoreCatalog([
@@ -224,7 +226,11 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
             localAccountPasswords,
             MockPostCommitSecurityEffects.Object,
             MockAmbientTenantAccessor.Object,
-            localAccountStoreCatalog
+            localAccountStoreCatalog,
+            new ControlPlaneDefaultConnectionReader(
+                MockTenantResolver.Object,
+                MockEffectiveSettingsResolver.Object
+            )
         );
     }
 
@@ -567,25 +573,11 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
             .Verifiable();
     }
 
-    private HttpContext CreateControlPlaneHttpContext(bool readsTheDefaultConnection = false)
+    private HttpContext CreateControlPlaneHttpContext()
     {
         var httpContext = CreateHttpContext();
         var mockTenant = MockRepository.Create<OpenIdTenant>();
         mockTenant.Setup(x => x.TenantId).Returns(ControlPlaneTenantId).Verifiable();
-        if (readsTheDefaultConnection)
-        {
-            var mockSettings = MockRepository.Create<IReadOnlySettingCollection>();
-            mockSettings
-                .Setup(x => x.GetValue(OpenIdSettingKeys.DefaultConnection))
-                .Returns(Connection.Name)
-                .Verifiable();
-            var mockSettingsProvider = MockRepository.Create<IReadOnlySettingCollectionProvider>();
-            mockSettingsProvider.Setup(x => x.Collection).Returns(mockSettings.Object).Verifiable();
-            mockTenant
-                .Setup(x => x.SettingsProvider)
-                .Returns(mockSettingsProvider.Object)
-                .Verifiable();
-        }
 
         var mockContext = MockRepository.Create<OpenIdContext>();
         mockContext.Setup(x => x.Tenant).Returns(mockTenant.Object).Verifiable();
@@ -593,6 +585,51 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
         mockFeature.Setup(x => x.OpenIdContext).Returns(mockContext.Object).Verifiable();
         httpContext.Features.Set(mockFeature.Object);
         return httpContext;
+    }
+
+    // Resolves the control-plane tenant's default connection name from the stored tenant and team documents, the
+    // cascade the platform routes and the principal describer share.
+    private void SetupStoredDefaultConnection(string defaultName)
+    {
+        MockTenantResolver
+            .Setup(x => x.GetControlPlaneTenantId())
+            .Returns(ControlPlaneTenantId)
+            .Verifiable();
+        MockStoreManager
+            .Setup(x => x.GetStore<ITenantStore>())
+            .Returns(MockTenantStore.Object)
+            .Verifiable();
+        var tenant = new PersistedTenantBuilder
+        {
+            TenantId = ControlPlaneTenantId,
+            TeamId = TeamId,
+        }.Build();
+        MockTenantStore
+            .Setup(x => x.GetOrDefaultAsync(ControlPlaneTenantId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(tenant)
+            .Verifiable();
+
+        var teamSettings = MockRepository.Create<IReadOnlySettingCollection>();
+        MockEffectiveSettingsResolver
+            .Setup(x => x.ResolveTeamAsync(TeamId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(teamSettings.Object)
+            .Verifiable();
+        var tenantSettings = MockRepository.Create<IReadOnlySettingCollection>();
+        tenantSettings
+            .Setup(x => x.GetValue(OpenIdSettingKeys.DefaultConnection))
+            .Returns(defaultName)
+            .Verifiable();
+        MockEffectiveSettingsResolver
+            .Setup(x =>
+                x.ResolveStored(
+                    teamSettings.Object,
+                    OpenIdSettingScopes.Tenant,
+                    ControlPlaneTenantId,
+                    It.IsAny<JsonElement>()
+                )
+            )
+            .Returns(tenantSettings.Object)
+            .Verifiable();
     }
 
     private void SetupControlPlaneScope()
@@ -1386,6 +1423,99 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
         Assert.Equal(StatusCodes.Status404NotFound, problem.StatusCode);
     }
 
+    [Fact]
+    public async Task ListLocalAccountsAsync_WhenTheConnectionIsMissing_AuthorizesOnceThenReturns404()
+    {
+        var authorizations = 0;
+        MockAuthorizationService
+            .Setup(x =>
+                x.AuthorizeAsync(
+                    It.IsAny<ClaimsPrincipal>(),
+                    It.IsAny<object?>(),
+                    It.IsAny<IEnumerable<IAuthorizationRequirement>>()
+                )
+            )
+            .Callback(() => authorizations++)
+            .ReturnsAsync(AuthorizationResult.Success())
+            .Verifiable();
+        SetupStoreManagerCreated();
+        MockStoreManager
+            .Setup(x => x.GetStore<IConnectionStore>())
+            .Returns(MockConnectionStore.Object)
+            .Verifiable();
+        MockConnectionStore
+            .Setup(x => x.GetOrDefaultAsync(ConnectionId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((PersistedConnection?)null)
+            .Verifiable();
+
+        var result = await Handler.ListLocalAccountsAsync(
+            CreateHttpContext(),
+            TenantId,
+            ConnectionId,
+            cursor: null,
+            limit: null,
+            CancellationToken.None
+        );
+
+        var problem = Assert.IsType<ProblemHttpResult>(result);
+        Assert.Equal(StatusCodes.Status404NotFound, problem.StatusCode);
+        Assert.Equal(1, authorizations);
+    }
+
+    [Fact]
+    public async Task ListLocalAccountsAsync_WhenTheCallerIsRefused_Returns403WithoutReadingTheConnection()
+    {
+        MockAuthorizationService
+            .Setup(x =>
+                x.AuthorizeAsync(
+                    It.IsAny<ClaimsPrincipal>(),
+                    It.IsAny<object?>(),
+                    It.IsAny<IEnumerable<IAuthorizationRequirement>>()
+                )
+            )
+            .ReturnsAsync(AuthorizationResult.Failed())
+            .Verifiable();
+
+        var result = await Handler.ListLocalAccountsAsync(
+            CreateHttpContext(),
+            TenantId,
+            ConnectionId,
+            cursor: null,
+            limit: null,
+            CancellationToken.None
+        );
+
+        var problem = Assert.IsType<ProblemHttpResult>(result);
+        Assert.Equal(StatusCodes.Status403Forbidden, problem.StatusCode);
+    }
+
+    [Fact]
+    public async Task ListPlatformLocalAccountsAsync_WhenTheStoredDefaultConnectionIsMissing_Returns404()
+    {
+        SetupControlPlaneScope();
+        SetupAuthorizationSucceeds();
+        SetupStoreManagerCreated();
+        SetupStoredDefaultConnection("stored-default");
+        MockStoreManager
+            .Setup(x => x.GetStore<IConnectionStore>())
+            .Returns(MockConnectionStore.Object)
+            .Verifiable();
+        MockConnectionStore
+            .Setup(x => x.GetByNameOrDefaultAsync("stored-default", It.IsAny<CancellationToken>()))
+            .ReturnsAsync((PersistedConnection?)null)
+            .Verifiable();
+
+        var result = await Handler.ListPlatformLocalAccountsAsync(
+            CreateControlPlaneHttpContext(),
+            cursor: null,
+            limit: null,
+            CancellationToken.None
+        );
+
+        var problem = Assert.IsType<ProblemHttpResult>(result);
+        Assert.Equal(StatusCodes.Status404NotFound, problem.StatusCode);
+    }
+
     #endregion
 
     #region GetLocalAccountAsync Tests
@@ -1891,6 +2021,7 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
             .ReturnsAsync(MockStoreManager.Object)
             .Verifiable();
         MockStoreManager.Setup(x => x.DisposeAsync()).Returns(ValueTask.CompletedTask).Verifiable();
+        SetupStoredDefaultConnection(Connection.Name);
         MockStoreManager
             .Setup(x => x.GetStore<IConnectionStore>())
             .Returns(MockConnectionStore.Object)
@@ -1919,7 +2050,7 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
             .ReturnsAsync((IReadOnlyList<PersistedFederatedIdentity>)[]);
 
         var result = await Handler.ListPlatformLocalAccountsAsync(
-            CreateControlPlaneHttpContext(readsTheDefaultConnection: true),
+            CreateControlPlaneHttpContext(),
             cursor: null,
             limit: null,
             CancellationToken.None

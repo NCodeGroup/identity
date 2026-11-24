@@ -24,7 +24,6 @@ using NCode.Identity.OpenId.Management.Endpoints;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
 using NCode.Identity.OpenId.Persistence.Tenants;
-using NCode.Identity.OpenId.Settings;
 using NCode.Identity.Persistence.Stores;
 using NCode.Identity.Registration.AspNetCore;
 using NCode.Mediator;
@@ -81,7 +80,8 @@ internal class LocalAccountApiEndpointHandler(
     LocalAccountPasswords localAccountPasswords,
     IPostCommitSecurityEffects postCommitSecurityEffects,
     IAmbientTenantAccessor ambientTenantAccessor,
-    LocalAccountStoreCatalog localAccountStoreCatalog
+    LocalAccountStoreCatalog localAccountStoreCatalog,
+    ControlPlaneDefaultConnectionReader defaultConnectionReader
 ) : ManagementApiEndpointHandler, IEndpointProvider
 {
     private const string PrincipalRoleRemovalReason = "principal role removal";
@@ -104,6 +104,8 @@ internal class LocalAccountApiEndpointHandler(
         postCommitSecurityEffects;
     private IAmbientTenantAccessor AmbientTenantAccessor { get; } = ambientTenantAccessor;
     private LocalAccountStoreCatalog LocalAccountStoreCatalog { get; } = localAccountStoreCatalog;
+    private ControlPlaneDefaultConnectionReader DefaultConnectionReader { get; } =
+        defaultConnectionReader;
 
     /// <inheritdoc />
     public void Map(IEndpointRouteBuilder endpoints)
@@ -273,12 +275,7 @@ internal class LocalAccountApiEndpointHandler(
 
         await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
 
-        var connection = await FindConnectionAsync(
-            httpContext,
-            storeManager,
-            connectionId,
-            cancellationToken
-        );
+        var connection = await FindConnectionAsync(storeManager, connectionId, cancellationToken);
         if (connection is null)
         {
             return ManagementProblems.ResourceNotFound();
@@ -364,35 +361,25 @@ internal class LocalAccountApiEndpointHandler(
         var effectiveLimit = NormalizeLimit(limit);
 
         var tenantResource = TenantScopeResource.For(tenantId);
-        var authorizationFailure = await GetAuthorizationFailureAsync(
-            httpContext,
-            tenantResource,
-            Operations.List,
-            cancellationToken
-        );
-        if (authorizationFailure is not null)
-        {
-            return authorizationFailure;
-        }
-
-        await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
-
-        var connection = await FindConnectionAsync(
-            httpContext,
-            storeManager,
-            connectionId,
-            cancellationToken
-        );
-        if (connection is null)
-        {
-            return ManagementProblems.ResourceNotFound();
-        }
-
-        return await ProcessListAsync(
+        return await ProcessListOrNotFoundAsync(
             httpContext,
             tenantResource,
             async () =>
             {
+                await using var storeManager = await StoreManagerFactory.CreateAsync(
+                    cancellationToken
+                );
+
+                var connection = await FindConnectionAsync(
+                    storeManager,
+                    connectionId,
+                    cancellationToken
+                );
+                if (connection is null)
+                {
+                    return null;
+                }
+
                 var store = LocalAccountStoreCatalog.GetStore(storeManager, connection);
                 var pageRequest = new PageRequest { Cursor = cursor, Limit = effectiveLimit };
                 var page = await store.GetPageAsync(
@@ -1350,32 +1337,25 @@ internal class LocalAccountApiEndpointHandler(
     }
 
     /// <summary>
-    /// Loads the connection that a route names, or the control-plane tenant's default connection when the route names
-    /// none, as the platform routes do.
+    /// Loads the connection that a route names, or the control-plane tenant's default connection, read from the stored
+    /// tenant and team documents, when the route names none, as the platform routes do.
     /// </summary>
     /// <returns>The local connection, or <see langword="null"/> when the connection is missing or its strategy is not
     /// local.</returns>
-    private static async ValueTask<PersistedConnection?> FindConnectionAsync(
-        HttpContext httpContext,
+    private async ValueTask<PersistedConnection?> FindConnectionAsync(
         IStoreManager storeManager,
         string? connectionId,
         CancellationToken cancellationToken
     )
     {
-        var connectionStore = storeManager.GetStore<IConnectionStore>();
-
         PersistedConnection? connection;
         if (connectionId is null)
         {
-            var settings = httpContext.GetOpenIdContext().Tenant.SettingsProvider.Collection;
-            var defaultName = settings.GetValue(OpenIdSettingKeys.DefaultConnection);
-            connection = await connectionStore.GetByNameOrDefaultAsync(
-                defaultName,
-                cancellationToken
-            );
+            connection = await DefaultConnectionReader.FindAsync(storeManager, cancellationToken);
         }
         else
         {
+            var connectionStore = storeManager.GetStore<IConnectionStore>();
             connection = await connectionStore.GetOrDefaultAsync(connectionId, cancellationToken);
         }
 
