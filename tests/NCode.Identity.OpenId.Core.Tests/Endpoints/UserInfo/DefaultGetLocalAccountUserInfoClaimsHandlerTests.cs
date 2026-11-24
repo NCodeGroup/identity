@@ -433,15 +433,10 @@ public class DefaultGetLocalAccountUserInfoClaimsHandlerTests : BaseTests
         var first = LocalIdentity();
         var second = OtherLocalIdentity();
         SetupIdentities(claimedFirst ? [second, first] : [first, second]);
-        SetupConnection(LocalAccountStoreSetup.ConnectionId);
-
         SetupConnection(OtherConnectionId);
         MockLocalAccountStore
             .Setup(x => x.GetByIdOrDefaultAsync(OtherLocalAccountId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(OtherAccount());
-        MockLocalAccountStore
-            .Setup(x => x.GetByIdOrDefaultAsync(LocalAccountId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Account("user@localhost", emailVerified: false));
 
         var claims = new Dictionary<string, object>();
         var command = CreateCommandCore(
