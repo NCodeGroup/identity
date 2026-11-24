@@ -59,6 +59,9 @@ NCode.Identity.OpenId.Accounts.DataContracts.PersistedLocalAccountClaim.Value.ge
 NCode.Identity.OpenId.Accounts.DataContracts.PersistedLocalAccountClaim.Value.init -> void
 NCode.Identity.OpenId.Accounts.LocalAccountLibrary
 NCode.Identity.OpenId.Accounts.LocalAccountLibrary.LocalAccountLibrary() -> void
+NCode.Identity.OpenId.Accounts.Stores.DefaultRegistration
+NCode.Identity.OpenId.Accounts.Stores.DefaultRegistration.extension(NCode.Identity.Registration.IServiceBuilder<NCode.Identity.Persistence.StoreManagerLibrary>!)
+NCode.Identity.OpenId.Accounts.Stores.DefaultRegistration.extension(NCode.Identity.Registration.IServiceBuilder<NCode.Identity.Persistence.StoreManagerLibrary>!).AddLocalAccountStore(System.Func<System.IServiceProvider!, NCode.Identity.OpenId.Accounts.Stores.LocalAccountStoreRegistration!>! factory) -> NCode.Identity.Registration.IServiceBuilder<NCode.Identity.OpenId.Accounts.LocalAccountLibrary>!
 NCode.Identity.OpenId.Accounts.Stores.ILocalAccountStore
 NCode.Identity.OpenId.Accounts.Stores.ILocalAccountStore.AddAsync(NCode.Identity.OpenId.Accounts.DataContracts.PersistedLocalAccount! account, System.ReadOnlyMemory<byte>? password, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 NCode.Identity.OpenId.Accounts.Stores.ILocalAccountStore.GetByEmailOrDefaultAsync(string! connectionId, string! email, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.Accounts.DataContracts.PersistedLocalAccount?>
@@ -162,15 +165,6 @@ NCode.Identity.OpenId.Accounts.Stores.LocalAccountStoreRegistration.CreateTransf
 NCode.Identity.OpenId.Accounts.Stores.LocalAccountStoreRegistration.LocalAccountStoreRegistration() -> void
 NCode.Identity.OpenId.Accounts.Stores.LocalAccountStoreRegistration.Name.get -> string!
 NCode.Identity.OpenId.Accounts.Stores.LocalAccountStoreRegistration.Name.init -> void
-NCode.Identity.OpenId.Accounts.Stores.LocalAccountStoreRegistrationExtensions
-NCode.Identity.OpenId.Accounts.Stores.LocalAccountStoreRegistrationExtensions.extension(NCode.Identity.Registration.IServiceBuilder<NCode.Identity.Persistence.StoreManagerLibrary>!)
-NCode.Identity.OpenId.Accounts.Stores.LocalAccountStoreRegistrationExtensions.extension(NCode.Identity.Registration.IServiceBuilder<NCode.Identity.Persistence.StoreManagerLibrary>!).AddLocalAccountStore(System.Func<System.IServiceProvider!, NCode.Identity.OpenId.Accounts.Stores.LocalAccountStoreRegistration!>! factory) -> NCode.Identity.Registration.IServiceBuilder<NCode.Identity.OpenId.Accounts.LocalAccountLibrary>!
-NCode.Identity.OpenId.Accounts.Stores.LocalConnectionStrategy
-NCode.Identity.OpenId.Accounts.Stores.LocalConnectionStrategy.LocalConnectionStrategy(NCode.Identity.OpenId.Accounts.Stores.LocalAccountStoreCatalog! catalog) -> void
-NCode.Identity.OpenId.Accounts.Stores.LocalConnectionStrategy.Name.get -> string!
-NCode.Identity.OpenId.Accounts.Stores.LocalConnectionStrategy.SignInMethod.get -> string!
-NCode.Identity.OpenId.Accounts.Stores.LocalConnectionStrategy.ValidateOptions(System.Text.Json.JsonElement options) -> string?
-NCode.Identity.OpenId.Accounts.Stores.LocalConnectionStrategy.ValidateOptionsChange(System.Text.Json.JsonElement current, System.Text.Json.JsonElement proposed) -> string?
 NCode.Identity.OpenId.Accounts.Stores.LocalAccountAttemptKeys
 static NCode.Identity.OpenId.Accounts.Stores.LocalAccountAttemptKeys.ForAccount(string! localAccountId) -> string!
 static NCode.Identity.OpenId.Accounts.Stores.LocalAccountAttemptKeys.ForIdentifier(string! submitted) -> string!

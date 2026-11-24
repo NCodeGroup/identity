@@ -15,7 +15,7 @@ namespace NCode.Identity.OpenId.Accounts.Stores;
 /// Provides extension methods for <see cref="IServiceBuilder{TMarker}"/> to register named local-account stores.
 /// </summary>
 [PublicAPI]
-public static class LocalAccountStoreRegistrationExtensions
+public static class DefaultRegistration
 {
     /// <param name="builder">The builder that proves a store-manager persistence framework is registered.</param>
     extension(IServiceBuilder<StoreManagerLibrary> builder)

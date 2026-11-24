@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using System.Text.Json;
-using JetBrains.Annotations;
 using NCode.Identity.OpenId.Connections;
 
 namespace NCode.Identity.OpenId.Accounts.Stores;
@@ -11,8 +10,8 @@ namespace NCode.Identity.OpenId.Accounts.Stores;
 /// The <c>local</c> connection strategy: a connection whose end users are the accounts of a named local-account store.
 /// </summary>
 // See ADR-1535 and ADR-1051.
-[PublicAPI]
-public sealed class LocalConnectionStrategy(LocalAccountStoreCatalog catalog) : IConnectionStrategy
+internal sealed class LocalConnectionStrategy(LocalAccountStoreCatalog catalog)
+    : IConnectionStrategy
 {
     private const string StoreProperty = "store";
 
