@@ -108,9 +108,9 @@ internal sealed class LocalAccountInteractiveCredentialVerifier(
             username
         );
 
-        // The store asks the gate once, with the account key it holds, between its lookup and its verification. The gate
-        // refuses a result that a store verified after a refusal and fails a store that never asked, so no store lifts
-        // the limit. See ADR-1237.
+        // The store asks the gate once, with the account key it holds, between its lookup and its verification. The
+        // gate refuses a result that a store verified after a refusal and fails a store that never asked, so no store
+        // lifts the limit. See ADR-1237.
         var gate = new PasswordAttemptGate(PasswordAttemptLimiter, openIdContext, connection);
         var storedResult = await store.VerifyCredentialAsync(
             identifier,

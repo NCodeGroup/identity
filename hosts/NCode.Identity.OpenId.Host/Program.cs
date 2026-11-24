@@ -143,9 +143,10 @@ var entityFrameworkPersistence =
     serviceCollection.AddEntityFrameworkCorePersistence<OpenIdDbContext>();
 
 // Opt in to the generic Entity Framework local-account reference store (the server-owned credential, profile, and
-// status payload behind connections of the `local` strategy). A host that fronts its own user store would register a different
-// ILocalAccountStore instead (for example, the ASP.NET Core Identity adapter). The store slice requires the persistence
-// framework's builder as its receiver, and returns the compile-time proof the account capabilities require (ADR-1069).
+// status payload behind connections of the `local` strategy). A host that fronts its own user store would register a
+// different ILocalAccountStore instead (for example, the ASP.NET Core Identity adapter). The store slice requires the
+// persistence framework's builder as its receiver, and returns the compile-time proof the account capabilities require
+// (ADR-1069).
 var localAccountStore = entityFrameworkPersistence.AddLocalAccountEntityFramework();
 
 // The local-account store hashes and verifies passwords with the IPasswordHasher the host registers.
