@@ -400,6 +400,42 @@ public sealed class ConnectionApiEndpointHandlerTests : IDisposable
     }
 
     [Fact]
+    public async Task CreateAsync_WhenTheSettingsAreNotAJsonObject_ReturnsBadRequestWithoutStoring()
+    {
+        SetupAuthorization(AuthorizationResult.Success());
+        SetupStore();
+        CryptoService.ResourceIds.Enqueue(NewConnectionId);
+        MockSettingSerializer
+            .Setup(x =>
+                x.ValidateSettings(
+                    It.Is<JsonElement>(settings => settings.ValueKind == JsonValueKind.Array),
+                    OpenIdSettingScopes.Connection,
+                    It.IsAny<JsonSerializerOptions>()
+                )
+            )
+            .Returns([new SettingError("settings", "The settings must be a JSON object.")])
+            .Verifiable();
+        var request = new CreateConnectionRequest
+        {
+            Name = "corp",
+            DisplayName = "Corporate",
+            Strategy = ConnectionStrategyNames.Local,
+            Settings = JsonSerializer.SerializeToElement(new[] { 1, 2 }),
+        };
+
+        // Strict mocks: no AddAsync setup, so a write would fail the test.
+        var result = await Handler.CreateAsync(
+            CreateHttpContext(),
+            TenantId,
+            request,
+            CancellationToken.None
+        );
+
+        var problem = Assert.IsType<ValidationProblem>(result);
+        Assert.Equal(StatusCodes.Status400BadRequest, problem.StatusCode);
+    }
+
+    [Fact]
     public async Task CreateAsync_WhenValid_StoresAuditsAndReturnsCreated()
     {
         SetupAuthorization(AuthorizationResult.Success());

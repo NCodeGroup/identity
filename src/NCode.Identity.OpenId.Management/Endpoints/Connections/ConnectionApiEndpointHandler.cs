@@ -284,7 +284,7 @@ internal class ConnectionApiEndpointHandler(
         // honored is rejected here rather than stored and failed when the connection's settings are next loaded. It is
         // checked before the name's availability, so a taken name never masks a 400.
         var settingErrors = SettingSerializer.ValidateSettings(
-            settingsElement,
+            requestedSettings,
             OpenIdSettingScopes.Connection,
             openIdContext.Environment.JsonSerializerOptions
         );
