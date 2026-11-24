@@ -280,18 +280,9 @@ internal class ConnectionApiEndpointHandler(
             },
         };
 
-        var error = await ConnectionValidator.ValidateCreateAsync(
-            connection,
-            storeManager,
-            cancellationToken
-        );
-        if (error is not null)
-        {
-            return ToErrorResult(error);
-        }
-
         // A connection carries only the settings that apply within it (ADR-1149): a settings document that cannot be
-        // honored is rejected here rather than stored and failed when the connection's settings are next loaded.
+        // honored is rejected here rather than stored and failed when the connection's settings are next loaded. It is
+        // checked before the name's availability, so a taken name never masks a 400.
         var settingErrors = SettingSerializer.ValidateSettings(
             settingsElement,
             OpenIdSettingScopes.Connection,
@@ -300,6 +291,16 @@ internal class ConnectionApiEndpointHandler(
         if (settingErrors.Count > 0)
         {
             return SettingsValidationProblem(settingErrors);
+        }
+
+        var error = await ConnectionValidator.ValidateCreateAsync(
+            connection,
+            storeManager,
+            cancellationToken
+        );
+        if (error is not null)
+        {
+            return ToErrorResult(error);
         }
 
         await store.AddAsync(connection, cancellationToken);

@@ -4,7 +4,6 @@
 using System.Text.Json;
 using Microsoft.AspNetCore.Http;
 using NCode.Identity.OpenId.Connections;
-using NCode.Identity.OpenId.Persistence;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
 using NCode.Identity.Persistence.Stores;
@@ -24,11 +23,16 @@ internal sealed class DefaultConnectionValidator(IConnectionStrategyCatalog stra
         CancellationToken cancellationToken
     )
     {
-        if (!ConnectionNameRules.IsValid(connection.Name))
+        var nameError = ConnectionContentRules.GetNameErrorOrDefault(connection.Name);
+        if (nameError is not null)
         {
-            return BadRequest(
-                $"The connection name must be 1 to {ConnectionNameRules.MaxLength} ASCII letters, digits, '-' or '_', starting with a letter or digit."
-            );
+            return BadRequest(nameError);
+        }
+
+        var contentError = ValidateContent(connection);
+        if (contentError is not null)
+        {
+            return contentError;
         }
 
         var store = storeManager.GetStore<IConnectionStore>();
@@ -42,7 +46,7 @@ internal sealed class DefaultConnectionValidator(IConnectionStrategyCatalog stra
             };
         }
 
-        return ValidateContent(connection);
+        return null;
     }
 
     /// <inheritdoc />
@@ -90,19 +94,10 @@ internal sealed class DefaultConnectionValidator(IConnectionStrategyCatalog stra
             return BadRequest(optionsError);
         }
 
-        var displayName = connection.DisplayName;
-        if (
-            string.IsNullOrWhiteSpace(displayName)
-            || displayName.Length > OpenIdMaxLengths.DisplayName
-            || displayName.Any(char.IsControl)
-        )
-        {
-            return BadRequest(
-                $"The display name must not be empty, longer than {OpenIdMaxLengths.DisplayName} characters or contain a control character."
-            );
-        }
-
-        return null;
+        var displayNameError = ConnectionContentRules.GetDisplayNameErrorOrDefault(
+            connection.DisplayName
+        );
+        return displayNameError is null ? null : BadRequest(displayNameError);
     }
 
     private static ManagementError BadRequest(string detail) =>

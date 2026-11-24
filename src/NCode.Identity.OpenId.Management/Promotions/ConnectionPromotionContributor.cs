@@ -8,6 +8,7 @@ using NCode.Identity.OpenId.Connections;
 using NCode.Identity.OpenId.Management.Auditing;
 using NCode.Identity.OpenId.Management.Contracts.Connections;
 using NCode.Identity.OpenId.Management.Contracts.Tenants;
+using NCode.Identity.OpenId.Management.Endpoints.Connections;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
 using NCode.Identity.OpenId.Settings;
@@ -239,6 +240,7 @@ internal class ConnectionPromotionContributor(
     {
         var store = context.StoreManager.GetStore<IConnectionStore>();
         var computation = new ConnectionPromotionComputation();
+        var seenNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var source in context.Source.Connections)
         {
@@ -247,6 +249,7 @@ internal class ConnectionPromotionContributor(
             var target = await store.GetByNameOrDefaultAsync(source.Name, cancellationToken);
 
             var errors = new List<string>();
+            AddContentErrors(source, seenNames, errors);
             AddStrategyErrors(source, target, errors);
 
             var environmentSettings = context.GetEnvironmentSettingsOrDefault(
@@ -307,6 +310,34 @@ internal class ConnectionPromotionContributor(
         }
 
         return computation;
+    }
+
+    private static void AddContentErrors(
+        TenantConfigurationConnection source,
+        HashSet<string> seenNames,
+        List<string> errors
+    )
+    {
+        var nameError = ConnectionContentRules.GetNameErrorOrDefault(source.Name);
+        if (nameError is not null)
+        {
+            errors.Add($"The connection '{source.Name}' is invalid: {nameError}");
+        }
+
+        var displayNameError = ConnectionContentRules.GetDisplayNameErrorOrDefault(
+            source.DisplayName
+        );
+        if (displayNameError is not null)
+        {
+            errors.Add($"The connection '{source.Name}' is invalid: {displayNameError}");
+        }
+
+        if (!seenNames.Add(source.Name))
+        {
+            errors.Add(
+                $"The source tenant lists the connection name '{source.Name}' more than once, and a name is unique within a tenant."
+            );
+        }
     }
 
     private void AddStrategyErrors(

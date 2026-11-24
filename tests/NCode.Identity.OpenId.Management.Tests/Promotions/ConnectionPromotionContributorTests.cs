@@ -427,6 +427,61 @@ public sealed class ConnectionPromotionContributorTests : IDisposable
         Assert.Contains("The store cannot change.", error.Detail);
     }
 
+    [Theory]
+    [InlineData("-bad", "Corporate", "connection name")]
+    [InlineData("Corp", "", "display name")]
+    [InlineData("Corp", "   ", "display name")]
+    [InlineData("Corp", "bad\nname", "display name")]
+    public async Task PlanAsync_WhenTheNameOrDisplayNameBreaksItsRule_AddsAnErrorAndWritesNothing(
+        string name,
+        string displayName,
+        string expectedText
+    )
+    {
+        SetupStores();
+        SetupScopes();
+        var context = CreateContext();
+        var source = CreateSource(name: name, displayName: displayName);
+        var promoted = CreatePromotedSettings("{}");
+        SourceDocument.Connections.Add(source);
+        SetupTarget(name, null);
+        SetupStrategy();
+        SetupCompose(source, null, promoted);
+        SetupValidate(context, promoted);
+
+        await CreateContributor().PlanAsync(context, CancellationToken.None);
+
+        var error = Assert.Single(context.Errors);
+        Assert.Equal(name, error.ResourceId);
+        Assert.Contains(expectedText, error.Detail);
+        Assert.Empty(context.AuditEvents);
+    }
+
+    [Fact]
+    public async Task PlanAsync_WhenASecondConnectionRepeatsAName_AddsAnErrorNamingIt()
+    {
+        SetupStores();
+        SetupScopes();
+        var context = CreateContext();
+        var first = CreateSource(name: "Corp");
+        var second = CreateSource(name: "corp");
+        var promoted = CreatePromotedSettings("{}");
+        SourceDocument.Connections.Add(first);
+        SourceDocument.Connections.Add(second);
+        SetupTarget("Corp", null);
+        SetupTarget("corp", null);
+        SetupStrategy();
+        SetupCompose(first, null, promoted);
+        SetupValidate(context, promoted);
+
+        await CreateContributor().PlanAsync(context, CancellationToken.None);
+
+        var error = Assert.Single(context.Errors);
+        Assert.Equal("corp", error.ResourceId);
+        Assert.Contains("more than once", error.Detail);
+        Assert.Empty(context.AuditEvents);
+    }
+
     [Fact]
     public async Task PlanAsync_WhenTheSettingsHaveUnsetAndRefusedNamesAndErrors_RecordsThem()
     {

@@ -318,6 +318,7 @@ public sealed class ConnectionApiEndpointHandlerTests : IDisposable
     {
         SetupAuthorization(AuthorizationResult.Success());
         SetupStore();
+        SetupValidSettings();
         CryptoService.ResourceIds.Enqueue(NewConnectionId);
         MockValidator
             .Setup(x =>
@@ -346,6 +347,7 @@ public sealed class ConnectionApiEndpointHandlerTests : IDisposable
     {
         SetupAuthorization(AuthorizationResult.Success());
         SetupStore();
+        SetupValidSettings();
         CryptoService.ResourceIds.Enqueue(NewConnectionId);
         MockValidator
             .Setup(x =>
@@ -370,21 +372,11 @@ public sealed class ConnectionApiEndpointHandlerTests : IDisposable
     }
 
     [Fact]
-    public async Task CreateAsync_WhenTheSettingsAreInvalid_ReturnsBadRequest()
+    public async Task CreateAsync_WhenTheSettingsAreInvalidAndTheNameExists_ReturnsBadRequest()
     {
         SetupAuthorization(AuthorizationResult.Success());
         SetupStore();
         CryptoService.ResourceIds.Enqueue(NewConnectionId);
-        MockValidator
-            .Setup(x =>
-                x.ValidateCreateAsync(
-                    It.IsAny<PersistedConnection>(),
-                    MockStoreManager.Object,
-                    It.IsAny<CancellationToken>()
-                )
-            )
-            .ReturnsAsync((ManagementError?)null)
-            .Verifiable();
         MockSettingSerializer
             .Setup(x =>
                 x.ValidateSettings(

@@ -114,6 +114,7 @@ public sealed class DefaultConnectionValidatorTests : IDisposable
     public async Task ValidateCreateAsync_NameInUse_ReturnsConflict()
     {
         SetupStore(CreateConnection());
+        SetupStrategy(null);
 
         var result = await Validator.ValidateCreateAsync(
             CreateConnection(),
@@ -128,7 +129,6 @@ public sealed class DefaultConnectionValidatorTests : IDisposable
     [Fact]
     public async Task ValidateCreateAsync_UnregisteredStrategy_ReturnsBadRequest()
     {
-        SetupStore(null);
         IConnectionStrategy? missing = null;
         MockCatalog
             .Setup(x => x.TryGetStrategy("unknown", out missing))
@@ -148,7 +148,6 @@ public sealed class DefaultConnectionValidatorTests : IDisposable
     [Fact]
     public async Task ValidateCreateAsync_InvalidOptions_ReturnsStrategyError()
     {
-        SetupStore(null);
         SetupStrategy("The options are invalid.");
 
         var result = await Validator.ValidateCreateAsync(
@@ -168,7 +167,6 @@ public sealed class DefaultConnectionValidatorTests : IDisposable
     [InlineData("bad\nname")]
     public async Task ValidateCreateAsync_InvalidDisplayName_ReturnsBadRequest(string displayName)
     {
-        SetupStore(null);
         SetupStrategy(null);
 
         var result = await Validator.ValidateCreateAsync(
@@ -184,11 +182,44 @@ public sealed class DefaultConnectionValidatorTests : IDisposable
     [Fact]
     public async Task ValidateCreateAsync_DisplayNameTooLong_ReturnsBadRequest()
     {
-        SetupStore(null);
         SetupStrategy(null);
 
         var result = await Validator.ValidateCreateAsync(
             CreateConnection(displayName: new string('a', 301)),
+            MockStoreManager.Object,
+            CancellationToken.None
+        );
+
+        Assert.NotNull(result);
+        Assert.Equal(StatusCodes.Status400BadRequest, result.StatusCode);
+    }
+
+    [Fact]
+    public async Task ValidateCreateAsync_NameInUseAndUnregisteredStrategy_ReturnsBadRequest()
+    {
+        IConnectionStrategy? missing = null;
+        MockCatalog
+            .Setup(x => x.TryGetStrategy("unknown", out missing))
+            .Returns(false)
+            .Verifiable();
+
+        var result = await Validator.ValidateCreateAsync(
+            CreateConnection(strategy: "unknown"),
+            MockStoreManager.Object,
+            CancellationToken.None
+        );
+
+        Assert.NotNull(result);
+        Assert.Equal(StatusCodes.Status400BadRequest, result.StatusCode);
+    }
+
+    [Fact]
+    public async Task ValidateCreateAsync_NameInUseAndInvalidDisplayName_ReturnsBadRequest()
+    {
+        SetupStrategy(null);
+
+        var result = await Validator.ValidateCreateAsync(
+            CreateConnection(displayName: " "),
             MockStoreManager.Object,
             CancellationToken.None
         );
