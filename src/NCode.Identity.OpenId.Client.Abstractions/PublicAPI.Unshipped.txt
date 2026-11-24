@@ -104,6 +104,19 @@ NCode.Identity.OpenId.Client.IIdTokenValidator
 NCode.Identity.OpenId.Client.IIdTokenValidator.ValidateAsync(NCode.Identity.OpenId.Client.ClientRegistration! registration, NCode.Identity.OpenId.Client.IdTokenValidationRequest! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.Client.IdTokenValidationResult!>
 NCode.Identity.OpenId.Client.IIssuerAccessTokenValidator
 NCode.Identity.OpenId.Client.IIssuerAccessTokenValidator.ValidateAsync(string! issuer, string! audience, string! token, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.Client.IssuerAccessTokenResult!>
+NCode.Identity.OpenId.Client.IIssuerAccessTokenValidator.ValidateAsync(NCode.Identity.OpenId.Client.IssuerAccessTokenValidationRequest! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.Client.IssuerAccessTokenResult!>
+NCode.Identity.OpenId.Client.IssuerAccessTokenValidationRequest
+NCode.Identity.OpenId.Client.IssuerAccessTokenValidationRequest.Audience.get -> string!
+NCode.Identity.OpenId.Client.IssuerAccessTokenValidationRequest.Audience.init -> void
+NCode.Identity.OpenId.Client.IssuerAccessTokenValidationRequest.Issuer.get -> string!
+NCode.Identity.OpenId.Client.IssuerAccessTokenValidationRequest.Issuer.init -> void
+NCode.Identity.OpenId.Client.IssuerAccessTokenValidationRequest.IssuerAccessTokenValidationRequest() -> void
+NCode.Identity.OpenId.Client.IssuerAccessTokenValidationRequest.SigningKeys.get -> NCode.Identity.Secrets.Collections.ISecretKeyCollection?
+NCode.Identity.OpenId.Client.IssuerAccessTokenValidationRequest.SigningKeys.init -> void
+NCode.Identity.OpenId.Client.IssuerAccessTokenValidationRequest.Token.get -> string!
+NCode.Identity.OpenId.Client.IssuerAccessTokenValidationRequest.Token.init -> void
+NCode.Identity.OpenId.Client.IssuerAccessTokenValidationRequest.TokenType.get -> string!
+NCode.Identity.OpenId.Client.IssuerAccessTokenValidationRequest.TokenType.init -> void
 NCode.Identity.OpenId.Client.ILogoutTokenValidator
 NCode.Identity.OpenId.Client.ILogoutTokenValidator.ValidateAsync(NCode.Identity.OpenId.Client.ClientRegistration! registration, NCode.Identity.OpenId.Client.LogoutTokenValidationRequest! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.Client.LogoutTokenValidationResult!>
 NCode.Identity.OpenId.Client.ILogoutTokenValidator.TryRecordHandledAsync(NCode.Identity.OpenId.Client.ClientRegistration! registration, NCode.Identity.OpenId.Client.LogoutTokenValidationResult! result, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<bool>

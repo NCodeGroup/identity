@@ -5,6 +5,7 @@ using System.Runtime.ExceptionServices;
 using System.Text.Json;
 using NCode.Identity.Jose;
 using NCode.Identity.Jose.Algorithms;
+using NCode.Identity.Secrets.Collections;
 using NCode.Identity.Secrets.Keys;
 
 namespace NCode.Identity.OpenId.Client.Tokens;
@@ -81,6 +82,28 @@ internal static class ProviderSignaturePolicy
 
         keys = await keySetResolver.RefreshSigningKeysAsync(authority, cancellationToken);
         return keys.TryGetByKeyId(kid, out key) ? [key] : [];
+    }
+
+    /// <summary>
+    /// Selects the signing keys of a token from the given keys by <c>kid</c>, or all of them when the token names none.
+    /// </summary>
+    public static ValueTask<IEnumerable<SecretKey>> ResolveGivenKeysAsync(
+        ISecretKeyCollection keys,
+        JoseToken token,
+        CancellationToken cancellationToken
+    )
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        if (
+            !token.Header.TryGetProperty(JoseClaimNames.Header.Kid, out var kidElement)
+            || kidElement.ValueKind != JsonValueKind.String
+            || kidElement.GetString() is not { Length: > 0 } kid
+        )
+            return ValueTask.FromResult<IEnumerable<SecretKey>>(keys);
+
+        IEnumerable<SecretKey> selected = keys.TryGetByKeyId(kid, out var key) ? [key] : [];
+        return ValueTask.FromResult(selected);
     }
 
     /// <summary>

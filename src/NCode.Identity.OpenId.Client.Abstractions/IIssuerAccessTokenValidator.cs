@@ -31,4 +31,16 @@ public interface IIssuerAccessTokenValidator
         string token,
         CancellationToken cancellationToken
     );
+
+    /// <summary>
+    /// Validates an access token as the request describes it. When
+    /// <see cref="IssuerAccessTokenValidationRequest.SigningKeys"/> is set, the validator never reads the issuer's
+    /// discovery document or key set and resolves the signing key from those keys by <c>kid</c>.
+    /// </summary>
+    /// <param name="request">The access token to validate.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to observe.</param>
+    ValueTask<IssuerAccessTokenResult> ValidateAsync(
+        IssuerAccessTokenValidationRequest request,
+        CancellationToken cancellationToken
+    );
 }

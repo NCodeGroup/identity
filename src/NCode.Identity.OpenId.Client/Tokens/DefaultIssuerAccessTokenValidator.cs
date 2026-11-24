@@ -1,7 +1,6 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
-using NCode.Identity.Jose;
 using NCode.Identity.Jose.Algorithms;
 using NCode.Identity.Jwt.Validation;
 
@@ -36,7 +35,7 @@ internal class DefaultIssuerAccessTokenValidator(
     private IJwtValidator JwtValidator { get; } = jwtValidator;
 
     /// <inheritdoc />
-    public async ValueTask<IssuerAccessTokenResult> ValidateAsync(
+    public ValueTask<IssuerAccessTokenResult> ValidateAsync(
         string issuer,
         string audience,
         string token,
@@ -46,17 +45,43 @@ internal class DefaultIssuerAccessTokenValidator(
         ArgumentException.ThrowIfNullOrEmpty(issuer);
         ArgumentException.ThrowIfNullOrEmpty(audience);
 
+        var request = new IssuerAccessTokenValidationRequest
+        {
+            Issuer = issuer,
+            Audience = audience,
+            Token = token,
+        };
+        return ValidateAsync(request, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public async ValueTask<IssuerAccessTokenResult> ValidateAsync(
+        IssuerAccessTokenValidationRequest request,
+        CancellationToken cancellationToken
+    )
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        var issuer = request.Issuer;
+        var audience = request.Audience;
+        var token = request.Token;
+        var signingKeys = request.SigningKeys;
+        ArgumentException.ThrowIfNullOrEmpty(issuer);
+        ArgumentException.ThrowIfNullOrEmpty(audience);
+
         if (string.IsNullOrEmpty(token))
             return Fail(TokenValidationFailureCodes.InvalidToken, "The access token is empty.");
 
         try
         {
-            var metadata = await MetadataResolver.GetMetadataAsync(issuer, cancellationToken);
-            if (!string.Equals(metadata.Issuer, issuer, StringComparison.Ordinal))
-                return Fail(
-                    TokenValidationFailureCodes.InvalidIssuer,
-                    "The issuer of the discovery document is not the expected issuer."
-                );
+            if (signingKeys is null)
+            {
+                var metadata = await MetadataResolver.GetMetadataAsync(issuer, cancellationToken);
+                if (!string.Equals(metadata.Issuer, issuer, StringComparison.Ordinal))
+                    return Fail(
+                        TokenValidationFailureCodes.InvalidIssuer,
+                        "The issuer of the discovery document is not the expected issuer."
+                    );
+            }
 
             var algorithms = ProviderSignaturePolicy.GetPermittedAlgorithms(
                 AlgorithmCollectionProvider.Collection,
@@ -77,9 +102,11 @@ internal class DefaultIssuerAccessTokenValidator(
                 ValidContentEncryptionAlgorithms = [],
                 ValidCompressionAlgorithms = [],
                 ResolveValidationKeysAsync = (jose, _, _, ct) =>
-                    ProviderSignaturePolicy.ResolveKeysAsync(KeySetResolver, issuer, jose, ct),
+                    signingKeys is null
+                        ? ProviderSignaturePolicy.ResolveKeysAsync(KeySetResolver, issuer, jose, ct)
+                        : ProviderSignaturePolicy.ResolveGivenKeysAsync(signingKeys, jose, ct),
             }
-                .ValidateTokenType(JoseTokenTypes.AccessTokenJwt)
+                .ValidateTokenType(request.TokenType)
                 .ValidateIssuer(issuer)
                 .ValidateAudience(audience)
                 .ValidateTokenLifeTime();
