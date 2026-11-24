@@ -1125,9 +1125,9 @@ const NCode.Identity.OpenId.Connections.LocalAccountIdentifiers.UserName = "user
 NCode.Identity.OpenId.Connections.LocalAccountStoreNames
 const NCode.Identity.OpenId.Connections.LocalAccountStoreNames.Default = "default" -> string!
 NCode.Identity.OpenId.Connections.LocalConnectionOptions
-NCode.Identity.OpenId.Connections.LocalConnectionOptions.LocalConnectionOptions() -> void
 NCode.Identity.OpenId.Connections.LocalConnectionOptions.ExtensionData.get -> System.Collections.Generic.Dictionary<string!, System.Text.Json.JsonElement>?
 NCode.Identity.OpenId.Connections.LocalConnectionOptions.ExtensionData.set -> void
+NCode.Identity.OpenId.Connections.LocalConnectionOptions.LocalConnectionOptions() -> void
 NCode.Identity.OpenId.Connections.LocalConnectionOptions.Store.get -> string!
 NCode.Identity.OpenId.Connections.LocalConnectionOptions.Store.init -> void
 const NCode.Identity.OpenId.Settings.OpenIdSettingScopes.Connection = "connection" -> string!
