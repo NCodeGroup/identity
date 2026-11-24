@@ -7,29 +7,33 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Options;
 using NCode.Identity.Jose;
 using NCode.Identity.Jose.DPoP;
+using NCode.Identity.Json;
 using NCode.Identity.OpenId.Client;
 using NCode.Identity.OpenId.Management.ControlPlane;
+using NCode.Identity.Secrets.Collections;
 using NCode.Identity.SharedState;
 
 namespace NCode.Identity.OpenId.GlobalDirectory.ControlPlane;
 
 /// <summary>
-/// Validates a bearer or DPoP access token for the management audience against the control-plane cell's issuer, so a
-/// cell that is not the control plane authenticates a caller without a local lookup. The token is validated through the
-/// issuer's discovery document and signing keys. A token bound to a key by <c>cnf.jkt</c> must come with one DPoP proof
-/// for the request, made with that key, whose <c>jti</c> has not been used before (RFC 9449). The principal is built
-/// from the token's claims. An issuer that cannot be reached answers unavailable, and nothing else does.
+/// Validates a DPoP-bound access token for the management audience against the management keys that the cell holds in
+/// its replica, so a cell that is not the control plane authenticates a caller without a local lookup and without
+/// calling the control plane. The token is verified with the replicated keys, never through a discovery document or key
+/// set. A token must be sent under the DPoP scheme, must be bound to a key by <c>cnf.jkt</c> and must come with one DPoP
+/// proof for the request, made with that key, whose <c>jti</c> has not been used before (RFC 9449). The principal is
+/// built from the token's claims. A replica that holds no key answers unavailable, and nothing else does.
 /// </summary>
-internal sealed class RemoteManagementTokenValidator(
+internal sealed class ReplicatedManagementTokenValidator(
     IIssuerAccessTokenValidator accessTokenValidator,
+    IControlPlaneReplica replica,
+    ISecretKeyCollectionFactory keyCollectionFactory,
     IDPoPProofService proofService,
     IExpiringKeySet replayKeys,
     IOptions<CellOptions> cellOptions
 ) : IManagementTokenValidator
 {
-    private const string BearerPrefix = "Bearer ";
     private const string DPoPPrefix = "DPoP ";
-    private const string AuthenticationType = "ControlPlaneBearer";
+    private const string AuthenticationType = "ControlPlaneDPoP";
     private const string ConfirmationKeyThumbprint = "jkt";
 
     /// <summary>
@@ -118,34 +122,59 @@ internal sealed class RemoteManagementTokenValidator(
     }
 
     /// <summary>
-    /// Reads the access token from the <c>Authorization</c> header of a request, under either the Bearer scheme or the
-    /// DPoP scheme.
+    /// Reads the access token from the <c>Authorization</c> header of a request, which must use the DPoP scheme
+    /// (RFC 9449 section 7.1).
     /// </summary>
     /// <param name="httpContext">The <see cref="HttpContext"/> of the request.</param>
     /// <param name="token">The access token, or an empty string when the header carries none.</param>
-    /// <param name="isDPoP"><c>true</c> when the token is sent under the DPoP scheme; otherwise, <c>false</c>.</param>
-    /// <returns><c>true</c> when the header carries a non-empty token; otherwise, <c>false</c>.</returns>
-    private static bool TryGetToken(HttpContext httpContext, out string token, out bool isDPoP)
+    /// <returns><c>true</c> when the header carries a non-empty DPoP token; otherwise, <c>false</c>.</returns>
+    private static bool TryGetToken(HttpContext httpContext, out string token)
     {
         var authorization = httpContext.Request.Headers.Authorization.ToString();
 
-        // Accept both the Bearer scheme and the DPoP scheme (RFC 9449 §7.1).
-        foreach (var prefix in (ReadOnlySpan<string>)[BearerPrefix, DPoPPrefix])
+        if (authorization.StartsWith(DPoPPrefix, StringComparison.OrdinalIgnoreCase))
         {
-            if (authorization.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
-            {
-                token = authorization[prefix.Length..].Trim();
-                isDPoP = string.Equals(prefix, DPoPPrefix, StringComparison.Ordinal);
-                return token.Length > 0;
-            }
+            token = authorization[DPoPPrefix.Length..].Trim();
+            return token.Length > 0;
         }
 
         token = string.Empty;
-        isDPoP = false;
         return false;
     }
 
+    /// <summary>
+    /// Reads the <c>kid</c> of the header of a compact JWT.
+    /// </summary>
+    /// <param name="token">The compact JWT.</param>
+    /// <returns>The key identifier, or <c>null</c> when the header carries none or cannot be read.</returns>
+    private static string? GetKeyId(string token)
+    {
+        var separator = token.IndexOf('.');
+        if (separator <= 0)
+            return null;
+
+        try
+        {
+            var encoded = token[..separator];
+            var bytes = StrictBase64Url.Decode(encoded);
+            var header = JsonElement.Parse(bytes);
+            return header.ValueKind == JsonValueKind.Object
+                ? GetString(header, JoseClaimNames.Header.Kid)
+                : null;
+        }
+        catch (FormatException)
+        {
+            return null;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
     private IIssuerAccessTokenValidator AccessTokenValidator { get; } = accessTokenValidator;
+    private IControlPlaneReplica Replica { get; } = replica;
+    private ISecretKeyCollectionFactory KeyCollectionFactory { get; } = keyCollectionFactory;
     private IDPoPProofService ProofService { get; } = proofService;
     private IExpiringKeySet ReplayKeys { get; } = replayKeys;
     private CellOptions CellOptions { get; } = cellOptions.Value;
@@ -157,19 +186,11 @@ internal sealed class RemoteManagementTokenValidator(
     )
     {
         var issuer = CellOptions.ControlPlane.Issuer;
-        if (
-            string.IsNullOrEmpty(issuer) || !TryGetToken(httpContext, out var token, out var isDPoP)
-        )
+        if (string.IsNullOrEmpty(issuer) || !TryGetToken(httpContext, out var token))
             return ManagementTokenValidation.Unauthenticated;
 
-        var result = await AccessTokenValidator.ValidateAsync(
-            issuer,
-            OpenIdConstants.SystemResourceServerIdentifiers.Management,
-            token,
-            cancellationToken
-        );
-
-        if (result.IsUnavailable)
+        var managementKeys = await Replica.GetManagementKeysAsync(cancellationToken);
+        if (!managementKeys.HasKeys)
         {
             var retryAfter = TimeSpan.FromSeconds(
                 GlobalDirectoryProtocol.UnavailableRetryAfterSeconds
@@ -177,20 +198,29 @@ internal sealed class RemoteManagementTokenValidator(
             return ManagementTokenValidation.Unavailable(retryAfter);
         }
 
+        var keyId = GetKeyId(token);
+        if (keyId is not null && managementKeys.RevokedKeyIds.Contains(keyId))
+            return ManagementTokenValidation.Unauthenticated;
+
+        var signingKeys = KeyCollectionFactory.Create(managementKeys.Keys);
+        var validationRequest = new IssuerAccessTokenValidationRequest
+        {
+            Issuer = issuer,
+            Audience = OpenIdConstants.SystemResourceServerIdentifiers.Management,
+            Token = token,
+            SigningKeys = signingKeys,
+        };
+
+        var result = await AccessTokenValidator.ValidateAsync(validationRequest, cancellationToken);
         if (!result.IsValid || result.Payload.ValueKind != JsonValueKind.Object)
             return ManagementTokenValidation.Unauthenticated;
 
+        // A token without a key binding is a bearer token, which a management request never carries.
         var payload = result.Payload;
         var thumbprint = GetConfirmationThumbprint(payload);
-
-        // A token without a key binding is a bearer token, which the DPoP scheme must not carry (RFC 9449 §7.1).
-        if (thumbprint is null)
-        {
-            if (isDPoP)
-                return ManagementTokenValidation.Unauthenticated;
-        }
-        else if (
-            !isDPoP || !await IsProofValidAsync(httpContext, token, thumbprint, cancellationToken)
+        if (
+            thumbprint is null
+            || !await IsProofValidAsync(httpContext, token, thumbprint, cancellationToken)
         )
         {
             return ManagementTokenValidation.Unauthenticated;

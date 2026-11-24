@@ -83,7 +83,7 @@ public class DefaultRegistrationTests : BaseTests
 
         Assert.True(IsRegistered<ITenantDirectory, RemoteTenantDirectory>(serviceCollection));
         Assert.True(
-            IsRegisteredKeyed<IManagementTokenValidator, RemoteManagementTokenValidator>(
+            IsRegisteredKeyed<IManagementTokenValidator, ReplicatedManagementTokenValidator>(
                 serviceCollection,
                 ControlPlaneServiceKeys.Remote
             )

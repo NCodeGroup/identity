@@ -40,7 +40,7 @@ public static class DefaultRegistration
         /// cell publishes its outbox of replicated documents to the directory every
         /// <see cref="DirectoryClientOptions.PublishInterval"/> and when a commit wakes it. A cell that is not the control plane
         /// (<see cref="CellOptions.IsControlPlane"/> is <c>false</c>) uses the <see cref="IManagementTokenValidator"/>
-        /// that validates management tokens against <c>Cell:ControlPlane:Issuer</c> and the
+        /// that validates management tokens against the management keys that its replica holds and the
         /// <see cref="IControlPlaneAuthority"/> that asks the control-plane cell's <c>control-plane/v1/authority</c>
         /// endpoint for the roles of a caller, with a token for the audience <c>urn:ncode:control-plane</c> from the
         /// same <see cref="ICellTokenSource"/>. This registration adds both as keyed singletons under
@@ -114,7 +114,7 @@ public static class DefaultRegistration
             // every other cell validates management tokens against the control plane's issuer.
             serviceCollection.TryAddKeyedSingleton<
                 IManagementTokenValidator,
-                RemoteManagementTokenValidator
+                ReplicatedManagementTokenValidator
             >(ControlPlaneServiceKeys.Remote);
             serviceCollection.TryAddKeyedSingleton<
                 IControlPlaneAuthority,
