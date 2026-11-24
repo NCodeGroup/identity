@@ -68,6 +68,7 @@ public static class DefaultRegistration
                 ILocalAccountValidator,
                 DefaultLocalAccountValidator
             >();
+            serviceCollection.TryAddSingleton<StoredTenantSettingsReader>();
             serviceCollection.TryAddSingleton<LocalAccountPasswords>();
             serviceCollection.TryAddSingleton<ControlPlaneDefaultConnectionReader>();
             serviceCollection.TryAddSingleton<ILocalAccountCreator, DefaultLocalAccountCreator>();

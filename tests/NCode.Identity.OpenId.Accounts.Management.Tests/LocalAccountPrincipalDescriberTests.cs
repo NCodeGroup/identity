@@ -132,7 +132,7 @@ public sealed class LocalAccountPrincipalDescriberTests : IDisposable
             catalog,
             new ControlPlaneDefaultConnectionReader(
                 MockTenantResolver.Object,
-                MockEffectiveSettingsResolver.Object
+                new StoredTenantSettingsReader(MockEffectiveSettingsResolver.Object)
             )
         );
     }

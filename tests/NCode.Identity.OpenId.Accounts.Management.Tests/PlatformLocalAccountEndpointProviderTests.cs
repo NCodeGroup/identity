@@ -39,7 +39,8 @@ public sealed class PlatformLocalAccountEndpointProviderTests : IDisposable
         var passwordPolicy = MockRepository.Create<IPasswordPolicy>().Object;
         var localAccountPasswords = new LocalAccountPasswords(
             effectiveSettingsResolver,
-            passwordPolicy
+            passwordPolicy,
+            new StoredTenantSettingsReader(effectiveSettingsResolver)
         );
         var localAccountStoreCatalog = new LocalAccountStoreCatalog([]);
         var creator = new DefaultLocalAccountCreator(
@@ -59,7 +60,7 @@ public sealed class PlatformLocalAccountEndpointProviderTests : IDisposable
         var tenantResolver = MockRepository.Create<ITenantResolver>().Object;
         var defaultConnectionReader = new ControlPlaneDefaultConnectionReader(
             tenantResolver,
-            effectiveSettingsResolver
+            new StoredTenantSettingsReader(effectiveSettingsResolver)
         );
         var handler = new LocalAccountApiEndpointHandler(
             storeManagerFactory,

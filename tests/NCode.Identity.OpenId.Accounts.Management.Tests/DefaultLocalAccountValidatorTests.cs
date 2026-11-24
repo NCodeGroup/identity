@@ -71,7 +71,8 @@ public sealed class DefaultLocalAccountValidatorTests : IDisposable
             MockAuthorizationService.Object,
             new LocalAccountPasswords(
                 MockEffectiveSettingsResolver.Object,
-                mockPasswordPolicy.Object
+                mockPasswordPolicy.Object,
+                new StoredTenantSettingsReader(MockEffectiveSettingsResolver.Object)
             ),
             catalog
         );

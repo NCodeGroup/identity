@@ -84,7 +84,8 @@ public sealed class DefaultLocalAccountCreatorTests : IDisposable
             MockCryptoService.Object,
             new LocalAccountPasswords(
                 MockEffectiveSettingsResolver.Object,
-                MockPasswordPolicy.Object
+                MockPasswordPolicy.Object,
+                new StoredTenantSettingsReader(MockEffectiveSettingsResolver.Object)
             ),
             catalog
         );

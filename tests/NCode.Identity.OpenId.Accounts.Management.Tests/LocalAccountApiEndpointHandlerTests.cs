@@ -206,7 +206,8 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
 
         var localAccountPasswords = new LocalAccountPasswords(
             MockEffectiveSettingsResolver.Object,
-            MockPasswordPolicy.Object
+            MockPasswordPolicy.Object,
+            new StoredTenantSettingsReader(MockEffectiveSettingsResolver.Object)
         );
 
         Handler = new LocalAccountApiEndpointHandler(
@@ -229,7 +230,7 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
             localAccountStoreCatalog,
             new ControlPlaneDefaultConnectionReader(
                 MockTenantResolver.Object,
-                MockEffectiveSettingsResolver.Object
+                new StoredTenantSettingsReader(MockEffectiveSettingsResolver.Object)
             )
         );
     }

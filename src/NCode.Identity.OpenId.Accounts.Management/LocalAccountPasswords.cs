@@ -19,7 +19,8 @@ namespace NCode.Identity.OpenId.Accounts.Management;
 /// </summary>
 internal sealed class LocalAccountPasswords(
     IEffectiveSettingsResolver effectiveSettingsResolver,
-    IPasswordPolicy passwordPolicy
+    IPasswordPolicy passwordPolicy,
+    StoredTenantSettingsReader storedTenantSettingsReader
 )
 {
     /// <summary>
@@ -48,6 +49,8 @@ internal sealed class LocalAccountPasswords(
     private IEffectiveSettingsResolver EffectiveSettingsResolver { get; } =
         effectiveSettingsResolver;
     private IPasswordPolicy PasswordPolicy { get; } = passwordPolicy;
+    private StoredTenantSettingsReader StoredTenantSettingsReader { get; } =
+        storedTenantSettingsReader;
 
     /// <summary>
     /// Resolves the effective settings of a connection from the stored documents.
@@ -72,8 +75,7 @@ internal sealed class LocalAccountPasswords(
     )
     {
         var tenantId = connection.TenantId;
-        var tenantSettings = await ControlPlaneDefaultConnectionReader.ReadTenantSettingsAsync(
-            EffectiveSettingsResolver,
+        var tenantSettings = await StoredTenantSettingsReader.ReadAsync(
             storeManager,
             tenantId,
             cancellationToken
