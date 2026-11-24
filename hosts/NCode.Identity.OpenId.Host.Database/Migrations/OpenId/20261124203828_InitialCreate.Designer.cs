@@ -12,7 +12,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
 {
     [DbContext(typeof(OpenIdDbContext))]
-    [Migration("20261124005901_InitialCreate")]
+    [Migration("20261124203828_InitialCreate")]
     partial class InitialCreate
     {
         /// <inheritdoc />
@@ -810,6 +810,40 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                     b.ToTable("DirectoryFeedCheckpoint", (string)null);
                 });
 
+            modelBuilder.Entity("NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.DirectoryOutboxEntity", b =>
+                {
+                    b.Property<long>("Sequence")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Sequence"));
+
+                    b.Property<string>("ContentJson")
+                        .HasColumnType("text");
+
+                    b.Property<DateTimeOffset>("CreatedWhen")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Key")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .IsUnicode(false)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .IsUnicode(false)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<long>("Revision")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Sequence");
+
+                    b.ToTable("DirectoryOutbox", (string)null);
+                });
+
             modelBuilder.Entity("NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.FederatedIdentityEntity", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1328,6 +1362,63 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                     b.ToTable("Platform", (string)null);
                 });
 
+            modelBuilder.Entity("NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.ReplicatedDocumentEntity", b =>
+                {
+                    b.Property<string>("Kind")
+                        .HasMaxLength(100)
+                        .IsUnicode(false)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("Key")
+                        .HasMaxLength(300)
+                        .IsUnicode(false)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<string>("ConcurrencyToken")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .IsUnicode(false)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("ContentJson")
+                        .HasColumnType("text");
+
+                    b.Property<long>("Revision")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Kind", "Key");
+
+                    b.ToTable("ReplicatedDocuments", (string)null);
+                });
+
+            modelBuilder.Entity("NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.ReplicatedSourceRevisionEntity", b =>
+                {
+                    b.Property<string>("Kind")
+                        .HasMaxLength(100)
+                        .IsUnicode(false)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("Key")
+                        .HasMaxLength(300)
+                        .IsUnicode(false)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<string>("ConcurrencyToken")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .IsUnicode(false)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<long>("Revision")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Kind", "Key");
+
+                    b.ToTable("ReplicatedSourceRevisions", (string)null);
+                });
+
             modelBuilder.Entity("NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.ResourceServerEntity", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1528,6 +1619,27 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                         .IsUnique();
 
                     b.ToTable("RetiredTenants", (string)null);
+                });
+
+            modelBuilder.Entity("NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.RevokedManagementKeyEntity", b =>
+                {
+                    b.Property<string>("KeyId")
+                        .HasMaxLength(300)
+                        .IsUnicode(false)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<DateTimeOffset>("RevokedWhen")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .IsUnicode(false)
+                        .HasColumnType("character varying(100)");
+
+                    b.HasKey("KeyId");
+
+                    b.ToTable("RevokedManagementKeys", (string)null);
                 });
 
             modelBuilder.Entity("NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.RoleAssignmentEntity", b =>
@@ -1870,6 +1982,17 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                         .HasMaxLength(1000)
                         .IsUnicode(false)
                         .HasColumnType("character varying(1000)");
+
+                    b.Property<string>("KeyCustody")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .IsUnicode(false)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<string>("KeyCustodyCell")
+                        .HasMaxLength(32)
+                        .IsUnicode(false)
+                        .HasColumnType("character varying(32)");
 
                     b.Property<string>("MtlsEndpointAliasAuthority")
                         .HasMaxLength(1000)

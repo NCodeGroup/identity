@@ -1,5 +1,6 @@
 using System;
 using Microsoft.EntityFrameworkCore.Migrations;
+using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 #nullable disable
 
@@ -49,6 +50,23 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_DirectoryFeedCheckpoint", x => x.Key);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "DirectoryOutbox",
+                columns: table => new
+                {
+                    Sequence = table.Column<long>(type: "bigint", nullable: false)
+                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    Kind = table.Column<string>(type: "character varying(100)", unicode: false, maxLength: 100, nullable: false),
+                    Key = table.Column<string>(type: "character varying(300)", unicode: false, maxLength: 300, nullable: false),
+                    Revision = table.Column<long>(type: "bigint", nullable: false),
+                    ContentJson = table.Column<string>(type: "text", nullable: true),
+                    CreatedWhen = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_DirectoryOutbox", x => x.Sequence);
                 });
 
             migrationBuilder.CreateTable(
@@ -138,6 +156,35 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                 });
 
             migrationBuilder.CreateTable(
+                name: "ReplicatedDocuments",
+                columns: table => new
+                {
+                    Kind = table.Column<string>(type: "character varying(100)", unicode: false, maxLength: 100, nullable: false),
+                    Key = table.Column<string>(type: "character varying(300)", unicode: false, maxLength: 300, nullable: false),
+                    Revision = table.Column<long>(type: "bigint", nullable: false),
+                    ContentJson = table.Column<string>(type: "text", nullable: true),
+                    ConcurrencyToken = table.Column<string>(type: "character varying(50)", unicode: false, maxLength: 50, nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_ReplicatedDocuments", x => new { x.Kind, x.Key });
+                });
+
+            migrationBuilder.CreateTable(
+                name: "ReplicatedSourceRevisions",
+                columns: table => new
+                {
+                    Kind = table.Column<string>(type: "character varying(100)", unicode: false, maxLength: 100, nullable: false),
+                    Key = table.Column<string>(type: "character varying(300)", unicode: false, maxLength: 300, nullable: false),
+                    Revision = table.Column<long>(type: "bigint", nullable: false),
+                    ConcurrencyToken = table.Column<string>(type: "character varying(50)", unicode: false, maxLength: 50, nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_ReplicatedSourceRevisions", x => new { x.Kind, x.Key });
+                });
+
+            migrationBuilder.CreateTable(
                 name: "RetiredIssuers",
                 columns: table => new
                 {
@@ -175,6 +222,19 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_RetiredTenants", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "RevokedManagementKeys",
+                columns: table => new
+                {
+                    KeyId = table.Column<string>(type: "character varying(300)", unicode: false, maxLength: 300, nullable: false),
+                    RevokedWhen = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
+                    Source = table.Column<string>(type: "character varying(100)", unicode: false, maxLength: 100, nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_RevokedManagementKeys", x => x.KeyId);
                 });
 
             migrationBuilder.CreateTable(
@@ -305,6 +365,8 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                     SettingsConcurrencyToken = table.Column<string>(type: "character varying(50)", unicode: false, maxLength: 50, nullable: false),
                     SecretsConcurrencyToken = table.Column<string>(type: "character varying(50)", unicode: false, maxLength: 50, nullable: false),
                     IsDisabled = table.Column<bool>(type: "boolean", nullable: false),
+                    KeyCustody = table.Column<string>(type: "character varying(16)", unicode: false, maxLength: 16, nullable: false),
+                    KeyCustodyCell = table.Column<string>(type: "character varying(32)", unicode: false, maxLength: 32, nullable: true),
                     DisplayName = table.Column<string>(type: "text", nullable: false),
                     SettingsJson = table.Column<string>(type: "text", nullable: false),
                     TeamId = table.Column<Guid>(type: "uuid", nullable: false)
@@ -1450,6 +1512,9 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                 name: "DirectoryFeedCheckpoint");
 
             migrationBuilder.DropTable(
+                name: "DirectoryOutbox");
+
+            migrationBuilder.DropTable(
                 name: "FederatedIdentities");
 
             migrationBuilder.DropTable(
@@ -1471,6 +1536,12 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                 name: "Platform");
 
             migrationBuilder.DropTable(
+                name: "ReplicatedDocuments");
+
+            migrationBuilder.DropTable(
+                name: "ReplicatedSourceRevisions");
+
+            migrationBuilder.DropTable(
                 name: "ResourceServerSecrets");
 
             migrationBuilder.DropTable(
@@ -1481,6 +1552,9 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
 
             migrationBuilder.DropTable(
                 name: "RetiredTenants");
+
+            migrationBuilder.DropTable(
+                name: "RevokedManagementKeys");
 
             migrationBuilder.DropTable(
                 name: "RoleAssignments");
