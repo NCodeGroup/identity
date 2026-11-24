@@ -50,6 +50,104 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
     private const string Password = "a-long-unlisted-passphrase";
     private const string PrincipalIdNotChecked = "<principal id not checked>";
 
+    private static ManagementError CreateForbiddenError() =>
+        new()
+        {
+            StatusCode = StatusCodes.Status403Forbidden,
+            Detail = "The caller is not authorized.",
+        };
+
+    // The audit's values are the serialized resource; when the principal id is checked, a null expectation matches an
+    // absent or null principalId.
+    private static bool HasPrincipalId(JsonElement? resourceValues, string? expectedPrincipalId)
+    {
+        if (
+            resourceValues is not { } values
+            || !values.TryGetProperty("principalId", out var principalId)
+            || principalId.ValueKind == JsonValueKind.Null
+        )
+        {
+            return expectedPrincipalId is null;
+        }
+
+        return principalId.ValueKind == JsonValueKind.String
+            && principalId.GetString() == expectedPrincipalId;
+    }
+
+    private static PersistedLocalAccount CreateAccount(
+        string localAccountId = LocalAccountId,
+        string connectionId = ConnectionId
+    ) =>
+        new()
+        {
+            TenantId = TenantId,
+            LocalAccountId = localAccountId,
+            ConnectionId = connectionId,
+            DisplayName = DisplayName,
+            UserName = UserName,
+            Email = null,
+            EmailVerified = false,
+            IsEnabled = true,
+            Claims = [],
+            ConcurrencyToken = "account-ct",
+        };
+
+    private static PersistedConnection CreateConnection(
+        string connectionId,
+        string strategy = ConnectionStrategyNames.Local
+    ) =>
+        new()
+        {
+            TenantId = TenantId,
+            ConnectionId = connectionId,
+            Name = connectionId,
+            Strategy = strategy,
+            DisplayName = "Username and password",
+            IsSystem = false,
+            IsEnabled = true,
+            Options = JsonSerializer.SerializeToElement(new { store = "default" }),
+            Settings = new PersistedConnectionSettings
+            {
+                TenantId = TenantId,
+                ConnectionId = connectionId,
+                Value = JsonSerializer.SerializeToElement(new { }),
+            },
+        };
+
+    private static JsonPatchDocument<UpdateLocalAccountRequest> CreatePatch()
+    {
+        var patch = new JsonPatchDocument<UpdateLocalAccountRequest>();
+        patch.Replace(x => x.UserName, UserName);
+        return patch;
+    }
+
+    private static PersistedFederatedPrincipal CreatePrincipal() =>
+        new()
+        {
+            TenantId = TenantId,
+            PrincipalId = "principal-1",
+            ConcurrencyToken = "principal-ct",
+        };
+
+    private static PersistedTenant CreateTenant() =>
+        new PersistedTenantBuilder
+        {
+            TenantId = TenantId,
+            TeamId = TeamId,
+            Issuer = "https://op.example/tenant-1",
+        }.Build();
+
+    private static HttpContext CreateHttpContext()
+    {
+        var serviceCollection = new ServiceCollection();
+        serviceCollection.AddSingleton(Mock.Of<IMediator>());
+        return new DefaultHttpContext
+        {
+            User = new ClaimsPrincipal(new ClaimsIdentity(authenticationType: "test")),
+            RequestServices = serviceCollection.BuildServiceProvider(),
+        };
+    }
+
     private MockRepository MockRepository { get; }
     private Mock<IStoreManagerFactory> MockStoreManagerFactory { get; }
     private Mock<IStoreManager> MockStoreManager { get; }
@@ -179,13 +277,6 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
             .Verifiable();
     }
 
-    private static ManagementError CreateForbiddenError() =>
-        new()
-        {
-            StatusCode = StatusCodes.Status403Forbidden,
-            Detail = "The caller is not authorized.",
-        };
-
     private void SetupConnection(
         PersistedConnection? connection = null,
         string connectionId = ConnectionId
@@ -200,28 +291,6 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
             .ReturnsAsync(connection ?? Connection)
             .Verifiable();
     }
-
-    private static PersistedConnection CreateConnection(
-        string connectionId,
-        string strategy = ConnectionStrategyNames.Local
-    ) =>
-        new()
-        {
-            TenantId = TenantId,
-            ConnectionId = connectionId,
-            Name = connectionId,
-            Strategy = strategy,
-            DisplayName = "Username and password",
-            IsSystem = false,
-            IsEnabled = true,
-            Options = JsonSerializer.SerializeToElement(new { store = "default" }),
-            Settings = new PersistedConnectionSettings
-            {
-                TenantId = TenantId,
-                ConnectionId = connectionId,
-                Value = JsonSerializer.SerializeToElement(new { }),
-            },
-        };
 
     private void SetupStoreManagerCreated()
     {
@@ -405,23 +474,6 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
             .Verifiable();
     }
 
-    // The audit's values are the serialized resource; when the principal id is checked, a null expectation matches an
-    // absent or null principalId.
-    private static bool HasPrincipalId(JsonElement? resourceValues, string? expectedPrincipalId)
-    {
-        if (
-            resourceValues is not { } values
-            || !values.TryGetProperty("principalId", out var principalId)
-            || principalId.ValueKind == JsonValueKind.Null
-        )
-        {
-            return expectedPrincipalId is null;
-        }
-
-        return principalId.ValueKind == JsonValueKind.String
-            && principalId.GetString() == expectedPrincipalId;
-    }
-
     private void SetupAuditRecorded(
         string resourceId = LocalAccountId,
         string? expectedPrincipalId = PrincipalIdNotChecked
@@ -475,29 +527,19 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
             .ReturnsAsync(AuthorizationResult.Success())
             .Verifiable();
 
-    private static PersistedLocalAccount CreateAccount(
-        string localAccountId = LocalAccountId,
-        string connectionId = ConnectionId
-    ) =>
-        new()
-        {
-            TenantId = TenantId,
-            LocalAccountId = localAccountId,
-            ConnectionId = connectionId,
-            DisplayName = DisplayName,
-            UserName = UserName,
-            Email = null,
-            EmailVerified = false,
-            IsEnabled = true,
-            Claims = [],
-            ConcurrencyToken = "account-ct",
-        };
-
-    private static JsonPatchDocument<UpdateLocalAccountRequest> CreatePatch()
+    // Resolves the account, its identity in the connection and its principal through one store manager.
+    private void SetupPrincipal(PersistedFederatedPrincipal principal)
     {
-        var patch = new JsonPatchDocument<UpdateLocalAccountRequest>();
-        patch.Replace(x => x.UserName, UserName);
-        return patch;
+        SetupAccount(CreateAccount());
+        SetupIdentity();
+        MockStoreManager
+            .Setup(x => x.GetStore<IFederatedPrincipalStore>())
+            .Returns(MockFederatedPrincipalStore.Object)
+            .Verifiable();
+        MockFederatedPrincipalStore
+            .Setup(x => x.GetOrDefaultAsync("principal-1", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(principal)
+            .Verifiable();
     }
 
     private void SetupUpdateValidated(string? userName, string displayName)
@@ -523,25 +565,6 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
                 new ManagementError { StatusCode = StatusCodes.Status409Conflict, Detail = "stop" }
             )
             .Verifiable();
-    }
-
-    private static PersistedTenant CreateTenant() =>
-        new PersistedTenantBuilder
-        {
-            TenantId = TenantId,
-            TeamId = TeamId,
-            Issuer = "https://op.example/tenant-1",
-        }.Build();
-
-    private static HttpContext CreateHttpContext()
-    {
-        var serviceCollection = new ServiceCollection();
-        serviceCollection.AddSingleton(Mock.Of<IMediator>());
-        return new DefaultHttpContext
-        {
-            User = new ClaimsPrincipal(new ClaimsIdentity(authenticationType: "test")),
-            RequestServices = serviceCollection.BuildServiceProvider(),
-        };
     }
 
     private HttpContext CreateControlPlaneHttpContext(bool readsTheDefaultConnection = false)
@@ -914,6 +937,7 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
             ConnectionId,
             LocalAccountId,
             new SetLocalAccountClaimsRequest { Claims = [] },
+            null,
             CancellationToken.None
         );
 
@@ -936,6 +960,7 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
             {
                 Claims = [new LocalAccountClaim { Type = "name", Value = "Someone" }],
             },
+            null,
             CancellationToken.None
         );
 
@@ -945,6 +970,70 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
             "The 'name' claim is the account's display name; set displayName instead.",
             problem.ProblemDetails.Detail
         );
+    }
+
+    [Fact]
+    public async Task SetClaimsAsync_WithAStaleIfMatch_Returns412AndWritesNothing()
+    {
+        SetupAuthorizeUpdate(error: null);
+        var account = CreateAccount();
+        SetupAccount(account);
+        var httpContext = CreateHttpContext();
+
+        // No ReplaceClaimsAsync/SaveChangesAsync or audit scaffold: a strict-mock failure would mean the claims were
+        // written.
+        var request = new SetLocalAccountClaimsRequest { Claims = [] };
+
+        var result = await Handler.SetClaimsAsync(
+            httpContext,
+            TenantId,
+            ConnectionId,
+            LocalAccountId,
+            request,
+            "stale-ct",
+            CancellationToken.None
+        );
+
+        var problem = Assert.IsType<ProblemHttpResult>(result);
+        Assert.Equal(StatusCodes.Status412PreconditionFailed, problem.StatusCode);
+    }
+
+    [Fact]
+    public async Task SetClaimsAsync_WithAMatchingIfMatch_ReplacesTheClaims()
+    {
+        SetupAuthorizeUpdate(error: null);
+        var account = CreateAccount();
+        SetupAccount(account);
+        MockLocalAccountStore
+            .Setup(x =>
+                x.ReplaceClaimsAsync(
+                    LocalAccountId,
+                    It.IsAny<IReadOnlyList<PersistedLocalAccountClaim>>(),
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable();
+        MockStoreManager
+            .Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()))
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable();
+        SetupAuditRecorded();
+        var httpContext = CreateHttpContext();
+
+        var request = new SetLocalAccountClaimsRequest { Claims = [] };
+
+        var result = await Handler.SetClaimsAsync(
+            httpContext,
+            TenantId,
+            ConnectionId,
+            LocalAccountId,
+            request,
+            "account-ct",
+            CancellationToken.None
+        );
+
+        Assert.IsType<NoContent>(result);
     }
 
     #endregion
@@ -962,11 +1051,70 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
             ConnectionId,
             LocalAccountId,
             new SetLocalAccountMetadataRequest(),
+            null,
             CancellationToken.None
         );
 
         var problem = Assert.IsType<ProblemHttpResult>(result);
         Assert.Equal(StatusCodes.Status403Forbidden, problem.StatusCode);
+    }
+
+    [Fact]
+    public async Task SetMetadataAsync_WithAStaleIfMatch_Returns412AndWritesNothing()
+    {
+        SetupAuthorizeUpdate(error: null);
+        var principal = CreatePrincipal();
+        SetupPrincipal(principal);
+        var httpContext = CreateHttpContext();
+
+        // No UpdateAsync/SaveChangesAsync or audit scaffold: a strict-mock failure would mean the metadata was
+        // written.
+        var request = new SetLocalAccountMetadataRequest();
+
+        var result = await Handler.SetMetadataAsync(
+            httpContext,
+            TenantId,
+            ConnectionId,
+            LocalAccountId,
+            request,
+            "stale-ct",
+            CancellationToken.None
+        );
+
+        var problem = Assert.IsType<ProblemHttpResult>(result);
+        Assert.Equal(StatusCodes.Status412PreconditionFailed, problem.StatusCode);
+    }
+
+    [Fact]
+    public async Task SetMetadataAsync_WithAMatchingIfMatch_WritesTheMetadata()
+    {
+        SetupAuthorizeUpdate(error: null);
+        var principal = CreatePrincipal();
+        SetupPrincipal(principal);
+        MockFederatedPrincipalStore
+            .Setup(x => x.UpdateAsync(principal, It.IsAny<CancellationToken>()))
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable();
+        MockStoreManager
+            .Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()))
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable();
+        SetupAuditRecorded();
+        var httpContext = CreateHttpContext();
+
+        var request = new SetLocalAccountMetadataRequest();
+
+        var result = await Handler.SetMetadataAsync(
+            httpContext,
+            TenantId,
+            ConnectionId,
+            LocalAccountId,
+            request,
+            "principal-ct",
+            CancellationToken.None
+        );
+
+        Assert.IsType<NoContent>(result);
     }
 
     #endregion
@@ -1340,6 +1488,7 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
             ConnectionId,
             LocalAccountId,
             CreatePatch(),
+            null,
             CancellationToken.None
         );
 
@@ -1386,6 +1535,7 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
             ConnectionId,
             LocalAccountId,
             CreatePatch(),
+            null,
             CancellationToken.None
         );
 
@@ -1443,11 +1593,56 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
             ConnectionId,
             LocalAccountId,
             CreatePatch(),
+            null,
             CancellationToken.None
         );
 
         Assert.IsType<NoContent>(result);
         Assert.Equal(["identity", "update", "save", "audit"], Calls);
+    }
+
+    [Fact]
+    public async Task UpdateLocalAccountAsync_WithAnIfMatch_ValidatesItsToken()
+    {
+        SetupAuthorizeUpdate(error: null);
+        var existing = CreateAccount();
+        SetupAccount(existing);
+        var staleError = new ManagementError
+        {
+            StatusCode = StatusCodes.Status412PreconditionFailed,
+            Detail = "The local account changed.",
+        };
+        MockLocalAccountValidator
+            .Setup(x =>
+                x.ValidateUpdateAsync(
+                    It.Is<PersistedConnection>(connection =>
+                        connection.ConnectionId == ConnectionId
+                    ),
+                    It.Is<PersistedLocalAccount>(account =>
+                        account.LocalAccountId == LocalAccountId
+                    ),
+                    It.IsAny<UpdateLocalAccountRequest>(),
+                    "account-ct",
+                    MockStoreManager.Object,
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync(staleError)
+            .Verifiable();
+        var patch = CreatePatch();
+
+        var result = await Handler.UpdateLocalAccountAsync(
+            CreateHttpContext(),
+            TenantId,
+            ConnectionId,
+            LocalAccountId,
+            patch,
+            "account-ct",
+            CancellationToken.None
+        );
+
+        var problem = Assert.IsType<ProblemHttpResult>(result);
+        Assert.Equal(StatusCodes.Status412PreconditionFailed, problem.StatusCode);
     }
 
     [Fact]
@@ -1465,6 +1660,7 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
             ConnectionId,
             LocalAccountId,
             patch,
+            null,
             CancellationToken.None
         );
 
@@ -1487,6 +1683,7 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
             ConnectionId,
             LocalAccountId,
             patch,
+            null,
             CancellationToken.None
         );
 
@@ -1509,6 +1706,7 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
             ConnectionId,
             LocalAccountId,
             patch,
+            null,
             CancellationToken.None
         );
 
@@ -1531,6 +1729,7 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
             ConnectionId,
             LocalAccountId,
             patch,
+            null,
             CancellationToken.None
         );
 
@@ -1552,6 +1751,7 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
             ConnectionId,
             LocalAccountId,
             patch,
+            null,
             CancellationToken.None
         );
 

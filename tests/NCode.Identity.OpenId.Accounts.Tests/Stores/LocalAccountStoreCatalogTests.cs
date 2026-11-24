@@ -34,6 +34,17 @@ public sealed class LocalAccountStoreCatalogTests
             CancellationToken cancellationToken
         ) => throw new NotSupportedException();
 
+        public ValueTask<IReadOnlyList<LocalAccountNameProjection>> GetNamesByIdsAsync(
+            IReadOnlyCollection<string> localAccountIds,
+            CancellationToken cancellationToken
+        ) => throw new NotSupportedException();
+
+        public ValueTask<IReadOnlyList<LocalAccountNameProjection>> GetNamesByUserNamesAsync(
+            string connectionId,
+            IReadOnlyCollection<string> userNames,
+            CancellationToken cancellationToken
+        ) => throw new NotSupportedException();
+
         public ValueTask<PagedResult<PersistedLocalAccount>> GetPageAsync(
             string connectionId,
             PageRequest page,

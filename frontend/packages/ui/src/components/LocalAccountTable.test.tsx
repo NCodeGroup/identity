@@ -107,4 +107,16 @@ describe('LocalAccountTable', () => {
     expect(screen.getByTestId('local-account-delete-a1')).toBeInTheDocument();
     expect(screen.queryByTestId('local-account-edit-a1')).not.toBeInTheDocument();
   });
+
+  it('selects a row', () => {
+    const onSelect = vi.fn();
+    const onDelete = vi.fn();
+    render(<LocalAccountTable accounts={accounts} onSelect={onSelect} onDelete={onDelete} />);
+    fireEvent.click(screen.getByTestId('local-account-row-a1'));
+    expect(onSelect).toHaveBeenCalledWith('a1');
+    onSelect.mockClear();
+    fireEvent.click(screen.getByTestId('local-account-delete-b2'));
+    expect(onDelete).toHaveBeenCalledWith('b2');
+    expect(onSelect).not.toHaveBeenCalled();
+  });
 });

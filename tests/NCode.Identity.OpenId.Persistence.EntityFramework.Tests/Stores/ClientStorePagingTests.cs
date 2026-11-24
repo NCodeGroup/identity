@@ -357,4 +357,99 @@ public sealed class ClientStorePagingTests : IDisposable
     }
 
     #endregion
+
+    #region GetNamesByPrincipalsAsync Tests
+
+    [Fact]
+    public async Task GetNamesByPrincipalsAsync_WhenUnscoped_NamesTheClientsInAnyTenant()
+    {
+        await SeedAsync(1, CancellationToken.None);
+        var keyGenerator = Provider.GetRequiredService<ISurrogateKeyGenerator>();
+        DbContext.SeedTenant(keyGenerator, "tenant-2");
+        var firstClient = CreateClient("first-client", tenantId: "tenant-2");
+        var secondClient = CreateClient("second-client");
+        var unrequestedClient = CreateClient("unrequested-client");
+        await Store.AddAsync(firstClient, CancellationToken.None);
+        await Store.AddAsync(secondClient, CancellationToken.None);
+        await Store.AddAsync(unrequestedClient, CancellationToken.None);
+        await DbContext.SaveChangesAsync();
+        DbContext.ChangeTracker.Clear();
+        var firstPrincipalId = Assert.IsType<string>(firstClient.PrincipalId);
+        var secondPrincipalId = Assert.IsType<string>(secondClient.PrincipalId);
+        var principalIds = new[] { firstPrincipalId, secondPrincipalId };
+
+        using var scope = Ambient.BeginUnscoped("test");
+        var names = await Store.GetNamesByPrincipalsAsync(principalIds, CancellationToken.None);
+
+        var clientIds = names.Select(name => name.ClientId).Order().ToList();
+        Assert.Equal(["first-client", "second-client"], clientIds);
+        var first = Assert.Single(names, name => name.ClientId == "first-client");
+        Assert.Equal(firstPrincipalId, first.PrincipalId);
+        var second = Assert.Single(names, name => name.ClientId == "second-client");
+        Assert.Equal(secondPrincipalId, second.PrincipalId);
+    }
+
+    [Fact]
+    public async Task GetNamesByPrincipalsAsync_WhenTheIdentifiersDifferInCase_MatchesThem()
+    {
+        await SeedAsync(1, CancellationToken.None);
+        var client = CreateClient("cased-client");
+        await Store.AddAsync(client, CancellationToken.None);
+        await DbContext.SaveChangesAsync();
+        DbContext.ChangeTracker.Clear();
+        var principalId = Assert.IsType<string>(client.PrincipalId);
+        var upperCasedPrincipalId = principalId.ToUpperInvariant();
+        var principalIds = new[] { upperCasedPrincipalId };
+
+        using var scope = Ambient.BeginUnscoped("test");
+        var names = await Store.GetNamesByPrincipalsAsync(principalIds, CancellationToken.None);
+
+        var name = Assert.Single(names);
+        Assert.Equal(principalId, name.PrincipalId);
+        Assert.Equal("cased-client", name.ClientId);
+    }
+
+    [Fact]
+    public async Task GetNamesByPrincipalsAsync_WhenNoClientHoldsThePrincipals_ReturnsNone()
+    {
+        await SeedAsync(2, CancellationToken.None);
+        var principalIds = new[] { "unknown-principal", "another-unknown-principal" };
+
+        using var scope = Ambient.BeginUnscoped("test");
+        var names = await Store.GetNamesByPrincipalsAsync(principalIds, CancellationToken.None);
+
+        Assert.Empty(names);
+    }
+
+    [Fact]
+    public async Task GetNamesByPrincipalsAsync_WhenNoPrincipalIsNamed_ReturnsNothing()
+    {
+        await SeedAsync(2, CancellationToken.None);
+        var principalIds = Array.Empty<string>();
+
+        using var scope = Ambient.BeginUnscoped("test");
+        var names = await Store.GetNamesByPrincipalsAsync(principalIds, CancellationToken.None);
+
+        Assert.Empty(names);
+    }
+
+    [Fact]
+    public async Task GetNamesByPrincipalsAsync_WhenTheScopeIsATenantScope_Throws()
+    {
+        await SeedAsync(1, CancellationToken.None);
+        var principalIds = new[] { "any-principal" };
+
+        using var scope = Ambient.BeginScope(TenantId);
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await Store.GetNamesByPrincipalsAsync(principalIds, CancellationToken.None)
+        );
+
+        Assert.Equal(
+            "ClientStore.GetNamesByPrincipalsAsync reads across tenants and runs only in an unscoped scope (IAmbientTenantAccessor.BeginUnscoped).",
+            exception.Message
+        );
+    }
+
+    #endregion
 }

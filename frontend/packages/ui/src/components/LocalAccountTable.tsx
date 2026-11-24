@@ -25,6 +25,7 @@ export type LocalAccountRow = {
 
 export type LocalAccountTableProps = {
   readonly accounts: readonly LocalAccountRow[];
+  readonly onSelect?: (localAccountId: string) => void;
   readonly onEdit?: (localAccountId: string) => void;
   readonly onResetPassword?: (localAccountId: string) => void;
   readonly onToggleEnabled?: (localAccountId: string) => void;
@@ -33,10 +34,12 @@ export type LocalAccountTableProps = {
 
 /**
  * Stateless local-account table. Receives rows and callbacks as props; holds no state and does no fetching. Each
- * row-level action appears only when its callback is supplied.
+ * row-level action appears only when its callback is supplied (and stops propagation so it never triggers selection);
+ * selecting a row drills into that account.
  */
 export function LocalAccountTable({
   accounts,
+  onSelect,
   onEdit,
   onResetPassword,
   onToggleEnabled,
@@ -60,7 +63,12 @@ export function LocalAccountTable({
           const id = account.localAccountId;
           const toggleLabel = account.isEnabled ? 'Disable' : 'Enable';
           return (
-            <TableRow key={id} data-testid={`local-account-row-${id}`}>
+            <TableRow
+              key={id}
+              hover={Boolean(onSelect)}
+              {...(onSelect ? { onClick: () => onSelect(id), sx: { cursor: 'pointer' } } : {})}
+              data-testid={`local-account-row-${id}`}
+            >
               <TableCell>{account.displayName}</TableCell>
               <TableCell>{account.userName ?? account.email ?? '—'}</TableCell>
               <TableCell>{account.email ?? '—'}</TableCell>
@@ -81,7 +89,10 @@ export function LocalAccountTable({
                           size="small"
                           aria-label="Edit"
                           data-testid={`local-account-edit-${id}`}
-                          onClick={() => onEdit(id)}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            onEdit(id);
+                          }}
                         >
                           <EditIcon fontSize="small" />
                         </IconButton>
@@ -93,7 +104,10 @@ export function LocalAccountTable({
                           size="small"
                           aria-label="Reset password"
                           data-testid={`local-account-password-${id}`}
-                          onClick={() => onResetPassword(id)}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            onResetPassword(id);
+                          }}
                         >
                           <KeyIcon fontSize="small" />
                         </IconButton>
@@ -105,7 +119,10 @@ export function LocalAccountTable({
                           size="small"
                           aria-label={toggleLabel}
                           data-testid={`local-account-toggle-${id}`}
-                          onClick={() => onToggleEnabled(id)}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            onToggleEnabled(id);
+                          }}
                         >
                           {account.isEnabled ? (
                             <BlockIcon fontSize="small" />
@@ -121,7 +138,10 @@ export function LocalAccountTable({
                           size="small"
                           aria-label="Delete"
                           data-testid={`local-account-delete-${id}`}
-                          onClick={() => onDelete(id)}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            onDelete(id);
+                          }}
                         >
                           <DeleteIcon fontSize="small" />
                         </IconButton>

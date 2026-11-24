@@ -9,7 +9,7 @@ import type {
 } from '@ncodegroup/identity-api';
 import type { BffRuntimeConfig, OpenIdRuntimeConfig } from '@ncodegroup/identity-config';
 import { createAppStore, type AppStore } from './store.js';
-import { managementApi } from './managementApi.js';
+import { managementApi, pagedItems, pagedTenants } from './managementApi.js';
 
 const runtime: BffRuntimeConfig = {
   kind: 'bff',
@@ -941,7 +941,7 @@ describe('managementApi team CRUD endpoints (platform scope)', () => {
       managementApi.endpoints.listChildTeams.initiate({ teamId: 'acme' }),
     );
 
-    expect('data' in result && result.data?.items[0]?.parentTeamId).toBe('acme');
+    expect('data' in result && result.data?.pages[0]?.items[0]?.parentTeamId).toBe('acme');
     expect(captured[0]?.url).toBe('https://api.test/api/teams/acme/teams');
     expect(captured[0]?.method).toBe('GET');
   });
@@ -1379,7 +1379,7 @@ describe('managementApi query request shapes', () => {
   it.each(queryRequestCases)(
     '$name GETs $url with the anti-forgery header',
     async ({ url, run }) => {
-      const captured = mockFetch(jsonResponse({}));
+      const captured = mockFetch(jsonResponse({ items: [] }));
 
       await run(createStore());
 
@@ -2761,7 +2761,7 @@ describe('managementApi across cells', () => {
     );
 
     expect(fetches.calls).toEqual(['GET /api/teams/acme/tenants']);
-    expect(result.data).toEqual({ items: [tenant('a')], unavailableCells: [] });
+    expect(pagedTenants(result.data)).toEqual({ items: [tenant('a')], unavailableCells: [] });
   });
 
   it('listTenants refuses a surface its BFF does not serve without calling a cell', async () => {
@@ -2821,7 +2821,7 @@ describe('managementApi across cells', () => {
       'GET /cells/eu-1/api/teams/acme/tenants',
       'GET /cells/us-1/api/teams/acme/tenants',
     ]);
-    expect(result.data).toEqual({
+    expect(pagedTenants(result.data)).toEqual({
       items: [
         { ...tenant('a'), cell: 'eu-1' },
         { ...tenant('b'), cell: 'eu-1' },
@@ -2844,7 +2844,7 @@ describe('managementApi across cells', () => {
     );
 
     expect(result.error).toBeUndefined();
-    expect(result.data).toEqual({
+    expect(pagedTenants(result.data)).toEqual({
       items: [{ ...tenant('c'), cell: 'us-1' }],
       unavailableCells: ['eu-1'],
     });
@@ -3494,7 +3494,7 @@ describe('managementApi role assignment requests', () => {
     await store.dispatch(
       managementApi.endpoints.addRoleAssignment.initiate({
         list: tenantOwners,
-        principalId: 'p-1',
+        holder: { principalId: 'p-1' },
         cell: undefined,
       }),
     );
@@ -3502,6 +3502,24 @@ describe('managementApi role assignment requests', () => {
     expect(captured[0]?.url).toBe('https://api.test/api/tenants/acme/owners');
     expect(captured[0]?.method).toBe('POST');
     expect(JSON.parse(captured[0]?.body ?? '{}')).toEqual({ principalId: 'p-1' });
+  });
+
+  it('addRoleAssignment posts the holder a grant names', async () => {
+    const captured = mockFetch(
+      jsonResponse({ assignmentId: 'a-1', principalId: 'p-1', roleName: 'Owner' }, 201),
+    );
+    const store = createStore();
+
+    await store.dispatch(
+      managementApi.endpoints.addRoleAssignment.initiate({
+        list: tenantOwners,
+        holder: { userName: 'alice' },
+        cell: undefined,
+      }),
+    );
+
+    expect(captured[0]?.url).toBe('https://api.test/api/tenants/acme/owners');
+    expect(captured[0]?.body).toBe('{"userName":"alice"}');
   });
 
   it('removeRoleAssignment DELETEs the principal by encoded id', async () => {
@@ -3539,7 +3557,7 @@ describe('managementApi role assignment requests', () => {
     await store.dispatch(
       managementApi.endpoints.addRoleAssignment.initiate({
         list: tenantOwners,
-        principalId: 'p-1',
+        holder: { principalId: 'p-1' },
         cell: undefined,
       }),
     );
@@ -4238,5 +4256,293 @@ describe('managementApi connections', () => {
     ] as const) {
       expect(hooks[name]).toBeTypeOf('function');
     }
+  });
+});
+
+describe('local account profile', () => {
+  const path = '/api/tenants/acme/connections/c-1/local-accounts/la%2F1';
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  it('getLocalAccountClaims and getLocalAccountMetadata GET their routes, in the cell when given', async () => {
+    const captured = mockFetch(new Response('{}', { status: 200 }));
+    const store = createStore();
+
+    await store.dispatch(
+      managementApi.endpoints.getLocalAccountClaims.initiate({
+        tenantId: 'acme',
+        connectionId: 'c-1',
+        localAccountId: 'la/1',
+        cell: undefined,
+      }),
+    );
+    await store.dispatch(
+      managementApi.endpoints.getLocalAccountMetadata.initiate({
+        tenantId: 'acme',
+        connectionId: 'c-1',
+        localAccountId: 'la/1',
+        cell: 'eu-1',
+      }),
+    );
+
+    expect(captured[0]?.method).toBe('GET');
+    expect(captured[0]?.url).toBe(`https://api.test${path}/claims`);
+    expect(captured[1]?.method).toBe('GET');
+    expect(captured[1]?.url).toBe(`https://api.test/cells/eu-1${path}/metadata`);
+  });
+
+  it('setLocalAccountClaims PUTs the claims with If-Match', async () => {
+    const captured = mockFetch(new Response('{}', { status: 200 }));
+    const store = createStore();
+
+    await store.dispatch(
+      managementApi.endpoints.setLocalAccountClaims.initiate({
+        tenantId: 'acme',
+        connectionId: 'c-1',
+        localAccountId: 'la/1',
+        concurrencyToken: 'c1',
+        body: { claims: [{ type: 'locale', value: 'en' }] },
+        cell: 'eu-1',
+      }),
+    );
+
+    expect(captured[0]?.method).toBe('PUT');
+    expect(captured[0]?.url).toBe(`https://api.test/cells/eu-1${path}/claims`);
+    expect(captured[0]?.ifMatch).toBe('c1');
+    expect(JSON.parse(captured[0]?.body ?? '{}')).toEqual({
+      claims: [{ type: 'locale', value: 'en' }],
+    });
+  });
+
+  it('setLocalAccountMetadata PATCHes the metadata bags with If-Match', async () => {
+    const captured = mockFetch(new Response('{}', { status: 200 }));
+    const store = createStore();
+
+    await store.dispatch(
+      managementApi.endpoints.setLocalAccountMetadata.initiate({
+        tenantId: 'acme',
+        connectionId: 'c-1',
+        localAccountId: 'la/1',
+        concurrencyToken: 'p1',
+        body: { profileMetadata: { theme: 'dark' } },
+        cell: undefined,
+      }),
+    );
+
+    expect(captured[0]?.method).toBe('PATCH');
+    expect(captured[0]?.url).toBe(`https://api.test${path}/metadata`);
+    expect(captured[0]?.ifMatch).toBe('p1');
+    expect(JSON.parse(captured[0]?.body ?? '{}')).toEqual({ profileMetadata: { theme: 'dark' } });
+  });
+});
+
+describe('paged collections', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  const client = (clientId: string) => ({ clientId, tenantId: 'acme' });
+
+  it('reads the first page without a cursor, the next with the token and ends without one', async () => {
+    const calls: string[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = (input as Request).url;
+        calls.push(url);
+        return url.includes('cursor=t1')
+          ? jsonResponse({ items: [client('c2')] })
+          : jsonResponse({ items: [client('c1')], continuationToken: 't1' });
+      }),
+    );
+    const store = createStore();
+    const arg = { tenantId: 'acme', cell: undefined };
+
+    const first = await store.dispatch(managementApi.endpoints.listClients.initiate(arg));
+    const next = await store.dispatch(
+      managementApi.endpoints.listClients.initiate(arg, { direction: 'forward' }),
+    );
+
+    expect(calls).toEqual([
+      'https://api.test/api/tenants/acme/clients',
+      'https://api.test/api/tenants/acme/clients?cursor=t1',
+    ]);
+    expect(first.hasNextPage).toBe(true);
+    expect(next.hasNextPage).toBe(false);
+    expect(pagedItems(next.data).map((c) => c.clientId)).toEqual(['c1', 'c2']);
+  });
+
+  it('flattens the items of every page', () => {
+    expect(pagedItems({ pages: [{ items: [1, 2] }, { items: [3] }] })).toEqual([1, 2, 3]);
+    expect(pagedItems(undefined)).toEqual([]);
+  });
+});
+
+describe('tenant pages', () => {
+  const tenant = (tenantId: string) => ({ tenantId, teamId: 'acme' });
+  const cellStore = () =>
+    createAppStore({ config: { runtime: { ...runtime, cells: ['eu-1', 'us-1'] } } });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  it('asks every cell for its first page and only the cells with a cursor for the next', async () => {
+    const calls: string[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = (input as Request).url;
+        calls.push(url);
+        if (url.includes('/cells/eu-1/')) {
+          return url.includes('cursor=t1')
+            ? jsonResponse({ items: [tenant('b')] })
+            : jsonResponse({ items: [tenant('a')], continuationToken: 't1' });
+        }
+        return jsonResponse({ items: [tenant('c')] });
+      }),
+    );
+    const store = cellStore();
+    const arg = { teamId: 'acme' };
+
+    const first = await store.dispatch(managementApi.endpoints.listTenants.initiate(arg));
+    const next = await store.dispatch(
+      managementApi.endpoints.listTenants.initiate(arg, { direction: 'forward' }),
+    );
+
+    expect([...calls].sort()).toEqual([
+      'https://api.test/cells/eu-1/api/teams/acme/tenants',
+      'https://api.test/cells/eu-1/api/teams/acme/tenants?cursor=t1',
+      'https://api.test/cells/us-1/api/teams/acme/tenants',
+    ]);
+    expect(first.hasNextPage).toBe(true);
+    expect(next.hasNextPage).toBe(false);
+    expect(pagedTenants(next.data).items.map((t) => t.tenantId)).toEqual(['a', 'c', 'b']);
+  });
+
+  it('pages the control plane alone by its continuation token', async () => {
+    const calls: string[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = (input as Request).url;
+        calls.push(url);
+        return url.includes('cursor=t1')
+          ? jsonResponse({ items: [tenant('b')] })
+          : jsonResponse({ items: [tenant('a')], continuationToken: 't1' });
+      }),
+    );
+    const store = createAppStore({ config: { runtime } });
+    const arg = { teamId: 'acme' };
+
+    await store.dispatch(managementApi.endpoints.listTenants.initiate(arg));
+    const next = await store.dispatch(
+      managementApi.endpoints.listTenants.initiate(arg, { direction: 'forward' }),
+    );
+
+    expect(calls).toEqual([
+      'https://api.test/api/teams/acme/tenants',
+      'https://api.test/api/teams/acme/tenants?cursor=t1',
+    ]);
+    expect(next.hasNextPage).toBe(false);
+    expect(pagedTenants(next.data).items.map((t) => t.tenantId)).toEqual(['a', 'b']);
+  });
+
+  it('retries a cell whose next page failed with the cursor it was asked with', async () => {
+    const calls: string[] = [];
+    let failed = false;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = (input as Request).url;
+        calls.push(url);
+        if (!url.includes('/cells/eu-1/')) {
+          return jsonResponse({ items: [tenant('c')] });
+        }
+        if (!url.includes('cursor=t1')) {
+          return jsonResponse({ items: [tenant('a')], continuationToken: 't1' });
+        }
+        if (!failed) {
+          failed = true;
+          return jsonResponse({ title: 'down' }, 503);
+        }
+        return jsonResponse({ items: [tenant('b')] });
+      }),
+    );
+    const store = cellStore();
+    const arg = { teamId: 'acme' };
+
+    await store.dispatch(managementApi.endpoints.listTenants.initiate(arg));
+    const second = await store.dispatch(
+      managementApi.endpoints.listTenants.initiate(arg, { direction: 'forward' }),
+    );
+    const third = await store.dispatch(
+      managementApi.endpoints.listTenants.initiate(arg, { direction: 'forward' }),
+    );
+
+    expect(pagedTenants(second.data).unavailableCells).toEqual(['eu-1']);
+    expect(second.hasNextPage).toBe(true);
+    expect(calls.filter((url) => url.includes('cursor=t1'))).toEqual([
+      'https://api.test/cells/eu-1/api/teams/acme/tenants?cursor=t1',
+      'https://api.test/cells/eu-1/api/teams/acme/tenants?cursor=t1',
+    ]);
+    expect(pagedTenants(third.data).items.map((t) => t.tenantId)).toEqual(['a', 'c', 'b']);
+    expect(pagedTenants(third.data).unavailableCells).toEqual([]);
+    expect(third.hasNextPage).toBe(false);
+  });
+
+  it('retries a cell whose first page failed with its first page', async () => {
+    const calls: string[] = [];
+    let failed = false;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = (input as Request).url;
+        calls.push(url);
+        if (url.includes('/cells/us-1/') && !failed) {
+          failed = true;
+          return jsonResponse({ title: 'down' }, 503);
+        }
+        return jsonResponse({ items: [tenant(url.includes('/cells/us-1/') ? 'c' : 'a')] });
+      }),
+    );
+    const store = cellStore();
+    const arg = { teamId: 'acme' };
+
+    const first = await store.dispatch(managementApi.endpoints.listTenants.initiate(arg));
+    const next = await store.dispatch(
+      managementApi.endpoints.listTenants.initiate(arg, { direction: 'forward' }),
+    );
+
+    expect(first.hasNextPage).toBe(true);
+    expect(calls.at(-1)).toBe('https://api.test/cells/us-1/api/teams/acme/tenants');
+    expect(calls).toHaveLength(3);
+    expect(pagedTenants(next.data).items.map((t) => t.tenantId)).toEqual(['a', 'c']);
+    expect(pagedTenants(next.data).unavailableCells).toEqual([]);
+  });
+
+  it('names only the cells whose last request failed', () => {
+    const page = (unavailableCells: string[]) => ({ items: [], unavailableCells, cursors: {} });
+
+    expect(pagedTenants({ pages: [page(['eu-1']), page([])] }).unavailableCells).toEqual([]);
+    expect(pagedTenants({ pages: [] })).toEqual({ items: [], unavailableCells: [] });
+  });
+
+  it('fails the caller tenants when the control plane fails', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => jsonResponse({ title: 'down' }, 503)),
+    );
+    const store = createAppStore({ config: { runtime } });
+
+    const result = await store.dispatch(managementApi.endpoints.listCallerTenants.initiate());
+
+    expect(result.isError).toBe(true);
+    expect(result.error).toMatchObject({ status: 503 });
   });
 });

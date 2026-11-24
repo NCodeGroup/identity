@@ -204,6 +204,32 @@ describe('TenantsPage (list states)', () => {
       'The cell us-1 did not answer, so its tenants are not listed.',
     );
   });
+
+  it('loads the next page', async () => {
+    const calls = installFetch((url) => {
+      if (url.endsWith('/api/cells')) {
+        return jsonResponse(cellList);
+      }
+      if (url.includes('/cells/eu-1/')) {
+        return url.includes('cursor=next')
+          ? jsonResponse({ items: [{ ...acme, tenantId: 'acme-prod', displayName: 'Acme prod' }] })
+          : jsonResponse({ items: [acme], continuationToken: 'next' });
+      }
+      return jsonResponse({ items: [globex] });
+    });
+
+    renderPage(vi.fn(), undefined, { ...runtime, cells: ['eu-1', 'us-1'] });
+    fireEvent.click(await screen.findByTestId('load-more'));
+
+    expect(await screen.findByTestId('tenant-row-eu-1/acme-prod')).toBeInTheDocument();
+    expect(screen.getByTestId('tenant-row-eu-1/acme-dev')).toBeInTheDocument();
+    expect(screen.getByTestId('tenant-row-us-1/globex-dev')).toBeInTheDocument();
+    const next = calls.filter((c) => c.url.includes('cursor=next'));
+    expect(next.map((c) => c.url)).toEqual([
+      'https://api.test/cells/eu-1/api/teams/acme/tenants?cursor=next',
+    ]);
+    await waitFor(() => expect(screen.queryByTestId('load-more')).not.toBeInTheDocument());
+  });
 });
 
 describe('TenantsPage (CRUD wiring)', () => {

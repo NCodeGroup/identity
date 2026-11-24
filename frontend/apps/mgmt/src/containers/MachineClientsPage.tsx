@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import AddIcon from '@mui/icons-material/Add';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -7,11 +8,13 @@ import {
   ClientTable,
   ConfirmDialog,
   DataStateBoundary,
+  LoadMoreButton,
 } from '@ncodegroup/identity-ui';
 import type { MachineClientOwner } from '@ncodegroup/identity-api';
 import {
+  pagedItems,
   useCreateMachineClientMutation,
-  useListMachineClientsQuery,
+  useListMachineClientsInfiniteQuery,
 } from '@ncodegroup/identity-store';
 import { ClientDetailPage } from './ClientDetailPage.js';
 import { useClientAdministration } from './useClientAdministration.js';
@@ -28,8 +31,9 @@ export type MachineClientsPageProps = {
  * error state live in {@link useClientAdministration}.
  */
 export function MachineClientsPage({ owner }: MachineClientsPageProps) {
-  const { data, isLoading, error } = useListMachineClientsQuery(owner);
-  const clients = data?.items ?? [];
+  const { data, isLoading, error, hasNextPage, isFetchingNextPage, fetchNextPage } =
+    useListMachineClientsInfiniteQuery(owner);
+  const clients = useMemo(() => pagedItems(data), [data]);
 
   const [createMachineClient] = useCreateMachineClientMutation();
   const admin = useClientAdministration({
@@ -93,6 +97,11 @@ export function MachineClientsPage({ owner }: MachineClientsPageProps) {
           onDelete={admin.openDelete}
         />
       </DataStateBoundary>
+      <LoadMoreButton
+        hasMore={hasNextPage}
+        isLoading={isFetchingNextPage}
+        onLoadMore={() => void fetchNextPage()}
+      />
 
       <ClientFormDialog
         open={admin.formOpen}

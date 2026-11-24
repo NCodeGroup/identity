@@ -251,11 +251,21 @@ export type RoleAssignmentResource = {
   readonly tenantId: string;
 };
 
+/** Mirror of `PrincipalSummaryResource`: who a principal is, for a person to recognise it. */
+export type PrincipalSummaryResource = {
+  readonly principalId: string;
+  readonly principalType: string;
+  readonly displayName: string;
+  readonly userName: string | null;
+};
+
 /** Mirror of `RoleHolderResource`: a principal that holds one role at a node. */
 export type RoleHolderResource = {
   readonly assignmentId: string;
   readonly principalId: string;
   readonly roleName: string;
+  /** The control plane's summary of the principal, or `null` only when the assignment's principal no longer exists. */
+  readonly principal: PrincipalSummaryResource | null;
 };
 
 /**
@@ -267,10 +277,13 @@ export type RoleListResource = {
   readonly canChange: boolean;
 };
 
-/** Mirror of `AddRoleHolderRequest`: the body that grants a principal the role of a role list at its node. */
-export type AddRoleHolderRequest = {
-  readonly principalId: string;
-};
+/**
+ * Mirror of `AddRoleHolderRequest`: the body that grants the role of a role list at its node to a principal, named by
+ * its identifier or by its username.
+ */
+export type AddRoleHolderRequest =
+  | { readonly principalId: string; readonly userName?: never }
+  | { readonly userName: string; readonly principalId?: never };
 
 /**
  * Mirror of `CallerResource`: where the signed-in caller holds authority (ADR-1465). `principalId` is
@@ -387,6 +400,48 @@ export type UpdateLocalAccountFields = {
   readonly userName: string | null;
   readonly email: string | null;
   readonly emailVerified: boolean;
+};
+
+/** Mirror of `LocalAccountClaim` — one profile claim of a local account. */
+export type LocalAccountClaim = {
+  readonly type: string;
+  readonly value: string;
+};
+
+/** Mirror of `LocalAccountClaimsResource` — a local account's full set of profile claims. */
+export type LocalAccountClaimsResource = {
+  readonly tenantId: string;
+  readonly localAccountId: string;
+  readonly claims: readonly LocalAccountClaim[];
+  readonly concurrencyToken: string;
+};
+
+/**
+ * Mirror of `LocalAccountMetadataResource` — a local account's server-owned metadata bags, which live on its owning
+ * principal. `profileMetadata` is owner-updatable and `systemMetadata` is server-controlled; both are free-form JSON
+ * objects. The `concurrencyToken` is the owning principal's.
+ */
+export type LocalAccountMetadataResource = {
+  readonly tenantId: string;
+  readonly localAccountId: string;
+  readonly principalId: string;
+  readonly profileMetadata: unknown;
+  readonly systemMetadata: unknown;
+  readonly concurrencyToken: string;
+};
+
+/** Mirror of `SetLocalAccountClaimsRequest` — the replacement profile claims. */
+export type SetLocalAccountClaimsRequest = {
+  readonly claims: readonly LocalAccountClaim[];
+};
+
+/**
+ * Mirror of `SetLocalAccountMetadataRequest`. A bag left out keeps its current value; one given replaces it as a
+ * free-form JSON object.
+ */
+export type SetLocalAccountMetadataRequest = {
+  readonly profileMetadata?: Readonly<Record<string, unknown>>;
+  readonly systemMetadata?: Readonly<Record<string, unknown>>;
 };
 
 /** Mirror of `ResetLocalAccountPasswordRequest`. */

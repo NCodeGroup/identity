@@ -2,7 +2,7 @@ import { describe, expect, it, beforeEach, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { Provider } from 'react-redux';
 import { createAppStore } from '@ncodegroup/identity-store';
-import type { RoleList } from '@ncodegroup/identity-api';
+import { PRINCIPAL_TYPES, type RoleList } from '@ncodegroup/identity-api';
 import type { BffRuntimeConfig } from '@ncodegroup/identity-config';
 import { RoleAssignmentsManager } from './RoleAssignmentsManager.js';
 import { OwnerAccessTab } from './OwnerAccessTab.js';
@@ -54,7 +54,7 @@ function jsonResponse(body: unknown, status = 200) {
 }
 
 function assignment(principalId: string) {
-  return { assignmentId: `a-${principalId}`, principalId, roleName: 'TeamAdmin' };
+  return { assignmentId: `a-${principalId}`, principalId, roleName: 'TeamAdmin', principal: null };
 }
 
 describe('RoleAssignmentsManager', () => {
@@ -97,6 +97,7 @@ describe('RoleAssignmentsManager', () => {
     await screen.findByTestId('admins-row-alice');
 
     expect(screen.getByTestId('admins-grant')).toBeDisabled();
+    fireEvent.click(screen.getByTestId('admins-grant-by-principal-id'));
     fireEvent.change(screen.getByTestId('admins-principal'), { target: { value: '  carol  ' } });
     fireEvent.click(screen.getByTestId('admins-grant'));
 
@@ -105,6 +106,56 @@ describe('RoleAssignmentsManager', () => {
     expect(post?.url).toMatch(/\/api\/teams\/acme\/admins$/);
     expect(JSON.parse(post?.body ?? '{}')).toEqual({ principalId: 'carol' });
     expect(screen.getByTestId('admins-principal')).toHaveValue('');
+  });
+
+  it('grants by username', async () => {
+    const calls = installFetch((url, method) => {
+      if (url.endsWith('/api/teams/acme/admins') && method === 'POST') {
+        return jsonResponse(assignment('carol'), 201);
+      }
+      if (url.endsWith('/api/teams/acme/admins') && method === 'GET') {
+        return jsonResponse({ items: [], canChange: true });
+      }
+      throw new Error(`Unexpected ${method} ${url}`);
+    });
+
+    renderManager();
+    expect(await screen.findByText('No one holds this role.')).toBeInTheDocument();
+    fireEvent.change(screen.getByTestId('admins-principal'), { target: { value: ' carol ' } });
+    fireEvent.click(screen.getByTestId('admins-grant'));
+
+    await waitFor(() => {
+      expect(calls.some((call) => call.method === 'POST')).toBe(true);
+    });
+    const post = calls.find((call) => call.method === 'POST');
+    expect(JSON.parse(post?.body ?? '{}')).toEqual({ userName: 'carol' });
+  });
+
+  it('names the holder in the revoke confirmation', async () => {
+    installFetch((url, method) => {
+      if (url.endsWith('/api/teams/acme/admins') && method === 'GET') {
+        return jsonResponse({
+          items: [
+            {
+              ...assignment('alice'),
+              principal: {
+                principalId: 'alice',
+                principalType: PRINCIPAL_TYPES.localAccount,
+                displayName: 'Alice Doe',
+                userName: 'alice',
+              },
+            },
+          ],
+          canChange: true,
+        });
+      }
+      throw new Error(`Unexpected ${method} ${url}`);
+    });
+
+    renderManager();
+    fireEvent.click(await screen.findByTestId('admins-revoke-alice'));
+
+    expect(screen.getByText('Revoke this role from Alice Doe?')).toBeInTheDocument();
   });
 
   it('revokes the role after confirmation', async () => {
@@ -181,6 +232,7 @@ describe('RoleAssignmentsManager', () => {
 
     renderManager();
     expect(await screen.findByText('No one holds this role.')).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('admins-grant-by-principal-id'));
     fireEvent.change(screen.getByTestId('admins-principal'), { target: { value: 'carol' } });
     fireEvent.click(screen.getByTestId('admins-grant'));
 

@@ -155,6 +155,31 @@ describe('MachineClientsPage (list states and scope)', () => {
   });
 });
 
+describe('MachineClientsPage (paging)', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('loads the next page', async () => {
+    const calls = installFetch((url, method) => {
+      if (url.includes('/api/teams/acme/clients') && method === 'GET') {
+        return url.includes('cursor=next')
+          ? jsonResponse({ items: [{ ...bot, clientId: 'bot2' }] })
+          : jsonResponse({ items: [bot], continuationToken: 'next' });
+      }
+      throw new Error(`Unexpected ${method} ${url}`);
+    });
+
+    renderPage();
+    fireEvent.click(await screen.findByTestId('load-more'));
+
+    expect(await screen.findByTestId('client-row-bot2')).toBeInTheDocument();
+    expect(screen.getByTestId('client-row-bot')).toBeInTheDocument();
+    expect(calls.some((c) => c.url.includes('cursor=next'))).toBe(true);
+    await waitFor(() => expect(screen.queryByTestId('load-more')).not.toBeInTheDocument());
+  });
+});
+
 describe('MachineClientsPage (owner-scoped create and tenant-scoped changes)', () => {
   beforeEach(() => {
     vi.restoreAllMocks();

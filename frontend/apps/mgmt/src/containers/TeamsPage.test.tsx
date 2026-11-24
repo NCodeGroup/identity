@@ -93,6 +93,25 @@ describe('TeamsPage', () => {
     expect(await screen.findByTestId('data-error')).toHaveTextContent('Failed to load teams.');
   });
 
+  it('loads the next page', async () => {
+    const calls = installFetch((url, method) => {
+      if (url.includes('/api/teams') && method === 'GET') {
+        return url.includes('cursor=next')
+          ? jsonResponse({ items: [{ ...team, teamId: 'sales', displayName: 'Sales' }] })
+          : jsonResponse({ items: [team], continuationToken: 'next' });
+      }
+      throw new Error(`Unexpected ${method} ${url}`);
+    });
+
+    renderPage();
+    fireEvent.click(await screen.findByTestId('load-more'));
+
+    expect(await screen.findByTestId('team-row-sales')).toBeInTheDocument();
+    expect(screen.getByTestId('team-row-support')).toBeInTheDocument();
+    expect(calls.some((c) => c.url.includes('cursor=next'))).toBe(true);
+    await waitFor(() => expect(screen.queryByTestId('load-more')).not.toBeInTheDocument());
+  });
+
   it('lists teams and opens the selected team', async () => {
     installFetch(listOnly([team]));
 
@@ -370,5 +389,24 @@ describe('TeamsPage (child teams)', () => {
 
     expect(await screen.findByTestId('team-parent-acme-web')).toHaveTextContent('acme');
     expect(screen.getByTestId('team-parent-support')).toHaveTextContent('—');
+  });
+
+  it('loads the next page', async () => {
+    const calls = installFetch((url, method) => {
+      if (url.includes('/api/teams/acme/teams') && method === 'GET') {
+        return url.includes('cursor=next')
+          ? jsonResponse({ items: [{ ...child, teamId: 'acme-api', displayName: 'Acme API' }] })
+          : jsonResponse({ items: [child], continuationToken: 'next' });
+      }
+      throw new Error(`Unexpected ${method} ${url}`);
+    });
+
+    renderPage(vi.fn(), 'acme');
+    fireEvent.click(await screen.findByTestId('load-more'));
+
+    expect(await screen.findByTestId('team-row-acme-api')).toBeInTheDocument();
+    expect(screen.getByTestId('team-row-acme-web')).toBeInTheDocument();
+    expect(calls.some((c) => c.url.includes('cursor=next'))).toBe(true);
+    await waitFor(() => expect(screen.queryByTestId('load-more')).not.toBeInTheDocument());
   });
 });

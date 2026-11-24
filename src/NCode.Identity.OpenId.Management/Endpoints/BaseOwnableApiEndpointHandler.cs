@@ -1,6 +1,7 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using System.Collections.Frozen;
 using System.Diagnostics.CodeAnalysis;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
@@ -9,6 +10,7 @@ using NCode.Identity.Events.Audit;
 using NCode.Identity.OpenId.Management.Auditing;
 using NCode.Identity.OpenId.Management.Authorization;
 using NCode.Identity.OpenId.Management.Contracts;
+using NCode.Identity.OpenId.Management.ControlPlane;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.Persistence.Stores;
 
@@ -22,6 +24,60 @@ namespace NCode.Identity.OpenId.Management.Endpoints;
 internal abstract class BaseOwnableApiEndpointHandler : BaseApiEndpointHandler
 {
     /// <summary>
+    /// Creates the <c>409 Conflict</c> response for a grant that is refused because the principal is a client that
+    /// cannot hold the role at the node.
+    /// </summary>
+    // See ADR-1466.
+    internal static ProblemHttpResult RoleRefusedForPrincipal() =>
+        TypedResults.Problem(
+            detail: "A client holds a role only as a machine client, at the node that owns it or a node beneath it.",
+            statusCode: StatusCodes.Status409Conflict
+        );
+
+    /// <summary>
+    /// Reads the one name that a grant requests its principal by.
+    /// </summary>
+    /// <param name="request">The <see cref="AddRoleHolderRequest"/> that names the principal.</param>
+    /// <param name="name">
+    /// When this method returns <c>true</c>, the username when only the username is non-empty, or the principal
+    /// identifier when only the principal identifier is non-empty; otherwise, <see langword="null"/>.
+    /// </param>
+    /// <param name="isUserName">
+    /// When this method returns <c>true</c>, <c>true</c> when the name is the username and <c>false</c> when it is the
+    /// principal identifier; otherwise, <c>false</c>.
+    /// </param>
+    /// <returns>
+    /// <c>true</c> when exactly one of the principal identifier and the username is non-empty; otherwise, <c>false</c>.
+    /// </returns>
+    // See ADR-1465.
+    private static bool TryGetRequestedName(
+        AddRoleHolderRequest request,
+        [NotNullWhen(true)] out string? name,
+        out bool isUserName
+    )
+    {
+        var principalId = request.PrincipalId;
+        var userName = request.UserName;
+        if (principalId is { Length: > 0 } id && string.IsNullOrEmpty(userName))
+        {
+            name = id;
+            isUserName = false;
+            return true;
+        }
+
+        if (userName is { Length: > 0 } user && string.IsNullOrEmpty(principalId))
+        {
+            name = user;
+            isUserName = true;
+            return true;
+        }
+
+        name = null;
+        isUserName = false;
+        return false;
+    }
+
+    /// <summary>
     /// Gets the factory used to open a unit of work for role-list operations.
     /// </summary>
     protected abstract IStoreManagerFactory StoreManagerFactory { get; }
@@ -30,6 +86,11 @@ internal abstract class BaseOwnableApiEndpointHandler : BaseApiEndpointHandler
     /// Gets the service used to read and mutate resource ownership.
     /// </summary>
     protected abstract IResourceOwnershipService ResourceOwnershipService { get; }
+
+    /// <summary>
+    /// Gets the directory that names the holders of a role list and resolves a grant's username.
+    /// </summary>
+    protected abstract IControlPlanePrincipalDirectory ControlPlanePrincipalDirectory { get; }
 
     /// <summary>
     /// Gets the recorder used to write management audit events.
@@ -57,7 +118,13 @@ internal abstract class BaseOwnableApiEndpointHandler : BaseApiEndpointHandler
         string changeType
     )
     {
-        var roleHolder = ToRoleHolderResource(assignment);
+        var values = new
+        {
+            assignment.AssignmentId,
+            assignment.PrincipalId,
+            assignment.RoleName,
+        };
+        var resourceValues = ToResourceValues(values);
         var auditEvent = new RoleAssignmentChangedAuditEvent
         {
             EventSource = AuditEventSources.Management,
@@ -67,7 +134,7 @@ internal abstract class BaseOwnableApiEndpointHandler : BaseApiEndpointHandler
             NodeType = assignment.ResourceType,
             NodeId = assignment.ResourceId,
             ChangeType = changeType,
-            ResourceValues = ToResourceValues(roleHolder),
+            ResourceValues = resourceValues,
             Outcome = AuditOutcome.Success,
         };
         return ManagementAuditRecorder.RecordResourceChangeAsync(httpContext, auditEvent);
@@ -77,14 +144,58 @@ internal abstract class BaseOwnableApiEndpointHandler : BaseApiEndpointHandler
     /// Maps a role assignment to its <see cref="RoleHolderResource"/> representation.
     /// </summary>
     /// <param name="assignment">The role assignment to map.</param>
+    /// <param name="principal">
+    /// The control plane's summary of the holder, or <see langword="null"/> when the control plane does not know the
+    /// principal.
+    /// </param>
     /// <returns>The mapped <see cref="RoleHolderResource"/>.</returns>
-    internal virtual RoleHolderResource ToRoleHolderResource(PersistedRoleAssignment assignment) =>
+    internal virtual RoleHolderResource ToRoleHolderResource(
+        PersistedRoleAssignment assignment,
+        PrincipalSummaryResource? principal
+    ) =>
         new()
         {
             AssignmentId = assignment.AssignmentId,
             PrincipalId = assignment.PrincipalId,
             RoleName = assignment.RoleName,
+            Principal = principal,
         };
+
+    /// <summary>
+    /// Describes principals through the control plane's directory.
+    /// </summary>
+    /// <param name="principalIds">The identifiers of the principals to describe.</param>
+    /// <param name="cancellationToken">
+    /// The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.
+    /// </param>
+    /// <returns>
+    /// A <see cref="ValueTask{TResult}"/> whose result maps each described principal's identifier to its summary,
+    /// comparing identifiers ignoring case, as the stores match them; a principal the control plane does not know has
+    /// no entry.
+    /// </returns>
+    private async ValueTask<IReadOnlyDictionary<string, PrincipalSummaryResource>> DescribeAsync(
+        List<string> principalIds,
+        CancellationToken cancellationToken
+    )
+    {
+        if (principalIds.Count == 0)
+        {
+            return FrozenDictionary<string, PrincipalSummaryResource>.Empty;
+        }
+
+        var query = new ControlPlanePrincipalQuery { PrincipalIds = principalIds };
+        var found = await ControlPlanePrincipalDirectory.FindAsync(query, cancellationToken);
+        var summaries = new Dictionary<string, PrincipalSummaryResource>(
+            found.Count,
+            StringComparer.OrdinalIgnoreCase
+        );
+        foreach (var summary in found)
+        {
+            summaries.TryAdd(summary.PrincipalId, summary);
+        }
+
+        return summaries;
+    }
 
     /// <summary>
     /// Determines whether the caller holds an operation at a resource node.
@@ -116,9 +227,10 @@ internal abstract class BaseOwnableApiEndpointHandler : BaseApiEndpointHandler
     }
 
     /// <summary>
-    /// Processes an HTTP <c>GET</c> for the principals that hold one role at a resource node: authorizes the caller
-    /// to read the node, then returns the assignments of the role and whether the caller may grant and revoke the
-    /// role there. Responds <c>404</c> when the resource does not exist.
+    /// Processes an HTTP <c>GET</c> for the principals that hold one role at a resource node: authorizes the caller to
+    /// read the node, then returns the assignments of the role, each with the control plane's summary of its holder,
+    /// and whether the caller may grant and revoke the role there. Responds <c>404</c> when the resource does not
+    /// exist.
     /// </summary>
     /// <param name="httpContext">The <see cref="HttpContext"/> of the request.</param>
     /// <param name="roleList">The <see cref="RoleList"/> that describes the role whose assignments are listed.</param>
@@ -165,32 +277,42 @@ internal abstract class BaseOwnableApiEndpointHandler : BaseApiEndpointHandler
             cancellationToken
         );
         var canChange = await canChangeAsync(storeManager, cancellationToken);
-        var items = assignments.Select(ToRoleHolderResource).ToList();
+        var principalIds = new List<string>(assignments.Count);
+        // A role list holds each principal at most once, by the unique index of role assignments, so the identifiers
+        // need no dedupe.
+        foreach (var assignment in assignments)
+        {
+            principalIds.Add(assignment.PrincipalId);
+        }
+
+        var summaries = await DescribeAsync(principalIds, cancellationToken);
+        var items = new List<RoleHolderResource>(assignments.Count);
+        foreach (var assignment in assignments)
+        {
+            var summary = summaries.GetValueOrDefault(assignment.PrincipalId);
+            var item = ToRoleHolderResource(assignment, summary);
+            items.Add(item);
+        }
+
         var roleListResource = new RoleListResource { Items = items, CanChange = canChange };
         return TypedResults.Json(roleListResource);
     }
 
     /// <summary>
-    /// Creates the <c>409 Conflict</c> response for a grant that is refused because the principal is a client that
-    /// cannot hold the role at the node.
-    /// </summary>
-    // See ADR-1466.
-    internal static ProblemHttpResult RoleRefusedForPrincipal() =>
-        TypedResults.Problem(
-            detail: "A client holds a role only as a machine client, at the node that owns it or a node beneath it.",
-            statusCode: StatusCodes.Status409Conflict
-        );
-
-    /// <summary>
     /// Processes an HTTP <c>POST</c> that grants a principal one role at a resource node: authorizes the caller to
-    /// perform the operation at the node, then adds the assignment and records the grant. Responds <c>403</c> when
-    /// the caller lacks the operation, <c>400</c> when the request names no principal, <c>404</c> when the resource
-    /// does not exist, <c>409</c> when the principal is a client that cannot hold the role at the node, <c>200</c>
-    /// when the principal already holds the role, and <c>201</c> when the role is granted.
+    /// perform the operation at the node, then adds the assignment and records the grant. The request names the
+    /// principal by identifier or by the username of a control-plane local account. Responds <c>403</c> when the caller
+    /// lacks the operation, <c>400</c> when the request names no principal, both, an identifier no principal of the
+    /// control plane has, or a username no principal has, <c>404</c> when the resource does not exist, <c>409</c> when
+    /// the principal is a client that cannot hold the role at the node, <c>200</c> when the principal already holds the
+    /// role, and <c>201</c> when the role is granted.
     /// </summary>
     /// <param name="httpContext">The <see cref="HttpContext"/> of the request.</param>
     /// <param name="roleList">The <see cref="RoleList"/> that describes the role to grant.</param>
-    /// <param name="request">The <see cref="AddRoleHolderRequest"/> that names the principal to grant the role to.</param>
+    /// <param name="request">
+    /// The <see cref="AddRoleHolderRequest"/> that names the principal to grant the role to by exactly one of its
+    /// identifier and its username.
+    /// </param>
     /// <param name="cancellationToken">
     /// The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.
     /// </param>
@@ -216,10 +338,10 @@ internal abstract class BaseOwnableApiEndpointHandler : BaseApiEndpointHandler
             return AuthorizationFailed(httpContext);
         }
 
-        if (string.IsNullOrEmpty(request.PrincipalId))
+        if (!TryGetRequestedName(request, out var requestedName, out var isUserName))
         {
             return TypedResults.Problem(
-                detail: "The 'principalId' is required.",
+                detail: "Name exactly one of 'principalId' and 'userName'.",
                 statusCode: StatusCodes.Status400BadRequest
             );
         }
@@ -230,12 +352,58 @@ internal abstract class BaseOwnableApiEndpointHandler : BaseApiEndpointHandler
             return ManagementProblems.ResourceNotFound();
         }
 
+        PrincipalSummaryResource summary;
+        if (isUserName)
+        {
+            var userNameQuery = new ControlPlanePrincipalQuery { UserNames = [requestedName] };
+            var matches = await ControlPlanePrincipalDirectory.FindAsync(
+                userNameQuery,
+                cancellationToken
+            );
+            PrincipalSummaryResource? userNameMatch = null;
+            foreach (var match in matches)
+            {
+                if (
+                    string.Equals(match.UserName, requestedName, StringComparison.OrdinalIgnoreCase)
+                )
+                {
+                    userNameMatch = match;
+                    break;
+                }
+            }
+
+            if (userNameMatch is null)
+            {
+                return TypedResults.Problem(
+                    detail: "No principal of the control plane has the user name.",
+                    statusCode: StatusCodes.Status400BadRequest
+                );
+            }
+
+            summary = userNameMatch;
+        }
+        else
+        {
+            var described = await DescribeAsync([requestedName], cancellationToken);
+            var describedSummary = described.GetValueOrDefault(requestedName);
+            if (describedSummary is null)
+            {
+                return TypedResults.Problem(
+                    detail: "No principal of the control plane has the identifier.",
+                    statusCode: StatusCodes.Status400BadRequest
+                );
+            }
+
+            summary = describedSummary;
+        }
+
+        var principalId = summary.PrincipalId;
         var grant = await ResourceOwnershipService.AddAssignmentAsync(
             storeManager,
             node.TenantId,
             node.ResourceType,
             node.ResourceId,
-            request.PrincipalId,
+            principalId,
             roleList.RoleName,
             cancellationToken
         );
@@ -246,7 +414,7 @@ internal abstract class BaseOwnableApiEndpointHandler : BaseApiEndpointHandler
 
         await storeManager.SaveChangesAsync(cancellationToken);
 
-        var roleHolder = ToRoleHolderResource(grant.Assignment);
+        var roleHolder = ToRoleHolderResource(grant.Assignment, summary);
         if (!grant.IsAdded)
         {
             return TypedResults.Ok(roleHolder);
@@ -258,7 +426,7 @@ internal abstract class BaseOwnableApiEndpointHandler : BaseApiEndpointHandler
             ResourceChangeTypes.Created
         );
 
-        return TypedResults.Created($"{roleList.Path}/{grant.Assignment.PrincipalId}", roleHolder);
+        return TypedResults.Created($"{roleList.Path}/{principalId}", roleHolder);
     }
 
     /// <summary>

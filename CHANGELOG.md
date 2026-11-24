@@ -2709,7 +2709,8 @@ Until the first stable release, the [Unreleased] section describes the product a
 - **Local-account management is an opt-in capability of the management API.** The `local-accounts` resource family under
   `/api/tenants/{tenantId}/local-accounts` lets a tenant or global administrator create, list, get, update (a JSON Patch
   of `displayName`, `userName`, `email` and `emailVerified`), delete, disable and enable a local account, reset its
-  credential, manage its profile claims, and read and set its server-owned metadata. On the control-plane cell, `GET`
+  credential, manage its profile claims, and read and set its server-owned metadata, where the claims and metadata
+  writes take `If-Match` ([#936](https://github.com/NCodeGroup/identity/issues/936)). On the control-plane cell, `GET`
   and `POST /api/platform/local-accounts` list and create the control-plane tenant's accounts, where the root
   administrator lives. Creating an account provisions its owning `FederatedPrincipal` and its one-to-one
   `FederatedIdentity` in the account's connection in the same unit of work, so principal-level metadata
@@ -2745,9 +2746,16 @@ Until the first stable release, the [Unreleased] section describes the product a
 
 - **The management console manages users.** A Users tab in every tenant and in the platform scope lists local accounts
   by display name, username, email, principal identifier and status, and creates, edits, disables and enables, resets
-  the password of and deletes them
+  the password of and deletes them. A user opens to edit its profile claims and its profile and system metadata
   ([ADR-1255](docs/decisions/1255-the-management-consoles-url-is-its-navigation-state-and-every-scopes-surface-has-its-own-address.md),
-  [ADR-1057](docs/decisions/1057-local-account-management-is-an-opt-in-capability-that-provisions-the-principal-eagerly-and-authorizes-per-tenant.md)).
+  [ADR-1057](docs/decisions/1057-local-account-management-is-an-opt-in-capability-that-provisions-the-principal-eagerly-and-authorizes-per-tenant.md),
+  [#936](https://github.com/NCodeGroup/identity/issues/936)).
+
+- **The management console pages through long lists.** The teams, tenants, clients, machine clients, users, resource
+  servers and grants lists show the pages they loaded and a Load more control while the API returns a continuation
+  token; a team's tenants page in every cell at once
+  ([#935](https://github.com/NCodeGroup/identity/issues/935),
+  [ADR-1014](docs/decisions/1014-management-resources-carry-opaque-server-identifiers-and-list-one-keyset-page-at-a-time.md)).
 
 - **The management API looks up audit records.** `GET api/tenants/{tenantId}/audit-records` lists the tenant's records
   from the audit store, newest first by event time with ties broken by id, filtered by `startTime`/`endTime`,
@@ -2828,8 +2836,10 @@ Until the first stable release, the [Unreleased] section describes the product a
   revokes their administrators and owners, and a client's and a resource server's Access tab their owners, through
   `useListRoleAssignmentsQuery`, `useAddRoleAssignmentMutation` and `useRemoveRoleAssignmentMutation`, each taking a
   `RoleList` from `@ncodegroup/identity-api`. A list offers its grant form and revoke controls only when it answers
-  `canChange`, shows itself read-only otherwise, and every role list refreshes after any grant or revoke
+  `canChange`, shows itself read-only otherwise, and every role list refreshes after any grant or revoke. Each holder
+  shows by display name with its kind and principal identifier, and the grant form takes a username or a principal ID
   ([#582](https://github.com/NCodeGroup/identity/issues/582), [#623](https://github.com/NCodeGroup/identity/issues/623),
+  [#934](https://github.com/NCodeGroup/identity/issues/934),
   [ADR-1465](docs/decisions/1465-role-lists-share-one-audited-grant-and-revoke-flow-and-a-caller-discovers-its-own-assignments.md)).
 
 - **The management console manages secrets with a one-time reveal.** An owner's Secrets tab creates, lists and deletes
@@ -4667,11 +4677,16 @@ Until the first stable release, the [Unreleased] section describes the product a
   host does not manage and, for a machine client, creation authority at the node that owns it. `POST` on each list
   takes `AddRoleHolderRequest` and answers the `RoleHolderResource` it grants, or `409` for a client's principal that
   cannot hold the role there, and every list grants and revokes its role through one flow, so every role answers the
-  same statuses and records the same audit events
+  same statuses and records the same audit events. Each holder carries `principal`, a `PrincipalSummaryResource`
+  (`principalId`, `principalType`, `displayName`, `userName`) that the control plane resolves through
+  `IControlPlanePrincipalDirectory` from every registered `IPrincipalDescriber` (local accounts and clients) and then as
+  `federated_user` for a federated principal, which the other cells ask through `POST /control-plane/v1/principals`; a
+  grant names its principal by `principalId` or by `userName`, the user name of a local account of the control-plane
+  tenant's default connection, and refuses a principal the control plane doesn't know with `400`
   ([ADR-1465](docs/decisions/1465-role-lists-share-one-audited-grant-and-revoke-flow-and-a-caller-discovers-its-own-assignments.md),
   [ADR-1466](docs/decisions/1466-a-client-is-its-own-principal-and-a-machine-client-acts-only-within-its-owning-node.md),
   [#623](https://github.com/NCodeGroup/identity/issues/623), [#627](https://github.com/NCodeGroup/identity/issues/627),
-  [#628](https://github.com/NCodeGroup/identity/issues/628)).
+  [#628](https://github.com/NCodeGroup/identity/issues/628), [#934](https://github.com/NCodeGroup/identity/issues/934)).
 
 - **Settings are reconciled per team.** Each team records the effective settings its tenants and clients were last
   reconciled against; `TeamSettingsReconciliationService` reconciles every team when the platform's settings change and

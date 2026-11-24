@@ -8,6 +8,7 @@ using NCode.Identity.OpenId.Accounts.Management.Transfers;
 using NCode.Identity.OpenId.Connections;
 using NCode.Identity.OpenId.Management;
 using NCode.Identity.OpenId.Management.Endpoints;
+using NCode.Identity.OpenId.Management.Principals;
 using NCode.Identity.OpenId.Management.Transfers;
 using NCode.Identity.Registration;
 using NCode.Identity.Registration.AspNetCore;
@@ -83,6 +84,13 @@ public static class DefaultRegistration
                 LocalAccountTenantTransferContributor
             >();
             serviceCollection.TryAddEnumerable(transferDescriptor);
+
+            // Names the principals of local accounts in the control-plane tenant's role lists (ADR-1465).
+            var describerDescriptor = ServiceDescriptor.Singleton<
+                IPrincipalDescriber,
+                LocalAccountPrincipalDescriber
+            >();
+            serviceCollection.TryAddEnumerable(describerDescriptor);
 
             return builder;
         }

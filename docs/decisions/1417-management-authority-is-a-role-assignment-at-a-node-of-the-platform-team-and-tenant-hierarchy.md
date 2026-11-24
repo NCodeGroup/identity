@@ -62,7 +62,9 @@ claim confers management authority except the development bootstrap client's `Gl
    other cell, calls the control-plane cell's `POST /control-plane/v1/authority` with a client-credentials token for
    audience `urn:ncode:control-plane`, and fails closed: an unreachable or failing control plane answers `503`, and
    authority is never allowed on a failure. A tenant's own assignments are read from the tenant's cell, and the two
-   sources together answer the chain that `IAuthorityChainResolver` derives.
+   sources together answer the chain that `IAuthorityChainResolver` derives. The other cells also ask the control plane
+   for the names of principals through `POST /control-plane/v1/principals`
+   ([ADR-1465](1465-role-lists-share-one-audited-grant-and-revoke-flow-and-a-caller-discovers-its-own-assignments.md)).
 6. **No claim authority.** The one role claim that confers management authority is the development bootstrap client's
    `GlobalAdmin` stamp
    ([ADR-1044](1044-the-management-api-authenticates-its-own-access-tokens-and-a-configured-client-bootstraps-the-first-globaladmin.md)).

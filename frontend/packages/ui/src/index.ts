@@ -12,6 +12,7 @@ export { TenantCard, type TenantCardProps } from './components/TenantCard.js';
 export { HazardBand, type HazardBandProps } from './components/HazardBand.js';
 export { ScopeBadge, type ScopeBadgeProps, type ScopeKind } from './components/ScopeBadge.js';
 export { DataStateBoundary, type DataStateBoundaryProps } from './components/DataStateBoundary.js';
+export { LoadMoreButton, type LoadMoreButtonProps } from './components/LoadMoreButton.js';
 export {
   UnavailableCellsAlert,
   type UnavailableCellsAlertProps,
@@ -185,6 +186,14 @@ export {
   type PublicKeyMaterial,
 } from './components/ExportPublicKeyDialog.js';
 export { SettingsEditor, type SettingsEditorProps } from './components/SettingsEditor.js';
+export {
+  LocalAccountClaimsEditor,
+  type LocalAccountClaimsEditorProps,
+} from './components/LocalAccountClaimsEditor.js';
+export {
+  LocalAccountMetadataEditor,
+  type LocalAccountMetadataEditorProps,
+} from './components/LocalAccountMetadataEditor.js';
 export {
   InitialAccessTokenFormDialog,
   emptyInitialAccessTokenFormValues,

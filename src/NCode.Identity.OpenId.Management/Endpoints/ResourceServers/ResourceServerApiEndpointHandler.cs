@@ -19,6 +19,7 @@ using NCode.Identity.OpenId.Management.Authorization;
 using NCode.Identity.OpenId.Management.Contracts;
 using NCode.Identity.OpenId.Management.Contracts.ResourceServers;
 using NCode.Identity.OpenId.Management.Contracts.Secrets;
+using NCode.Identity.OpenId.Management.ControlPlane;
 using NCode.Identity.OpenId.Management.Endpoints.Secrets;
 using NCode.Identity.OpenId.Management.Logging;
 using NCode.Identity.OpenId.Persistence.DataContracts;
@@ -81,6 +82,7 @@ internal class ResourceServerApiEndpointHandler(
     ISettingScopeCollectionProvider settingScopeCollectionProvider,
     IEffectiveSettingsResolver effectiveSettingsResolver,
     IResourceOwnershipService resourceOwnershipService,
+    IControlPlanePrincipalDirectory controlPlanePrincipalDirectory,
     IManagementAuditRecorder managementAuditRecorder,
     ILogger<ResourceServerApiEndpointHandler> logger
 ) : BaseOwnableApiEndpointHandler, IEndpointProvider
@@ -108,6 +110,10 @@ internal class ResourceServerApiEndpointHandler(
     /// <inheritdoc />
     protected override IResourceOwnershipService ResourceOwnershipService { get; } =
         resourceOwnershipService;
+
+    /// <inheritdoc />
+    protected override IControlPlanePrincipalDirectory ControlPlanePrincipalDirectory { get; } =
+        controlPlanePrincipalDirectory;
     private ILogger<ResourceServerApiEndpointHandler> Logger { get; } = logger;
 
     /// <inheritdoc />

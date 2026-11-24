@@ -31,11 +31,6 @@ POST control-plane/v1/authority
 internal sealed class ControlPlaneAuthorityEndpointProvider : IEndpointProvider
 {
     /// <summary>
-    /// The path of the authority endpoint.
-    /// </summary>
-    internal const string AuthorityPath = "/control-plane/v1/authority";
-
-    /// <summary>
     /// The reason that the route gives the unscoped scope it opens.
     /// </summary>
     internal const string UnscopedReason = "control-plane authority";
@@ -48,7 +43,7 @@ internal sealed class ControlPlaneAuthorityEndpointProvider : IEndpointProvider
             return;
 
         endpoints
-            .MapPost(AuthorityPath, GetAuthorityAsync)
+            .MapPost(GlobalDirectoryProtocol.ControlPlaneAuthorityPath, GetAuthorityAsync)
             .AddEndpointGate<RouteHandlerBuilder, ControlPlaneAuthenticationGate>()
             .WithConfidentialBodies()
             .ExcludeFromDescription();

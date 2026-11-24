@@ -26,6 +26,7 @@ using NCode.Identity.OpenId.Management.Contracts;
 using NCode.Identity.OpenId.Management.Contracts.EncryptionKeys;
 using NCode.Identity.OpenId.Management.Contracts.Secrets;
 using NCode.Identity.OpenId.Management.Contracts.Tenants;
+using NCode.Identity.OpenId.Management.ControlPlane;
 using NCode.Identity.OpenId.Management.Endpoints.Clients;
 using NCode.Identity.OpenId.Management.Endpoints.Secrets;
 using NCode.Identity.OpenId.Management.Logging;
@@ -56,6 +57,7 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
     private const string ControlPlaneTenantId = "platform-root";
 
     private MockRepository MockRepository { get; }
+    private Mock<IControlPlanePrincipalDirectory> MockPrincipalDirectory { get; }
     private Mock<IStoreManagerFactory> MockStoreManagerFactory { get; }
     private Mock<IStoreManager> MockStoreManager { get; }
     private Mock<ITenantStore> MockTenantStore { get; }
@@ -128,6 +130,7 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
         MockTenantConfigurationExporter = MockRepository.Create<ITenantConfigurationExporter>();
 
         MockManagementAuditRecorder = MockRepository.Create<IManagementAuditRecorder>();
+        MockPrincipalDirectory = MockRepository.Create<IControlPlanePrincipalDirectory>();
 
         // A write announces the change after it commits; the tests that write verify the announcement.
         MockMediator = MockRepository.Create<IMediator>();
@@ -159,6 +162,7 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
             MockTenantEnvironmentCatalog.Object,
             MockTenantClientCoherenceChecker.Object,
             MockResourceOwnershipService.Object,
+            MockPrincipalDirectory.Object,
             MockRemoteSecretDestroyer.Object,
             MockTenantDirectory.Object,
             Options.Create(CellOptions),
@@ -6662,6 +6666,7 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
     [Fact]
     public async Task ListOwnersAsync_WhenTheCallerMayUpdateTheTenant_ReportsItMayChangeTheOwners()
     {
+        PrincipalDirectoryMocks.SetupDescribingEveryPrincipal(MockPrincipalDirectory);
         SetupAuthorization(AuthorizationResult.Success());
         SetupStore();
         SetupTenant(CreateTenant("tenant-ct"));
@@ -6694,6 +6699,7 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
     [Fact]
     public async Task ListOwnersAsync_WhenTheCallerMayOnlyReadTheTenant_ReportsItMayNotChangeTheOwners()
     {
+        PrincipalDirectoryMocks.SetupDescribingEveryPrincipal(MockPrincipalDirectory);
         SetupAuthorization(AuthorizationResult.Success());
         SetupAuthorization(Operations.Update, AuthorizationResult.Failed());
         SetupStore();
@@ -6731,6 +6737,7 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
     [Fact]
     public async Task AddOwnerAsync_WhenAuthorized_GrantsTheOwnerRoleAndReturnsCreatedBeneathTheTenantsOwners()
     {
+        PrincipalDirectoryMocks.SetupDescribingEveryPrincipal(MockPrincipalDirectory);
         SetupAuthorization(AuthorizationResult.Success());
         SetupStore();
         SetupTenant(CreateTenant("tenant-ct"));
@@ -6771,6 +6778,7 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
     [Fact]
     public async Task AddOwnerAsync_WhenThePrincipalCannotHoldTheRole_ReturnsConflictWithoutSavingOrRecording()
     {
+        PrincipalDirectoryMocks.SetupDescribingEveryPrincipal(MockPrincipalDirectory);
         SetupAuthorization(AuthorizationResult.Success());
         SetupStore();
         SetupTenant(CreateTenant("tenant-ct"));
@@ -6808,6 +6816,7 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
     [Fact]
     public async Task ListAdminsAsync_WhenAuthorized_ReturnsTheTenantAdminAssignments()
     {
+        PrincipalDirectoryMocks.SetupDescribingEveryPrincipal(MockPrincipalDirectory);
         SetupAuthorization(AuthorizationResult.Success());
         SetupStore();
         SetupTenant(CreateTenant("tenant-ct"));
@@ -6844,6 +6853,7 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
     [Fact]
     public async Task ListAdminsAsync_WhenTheCallerMayNotCreateAtTheTenant_ReportsItMayNotChangeTheAdministrators()
     {
+        PrincipalDirectoryMocks.SetupDescribingEveryPrincipal(MockPrincipalDirectory);
         SetupAuthorization(AuthorizationResult.Success());
         SetupAuthorization(Operations.Create, AuthorizationResult.Failed());
         SetupStore();
@@ -6928,6 +6938,7 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
     [Fact]
     public async Task AddAdminAsync_WhenAuthorized_AssignsTheTenantAdminRoleAndReturnsCreated()
     {
+        PrincipalDirectoryMocks.SetupDescribingEveryPrincipal(MockPrincipalDirectory);
         SetupAuthorization(AuthorizationResult.Success());
         SetupStore();
         SetupTenant(CreateTenant("tenant-ct"));
@@ -6968,6 +6979,7 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
     [Fact]
     public async Task AddAdminAsync_RequestsCreateOnTheTenantNode()
     {
+        PrincipalDirectoryMocks.SetupDescribingEveryPrincipal(MockPrincipalDirectory);
         object? authorizedResource = null;
         IAuthorizationRequirement[] requirements = [];
         SetupAuthorizationCapture(
@@ -7020,6 +7032,7 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
     [Fact]
     public async Task AddAdminAsync_WhenAdded_RecordsACreatedRoleAssignmentAtTheTenant()
     {
+        PrincipalDirectoryMocks.SetupDescribingEveryPrincipal(MockPrincipalDirectory);
         SetupAuthorization(AuthorizationResult.Success());
         SetupStore();
         SetupTenant(CreateTenant("tenant-ct"));
@@ -7064,6 +7077,7 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
     [Fact]
     public async Task AddAdminAsync_WhenAlreadyHeld_ReturnsOkAndRecordsNothing()
     {
+        PrincipalDirectoryMocks.SetupDescribingEveryPrincipal(MockPrincipalDirectory);
         SetupAuthorization(AuthorizationResult.Success());
         SetupStore();
         SetupTenant(CreateTenant("tenant-ct"));
@@ -7103,6 +7117,7 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
     [Fact]
     public async Task AddAdminAsync_WhenThePrincipalCannotHoldTheRole_ReturnsConflictWithoutSavingOrRecording()
     {
+        PrincipalDirectoryMocks.SetupDescribingEveryPrincipal(MockPrincipalDirectory);
         SetupAuthorization(AuthorizationResult.Success());
         SetupStore();
         SetupTenant(CreateTenant("tenant-ct"));

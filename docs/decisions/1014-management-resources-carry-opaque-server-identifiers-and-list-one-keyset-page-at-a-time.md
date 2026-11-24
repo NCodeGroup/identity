@@ -66,6 +66,11 @@ assignment ([ADR-1417](1417-management-authority-is-a-role-assignment-at-a-node-
 Small collections bounded by design are returned whole: an owner's secrets, a resource server's scopes, the role lists
 and the `/api/me` lists.
 
+The management console reads each paged collection as an RTK Query infinite query whose first page has no cursor and
+whose next page passes the page's `continuationToken` as `cursor`. A list shows the pages it loaded and a Load more
+control while a token remains. A team's tenants are read in every cell, each cell with its own cursor. A select that
+must list every item loads the remaining pages itself.
+
 A specific filter is an explicit query parameter backed by an explicit store method, as the grant list's are. There is
 no general query protocol.
 
@@ -105,3 +110,4 @@ no general query protocol.
 - [ADR-1160](1160-a-tenant-is-named-by-its-creator-validated-by-its-strategy-and-never-reissued.md)
 - [ADR-1411](1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md)
 - [ADR-1417](1417-management-authority-is-a-role-assignment-at-a-node-of-the-platform-team-and-tenant-hierarchy.md)
+- [#935](https://github.com/NCodeGroup/identity/issues/935)

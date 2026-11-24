@@ -110,6 +110,22 @@ public interface ILocalAccountStore : IStore
     );
 
     /// <summary>
+    /// Gets the names of the local accounts from the store that have any of the specified opaque identifiers (the
+    /// subjects of their identities in their connections); an identifier no account has contributes none. It reads none
+    /// of the accounts' claims. Identifiers are unique in a tenant, so no connection is named, and each projection
+    /// names its connection.
+    /// </summary>
+    /// <param name="localAccountIds">The opaque identifiers of the local accounts (the subjects of their identities in
+    /// their connections).</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation, containing the matching
+    /// <see cref="LocalAccountNameProjection"/> records in no particular order.</returns>
+    ValueTask<IReadOnlyList<LocalAccountNameProjection>> GetNamesByIdsAsync(
+        IReadOnlyCollection<string> localAccountIds,
+        CancellationToken cancellationToken
+    );
+
+    /// <summary>
     /// Attempts to get a local account from a connection by its username (login handle).
     /// </summary>
     /// <param name="connectionId">The identifier of the local connection that holds the account.</param>
@@ -134,6 +150,22 @@ public interface ILocalAccountStore : IStore
     ValueTask<PersistedLocalAccount?> GetByEmailOrDefaultAsync(
         string connectionId,
         string email,
+        CancellationToken cancellationToken
+    );
+
+    /// <summary>
+    /// Gets the names of a connection's local accounts that have any of the specified usernames (login handles); a name
+    /// no account has contributes none, and an account without a username is never found by one. It reads none of the
+    /// accounts' claims.
+    /// </summary>
+    /// <param name="connectionId">The identifier of the local connection that holds the accounts.</param>
+    /// <param name="userNames">The usernames (login handles) of the local accounts.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation, containing the matching
+    /// <see cref="LocalAccountNameProjection"/> records in no particular order.</returns>
+    ValueTask<IReadOnlyList<LocalAccountNameProjection>> GetNamesByUserNamesAsync(
+        string connectionId,
+        IReadOnlyCollection<string> userNames,
         CancellationToken cancellationToken
     );
 

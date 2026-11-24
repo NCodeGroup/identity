@@ -413,6 +413,80 @@ public sealed class AspNetIdentityLocalAccountStoreEntityFrameworkTests : IAsync
 
     #endregion
 
+    #region GetNamesByIdsAsync Tests
+
+    [Fact]
+    public async Task GetNamesByIdsAsync_WhenTheAccountIsStored_ReturnsItsNames()
+    {
+        var account = CreateAccount();
+        await Store.AddAsync(account, FirstPassword, CancellationToken.None);
+        var query = new[] { LocalAccountId };
+
+        var names = await Store.GetNamesByIdsAsync(query, CancellationToken.None);
+
+        var name = Assert.Single(names);
+        Assert.Equal(LocalAccountId, name.LocalAccountId);
+        Assert.Equal(ConnectionId, name.ConnectionId);
+        Assert.Equal(UserName, name.UserName);
+        Assert.Equal("Alice Example", name.DisplayName);
+    }
+
+    #endregion
+
+    #region GetNamesByUserNamesAsync Tests
+
+    [Fact]
+    public async Task GetNamesByUserNamesAsync_WhenTheAccountIsStored_ReturnsItsNames()
+    {
+        var account = CreateAccount();
+        await Store.AddAsync(account, FirstPassword, CancellationToken.None);
+        var query = new[] { UserName };
+
+        var names = await Store.GetNamesByUserNamesAsync(
+            ConnectionId,
+            query,
+            CancellationToken.None
+        );
+
+        var name = Assert.Single(names);
+        Assert.Equal(LocalAccountId, name.LocalAccountId);
+        Assert.Equal(ConnectionId, name.ConnectionId);
+        Assert.Equal(UserName, name.UserName);
+        Assert.Equal("Alice Example", name.DisplayName);
+    }
+
+    [Fact]
+    public async Task GetNamesByUserNamesAsync_WhenTheUserNameBelongsToAnotherConnection_ReturnsNone()
+    {
+        var account = CreateConnectionAccount("connection-2", LocalAccountId, UserName, null);
+        await Store.AddAsync(account, FirstPassword, CancellationToken.None);
+        var query = new[] { UserName };
+
+        var names = await Store.GetNamesByUserNamesAsync(
+            ConnectionId,
+            query,
+            CancellationToken.None
+        );
+
+        Assert.Empty(names);
+    }
+
+    [Fact]
+    public async Task GetNamesByIdsAsync_WhenTheAccountHasNoUserName_ReadsItBackWithANullUserName()
+    {
+        var account = CreateConnectionAccount(ConnectionId, LocalAccountId, null, "a@example.com");
+        await Store.AddAsync(account, FirstPassword, CancellationToken.None);
+        var query = new[] { LocalAccountId };
+
+        var names = await Store.GetNamesByIdsAsync(query, CancellationToken.None);
+
+        var name = Assert.Single(names);
+        Assert.Equal(ConnectionId, name.ConnectionId);
+        Assert.Null(name.UserName);
+    }
+
+    #endregion
+
     #region SetPasswordAsync Tests
 
     [Fact]

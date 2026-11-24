@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import AddIcon from '@mui/icons-material/Add';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -6,6 +6,7 @@ import Typography from '@mui/material/Typography';
 import {
   ConfirmDialog,
   DataStateBoundary,
+  LoadMoreButton,
   ResourceServerFormDialog,
   ResourceServerTable,
   emptyResourceServerFormValues,
@@ -14,9 +15,10 @@ import {
 import type { ResourceServerResource } from '@ncodegroup/identity-api';
 import {
   apiErrorMessage,
+  pagedItems,
   useCreateResourceServerMutation,
   useDeleteResourceServerMutation,
-  useListResourceServersQuery,
+  useListResourceServersInfiniteQuery,
   useUpdateResourceServerMutation,
   type ApiError,
 } from '@ncodegroup/identity-store';
@@ -44,8 +46,9 @@ const closed: DialogState = { kind: 'none' };
  */
 export function ResourceServersPage({ tenantId }: ResourceServersPageProps) {
   const cell = useTenantCell();
-  const { data, isLoading, error } = useListResourceServersQuery({ tenantId, cell });
-  const resourceServers = data?.items ?? [];
+  const { data, isLoading, error, hasNextPage, isFetchingNextPage, fetchNextPage } =
+    useListResourceServersInfiniteQuery({ tenantId, cell });
+  const resourceServers = useMemo(() => pagedItems(data), [data]);
 
   const [createResourceServer, { isLoading: isCreating }] = useCreateResourceServerMutation();
   const [updateResourceServer, { isLoading: isUpdating }] = useUpdateResourceServerMutation();
@@ -179,6 +182,11 @@ export function ResourceServersPage({ tenantId }: ResourceServersPageProps) {
           onDelete={openDelete}
         />
       </DataStateBoundary>
+      <LoadMoreButton
+        hasMore={hasNextPage}
+        isLoading={isFetchingNextPage}
+        onLoadMore={() => void fetchNextPage()}
+      />
 
       <ResourceServerFormDialog
         open={formOpen}
