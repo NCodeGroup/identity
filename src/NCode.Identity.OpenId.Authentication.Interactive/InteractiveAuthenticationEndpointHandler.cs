@@ -435,11 +435,10 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
         );
         if (selection.Connection is not { } selectedConnection)
         {
-            // The service answers a posted name it does not offer and an empty one with the same refusal, so the
-            // handler tells them apart by the posted name.
-            var refusedConnectionCode = string.IsNullOrEmpty(connection)
-                ? ConnectionRequiredCode
-                : OpenIdProtocol.ErrorCodes.InvalidRequest;
+            var refusedConnectionCode = GetRefusedConnectionCode(
+                selection,
+                OpenIdProtocol.ErrorCodes.InvalidRequest
+            );
             var refusedConnectionRedirect = BuildLoginRedirect(
                 httpContext,
                 safeReturnUrl,
@@ -1396,14 +1395,7 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
         var query = httpContext.Request.Query;
         var returnUrl = query[ReturnUrlName].ToString();
         var offered = await GetOfferedAsync(httpContext, returnUrl, httpContext.RequestAborted);
-        var resettable = new List<ResolvedConnection>();
-        foreach (var candidate in offered.Offered)
-        {
-            if (candidate.Settings.GetValue(OpenIdSettingKeys.PasswordResetEnabled))
-            {
-                resettable.Add(candidate);
-            }
-        }
+        var resettable = GetResettableConnections(offered.Offered);
         if (resettable.Count == 0)
         {
             return TypedResults.NotFound();
@@ -1493,18 +1485,20 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
             ? null
             : ResolveSafeReturnUrl(httpContext, returnUrl);
         var openIdContext = httpContext.GetOpenIdContext();
-        var selection = await SignInConnectionService.SelectAsync(
-            openIdContext,
-            carriedReturnUrl,
-            connection,
+        var offered = await GetOfferedAsync(
+            httpContext,
+            carriedReturnUrl ?? string.Empty,
             httpContext.RequestAborted
         );
-        if (string.IsNullOrEmpty(username) || selection.Connection is not { } selectedConnection)
+        var selection = SelectForForgotPassword(offered, connection);
+        if (selection.IsRefused || string.IsNullOrEmpty(username))
         {
-            var forgotError =
-                selection.Connection is null && string.IsNullOrEmpty(connection)
-                    ? ConnectionRequiredCode
-                    : InteractivePasswordChangeErrors.InvalidRequest;
+            var forgotError = selection.IsRefused
+                ? GetRefusedConnectionCode(
+                    selection,
+                    InteractivePasswordChangeErrors.InvalidRequest
+                )
+                : InteractivePasswordChangeErrors.InvalidRequest;
             return RedirectToSurfacePage(
                 httpContext,
                 InteractiveAuthenticationDefaults.PasswordForgotPath,
@@ -1514,7 +1508,10 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
             );
         }
 
-        if (!selectedConnection.Settings.GetValue(OpenIdSettingKeys.PasswordResetEnabled))
+        if (
+            selection.Connection is not { } selectedConnection
+            || !selectedConnection.Settings.GetValue(OpenIdSettingKeys.PasswordResetEnabled)
+        )
         {
             return TypedResults.NotFound();
         }
@@ -2225,6 +2222,113 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
     }
 
     /// <summary>
+    /// Gets the offered connections whose end users can reset a password.
+    /// </summary>
+    /// <param name="offered">The connections the sign-in pages offer.</param>
+    /// <returns>The offered connections that enable a password reset, in their offered order.</returns>
+    // See ADR-1533.
+    private static List<ResolvedConnection> GetResettableConnections(
+        IReadOnlyList<ResolvedConnection> offered
+    )
+    {
+        var resettable = new List<ResolvedConnection>();
+        foreach (var candidate in offered)
+        {
+            if (candidate.Settings.GetValue(OpenIdSettingKeys.PasswordResetEnabled))
+            {
+                resettable.Add(candidate);
+            }
+        }
+
+        return resettable;
+    }
+
+    /// <summary>
+    /// Resolves the connection the forgot-password post names the way the forgot-password page chooses one: a blank
+    /// name falls back to the resettable connection the sign-in preselects, else to the only resettable connection,
+    /// else the post is refused as needing a choice, and a name that no connection offers is refused as unavailable.
+    /// </summary>
+    /// <param name="offered">The connections the sign-in pages offer, and the one they preselect.</param>
+    /// <param name="posted">The connection name the form posted.</param>
+    /// <returns>The selected connection, which may not enable a password reset when the post names it; a refusal; or
+    /// neither a connection nor a refusal when no offered connection enables a password reset.</returns>
+    // See ADR-1535.
+    private static ConnectionSelection SelectForForgotPassword(
+        SignInConnections offered,
+        string? posted
+    )
+    {
+        var resettable = GetResettableConnections(offered.Offered);
+        if (resettable.Count == 0)
+        {
+            return new ConnectionSelection();
+        }
+
+        if (string.IsNullOrEmpty(posted))
+        {
+            var preselectedName = SelectResettableConnection(
+                resettable,
+                requested: null,
+                offered.Preselected?.Name
+            );
+            foreach (var candidate in resettable)
+            {
+                if (
+                    resettable.Count == 1
+                    || string.Equals(
+                        candidate.Name,
+                        preselectedName,
+                        StringComparison.OrdinalIgnoreCase
+                    )
+                )
+                {
+                    return new ConnectionSelection { Connection = candidate };
+                }
+            }
+
+            return new ConnectionSelection
+            {
+                ErrorCode = ConnectionSelectionErrors.Required,
+                ErrorDescription = "A connection is required.",
+            };
+        }
+
+        foreach (var candidate in offered.Offered)
+        {
+            if (string.Equals(candidate.Name, posted, StringComparison.OrdinalIgnoreCase))
+            {
+                return new ConnectionSelection { Connection = candidate };
+            }
+        }
+
+        return new ConnectionSelection
+        {
+            ErrorCode = ConnectionSelectionErrors.Unavailable,
+            ErrorDescription = "The connection is not offered.",
+        };
+    }
+
+    /// <summary>
+    /// Maps the reason a connection selection refuses to the error code the sign-in pages redirect with: the
+    /// connection-required code when a choice is missing, else the invalid-request code the caller names.
+    /// </summary>
+    /// <param name="selection">The refused selection.</param>
+    /// <param name="invalidRequestCode">The invalid-request code of the surface that redirects.</param>
+    /// <returns>The error code to redirect with.</returns>
+    // See ADR-1535.
+    private static string GetRefusedConnectionCode(
+        ConnectionSelection selection,
+        string invalidRequestCode
+    ) =>
+        string.Equals(
+            selection.ErrorCode,
+            ConnectionSelectionErrors.Required,
+            StringComparison.Ordinal
+        )
+            ? ConnectionRequiredCode
+            : invalidRequestCode;
+
+    /// <summary>
     /// Finds the stored name of the resettable connection the forgot-password page preselects: the one the query
     /// requests, else the preselected connection, each matched case-insensitively as connection names are.
     /// </summary>
@@ -2298,9 +2402,16 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
         string? languageTag
     )
     {
-        var anyResettable = offered.Offered.Any(candidate =>
-            candidate.Settings.GetValue(OpenIdSettingKeys.PasswordResetEnabled)
-        );
+        var anyResettable = false;
+        foreach (var candidate in offered.Offered)
+        {
+            if (candidate.Settings.GetValue(OpenIdSettingKeys.PasswordResetEnabled))
+            {
+                anyResettable = true;
+                break;
+            }
+        }
+
         if (!anyResettable)
         {
             return null;
