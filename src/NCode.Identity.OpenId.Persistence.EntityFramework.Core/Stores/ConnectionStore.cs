@@ -117,6 +117,23 @@ internal sealed class ConnectionStore(
             .Connections.Include(entity => entity.Tenant)
             .ToListAsync(cancellationToken);
 
+        // A connection added earlier in the same unit of work is not in the database yet.
+        var knownIds = entities.Select(entity => entity.Id).ToHashSet();
+        var addedIds = DbContext
+            .Connections.Local.Where(entity =>
+                DbContext.Entry(entity).State == EntityState.Added && !knownIds.Contains(entity.Id)
+            )
+            .Select(entity => entity.Id)
+            .ToList();
+        foreach (var addedId in addedIds)
+        {
+            var added = GetLocalOrDefault(entity => entity.Id == addedId);
+            if (added is not null)
+            {
+                entities.Add(added);
+            }
+        }
+
         // The database collation decides the order of names, so the ordinal order is fixed in memory.
         var items = new List<PersistedConnection>(entities.Count);
         foreach (var entity in entities.OrderBy(entity => entity.Name, StringComparer.Ordinal))

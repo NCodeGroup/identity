@@ -5,6 +5,7 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using NCode.Identity.OpenId.Persistence.DataContracts;
+using NCode.Identity.OpenId.Persistence.Tenants;
 using NCode.Identity.Persistence;
 using NCode.Identity.Persistence.Stores;
 
@@ -15,6 +16,8 @@ public sealed class ConnectionStoreTests : IDisposable
     private const string TenantId = "tenant-1";
     private const string ConnectionId = "conn-1";
 
+    private string? AmbientTenantId { get; set; }
+    private bool AmbientIsUnscoped { get; set; } = true;
     private ServiceProvider Provider { get; }
     private OpenIdDbContext DbContext { get; }
     private TenantStore TenantStore { get; }
@@ -22,7 +25,13 @@ public sealed class ConnectionStoreTests : IDisposable
 
     public ConnectionStoreTests()
     {
+        var accessor = new Mock<IAmbientTenantAccessor>();
+        accessor.Setup(x => x.TenantId).Returns(() => AmbientTenantId);
+        accessor.Setup(x => x.IsScoped).Returns(() => AmbientTenantId is not null);
+        accessor.Setup(x => x.IsUnscoped).Returns(() => AmbientIsUnscoped);
+
         var serviceCollection = new ServiceCollection();
+        serviceCollection.AddSingleton(accessor.Object);
         serviceCollection.AddTestOpenIdDbContext(options =>
             options.UseInMemoryDatabase(Guid.NewGuid().ToString("N"))
         );
@@ -176,6 +185,31 @@ public sealed class ConnectionStoreTests : IDisposable
         var all = await Store.GetAllAsync(CancellationToken.None);
 
         Assert.Equal(["alpha", "beta", "gamma"], all.Select(connection => connection.Name));
+    }
+
+    [Fact]
+    public async Task GetAllAsync_IncludesAConnectionAddedBeforeSave()
+    {
+        await SeedTenantAsync(CancellationToken.None);
+        await AddAndSaveAsync(CreateConnection("conn-a", "alpha"), CancellationToken.None);
+        await Store.AddAsync(CreateConnection("conn-b", "beta"), CancellationToken.None);
+
+        var all = await Store.GetAllAsync(CancellationToken.None);
+
+        Assert.Equal(["alpha", "beta"], all.Select(connection => connection.Name));
+    }
+
+    [Fact]
+    public async Task GetAllAsync_OmitsATrackedConnectionOfAnotherTenant()
+    {
+        await SeedTenantAsync(CancellationToken.None);
+        await Store.AddAsync(CreateConnection("conn-a", "alpha"), CancellationToken.None);
+        AmbientIsUnscoped = false;
+        AmbientTenantId = "tenant-2";
+
+        var all = await Store.GetAllAsync(CancellationToken.None);
+
+        Assert.Empty(all);
     }
 
     [Fact]
