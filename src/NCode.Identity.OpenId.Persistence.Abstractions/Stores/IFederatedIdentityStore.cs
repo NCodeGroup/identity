@@ -78,19 +78,6 @@ public interface IFederatedIdentityStore : IStore
     );
 
     /// <summary>
-    /// Gets the federated identities owned by any of the specified principals, in one call; a principal with no
-    /// identity contributes none.
-    /// </summary>
-    /// <param name="principalIds">The identifiers of the owning principals.</param>
-    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
-    /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation, containing the identities owned
-    /// by any of the <paramref name="principalIds"/>.</returns>
-    ValueTask<IReadOnlyList<PersistedFederatedIdentity>> GetByPrincipalsAsync(
-        IReadOnlyCollection<string> principalIds,
-        CancellationToken cancellationToken
-    );
-
-    /// <summary>
     /// Gets the names of the federated identities owned by any of the specified principals, in one call, and reads none
     /// of their join keys; a principal with no identity contributes none.
     /// </summary>
