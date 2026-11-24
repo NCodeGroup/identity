@@ -25,6 +25,7 @@ export type Messages = {
     readonly invalidCredentials: string;
     readonly invalidRequest: string;
     readonly connectionRequired: string;
+    readonly connectionUnavailable: string;
     readonly accessDenied: string;
     readonly fallback: string;
   };

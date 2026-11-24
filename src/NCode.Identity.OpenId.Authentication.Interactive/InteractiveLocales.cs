@@ -51,6 +51,8 @@ public static class InteractiveLocales
                 InvalidCredentialsError = "The username or password is incorrect.",
                 MissingCredentialsError = "Enter both a username and a password.",
                 ConnectionRequiredError = "Choose a connection.",
+                ConnectionUnavailableError =
+                    "This connection is not available. Choose another one.",
                 AccessDeniedError = "This account cannot sign in. Contact your administrator.",
                 SignInFailedError = "Sign-in failed. Please try again.",
                 ForgotPasswordLink = "Forgot your password?",
@@ -119,6 +121,8 @@ public static class InteractiveLocales
                 MissingCredentialsError =
                     "Geben Sie sowohl einen Benutzernamen als auch ein Passwort ein.",
                 ConnectionRequiredError = "Wählen Sie eine Verbindung aus.",
+                ConnectionUnavailableError =
+                    "Diese Verbindung ist nicht verfügbar. Wählen Sie eine andere aus.",
                 AccessDeniedError =
                     "Dieses Konto kann sich nicht anmelden. Wenden Sie sich an Ihren Administrator.",
                 SignInFailedError =
@@ -189,6 +193,7 @@ public static class InteractiveLocales
                 InvalidCredentialsError = "El nombre de usuario o la contraseña no son correctos.",
                 MissingCredentialsError = "Introduzca un nombre de usuario y una contraseña.",
                 ConnectionRequiredError = "Elija una conexión.",
+                ConnectionUnavailableError = "Esta conexión no está disponible. Elija otra.",
                 AccessDeniedError =
                     "Esta cuenta no puede iniciar sesión. Póngase en contacto con su administrador.",
                 SignInFailedError = "No se pudo iniciar sesión. Inténtelo de nuevo.",
@@ -258,6 +263,8 @@ public static class InteractiveLocales
                 InvalidCredentialsError = "Le nom d’utilisateur ou le mot de passe est incorrect.",
                 MissingCredentialsError = "Saisissez un nom d’utilisateur et un mot de passe.",
                 ConnectionRequiredError = "Choisissez une connexion.",
+                ConnectionUnavailableError =
+                    "Cette connexion n’est pas disponible. Choisissez-en une autre.",
                 AccessDeniedError =
                     "Ce compte ne peut pas se connecter. Contactez votre administrateur.",
                 SignInFailedError = "La connexion a échoué. Veuillez réessayer.",

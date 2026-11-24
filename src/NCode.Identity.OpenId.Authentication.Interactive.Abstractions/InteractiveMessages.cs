@@ -102,6 +102,11 @@ public sealed record InteractiveMessages
     public required string ConnectionRequiredError { get; init; }
 
     /// <summary>
+    /// Gets the message the login and forgot-password pages show when the chosen connection is not available.
+    /// </summary>
+    public required string ConnectionUnavailableError { get; init; }
+
+    /// <summary>
     /// Gets the message the login page shows when the account is refused a sign-in.
     /// </summary>
     public required string AccessDeniedError { get; init; }

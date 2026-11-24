@@ -16,6 +16,7 @@ export const en: Messages = {
     invalidCredentials: 'The username or password is incorrect.',
     invalidRequest: 'Enter both a username and a password.',
     connectionRequired: 'Choose a connection.',
+    connectionUnavailable: 'This connection is not available. Choose another one.',
     accessDenied: 'This account cannot sign in. Contact your administrator.',
     fallback: 'Sign-in failed. Please try again.',
   },

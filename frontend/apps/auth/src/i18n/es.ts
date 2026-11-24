@@ -16,6 +16,7 @@ export const es: Messages = {
     invalidCredentials: 'El nombre de usuario o la contraseña no son correctos.',
     invalidRequest: 'Introduzca un nombre de usuario y una contraseña.',
     connectionRequired: 'Elija una conexión.',
+    connectionUnavailable: 'Esta conexión no está disponible. Elija otra.',
     accessDenied: 'Esta cuenta no puede iniciar sesión. Póngase en contacto con su administrador.',
     fallback: 'No se pudo iniciar sesión. Inténtelo de nuevo.',
   },

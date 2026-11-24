@@ -17,6 +17,7 @@ export const fr: Messages = {
     invalidCredentials: 'Le nom d’utilisateur ou le mot de passe est incorrect.',
     invalidRequest: 'Saisissez un nom d’utilisateur et un mot de passe.',
     connectionRequired: 'Choisissez une connexion.',
+    connectionUnavailable: 'Cette connexion n’est pas disponible. Choisissez-en une autre.',
     accessDenied: 'Ce compte ne peut pas se connecter. Contactez votre administrateur.',
     fallback: 'La connexion a échoué. Veuillez réessayer.',
   },

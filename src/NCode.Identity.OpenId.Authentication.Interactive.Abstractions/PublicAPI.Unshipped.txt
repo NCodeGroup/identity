@@ -116,6 +116,8 @@ NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.ConnectionL
 NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.ConnectionLabel.init -> void
 NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.ConnectionRequiredError.get -> string!
 NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.ConnectionRequiredError.init -> void
+NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.ConnectionUnavailableError.get -> string!
+NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.ConnectionUnavailableError.init -> void
 NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.ConsentPromptFormat.get -> string!
 NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.ConsentPromptFormat.init -> void
 NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.DenyButton.get -> string!

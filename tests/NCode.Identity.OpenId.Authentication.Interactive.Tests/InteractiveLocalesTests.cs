@@ -91,6 +91,7 @@ public class InteractiveLocalesTests
             messages.InvalidCredentialsError,
             messages.MissingCredentialsError,
             messages.ConnectionRequiredError,
+            messages.ConnectionUnavailableError,
             messages.AccessDeniedError,
             messages.SignInFailedError,
             messages.ForgotPasswordLink,
@@ -155,6 +156,7 @@ public class InteractiveLocalesTests
                     messages.InvalidCredentialsError,
                     messages.MissingCredentialsError,
                     messages.ConnectionRequiredError,
+                    messages.ConnectionUnavailableError,
                     messages.AccessDeniedError,
                     messages.SignInFailedError,
                 ];
@@ -201,6 +203,7 @@ public class InteractiveLocalesTests
             messages.InvalidCredentialsError,
             messages.MissingCredentialsError,
             messages.ConnectionRequiredError,
+            messages.ConnectionUnavailableError,
             messages.AccessDeniedError,
             messages.SignInFailedError,
             messages.ForgotPasswordLink,

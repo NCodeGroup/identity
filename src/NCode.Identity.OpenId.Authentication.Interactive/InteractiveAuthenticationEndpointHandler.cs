@@ -75,6 +75,10 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
     // The `error` query value the login and forgot-password pages read back when the form posts no connection.
     internal const string ConnectionRequiredCode = "connection_required";
 
+    // The `error` query value the login and forgot-password pages read back when the posted connection is not
+    // available.
+    internal const string ConnectionUnavailableCode = "connection_unavailable";
+
     // The `error` and `status` query values the change-password page reads back to show its message.
     private const string ErrorQueryName = "error";
     private const string StatusQueryName = "status";
@@ -337,23 +341,19 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
 
     /// <summary>
     /// Maps the reason a connection selection refuses to the error code the sign-in pages redirect with: the
-    /// connection-required code when a choice is missing, else the invalid-request code the caller names.
+    /// connection-required code when a choice is missing, else the connection-unavailable code.
     /// </summary>
     /// <param name="selection">The refused selection.</param>
-    /// <param name="invalidRequestCode">The invalid-request code of the surface that redirects.</param>
     /// <returns>The error code to redirect with.</returns>
     // See ADR-1535.
-    private static string GetRefusedConnectionCode(
-        ConnectionSelection selection,
-        string invalidRequestCode
-    ) =>
+    private static string GetRefusedConnectionCode(ConnectionSelection selection) =>
         string.Equals(
             selection.ErrorCode,
             ConnectionSelectionErrors.Required,
             StringComparison.Ordinal
         )
             ? ConnectionRequiredCode
-            : invalidRequestCode;
+            : ConnectionUnavailableCode;
 
     /// <summary>
     /// Finds the stored name of the resettable connection the forgot-password page preselects: the one the query
@@ -501,6 +501,7 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
             InteractivePasswordChangeErrors.PasswordMismatch => messages.PasswordMismatchError,
             InteractivePasswordChangeErrors.InvalidRequest => messages.MissingFieldsError,
             ConnectionRequiredCode => messages.ConnectionRequiredError,
+            ConnectionUnavailableCode => messages.ConnectionUnavailableError,
             // DefaultInteractivePasswordResetter answers it when no backend holds passwords, which is no refused
             // password.
             InteractivePasswordChangeErrors.NotSupported => messages.EmailCodeFailedError,
@@ -533,6 +534,7 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
             null or "" => null,
             InvalidCredentialsCode => messages.InvalidCredentialsError,
             ConnectionRequiredCode => messages.ConnectionRequiredError,
+            ConnectionUnavailableCode => messages.ConnectionUnavailableError,
             OpenIdProtocol.ErrorCodes.InvalidRequest => messages.MissingCredentialsError,
             OpenIdProtocol.ErrorCodes.AccessDenied => messages.AccessDeniedError,
             InteractiveEmailCodeErrors.TooManyCodes => messages.TooManyCodesError,
@@ -847,7 +849,8 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
     /// password is verified in the pending sign-in cookie instead, mails a code and redirects to the sign-in code page;
     /// when the account has been sent the most codes the tenant allows, it redirects back to the login page with
     /// <c>?error=too_many_codes</c>, and an account that cannot receive a code is refused as one whose standing is
-    /// refused.
+    /// refused. A post that names no connection redirects back with <c>?error=connection_required</c>, and one whose
+    /// connection is not available with <c>?error=connection_unavailable</c>.
     /// </summary>
     public async ValueTask<IResult> PostLoginAsync(
         HttpContext httpContext,
@@ -882,10 +885,7 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
         );
         if (selection.Connection is not { } selectedConnection)
         {
-            var refusedConnectionCode = GetRefusedConnectionCode(
-                selection,
-                OpenIdProtocol.ErrorCodes.InvalidRequest
-            );
+            var refusedConnectionCode = GetRefusedConnectionCode(selection);
             var refusedConnectionRedirect = BuildLoginRedirect(
                 httpContext,
                 safeReturnUrl,
@@ -1862,8 +1862,10 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
     /// <summary>
     /// Starts a password reset for the user name the forgot-password form posts, then redirects to the reset-password
     /// page with the handle of the reset flow, whether or not the account exists, so the answer never tells. A missing
-    /// user name redirects back to the forgot-password page with <c>?error=invalid_request</c>. The page is not found
-    /// while the connection does not let its end users reset a password.
+    /// user name redirects back to the forgot-password page with <c>?error=invalid_request</c>, a post that names no
+    /// connection with <c>?error=connection_required</c> and one whose connection is not available with
+    /// <c>?error=connection_unavailable</c>. The page is not found while the connection does not let its end users
+    /// reset a password.
     /// </summary>
     // See ADR-1533.
     public async ValueTask<IResult> PostForgotPasswordAsync(
@@ -1889,10 +1891,7 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
         if (selection.IsRefused || string.IsNullOrEmpty(username))
         {
             var forgotError = selection.IsRefused
-                ? GetRefusedConnectionCode(
-                    selection,
-                    InteractivePasswordChangeErrors.InvalidRequest
-                )
+                ? GetRefusedConnectionCode(selection)
                 : InteractivePasswordChangeErrors.InvalidRequest;
             return RedirectToSurfacePage(
                 httpContext,

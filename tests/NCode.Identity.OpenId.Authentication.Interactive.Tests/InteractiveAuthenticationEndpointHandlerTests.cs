@@ -312,7 +312,7 @@ public sealed class InteractiveAuthenticationEndpointHandlerTests : IDisposable
     }
 
     [Fact]
-    public async Task PostForgotPasswordAsync_WhenTheConnectionIsRefused_RedirectsBackWithInvalidRequest()
+    public async Task PostForgotPasswordAsync_WhenTheConnectionIsRefused_RedirectsBackWithConnectionUnavailable()
     {
         var mockCatalog = MockRepository.Create<IUiLocaleCatalog>();
         mockCatalog.SetupGet(x => x.Locales).Returns([TestLocales.Xx]).Verifiable();
@@ -357,7 +357,7 @@ public sealed class InteractiveAuthenticationEndpointHandlerTests : IDisposable
         );
 
         var redirect = Assert.IsType<RedirectHttpResult>(result);
-        Assert.Equal("/acme/account/password/forgot?error=invalid_request", redirect.Url);
+        Assert.Equal("/acme/account/password/forgot?error=connection_unavailable", redirect.Url);
     }
 
     [Fact]
@@ -1188,6 +1188,19 @@ public sealed class InteractiveAuthenticationEndpointHandlerTests : IDisposable
     }
 
     [Fact]
+    public void DescribeLoginError_WhenTheConnectionIsNotAvailable_ReturnsTheConnectionUnavailableMessage()
+    {
+        var messages = TestLocales.Xx.Messages;
+
+        var result = InteractiveAuthenticationEndpointHandler.DescribeLoginError(
+            InteractiveAuthenticationEndpointHandler.ConnectionUnavailableCode,
+            messages
+        );
+
+        Assert.Equal(messages.ConnectionUnavailableError, result);
+    }
+
+    [Fact]
     public async Task PostLoginAsync_WhenNoConnectionIsPosted_RedirectsBackWithConnectionRequired()
     {
         var mockCatalog = MockRepository.Create<IUiLocaleCatalog>();
@@ -1242,7 +1255,7 @@ public sealed class InteractiveAuthenticationEndpointHandlerTests : IDisposable
     }
 
     [Fact]
-    public async Task PostLoginAsync_WhenAnUnofferedConnectionIsPosted_RedirectsBackWithInvalidRequest()
+    public async Task PostLoginAsync_WhenAnUnofferedConnectionIsPosted_RedirectsBackWithConnectionUnavailable()
     {
         var mockCatalog = MockRepository.Create<IUiLocaleCatalog>();
         mockCatalog.SetupGet(x => x.Locales).Returns([TestLocales.Xx]).Verifiable();
@@ -1294,11 +1307,11 @@ public sealed class InteractiveAuthenticationEndpointHandlerTests : IDisposable
         );
 
         var redirect = Assert.IsType<RedirectHttpResult>(result);
-        Assert.Contains("error=invalid_request", redirect.Url, StringComparison.Ordinal);
+        Assert.Contains("error=connection_unavailable", redirect.Url, StringComparison.Ordinal);
     }
 
     [Fact]
-    public async Task PostLoginAsync_WhenNoConnectionIsOffered_RedirectsBackWithInvalidRequest()
+    public async Task PostLoginAsync_WhenNoConnectionIsOffered_RedirectsBackWithConnectionUnavailable()
     {
         var mockCatalog = MockRepository.Create<IUiLocaleCatalog>();
         mockCatalog.SetupGet(x => x.Locales).Returns([TestLocales.Xx]).Verifiable();
@@ -1348,7 +1361,7 @@ public sealed class InteractiveAuthenticationEndpointHandlerTests : IDisposable
         );
 
         var redirect = Assert.IsType<RedirectHttpResult>(result);
-        Assert.Contains("error=invalid_request", redirect.Url, StringComparison.Ordinal);
+        Assert.Contains("error=connection_unavailable", redirect.Url, StringComparison.Ordinal);
     }
 
     #endregion
@@ -1422,6 +1435,19 @@ public sealed class InteractiveAuthenticationEndpointHandlerTests : IDisposable
         );
 
         Assert.Equal(messages.ConnectionRequiredError, result);
+    }
+
+    [Fact]
+    public void DescribePasswordResetError_WhenTheConnectionIsNotAvailable_ReturnsTheConnectionUnavailableMessage()
+    {
+        var messages = TestLocales.Xx.Messages;
+
+        var result = InteractiveAuthenticationEndpointHandler.DescribePasswordResetError(
+            InteractiveAuthenticationEndpointHandler.ConnectionUnavailableCode,
+            messages
+        );
+
+        Assert.Equal(messages.ConnectionUnavailableError, result);
     }
 
     [Fact]
