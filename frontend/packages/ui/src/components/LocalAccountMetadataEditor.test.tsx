@@ -15,7 +15,11 @@ describe('LocalAccountMetadataEditor', () => {
       />,
     );
     expect(screen.getByTestId('metadata-save')).toBeDisabled();
-    expect(screen.getByText('Server-controlled; never writable by the user.')).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Set only by the server or an administrator, never by the account's own user, because it may drive authorization.",
+      ),
+    ).toBeInTheDocument();
     fireEvent.change(screen.getByTestId('metadata-profile'), { target: { value: '{}' } });
     expect(screen.getByTestId('metadata-save')).toBeEnabled();
   });

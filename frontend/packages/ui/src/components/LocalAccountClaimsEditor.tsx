@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import type { LocalAccountClaim } from '@ncodegroup/identity-api';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -7,8 +8,6 @@ import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
-
-export type LocalAccountClaim = { readonly type: string; readonly value: string };
 
 export type LocalAccountClaimsEditorProps = {
   /** The persisted profile claims; reseeds the editor when it changes. */

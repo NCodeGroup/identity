@@ -6,6 +6,7 @@ import Tab from '@mui/material/Tab';
 import Tabs from '@mui/material/Tabs';
 import Typography from '@mui/material/Typography';
 import type {
+  LocalAccountClaim,
   LocalAccountClaimsResource,
   LocalAccountMetadataResource,
   LocalAccountResource,
@@ -22,7 +23,6 @@ import {
   DataStateBoundary,
   LocalAccountClaimsEditor,
   LocalAccountMetadataEditor,
-  type LocalAccountClaim,
 } from '@ncodegroup/identity-ui';
 
 export type LocalAccountDetailPageProps = {

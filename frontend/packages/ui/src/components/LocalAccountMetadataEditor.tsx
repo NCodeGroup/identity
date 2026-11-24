@@ -96,7 +96,11 @@ export function LocalAccountMetadataEditor({
         value={systemText}
         onChange={(event) => setSystemText(event.target.value)}
         error={!system}
-        helperText={system ? 'Server-controlled; never writable by the user.' : notObjectMessage}
+        helperText={
+          system
+            ? "Set only by the server or an administrator, never by the account's own user, because it may drive authorization."
+            : notObjectMessage
+        }
         multiline
         minRows={4}
         fullWidth
