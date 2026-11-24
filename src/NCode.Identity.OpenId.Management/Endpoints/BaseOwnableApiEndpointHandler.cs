@@ -43,7 +43,8 @@ internal abstract class BaseOwnableApiEndpointHandler : BaseApiEndpointHandler
     /// identifier when only the principal identifier is non-empty; otherwise, <see langword="null"/>.
     /// </param>
     /// <param name="isUserName">
-    /// <c>true</c> when the username of <paramref name="request"/> is non-empty; otherwise, <c>false</c>.
+    /// When this method returns <c>true</c>, <c>true</c> when the name is the username and <c>false</c> when it is the
+    /// principal identifier; otherwise, <c>false</c>.
     /// </param>
     /// <returns>
     /// <c>true</c> when exactly one of the principal identifier and the username is non-empty; otherwise, <c>false</c>.
@@ -57,16 +58,23 @@ internal abstract class BaseOwnableApiEndpointHandler : BaseApiEndpointHandler
     {
         var principalId = request.PrincipalId;
         var userName = request.UserName;
-        var hasPrincipalId = !string.IsNullOrEmpty(principalId);
-        isUserName = !string.IsNullOrEmpty(userName);
-        if (hasPrincipalId == isUserName)
+        if (principalId is { Length: > 0 } id && string.IsNullOrEmpty(userName))
         {
-            name = null;
-            return false;
+            name = id;
+            isUserName = false;
+            return true;
         }
 
-        name = isUserName ? userName : principalId;
-        return name is not null;
+        if (userName is { Length: > 0 } user && string.IsNullOrEmpty(principalId))
+        {
+            name = user;
+            isUserName = true;
+            return true;
+        }
+
+        name = null;
+        isUserName = false;
+        return false;
     }
 
     /// <summary>
