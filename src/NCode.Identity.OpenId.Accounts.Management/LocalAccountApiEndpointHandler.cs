@@ -433,6 +433,7 @@ internal class LocalAccountApiEndpointHandler(
         [FromRoute] string tenantId,
         [FromRoute] string localAccountId,
         [FromBody] JsonPatchDocument<UpdateLocalAccountRequest> request,
+        [FromHeader(Name = "If-Match")] string? ifMatch,
         CancellationToken cancellationToken
     )
     {
@@ -477,7 +478,6 @@ internal class LocalAccountApiEndpointHandler(
 
         model.DisplayName = model.DisplayName?.Trim() ?? string.Empty;
 
-        var ifMatch = httpContext.Request.Headers.IfMatch.ToString();
         var expectedConcurrencyToken = string.IsNullOrEmpty(ifMatch) ? null : ifMatch;
         var error = await LocalAccountValidator.ValidateUpdateAsync(
             account,
@@ -867,6 +867,7 @@ internal class LocalAccountApiEndpointHandler(
         [FromRoute] string tenantId,
         [FromRoute] string localAccountId,
         [FromBody] SetLocalAccountClaimsRequest request,
+        [FromHeader(Name = "If-Match")] string? ifMatch,
         CancellationToken cancellationToken
     )
     {
@@ -889,7 +890,6 @@ internal class LocalAccountApiEndpointHandler(
             return ManagementProblems.ResourceNotFound();
         }
 
-        var ifMatch = httpContext.Request.Headers.IfMatch.ToString();
         var preconditionError = ManagementEntityTags.GetIfMatchErrorOrDefault(
             ifMatch,
             account.ConcurrencyToken,
@@ -965,6 +965,7 @@ internal class LocalAccountApiEndpointHandler(
         [FromRoute] string tenantId,
         [FromRoute] string localAccountId,
         [FromBody] SetLocalAccountMetadataRequest request,
+        [FromHeader(Name = "If-Match")] string? ifMatch,
         CancellationToken cancellationToken
     )
     {
@@ -991,7 +992,6 @@ internal class LocalAccountApiEndpointHandler(
             return ManagementProblems.ResourceNotFound();
         }
 
-        var ifMatch = httpContext.Request.Headers.IfMatch.ToString();
         var preconditionError = ManagementEntityTags.GetIfMatchErrorOrDefault(
             ifMatch,
             principal.ConcurrencyToken,

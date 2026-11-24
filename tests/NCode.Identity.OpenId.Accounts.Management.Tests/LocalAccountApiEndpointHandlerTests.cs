@@ -824,6 +824,7 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
             TenantId,
             LocalAccountId,
             new SetLocalAccountClaimsRequest { Claims = [] },
+            null,
             CancellationToken.None
         );
 
@@ -845,6 +846,7 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
             {
                 Claims = [new LocalAccountClaim { Type = "name", Value = "Someone" }],
             },
+            null,
             CancellationToken.None
         );
 
@@ -863,7 +865,6 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
         var account = CreateAccount();
         SetupAccount(account);
         var httpContext = CreateHttpContext();
-        httpContext.Request.Headers.IfMatch = "stale-ct";
 
         // No ReplaceClaimsAsync/SaveChangesAsync or audit scaffold: a strict-mock failure would mean the claims were
         // written.
@@ -874,6 +875,7 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
             TenantId,
             LocalAccountId,
             request,
+            "stale-ct",
             CancellationToken.None
         );
 
@@ -903,7 +905,6 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
             .Verifiable();
         SetupAuditRecorded();
         var httpContext = CreateHttpContext();
-        httpContext.Request.Headers.IfMatch = "account-ct";
 
         var request = new SetLocalAccountClaimsRequest { Claims = [] };
 
@@ -912,6 +913,7 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
             TenantId,
             LocalAccountId,
             request,
+            "account-ct",
             CancellationToken.None
         );
 
@@ -932,6 +934,7 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
             TenantId,
             LocalAccountId,
             new SetLocalAccountMetadataRequest(),
+            null,
             CancellationToken.None
         );
 
@@ -946,7 +949,6 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
         var principal = CreatePrincipal();
         SetupPrincipal(principal);
         var httpContext = CreateHttpContext();
-        httpContext.Request.Headers.IfMatch = "stale-ct";
 
         // No UpdateAsync/SaveChangesAsync or audit scaffold: a strict-mock failure would mean the metadata was
         // written.
@@ -957,6 +959,7 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
             TenantId,
             LocalAccountId,
             request,
+            "stale-ct",
             CancellationToken.None
         );
 
@@ -980,7 +983,6 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
             .Verifiable();
         SetupAuditRecorded();
         var httpContext = CreateHttpContext();
-        httpContext.Request.Headers.IfMatch = "principal-ct";
 
         var request = new SetLocalAccountMetadataRequest();
 
@@ -989,6 +991,7 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
             TenantId,
             LocalAccountId,
             request,
+            "principal-ct",
             CancellationToken.None
         );
 
@@ -1250,6 +1253,7 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
             TenantId,
             LocalAccountId,
             CreatePatch(),
+            null,
             CancellationToken.None
         );
 
@@ -1292,6 +1296,7 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
             TenantId,
             LocalAccountId,
             CreatePatch(),
+            null,
             CancellationToken.None
         );
 
@@ -1345,11 +1350,51 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
             TenantId,
             LocalAccountId,
             CreatePatch(),
+            null,
             CancellationToken.None
         );
 
         Assert.IsType<NoContent>(result);
         Assert.Equal(["identity", "update", "save", "audit"], Calls);
+    }
+
+    [Fact]
+    public async Task UpdateLocalAccountAsync_WithAnIfMatch_ValidatesItsToken()
+    {
+        SetupAuthorizeUpdate(error: null);
+        SetupAccount(CreateAccount());
+        var staleError = new ManagementError
+        {
+            StatusCode = StatusCodes.Status412PreconditionFailed,
+            Detail = "The local account changed.",
+        };
+        MockLocalAccountValidator
+            .Setup(x =>
+                x.ValidateUpdateAsync(
+                    It.Is<PersistedLocalAccount>(account =>
+                        account.LocalAccountId == LocalAccountId
+                    ),
+                    It.IsAny<UpdateLocalAccountRequest>(),
+                    "account-ct",
+                    MockStoreManager.Object,
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync(staleError)
+            .Verifiable();
+        var patch = CreatePatch();
+
+        var result = await Handler.UpdateLocalAccountAsync(
+            CreateHttpContext(),
+            TenantId,
+            LocalAccountId,
+            patch,
+            "account-ct",
+            CancellationToken.None
+        );
+
+        var problem = Assert.IsType<ProblemHttpResult>(result);
+        Assert.Equal(StatusCodes.Status412PreconditionFailed, problem.StatusCode);
     }
 
     [Fact]
@@ -1366,6 +1411,7 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
             TenantId,
             LocalAccountId,
             patch,
+            null,
             CancellationToken.None
         );
 
@@ -1387,6 +1433,7 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
             TenantId,
             LocalAccountId,
             patch,
+            null,
             CancellationToken.None
         );
 
@@ -1408,6 +1455,7 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
             TenantId,
             LocalAccountId,
             patch,
+            null,
             CancellationToken.None
         );
 
@@ -1428,6 +1476,7 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
             TenantId,
             LocalAccountId,
             patch,
+            null,
             CancellationToken.None
         );
 
