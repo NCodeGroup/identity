@@ -29,6 +29,22 @@ internal class DefaultValidateLocalAccountSubjectHandler(
     LocalAccountStoreCatalog catalog
 ) : ICommandHandler<ValidateSubjectStandingCommand>
 {
+    /// <summary>
+    /// Refuses the subject with an access-denied error unless another handler already set one.
+    /// </summary>
+    /// <param name="openIdContext">The resolved <see cref="OpenIdContext"/> whose error factory builds the
+    /// error.</param>
+    /// <param name="operationDisposition">The disposition that receives the error.</param>
+    /// <param name="message">The error description.</param>
+    private static void Refuse(
+        OpenIdContext openIdContext,
+        OperationDisposition<IOpenIdError> operationDisposition,
+        string message
+    )
+    {
+        operationDisposition.Error ??= openIdContext.ErrorFactory.AccessDenied(message);
+    }
+
     private IStoreManagerFactory StoreManagerFactory { get; } = storeManagerFactory;
     private IConnectionResolver ConnectionResolver { get; } = connectionResolver;
     private LocalAccountStoreCatalog Catalog { get; } = catalog;
@@ -104,8 +120,16 @@ internal class DefaultValidateLocalAccountSubjectHandler(
         }
     }
 
-    // A principal without an identity is a local account's once its account and identity were deleted; the subject's
-    // connection claim says whether a local connection signed it in.
+    /// <summary>
+    /// Determines whether a local connection authenticated the subject, which a principal without an identity is then a
+    /// deleted local account's.
+    /// </summary>
+    /// <param name="openIdContext">The resolved <see cref="OpenIdContext"/> that resolves the connection.</param>
+    /// <param name="subjectAuthentication">The <see cref="SubjectAuthentication"/> whose connection claim names the
+    /// connection that signed the subject in.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous
+    /// operation.</param>
+    /// <returns><see langword="true"/> when the connection claim names a local connection.</returns>
     private async ValueTask<bool> AuthenticatedLocallyAsync(
         OpenIdContext openIdContext,
         SubjectAuthentication subjectAuthentication,
@@ -127,14 +151,5 @@ internal class DefaultValidateLocalAccountSubjectHandler(
         );
         return connection is not null
             && ConnectionStrategyNames.IsLocal(connection.Connection.Strategy);
-    }
-
-    private static void Refuse(
-        OpenIdContext openIdContext,
-        OperationDisposition<IOpenIdError> operationDisposition,
-        string message
-    )
-    {
-        operationDisposition.Error ??= openIdContext.ErrorFactory.AccessDenied(message);
     }
 }

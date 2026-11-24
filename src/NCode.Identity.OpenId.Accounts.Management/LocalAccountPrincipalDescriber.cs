@@ -24,6 +24,24 @@ internal sealed class LocalAccountPrincipalDescriber(
     ControlPlaneDefaultConnectionReader defaultConnectionReader
 ) : IPrincipalDescriber
 {
+    /// <summary>
+    /// Summarizes the principal of a local account.
+    /// </summary>
+    /// <param name="principalId">The identifier of the principal that owns the account's identity.</param>
+    /// <param name="account">The local account.</param>
+    /// <returns>The summary, named by the account's display name and username.</returns>
+    private static PrincipalSummaryResource ToSummary(
+        string principalId,
+        LocalAccountNameProjection account
+    ) =>
+        new()
+        {
+            PrincipalId = principalId,
+            PrincipalType = PrincipalTypes.LocalAccount,
+            DisplayName = account.DisplayName,
+            UserName = account.UserName,
+        };
+
     private LocalAccountStoreCatalog LocalAccountStoreCatalog { get; } = localAccountStoreCatalog;
     private ControlPlaneDefaultConnectionReader DefaultConnectionReader { get; } =
         defaultConnectionReader;
@@ -173,24 +191,6 @@ internal sealed class LocalAccountPrincipalDescriber(
 
         return summaries;
     }
-
-    /// <summary>
-    /// Summarizes the principal of a local account.
-    /// </summary>
-    /// <param name="principalId">The identifier of the principal that owns the account's identity.</param>
-    /// <param name="account">The local account.</param>
-    /// <returns>The summary, named by the account's display name and username.</returns>
-    private static PrincipalSummaryResource ToSummary(
-        string principalId,
-        LocalAccountNameProjection account
-    ) =>
-        new()
-        {
-            PrincipalId = principalId,
-            PrincipalType = PrincipalTypes.LocalAccount,
-            DisplayName = account.DisplayName,
-            UserName = account.UserName,
-        };
 
     /// <inheritdoc />
     public async ValueTask<IReadOnlyList<PrincipalSummaryResource>> FindAsync(

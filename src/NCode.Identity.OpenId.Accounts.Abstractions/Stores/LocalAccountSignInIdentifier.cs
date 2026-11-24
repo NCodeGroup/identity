@@ -15,21 +15,6 @@ namespace NCode.Identity.OpenId.Accounts.Stores;
 public sealed class LocalAccountSignInIdentifier
 {
     /// <summary>
-    /// Gets the identifier of the local connection whose accounts are searched.
-    /// </summary>
-    public required string ConnectionId { get; init; }
-
-    /// <summary>
-    /// Gets the user name to look up, or <c>null</c> when the identifier is not a user name.
-    /// </summary>
-    public string? UserName { get; init; }
-
-    /// <summary>
-    /// Gets the email address to look up, or <c>null</c> when the identifier is not an email address.
-    /// </summary>
-    public string? Email { get; init; }
-
-    /// <summary>
     /// Builds the identifier a store looks an account up by, from the value an end user submitted and the connection's
     /// <c>local_account_identifier</c> mode: an email address, a user name, or either.
     /// </summary>
@@ -69,4 +54,19 @@ public sealed class LocalAccountSignInIdentifier
                 "The local account identifier mode is not one the family defines."
             ),
         };
+
+    /// <summary>
+    /// Gets the identifier of the local connection whose accounts are searched.
+    /// </summary>
+    public required string ConnectionId { get; init; }
+
+    /// <summary>
+    /// Gets the user name to look up, or <c>null</c> when the identifier is not a user name.
+    /// </summary>
+    public string? UserName { get; init; }
+
+    /// <summary>
+    /// Gets the email address to look up, or <c>null</c> when the identifier is not an email address.
+    /// </summary>
+    public string? Email { get; init; }
 }

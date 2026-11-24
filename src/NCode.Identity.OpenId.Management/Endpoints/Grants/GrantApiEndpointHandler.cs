@@ -373,6 +373,12 @@ internal class GrantApiEndpointHandler(
         return TypedResults.Json(response, statusCode: StatusCodes.Status201Created);
     }
 
+    /// <summary>
+    /// Answers <c>404</c> when the tenant does not exist, in a unit of work of its own.
+    /// </summary>
+    /// <param name="tenantId">The identifier of the tenant.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    /// <returns>The not-found result, or <see langword="null"/> when the tenant exists.</returns>
     private async ValueTask<IResult?> GetTenantNotFoundAsync(
         string tenantId,
         CancellationToken cancellationToken

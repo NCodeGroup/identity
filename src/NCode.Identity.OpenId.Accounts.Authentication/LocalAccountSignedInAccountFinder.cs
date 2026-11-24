@@ -22,6 +22,17 @@ internal sealed class LocalAccountSignedInAccountFinder(
     LocalAccountStoreCatalog catalog
 )
 {
+    /// <summary>
+    /// Determines whether a resolved connection exists, is enabled and is a local connection.
+    /// </summary>
+    /// <param name="connection">The <see cref="ResolvedConnection"/>, or <see langword="null"/> when none
+    /// resolved.</param>
+    /// <returns><see langword="true"/> when the connection is an enabled local one.</returns>
+    private static bool IsEnabledLocal([NotNullWhen(true)] ResolvedConnection? connection) =>
+        connection is not null
+        && connection.Connection.IsEnabled
+        && ConnectionStrategyNames.IsLocal(connection.Connection.Strategy);
+
     private IStoreManagerFactory StoreManagerFactory { get; } = storeManagerFactory;
     private IConnectionResolver ConnectionResolver { get; } = connectionResolver;
     private LocalAccountStoreCatalog Catalog { get; } = catalog;
@@ -172,15 +183,4 @@ internal sealed class LocalAccountSignedInAccountFinder(
 
         return (account, localConnection);
     }
-
-    /// <summary>
-    /// Determines whether a resolved connection exists, is enabled and is a local connection.
-    /// </summary>
-    /// <param name="connection">The <see cref="ResolvedConnection"/>, or <see langword="null"/> when none
-    /// resolved.</param>
-    /// <returns><see langword="true"/> when the connection is an enabled local one.</returns>
-    private static bool IsEnabledLocal([NotNullWhen(true)] ResolvedConnection? connection) =>
-        connection is not null
-        && connection.Connection.IsEnabled
-        && ConnectionStrategyNames.IsLocal(connection.Connection.Strategy);
 }

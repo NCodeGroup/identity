@@ -32,6 +32,21 @@ internal class LocalAccountTenantTransferContributor(
 
     private static JsonSerializerOptions JsonOptions { get; } = new(JsonSerializerDefaults.Web);
 
+    /// <summary>
+    /// Gets the tenant's connections of the <c>local</c> strategy, enabled or not.
+    /// </summary>
+    /// <param name="storeManager">The store manager of the unit of work.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    /// <returns>The local connections.</returns>
+    private static async ValueTask<IReadOnlyList<PersistedConnection>> GetLocalConnectionsAsync(
+        IStoreManager storeManager,
+        CancellationToken cancellationToken
+    )
+    {
+        var store = storeManager.GetStore<IConnectionStore>();
+        return await store.GetByStrategyAsync(ConnectionStrategyNames.Local, cancellationToken);
+    }
+
     private IStoreManagerFactory StoreManagerFactory { get; } = storeManagerFactory;
 
     private IAmbientTenantAccessor AmbientTenantAccessor { get; } = ambientTenantAccessor;
@@ -137,20 +152,5 @@ internal class LocalAccountTenantTransferContributor(
         }
 
         await storeManager.SaveChangesAsync(cancellationToken);
-    }
-
-    /// <summary>
-    /// Gets the tenant's connections of the <c>local</c> strategy, enabled or not.
-    /// </summary>
-    /// <param name="storeManager">The store manager of the unit of work.</param>
-    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
-    /// <returns>The local connections.</returns>
-    private static async ValueTask<IReadOnlyList<PersistedConnection>> GetLocalConnectionsAsync(
-        IStoreManager storeManager,
-        CancellationToken cancellationToken
-    )
-    {
-        var store = storeManager.GetStore<IConnectionStore>();
-        return await store.GetByStrategyAsync(ConnectionStrategyNames.Local, cancellationToken);
     }
 }

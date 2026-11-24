@@ -21,6 +21,39 @@ internal class DefaultSignInConnectionService(
     IConnectionResolver connectionResolver
 ) : ISignInConnectionService
 {
+    private const string NoConnectionAvailable = "No connection is available for the sign-in.";
+
+    /// <summary>
+    /// Chooses the connection the sign-in preselects from the offered ones.
+    /// </summary>
+    /// <param name="clientSettings">The client's effective settings.</param>
+    /// <param name="requestedName">The connection name the request asks for, if any.</param>
+    /// <param name="offered">The connections the sign-in offers.</param>
+    /// <returns>The preselected connection, or <see langword="null"/> when none is.</returns>
+    private static ResolvedConnection? Preselect(
+        IReadOnlySettingCollection clientSettings,
+        string? requestedName,
+        IReadOnlyList<ResolvedConnection> offered
+    )
+    {
+        if (requestedName is not null)
+        {
+            return offered.Count > 0 ? offered[0] : null;
+        }
+
+        var defaultName = clientSettings.GetValue(OpenIdSettingKeys.DefaultConnection);
+        if (!string.IsNullOrEmpty(defaultName))
+        {
+            foreach (var connection in offered)
+            {
+                if (string.Equals(connection.Name, defaultName, StringComparison.OrdinalIgnoreCase))
+                    return connection;
+            }
+        }
+
+        return offered.Count == 1 ? offered[0] : null;
+    }
+
     private PendingAuthorizationRequestReader RequestReader { get; } = requestReader;
     private IOpenIdClientResolver ClientResolver { get; } = clientResolver;
     private IConnectionResolver ConnectionResolver { get; } = connectionResolver;
@@ -102,7 +135,7 @@ internal class DefaultSignInConnectionService(
                     connections.Offered.Count > 1
                         ? ConnectionSelectionErrors.Required
                         : ConnectionSelectionErrors.Unavailable,
-                ErrorDescription = "No connection is available for the sign-in.",
+                ErrorDescription = NoConnectionAvailable,
             };
         }
 
@@ -115,38 +148,7 @@ internal class DefaultSignInConnectionService(
         return new ConnectionSelection
         {
             ErrorCode = ConnectionSelectionErrors.Unavailable,
-            ErrorDescription = "No connection is available for the sign-in.",
+            ErrorDescription = NoConnectionAvailable,
         };
-    }
-
-    /// <summary>
-    /// Chooses the connection the sign-in preselects from the offered ones.
-    /// </summary>
-    /// <param name="clientSettings">The client's effective settings.</param>
-    /// <param name="requestedName">The connection name the request asks for, if any.</param>
-    /// <param name="offered">The connections the sign-in offers.</param>
-    /// <returns>The preselected connection, or <see langword="null"/> when none is.</returns>
-    private static ResolvedConnection? Preselect(
-        IReadOnlySettingCollection clientSettings,
-        string? requestedName,
-        IReadOnlyList<ResolvedConnection> offered
-    )
-    {
-        if (requestedName is not null)
-        {
-            return offered.Count > 0 ? offered[0] : null;
-        }
-
-        var defaultName = clientSettings.GetValue(OpenIdSettingKeys.DefaultConnection);
-        if (!string.IsNullOrEmpty(defaultName))
-        {
-            foreach (var connection in offered)
-            {
-                if (string.Equals(connection.Name, defaultName, StringComparison.OrdinalIgnoreCase))
-                    return connection;
-            }
-        }
-
-        return offered.Count == 1 ? offered[0] : null;
     }
 }
