@@ -79,7 +79,10 @@ internal class DefaultValidateLocalAccountSubjectHandler(
                 identity.ConnectionId,
                 cancellationToken
             );
-            if (connection is null || !LocalAccountSignedInAccounts.IsLocal(connection))
+            if (
+                connection is null
+                || !ConnectionStrategyNames.IsLocal(connection.Connection.Strategy)
+            )
             {
                 continue;
             }
@@ -122,7 +125,8 @@ internal class DefaultValidateLocalAccountSubjectHandler(
             connectionId,
             cancellationToken
         );
-        return connection is not null && LocalAccountSignedInAccounts.IsLocal(connection);
+        return connection is not null
+            && ConnectionStrategyNames.IsLocal(connection.Connection.Strategy);
     }
 
     private static void Refuse(

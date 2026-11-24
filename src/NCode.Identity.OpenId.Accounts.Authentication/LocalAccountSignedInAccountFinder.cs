@@ -106,7 +106,7 @@ internal sealed class LocalAccountSignedInAccountFinder(
             if (
                 connection is null
                 || !connection.Connection.IsEnabled
-                || !LocalAccountSignedInAccounts.IsLocal(connection)
+                || !ConnectionStrategyNames.IsLocal(connection.Connection.Strategy)
             )
             {
                 continue;

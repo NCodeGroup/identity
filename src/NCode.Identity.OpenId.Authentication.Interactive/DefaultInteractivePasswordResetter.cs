@@ -24,7 +24,7 @@ internal sealed class DefaultInteractivePasswordResetter : IInteractivePasswordR
     public ValueTask<string> SendResetCodeAsync(
         OpenIdContext openIdContext,
         ResolvedConnection connection,
-        string userName,
+        string identifier,
         InteractiveLocale locale,
         CancellationToken cancellationToken
     )

@@ -417,6 +417,54 @@ public class LocalAccountInteractivePasswordResetterTests : BaseTests
     #region SendResetCodeAsync Tests
 
     [Fact]
+    public async Task SendResetCodeAsync_WhenTheConnectionIsNotLocal_ReturnsAHandleAndSendsNothing()
+    {
+        var mockContext = CreateContext(isResetEnabled: true);
+        SetupHandle();
+        var custom = LocalAccountStoreSetup.CreateConnection(
+            TenantId,
+            MockConnectionSettings.Object,
+            strategy: "custom"
+        );
+
+        var flowId = await Resetter.SendResetCodeAsync(
+            mockContext.Object,
+            custom,
+            UserName,
+            Locale,
+            CancellationToken.None
+        );
+
+        Assert.Equal(HandleOfNoFlow, flowId);
+        MockStoreManagerFactory.VerifyNoOtherCalls();
+        MockAuditEventRecorder.VerifyNoOtherCalls();
+    }
+
+    [Fact]
+    public async Task SendResetCodeAsync_WhenTheConnectionIsDisabled_ReturnsAHandleAndSendsNothing()
+    {
+        var mockContext = CreateContext(isResetEnabled: true);
+        SetupHandle();
+        var disabled = LocalAccountStoreSetup.CreateConnection(
+            TenantId,
+            MockConnectionSettings.Object
+        );
+        disabled.Connection.IsEnabled = false;
+
+        var flowId = await Resetter.SendResetCodeAsync(
+            mockContext.Object,
+            disabled,
+            UserName,
+            Locale,
+            CancellationToken.None
+        );
+
+        Assert.Equal(HandleOfNoFlow, flowId);
+        MockStoreManagerFactory.VerifyNoOtherCalls();
+        MockAuditEventRecorder.VerifyNoOtherCalls();
+    }
+
+    [Fact]
     public async Task SendResetCodeAsync_WhenResetIsDisabled_ReturnsAHandleAndSendsNothing()
     {
         var mockContext = CreateContext(isResetEnabled: false);

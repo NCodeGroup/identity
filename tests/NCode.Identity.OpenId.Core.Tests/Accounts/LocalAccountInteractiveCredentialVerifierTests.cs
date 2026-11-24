@@ -135,6 +135,28 @@ public class LocalAccountInteractiveCredentialVerifierTests : BaseTests
     #region VerifyCredentialAsync Tests
 
     [Fact]
+    public async Task VerifyCredentialAsync_WhenTheConnectionIsNotLocal_ReturnsNullWithoutReadingTheStore()
+    {
+        using var password = Secret.Create(Password.AsSpan());
+        var connection = LocalAccountStoreSetup.CreateConnection(
+            TenantId,
+            MockSettings.Object,
+            strategy: "custom"
+        );
+
+        var principal = await Verifier.VerifyCredentialAsync(
+            MockContext.Object,
+            connection,
+            UserName,
+            password,
+            CancellationToken.None
+        );
+
+        Assert.Null(principal);
+        MockStoreManagerFactory.VerifyNoOtherCalls();
+    }
+
+    [Fact]
     public async Task VerifyCredentialAsync_WhenTheAttemptLimitIsReached_RecordsAFailureAndReturnsNull()
     {
         using var password = Secret.Create(Password.AsSpan());

@@ -44,6 +44,12 @@ internal sealed class LocalAccountInteractiveCredentialVerifier(
         CancellationToken cancellationToken
     )
     {
+        // A connection of another strategy is not this verifier's to answer, as the password grant refuses one.
+        if (!ConnectionStrategyNames.IsLocal(connection.Connection.Strategy))
+        {
+            return null;
+        }
+
         var result = await VerifyCredentialsAsync(
             openIdContext,
             connection,
