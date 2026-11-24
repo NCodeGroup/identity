@@ -123,8 +123,7 @@ internal sealed class DefaultConnectionResolver(
             return requested is null
                 ? new ConnectionSelection
                 {
-                    ErrorDescription =
-                        $"The connection '{requestedName}' is not available to the client.",
+                    ErrorDescription = "The requested connection is not available to the client.",
                 }
                 : new ConnectionSelection { Connection = requested };
         }

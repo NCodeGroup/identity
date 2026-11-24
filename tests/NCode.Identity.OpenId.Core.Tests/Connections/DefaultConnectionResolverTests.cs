@@ -249,7 +249,7 @@ public class DefaultConnectionResolverTests : BaseTests
 
         Assert.True(selection.IsRefused);
         Assert.Equal(
-            "The connection 'corp' is not available to the client.",
+            "The requested connection is not available to the client.",
             selection.ErrorDescription
         );
         Assert.Null(selection.Connection);

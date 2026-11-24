@@ -948,7 +948,7 @@ public class DefaultValidateAuthorizationRequestHandlerTests : BaseTests
         var (context, client, resolver, capturedCode, capturedDescription) =
             CreateConnectionScaffold();
         var mockRequest = CreateConnectionRequest(name);
-        var description = $"The connection '{name}' is not available to the client.";
+        const string description = "The requested connection is not available to the client.";
         resolver
             .Setup(x =>
                 x.SelectAsync(context, client.Settings, name, It.IsAny<CancellationToken>())
