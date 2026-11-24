@@ -255,3 +255,20 @@ const NCode.Identity.OpenId.GlobalDirectory.GlobalDirectoryProtocol.ManagementKe
 const NCode.Identity.OpenId.GlobalDirectory.GlobalDirectoryProtocol.PlatformAuthorityPath = "/directory/v1/platform/authority" -> string!
 const NCode.Identity.OpenId.GlobalDirectory.GlobalDirectoryProtocol.ReplicatedRevisionsPath = "/directory/v1/replicated-revisions" -> string!
 const NCode.Identity.OpenId.GlobalDirectory.GlobalDirectoryProtocol.TeamAuthorityPathFormat = "/directory/v1/teams/{0}/authority" -> string!
+NCode.Identity.OpenId.GlobalDirectory.IControlPlaneReplica
+NCode.Identity.OpenId.GlobalDirectory.IControlPlaneReplica.GetAuthorityAsync(string! principalId, string? teamId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.GlobalDirectory.ReplicatedAuthority!>
+NCode.Identity.OpenId.GlobalDirectory.IControlPlaneReplica.GetManagementKeysAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.GlobalDirectory.ReplicatedManagementKeys!>
+NCode.Identity.OpenId.GlobalDirectory.ReplicatedAuthority
+NCode.Identity.OpenId.GlobalDirectory.ReplicatedAuthority.ClientId.get -> string?
+NCode.Identity.OpenId.GlobalDirectory.ReplicatedAuthority.ClientId.init -> void
+NCode.Identity.OpenId.GlobalDirectory.ReplicatedAuthority.PlatformRoles.get -> System.Collections.Generic.IReadOnlyList<string!>!
+NCode.Identity.OpenId.GlobalDirectory.ReplicatedAuthority.PlatformRoles.init -> void
+NCode.Identity.OpenId.GlobalDirectory.ReplicatedAuthority.TeamRoles.get -> System.Collections.Generic.IReadOnlyList<string!>!
+NCode.Identity.OpenId.GlobalDirectory.ReplicatedAuthority.TeamRoles.init -> void
+NCode.Identity.OpenId.GlobalDirectory.ReplicatedManagementKeys
+NCode.Identity.OpenId.GlobalDirectory.ReplicatedManagementKeys.HasKeys.get -> bool
+NCode.Identity.OpenId.GlobalDirectory.ReplicatedManagementKeys.HasKeys.init -> void
+NCode.Identity.OpenId.GlobalDirectory.ReplicatedManagementKeys.Keys.get -> System.Collections.Generic.IReadOnlyCollection<NCode.Identity.Secrets.Keys.SecretKey!>!
+NCode.Identity.OpenId.GlobalDirectory.ReplicatedManagementKeys.Keys.init -> void
+NCode.Identity.OpenId.GlobalDirectory.ReplicatedManagementKeys.RevokedKeyIds.get -> System.Collections.Generic.IReadOnlySet<string!>!
+NCode.Identity.OpenId.GlobalDirectory.ReplicatedManagementKeys.RevokedKeyIds.init -> void

@@ -41,6 +41,14 @@ internal static class DefaultRegistration
                 DefaultPlatformDocumentApplier
             >();
             builder.ServiceCollection.TryAddSingleton<
+                IReplicatedDocumentApplier,
+                DefaultReplicatedDocumentApplier
+            >();
+            builder.ServiceCollection.TryAddSingleton<
+                IControlPlaneReplica,
+                DefaultControlPlaneReplica
+            >();
+            builder.ServiceCollection.TryAddSingleton<
                 IDirectoryFeedCheckpoint,
                 DefaultDirectoryFeedCheckpoint
             >();
