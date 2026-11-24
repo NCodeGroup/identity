@@ -1234,8 +1234,8 @@ internal class TenantApiEndpointHandler(
     /// <response code="204">The tenant was updated.</response>
     /// <response code="400">The JSON Patch document cannot be applied to the tenant, the patched display name is missing, or the patched issuer or mutual-TLS endpoint-alias authority is not valid.</response>
     /// <response code="404">The tenant does not exist.</response>
-    /// <response code="409">The patched issuer or mutual-TLS endpoint-alias authority conflicts with another tenant's or with one that belonged to a deleted tenant.</response>
-    /// <response code="503">The patched issuer changes the tenant's issuer and the global directory cannot be reached; the response carries Retry-After.</response>
+    /// <response code="409">The patched issuer or mutual-TLS endpoint-alias authority conflicts with another tenant's or with one that belonged to a deleted tenant, or the update enables a tenant whose keys are fenced and the global directory does not place it in this cell.</response>
+    /// <response code="503">The patched issuer changes the tenant's issuer, or the update enables a tenant whose keys are fenced, and the global directory cannot be reached; the response carries Retry-After.</response>
     [EndpointName("api/tenants/update")]
     internal virtual async ValueTask<IResult> UpdateTenantAsync(
         HttpContext httpContext,
@@ -1305,6 +1305,35 @@ internal class TenantApiEndpointHandler(
         if (error is not null)
         {
             return ToErrorResult(error);
+        }
+
+        // A fenced tenant is enabled only after a live read finds the directory placing it in this cell, which makes
+        // this cell the holder of its keys again, in the same save (ADR-1536).
+        if (tenant.IsDisabled && !model.IsDisabled && tenant.KeyCustody != TenantKeyCustody.Held)
+        {
+            TenantPlacement? placement;
+            try
+            {
+                placement = await TenantDirectory.GetPlacementOrDefaultAsync(
+                    tenantId,
+                    cancellationToken
+                );
+            }
+            catch (DirectoryUnavailableException)
+            {
+                return DirectoryUnavailableProblem(httpContext);
+            }
+
+            if (placement is null || placement.Cell != CellOptions.Name)
+            {
+                return TypedResults.Problem(
+                    detail: $"The tenant's keys are fenced while it moves, and the global directory does not place the tenant '{tenantId}' in this cell.",
+                    statusCode: StatusCodes.Status409Conflict
+                );
+            }
+
+            tenant.KeyCustody = TenantKeyCustody.Held;
+            tenant.KeyCustodyCell = null;
         }
 
         var previousIssuer = tenant.Issuer;
@@ -2469,8 +2498,7 @@ internal class TenantApiEndpointHandler(
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
     /// <response code="204">The secret was deleted.</response>
     /// <response code="404">The tenant or the secret does not exist.</response>
-    /// <response code="409">The global directory places the tenant in another cell, and this cell's copy is released with release-moved.</response>
-    /// <response code="503">The global directory cannot be reached to read the tenant's placement; the response carries Retry-After.</response>
+    /// <response code="409">The tenant's keys are fenced while it moves to or from another cell.</response>
     [EndpointName("api/tenants/secrets/delete")]
     internal virtual async ValueTask<IResult> DeleteSecretAsync(
         HttpContext httpContext,
@@ -2501,16 +2529,19 @@ internal class TenantApiEndpointHandler(
             return ManagementProblems.ResourceNotFound();
         }
 
-        if (
-            await GetPlacedElsewhereProblemOrDefaultAsync(
-                httpContext,
-                tenantId,
-                cancellationToken
-            ) is
-            { } placedElsewhere
-        )
+        // The fence is the tenant's own row, so a delete never reads the directory (ADR-1536).
+        var tenant = await store.GetOrDefaultAsync(tenantId, cancellationToken);
+        if (tenant is null)
         {
-            return placedElsewhere;
+            return ManagementProblems.ResourceNotFound();
+        }
+
+        if (tenant.KeyCustody != TenantKeyCustody.Held)
+        {
+            return TypedResults.Problem(
+                detail: "The tenant's keys are fenced while it moves.",
+                statusCode: StatusCodes.Status409Conflict
+            );
         }
 
         var secretResource = ToSecretResource(secret);
