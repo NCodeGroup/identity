@@ -834,6 +834,7 @@ NCode.Identity.OpenId.Persistence.DataContracts.PersistedSourceRevision.Kind.ini
 NCode.Identity.OpenId.Persistence.DataContracts.PersistedSourceRevision.Revision.get -> long
 NCode.Identity.OpenId.Persistence.DataContracts.PersistedSourceRevision.Revision.init -> void
 NCode.Identity.OpenId.Persistence.Stores.IDirectoryOutboxStore
+NCode.Identity.OpenId.Persistence.Stores.IDirectoryOutboxStore.EnqueueCurrentAsync(string! kind, string! key, long revision, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 NCode.Identity.OpenId.Persistence.Stores.IDirectoryOutboxStore.ListPendingAsync(int limit, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<NCode.Identity.OpenId.Persistence.DataContracts.PersistedDirectoryOutboxEntry!>!>
 NCode.Identity.OpenId.Persistence.Stores.IDirectoryOutboxStore.ListSourceRevisionsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<NCode.Identity.OpenId.Persistence.DataContracts.PersistedSourceRevision!>!>
 NCode.Identity.OpenId.Persistence.Stores.IDirectoryOutboxStore.RemoveThroughAsync(string! kind, string! key, long revision, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask

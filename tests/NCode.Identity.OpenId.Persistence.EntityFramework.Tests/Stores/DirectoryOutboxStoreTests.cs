@@ -4,6 +4,7 @@
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using NCode.Identity.OpenId.Persistence.Stores;
 using NCode.Identity.Persistence.Stores;
 
 namespace NCode.Identity.OpenId.Persistence.EntityFramework.Stores;
@@ -37,7 +38,12 @@ public sealed class DirectoryOutboxStoreTests : IDisposable
     #region Helpers
 
     private static DirectoryOutboxStore CreateStore(OpenIdDbContext context) =>
-        new(Mock.Of<IStoreProvider>(), context);
+        new(
+            Mock.Of<IStoreProvider>(),
+            context,
+            Mock.Of<IDirectoryOutboxPolicy>(policy => policy.ControlPlaneTenantId == "root"),
+            TimeProvider.System
+        );
 
     private async ValueTask AddOutboxAsync(
         string kind,
@@ -166,5 +172,46 @@ public sealed class DirectoryOutboxStoreTests : IDisposable
             ["platform-authority::7", "team-authority:t1:4"],
             actual.Select(entry => $"{entry.Kind}:{entry.Key}:{entry.Revision}")
         );
+    }
+
+    [Fact]
+    public async Task EnqueueCurrentAsync_PlatformAuthority_AddsTheDocumentAtTheRevision()
+    {
+        using (var scope = Provider.CreateScope())
+        {
+            var context = scope.ServiceProvider.GetRequiredService<OpenIdDbContext>();
+            await CreateStore(context)
+                .EnqueueCurrentAsync("platform-authority", "", 5, CancellationToken.None);
+            await context.SaveChangesAsync(CancellationToken.None);
+        }
+
+        using var readScope = Provider.CreateScope();
+        var readContext = readScope.ServiceProvider.GetRequiredService<OpenIdDbContext>();
+        var store = CreateStore(readContext);
+        var pending = await store.ListPendingAsync(10, CancellationToken.None);
+        var revisions = await store.ListSourceRevisionsAsync(CancellationToken.None);
+
+        var entry = Assert.Single(pending);
+        Assert.Equal(5, entry.Revision);
+        Assert.NotNull(entry.ContentJson);
+        Assert.Equal(5, Assert.Single(revisions).Revision);
+    }
+
+    [Fact]
+    public async Task EnqueueCurrentAsync_UnknownTeam_AddsARetirement()
+    {
+        using (var scope = Provider.CreateScope())
+        {
+            var context = scope.ServiceProvider.GetRequiredService<OpenIdDbContext>();
+            await CreateStore(context)
+                .EnqueueCurrentAsync("team-authority", "gone", 3, CancellationToken.None);
+            await context.SaveChangesAsync(CancellationToken.None);
+        }
+
+        using var readScope = Provider.CreateScope();
+        var readContext = readScope.ServiceProvider.GetRequiredService<OpenIdDbContext>();
+        var pending = await CreateStore(readContext).ListPendingAsync(10, CancellationToken.None);
+
+        Assert.Null(Assert.Single(pending).ContentJson);
     }
 }

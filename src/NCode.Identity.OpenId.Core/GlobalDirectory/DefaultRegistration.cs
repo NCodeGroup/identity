@@ -1,7 +1,9 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using NCode.Identity.OpenId.Persistence.Stores;
 using NCode.Identity.Registration;
 
 namespace NCode.Identity.OpenId.GlobalDirectory;
@@ -48,6 +50,23 @@ internal static class DefaultRegistration
                 IControlPlaneReplica,
                 DefaultControlPlaneReplica
             >();
+            builder.ServiceCollection.TryAddSingleton<
+                IDirectoryOutboxSignal,
+                DefaultDirectoryOutboxSignal
+            >();
+            builder.ServiceCollection.TryAddSingleton<IDirectoryOutbox, DefaultDirectoryOutbox>();
+
+            // The persistence slice registers a policy and a notifier that publish nothing. Both are replaced by the
+            // one default instance, whichever registration runs first.
+            builder.ServiceCollection.TryAddSingleton<DefaultDirectoryOutboxPolicy>();
+            var policyDescriptor = ServiceDescriptor.Singleton<IDirectoryOutboxPolicy>(provider =>
+                provider.GetRequiredService<DefaultDirectoryOutboxPolicy>()
+            );
+            builder.ServiceCollection.Replace(policyDescriptor);
+            var notifierDescriptor = ServiceDescriptor.Singleton<IDirectoryOutboxNotifier>(
+                provider => provider.GetRequiredService<DefaultDirectoryOutboxPolicy>()
+            );
+            builder.ServiceCollection.Replace(notifierDescriptor);
             builder.ServiceCollection.TryAddSingleton<
                 IDirectoryFeedCheckpoint,
                 DefaultDirectoryFeedCheckpoint

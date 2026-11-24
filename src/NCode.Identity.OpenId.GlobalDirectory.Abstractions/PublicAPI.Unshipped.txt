@@ -272,3 +272,11 @@ NCode.Identity.OpenId.GlobalDirectory.ReplicatedManagementKeys.Keys.get -> Syste
 NCode.Identity.OpenId.GlobalDirectory.ReplicatedManagementKeys.Keys.init -> void
 NCode.Identity.OpenId.GlobalDirectory.ReplicatedManagementKeys.RevokedKeyIds.get -> System.Collections.Generic.IReadOnlySet<string!>!
 NCode.Identity.OpenId.GlobalDirectory.ReplicatedManagementKeys.RevokedKeyIds.init -> void
+NCode.Identity.OpenId.GlobalDirectory.IDirectoryOutbox
+NCode.Identity.OpenId.GlobalDirectory.IDirectoryOutbox.AcknowledgeAsync(string! kind, string! key, long revision, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+NCode.Identity.OpenId.GlobalDirectory.IDirectoryOutbox.ListLocalRevisionsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<NCode.Identity.OpenId.GlobalDirectory.ReplicatedDocument!>!>
+NCode.Identity.OpenId.GlobalDirectory.IDirectoryOutbox.ListPendingAsync(int limit, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<NCode.Identity.OpenId.GlobalDirectory.ReplicatedDocument!>!>
+NCode.Identity.OpenId.GlobalDirectory.IDirectoryOutbox.RepublishAsync(string! kind, string! key, long atRevision, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+NCode.Identity.OpenId.GlobalDirectory.IDirectoryOutboxSignal
+NCode.Identity.OpenId.GlobalDirectory.IDirectoryOutboxSignal.Notify() -> void
+NCode.Identity.OpenId.GlobalDirectory.IDirectoryOutboxSignal.WaitAsync(System.TimeSpan timeout, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask

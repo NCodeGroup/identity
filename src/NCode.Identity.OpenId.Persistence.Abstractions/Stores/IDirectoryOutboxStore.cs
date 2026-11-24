@@ -52,4 +52,21 @@ public interface IDirectoryOutboxStore : IStore
     ValueTask<IReadOnlyList<PersistedSourceRevision>> ListSourceRevisionsAsync(
         CancellationToken cancellationToken
     );
+
+    /// <summary>
+    /// Composes a document whole from the rows the database holds now and adds it to the outbox at a revision, and sets
+    /// the document's source revision to it, when the unit of work is saved. A team's authority document whose team the
+    /// cell does not hold is added as retired.
+    /// </summary>
+    /// <param name="kind">The kind of the document.</param>
+    /// <param name="key">The key of the document within its kind.</param>
+    /// <param name="revision">The revision to publish the document at.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation.</returns>
+    ValueTask EnqueueCurrentAsync(
+        string kind,
+        string key,
+        long revision,
+        CancellationToken cancellationToken
+    );
 }
