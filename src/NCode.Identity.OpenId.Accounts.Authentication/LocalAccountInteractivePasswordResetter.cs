@@ -115,8 +115,8 @@ internal sealed class LocalAccountInteractivePasswordResetter(
         CancellationToken cancellationToken
     )
     {
-        // A disabled connection, a connection of another strategy and a connection with resets off all answer as a tenant
-        // that has resets off does, with no remote work, as ResetPasswordAsync refuses them.
+        // A disabled connection, a connection of another strategy and a connection with resets off all answer as a
+        // tenant that has resets off does, with no remote work, as ResetPasswordAsync refuses them.
         if (
             !connection.Connection.IsEnabled
             || !ConnectionStrategyNames.IsLocal(connection.Connection.Strategy)

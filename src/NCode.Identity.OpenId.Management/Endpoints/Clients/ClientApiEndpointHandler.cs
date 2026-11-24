@@ -788,8 +788,8 @@ internal class ClientApiEndpointHandler(
 
         await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
 
-        // The caller holds authority at the tenant's node, but the tenant may not exist: the store's insert would fail on
-        // it, so the absent tenant is answered 404 before anything is validated or stored.
+        // The caller holds authority at the tenant's node, but the tenant may not exist: the store's insert would fail
+        // on it, so the absent tenant is answered 404 before anything is validated or stored.
         var tenantNotFound = await GetTenantNotFoundOrDefaultAsync(
             storeManager,
             tenantId,

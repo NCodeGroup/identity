@@ -20,10 +20,6 @@ internal sealed class ControlPlaneDefaultConnectionReader(
     IEffectiveSettingsResolver effectiveSettingsResolver
 )
 {
-    private ITenantResolver TenantResolver { get; } = tenantResolver;
-    private IEffectiveSettingsResolver EffectiveSettingsResolver { get; } =
-        effectiveSettingsResolver;
-
     /// <summary>
     /// Resolves a tenant's effective settings from its stored documents: its team's settings under its own document.
     /// </summary>
@@ -57,6 +53,10 @@ internal sealed class ControlPlaneDefaultConnectionReader(
             tenant.Settings.Value
         );
     }
+
+    private ITenantResolver TenantResolver { get; } = tenantResolver;
+    private IEffectiveSettingsResolver EffectiveSettingsResolver { get; } =
+        effectiveSettingsResolver;
 
     /// <summary>
     /// Finds the connection that the control-plane tenant's <c>default_connection</c> setting names.
