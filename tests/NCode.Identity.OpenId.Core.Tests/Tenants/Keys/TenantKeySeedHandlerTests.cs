@@ -41,7 +41,7 @@ public sealed class TenantKeySeedHandlerTests : BaseTests
     private Mock<ITenantKeyPolicy> MockPolicy { get; }
     private Mock<ITenantKeyRolloverPlanner> MockPlanner { get; }
     private Mock<ITenantKeyRollover> MockRollover { get; }
-    private Mock<ITenantKeyPlacementGuard> MockPlacementGuard { get; }
+    private Mock<ITenantKeyCustodyGuard> MockCustodyGuard { get; }
     private Mock<IEffectiveSettingsResolver> MockEffectiveSettingsResolver { get; }
     private Mock<IEventPublisher> MockEventPublisher { get; }
     private Mock<IRemoteSecretDestroyer> MockRemoteSecretDestroyer { get; }
@@ -55,10 +55,10 @@ public sealed class TenantKeySeedHandlerTests : BaseTests
         MockPolicy = CreateStrictMock<ITenantKeyPolicy>();
         MockPlanner = CreateStrictMock<ITenantKeyRolloverPlanner>();
         MockRollover = CreateStrictMock<ITenantKeyRollover>();
-        MockPlacementGuard = CreateStrictMock<ITenantKeyPlacementGuard>();
+        MockCustodyGuard = CreateStrictMock<ITenantKeyCustodyGuard>();
 
-        // A tenant the directory places in this cell, or in no cell, may change its keys.
-        MockPlacementGuard
+        // A tenant the cell holds, may change its keys.
+        MockCustodyGuard
             .Setup(x => x.MayChangeKeysAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(true);
         MockEffectiveSettingsResolver = CreateStrictMock<IEffectiveSettingsResolver>();
@@ -73,7 +73,7 @@ public sealed class TenantKeySeedHandlerTests : BaseTests
             MockPolicy.Object,
             MockPlanner.Object,
             MockRollover.Object,
-            MockPlacementGuard.Object,
+            MockCustodyGuard.Object,
             MockEffectiveSettingsResolver.Object,
             MockEventPublisher.Object,
             MockRemoteSecretDestroyer.Object,
@@ -126,7 +126,7 @@ public sealed class TenantKeySeedHandlerTests : BaseTests
         SetupSpecifications(Rs256);
         SetupSettings();
         SetupGeneratingPlan(tenant);
-        MockPlacementGuard
+        MockCustodyGuard
             .Setup(x => x.MayChangeKeysAsync(TenantId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(false)
             .Verifiable(Times.Once);

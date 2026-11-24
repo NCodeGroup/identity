@@ -34,8 +34,8 @@ namespace NCode.Identity.OpenId.Tenants.Keys;
 /// so a lost race records nothing. The pass runs team by team under the one platform-wide lease: it judges a team's
 /// tenants against that team's effective settings, skips a disabled team, and logs a team it cannot handle before it
 /// goes on to the next. A tenant that holds no key is left to its first materialization, which seeds it in full. A cell
-/// never changes the keys of a tenant the global directory places in another cell, because removing one destroys a
-/// remote key that cell uses. A tenant the pass changed is announced, so every replica evicts it and serves its keys as
+/// never changes the keys of a tenant whose key custody is fenced by a move to or from another cell, because removing
+/// one destroys a remote key that cell uses. A tenant the pass changed is announced, so every replica evicts it and serves its keys as
 /// they are. The publishing and the announcement follow a committed change, so each runs on its own bounded token,
 /// never the host's stopping token, and the announcement follows whatever the publishing did.
 /// </summary>
@@ -46,7 +46,7 @@ internal sealed class TenantKeyRolloverService(
     ITenantKeyPolicy tenantKeyPolicy,
     ITenantKeyRolloverPlanner planner,
     ITenantKeyRollover rollover,
-    ITenantKeyPlacementGuard placementGuard,
+    ITenantKeyCustodyGuard custodyGuard,
     IEffectiveSettingsResolver effectiveSettingsResolver,
     IStoreManagerFactory storeManagerFactory,
     IAmbientTenantAccessor ambientTenantAccessor,
@@ -73,7 +73,7 @@ internal sealed class TenantKeyRolloverService(
     private ITenantKeyPolicy TenantKeyPolicy { get; } = tenantKeyPolicy;
     private ITenantKeyRolloverPlanner Planner { get; } = planner;
     private ITenantKeyRollover Rollover { get; } = rollover;
-    private ITenantKeyPlacementGuard PlacementGuard { get; } = placementGuard;
+    private ITenantKeyCustodyGuard CustodyGuard { get; } = custodyGuard;
     private IEffectiveSettingsResolver EffectiveSettingsResolver { get; } =
         effectiveSettingsResolver;
     private IStoreManagerFactory StoreManagerFactory { get; } = storeManagerFactory;
@@ -383,9 +383,9 @@ internal sealed class TenantKeyRolloverService(
         if (plan.IsEmpty)
             return null;
 
-        // A cell never changes the keys of a tenant the global directory places elsewhere, because removing one
+        // A cell never changes the keys of a tenant whose custody is fenced by a move, because removing one
         // destroys a remote key that cell uses (ADR-1514).
-        var mayChangeKeys = await PlacementGuard.MayChangeKeysAsync(tenantId, cancellationToken);
+        var mayChangeKeys = await CustodyGuard.MayChangeKeysAsync(tenantId, cancellationToken);
         if (!mayChangeKeys)
             return null;
 

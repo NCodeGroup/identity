@@ -131,16 +131,16 @@ internal static class EventIds
     public const int DirectoryTeamParentNotMirrored = Base + 50;
 
     /// <summary>
-    /// Identifies the informational message that a tenant's keys stay unchanged in this cell because the global
-    /// directory places the tenant in another cell.
+    /// Identifies the informational message that a tenant's keys stay unchanged in this cell because the tenant's
+    /// key custody is fenced by a move to or from another cell.
     /// </summary>
-    public const int TenantKeysPlacedElsewhere = Base + 51;
+    public const int TenantKeysFenced = Base + 51;
 
     /// <summary>
-    /// Identifies the warning that a tenant's keys stay unchanged in this cell because the global directory cannot be
-    /// read to learn where the tenant is placed.
+    /// Identifies the warning that a tenant's keys stay unchanged in this cell because the cell does not hold the
+    /// tenant.
     /// </summary>
-    public const int TenantKeysPlacementUnknown = Base + 52;
+    public const int TenantKeysNotHeld = Base + 52;
 
     /// <summary>
     /// Identifies the warning that releasing the global directory's reservation of a tenant whose creation failed did

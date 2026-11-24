@@ -503,26 +503,23 @@ internal static partial class Log
     );
 
     [LoggerMessage(
-        EventId = EventIds.TenantKeysPlacedElsewhere,
+        EventId = EventIds.TenantKeysFenced,
         Level = LogLevel.Information,
-        Message = "The keys of the tenant '{TenantId}' stay unchanged in this cell because the global directory places the tenant in the cell '{Cell}'"
+        Message = "The keys of the tenant '{TenantId}' stay unchanged in this cell because their custody is '{KeyCustody}' with the cell '{Cell}'"
     )]
-    internal static partial void TenantKeysPlacedElsewhere(
+    internal static partial void TenantKeysFenced(
         this ILogger logger,
         string tenantId,
-        string cell
+        string keyCustody,
+        string? cell
     );
 
     [LoggerMessage(
-        EventId = EventIds.TenantKeysPlacementUnknown,
+        EventId = EventIds.TenantKeysNotHeld,
         Level = LogLevel.Warning,
-        Message = "The keys of the tenant '{TenantId}' stay unchanged in this cell because the global directory cannot be read"
+        Message = "The keys of the tenant '{TenantId}' stay unchanged in this cell because the cell does not hold the tenant"
     )]
-    internal static partial void TenantKeysPlacementUnknown(
-        this ILogger logger,
-        string tenantId,
-        Exception exception
-    );
+    internal static partial void TenantKeysNotHeld(this ILogger logger, string tenantId);
 
     /// <summary>
     /// Logs that releasing the global directory's reservation of a tenant whose creation failed did not complete.

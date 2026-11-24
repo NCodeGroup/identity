@@ -88,8 +88,8 @@ internal static class DefaultRegistration
             serviceCollection.TryAddSingleton<ITenantKeyRollover, DefaultTenantKeyRollover>();
             serviceCollection.TryAddScoped<IManagementKeyRevoker, DefaultManagementKeyRevoker>();
             serviceCollection.TryAddSingleton<
-                ITenantKeyPlacementGuard,
-                DefaultTenantKeyPlacementGuard
+                ITenantKeyCustodyGuard,
+                DefaultTenantKeyCustodyGuard
             >();
             var keySeedHandler = ServiceDescriptor.Singleton<
                 ICommandHandler<SeedTenantCommand>,

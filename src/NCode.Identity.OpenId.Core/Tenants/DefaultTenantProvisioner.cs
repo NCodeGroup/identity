@@ -133,12 +133,8 @@ internal sealed class DefaultTenantProvisioner(
         // directory: its identifier, such as a workload cell's root tenant `root`, can be the one the directory holds
         // for the control-plane cell's root tenant. Every other tenant a strategy serves is reserved, placed and
         // inserted through the directory, as the management API creates a tenant (ADR-1160, ADR-1411).
-        var isDirectoryTokenIssuer = RootTenantRules.IsDirectoryTokenIssuer(
-            CellOptions,
-            TenantResolver,
-            tenantId
-        );
-        if (isDirectoryTokenIssuer || persistedTenant.Issuer is null)
+        var isTrustAnchor = RootTenantRules.IsTrustAnchor(CellOptions, TenantResolver, tenantId);
+        if (isTrustAnchor || persistedTenant.Issuer is null)
         {
             var concurrent = await InsertOrFindConcurrentAsync(
                 persistedTenant,

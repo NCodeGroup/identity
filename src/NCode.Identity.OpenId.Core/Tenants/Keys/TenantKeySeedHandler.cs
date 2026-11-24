@@ -19,8 +19,8 @@ namespace NCode.Identity.OpenId.Tenants.Keys;
 /// without waiting for the background pass. Keys are generated through the normal secret-persistence path, so the
 /// runtime, the JSON Web Key Set, and the management API all read the same keys. The audit event of each change is
 /// published once the seed's unit of work has committed, so a seed that loses its commit records nothing. A cell never
-/// changes the keys of a tenant the global directory places in another cell, because removing one destroys a remote key
-/// that cell uses.
+/// changes the keys of a tenant whose key custody is fenced by a move to or from another cell, because removing one
+/// destroys a remote key that cell uses.
 /// </summary>
 /// <remarks>
 /// A key the handler cannot read still counts as held: an undecryptable key signals a lost master key or root key,
@@ -34,7 +34,7 @@ internal class TenantKeySeedHandler(
     ITenantKeyPolicy tenantKeyPolicy,
     ITenantKeyRolloverPlanner planner,
     ITenantKeyRollover rollover,
-    ITenantKeyPlacementGuard placementGuard,
+    ITenantKeyCustodyGuard custodyGuard,
     IEffectiveSettingsResolver effectiveSettingsResolver,
     IEventPublisher eventPublisher,
     IRemoteSecretDestroyer remoteSecretDestroyer,
@@ -47,7 +47,7 @@ internal class TenantKeySeedHandler(
     private ITenantKeyPolicy TenantKeyPolicy { get; } = tenantKeyPolicy;
     private ITenantKeyRolloverPlanner Planner { get; } = planner;
     private ITenantKeyRollover Rollover { get; } = rollover;
-    private ITenantKeyPlacementGuard PlacementGuard { get; } = placementGuard;
+    private ITenantKeyCustodyGuard CustodyGuard { get; } = custodyGuard;
     private IEffectiveSettingsResolver EffectiveSettingsResolver { get; } =
         effectiveSettingsResolver;
     private IEventPublisher EventPublisher { get; } = eventPublisher;
@@ -89,9 +89,9 @@ internal class TenantKeySeedHandler(
             return;
         }
 
-        // A cell never changes the keys of a tenant the global directory places elsewhere, because removing one
+        // A cell never changes the keys of a tenant whose custody is fenced by a move, because removing one
         // destroys a remote key that cell uses (ADR-1514).
-        var mayChangeKeys = await PlacementGuard.MayChangeKeysAsync(
+        var mayChangeKeys = await CustodyGuard.MayChangeKeysAsync(
             tenant.TenantId,
             cancellationToken
         );

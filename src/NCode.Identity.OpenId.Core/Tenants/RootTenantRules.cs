@@ -12,8 +12,9 @@ namespace NCode.Identity.OpenId.Tenants;
 internal static class RootTenantRules
 {
     /// <summary>
-    /// Determines whether a tenant is the one whose bearer tokens the global directory accepts. That is the
-    /// control-plane cell's control-plane tenant, so the directory cannot answer for it before the cell serves.
+    /// Determines whether a tenant is the platform's trust anchor. That is the control-plane cell's control-plane
+    /// tenant, which the directory pins from configuration, so the directory cannot answer for it before the cell
+    /// serves.
     /// </summary>
     /// <param name="cellOptions">The options of the cell that the host runs.</param>
     /// <param name="tenantResolver">The resolver that names the control-plane tenant.</param>
@@ -22,7 +23,7 @@ internal static class RootTenantRules
     /// <c>true</c> when the host runs the control-plane cell and the tenant is its control-plane tenant; otherwise,
     /// <c>false</c>.
     /// </returns>
-    public static bool IsDirectoryTokenIssuer(
+    public static bool IsTrustAnchor(
         CellOptions cellOptions,
         ITenantResolver tenantResolver,
         string tenantId

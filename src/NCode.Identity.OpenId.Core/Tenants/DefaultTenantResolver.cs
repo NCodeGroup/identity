@@ -189,11 +189,7 @@ internal class DefaultTenantResolver(
 
         // The control-plane cell judges its control-plane tenant without the directory, which accepts only that
         // tenant's tokens, so the directory cannot answer for it before the cell serves (ADR-1411).
-        var judgedByDirectory = !RootTenantRules.IsDirectoryTokenIssuer(
-            CellOptions,
-            this,
-            tenantId
-        );
+        var judgedByDirectory = !RootTenantRules.IsTrustAnchor(CellOptions, this, tenantId);
 
         // A tenant identifier names its tenant in every route and management call, so one that belonged to a deleted
         // tenant is never reissued (ADR-1160).
