@@ -40,10 +40,20 @@ public static class TypefaceProbe
 
     private const string LoadFamilyScript = """
         async ({ family, deadline }) => {
-          const timedOut = new Promise((resolve) => setTimeout(resolve, Math.max(0, deadline - performance.now()), []));
+          const failures = (window.__fontFailures ??= []);
+          const timedOut = new Promise((resolve) => setTimeout(resolve, Math.max(0, deadline - performance.now()), null));
           try {
-            return (await Promise.race([document.fonts.load(`16px "${family}"`), timedOut])).length;
-          } catch {
+            const faces = await Promise.race([document.fonts.load(`16px "${family}"`), timedOut]);
+            if (faces === null) {
+              failures.push(`${family}: its load did not finish within the probe's bound`);
+              return 0;
+            }
+            if (faces.length === 0) {
+              failures.push(`${family}: its load matched no face`);
+            }
+            return faces.length;
+          } catch (error) {
+            failures.push(`${family}: its load failed: ${error}`);
             return 0;
           }
         }
@@ -51,23 +61,28 @@ public static class TypefaceProbe
 
     private const string SettledFamiliesScript = """
         async ({ families, deadline, pollMilliseconds }) => {
+          const failures = (window.__fontFailures ??= []);
           const pause = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
           const settle = () =>
             Promise.all(families.map((family) => document.fonts.load(`16px "${family}"`))).then(() => document.fonts.ready);
+          const unchecked = () => families.filter((family) => !document.fonts.check(`16px "${family}"`));
           for (;;) {
-            const remaining = deadline - performance.now();
-            if (remaining <= 0) {
-              return false;
-            }
             try {
-              await Promise.race([settle(), pause(remaining)]);
-            } catch {
+              await Promise.race([settle(), pause(Math.max(0, deadline - performance.now()))]);
+            } catch (error) {
+              failures.push(`the font set failed to settle: ${error}`);
               return false;
             }
-            if (families.every((family) => document.fonts.check(`16px "${family}"`))) {
+            const missing = unchecked();
+            if (missing.length === 0) {
               return true;
             }
-            await pause(Math.min(pollMilliseconds, Math.max(0, deadline - performance.now())));
+            const remaining = deadline - performance.now();
+            if (remaining <= 0) {
+              failures.push(`the font set did not report ${missing.join(" and ")} loaded within the probe's bound`);
+              return false;
+            }
+            await pause(Math.min(pollMilliseconds, remaining));
           }
         }
         """;
@@ -76,10 +91,14 @@ public static class TypefaceProbe
         () => window.__policyViolations
         """;
 
+    private const string FontFailuresScript = """
+        () => window.__fontFailures ?? []
+        """;
+
     /// <summary>
     /// Opens a page, waits for its bundle to render, loads both typefaces through the page's <c>FontFaceSet</c> and
-    /// waits for it to settle, all within five seconds, and returns what the page fetched, what its policy refused and
-    /// what its font set loaded.
+    /// waits for it to settle, all within five seconds, and returns what the page fetched, what its policy refused,
+    /// what its font set loaded and why a typeface did not load.
     /// </summary>
     /// <param name="context">The browser context to open the page in.</param>
     /// <param name="url">The URL of the page.</param>
@@ -150,6 +169,7 @@ public static class TypefaceProbe
         };
         var bothChecked = await page.EvaluateAsync<bool>(SettledFamiliesScript, settle);
         var policyViolations = await page.EvaluateAsync<string[]>(ViolationsScript);
+        var fontFailures = await page.EvaluateAsync<string[]>(FontFailuresScript);
 
         return new TypefaceProbeResult(
             [.. fontResponses],
@@ -157,7 +177,8 @@ public static class TypefaceProbe
             [.. policyMessages],
             instrumentSansFaces,
             martianMonoFaces,
-            bothChecked
+            bothChecked,
+            fontFailures
         );
     }
 

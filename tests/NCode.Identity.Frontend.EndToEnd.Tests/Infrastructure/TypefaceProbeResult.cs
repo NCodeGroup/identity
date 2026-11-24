@@ -15,11 +15,14 @@ namespace NCode.Identity.Frontend.EndToEnd.Tests.Infrastructure;
 /// load failed or did not finish within the probe's bound.</param>
 /// <param name="BothChecked">Whether the page's font set reports both typefaces as loaded once it settles, within the
 /// probe's bound.</param>
+/// <param name="FontFailures">Why a typeface's load failed, matched no face or did not finish, or why the page's font
+/// set did not settle, within the probe's bound; empty when both typefaces loaded.</param>
 public sealed record TypefaceProbeResult(
     IReadOnlyList<FontResponse> FontResponses,
     IReadOnlyList<string> PolicyViolations,
     IReadOnlyList<string> PolicyMessages,
     int InstrumentSansFaces,
     int MartianMonoFaces,
-    bool BothChecked
+    bool BothChecked,
+    IReadOnlyList<string> FontFailures
 );

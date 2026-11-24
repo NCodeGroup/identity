@@ -25,6 +25,7 @@ public sealed class PageTypefaceTests(FrontendEnvironment environment)
     {
         Assert.Empty(result.PolicyViolations);
         Assert.Empty(result.PolicyMessages);
+        Assert.Empty(result.FontFailures);
 
         // Loading a family for its space character loads its latin face, the one face whose unicode-range holds it.
         Assert.Equal(1, result.InstrumentSansFaces);

@@ -49,6 +49,7 @@ public sealed class TypefaceProbeTests(FrontendEnvironment environment)
         Assert.Equal(1, result.InstrumentSansFaces);
         Assert.Equal(1, result.MartianMonoFaces);
         Assert.True(result.BothChecked);
+        Assert.Empty(result.FontFailures);
     }
 
     [Theory, MemberData(nameof(BrowserNames.All), MemberType = typeof(BrowserNames))]
@@ -73,6 +74,14 @@ public sealed class TypefaceProbeTests(FrontendEnvironment environment)
         Assert.Equal(0, result.InstrumentSansFaces);
         Assert.Equal(0, result.MartianMonoFaces);
         Assert.False(result.BothChecked);
+        Assert.Contains(
+            result.FontFailures,
+            failure => failure.StartsWith(TypefaceProbe.InstrumentSans, StringComparison.Ordinal)
+        );
+        Assert.Contains(
+            result.FontFailures,
+            failure => failure.StartsWith(TypefaceProbe.MartianMono, StringComparison.Ordinal)
+        );
     }
 
     [Theory, MemberData(nameof(BrowserNames.All), MemberType = typeof(BrowserNames))]
@@ -97,6 +106,14 @@ public sealed class TypefaceProbeTests(FrontendEnvironment environment)
         Assert.Equal(0, result.InstrumentSansFaces);
         Assert.Equal(0, result.MartianMonoFaces);
         Assert.False(result.BothChecked);
+        Assert.Contains(
+            result.FontFailures,
+            failure => failure.StartsWith(TypefaceProbe.InstrumentSans, StringComparison.Ordinal)
+        );
+        Assert.Contains(
+            result.FontFailures,
+            failure => failure.StartsWith(TypefaceProbe.MartianMono, StringComparison.Ordinal)
+        );
     }
 
     #endregion
