@@ -116,14 +116,26 @@ makes to a tenant's key on its own is an audit event.**
    committed and the tenant must materialize. The audit event is the one record of a change: the rollover logs only its
    mechanics (a lost race, a failed tenant, a failed pass and a failed publish), and the audit pipeline writes the log
    entry of each event it publishes.
-8. **A cell changes only the keys of a tenant it holds.** Before the seed or the pass applies a plan that changes keys,
-   `ITenantKeyPlacementGuard` asks the global directory where the tenant is placed. A tenant placed in another cell, or
-   one whose placement cannot be read, keeps its keys, so a cell that still holds a moved tenant's copy never destroys a
-   remote key the target cell uses
-   ([ADR-1514](1514-a-tenant-moves-between-cells-of-one-region-through-an-encrypted-export-and-import.md)). A plan that
-   changes nothing reads no placement. The control-plane cell changes its control-plane tenant's keys without asking,
-   because the directory places that tenant in that cell from its own configuration
-   (`DirectoryServer:ControlPlaneTenantId`) and accepts only the tokens it issues.
+8. **A cell changes only the keys of a tenant it holds, by a local fence.** Before the seed or the pass applies a plan
+   that changes keys, `ITenantKeyCustodyGuard` reads the tenant's own row: `PersistedTenant.KeyCustody` is `held`,
+   `outgoing` or `incoming`, and `DefaultTenantKeyCustodyGuard` lets a plan change keys only for a `held` tenant. A
+   tenant that is moving to or from another cell keeps its keys, so a cell that still holds a moved tenant's copy never
+   destroys a remote key the target cell uses
+   ([ADR-1514](1514-a-tenant-moves-between-cells-of-one-region-through-an-encrypted-export-and-import.md)). The guard
+   never reads the global directory, so key rollover and secret deletion keep working through any directory outage
+   ([ADR-1536](1536-a-platforms-global-plane-is-a-standalone-directory-and-a-dedicated-control-plane-cell-and-every-other-cell-runs-and-is-managed-on-its-own.md)).
+   The control-plane tenant of the control-plane cell is the trust anchor and is never fenced
+   (`RootTenantRules.IsTrustAnchor`).
+9. **The control-plane tenant's key changes reach every cell.** On a platform with a directory, each change to the
+   control-plane tenant's signing keys, a successor published ahead of its activation included, is written in the same
+   unit of work as a `management-keys` replicated document that the directory carries to every cell, so a workload cell
+   validates management tokens against keys it holds and a successor is known to every cell before it signs.
+10. **A compromised management key is revoked, never retired.** `POST /api/platform/management-keys/{kid}/revoke`
+    removes the key from the control-plane tenant's key set in one unit of work, activates a pending successor at once
+    when one exists, and otherwise generates one that is active at once, so management does not pause. The key's
+    identifier joins the revoked list of the management keys document, and a cell applies the list so that no later
+    document returns the key. The offline `revoke-management-key <kid>` command adds the identifier to a workload
+    cell's revoked list.
 
 ## Options considered
 
@@ -184,6 +196,7 @@ makes to a tenant's key on its own is an audit event.**
 - `ManagedBy` is on `PersistedSecret`, `SecretEntity`, `GenerateSecretRequest`, `SecretResource` and
   `CreatedSecretResource`, the host database's `Secrets` table holds it, and the management console marks a managed
   key.
+- Rollover of a tenant's keys never waits for the directory: the custody fence is a column of the tenant's own row.
 - The host walks every tenant of every enabled team once an hour on one replica; the walk reads each tenant's settings
   projection and keys and loads a tenant's master key only when it generates a key.
 
