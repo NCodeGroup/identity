@@ -843,6 +843,115 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
         Assert.Equal(StatusCodes.Status404NotFound, problem.StatusCode);
     }
 
+    [Fact]
+    public async Task SetEnabledAsync_WhenEnablingAndTheAccountStoreThrows_DisposesTheStoreManagerOnceAndRethrows()
+    {
+        SetupAccountStoreThrows();
+
+        await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await Handler.EnableLocalAccountAsync(
+                CreateHttpContext(),
+                TenantId,
+                ConnectionId,
+                LocalAccountId,
+                CancellationToken.None
+            )
+        );
+
+        MockStoreManager.Verify(x => x.DisposeAsync(), Times.Once);
+    }
+
+    [Fact]
+    public async Task SetEnabledAsync_WhenDisablingAndTheAccountStoreThrows_DisposesTheStoreManagerOnceAndRethrows()
+    {
+        SetupAccountStoreThrows();
+
+        await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await Handler.DisableLocalAccountAsync(
+                CreateHttpContext(),
+                TenantId,
+                ConnectionId,
+                LocalAccountId,
+                CancellationToken.None
+            )
+        );
+
+        MockStoreManager.Verify(x => x.DisposeAsync(), Times.Once);
+    }
+
+    [Fact]
+    public async Task SetEnabledAsync_WhenEnablingSucceeds_DisposesTheStoreManagerOnce()
+    {
+        var account = CreateAccount();
+        account.IsEnabled = false;
+        SetupAuthorizeUpdate(error: null);
+        SetupAccount(account);
+        SetupIdentity();
+        MockLocalAccountStore
+            .Setup(x =>
+                x.UpdateAsync(It.IsAny<PersistedLocalAccount>(), It.IsAny<CancellationToken>())
+            )
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable();
+        MockStoreManager
+            .Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()))
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable();
+        SetupAuditRecorded(expectedPrincipalId: "principal-1");
+
+        await Handler.EnableLocalAccountAsync(
+            CreateHttpContext(),
+            TenantId,
+            ConnectionId,
+            LocalAccountId,
+            CancellationToken.None
+        );
+
+        MockStoreManager.Verify(x => x.DisposeAsync(), Times.Once);
+    }
+
+    [Fact]
+    public async Task SetEnabledAsync_WhenDisablingSucceeds_DisposesTheStoreManagerOnce()
+    {
+        var account = CreateAccount();
+        SetupAuthorizeUpdate(error: null);
+        SetupAccount(account);
+        SetupNoIdentity();
+        MockLocalAccountStore
+            .Setup(x =>
+                x.UpdateAsync(It.IsAny<PersistedLocalAccount>(), It.IsAny<CancellationToken>())
+            )
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable();
+        MockStoreManager
+            .Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()))
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable();
+        SetupAuditRecorded(expectedPrincipalId: null);
+
+        await Handler.DisableLocalAccountAsync(
+            CreateHttpContext(),
+            TenantId,
+            ConnectionId,
+            LocalAccountId,
+            CancellationToken.None
+        );
+
+        MockStoreManager.Verify(x => x.DisposeAsync(), Times.Once);
+    }
+
+    // The account store throws when the account is read, after the store manager is open.
+    private void SetupAccountStoreThrows()
+    {
+        SetupAuthorizeUpdate(error: null);
+        SetupStoreManagerCreated();
+        SetupConnection();
+        MockLocalAccountStore
+            .Setup(x => x.GetByIdOrDefaultAsync(LocalAccountId, It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("The store failed."))
+            .Verifiable();
+    }
+
     #endregion
 
     #region ResetPasswordAsync Tests

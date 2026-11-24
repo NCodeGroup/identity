@@ -891,28 +891,36 @@ internal class LocalAccountApiEndpointHandler(
 
         var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
 
-        var located = await FindAccountAsync(
-            storeManager,
-            route.ConnectionId,
-            route.LocalAccountId,
-            cancellationToken
-        );
-        if (located is not { } found)
+        try
+        {
+            var located = await FindAccountAsync(
+                storeManager,
+                route.ConnectionId,
+                route.LocalAccountId,
+                cancellationToken
+            );
+            if (located is { } found)
+            {
+                var (connection, store, account) = found;
+                var principalId = await FindPrincipalIdAsync(
+                    storeManager,
+                    connection.ConnectionId,
+                    route.LocalAccountId,
+                    cancellationToken
+                );
+
+                return new AccountChangeTarget(null, storeManager, store, account, principalId);
+            }
+        }
+        catch
         {
             await storeManager.DisposeAsync();
-            var notFound = ManagementProblems.ResourceNotFound();
-            return default(AccountChangeTarget) with { Refusal = notFound };
+            throw;
         }
 
-        var (connection, store, account) = found;
-        var principalId = await FindPrincipalIdAsync(
-            storeManager,
-            connection.ConnectionId,
-            route.LocalAccountId,
-            cancellationToken
-        );
-
-        return new AccountChangeTarget(null, storeManager, store, account, principalId);
+        await storeManager.DisposeAsync();
+        var notFound = ManagementProblems.ResourceNotFound();
+        return default(AccountChangeTarget) with { Refusal = notFound };
     }
 
     /// <summary>
