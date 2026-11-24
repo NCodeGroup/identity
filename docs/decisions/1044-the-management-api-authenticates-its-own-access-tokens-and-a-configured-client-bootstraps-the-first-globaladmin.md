@@ -111,6 +111,11 @@ configuration seeds.**
 13. **The bootstrap client provisions durable administrators**, human or machine, as role assignments. A lost
     credential is recovered by seeding again from configuration. A deployed instance does not use it: its
     administrators descend from the root that setup creates.
+14. **A deployed instance's first administrators come from setup or from `recover-admin`.** The first `GlobalAdmin`
+    comes from setup in the control-plane cell, and from the offline `recover-admin` command when every administrator
+    is locked out. In a cell with a management tenant, the first `CellAdmin` comes from that cell's setup, or from
+    `recover-admin` run in the cell
+    ([ADR-1536](1536-a-platforms-global-plane-is-a-standalone-directory-and-a-dedicated-control-plane-cell-and-every-other-cell-runs-and-is-managed-on-its-own.md)).
 
 ## Options considered
 

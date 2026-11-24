@@ -64,6 +64,10 @@ the OpenAPI tag `LocalAccounts`. The routes are:
 The control-plane cell also maps `GET` and `POST` on `/api/platform/local-accounts`, which list and create the
 accounts of the control-plane tenant's `default_connection` and authorize as that tenant's routes do.
 
+The local accounts of a cell's management tenant are managed by the cell's `CellAdmin`s: a `CellAdmin`'s node covers the
+management tenant, so the tenant-scope routes above authorize them
+([ADR-1536](1536-a-platforms-global-plane-is-a-standalone-directory-and-a-dedicated-control-plane-cell-and-every-other-cell-runs-and-is-managed-on-its-own.md)).
+
 ### Shared building blocks are public abstractions
 
 A capability package authors management endpoints against abstractions, so `NCode.Identity.OpenId.Management.Abstractions`
@@ -75,8 +79,8 @@ from the public one.
 
 ### Every operation authorizes against the tenant scope
 
-Each operation authorizes against `TenantScopeResource.For(tenantId)`, so the global-administrator and tenant-administrator
-handlers apply. A local account is not ownable and has no resource-node type, because managing an end-user subject is
+Each operation authorizes against `TenantScopeResource.For(tenantId)`, so the global-administrator, cell-administrator
+and tenant-administrator handlers apply. A local account is not ownable and has no resource-node type, because managing an end-user subject is
 tenant administration. The management resource server carries a `local_accounts` scope family. How a management route
 orders authorization before reading, and which status it answers, is
 [ADR-1424](1424-a-management-route-authorizes-at-the-node-it-names-before-it-reads-through-replaceable-validators.md)'s.
