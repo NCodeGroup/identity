@@ -3,6 +3,7 @@
 
 using NCode.Identity.OpenId.Accounts.DataContracts;
 using NCode.Identity.OpenId.Accounts.Stores;
+using NCode.Identity.OpenId.Connections;
 using NCode.Identity.OpenId.Management.Contracts;
 using NCode.Identity.OpenId.Management.ControlPlane;
 using NCode.Identity.OpenId.Management.Principals;
@@ -14,64 +15,108 @@ namespace NCode.Identity.OpenId.Accounts.Management;
 
 /// <summary>
 /// Describes the principal of a local account, named by its principal identifier or by its username. A principal is a
-/// local account's when it owns the account's self-issued identity.
+/// local account's when it owns the account's identity in a local connection, and a username names an account of the
+/// control-plane tenant's default connection, the connection that the platform's local-account routes serve.
 /// </summary>
 // See ADR-1465.
-internal sealed class LocalAccountPrincipalDescriber : IPrincipalDescriber
+internal sealed class LocalAccountPrincipalDescriber(
+    LocalAccountStoreCatalog localAccountStoreCatalog,
+    ControlPlaneDefaultConnectionReader defaultConnectionReader
+) : IPrincipalDescriber
 {
     /// <summary>
-    /// Describes the local accounts that own the self-issued identity of each requested principal.
+    /// Summarizes the principal of a local account.
     /// </summary>
-    /// <param name="accountStore">The store of local accounts.</param>
-    /// <param name="identityStore">The store of federated identities.</param>
+    /// <param name="principalId">The identifier of the principal that owns the account's identity.</param>
+    /// <param name="account">The local account.</param>
+    /// <returns>The summary, named by the account's display name and username.</returns>
+    private static PrincipalSummaryResource ToSummary(
+        string principalId,
+        LocalAccountNameProjection account
+    ) =>
+        new()
+        {
+            PrincipalId = principalId,
+            PrincipalType = PrincipalTypes.LocalAccount,
+            DisplayName = account.DisplayName,
+            UserName = account.UserName,
+        };
+
+    private LocalAccountStoreCatalog LocalAccountStoreCatalog { get; } = localAccountStoreCatalog;
+    private ControlPlaneDefaultConnectionReader DefaultConnectionReader { get; } =
+        defaultConnectionReader;
+
+    /// <summary>
+    /// Describes the local accounts that own an identity, in a local connection, of each requested principal.
+    /// </summary>
+    /// <param name="storeManager">The store manager that reads the identities, the connections and the
+    /// accounts.</param>
     /// <param name="principalIds">The principal identifiers to describe.</param>
     /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
     /// <returns>
-    /// A summary per account that a self-issued identity of a requested principal names, or an empty list, without
-    /// reading accounts, when no principal has a self-issued identity.
+    /// A summary per account that an identity of a requested principal names in a local connection, or an empty list,
+    /// without reading accounts, when no principal has such an identity.
     /// </returns>
-    private static async ValueTask<List<PrincipalSummaryResource>> DescribeByPrincipalIdsAsync(
-        ILocalAccountStore accountStore,
-        IFederatedIdentityStore identityStore,
+    private async ValueTask<IReadOnlyList<PrincipalSummaryResource>> DescribeByPrincipalIdsAsync(
+        IStoreManager storeManager,
         IReadOnlyList<string> principalIds,
         CancellationToken cancellationToken
     )
     {
         var summaries = new List<PrincipalSummaryResource>();
 
+        var identityStore = storeManager.GetStore<IFederatedIdentityStore>();
         var identities = await identityStore.GetNamesByPrincipalsAsync(
             principalIds,
             cancellationToken
         );
 
-        var principalIdBySubject = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var principalIdsByConnection = new Dictionary<string, Dictionary<string, string>>(
+            StringComparer.Ordinal
+        );
         foreach (var identity in identities)
         {
-            if (
-                string.Equals(
-                    identity.Issuer,
-                    AccountConstants.SelfIssuer,
-                    StringComparison.Ordinal
-                )
-            )
+            if (!principalIdsByConnection.TryGetValue(identity.ConnectionId, out var bySubject))
             {
-                principalIdBySubject[identity.Subject] = identity.PrincipalId;
+                bySubject = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                principalIdsByConnection[identity.ConnectionId] = bySubject;
             }
+
+            bySubject[identity.Subject] = identity.PrincipalId;
         }
 
-        if (principalIdBySubject.Count == 0)
+        var connectionStore = storeManager.GetStore<IConnectionStore>();
+        foreach (var (connectionId, principalIdBySubject) in principalIdsByConnection)
         {
-            return summaries;
-        }
-
-        var localAccountIds = new List<string>(principalIdBySubject.Keys);
-        var accounts = await accountStore.GetNamesByIdsAsync(localAccountIds, cancellationToken);
-        foreach (var account in accounts)
-        {
-            if (principalIdBySubject.TryGetValue(account.LocalAccountId, out var principalId))
+            var connection = await connectionStore.GetOrDefaultAsync(
+                connectionId,
+                cancellationToken
+            );
+            if (connection is null || !ConnectionStrategyNames.IsLocal(connection.Strategy))
             {
-                var summary = ToSummary(principalId, account);
-                summaries.Add(summary);
+                continue;
+            }
+
+            var accountStore = LocalAccountStoreCatalog.GetStore(storeManager, connection);
+            var localAccountIds = new List<string>(principalIdBySubject.Keys);
+            var accounts = await accountStore.GetNamesByIdsAsync(
+                localAccountIds,
+                cancellationToken
+            );
+            foreach (var account in accounts)
+            {
+                if (
+                    string.Equals(
+                        account.ConnectionId,
+                        connection.ConnectionId,
+                        StringComparison.Ordinal
+                    )
+                    && principalIdBySubject.TryGetValue(account.LocalAccountId, out var principalId)
+                )
+                {
+                    var summary = ToSummary(principalId, account);
+                    summaries.Add(summary);
+                }
             }
         }
 
@@ -79,26 +124,37 @@ internal sealed class LocalAccountPrincipalDescriber : IPrincipalDescriber
     }
 
     /// <summary>
-    /// Describes the principals of the local accounts that have the requested usernames.
+    /// Describes the principals of the accounts of the control-plane tenant's default connection that have the
+    /// requested usernames.
     /// </summary>
-    /// <param name="accountStore">The store of local accounts.</param>
-    /// <param name="identityStore">The store of federated identities.</param>
+    /// <param name="storeManager">The store manager that reads the tenant, the connection, the accounts and the
+    /// identities.</param>
     /// <param name="userNames">The usernames to describe.</param>
     /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
     /// <returns>
-    /// A summary per account whose self-issued identity is found, or an empty list, without reading identities, when no
-    /// account matches.
+    /// A summary per account whose identity is found, or an empty list, without reading identities, when no account
+    /// matches, and without reading accounts when the tenant has no default local connection.
     /// </returns>
-    private static async ValueTask<List<PrincipalSummaryResource>> DescribeByUserNamesAsync(
-        ILocalAccountStore accountStore,
-        IFederatedIdentityStore identityStore,
+    private async ValueTask<IReadOnlyList<PrincipalSummaryResource>> DescribeByUserNamesAsync(
+        IStoreManager storeManager,
         IReadOnlyList<string> userNames,
         CancellationToken cancellationToken
     )
     {
         var summaries = new List<PrincipalSummaryResource>();
 
-        var accounts = await accountStore.GetNamesByUserNamesAsync(userNames, cancellationToken);
+        var connection = await DefaultConnectionReader.FindAsync(storeManager, cancellationToken);
+        if (connection is null || !ConnectionStrategyNames.IsLocal(connection.Strategy))
+        {
+            return summaries;
+        }
+
+        var accountStore = LocalAccountStoreCatalog.GetStore(storeManager, connection);
+        var accounts = await accountStore.GetNamesByUserNamesAsync(
+            connection.ConnectionId,
+            userNames,
+            cancellationToken
+        );
         if (accounts.Count == 0)
         {
             return summaries;
@@ -110,8 +166,9 @@ internal sealed class LocalAccountPrincipalDescriber : IPrincipalDescriber
             localAccountIds.Add(account.LocalAccountId);
         }
 
-        var found = await identityStore.GetByIssuerSubjectsAsync(
-            AccountConstants.SelfIssuer,
+        var identityStore = storeManager.GetStore<IFederatedIdentityStore>();
+        var found = await identityStore.GetByConnectionSubjectsAsync(
+            connection.ConnectionId,
             localAccountIds,
             cancellationToken
         );
@@ -135,24 +192,6 @@ internal sealed class LocalAccountPrincipalDescriber : IPrincipalDescriber
         return summaries;
     }
 
-    /// <summary>
-    /// Summarizes the principal of a local account.
-    /// </summary>
-    /// <param name="principalId">The identifier of the principal that owns the account's self-issued identity.</param>
-    /// <param name="account">The local account.</param>
-    /// <returns>The summary, named by the account's display name and username.</returns>
-    private static PrincipalSummaryResource ToSummary(
-        string principalId,
-        LocalAccountNameProjection account
-    ) =>
-        new()
-        {
-            PrincipalId = principalId,
-            PrincipalType = PrincipalTypes.LocalAccount,
-            DisplayName = account.DisplayName,
-            UserName = account.UserName,
-        };
-
     /// <inheritdoc />
     public async ValueTask<IReadOnlyList<PrincipalSummaryResource>> FindAsync(
         IStoreManager storeManager,
@@ -167,15 +206,12 @@ internal sealed class LocalAccountPrincipalDescriber : IPrincipalDescriber
             return summaries;
         }
 
-        var accountStore = storeManager.GetStore<ILocalAccountStore>();
-        var identityStore = storeManager.GetStore<IFederatedIdentityStore>();
         var described = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         if (query.PrincipalIds.Count > 0)
         {
             var byIds = await DescribeByPrincipalIdsAsync(
-                accountStore,
-                identityStore,
+                storeManager,
                 query.PrincipalIds,
                 cancellationToken
             );
@@ -191,8 +227,7 @@ internal sealed class LocalAccountPrincipalDescriber : IPrincipalDescriber
         if (query.UserNames.Count > 0)
         {
             var byNames = await DescribeByUserNamesAsync(
-                accountStore,
-                identityStore,
+                storeManager,
                 query.UserNames,
                 cancellationToken
             );

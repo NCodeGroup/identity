@@ -37,3 +37,16 @@ export const Edit: Story = {
     },
   },
 };
+
+export const EmailOnly: Story = {
+  args: {
+    mode: 'edit',
+    title: 'Edit local account',
+    submitLabel: 'Save',
+    initialValues: {
+      ...emptyLocalAccountFormValues,
+      displayName: 'Cy Email',
+      email: 'cy@example.com',
+    },
+  },
+};

@@ -4,6 +4,7 @@
 using System.Text;
 using Microsoft.Extensions.Logging;
 using NCode.Identity.OpenId.Authentication.Logging;
+using NCode.Identity.OpenId.Connections;
 using NCode.Identity.OpenId.Contexts;
 using NCode.Identity.OpenId.Settings;
 using NCode.Identity.SharedState;
@@ -12,10 +13,10 @@ namespace NCode.Identity.OpenId.Authentication.Passwords;
 
 /// <summary>
 /// Provides the default <see cref="IPasswordAttemptLimiter"/>. It counts the failed attempts of an account in the
-/// shared <see cref="IExpiringCounterSet"/>, keyed by the tenant and the folded user name. The first failure starts a
-/// window of <c>password_failed_attempts_window</c>; once <c>password_failed_attempts_limit</c> failures are counted,
-/// every password is refused until the window ends. A counter store that throws propagates the exception, so the limit
-/// fails closed.
+/// shared <see cref="IExpiringCounterSet"/>, keyed by the tenant, the connection and the folded account key. The first
+/// failure starts a window of <c>password_failed_attempts_window</c>; once <c>password_failed_attempts_limit</c>
+/// failures are counted, every password is refused until the window ends. A counter store that throws propagates the
+/// exception, so the limit fails closed.
 /// </summary>
 // See ADR-1237.
 internal class DefaultPasswordAttemptLimiter(
@@ -26,6 +27,31 @@ internal class DefaultPasswordAttemptLimiter(
 {
     internal const string Purpose = "password-attempts";
 
+    /// <summary>
+    /// Builds the shared-state key that counts an account's failed attempts.
+    /// </summary>
+    /// <param name="tenantId">The identifier of the tenant.</param>
+    /// <param name="connectionId">The identifier of the connection.</param>
+    /// <param name="accountKey">The account key that <c>LocalAccountAttemptKeys</c> builds.</param>
+    /// <returns>The key, with the account key folded.</returns>
+    internal static string CreateKey(string tenantId, string connectionId, string accountKey)
+    {
+        var normalizedKey = NormalizeAccountKey(accountKey);
+        return ExpiringKeys.Create(Purpose, tenantId, connectionId, normalizedKey);
+    }
+
+    /// <summary>
+    /// Folds the account key so every spelling a store treats as the same name counts together.
+    /// </summary>
+    /// <param name="accountKey">The account key that <c>LocalAccountAttemptKeys</c> builds, which holds either an
+    /// account's identifier or a submitted identifier, such as a user name or an email address.</param>
+    /// <returns>The folded key.</returns>
+    // The stores compare names differently (EF lower-cases; ASP.NET Core Identity composes and upper-cases), and
+    // folding through both gives every spelling a store treats as the same name one count. The account keys here wrap
+    // identifiers from form or JSON readers, which never yield a lone surrogate, so normalization cannot fail.
+    private static string NormalizeAccountKey(string accountKey) =>
+        accountKey.Normalize(NormalizationForm.FormKC).ToUpperInvariant().ToLowerInvariant();
+
     private IExpiringCounterSet CounterSet { get; } = counterSet;
 
     private TimeProvider TimeProvider { get; } = timeProvider;
@@ -35,16 +61,15 @@ internal class DefaultPasswordAttemptLimiter(
     /// <inheritdoc />
     public async ValueTask<bool> IsLimitReachedAsync(
         OpenIdContext openIdContext,
-        string userName,
+        ResolvedConnection connection,
+        string accountKey,
         CancellationToken cancellationToken
     )
     {
         var tenant = openIdContext.Tenant;
-        var limit = tenant.SettingsProvider.Collection.GetValue(
-            OpenIdSettingKeys.PasswordFailedAttemptsLimit
-        );
+        var limit = connection.Settings.GetValue(OpenIdSettingKeys.PasswordFailedAttemptsLimit);
 
-        var key = CreateKey(tenant.TenantId, userName);
+        var key = CreateKey(tenant.TenantId, connection.ConnectionId, accountKey);
         var count = await CounterSet.GetAsync(key, cancellationToken);
         if (count < limit)
             return false;
@@ -56,16 +81,15 @@ internal class DefaultPasswordAttemptLimiter(
     /// <inheritdoc />
     public async ValueTask RecordFailureAsync(
         OpenIdContext openIdContext,
-        string userName,
+        ResolvedConnection connection,
+        string accountKey,
         CancellationToken cancellationToken
     )
     {
         var tenant = openIdContext.Tenant;
-        var window = tenant.SettingsProvider.Collection.GetValue(
-            OpenIdSettingKeys.PasswordFailedAttemptsWindow
-        );
+        var window = connection.Settings.GetValue(OpenIdSettingKeys.PasswordFailedAttemptsWindow);
 
-        var key = CreateKey(tenant.TenantId, userName);
+        var key = CreateKey(tenant.TenantId, connection.ConnectionId, accountKey);
         var now = TimeProvider.GetUtcNow();
         var expiresWhen = now + window;
         await CounterSet.IncrementAsync(key, expiresWhen, cancellationToken);
@@ -74,23 +98,12 @@ internal class DefaultPasswordAttemptLimiter(
     /// <inheritdoc />
     public async ValueTask ResetAsync(
         string tenantId,
-        string userName,
+        string connectionId,
+        string accountKey,
         CancellationToken cancellationToken
     )
     {
-        var key = CreateKey(tenantId, userName);
+        var key = CreateKey(tenantId, connectionId, accountKey);
         await CounterSet.RemoveAsync(key, cancellationToken);
     }
-
-    internal static string CreateKey(string tenantId, string userName)
-    {
-        var normalizedUserName = NormalizeUserName(userName);
-        return ExpiringKeys.Create(Purpose, tenantId, normalizedUserName);
-    }
-
-    // The stores compare names differently (EF lower-cases; ASP.NET Core Identity composes and upper-cases), and
-    // folding through both gives every spelling a store treats as the same name one count. The strings here come from
-    // form or JSON readers, which never yield a lone surrogate, so normalization cannot fail.
-    private static string NormalizeUserName(string userName) =>
-        userName.Normalize(NormalizationForm.FormKC).ToUpperInvariant().ToLowerInvariant();
 }

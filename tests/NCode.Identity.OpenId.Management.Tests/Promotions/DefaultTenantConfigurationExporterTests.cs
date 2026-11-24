@@ -25,6 +25,7 @@ public sealed class DefaultTenantConfigurationExporterTests : IDisposable
     private Mock<IClientStore> MockClientStore { get; }
     private Mock<IClientGrantStore> MockClientGrantStore { get; }
     private Mock<IResourceServerStore> MockResourceServerStore { get; }
+    private Mock<IConnectionStore> MockConnectionStore { get; }
     private Mock<IAmbientTenantAccessor> MockAmbientTenantAccessor { get; }
     private Mock<IHostManagedClientChecker> MockHostManagedClientChecker { get; }
 
@@ -36,6 +37,7 @@ public sealed class DefaultTenantConfigurationExporterTests : IDisposable
         MockClientStore = MockRepository.Create<IClientStore>();
         MockClientGrantStore = MockRepository.Create<IClientGrantStore>();
         MockResourceServerStore = MockRepository.Create<IResourceServerStore>();
+        MockConnectionStore = MockRepository.Create<IConnectionStore>();
         MockAmbientTenantAccessor = MockRepository.Create<IAmbientTenantAccessor>();
         MockHostManagedClientChecker = MockRepository.Create<IHostManagedClientChecker>();
     }
@@ -76,6 +78,10 @@ public sealed class DefaultTenantConfigurationExporterTests : IDisposable
         MockStoreManager
             .Setup(x => x.GetStore<IResourceServerStore>())
             .Returns(MockResourceServerStore.Object)
+            .Verifiable();
+        MockStoreManager
+            .Setup(x => x.GetStore<IConnectionStore>())
+            .Returns(MockConnectionStore.Object)
             .Verifiable();
     }
 
@@ -148,6 +154,31 @@ public sealed class DefaultTenantConfigurationExporterTests : IDisposable
                 }
             )
             .Verifiable();
+
+    private void SetupConnections(params PersistedConnection[] connections) =>
+        MockConnectionStore
+            .Setup(x => x.GetAllAsync(CancellationToken.None))
+            .ReturnsAsync(connections)
+            .Verifiable();
+
+    private static PersistedConnection CreateConnection(string name) =>
+        new()
+        {
+            TenantId = TenantId,
+            ConnectionId = $"id-of-{name}",
+            Name = name,
+            Strategy = "local",
+            DisplayName = $"Display of {name}",
+            IsSystem = false,
+            IsEnabled = false,
+            Options = Json("""{"store":"default"}"""),
+            Settings = new PersistedConnectionSettings
+            {
+                TenantId = TenantId,
+                ConnectionId = $"id-of-{name}",
+                Value = Json("""{"connection-setting":4}"""),
+            },
+        };
 
     private static JsonElement Json(string json) => JsonElement.Parse(json);
 
@@ -288,11 +319,20 @@ public sealed class DefaultTenantConfigurationExporterTests : IDisposable
             )
         );
 
+        SetupConnections(CreateConnection("corp"));
+
         var document = await CreateExporter().ExportAsync(TenantId, CancellationToken.None);
 
         Assert.NotNull(document);
         Assert.Equal(TenantId, document.SourceTenantId);
         Assert.Equal(Region, document.Region);
+        var connection = Assert.Single(document.Connections);
+        Assert.Equal("corp", connection.Name);
+        Assert.Equal("local", connection.Strategy);
+        Assert.Equal("Display of corp", connection.DisplayName);
+        Assert.False(connection.IsEnabled);
+        Assert.Equal("""{"store":"default"}""", connection.Options.GetRawText());
+        Assert.Equal("""{"connection-setting":4}""", connection.Settings.GetRawText());
         Assert.Equal("""{"tenant-setting":1}""", document.Settings.GetRawText());
 
         var client = Assert.Single(document.Clients);
@@ -341,6 +381,7 @@ public sealed class DefaultTenantConfigurationExporterTests : IDisposable
         SetupHostManaged("client-1", false);
         SetupGrants("client-1");
         SetupResourceServers(CreateResourceServer("server-1", "https://api.example.com"));
+        SetupConnections();
 
         var document = await CreateExporter().ExportAsync(TenantId, CancellationToken.None);
 
@@ -367,6 +408,7 @@ public sealed class DefaultTenantConfigurationExporterTests : IDisposable
         SetupHostManaged("client-1", false);
         SetupGrants("client-1", CreateGrant("client-1", "server-1", "read"));
         SetupResourceServers();
+        SetupConnections();
 
         var document = await CreateExporter().ExportAsync(TenantId, CancellationToken.None);
 
@@ -387,6 +429,7 @@ public sealed class DefaultTenantConfigurationExporterTests : IDisposable
         SetupHostManaged("client-1", false);
         SetupGrants("client-1", CreateGrant("client-1", "server-1", "read"));
         SetupResourceServers();
+        SetupConnections();
 
         var document = await CreateExporter().ExportAsync(TenantId, CancellationToken.None);
 
@@ -409,6 +452,7 @@ public sealed class DefaultTenantConfigurationExporterTests : IDisposable
         SetupGrants("client-1");
         SetupGrants("client-2");
         SetupResourceServers();
+        SetupConnections();
 
         var document = await CreateExporter().ExportAsync(TenantId, CancellationToken.None);
 

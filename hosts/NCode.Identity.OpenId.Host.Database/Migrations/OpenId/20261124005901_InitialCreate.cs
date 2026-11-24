@@ -346,6 +346,37 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                 });
 
             migrationBuilder.CreateTable(
+                name: "Connections",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    TenantId = table.Column<Guid>(type: "uuid", nullable: false),
+                    NormalizedTenantId = table.Column<string>(type: "character varying(300)", unicode: false, maxLength: 300, nullable: false),
+                    ConnectionId = table.Column<string>(type: "character varying(300)", unicode: false, maxLength: 300, nullable: false),
+                    NormalizedConnectionId = table.Column<string>(type: "character varying(300)", unicode: false, maxLength: 300, nullable: false),
+                    Name = table.Column<string>(type: "character varying(128)", unicode: false, maxLength: 128, nullable: false),
+                    NormalizedName = table.Column<string>(type: "character varying(128)", unicode: false, maxLength: 128, nullable: false),
+                    Strategy = table.Column<string>(type: "character varying(64)", unicode: false, maxLength: 64, nullable: false),
+                    DisplayName = table.Column<string>(type: "character varying(300)", maxLength: 300, nullable: false),
+                    IsSystem = table.Column<bool>(type: "boolean", nullable: false),
+                    IsEnabled = table.Column<bool>(type: "boolean", nullable: false),
+                    OptionsJson = table.Column<string>(type: "text", nullable: false),
+                    SettingsJson = table.Column<string>(type: "text", nullable: false),
+                    ConcurrencyToken = table.Column<string>(type: "character varying(50)", unicode: false, maxLength: 50, nullable: false),
+                    SettingsConcurrencyToken = table.Column<string>(type: "character varying(50)", unicode: false, maxLength: 50, nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_Connections", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_Connections_Tenants_TenantId",
+                        column: x => x.TenantId,
+                        principalTable: "Tenants",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "FederatedPrincipals",
                 columns: table => new
                 {
@@ -364,37 +395,6 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                     table.PrimaryKey("PK_FederatedPrincipals", x => x.Id);
                     table.ForeignKey(
                         name: "FK_FederatedPrincipals_Tenants_TenantId",
-                        column: x => x.TenantId,
-                        principalTable: "Tenants",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Restrict);
-                });
-
-            migrationBuilder.CreateTable(
-                name: "LocalAccounts",
-                columns: table => new
-                {
-                    Id = table.Column<Guid>(type: "uuid", nullable: false),
-                    TenantId = table.Column<Guid>(type: "uuid", nullable: false),
-                    NormalizedTenantId = table.Column<string>(type: "character varying(300)", unicode: false, maxLength: 300, nullable: false),
-                    LocalAccountId = table.Column<string>(type: "character varying(300)", unicode: false, maxLength: 300, nullable: false),
-                    NormalizedLocalAccountId = table.Column<string>(type: "character varying(300)", unicode: false, maxLength: 300, nullable: false),
-                    UserName = table.Column<string>(type: "character varying(300)", unicode: false, maxLength: 300, nullable: false),
-                    DisplayName = table.Column<string>(type: "character varying(300)", maxLength: 300, nullable: false),
-                    NormalizedUserName = table.Column<string>(type: "character varying(300)", unicode: false, maxLength: 300, nullable: false),
-                    Email = table.Column<string>(type: "character varying(300)", maxLength: 300, nullable: true),
-                    NormalizedEmail = table.Column<string>(type: "character varying(300)", unicode: false, maxLength: 300, nullable: true),
-                    EmailVerified = table.Column<bool>(type: "boolean", nullable: false),
-                    PasswordHash = table.Column<string>(type: "character varying(1000)", unicode: false, maxLength: 1000, nullable: true),
-                    SecurityStamp = table.Column<string>(type: "character varying(100)", unicode: false, maxLength: 100, nullable: false),
-                    IsEnabled = table.Column<bool>(type: "boolean", nullable: false),
-                    ConcurrencyToken = table.Column<string>(type: "character varying(50)", unicode: false, maxLength: 50, nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_LocalAccounts", x => x.Id);
-                    table.ForeignKey(
-                        name: "FK_LocalAccounts_Tenants_TenantId",
                         column: x => x.TenantId,
                         principalTable: "Tenants",
                         principalColumn: "Id",
@@ -555,6 +555,44 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                 });
 
             migrationBuilder.CreateTable(
+                name: "LocalAccounts",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    TenantId = table.Column<Guid>(type: "uuid", nullable: false),
+                    NormalizedTenantId = table.Column<string>(type: "character varying(300)", unicode: false, maxLength: 300, nullable: false),
+                    ConnectionId = table.Column<Guid>(type: "uuid", nullable: false),
+                    LocalAccountId = table.Column<string>(type: "character varying(300)", unicode: false, maxLength: 300, nullable: false),
+                    NormalizedLocalAccountId = table.Column<string>(type: "character varying(300)", unicode: false, maxLength: 300, nullable: false),
+                    UserName = table.Column<string>(type: "character varying(300)", unicode: false, maxLength: 300, nullable: true),
+                    DisplayName = table.Column<string>(type: "character varying(300)", maxLength: 300, nullable: false),
+                    NormalizedUserName = table.Column<string>(type: "character varying(300)", unicode: false, maxLength: 300, nullable: true),
+                    Email = table.Column<string>(type: "character varying(300)", maxLength: 300, nullable: true),
+                    NormalizedEmail = table.Column<string>(type: "character varying(300)", unicode: false, maxLength: 300, nullable: true),
+                    EmailVerified = table.Column<bool>(type: "boolean", nullable: false),
+                    PasswordHash = table.Column<string>(type: "character varying(1000)", unicode: false, maxLength: 1000, nullable: true),
+                    SecurityStamp = table.Column<string>(type: "character varying(100)", unicode: false, maxLength: 100, nullable: false),
+                    IsEnabled = table.Column<bool>(type: "boolean", nullable: false),
+                    ConcurrencyToken = table.Column<string>(type: "character varying(50)", unicode: false, maxLength: 50, nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_LocalAccounts", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_LocalAccounts_Connections_ConnectionId",
+                        column: x => x.ConnectionId,
+                        principalTable: "Connections",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_LocalAccounts_Tenants_TenantId",
+                        column: x => x.TenantId,
+                        principalTable: "Tenants",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "FederatedIdentities",
                 columns: table => new
                 {
@@ -564,8 +602,8 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                     TenantId = table.Column<Guid>(type: "uuid", nullable: false),
                     NormalizedTenantId = table.Column<string>(type: "character varying(300)", unicode: false, maxLength: 300, nullable: false),
                     FederatedPrincipalId = table.Column<Guid>(type: "uuid", nullable: false),
-                    Issuer = table.Column<string>(type: "character varying(1000)", unicode: false, maxLength: 1000, nullable: false),
-                    NormalizedIssuer = table.Column<string>(type: "character varying(1000)", unicode: false, maxLength: 1000, nullable: false),
+                    ConnectionId = table.Column<Guid>(type: "uuid", nullable: false),
+                    Issuer = table.Column<string>(type: "character varying(1000)", unicode: false, maxLength: 1000, nullable: true),
                     Subject = table.Column<string>(type: "character varying(300)", unicode: false, maxLength: 300, nullable: false),
                     NormalizedSubject = table.Column<string>(type: "character varying(300)", unicode: false, maxLength: 300, nullable: false),
                     JoinKey = table.Column<string>(type: "character varying(300)", unicode: false, maxLength: 300, nullable: true),
@@ -576,6 +614,12 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                 {
                     table.PrimaryKey("PK_FederatedIdentities", x => x.Id);
                     table.ForeignKey(
+                        name: "FK_FederatedIdentities_Connections_ConnectionId",
+                        column: x => x.ConnectionId,
+                        principalTable: "Connections",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
                         name: "FK_FederatedIdentities_FederatedPrincipals_FederatedPrincipalId",
                         column: x => x.FederatedPrincipalId,
                         principalTable: "FederatedPrincipals",
@@ -583,34 +627,6 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
                         name: "FK_FederatedIdentities_Tenants_TenantId",
-                        column: x => x.TenantId,
-                        principalTable: "Tenants",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Restrict);
-                });
-
-            migrationBuilder.CreateTable(
-                name: "LocalAccountClaims",
-                columns: table => new
-                {
-                    Id = table.Column<Guid>(type: "uuid", nullable: false),
-                    TenantId = table.Column<Guid>(type: "uuid", nullable: false),
-                    NormalizedTenantId = table.Column<string>(type: "character varying(300)", unicode: false, maxLength: 300, nullable: false),
-                    Type = table.Column<string>(type: "character varying(300)", unicode: false, maxLength: 300, nullable: false),
-                    Value = table.Column<string>(type: "character varying(2000)", maxLength: 2000, nullable: false),
-                    LocalAccountEntityId = table.Column<Guid>(type: "uuid", nullable: true)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_LocalAccountClaims", x => x.Id);
-                    table.ForeignKey(
-                        name: "FK_LocalAccountClaims_LocalAccounts_LocalAccountEntityId",
-                        column: x => x.LocalAccountEntityId,
-                        principalTable: "LocalAccounts",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Restrict);
-                    table.ForeignKey(
-                        name: "FK_LocalAccountClaims_Tenants_TenantId",
                         column: x => x.TenantId,
                         principalTable: "Tenants",
                         principalColumn: "Id",
@@ -713,6 +729,34 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
                         name: "FK_Scopes_Tenants_TenantId",
+                        column: x => x.TenantId,
+                        principalTable: "Tenants",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "LocalAccountClaims",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    TenantId = table.Column<Guid>(type: "uuid", nullable: false),
+                    NormalizedTenantId = table.Column<string>(type: "character varying(300)", unicode: false, maxLength: 300, nullable: false),
+                    Type = table.Column<string>(type: "character varying(300)", unicode: false, maxLength: 300, nullable: false),
+                    Value = table.Column<string>(type: "character varying(2000)", maxLength: 2000, nullable: false),
+                    LocalAccountEntityId = table.Column<Guid>(type: "uuid", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_LocalAccountClaims", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_LocalAccountClaims_LocalAccounts_LocalAccountEntityId",
+                        column: x => x.LocalAccountEntityId,
+                        principalTable: "LocalAccounts",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_LocalAccountClaims_Tenants_TenantId",
                         column: x => x.TenantId,
                         principalTable: "Tenants",
                         principalColumn: "Id",
@@ -1009,6 +1053,23 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                 unique: true);
 
             migrationBuilder.CreateIndex(
+                name: "IX_Connections_NormalizedTenantId_NormalizedConnectionId",
+                table: "Connections",
+                columns: new[] { "NormalizedTenantId", "NormalizedConnectionId" },
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Connections_NormalizedTenantId_NormalizedName",
+                table: "Connections",
+                columns: new[] { "NormalizedTenantId", "NormalizedName" },
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Connections_TenantId",
+                table: "Connections",
+                column: "TenantId");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_Consents_ClientId",
                 table: "Consents",
                 column: "ClientId");
@@ -1025,20 +1086,25 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                 columns: new[] { "TenantId", "NormalizedSubjectId" });
 
             migrationBuilder.CreateIndex(
+                name: "IX_FederatedIdentities_ConnectionId",
+                table: "FederatedIdentities",
+                column: "ConnectionId");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_FederatedIdentities_FederatedPrincipalId",
                 table: "FederatedIdentities",
                 column: "FederatedPrincipalId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_FederatedIdentities_TenantId_NormalizedFederatedIdentityId",
+                name: "IX_FederatedIdentities_TenantId_ConnectionId_NormalizedSubject",
                 table: "FederatedIdentities",
-                columns: new[] { "TenantId", "NormalizedFederatedIdentityId" },
+                columns: new[] { "TenantId", "ConnectionId", "NormalizedSubject" },
                 unique: true);
 
             migrationBuilder.CreateIndex(
-                name: "IX_FederatedIdentities_TenantId_NormalizedIssuer_NormalizedSub~",
+                name: "IX_FederatedIdentities_TenantId_NormalizedFederatedIdentityId",
                 table: "FederatedIdentities",
-                columns: new[] { "TenantId", "NormalizedIssuer", "NormalizedSubject" },
+                columns: new[] { "TenantId", "NormalizedFederatedIdentityId" },
                 unique: true);
 
             migrationBuilder.CreateIndex(
@@ -1115,20 +1181,26 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                 column: "TenantId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_LocalAccounts_NormalizedTenantId_NormalizedEmail",
+                name: "IX_LocalAccounts_ConnectionId",
                 table: "LocalAccounts",
-                columns: new[] { "NormalizedTenantId", "NormalizedEmail" });
+                column: "ConnectionId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_LocalAccounts_NormalizedTenantId_ConnectionId_NormalizedEma~",
+                table: "LocalAccounts",
+                columns: new[] { "NormalizedTenantId", "ConnectionId", "NormalizedEmail" },
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_LocalAccounts_NormalizedTenantId_ConnectionId_NormalizedUse~",
+                table: "LocalAccounts",
+                columns: new[] { "NormalizedTenantId", "ConnectionId", "NormalizedUserName" },
+                unique: true);
 
             migrationBuilder.CreateIndex(
                 name: "IX_LocalAccounts_NormalizedTenantId_NormalizedLocalAccountId",
                 table: "LocalAccounts",
                 columns: new[] { "NormalizedTenantId", "NormalizedLocalAccountId" },
-                unique: true);
-
-            migrationBuilder.CreateIndex(
-                name: "IX_LocalAccounts_NormalizedTenantId_NormalizedUserName",
-                table: "LocalAccounts",
-                columns: new[] { "NormalizedTenantId", "NormalizedUserName" },
                 unique: true);
 
             migrationBuilder.CreateIndex(
@@ -1445,6 +1517,9 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
 
             migrationBuilder.DropTable(
                 name: "ResourceServers");
+
+            migrationBuilder.DropTable(
+                name: "Connections");
 
             migrationBuilder.DropTable(
                 name: "Tenants");

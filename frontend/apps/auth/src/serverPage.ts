@@ -6,6 +6,14 @@ export type ServerAuthorizationError = {
   readonly description: string | null;
 };
 
+/** A connection the page the host rendered offers. */
+export type ServerConnection = {
+  /** The connection's name, which the form posts. */
+  readonly name: string;
+  /** The text the picker shows. */
+  readonly displayName: string;
+};
+
 /**
  * The state of the page the host rendered. The page the host rendered is the bundle's initial state, so mounting
  * discards no input: what the end-user typed or the browser autofilled, the field that had focus, the consent scopes
@@ -22,6 +30,10 @@ export type ServerPage = {
   readonly authorizationError: ServerAuthorizationError | null;
   /** The address of the login page's forgot-password link, or `null` when the page has none. */
   readonly forgotPasswordHref: string | null;
+  /** The connections the form offers: every option of the picker, or the one the hidden field carries. */
+  readonly connections: readonly ServerConnection[];
+  /** The name of the connection the form preselects, or `null` when it selects none. */
+  readonly selectedConnection: string | null;
 };
 
 /** The state of a page that has no input and reports no error. */
@@ -31,6 +43,8 @@ export const EMPTY_SERVER_PAGE: ServerPage = {
   focusedFieldId: null,
   authorizationError: null,
   forgotPasswordHref: null,
+  connections: [],
+  selectedConnection: null,
 };
 
 const CARRIED_INPUT_TYPES: ReadonlySet<string> = new Set(['text', 'email', 'password']);
@@ -73,7 +87,36 @@ export function readServerPage(container: HTMLElement, activeElement: Element | 
   const forgotPasswordHref =
     container.querySelector('#forgot-password-link')?.getAttribute('href') ?? null;
 
-  return { fieldValues, clearedScopes, focusedFieldId, authorizationError, forgotPasswordHref };
+  const picker = container.querySelector<HTMLSelectElement>('select#connection');
+  const hidden = container.querySelector<HTMLInputElement>(
+    'input[type="hidden"][name="connection"]',
+  );
+  let connections: ServerConnection[] = [];
+  let selectedConnection: string | null = null;
+  if (picker) {
+    // The blank option the host writes when it preselects none asks for a choice; it is not a connection.
+    connections = Array.from(picker.options)
+      .filter((option) => option.value !== '')
+      .map((option) => ({
+        name: option.value,
+        displayName: option.textContent ?? option.value,
+      }));
+    // The picker's live value, so a choice made before the bundle loaded is kept.
+    selectedConnection = picker.value === '' ? null : picker.value;
+  } else if (hidden) {
+    connections = [{ name: hidden.value, displayName: hidden.value }];
+    selectedConnection = hidden.value;
+  }
+
+  return {
+    fieldValues,
+    clearedScopes,
+    focusedFieldId,
+    authorizationError,
+    forgotPasswordHref,
+    connections,
+    selectedConnection,
+  };
 }
 
 /**

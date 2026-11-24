@@ -4,6 +4,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
+using NCode.Identity.OpenId.Connections;
 using NCode.Identity.OpenId.Core.ResourceServers;
 using NCode.Identity.OpenId.GlobalDirectory;
 using NCode.Identity.OpenId.Persistence.Tenants;
@@ -68,6 +69,12 @@ internal static class DefaultRegistration
                 OpenIdIdentityResourceServerSeedHandler
             >();
             serviceCollection.TryAddEnumerable(seedHandler);
+
+            var localConnectionSeedHandler = ServiceDescriptor.Singleton<
+                ICommandHandler<SeedTenantCommand>,
+                LocalConnectionSeedHandler
+            >();
+            serviceCollection.TryAddEnumerable(localConnectionSeedHandler);
 
             // Every tenant is provisioned with a persisted key for each configured algorithm it holds no usable key for,
             // on the same seed path, and the configured keys are validated when the host starts (ADR-1169). The keys

@@ -8,6 +8,7 @@ using Microsoft.Extensions.Primitives;
 using NCode.Collections.Providers;
 using NCode.Identity.Jose;
 using NCode.Identity.Jose.Algorithms;
+using NCode.Identity.OpenId.Connections;
 using NCode.Identity.OpenId.Locales;
 using NCode.Identity.Settings;
 using static NCode.Identity.Settings.SettingMerge;
@@ -45,6 +46,8 @@ internal class DefaultSettingDescriptorDataSource(
     private const bool IsNonStdDiscoverable = false;
 
     private static ImmutableArray<string> Tenants { get; } = [OpenIdSettingScopes.Tenant];
+    private static ImmutableArray<string> TenantsAndConnections { get; } =
+    [OpenIdSettingScopes.Tenant, OpenIdSettingScopes.Connection];
     private static ImmutableArray<string> PlatformOnly { get; } = [OpenIdSettingScopes.Platform];
     private static ImmutableArray<string> Clients { get; } = [OpenIdSettingScopes.Client];
     private static ImmutableArray<string> ResourceServers { get; } =
@@ -95,25 +98,12 @@ internal class DefaultSettingDescriptorDataSource(
                 OnMerge = Replace,
             };
 
-            // principal_issuer_claim: claim identifying the upstream issuer of a federated principal (default "iss"). (ADR-1035)
-            // Override (Replace): a child fully replaces the parent value.
-            yield return new SettingDescriptor<string>
-            {
-                Name = OpenIdSettingNames.PrincipalIssuerClaim,
-                AppliesTo = Tenants,
-                Rule = OpenIdSettingRules.Token(),
-                Default = "iss",
-
-                IsDiscoverable = IsNonStdDiscoverable,
-                OnMerge = Replace,
-            };
-
             // federated_identity_join_claim: claim used to auto-link a federated identity to an existing principal (default "email"). (ADR-1035)
             // Override (Replace): a child fully replaces the parent value.
             yield return new SettingDescriptor<string>
             {
                 Name = OpenIdSettingNames.FederatedIdentityJoinClaim,
-                AppliesTo = Tenants,
+                AppliesTo = TenantsAndConnections,
                 Rule = OpenIdSettingRules.Token(),
                 Default = "email",
 
@@ -126,7 +116,7 @@ internal class DefaultSettingDescriptorDataSource(
             yield return new SettingDescriptor<string>
             {
                 Name = OpenIdSettingNames.FederatedIdentityVerifiedClaim,
-                AppliesTo = Tenants,
+                AppliesTo = TenantsAndConnections,
                 Rule = OpenIdSettingRules.Token(),
                 Default = "email_verified",
 
@@ -139,7 +129,7 @@ internal class DefaultSettingDescriptorDataSource(
             yield return new SettingDescriptor<bool>
             {
                 Name = OpenIdSettingNames.FederatedIdentityRequireVerified,
-                AppliesTo = Tenants,
+                AppliesTo = TenantsAndConnections,
                 Default = true,
 
                 IsDiscoverable = IsNonStdDiscoverable,
@@ -151,7 +141,7 @@ internal class DefaultSettingDescriptorDataSource(
             yield return new SettingDescriptor<bool>
             {
                 Name = OpenIdSettingNames.FederatedIdentityExplicitOnly,
-                AppliesTo = Tenants,
+                AppliesTo = TenantsAndConnections,
                 Default = false,
 
                 IsDiscoverable = IsNonStdDiscoverable,
@@ -321,17 +311,52 @@ internal class DefaultSettingDescriptorDataSource(
                 OnMerge = And,
             };
 
-            // allowed_identity_providers: identity providers a client may use; unset permits any.
+            // allowed_connections: the connections a client may sign end users in through, by name; unset permits every
+            // enabled connection. (ADR-1535)
             // Ceiling (Intersect): a child narrows the parent's set; a set (or narrowed-to-empty) list denies all others (fail-closed).
-            var allowedIdentityProvidersItemRule = SettingRules.NonEmpty();
+            var connectionNameRule = SettingRules.Must<string>(
+                "a connection name",
+                ConnectionNameRules.IsValid
+            );
             yield return new SettingDescriptor<IReadOnlyCollection<string>>
             {
-                Name = OpenIdSettingNames.AllowedIdentityProviders,
+                Name = OpenIdSettingNames.AllowedConnections,
                 AppliesTo = Clients,
-                Rule = SettingRules.Each(allowedIdentityProvidersItemRule),
+                Rule = SettingRules.Each(connectionNameRule),
 
                 IsDiscoverable = IsNonStdDiscoverable,
                 OnMerge = Intersect,
+            };
+
+            // default_connection: the connection preselected for sign-in when a request names none (default "local").
+            // Override (Replace): a child fully replaces the parent value. (ADR-1535)
+            yield return new SettingDescriptor<string>
+            {
+                Name = OpenIdSettingNames.DefaultConnection,
+                AppliesTo = TenantsAndClients,
+                Rule = connectionNameRule,
+                Default = ConnectionDefaults.Name,
+
+                IsDiscoverable = IsNonStdDiscoverable,
+                OnMerge = Replace,
+            };
+
+            // local_account_identifier: what a local account of the connection is identified by: an email, a user name
+            // or at least one of them (default "email_or_user_name"). (ADR-1535)
+            // Override (Replace): a child fully replaces the parent value.
+            yield return new SettingDescriptor<string>
+            {
+                Name = OpenIdSettingNames.LocalAccountIdentifier,
+                AppliesTo = TenantsAndConnections,
+                Rule = SettingRules.OneOf(
+                    LocalAccountIdentifiers.Email,
+                    LocalAccountIdentifiers.UserName,
+                    LocalAccountIdentifiers.EmailOrUserName
+                ),
+                Default = LocalAccountIdentifiers.EmailOrUserName,
+
+                IsDiscoverable = IsNonStdDiscoverable,
+                OnMerge = Replace,
             };
 
             // authorization_authenticate_scheme: ASP.NET Core auth scheme used to authenticate the end-user (default application cookie).

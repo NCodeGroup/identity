@@ -153,5 +153,12 @@ public sealed class TokenRequest : OpenIdMessage<TokenRequest>, ITokenRequest
     }
 
     /// <inheritdoc />
+    public string? Connection
+    {
+        get => GetKnownParameter(OpenIdCommonParameters.Connection);
+        set => SetKnownParameter(OpenIdCommonParameters.Connection, value);
+    }
+
+    /// <inheritdoc />
     public override TokenRequest Clone() => new(this);
 }

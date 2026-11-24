@@ -66,6 +66,11 @@ internal static class InteractiveAuthenticationPageRenderer
     public const string ResendActionValue = "resend";
 
     /// <summary>
+    /// The name of the form field that carries the connection a sign-in goes through.
+    /// </summary>
+    public const string ConnectionFieldName = "connection";
+
+    /// <summary>
     /// The path of the forgot-password page, relative to the surface the page's base names.
     /// </summary>
     public const string ForgotPasswordFormAction = "password/forgot";
@@ -106,13 +111,10 @@ internal static class InteractiveAuthenticationPageRenderer
     /// <param name="writer">The buffer the page is written to.</param>
     /// <param name="frame">The document the page is written into.</param>
     /// <param name="form">The form the page posts.</param>
-    /// <param name="forgotPasswordHref">The address of the forgot-password page the form links to, or
-    /// <see langword="null"/> for no link.</param>
     public static void RenderLoginPage(
         IBufferWriter<char> writer,
         InteractivePageFrame frame,
-        InteractivePageForm form,
-        string? forgotPasswordHref
+        InteractivePageForm form
     )
     {
         var locale = frame.Locale;
@@ -125,6 +127,7 @@ internal static class InteractiveAuthenticationPageRenderer
         WriteError(writer, form.ErrorMessage);
         WriteStatus(writer, form.StatusMessage);
         WriteHiddenFields(writer, form, locale);
+        WriteConnectionField(writer, messages, form);
         Write(writer, "<p><label for=\"username\">");
         WriteEncoded(writer, messages.UsernameLabel);
         Write(
@@ -142,10 +145,10 @@ internal static class InteractiveAuthenticationPageRenderer
         );
         WriteEncoded(writer, messages.SignInButton);
         Write(writer, "</button>");
-        if (!string.IsNullOrEmpty(forgotPasswordHref))
+        if (!string.IsNullOrEmpty(form.ForgotPasswordHref))
         {
             Write(writer, "<p><a id=\"forgot-password-link\" href=\"");
-            WriteEncoded(writer, forgotPasswordHref);
+            WriteEncoded(writer, form.ForgotPasswordHref);
             Write(writer, "\">");
             WriteEncoded(writer, messages.ForgotPasswordLink);
             Write(writer, "</a></p>");
@@ -180,6 +183,7 @@ internal static class InteractiveAuthenticationPageRenderer
         Write(writer, "</h1>");
         WriteError(writer, form.ErrorMessage);
         WriteHiddenFields(writer, form, locale);
+        WriteConnectionField(writer, messages, form);
         Write(writer, "<p>");
         WriteEncoded(writer, messages.ForgotPasswordPrompt);
         Write(writer, "</p><p><label for=\"username\">");
@@ -539,6 +543,66 @@ internal static class InteractiveAuthenticationPageRenderer
             placeholderIndex + ConsentPromptPlaceholder.Length
         );
         WriteEncoded(writer, afterPlaceholder);
+    }
+
+    /// <summary>
+    /// Writes the field that carries the connection a form signs in through: a select when several connections are
+    /// offered, a hidden input when one is, and nothing when none is. The select starts with a selected blank option
+    /// when the form preselects no connection.
+    /// </summary>
+    /// <param name="writer">The buffer the field is written to.</param>
+    /// <param name="messages">The messages of the page's locale.</param>
+    /// <param name="form">The form that carries the offered connections and the preselected one.</param>
+    private static void WriteConnectionField(
+        IBufferWriter<char> writer,
+        InteractiveMessages messages,
+        InteractivePageForm form
+    )
+    {
+        var connections = form.Connections;
+        if (connections.Count == 0)
+        {
+            return;
+        }
+
+        if (connections.Count == 1)
+        {
+            Write(writer, "<input type=\"hidden\" name=\"" + ConnectionFieldName + "\" value=\"");
+            WriteEncoded(writer, connections[0].Name);
+            Write(writer, "\" />");
+            return;
+        }
+
+        Write(writer, "<p><label for=\"" + ConnectionFieldName + "\">");
+        WriteEncoded(writer, messages.ConnectionLabel);
+        Write(
+            writer,
+            "</label><br /><select id=\""
+                + ConnectionFieldName
+                + "\" name=\""
+                + ConnectionFieldName
+                + "\">"
+        );
+        // With none preselected, a selected blank option asks for a choice, so a page without JavaScript never posts
+        // a connection the end user did not pick.
+        if (string.IsNullOrEmpty(form.SelectedConnection))
+        {
+            Write(writer, "<option value=\"\" selected></option>");
+        }
+
+        foreach (var (name, displayName) in connections)
+        {
+            Write(writer, "<option value=\"");
+            WriteEncoded(writer, name);
+            var optionEnd = string.Equals(name, form.SelectedConnection, StringComparison.Ordinal)
+                ? "\" selected>"
+                : "\">";
+            Write(writer, optionEnd);
+            WriteEncoded(writer, displayName);
+            Write(writer, "</option>");
+        }
+
+        Write(writer, "</select></p>");
     }
 
     /// <summary>

@@ -9,6 +9,7 @@ using NCode.Identity.OpenId;
 using NCode.Identity.OpenId.Accounts.DataContracts;
 using NCode.Identity.OpenId.Accounts.Stores;
 using NCode.Identity.OpenId.Authentication.Clients;
+using NCode.Identity.OpenId.Connections;
 using NCode.Identity.OpenId.Management;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
@@ -45,6 +46,7 @@ internal sealed class DeveloperInteractiveSeedHandler(
     TimeProvider timeProvider,
     SeededClientValidator seededClientValidator,
     SeededLocalAccountValidator seededLocalAccountValidator,
+    LocalAccountStoreCatalog localAccountStoreCatalog,
     ILogger<DeveloperInteractiveSeedHandler> logger
 ) : ICommandHandler<SeedTenantCommand>, ISupportMediatorPriority
 {
@@ -58,6 +60,7 @@ internal sealed class DeveloperInteractiveSeedHandler(
     private SeededClientValidator SeededClientValidator { get; } = seededClientValidator;
     private SeededLocalAccountValidator SeededLocalAccountValidator { get; } =
         seededLocalAccountValidator;
+    private LocalAccountStoreCatalog LocalAccountStoreCatalog { get; } = localAccountStoreCatalog;
     private ILogger<DeveloperInteractiveSeedHandler> Logger { get; } = logger;
 
     /// <inheritdoc />
@@ -346,8 +349,23 @@ internal sealed class DeveloperInteractiveSeedHandler(
             return;
         }
 
-        var store = context.StoreManager.GetStore<ILocalAccountStore>();
-        var existing = await store.GetByUserNameOrDefaultAsync(username, cancellationToken);
+        // The administrator lives in the tenant's local connection, which the connection seed stages first.
+        var connection = await context
+            .StoreManager.GetStore<IConnectionStore>()
+            .GetByNameOrDefaultAsync(ConnectionDefaults.Name, cancellationToken);
+        if (connection is null)
+        {
+            throw new InvalidOperationException(
+                $"The developer administrator cannot be seeded: the tenant '{context.TenantId}' has no '{ConnectionDefaults.Name}' connection."
+            );
+        }
+
+        var store = LocalAccountStoreCatalog.GetStore(context.StoreManager, connection);
+        var existing = await store.GetByUserNameOrDefaultAsync(
+            connection.ConnectionId,
+            username,
+            cancellationToken
+        );
         if (existing is not null)
         {
             return;
@@ -356,6 +374,7 @@ internal sealed class DeveloperInteractiveSeedHandler(
         var account = new PersistedLocalAccount
         {
             TenantId = context.TenantId,
+            ConnectionId = connection.ConnectionId,
             LocalAccountId = Guid.NewGuid().ToString("N"),
             UserName = username,
             DisplayName = username,
@@ -373,10 +392,16 @@ internal sealed class DeveloperInteractiveSeedHandler(
             ConcurrencyToken = string.Empty,
         };
 
+        var seeded = new SeededLocalAccount
+        {
+            AccountKind = "developer administrator",
+            Tenant = context.Tenant,
+            Connection = connection,
+            Store = store,
+            Account = account,
+        };
         await SeededLocalAccountValidator.EnsureCanBeSeededAsync(
-            "developer administrator",
-            context.Tenant,
-            account,
+            seeded,
             password,
             cancellationToken
         );

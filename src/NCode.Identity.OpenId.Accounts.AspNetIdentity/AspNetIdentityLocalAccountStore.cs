@@ -24,18 +24,23 @@ namespace NCode.Identity.OpenId.Accounts.AspNetIdentity;
 /// so a failed verification takes as long whether or not the user exists.
 /// </summary>
 /// <remarks>
-/// Each user belongs to one tenant (<see cref="ITenantBoundUser.TenantId"/>). Creating a user stamps the tenant of the
-/// ambient tenant scope and fails when no tenant scope is set. Every lookup treats a user of another tenant as not
-/// found, inside a tenant scope. Lookups by user name, and credential verification, need a tenant scope: they find
-/// nothing in an unset scope and throw in an unscoped scope (<see cref="IAmbientTenantAccessor.IsUnscoped"/>). Lookups
-/// by identifier match the identifier in the query over the tenant's users, so they read across tenants only in an
-/// unscoped scope; like listing, they need an ASP.NET Core Identity store that supports querying users.
-/// <see cref="PersistedLocalAccount.TenantId"/> is mapped as empty; the resource-owner password grant authenticates
-/// against the request's tenant. Each operation resolves the scoped <see cref="UserManager{TUser}"/> from a fresh
-/// dependency-injection scope, so this adapter holds no scoped state and its writes commit immediately (they do not
-/// enlist in the OpenID unit of work). The user manager stores every user with a user name, a normalized user name and
-/// a security stamp, so a stored user without its user name or security stamp is malformed and reading it as a local
-/// account throws; an export also throws for a user without its normalized user name.
+/// Each user belongs to one tenant (<see cref="ITenantBoundUser.TenantId"/>) and one connection
+/// (<see cref="ITenantBoundUser.ConnectionId"/>). Creating a user stamps the tenant of the ambient tenant scope and
+/// fails when no tenant scope is set. Every lookup treats a user of another tenant as not found, inside a tenant scope.
+/// Lookups by user name or email, and credential verification, need a tenant scope: they find nothing in an unset scope
+/// and throw in an unscoped scope (<see cref="IAmbientTenantAccessor.IsUnscoped"/>), and they find only the users of
+/// the connection they name. The store opens a connection scope around each user manager call, so the lookup normalizer
+/// prefixes the normalized names and emails with the connection. A user with no user name is stored with its
+/// <see cref="PersistedLocalAccount.LocalAccountId"/> as ASP.NET Core Identity's user name, which a user manager
+/// requires, and is read back with a <c>null</c> user name. Lookups by identifier match the identifier in the query
+/// over the tenant's users, so they read across tenants only in an unscoped scope; like listing, they need an ASP.NET
+/// Core Identity store that supports querying users. <see cref="PersistedLocalAccount.TenantId"/> is mapped as empty;
+/// the resource-owner password grant authenticates against the request's tenant. Each operation resolves the scoped
+/// <see cref="UserManager{TUser}"/> from a fresh dependency-injection scope, so this adapter holds no scoped state and
+/// its writes commit immediately (they do not enlist in the OpenID unit of work). The user manager stores every user
+/// with a user name, a normalized user name and a security stamp, so a stored user without its user name or security
+/// stamp is malformed and reading it as a local account throws; an export also throws for a user without its normalized
+/// user name.
 /// </remarks>
 /// <typeparam name="TUser">The ASP.NET Core Identity user type.</typeparam>
 internal sealed class AspNetIdentityLocalAccountStore<TUser>(
@@ -84,8 +89,9 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
             // The store has restricted the user to the ambient tenant; the grant authenticates against the request's
             // tenant.
             TenantId = string.Empty,
+            ConnectionId = user.ConnectionId,
             LocalAccountId = user.Id,
-            UserName = userName,
+            UserName = ToAccountUserName(user.Id, userName),
             DisplayName = user.DisplayName,
             Email = user.Email,
             EmailVerified = user.EmailConfirmed,
@@ -100,6 +106,48 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
                 .ToList(),
             ConcurrencyToken = user.ConcurrencyStamp ?? string.Empty,
         };
+    }
+
+    /// <summary>
+    /// Determines whether a user has no user name. A user whose ASP.NET Core Identity user name is its identifier has
+    /// none, because the store sets that user name only to satisfy the user manager. Every in-memory check of the rule
+    /// calls this method, and the queries that filter on it write the same comparison as a translatable expression.
+    /// </summary>
+    /// <param name="id">The user's identifier.</param>
+    /// <param name="userName">The user's ASP.NET Core Identity user name.</param>
+    /// <returns><c>true</c> when the user has no user name; otherwise, <c>false</c>.</returns>
+    private static bool HasNoUserName(string id, string? userName) =>
+        string.Equals(userName, id, StringComparison.Ordinal);
+
+    /// <summary>
+    /// Gets the user name of the local account that a user maps to.
+    /// </summary>
+    /// <param name="id">The user's identifier.</param>
+    /// <param name="userName">The user's ASP.NET Core Identity user name.</param>
+    /// <returns>The local account's user name, or <c>null</c> when it has none.</returns>
+    private static string? ToAccountUserName(string id, string userName) =>
+        HasNoUserName(id, userName) ? null : userName;
+
+    /// <summary>
+    /// Refuses an account whose user name is its own identifier, which the store would read back as no user name.
+    /// </summary>
+    /// <param name="localAccountId">The account's identifier.</param>
+    /// <param name="userName">The account's user name, or <c>null</c> when it has none.</param>
+    /// <param name="paramName">The name of the parameter that carries the account.</param>
+    /// <exception cref="ArgumentException">The user name equals the account's identifier.</exception>
+    private static void ThrowIfUserNameIsId(
+        string localAccountId,
+        string? userName,
+        string paramName
+    )
+    {
+        if (userName is not null && HasNoUserName(localAccountId, userName))
+        {
+            throw new ArgumentException(
+                "A local account's user name cannot equal its own identifier, which the store keeps for an account with no user name.",
+                paramName
+            );
+        }
     }
 
     /// <summary>
@@ -361,18 +409,8 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
     }
 
     /// <summary>
-    /// Creates the exception that a lookup by user name throws in an unscoped scope, because a user name is unique only
-    /// within a tenant.
-    /// </summary>
-    /// <returns>The <see cref="InvalidOperationException"/> to throw.</returns>
-    private static InvalidOperationException CreateUserNameScopeException() =>
-        new(
-            "A local account is found by user name only inside a tenant scope, because a user name is unique only within a tenant."
-        );
-
-    /// <summary>
-    /// Reads the names of the users that a query yields, fetching only the identifier, user name and display name
-    /// columns.
+    /// Reads the names of the users that a query yields, fetching only the identifier, connection, user name and
+    /// display name columns. A user whose ASP.NET Core Identity user name is its identifier has no user name.
     /// </summary>
     /// <param name="users">The query of users whose names are read.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
@@ -386,6 +424,7 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
         var rowQuery = users.Select(user => new
         {
             user.Id,
+            user.ConnectionId,
             user.UserName,
             user.DisplayName,
         });
@@ -398,7 +437,8 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
             var name = new LocalAccountNameProjection
             {
                 LocalAccountId = row.Id,
-                UserName = userName,
+                ConnectionId = row.ConnectionId,
+                UserName = ToAccountUserName(row.Id, userName),
                 DisplayName = row.DisplayName,
             };
             names.Add(name);
@@ -406,6 +446,17 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
 
         return names;
     }
+
+    /// <summary>
+    /// Determines whether a user belongs to a connection of a tenant.
+    /// </summary>
+    /// <param name="user">The stored user.</param>
+    /// <param name="tenantId">The identifier of the tenant.</param>
+    /// <param name="connectionId">The identifier of the connection.</param>
+    /// <returns><c>true</c> when the user belongs to the connection of the tenant; otherwise, <c>false</c>.</returns>
+    private static bool IsInConnection(TUser user, string tenantId, string connectionId) =>
+        string.Equals(user.TenantId, tenantId, StringComparison.Ordinal)
+        && string.Equals(user.ConnectionId, connectionId, StringComparison.Ordinal);
 
     private IServiceScopeFactory ServiceScopeFactory { get; } = serviceScopeFactory;
     private IStoreProvider StoreProvider { get; } = storeProvider;
@@ -424,14 +475,18 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
         where TStore : IStore => StoreProvider.GetStore<TStore>();
 
     /// <inheritdoc />
+    /// <exception cref="ArgumentException">The account's user name equals its own identifier.</exception>
     public async ValueTask AddAsync(
         PersistedLocalAccount account,
         ReadOnlyMemory<byte>? password,
         CancellationToken cancellationToken
     )
     {
+        ThrowIfUserNameIsId(account.LocalAccountId, account.UserName, nameof(account));
+
         await using var scope = ServiceScopeFactory.CreateAsyncScope();
         var userManager = scope.ServiceProvider.GetRequiredService<UserManager<TUser>>();
+        using var connectionScope = AmbientLookupConnection.BeginScope(account.ConnectionId);
 
         // A disabled account is stored as a lockout, so a store without lockout support refuses it before any user is
         // created.
@@ -440,13 +495,15 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
             ThrowIfLockoutUnsupported(userManager);
         }
 
-        // The id is assigned by the orchestrating create handler (it is also the self-issued identity's subject), so it
-        // must be carried onto the Identity user rather than letting the store generate its own.
+        // The id is assigned by the orchestrating create handler (it is also the identity's subject), so it must be
+        // carried onto the Identity user rather than letting the store generate its own. An account with no user name
+        // is stored with its id as ASP.NET Core Identity's user name, which the user manager requires.
         var user = new TUser
         {
             Id = account.LocalAccountId,
             TenantId = GetRequiredTenantId(),
-            UserName = account.UserName,
+            ConnectionId = account.ConnectionId,
+            UserName = account.UserName ?? account.LocalAccountId,
             DisplayName = account.DisplayName,
             Email = account.Email,
             EmailConfirmed = account.EmailVerified,
@@ -483,11 +540,14 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
     }
 
     /// <inheritdoc />
+    /// <exception cref="ArgumentException">The account's user name equals its own identifier.</exception>
     public async ValueTask UpdateAsync(
         PersistedLocalAccount account,
         CancellationToken cancellationToken
     )
     {
+        ThrowIfUserNameIsId(account.LocalAccountId, account.UserName, nameof(account));
+
         await using var scope = ServiceScopeFactory.CreateAsyncScope();
         var userManager = scope.ServiceProvider.GetRequiredService<UserManager<TUser>>();
 
@@ -496,10 +556,12 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
             account.LocalAccountId,
             cancellationToken
         );
+        using var connectionScope = AmbientLookupConnection.BeginScope(user.ConnectionId);
 
         // SetUserNameAsync/SetEmailAsync also refresh the normalized lookup columns; setting the properties directly
         // would leave those stale. SetEmailAsync resets the confirmed flag, so the confirmation is applied after it.
-        var userNameSet = await userManager.SetUserNameAsync(user, account.UserName);
+        var userName = account.UserName ?? user.Id;
+        var userNameSet = await userManager.SetUserNameAsync(user, userName);
         ThrowIfFailed(userNameSet, "update the username");
         var emailSet = await userManager.SetEmailAsync(user, account.Email);
         ThrowIfFailed(emailSet, "update the email");
@@ -532,6 +594,7 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
         var passwordHasher = GetPasswordHasher(userManager);
 
         var user = await GetRequiredUserAsync(userManager, localAccountId, cancellationToken);
+        using var connectionScope = AmbientLookupConnection.BeginScope(user.ConnectionId);
 
         var submitted = DecodePassword(password);
         await SetPasswordHashAsync(
@@ -550,7 +613,7 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
 
     /// <inheritdoc />
     public async ValueTask<LocalAccountVerificationResult> VerifyCredentialAsync(
-        string userName,
+        LocalAccountSignInIdentifier identifier,
         ReadOnlyMemory<byte> password,
         Func<string, CancellationToken, ValueTask<bool>> isRefusedAsync,
         CancellationToken cancellationToken
@@ -559,6 +622,7 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
         await using var scope = ServiceScopeFactory.CreateAsyncScope();
         var serviceProvider = scope.ServiceProvider;
         var userManager = serviceProvider.GetRequiredService<UserManager<TUser>>();
+        using var connectionScope = AmbientLookupConnection.BeginScope(identifier.ConnectionId);
         var passwordStore = GetPasswordStore(serviceProvider);
         var passwordHasher = GetPasswordHasher(userManager);
 
@@ -567,7 +631,7 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
 
         var submitted = DecodePassword(password);
 
-        var user = await FindByNameAsync(userManager, userName, cancellationToken);
+        var user = await FindByIdentifierAsync(userManager, identifier, cancellationToken);
         var storedHash = user is null
             ? null
             : await GetVerifiablePasswordHashAsync(
@@ -577,10 +641,14 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
                 cancellationToken
             );
 
-        // The limit counts the user name the user holds, and a refused password is verified against the dummy hash, so
-        // a refusal costs what a wrong password costs. See ADR-1237.
-        var countedUserName = user?.UserName ?? userName;
-        var isRefused = await isRefusedAsync(countedUserName, cancellationToken);
+        // The limit counts the account the store found, or the identifier the end user submitted, and a refused
+        // password is verified against the dummy hash, so a refusal costs what a wrong password costs. See ADR-1237.
+        var accountKey = user is null
+            ? LocalAccountAttemptKeys.ForIdentifier(
+                identifier.UserName ?? identifier.Email ?? string.Empty
+            )
+            : LocalAccountAttemptKeys.ForAccount(user.Id);
+        var isRefused = await isRefusedAsync(accountKey, cancellationToken);
         var passwordHash = isRefused ? null : storedHash;
 
         // An unknown user name, a locked-out user and a user without a password are verified against the dummy hash, so
@@ -592,7 +660,7 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
         {
             return new LocalAccountVerificationResult
             {
-                UserName = countedUserName,
+                AccountKey = accountKey,
                 IsRefused = isRefused,
             };
         }
@@ -613,7 +681,7 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
         }
 
         var account = await MapAsync(userManager, user, cancellationToken);
-        return new LocalAccountVerificationResult { UserName = countedUserName, Account = account };
+        return new LocalAccountVerificationResult { AccountKey = accountKey, Account = account };
     }
 
     /// <inheritdoc />
@@ -631,14 +699,31 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
 
     /// <inheritdoc />
     public async ValueTask<PersistedLocalAccount?> GetByUserNameOrDefaultAsync(
+        string connectionId,
         string userName,
         CancellationToken cancellationToken
     )
     {
         await using var scope = ServiceScopeFactory.CreateAsyncScope();
         var userManager = scope.ServiceProvider.GetRequiredService<UserManager<TUser>>();
+        using var connectionScope = AmbientLookupConnection.BeginScope(connectionId);
 
-        var user = await FindByNameAsync(userManager, userName, cancellationToken);
+        var user = await FindByNameAsync(userManager, connectionId, userName, cancellationToken);
+        return user is null ? null : await MapAsync(userManager, user, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public async ValueTask<PersistedLocalAccount?> GetByEmailOrDefaultAsync(
+        string connectionId,
+        string email,
+        CancellationToken cancellationToken
+    )
+    {
+        await using var scope = ServiceScopeFactory.CreateAsyncScope();
+        var userManager = scope.ServiceProvider.GetRequiredService<UserManager<TUser>>();
+        using var connectionScope = AmbientLookupConnection.BeginScope(connectionId);
+
+        var user = await FindByEmailAsync(userManager, connectionId, email, cancellationToken);
         return user is null ? null : await MapAsync(userManager, user, cancellationToken);
     }
 
@@ -664,6 +749,7 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
 
     /// <inheritdoc />
     public async ValueTask<IReadOnlyList<LocalAccountNameProjection>> GetNamesByUserNamesAsync(
+        string connectionId,
         IReadOnlyCollection<string> userNames,
         CancellationToken cancellationToken
     )
@@ -676,11 +762,13 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
         await using var scope = ServiceScopeFactory.CreateAsyncScope();
         var userManager = scope.ServiceProvider.GetRequiredService<UserManager<TUser>>();
 
-        // As FindByNameAsync: a user name is unique only within a tenant.
-        if (GetCurrentTenantId() is null)
+        // As FindByNameAsync: a user name is unique only within a connection of a tenant.
+        if (GetLookupTenantId() is null)
         {
-            return AmbientTenantAccessor.IsUnscoped ? throw CreateUserNameScopeException() : [];
+            return [];
         }
+
+        using var connectionScope = AmbientLookupConnection.BeginScope(connectionId);
 
         var normalizedNames = new List<string?>(userNames.Count);
         foreach (var userName in userNames)
@@ -689,14 +777,18 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
             normalizedNames.Add(normalizedName);
         }
 
-        var matchingUsers = GetTenantUsers(userManager)
-            .Where(user => normalizedNames.Contains(user.NormalizedUserName));
+        // The query form of HasNoUserName, which a query provider translates.
+        var matchingUsers = GetConnectionUsers(userManager, connectionId)
+            .Where(user =>
+                normalizedNames.Contains(user.NormalizedUserName) && user.UserName != user.Id
+            );
 
         return await ReadNamesAsync(matchingUsers, cancellationToken);
     }
 
     /// <inheritdoc />
     public async ValueTask<PagedResult<PersistedLocalAccount>> GetPageAsync(
+        string connectionId,
         PageRequest page,
         CancellationToken cancellationToken
     )
@@ -704,7 +796,7 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
         await using var scope = ServiceScopeFactory.CreateAsyncScope();
         var userManager = scope.ServiceProvider.GetRequiredService<UserManager<TUser>>();
 
-        var query = GetTenantUsers(userManager);
+        var query = GetConnectionUsers(userManager, connectionId);
 
         if (!string.IsNullOrEmpty(page.Cursor))
         {
@@ -762,6 +854,7 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
         var userManager = scope.ServiceProvider.GetRequiredService<UserManager<TUser>>();
 
         var user = await GetRequiredUserAsync(userManager, localAccountId, cancellationToken);
+        using var connectionScope = AmbientLookupConnection.BeginScope(user.ConnectionId);
 
         var existing = await userManager.GetClaimsAsync(user);
         if (existing.Count > 0)
@@ -789,6 +882,7 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
     /// </exception>
     // See ADR-1514.
     public async ValueTask<IReadOnlyList<LocalAccountTransferRecord>> ExportAsync(
+        string connectionId,
         CancellationToken cancellationToken
     )
     {
@@ -796,7 +890,7 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
         var userManager = scope.ServiceProvider.GetRequiredService<UserManager<TUser>>();
         var passwordStore = GetPasswordStore(scope.ServiceProvider);
 
-        var orderedUsers = GetTenantUsers(userManager).OrderBy(user => user.Id);
+        var orderedUsers = GetConnectionUsers(userManager, connectionId).OrderBy(user => user.Id);
         var users = await ToListAsync(orderedUsers, cancellationToken);
 
         var records = new List<LocalAccountTransferRecord>(users.Count);
@@ -813,6 +907,7 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
                 nameof(IdentityUser.SecurityStamp),
                 user.Id
             );
+            var accountUserName = ToAccountUserName(user.Id, userName);
             var passwordHash = await passwordStore.GetPasswordHashAsync(user, cancellationToken);
             var claims = await userManager.GetClaimsAsync(user);
             var isEnabled =
@@ -821,8 +916,8 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
             var record = new LocalAccountTransferRecord
             {
                 LocalAccountId = user.Id,
-                UserName = userName,
-                NormalizedUserName = normalizedUserName,
+                UserName = accountUserName,
+                NormalizedUserName = accountUserName is null ? null : normalizedUserName,
                 DisplayName = user.DisplayName,
                 Email = user.Email,
                 NormalizedEmail = user.NormalizedEmail,
@@ -854,14 +949,22 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
     /// store contracts write one user at a time. Only a move imports a tenant's local accounts, while the tenant is
     /// disabled, so the cost is accepted.
     /// </remarks>
+    /// <exception cref="ArgumentException">A record's user name equals its own identifier.</exception>
     // See ADR-1514.
     public async ValueTask ImportAsync(
+        string connectionId,
         IReadOnlyList<LocalAccountTransferRecord> records,
         CancellationToken cancellationToken
     )
     {
+        foreach (var record in records)
+        {
+            ThrowIfUserNameIsId(record.LocalAccountId, record.UserName, nameof(records));
+        }
+
         await using var scope = ServiceScopeFactory.CreateAsyncScope();
         var userManager = scope.ServiceProvider.GetRequiredService<UserManager<TUser>>();
+        using var connectionScope = AmbientLookupConnection.BeginScope(connectionId);
         var passwordStore = GetPasswordStore(scope.ServiceProvider);
         IUserClaimStore<TUser>? claimStore = null;
 
@@ -873,13 +976,14 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
                 ThrowIfLockoutUnsupported(userManager);
             }
 
-            // The user manager derives the normalized names under the ambient tenant, so they are the names the
-            // exporting store held for the same tenant.
+            // The user manager derives the normalized names under the ambient tenant and connection, so they are the
+            // names the exporting store held for the same tenant and connection.
             var user = new TUser
             {
                 Id = record.LocalAccountId,
                 TenantId = tenantId,
-                UserName = record.UserName,
+                ConnectionId = connectionId,
+                UserName = record.UserName ?? record.LocalAccountId,
                 DisplayName = record.DisplayName,
                 Email = record.Email,
                 EmailConfirmed = record.EmailVerified,
@@ -927,13 +1031,13 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
     }
 
     /// <inheritdoc />
-    public async ValueTask RemoveAllAsync(CancellationToken cancellationToken)
+    public async ValueTask RemoveAllAsync(string connectionId, CancellationToken cancellationToken)
     {
         await using var scope = ServiceScopeFactory.CreateAsyncScope();
         var userManager = scope.ServiceProvider.GetRequiredService<UserManager<TUser>>();
 
-        var tenantUsers = GetTenantUsers(userManager);
-        var users = await ToListAsync(tenantUsers, cancellationToken);
+        var connectionUsers = GetConnectionUsers(userManager, connectionId);
+        var users = await ToListAsync(connectionUsers, cancellationToken);
         foreach (var user in users)
         {
             var deleted = await userManager.DeleteAsync(user);
@@ -1026,31 +1130,141 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
     }
 
     /// <summary>
-    /// Finds a user by user name inside the ambient tenant scope. A user name is unique only within a tenant, so an
-    /// unset scope finds nothing, and an unscoped scope is rejected.
+    /// Gets the users of a connection of the ambient tenant. An unscoped scope reads the connection's users of every
+    /// tenant, and an unset scope reads none.
+    /// </summary>
+    /// <param name="userManager">The <see cref="UserManager{TUser}"/> whose users are queried.</param>
+    /// <param name="connectionId">The identifier of the connection whose users are read.</param>
+    /// <returns>The query over the connection's users that the ambient scope can read.</returns>
+    /// <exception cref="NotSupportedException">The store does not support querying users.</exception>
+    private IQueryable<TUser> GetConnectionUsers(
+        UserManager<TUser> userManager,
+        string connectionId
+    ) => GetTenantUsers(userManager).Where(user => user.ConnectionId == connectionId);
+
+    /// <summary>
+    /// Requires a tenant scope for a lookup by user name or email, because those are unique only within a connection of
+    /// a tenant.
+    /// </summary>
+    /// <returns>The lower-invariant ambient tenant, or <c>null</c> when no scope is set.</returns>
+    /// <exception cref="InvalidOperationException">The ambient scope is unscoped.</exception>
+    private string? GetLookupTenantId()
+    {
+        var tenantId = GetCurrentTenantId();
+        if (tenantId is null && AmbientTenantAccessor.IsUnscoped)
+        {
+            throw new InvalidOperationException(
+                "A local account is found by user name or email only inside a tenant scope, because both are unique only within a connection of a tenant."
+            );
+        }
+
+        return tenantId;
+    }
+
+    /// <summary>
+    /// Finds a user by user name inside the ambient tenant scope and a connection. A user whose ASP.NET Core Identity
+    /// user name is its identifier has no user name, so it is never found by one. The caller opens the connection
+    /// scope.
     /// </summary>
     /// <param name="userManager">The <see cref="UserManager{TUser}"/> to look the user up with.</param>
+    /// <param name="connectionId">The identifier of the connection that holds the user.</param>
     /// <param name="userName">The user name to find.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
     /// <returns>
-    /// The user, or <c>null</c> when no scope is set or the user name belongs to no user of the ambient tenant.
+    /// The user, or <c>null</c> when no scope is set or the user name belongs to no user of the connection.
     /// </returns>
     /// <exception cref="InvalidOperationException">The ambient scope is unscoped.</exception>
     private async ValueTask<TUser?> FindByNameAsync(
         UserManager<TUser> userManager,
+        string connectionId,
         string userName,
         CancellationToken cancellationToken
     )
     {
-        var tenantId = GetCurrentTenantId();
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var tenantId = GetLookupTenantId();
         if (tenantId is null)
         {
-            return AmbientTenantAccessor.IsUnscoped ? throw CreateUserNameScopeException() : null;
+            return null;
         }
 
         var user = await userManager.FindByNameAsync(userName);
-        return user is not null && string.Equals(user.TenantId, tenantId, StringComparison.Ordinal)
+        return
+            user is not null
+            && IsInConnection(user, tenantId, connectionId)
+            && !HasNoUserName(user.Id, user.UserName)
             ? user
             : null;
+    }
+
+    /// <summary>
+    /// Finds a user by email inside the ambient tenant scope and a connection. The caller opens the connection scope.
+    /// </summary>
+    /// <param name="userManager">The <see cref="UserManager{TUser}"/> to look the user up with.</param>
+    /// <param name="connectionId">The identifier of the connection that holds the user.</param>
+    /// <param name="email">The email to find.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <returns>
+    /// The user, or <c>null</c> when no scope is set or the email belongs to no user of the connection.
+    /// </returns>
+    /// <exception cref="InvalidOperationException">The ambient scope is unscoped.</exception>
+    private async ValueTask<TUser?> FindByEmailAsync(
+        UserManager<TUser> userManager,
+        string connectionId,
+        string email,
+        CancellationToken cancellationToken
+    )
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var tenantId = GetLookupTenantId();
+        if (tenantId is null)
+        {
+            return null;
+        }
+
+        var user = await userManager.FindByEmailAsync(email);
+        return user is not null && IsInConnection(user, tenantId, connectionId) ? user : null;
+    }
+
+    /// <summary>
+    /// Finds the user that a sign-in identifier names. It runs the lookup of each value the identifier carries,
+    /// whatever the first finds, and prefers the user name's match. The caller opens the connection scope.
+    /// </summary>
+    /// <param name="userManager">The <see cref="UserManager{TUser}"/> to look the user up with.</param>
+    /// <param name="identifier">The identifier that the end user submitted.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <returns>The user, or <c>null</c> when the identifier names none of the connection's users.</returns>
+    /// <exception cref="InvalidOperationException">The ambient scope is unscoped.</exception>
+    private async ValueTask<TUser?> FindByIdentifierAsync(
+        UserManager<TUser> userManager,
+        LocalAccountSignInIdentifier identifier,
+        CancellationToken cancellationToken
+    )
+    {
+        TUser? byUserName = null;
+        if (identifier.UserName is { } userName)
+        {
+            byUserName = await FindByNameAsync(
+                userManager,
+                identifier.ConnectionId,
+                userName,
+                cancellationToken
+            );
+        }
+
+        TUser? byEmail = null;
+        if (identifier.Email is { } email)
+        {
+            byEmail = await FindByEmailAsync(
+                userManager,
+                identifier.ConnectionId,
+                email,
+                cancellationToken
+            );
+        }
+
+        return byUserName ?? byEmail;
     }
 }

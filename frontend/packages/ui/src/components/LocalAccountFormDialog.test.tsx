@@ -103,6 +103,29 @@ describe('LocalAccountFormDialog', () => {
     });
   });
 
+  it('submits an email-only account with a blank user name', () => {
+    const onSubmit = vi.fn();
+    render(
+      <LocalAccountFormDialog
+        open
+        mode="create"
+        title="Create"
+        submitLabel="Create"
+        initialValues={emptyLocalAccountFormValues}
+        onSubmit={onSubmit}
+        onCancel={vi.fn()}
+      />,
+    );
+    change('local-account-display-name', 'Ada');
+    change('local-account-email', 'ada@example.com');
+    change('local-account-password', 'secret');
+    change('local-account-confirm-password', 'secret');
+    fireEvent.click(screen.getByTestId('local-account-form-submit'));
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({ userName: '', email: 'ada@example.com' }),
+    );
+  });
+
   it('surfaces a server error and blocks submit while submitting', () => {
     render(
       <LocalAccountFormDialog

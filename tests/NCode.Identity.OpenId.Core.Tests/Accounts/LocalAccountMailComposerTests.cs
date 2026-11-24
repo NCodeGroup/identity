@@ -23,6 +23,7 @@ public class LocalAccountMailComposerTests
             new InteractiveMessages
             {
                 SignInTitle = "SignInTitle",
+                ConnectionLabel = "ConnectionLabel",
                 UsernameLabel = "UsernameLabel",
                 PasswordLabel = "PasswordLabel",
                 SignInButton = "SignInButton",
@@ -37,6 +38,8 @@ public class LocalAccountMailComposerTests
                 AuthorizationErrorTitle = "AuthorizationErrorTitle",
                 InvalidCredentialsError = "InvalidCredentialsError",
                 MissingCredentialsError = "MissingCredentialsError",
+                ConnectionRequiredError = "ConnectionRequiredError",
+                ConnectionUnavailableError = "ConnectionUnavailableError",
                 AccessDeniedError = "AccessDeniedError",
                 SignInFailedError = "SignInFailedError",
                 ForgotPasswordLink = "ForgotPasswordLink",

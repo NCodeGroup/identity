@@ -13,6 +13,27 @@ Until the first stable release, the [Unreleased] section describes the product a
 
 ### Added
 
+- **A tenant signs users in through connections.** A connection is a tenant-scoped resource with a unique name, a
+  display name, an enabled flag, a registered strategy (`IConnectionStrategy`, `local` first), strategy options and a
+  `connection`-scope settings document; the management API serves `/tenants/{tenantId}/connections` with settings and
+  effective settings, the console has Connections pages, and every tenant is created with an enabled `local`
+  connection, a reserved system connection that can be disabled and not deleted. A tenant promotion carries the
+  tenant's connections ([#931](https://github.com/NCodeGroup/identity/issues/931),
+  [ADR-1535](docs/decisions/1535-a-tenant-signs-users-in-through-named-connections-and-a-local-account-belongs-to-one.md)).
+
+- **Clients enable connections.** `allowed_connections` and `default_connection` decide which connections a client
+  accepts; the `connection` parameter or an `idp:` `acr_values` value selects one on the authorization request and the
+  password grant, a connection the client does not allow is refused with `invalid_request`, and the sign-in page offers
+  a picker ([#931](https://github.com/NCodeGroup/identity/issues/931),
+  [ADR-1535](docs/decisions/1535-a-tenant-signs-users-in-through-named-connections-and-a-local-account-belongs-to-one.md)).
+
+- **A local account belongs to one connection.** User name and email are each unique per connection,
+  `local_account_identifier` signs users in by email, user name or either, local-account routes live under
+  `/tenants/{tenantId}/connections/{connectionId}/local-accounts`, and each local connection names a store registered by
+  name (`AddLocalAccountEntityFramework(storeName)`, `AddAspNetIdentityLocalAccountStore<TUser>(storeName)`,
+  `AddLocalAccountStore`) ([#931](https://github.com/NCodeGroup/identity/issues/931),
+  [ADR-1535](docs/decisions/1535-a-tenant-signs-users-in-through-named-connections-and-a-local-account-belongs-to-one.md)).
+
 - **Every frontend is themed with NCode Brand's Instrument design system (`frontend`).**
   `@ncodegroup/identity-brand` (`frontend/packages/brand`) vendors NCode Brand's `mui/instrument.json`, its brace data
   (`brace/brace.json`), its tenant color derivation (`tokens/derive.mjs`, with its types and test vectors) and its two
@@ -100,7 +121,7 @@ Until the first stable release, the [Unreleased] section describes the product a
 
 - **`ILocalAccountCreator` is the one seam that creates a local account.** `ILocalAccountCreator.StageAsync`
   (`NCode.Identity.OpenId.Accounts.Management.Abstractions`) validates a `CreateLocalAccountRequest` (username, password
-  policy, claims and metadata) and stages the principal, its self-issued identity and the local account on an
+  policy, claims and metadata) and stages the principal, its identity in the account's connection and the local account on an
   `IStoreManager` without saving, returning a `LocalAccountCreation` that carries the staged account or the first error.
   The management create endpoint and instance setup both create accounts through it, so a custom implementation
   takes over the creation for both ([#777](https://github.com/NCodeGroup/identity/issues/777),
@@ -141,7 +162,7 @@ Until the first stable release, the [Unreleased] section describes the product a
   `IServiceCollection` extensions, and cross-library helpers invoked from several library builders
   (`AddMessageFactory<TMessage>`, `AddEndpointProvider<T>`, `AddEndpointGroup<T>`) take the non-generic
   `IServiceBuilder` receiver ([ADR-1069](docs/decisions/1069-di-registration-proves-every-prerequisite-at-compile-time-through-marker-builders.md),
-  [ADR-1051](docs/decisions/1051-a-local-account-is-a-self-issued-connection-behind-one-pluggable-store-seam.md),
+  [ADR-1051](docs/decisions/1051-a-local-account-belongs-to-one-local-connection-behind-a-named-pluggable-store-seam.md),
   [ADR-1057](docs/decisions/1057-local-account-management-is-an-opt-in-capability-that-provisions-the-principal-eagerly-and-authorizes-per-tenant.md)).
 
 - **The library chain composes off typed builders.** `AddJoseLibrary()` extends `IServiceBuilder<SecretsLibrary>` and
@@ -170,7 +191,7 @@ Until the first stable release, the [Unreleased] section describes the product a
   extends `IServiceBuilder<OpenIdManagementLibrary>`, each returning its receiver for chaining, for example
   `AddIdentityServer().OpenIdAuthenticationLibraryBuilder.AddLocalAccountAuthentication(localAccountStore)`
   ([ADR-1069](docs/decisions/1069-di-registration-proves-every-prerequisite-at-compile-time-through-marker-builders.md),
-  [ADR-1051](docs/decisions/1051-a-local-account-is-a-self-issued-connection-behind-one-pluggable-store-seam.md)).
+  [ADR-1051](docs/decisions/1051-a-local-account-belongs-to-one-local-connection-behind-a-named-pluggable-store-seam.md)).
 
 - **Strict configuration binding is public.** `NCode.Identity.Registration.StrictConfigurationBindingExtensions.BindStrictly`
   binds a section so that a key that maps to no option fails, so an extension binds its own section the way the family
@@ -1637,7 +1658,7 @@ Until the first stable release, the [Unreleased] section describes the product a
   `NCode.Identity.OpenId.Accounts.Authentication` (`AddLocalAccountAuthentication()`, with
   `CreatePasswordGrantSubjectCommand`), so `NCode.Identity.OpenId.Authentication` does not depend on the account
   packages; without that capability the base package answers the grant with `unsupported_grant_type`
-  ([ADR-1051](docs/decisions/1051-a-local-account-is-a-self-issued-connection-behind-one-pluggable-store-seam.md)). The
+  ([ADR-1051](docs/decisions/1051-a-local-account-belongs-to-one-local-connection-behind-a-named-pluggable-store-seam.md)). The
   metadata projection claim types are in `NCode.Identity.OpenId.Principals.SubjectMetadataClaimTypes`
   ([ADR-1055](docs/decisions/1055-subject-metadata-lives-on-the-principal-and-projects-into-tokens-as-nested-claims-at-issuance.md)). Its tickets
   carry the authentication's `AuthenticationProperties`: `DefaultPasswordGrantHandler` records the authentication
@@ -2045,7 +2066,7 @@ Until the first stable release, the [Unreleased] section describes the product a
   access token being issued (a non-null `AccessToken` on the token request); explicitly requested `claims.id_token`
   claims, `sub`, `auth_time`, `acr`, `idp`, and `amr` are always included. The account-sourced UserInfo enricher
   `DefaultGetLocalAccountUserInfoClaimsHandler`, registered by `AddLocalAccountAuthentication` /
-  `AddLocalAccountInteractiveAuthentication`, resolves the caller's local account from its self-issued connection and
+  `AddLocalAccountInteractiveAuthentication`, resolves the caller's local account from the connection that authenticated it and
   returns the scope-permitted claims from the account store, gated by the access token's `scope` claim. It honors
   individual claims requested through the `claims` parameter's `userinfo` member (OIDC Core §5.5), serving them from the
   account store even when the owning scope was not granted, and coerces the standard typed claims (`updated_at` →
@@ -2212,11 +2233,14 @@ Until the first stable release, the [Unreleased] section describes the product a
   of first-class store operations (`AddAsync(account, password?, ct)`, `SetPasswordAsync`, `VerifyCredentialAsync`)
   rather than a password hash on the persisted account, and `SecurityStamp` is store-managed. The ASP.NET Core Identity
   adapter (`NCode.Identity.OpenId.Accounts.AspNetIdentity`) implements `ILocalAccountStore` over `UserManager<TUser>`
-  (`AddAspNetIdentityLocalAccountStore<TUser>()`), where `TUser` is an `IdentityUser` that implements
-  `ITenantBoundUser`, so every user belongs to one tenant. `IFederatedPrincipalStore` provides `UpdateAsync` and
-  `RemoveAsync`,
+  (`AddAspNetIdentityLocalAccountStore<TUser>(storeName)`), where `TUser` is an `IdentityUser` that implements
+  `ITenantBoundUser`, so every user belongs to one tenant and one connection. The lookups scoped to a connection
+  (`GetByUserNameOrDefaultAsync`, `GetByEmailOrDefaultAsync`, `GetPageAsync`) take the connection id,
+  `VerifyCredentialAsync` takes a `LocalAccountSignInIdentifier`, and every store registers under a name through
+  `AddLocalAccountStore`. `IFederatedPrincipalStore` provides `UpdateAsync` and `RemoveAsync`,
   and `IFederatedIdentityStore` provides `RemoveAsync`. See
-  [ADR-1051](docs/decisions/1051-a-local-account-is-a-self-issued-connection-behind-one-pluggable-store-seam.md).
+  [#931](https://github.com/NCodeGroup/identity/issues/931),
+  [ADR-1051](docs/decisions/1051-a-local-account-belongs-to-one-local-connection-behind-a-named-pluggable-store-seam.md).
 
 - **The interactive surface is served under the tenant route.** The login, consent, logout, and account endpoints share
   the protocol endpoints' tenant route, so interactive flows work under `DynamicByPath` at `/{tenantId}/account/*`.
@@ -2681,22 +2705,23 @@ Until the first stable release, the [Unreleased] section describes the product a
   issues [#284](https://github.com/NCodeGroup/identity/issues/284),
   [#289](https://github.com/NCodeGroup/identity/issues/289)).
 
-- **Local-account management is an opt-in capability of the management API.** The `local-accounts` resource family under
-  `/api/tenants/{tenantId}/local-accounts` lets a tenant or global administrator create, list, get, update (a JSON Patch
-  of `displayName`, `userName`, `email` and `emailVerified`), delete, disable and enable a local account, reset its
-  credential, manage its profile claims, and read and set its server-owned metadata, where the claims and metadata
-  writes take `If-Match` ([#936](https://github.com/NCodeGroup/identity/issues/936)). On the control-plane cell, `GET`
-  and `POST /api/platform/local-accounts` list and create the control-plane tenant's accounts, where the root
-  administrator lives. Creating an account provisions its owning `FederatedPrincipal` and its one-to-one self-issued
-  `FederatedIdentity` in the same unit of work, so principal-level metadata (`ProfileMetadata` / `SystemMetadata`) has a
-  target from the moment the account exists; `LocalAccountResource.principalId` carries that principal's identifier in
-  the create, get and list answers (`null` for an account without a self-issued identity), so an account is granted a
-  role through `AddRoleHolderRequest.principalId` from its own resource, and
-  `IFederatedIdentityStore.GetByIssuerSubjectsAsync` resolves a list page's principals in one call; the metadata
-  endpoint is the administrator-gated write path that keeps `SystemMetadata` never end-user-writable. Local accounts are
-  end-user subjects rather than ownable resources, so every operation authorizes against the owning tenant scope
-  (`TenantScopeResource`), gated by `*:local_accounts` scopes. The endpoints, their validator (`ILocalAccountValidator`
-  / `DefaultLocalAccountValidator`), the wire contracts (namespace
+- **Local-account management is an opt-in capability of the management API.** The `local-accounts` resource family
+  under `/api/tenants/{tenantId}/connections/{connectionId}/local-accounts` lets a tenant or global administrator
+  create, list, get, update (a JSON Patch of `displayName`, `userName`, `email` and `emailVerified`), delete, disable
+  and enable a local account of a local connection, reset its credential, manage its profile claims, and read and set
+  its server-owned metadata, where the claims and metadata writes take `If-Match`
+  ([#936](https://github.com/NCodeGroup/identity/issues/936)). On the control-plane cell,
+  `GET /api/platform/local-accounts` lists and `POST /api/platform/local-accounts` creates the accounts of the
+  control-plane tenant's default connection, where the root administrator lives. Creating an account provisions its
+  owning `FederatedPrincipal` and its one-to-one `FederatedIdentity` in the account's connection in the same unit of
+  work, so principal-level metadata (`ProfileMetadata` / `SystemMetadata`) has a target from the moment the account
+  exists; `LocalAccountResource.principalId` carries that principal's identifier in the create, get and list answers
+  (`null` for an account without an identity), so an account is granted a role through
+  `AddRoleHolderRequest.principalId` from its own resource, and `IFederatedIdentityStore.GetByConnectionSubjectsAsync`
+  resolves a list page's principals in one call; the metadata endpoint is the administrator-gated write path that keeps
+  `SystemMetadata` never end-user-writable. Local accounts are end-user subjects rather than ownable resources, so every
+  operation authorizes against the owning tenant scope (`TenantScopeResource`), gated by `*:local_accounts` scopes. The
+  endpoints, their validator (`ILocalAccountValidator` / `DefaultLocalAccountValidator`), the wire contracts (namespace
   `NCode.Identity.OpenId.Accounts.Management.Contracts`) and `LocalAccountChangedAuditEvent` live in the account-owned
   packages `NCode.Identity.OpenId.Accounts.Management` (`AddLocalAccountManagement()`) and
   `NCode.Identity.OpenId.Accounts.Management.Abstractions`, so `NCode.Identity.OpenId.Management` does not reference
@@ -2708,7 +2733,7 @@ Until the first stable release, the [Unreleased] section describes the product a
   `IEndpointProvider` to the tenant group, and the generic audit seam
   `RecordResourceChangeAsync(HttpContext, ResourceChangeAuditEvent)`. See
   [ADR-1057](docs/decisions/1057-local-account-management-is-an-opt-in-capability-that-provisions-the-principal-eagerly-and-authorizes-per-tenant.md),
-  [ADR-1051](docs/decisions/1051-a-local-account-is-a-self-issued-connection-behind-one-pluggable-store-seam.md) and
+  [ADR-1051](docs/decisions/1051-a-local-account-belongs-to-one-local-connection-behind-a-named-pluggable-store-seam.md) and
   issue [#781](https://github.com/NCodeGroup/identity/issues/781).
 
 - **Every local account has a display name, which is its `name` claim.** `PersistedLocalAccount.DisplayName` (at most
@@ -2716,7 +2741,7 @@ Until the first stable release, the [Unreleased] section describes the product a
   subject and UserInfo (under the `profile` scope) carry it as `name`, and a `name` profile claim is refused with `400`,
   so the management console's header and every relying party show the person's name. The ASP.NET Core Identity adapter
   stores it through `ITenantBoundUser.DisplayName`, and a tenant transfer carries it
-  ([ADR-1051](docs/decisions/1051-a-local-account-is-a-self-issued-connection-behind-one-pluggable-store-seam.md)).
+  ([ADR-1051](docs/decisions/1051-a-local-account-belongs-to-one-local-connection-behind-a-named-pluggable-store-seam.md)).
 
 - **The management console manages users.** A Users tab in every tenant and in the platform scope lists local accounts
   by display name, username, email, principal identifier and status, and creates, edits, disables and enables, resets
@@ -3203,7 +3228,7 @@ Until the first stable release, the [Unreleased] section describes the product a
   chose a query splitting behavior. Split queries read one snapshot only inside a transaction, so a host chooses
   `UseQuerySplittingBehavior(QuerySplittingBehavior.SingleQuery)` or a query calls `AsSingleQuery()` where it needs one
   ([ADR-1052](docs/decisions/1052-entity-framework-persistence-is-a-reusable-framework-that-domain-slices-plug-into.md),
-  [ADR-1051](docs/decisions/1051-a-local-account-is-a-self-issued-connection-behind-one-pluggable-store-seam.md),
+  [ADR-1051](docs/decisions/1051-a-local-account-belongs-to-one-local-connection-behind-a-named-pluggable-store-seam.md),
   [ADR-1517](docs/decisions/1517-internal-surrogate-keys-are-uuidv7-minted-in-process-behind-one-seam-and-never-reach-a-caller.md),
   [#843](https://github.com/NCodeGroup/identity/issues/843)).
 
@@ -4655,8 +4680,8 @@ Until the first stable release, the [Unreleased] section describes the product a
   (`principalId`, `principalType`, `displayName`, `userName`) that the control plane resolves through
   `IControlPlanePrincipalDirectory` from every registered `IPrincipalDescriber` (local accounts and clients) and then as
   `federated_user` for a federated principal, which the other cells ask through `POST /control-plane/v1/principals`; a
-  grant names its principal by `principalId` or by a control-plane local account's `userName`, and refuses a principal
-  the control plane doesn't know with `400`
+  grant names its principal by `principalId` or by `userName`, the user name of a local account of the control-plane
+  tenant's default connection, and refuses a principal the control plane doesn't know with `400`
   ([ADR-1465](docs/decisions/1465-role-lists-share-one-audited-grant-and-revoke-flow-and-a-caller-discovers-its-own-assignments.md),
   [ADR-1466](docs/decisions/1466-a-client-is-its-own-principal-and-a-machine-client-acts-only-within-its-owning-node.md),
   [#623](https://github.com/NCodeGroup/identity/issues/623), [#627](https://github.com/NCodeGroup/identity/issues/627),
@@ -4845,6 +4870,20 @@ Until the first stable release, the [Unreleased] section describes the product a
   [ADR-1370](docs/decisions/1370-a-host-runs-the-deployment-posture-unless-configured-for-local-development-and-always-names-its-root-key-provider.md)).
 
 ### Security
+
+- **A user name and an email never shadow each other.** Within one connection a local account's user name never equals
+  another account's email, and its email never equals another account's user name, so a sign-in identifier that
+  matches by user name or by email resolves to one account
+  ([#931](https://github.com/NCodeGroup/identity/issues/931),
+  [ADR-1535](docs/decisions/1535-a-tenant-signs-users-in-through-named-connections-and-a-local-account-belongs-to-one.md)).
+
+- **An identity is keyed by the connection that authenticated it.** A federated identity is unique on
+  `(tenant, connection, subject)` and the connection comes from a server-owned claim, never from an upstream claim; a
+  disabled connection's subjects are refused with `access_denied`; failed-password limits count per connection account;
+  a disabled connection, and a connection whose strategy is not `local`, mails no password reset code and refuses a
+  reset, answering a reset request as a tenant with resets off does, so the answer tells nothing about an account
+  ([#931](https://github.com/NCodeGroup/identity/issues/931),
+  [ADR-1535](docs/decisions/1535-a-tenant-signs-users-in-through-named-connections-and-a-local-account-belongs-to-one.md)).
 
 - **A tenant's colors keep every text, key and focus ring readable.** `createAppTheme` passes
   `branding_primary_color` and `branding_secondary_color` through NCode Brand's `deriveBrand`, which holds each pairing
@@ -6278,9 +6317,11 @@ Until the first stable release, the [Unreleased] section describes the product a
   `password_failed_attempts_limit` failures (10 by default, at most 100) fall within `password_failed_attempts_window`
   of the first (15 minutes by default), every password for the account is refused with the answer a wrong password gets
   until the window ends. A verified password, and a password an administrator sets, clear the count.
-  `ILocalAccountStore.VerifyCredentialAsync` looks the account up once, asks its caller's `isRefusedAsync` about the
-  user name the account holds, and returns `LocalAccountVerificationResult` (`UserName`, `Account`, `IsRefused`,
-  `IsVerified`); the sign-in, the password grant and the self-service change ask
+  `ILocalAccountStore.VerifyCredentialAsync` runs the lookup of each value its `LocalAccountSignInIdentifier` carries
+  (the user name and the email address), every one whatever another finds, and the account the user name matches wins.
+  It asks its caller's `isRefusedAsync` about `account:` plus the found account's `LocalAccountId`, or `identifier:`
+  plus the submitted identifier when none matches, and returns `LocalAccountVerificationResult` (`AccountKey`,
+  `Account`, `IsRefused`, `IsVerified`); the sign-in, the password grant and the self-service change ask
   `IPasswordAttemptLimiter.IsLimitReachedAsync` through a gate that enforces its answer whatever the store returns, and
   a store that never calls `isRefusedAsync` fails every verification. A password refused at the limit is verified
   against the dummy hash and counted as a failed attempt, so neither the answer nor the work tells whether an account
@@ -6688,9 +6729,9 @@ Until the first stable release, the [Unreleased] section describes the product a
   and code lifetimes, `clock_skew` and `subject_max_age` are ceilings a child may only shorten; `require_pkce`, the
   `*_encryption_required` flags, `claims_supported_is_strict`, `refresh_token_rotation_enabled` and the
   `federated_identity_*` requirement flags are floors; `allow_*` and `request(_uri)_parameter_supported` are ceilings;
-  and `allowed_identity_providers` and `subject_types_supported` merge as intersect ceilings.
-  `allowed_identity_providers` is fail-closed: unset means unrestricted, but an explicit or narrowed-to-empty allowlist
-  denies every IdP ([ADR-1010](docs/decisions/1010-settings-merge-as-ceilings-and-floors-unset-lists-restrict-nothing-and-a-secure-baseline-supplies-defaults.md)).
+  and `allowed_connections` and `subject_types_supported` merge as intersect ceilings.
+  `allowed_connections` is fail-closed: unset means every enabled connection, but an explicit or narrowed-to-empty
+  allowlist denies every connection ([#931](https://github.com/NCodeGroup/identity/issues/931), [ADR-1010](docs/decisions/1010-settings-merge-as-ceilings-and-floors-unset-lists-restrict-nothing-and-a-secure-baseline-supplies-defaults.md)).
 
 - **Setting values are validated against their domain, not only their type.** A value of the right type that the server
   would not honor is rejected wherever a setting enters: configuration stops the host (and a reload is rejected), a

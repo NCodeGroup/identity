@@ -1,15 +1,13 @@
 #nullable enable
-const NCode.Identity.OpenId.Accounts.AccountConstants.SelfIssuer = "urn:ncode:identity:local-account" -> string!
 const NCode.Identity.OpenId.Accounts.AccountMaxLengths.ClaimType = 300 -> int
 const NCode.Identity.OpenId.Accounts.AccountMaxLengths.ClaimValue = 2000 -> int
 const NCode.Identity.OpenId.Accounts.AccountMaxLengths.DisplayName = 300 -> int
 const NCode.Identity.OpenId.Accounts.AccountMaxLengths.Email = 300 -> int
-const NCode.Identity.OpenId.Accounts.AccountMaxLengths.NormalizedEmail = 364 -> int
-const NCode.Identity.OpenId.Accounts.AccountMaxLengths.NormalizedUserName = 364 -> int
+const NCode.Identity.OpenId.Accounts.AccountMaxLengths.NormalizedEmail = 665 -> int
+const NCode.Identity.OpenId.Accounts.AccountMaxLengths.NormalizedUserName = 665 -> int
 const NCode.Identity.OpenId.Accounts.AccountMaxLengths.PasswordHash = 1000 -> int
 const NCode.Identity.OpenId.Accounts.AccountMaxLengths.SecurityStamp = 100 -> int
 const NCode.Identity.OpenId.Accounts.AccountMaxLengths.UserName = 300 -> int
-NCode.Identity.OpenId.Accounts.AccountConstants
 NCode.Identity.OpenId.Accounts.AccountMaxLengths
 NCode.Identity.OpenId.Accounts.Credentials.IPasswordHasher
 NCode.Identity.OpenId.Accounts.Credentials.IPasswordHasher.DummyPasswordHash.get -> string!
@@ -20,16 +18,20 @@ NCode.Identity.OpenId.Accounts.Credentials.PasswordVerificationResult.Failed = 0
 NCode.Identity.OpenId.Accounts.Credentials.PasswordVerificationResult.Success = 1 -> NCode.Identity.OpenId.Accounts.Credentials.PasswordVerificationResult
 NCode.Identity.OpenId.Accounts.Credentials.PasswordVerificationResult.SuccessRehashNeeded = 2 -> NCode.Identity.OpenId.Accounts.Credentials.PasswordVerificationResult
 NCode.Identity.OpenId.Accounts.DataContracts.LocalAccountNameProjection
+NCode.Identity.OpenId.Accounts.DataContracts.LocalAccountNameProjection.ConnectionId.get -> string!
+NCode.Identity.OpenId.Accounts.DataContracts.LocalAccountNameProjection.ConnectionId.init -> void
 NCode.Identity.OpenId.Accounts.DataContracts.LocalAccountNameProjection.DisplayName.get -> string!
 NCode.Identity.OpenId.Accounts.DataContracts.LocalAccountNameProjection.DisplayName.init -> void
 NCode.Identity.OpenId.Accounts.DataContracts.LocalAccountNameProjection.LocalAccountId.get -> string!
 NCode.Identity.OpenId.Accounts.DataContracts.LocalAccountNameProjection.LocalAccountId.init -> void
 NCode.Identity.OpenId.Accounts.DataContracts.LocalAccountNameProjection.LocalAccountNameProjection() -> void
-NCode.Identity.OpenId.Accounts.DataContracts.LocalAccountNameProjection.UserName.get -> string!
+NCode.Identity.OpenId.Accounts.DataContracts.LocalAccountNameProjection.UserName.get -> string?
 NCode.Identity.OpenId.Accounts.DataContracts.LocalAccountNameProjection.UserName.init -> void
 NCode.Identity.OpenId.Accounts.DataContracts.PersistedLocalAccount
 NCode.Identity.OpenId.Accounts.DataContracts.PersistedLocalAccount.Claims.get -> System.Collections.Generic.IReadOnlyList<NCode.Identity.OpenId.Accounts.DataContracts.PersistedLocalAccountClaim!>!
 NCode.Identity.OpenId.Accounts.DataContracts.PersistedLocalAccount.Claims.set -> void
+NCode.Identity.OpenId.Accounts.DataContracts.PersistedLocalAccount.ConnectionId.get -> string!
+NCode.Identity.OpenId.Accounts.DataContracts.PersistedLocalAccount.ConnectionId.init -> void
 NCode.Identity.OpenId.Accounts.DataContracts.PersistedLocalAccount.ConcurrencyToken.get -> string!
 NCode.Identity.OpenId.Accounts.DataContracts.PersistedLocalAccount.ConcurrencyToken.set -> void
 NCode.Identity.OpenId.Accounts.DataContracts.PersistedLocalAccount.DisplayName.get -> string!
@@ -47,7 +49,7 @@ NCode.Identity.OpenId.Accounts.DataContracts.PersistedLocalAccount.SecurityStamp
 NCode.Identity.OpenId.Accounts.DataContracts.PersistedLocalAccount.SecurityStamp.init -> void
 NCode.Identity.OpenId.Accounts.DataContracts.PersistedLocalAccount.TenantId.get -> string!
 NCode.Identity.OpenId.Accounts.DataContracts.PersistedLocalAccount.TenantId.init -> void
-NCode.Identity.OpenId.Accounts.DataContracts.PersistedLocalAccount.UserName.get -> string!
+NCode.Identity.OpenId.Accounts.DataContracts.PersistedLocalAccount.UserName.get -> string?
 NCode.Identity.OpenId.Accounts.DataContracts.PersistedLocalAccount.UserName.set -> void
 NCode.Identity.OpenId.Accounts.DataContracts.PersistedLocalAccountClaim
 NCode.Identity.OpenId.Accounts.DataContracts.PersistedLocalAccountClaim.PersistedLocalAccountClaim() -> void
@@ -57,27 +59,57 @@ NCode.Identity.OpenId.Accounts.DataContracts.PersistedLocalAccountClaim.Value.ge
 NCode.Identity.OpenId.Accounts.DataContracts.PersistedLocalAccountClaim.Value.init -> void
 NCode.Identity.OpenId.Accounts.LocalAccountLibrary
 NCode.Identity.OpenId.Accounts.LocalAccountLibrary.LocalAccountLibrary() -> void
+NCode.Identity.OpenId.Accounts.Stores.DefaultRegistration
+NCode.Identity.OpenId.Accounts.Stores.DefaultRegistration.extension(NCode.Identity.Registration.IServiceBuilder<NCode.Identity.Persistence.StoreManagerLibrary>!)
+NCode.Identity.OpenId.Accounts.Stores.DefaultRegistration.extension(NCode.Identity.Registration.IServiceBuilder<NCode.Identity.Persistence.StoreManagerLibrary>!).AddLocalAccountStore(System.Func<System.IServiceProvider!, NCode.Identity.OpenId.Accounts.Stores.LocalAccountStoreRegistration!>! factory) -> NCode.Identity.Registration.IServiceBuilder<NCode.Identity.OpenId.Accounts.LocalAccountLibrary>!
 NCode.Identity.OpenId.Accounts.Stores.ILocalAccountStore
 NCode.Identity.OpenId.Accounts.Stores.ILocalAccountStore.AddAsync(NCode.Identity.OpenId.Accounts.DataContracts.PersistedLocalAccount! account, System.ReadOnlyMemory<byte>? password, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+NCode.Identity.OpenId.Accounts.Stores.ILocalAccountStore.GetByEmailOrDefaultAsync(string! connectionId, string! email, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.Accounts.DataContracts.PersistedLocalAccount?>
 NCode.Identity.OpenId.Accounts.Stores.ILocalAccountStore.GetByIdOrDefaultAsync(string! localAccountId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.Accounts.DataContracts.PersistedLocalAccount?>
-NCode.Identity.OpenId.Accounts.Stores.ILocalAccountStore.GetByUserNameOrDefaultAsync(string! userName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.Accounts.DataContracts.PersistedLocalAccount?>
+NCode.Identity.OpenId.Accounts.Stores.ILocalAccountStore.GetByUserNameOrDefaultAsync(string! connectionId, string! userName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.Accounts.DataContracts.PersistedLocalAccount?>
 NCode.Identity.OpenId.Accounts.Stores.ILocalAccountStore.GetNamesByIdsAsync(System.Collections.Generic.IReadOnlyCollection<string!>! localAccountIds, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<NCode.Identity.OpenId.Accounts.DataContracts.LocalAccountNameProjection!>!>
-NCode.Identity.OpenId.Accounts.Stores.ILocalAccountStore.GetNamesByUserNamesAsync(System.Collections.Generic.IReadOnlyCollection<string!>! userNames, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<NCode.Identity.OpenId.Accounts.DataContracts.LocalAccountNameProjection!>!>
-NCode.Identity.OpenId.Accounts.Stores.ILocalAccountStore.GetPageAsync(NCode.Identity.Persistence.Stores.PageRequest page, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.Persistence.Stores.PagedResult<NCode.Identity.OpenId.Accounts.DataContracts.PersistedLocalAccount!>!>
+NCode.Identity.OpenId.Accounts.Stores.ILocalAccountStore.GetNamesByUserNamesAsync(string! connectionId, System.Collections.Generic.IReadOnlyCollection<string!>! userNames, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<NCode.Identity.OpenId.Accounts.DataContracts.LocalAccountNameProjection!>!>
+NCode.Identity.OpenId.Accounts.Stores.ILocalAccountStore.GetPageAsync(string! connectionId, NCode.Identity.Persistence.Stores.PageRequest page, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.Persistence.Stores.PagedResult<NCode.Identity.OpenId.Accounts.DataContracts.PersistedLocalAccount!>!>
 NCode.Identity.OpenId.Accounts.Stores.ILocalAccountStore.RemoveAsync(string! localAccountId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 NCode.Identity.OpenId.Accounts.Stores.ILocalAccountStore.ReplaceClaimsAsync(string! localAccountId, System.Collections.Generic.IReadOnlyList<NCode.Identity.OpenId.Accounts.DataContracts.PersistedLocalAccountClaim!>! claims, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 NCode.Identity.OpenId.Accounts.Stores.ILocalAccountStore.SetPasswordAsync(string! localAccountId, System.ReadOnlyMemory<byte> password, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 NCode.Identity.OpenId.Accounts.Stores.ILocalAccountStore.UpdateAsync(NCode.Identity.OpenId.Accounts.DataContracts.PersistedLocalAccount! account, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
-NCode.Identity.OpenId.Accounts.Stores.ILocalAccountStore.VerifyCredentialAsync(string! userName, System.ReadOnlyMemory<byte> password, System.Func<string!, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask<bool>>! isRefusedAsync, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.Accounts.Stores.LocalAccountVerificationResult!>
+NCode.Identity.OpenId.Accounts.Stores.ILocalAccountStore.VerifyCredentialAsync(NCode.Identity.OpenId.Accounts.Stores.LocalAccountSignInIdentifier! identifier, System.ReadOnlyMemory<byte> password, System.Func<string!, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask<bool>>! isRefusedAsync, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.Accounts.Stores.LocalAccountVerificationResult!>
 NCode.Identity.OpenId.Accounts.Stores.ILocalAccountTransferStore
-NCode.Identity.OpenId.Accounts.Stores.ILocalAccountTransferStore.ExportAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<NCode.Identity.OpenId.Accounts.Stores.LocalAccountTransferRecord!>!>
-NCode.Identity.OpenId.Accounts.Stores.ILocalAccountTransferStore.ImportAsync(System.Collections.Generic.IReadOnlyList<NCode.Identity.OpenId.Accounts.Stores.LocalAccountTransferRecord!>! records, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
-NCode.Identity.OpenId.Accounts.Stores.ILocalAccountTransferStore.RemoveAllAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+NCode.Identity.OpenId.Accounts.Stores.ILocalAccountTransferStore.ExportAsync(string! connectionId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<NCode.Identity.OpenId.Accounts.Stores.LocalAccountTransferRecord!>!>
+NCode.Identity.OpenId.Accounts.Stores.ILocalAccountTransferStore.ImportAsync(string! connectionId, System.Collections.Generic.IReadOnlyList<NCode.Identity.OpenId.Accounts.Stores.LocalAccountTransferRecord!>! records, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+NCode.Identity.OpenId.Accounts.Stores.ILocalAccountTransferStore.RemoveAllAsync(string! connectionId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 NCode.Identity.OpenId.Accounts.Stores.ITenantBoundUser
 NCode.Identity.OpenId.Accounts.Stores.ITenantBoundUser.DisplayName.get -> string!
 NCode.Identity.OpenId.Accounts.Stores.ITenantBoundUser.DisplayName.set -> void
+NCode.Identity.OpenId.Accounts.Stores.ITenantBoundUser.ConnectionId.get -> string!
+NCode.Identity.OpenId.Accounts.Stores.ITenantBoundUser.ConnectionId.set -> void
 NCode.Identity.OpenId.Accounts.Stores.ITenantBoundUser.TenantId.get -> string!
 NCode.Identity.OpenId.Accounts.Stores.ITenantBoundUser.TenantId.set -> void
+NCode.Identity.OpenId.Accounts.Stores.LocalAccountSignInIdentifier
+NCode.Identity.OpenId.Accounts.Stores.LocalAccountSignInIdentifier.ConnectionId.get -> string!
+NCode.Identity.OpenId.Accounts.Stores.LocalAccountSignInIdentifier.ConnectionId.init -> void
+NCode.Identity.OpenId.Accounts.Stores.LocalAccountSignInIdentifier.Email.get -> string?
+NCode.Identity.OpenId.Accounts.Stores.LocalAccountSignInIdentifier.Email.init -> void
+NCode.Identity.OpenId.Accounts.Stores.LocalAccountSignInIdentifier.LocalAccountSignInIdentifier() -> void
+static NCode.Identity.OpenId.Accounts.Stores.LocalAccountSignInIdentifier.ForSubmitted(string! connectionId, string! mode, string! submitted) -> NCode.Identity.OpenId.Accounts.Stores.LocalAccountSignInIdentifier!
+NCode.Identity.OpenId.Accounts.Stores.LocalAccountSignInIdentifier.UserName.get -> string?
+NCode.Identity.OpenId.Accounts.Stores.LocalAccountSignInIdentifier.UserName.init -> void
+NCode.Identity.OpenId.Accounts.Stores.LocalAccountIdentifierProposal
+NCode.Identity.OpenId.Accounts.Stores.LocalAccountIdentifierProposal.Email.get -> string?
+NCode.Identity.OpenId.Accounts.Stores.LocalAccountIdentifierProposal.Email.init -> void
+NCode.Identity.OpenId.Accounts.Stores.LocalAccountIdentifierProposal.LocalAccountId.get -> string?
+NCode.Identity.OpenId.Accounts.Stores.LocalAccountIdentifierProposal.LocalAccountId.init -> void
+NCode.Identity.OpenId.Accounts.Stores.LocalAccountIdentifierProposal.LocalAccountIdentifierProposal() -> void
+NCode.Identity.OpenId.Accounts.Stores.LocalAccountIdentifierProposal.UserName.get -> string?
+NCode.Identity.OpenId.Accounts.Stores.LocalAccountIdentifierProposal.UserName.init -> void
+NCode.Identity.OpenId.Accounts.Stores.LocalAccountIdentifierShadowing
+NCode.Identity.OpenId.Accounts.Stores.LocalAccountIdentifierShadowing.EmailIsAUserName.get -> bool
+NCode.Identity.OpenId.Accounts.Stores.LocalAccountIdentifierShadowing.EmailIsAUserName.init -> void
+NCode.Identity.OpenId.Accounts.Stores.LocalAccountIdentifierShadowing.LocalAccountIdentifierShadowing() -> void
+NCode.Identity.OpenId.Accounts.Stores.LocalAccountIdentifierShadowing.UserNameIsAnEmail.get -> bool
+NCode.Identity.OpenId.Accounts.Stores.LocalAccountIdentifierShadowing.UserNameIsAnEmail.init -> void
+static NCode.Identity.OpenId.Accounts.Stores.LocalAccountIdentifierShadowing.FindAsync(NCode.Identity.OpenId.Accounts.Stores.ILocalAccountStore! store, string! connectionId, NCode.Identity.OpenId.Accounts.Stores.LocalAccountIdentifierProposal! proposal, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.Accounts.Stores.LocalAccountIdentifierShadowing!>
 NCode.Identity.OpenId.Accounts.Stores.LocalAccountTransferRecord
 NCode.Identity.OpenId.Accounts.Stores.LocalAccountTransferRecord.AccessFailedCount.get -> int
 NCode.Identity.OpenId.Accounts.Stores.LocalAccountTransferRecord.AccessFailedCount.init -> void
@@ -100,13 +132,13 @@ NCode.Identity.OpenId.Accounts.Stores.LocalAccountTransferRecord.LockoutEnd.get 
 NCode.Identity.OpenId.Accounts.Stores.LocalAccountTransferRecord.LockoutEnd.init -> void
 NCode.Identity.OpenId.Accounts.Stores.LocalAccountTransferRecord.NormalizedEmail.get -> string?
 NCode.Identity.OpenId.Accounts.Stores.LocalAccountTransferRecord.NormalizedEmail.init -> void
-NCode.Identity.OpenId.Accounts.Stores.LocalAccountTransferRecord.NormalizedUserName.get -> string!
+NCode.Identity.OpenId.Accounts.Stores.LocalAccountTransferRecord.NormalizedUserName.get -> string?
 NCode.Identity.OpenId.Accounts.Stores.LocalAccountTransferRecord.NormalizedUserName.init -> void
 NCode.Identity.OpenId.Accounts.Stores.LocalAccountTransferRecord.PasswordHash.get -> string?
 NCode.Identity.OpenId.Accounts.Stores.LocalAccountTransferRecord.PasswordHash.init -> void
 NCode.Identity.OpenId.Accounts.Stores.LocalAccountTransferRecord.SecurityStamp.get -> string!
 NCode.Identity.OpenId.Accounts.Stores.LocalAccountTransferRecord.SecurityStamp.init -> void
-NCode.Identity.OpenId.Accounts.Stores.LocalAccountTransferRecord.UserName.get -> string!
+NCode.Identity.OpenId.Accounts.Stores.LocalAccountTransferRecord.UserName.get -> string?
 NCode.Identity.OpenId.Accounts.Stores.LocalAccountTransferRecord.UserName.init -> void
 NCode.Identity.OpenId.Accounts.Stores.LocalAccountVerificationResult
 NCode.Identity.OpenId.Accounts.Stores.LocalAccountVerificationResult.Account.get -> NCode.Identity.OpenId.Accounts.DataContracts.PersistedLocalAccount?
@@ -115,8 +147,24 @@ NCode.Identity.OpenId.Accounts.Stores.LocalAccountVerificationResult.IsRefused.g
 NCode.Identity.OpenId.Accounts.Stores.LocalAccountVerificationResult.IsRefused.init -> void
 NCode.Identity.OpenId.Accounts.Stores.LocalAccountVerificationResult.IsVerified.get -> bool
 NCode.Identity.OpenId.Accounts.Stores.LocalAccountVerificationResult.LocalAccountVerificationResult() -> void
-NCode.Identity.OpenId.Accounts.Stores.LocalAccountVerificationResult.UserName.get -> string!
-NCode.Identity.OpenId.Accounts.Stores.LocalAccountVerificationResult.UserName.init -> void
+NCode.Identity.OpenId.Accounts.Stores.LocalAccountVerificationResult.AccountKey.get -> string!
+NCode.Identity.OpenId.Accounts.Stores.LocalAccountVerificationResult.AccountKey.init -> void
 NCode.Identity.OpenId.Accounts.SubjectMetadataExtensions
 NCode.Identity.OpenId.Accounts.SubjectMetadataExtensions.extension(System.Security.Claims.ClaimsPrincipal!)
 NCode.Identity.OpenId.Accounts.SubjectMetadataExtensions.extension(System.Security.Claims.ClaimsPrincipal!).TryGetMetadata(string! claimType, out System.Text.Json.JsonElement metadata) -> bool
+NCode.Identity.OpenId.Accounts.Stores.LocalAccountStoreCatalog
+NCode.Identity.OpenId.Accounts.Stores.LocalAccountStoreCatalog.Contains(string! name) -> bool
+NCode.Identity.OpenId.Accounts.Stores.LocalAccountStoreCatalog.GetStore(NCode.Identity.Persistence.Stores.IStoreManager! storeManager, NCode.Identity.OpenId.Persistence.DataContracts.PersistedConnection! connection) -> NCode.Identity.OpenId.Accounts.Stores.ILocalAccountStore!
+NCode.Identity.OpenId.Accounts.Stores.LocalAccountStoreCatalog.GetTransferStore(NCode.Identity.Persistence.Stores.IStoreManager! storeManager, NCode.Identity.OpenId.Persistence.DataContracts.PersistedConnection! connection) -> NCode.Identity.OpenId.Accounts.Stores.ILocalAccountTransferStore!
+NCode.Identity.OpenId.Accounts.Stores.LocalAccountStoreCatalog.LocalAccountStoreCatalog(System.Collections.Generic.IEnumerable<NCode.Identity.OpenId.Accounts.Stores.LocalAccountStoreRegistration!>! registrations) -> void
+NCode.Identity.OpenId.Accounts.Stores.LocalAccountStoreRegistration
+NCode.Identity.OpenId.Accounts.Stores.LocalAccountStoreRegistration.CreateStore.get -> System.Func<NCode.Identity.Persistence.Stores.IStoreManager!, NCode.Identity.OpenId.Accounts.Stores.ILocalAccountStore!>!
+NCode.Identity.OpenId.Accounts.Stores.LocalAccountStoreRegistration.CreateStore.init -> void
+NCode.Identity.OpenId.Accounts.Stores.LocalAccountStoreRegistration.CreateTransferStore.get -> System.Func<NCode.Identity.Persistence.Stores.IStoreManager!, NCode.Identity.OpenId.Accounts.Stores.ILocalAccountTransferStore!>!
+NCode.Identity.OpenId.Accounts.Stores.LocalAccountStoreRegistration.CreateTransferStore.init -> void
+NCode.Identity.OpenId.Accounts.Stores.LocalAccountStoreRegistration.LocalAccountStoreRegistration() -> void
+NCode.Identity.OpenId.Accounts.Stores.LocalAccountStoreRegistration.Name.get -> string!
+NCode.Identity.OpenId.Accounts.Stores.LocalAccountStoreRegistration.Name.init -> void
+NCode.Identity.OpenId.Accounts.Stores.LocalAccountAttemptKeys
+static NCode.Identity.OpenId.Accounts.Stores.LocalAccountAttemptKeys.ForAccount(string! localAccountId) -> string!
+static NCode.Identity.OpenId.Accounts.Stores.LocalAccountAttemptKeys.ForIdentifier(string! submitted) -> string!

@@ -17,17 +17,19 @@ namespace NCode.Identity.OpenId.Accounts.Management;
 internal sealed class DefaultLocalAccountCreator(
     ILocalAccountValidator localAccountValidator,
     ICryptoService cryptoService,
-    LocalAccountPasswords localAccountPasswords
+    LocalAccountPasswords localAccountPasswords,
+    LocalAccountStoreCatalog localAccountStoreCatalog
 ) : ILocalAccountCreator
 {
     private ILocalAccountValidator LocalAccountValidator { get; } = localAccountValidator;
     private ICryptoService CryptoService { get; } = cryptoService;
     private LocalAccountPasswords LocalAccountPasswords { get; } = localAccountPasswords;
+    private LocalAccountStoreCatalog LocalAccountStoreCatalog { get; } = localAccountStoreCatalog;
 
     /// <inheritdoc />
     public async ValueTask<LocalAccountCreation> StageAsync(
         IStoreManager storeManager,
-        string tenantId,
+        PersistedConnection connection,
         CreateLocalAccountRequest request,
         CancellationToken cancellationToken
     )
@@ -39,8 +41,10 @@ internal sealed class DefaultLocalAccountCreator(
             return new LocalAccountCreation { Error = reservedClaimError };
         }
 
+        var userName = string.IsNullOrWhiteSpace(request.UserName) ? null : request.UserName;
+        var email = string.IsNullOrWhiteSpace(request.Email) ? null : request.Email;
         var displayName = string.IsNullOrWhiteSpace(request.DisplayName)
-            ? request.UserName
+            ? userName ?? email ?? string.Empty
             : request.DisplayName.Trim();
 
         var localAccountId = CryptoService.GenerateResourceId();
@@ -48,11 +52,12 @@ internal sealed class DefaultLocalAccountCreator(
 
         var account = new PersistedLocalAccount
         {
-            TenantId = tenantId,
+            TenantId = connection.TenantId,
             LocalAccountId = localAccountId,
+            ConnectionId = connection.ConnectionId,
             DisplayName = displayName,
-            UserName = request.UserName,
-            Email = request.Email,
+            UserName = userName,
+            Email = email,
             EmailVerified = request.EmailVerified,
             IsEnabled = request.IsEnabled,
             Claims =
@@ -68,6 +73,7 @@ internal sealed class DefaultLocalAccountCreator(
         };
 
         var error = await LocalAccountValidator.ValidateCreateAsync(
+            connection,
             account,
             storeManager,
             cancellationToken
@@ -79,7 +85,7 @@ internal sealed class DefaultLocalAccountCreator(
 
         var passwordError = await LocalAccountPasswords.ValidateAsync(
             storeManager,
-            tenantId,
+            connection,
             account,
             request.Password,
             cancellationToken
@@ -89,11 +95,11 @@ internal sealed class DefaultLocalAccountCreator(
             return new LocalAccountCreation { Error = passwordError };
         }
 
-        // Eagerly create the owning principal and the account's self-issued connection so the account resolves to a
+        // Eagerly create the owning principal and the account's identity in its connection so the account resolves to a
         // principal uniformly with any federated identity (ADR-1051/ADR-1057).
         var principal = new PersistedFederatedPrincipal
         {
-            TenantId = tenantId,
+            TenantId = connection.TenantId,
             PrincipalId = principalId,
             ConcurrencyToken = string.Empty,
         };
@@ -115,10 +121,11 @@ internal sealed class DefaultLocalAccountCreator(
 
         var identity = new PersistedFederatedIdentity
         {
-            TenantId = tenantId,
+            TenantId = connection.TenantId,
             FederatedIdentityId = CryptoService.GenerateResourceId(),
             PrincipalId = principalId,
-            Issuer = AccountConstants.SelfIssuer,
+            ConnectionId = connection.ConnectionId,
+            Issuer = null,
             Subject = localAccountId,
             JoinKey = null,
             ConcurrencyToken = string.Empty,
@@ -127,9 +134,10 @@ internal sealed class DefaultLocalAccountCreator(
             .GetStore<IFederatedIdentityStore>()
             .AddAsync(identity, cancellationToken);
 
+        var localAccountStore = LocalAccountStoreCatalog.GetStore(storeManager, connection);
         await LocalAccountPasswords.WithPasswordBytesAsync(
             request.Password,
-            (bytes, ct) => storeManager.GetStore<ILocalAccountStore>().AddAsync(account, bytes, ct),
+            (bytes, ct) => localAccountStore.AddAsync(account, bytes, ct),
             cancellationToken
         );
 

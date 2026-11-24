@@ -4,10 +4,10 @@
 using System.Security.Claims;
 using Moq;
 using NCode.Identity.Jose;
-using NCode.Identity.OpenId.Accounts;
 using NCode.Identity.OpenId.Accounts.Authentication;
 using NCode.Identity.OpenId.Accounts.DataContracts;
 using NCode.Identity.OpenId.Authentication.Subject;
+using NCode.Identity.OpenId.Connections;
 using NCode.Identity.OpenId.Contexts;
 using NCode.Identity.OpenId.Settings;
 using NCode.Identity.OpenId.Tenants;
@@ -44,22 +44,7 @@ public class LocalAccountSubjectFactoryTests : BaseTests
 
     private OpenIdContext CreateContext()
     {
-        var subjectClaimTypes = new[] { "sub" };
-        var mockSettings = CreateStrictMock<IReadOnlySettingCollection>();
-        mockSettings
-            .Setup(x => x.GetValue(OpenIdSettingKeys.SubjectClaimTypes))
-            .Returns(subjectClaimTypes)
-            .Verifiable();
-        mockSettings
-            .Setup(x => x.GetValue(OpenIdSettingKeys.PrincipalIssuerClaim))
-            .Returns("iss")
-            .Verifiable();
-
-        var mockProvider = CreateStrictMock<IReadOnlySettingCollectionProvider>();
-        mockProvider.Setup(x => x.Collection).Returns(mockSettings.Object).Verifiable();
-
         var mockTenant = CreateStrictMock<OpenIdTenant>();
-        mockTenant.Setup(x => x.SettingsProvider).Returns(mockProvider.Object).Verifiable();
         mockTenant.Setup(x => x.TenantId).Returns(TenantId).Verifiable();
 
         var mockContext = CreateStrictMock<OpenIdContext>();
@@ -68,11 +53,24 @@ public class LocalAccountSubjectFactoryTests : BaseTests
         return mockContext.Object;
     }
 
+    private ResolvedConnection CreateConnection()
+    {
+        var subjectClaimTypes = new[] { "sub" };
+        var mockSettings = CreateStrictMock<IReadOnlySettingCollection>();
+        mockSettings
+            .Setup(x => x.GetValue(OpenIdSettingKeys.SubjectClaimTypes))
+            .Returns(subjectClaimTypes)
+            .Verifiable();
+
+        return LocalAccountStoreSetup.CreateConnection(TenantId, mockSettings.Object);
+    }
+
     private static PersistedLocalAccount CreateAccount() =>
         new()
         {
             TenantId = string.Empty,
             LocalAccountId = "account-1",
+            ConnectionId = LocalAccountStoreSetup.ConnectionId,
             UserName = "user-1",
             DisplayName = "Display Name",
             Email = null,
@@ -87,36 +85,76 @@ public class LocalAccountSubjectFactoryTests : BaseTests
     #region CreateAsync Tests
 
     [Fact]
-    public async Task CreateAsync_StampsSubjectIssuerTenantAndAccountClaims()
+    public async Task CreateAsync_StampsSubjectConnectionTenantAndAccountClaims()
     {
         var context = CreateContext();
+        var connection = CreateConnection();
         var account = CreateAccount();
 
         var principal = await Factory.CreateAsync(
             context,
+            connection,
             account,
             AuthenticationType,
             CancellationToken.None
         );
 
         var subject = principal.FindFirstValue("sub");
-        var issuer = principal.FindFirstValue("iss");
+        var connectionId = principal.FindFirstValue(ConnectionClaimTypes.Connection);
+        var idp = principal.FindFirstValue(JoseClaimNames.Payload.Idp);
         var tenantId = principal.FindFirstValue(JoseClaimNames.Payload.Tid);
         var role = principal.FindFirstValue("role");
         Assert.Equal("account-1", subject);
-        Assert.Equal(AccountConstants.SelfIssuer, issuer);
+        Assert.Equal(LocalAccountStoreSetup.ConnectionId, connectionId);
+        Assert.Equal(LocalAccountStoreSetup.ConnectionName, idp);
         Assert.Equal(TenantId, tenantId);
         Assert.Equal("admin", role);
+    }
+
+    [Fact]
+    public async Task CreateAsync_WhenTheAccountCarriesConnectionOrIdpClaims_DropsThem()
+    {
+        var context = CreateContext();
+        var connection = CreateConnection();
+        var account = CreateAccount();
+        account.Claims =
+        [
+            new PersistedLocalAccountClaim
+            {
+                Type = ConnectionClaimTypes.Connection,
+                Value = "other-connection",
+            },
+            new PersistedLocalAccountClaim { Type = JoseClaimNames.Payload.Idp, Value = "other" },
+            new PersistedLocalAccountClaim { Type = "role", Value = "admin" },
+        ];
+
+        var principal = await Factory.CreateAsync(
+            context,
+            connection,
+            account,
+            AuthenticationType,
+            CancellationToken.None
+        );
+
+        var connectionClaims = principal.FindAll(ConnectionClaimTypes.Connection).ToList();
+        var idpClaims = principal.FindAll(JoseClaimNames.Payload.Idp).ToList();
+        var connectionClaim = Assert.Single(connectionClaims);
+        var idpClaim = Assert.Single(idpClaims);
+        Assert.Equal(LocalAccountStoreSetup.ConnectionId, connectionClaim.Value);
+        Assert.Equal(LocalAccountStoreSetup.ConnectionName, idpClaim.Value);
+        Assert.Equal("admin", principal.FindFirstValue("role"));
     }
 
     [Fact]
     public async Task CreateAsync_StampsTheDisplayNameAsName()
     {
         var context = CreateContext();
+        var connection = CreateConnection();
         var account = CreateAccount();
 
         var principal = await Factory.CreateAsync(
             context,
+            connection,
             account,
             AuthenticationType,
             CancellationToken.None
@@ -130,10 +168,12 @@ public class LocalAccountSubjectFactoryTests : BaseTests
     public async Task CreateAsync_RecordsPasswordAuthenticationMethod()
     {
         var context = CreateContext();
+        var connection = CreateConnection();
         var account = CreateAccount();
 
         var principal = await Factory.CreateAsync(
             context,
+            connection,
             account,
             AuthenticationType,
             CancellationToken.None
@@ -147,10 +187,12 @@ public class LocalAccountSubjectFactoryTests : BaseTests
     public async Task CreateAsync_UsesTheGivenAuthenticationType()
     {
         var context = CreateContext();
+        var connection = CreateConnection();
         var account = CreateAccount();
 
         var principal = await Factory.CreateAsync(
             context,
+            connection,
             account,
             AuthenticationType,
             CancellationToken.None

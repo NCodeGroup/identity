@@ -4,17 +4,18 @@
 using System.Security.Claims;
 using Moq;
 using NCode.Buffers;
-using NCode.Identity.OpenId.Accounts;
 using NCode.Identity.OpenId.Accounts.Authentication;
 using NCode.Identity.OpenId.Accounts.Authentication.EmailCodes;
 using NCode.Identity.OpenId.Accounts.DataContracts;
 using NCode.Identity.OpenId.Accounts.Stores;
 using NCode.Identity.OpenId.Authentication.Auditing;
 using NCode.Identity.OpenId.Authentication.Interactive;
+using NCode.Identity.OpenId.Connections;
 using NCode.Identity.OpenId.Contexts;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
 using NCode.Identity.Persistence.Stores;
+using NCode.Identity.Settings;
 using Xunit;
 
 namespace NCode.Identity.OpenId.Core.Tests.Accounts;
@@ -36,6 +37,7 @@ public class LocalAccountInteractiveSignInCodeChallengeTests : BaseTests
     private Mock<ILocalAccountEmailCodes> MockEmailCodes { get; }
     private Mock<OpenIdContext> MockContext { get; }
     private Mock<IAuditEventRecorder> MockAuditEventRecorder { get; }
+    private Mock<IConnectionResolver> MockConnectionResolver { get; }
     private LocalAccountInteractiveSignInCodeChallenge Challenge { get; }
 
     public LocalAccountInteractiveSignInCodeChallengeTests()
@@ -48,8 +50,16 @@ public class LocalAccountInteractiveSignInCodeChallengeTests : BaseTests
         MockContext = CreateStrictMock<OpenIdContext>();
         MockContext.Setup(x => x.GetSubjectId(Principal)).Returns(PrincipalId).Verifiable();
         MockAuditEventRecorder = CreateStrictMock<IAuditEventRecorder>();
+        MockConnectionResolver = CreateStrictMock<IConnectionResolver>();
+        var catalog = LocalAccountStoreSetup.CreateCatalog(MockLocalAccountStore);
         Challenge = new LocalAccountInteractiveSignInCodeChallenge(
             MockStoreManagerFactory.Object,
+            new LocalAccountSignedInAccountFinder(
+                MockStoreManagerFactory.Object,
+                MockConnectionResolver.Object,
+                catalog
+            ),
+            catalog,
             MockEmailCodes.Object,
             MockAuditEventRecorder.Object
         );
@@ -74,11 +84,22 @@ public class LocalAccountInteractiveSignInCodeChallengeTests : BaseTests
             .Verifiable();
         MockFederatedIdentityStore
             .Setup(x => x.GetByPrincipalAsync(PrincipalId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync([SelfIssuedIdentity()])
+            .ReturnsAsync([LocalIdentity()])
             .Verifiable();
-        MockStoreManager
-            .Setup(x => x.GetStore<ILocalAccountStore>())
-            .Returns(MockLocalAccountStore.Object)
+        MockConnectionResolver
+            .Setup(x =>
+                x.GetByIdOrDefaultAsync(
+                    MockContext.Object,
+                    LocalAccountStoreSetup.ConnectionId,
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync(
+                LocalAccountStoreSetup.CreateConnection(
+                    TenantId,
+                    CreateStrictMock<IReadOnlySettingCollection>().Object
+                )
+            )
             .Verifiable();
         MockLocalAccountStore
             .Setup(x => x.GetByIdOrDefaultAsync(LocalAccountId, It.IsAny<CancellationToken>()))
@@ -157,7 +178,11 @@ public class LocalAccountInteractiveSignInCodeChallengeTests : BaseTests
                     It.IsAny<CancellationToken>()
                 )
             )
-            .ReturnsAsync(localAccountId is null ? null : new EmailCodeMatch(localAccountId, email))
+            .ReturnsAsync(
+                localAccountId is null
+                    ? null
+                    : new EmailCodeMatch(LocalAccountStoreSetup.ConnectionId, localAccountId, email)
+            )
             .Verifiable();
 
     private static PersistedLocalAccount Account(
@@ -167,6 +192,7 @@ public class LocalAccountInteractiveSignInCodeChallengeTests : BaseTests
         new()
         {
             TenantId = TenantId,
+            ConnectionId = LocalAccountStoreSetup.ConnectionId,
             LocalAccountId = LocalAccountId,
             UserName = UserName,
             DisplayName = "Display Name",
@@ -177,13 +203,14 @@ public class LocalAccountInteractiveSignInCodeChallengeTests : BaseTests
             ConcurrencyToken = string.Empty,
         };
 
-    private static PersistedFederatedIdentity SelfIssuedIdentity() =>
+    private static PersistedFederatedIdentity LocalIdentity() =>
         new()
         {
             TenantId = TenantId,
             FederatedIdentityId = "fed-1",
             PrincipalId = PrincipalId,
-            Issuer = AccountConstants.SelfIssuer,
+            ConnectionId = LocalAccountStoreSetup.ConnectionId,
+            Issuer = null,
             Subject = LocalAccountId,
             JoinKey = null,
             ConcurrencyToken = string.Empty,

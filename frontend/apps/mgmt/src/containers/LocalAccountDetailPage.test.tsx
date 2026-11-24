@@ -15,6 +15,7 @@ const runtime: BffRuntimeConfig = {
 
 const account: LocalAccountResource = {
   tenantId: 'acme',
+  connectionId: 'conn-1',
   localAccountId: 'u1',
   principalId: 'principal-u1',
   userName: 'ada',
@@ -86,8 +87,8 @@ const metadataResource = {
   concurrencyToken: 'm1',
 };
 
-const claimsUrl = '/claims';
-const metadataUrl = '/metadata';
+const claimsUrl = '/api/tenants/acme/connections/conn-1/local-accounts/u1/claims';
+const metadataUrl = '/api/tenants/acme/connections/conn-1/local-accounts/u1/metadata';
 
 describe('LocalAccountDetailPage', () => {
   beforeEach(() => {
@@ -115,6 +116,20 @@ describe('LocalAccountDetailPage', () => {
     );
     expect(await screen.findByTestId('claim-type-0')).toHaveValue('given_name');
     expect(screen.getByTestId('claim-value-0')).toHaveValue('Ada');
+  });
+
+  it('shows the email alone for an account without a user name', async () => {
+    installFetch((url) => {
+      if (url.endsWith(claimsUrl)) {
+        return jsonResponse(claimsResource);
+      }
+      throw new Error(`Unexpected ${url}`);
+    });
+
+    renderPage({ userName: null });
+
+    expect(screen.getByText('ada@example.com')).toBeInTheDocument();
+    expect(await screen.findByTestId('claim-type-0')).toHaveValue('given_name');
   });
 
   it('saves the claims with If-Match', async () => {

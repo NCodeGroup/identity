@@ -198,6 +198,10 @@ export function describeLoginError(error: string | null, messages: Messages): st
       return messages.loginErrors.invalidCredentials;
     case 'invalid_request':
       return messages.loginErrors.invalidRequest;
+    case 'connection_required':
+      return messages.loginErrors.connectionRequired;
+    case 'connection_unavailable':
+      return messages.loginErrors.connectionUnavailable;
     case 'access_denied':
       return messages.loginErrors.accessDenied;
     case 'too_many_codes':
@@ -248,6 +252,10 @@ export function describeEmailCodeError(error: string | null, messages: Messages)
       return messages.emailCodeErrors.alreadyVerified;
     case 'invalid_request':
       return messages.emailCodeErrors.missingFields;
+    case 'connection_required':
+      return messages.loginErrors.connectionRequired;
+    case 'connection_unavailable':
+      return messages.loginErrors.connectionUnavailable;
     case 'password_too_short':
     case 'password_too_long':
     case 'password_blocklisted':

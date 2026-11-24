@@ -29,6 +29,7 @@ internal sealed class CoreModelContributor : IOpenIdModelContributor
         modelBuilder.Entity<ClientSecretEntity>().ToTable("ClientSecrets");
         modelBuilder.Entity<GrantEntity>().ToTable("Grants");
         modelBuilder.Entity<ConsentEntity>().ToTable("Consents");
+        modelBuilder.Entity<ConnectionEntity>().ToTable("Connections");
         modelBuilder.Entity<ResourceServerEntity>().ToTable("ResourceServers");
         modelBuilder.Entity<ResourceServerSecretEntity>().ToTable("ResourceServerSecrets");
         modelBuilder.Entity<ScopeEntity>().ToTable("Scopes");

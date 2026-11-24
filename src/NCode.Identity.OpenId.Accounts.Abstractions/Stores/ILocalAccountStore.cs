@@ -9,9 +9,9 @@ namespace NCode.Identity.OpenId.Accounts.Stores;
 
 /// <summary>
 /// Provides the single pluggable seam for a host's local accounts: the server-owned credential, profile, and status
-/// payloads behind self-issued connections. It is intentionally backing-store-agnostic — the generic Entity Framework
-/// reference implementation and the ASP.NET Core Identity adapter both implement it — so credential handling (which
-/// differs by backing store) is expressed as first-class operations (<see cref="AddAsync"/>,
+/// payloads behind connections of the local strategy. It is intentionally backing-store-agnostic — the generic Entity
+/// Framework reference implementation and the ASP.NET Core Identity adapter both implement it — so credential handling
+/// (which differs by backing store) is expressed as first-class operations (<see cref="AddAsync"/>,
 /// <see cref="SetPasswordAsync"/>, <see cref="VerifyCredentialAsync"/>) rather than by exposing a raw password hash on
 /// the <see cref="PersistedLocalAccount"/> data contract. A host registers an implementation (or an opt-in reference
 /// package supplies one) to enable the resource-owner password grant and the local-account management endpoints; when
@@ -63,36 +63,42 @@ public interface ILocalAccountStore : IStore
     );
 
     /// <summary>
-    /// Verifies a username and password credential in one store call. The store finds the account that has the
-    /// username, calls <paramref name="isRefusedAsync"/> once with the username that account holds (or the submitted
-    /// username when none has it), then verifies once: against the stored hash, or against a dummy hash of the same
-    /// cost when <paramref name="isRefusedAsync"/> refuses the password or the store holds no hash it may verify (no
-    /// account, no password, a lockout against guessing). A refused or failed verification therefore costs the same
-    /// work whether or not an account has the username. The store verifies the NFC form of the password first, and
-    /// the password as submitted as a fallback, and may upgrade a stored hash to the current parameters on success. A
-    /// valid credential's account is returned whether or not it is enabled, so its caller can tell the end user why
-    /// it cannot sign in.
+    /// Verifies a sign-in identifier and password credential in one store call. The store runs the lookup of each value
+    /// the identifier carries (its user name and its email address) in the identifier's connection, whatever the other
+    /// finds, so the work does not tell which one matched, and the account that the user name matches wins. It calls
+    /// <paramref name="isRefusedAsync"/> once with the key of the account it found or of the submitted identifier when
+    /// none matches (<see cref="LocalAccountAttemptKeys.ForAccount"/> and <see
+    /// cref="LocalAccountAttemptKeys.ForIdentifier"/>, which also build <see
+    /// cref="LocalAccountVerificationResult.AccountKey"/>), then verifies once: against the stored hash, or against a
+    /// dummy hash of the same cost when <paramref name="isRefusedAsync"/> refuses the password or the store holds no
+    /// hash it may verify (no account, no password, a lockout against guessing). A refused or failed verification
+    /// therefore costs the same work whether or not an account matches. The store verifies the NFC form of the password
+    /// first, and the password as submitted as a fallback, and may upgrade a stored hash to the current parameters on
+    /// success. A valid credential's account is returned whether or not it is enabled, so its caller can tell the end
+    /// user why it cannot sign in.
     /// </summary>
-    /// <param name="userName">The username (login handle) presented by the end-user.</param>
+    /// <param name="identifier">The <see cref="LocalAccountSignInIdentifier"/> presented by the end-user, with the
+    /// connection that holds the account.</param>
     /// <param name="password">The UTF-8 bytes of the password as submitted by the end-user, carried in a caller-owned
     /// buffer so the sensitive material can be zeroed after use.</param>
     /// <param name="isRefusedAsync">The function that the store calls once, after it looks up the account and before it
-    /// verifies the password, with the username that the account holds (or the submitted username when no account has
-    /// it); it returns <c>true</c> to refuse the password, such as when the account reached its limit of failed
+    /// verifies the password, with the key of the account it found or of the submitted identifier when none matches; it
+    /// returns <c>true</c> to refuse the password, such as when the account reached its limit of failed
     /// attempts.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
     /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation, containing the
     /// <see cref="LocalAccountVerificationResult"/>: the authenticated account when the credential is valid, whether or
-    /// not it is enabled, and the username to count a failed attempt under otherwise.</returns>
+    /// not it is enabled, and the account key to count a failed attempt under otherwise.</returns>
     ValueTask<LocalAccountVerificationResult> VerifyCredentialAsync(
-        string userName,
+        LocalAccountSignInIdentifier identifier,
         ReadOnlyMemory<byte> password,
         Func<string, CancellationToken, ValueTask<bool>> isRefusedAsync,
         CancellationToken cancellationToken
     );
 
     /// <summary>
-    /// Attempts to get a local account from the store by its opaque identifier (its self-issued subject).
+    /// Attempts to get a local account from the store by its opaque identifier (the subject of its identity in the
+    /// connection).
     /// </summary>
     /// <param name="localAccountId">The opaque identifier of the local account.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
@@ -104,10 +110,13 @@ public interface ILocalAccountStore : IStore
     );
 
     /// <summary>
-    /// Gets the names of the local accounts from the store that have any of the specified opaque identifiers (their
-    /// self-issued subjects); an identifier no account has contributes none. It reads none of the accounts' claims.
+    /// Gets the names of the local accounts from the store that have any of the specified opaque identifiers (the
+    /// subjects of their identities in their connections); an identifier no account has contributes none. It reads none
+    /// of the accounts' claims. Identifiers are unique in a tenant, so no connection is named, and each projection
+    /// names its connection.
     /// </summary>
-    /// <param name="localAccountIds">The opaque identifiers of the local accounts (their self-issued subjects).</param>
+    /// <param name="localAccountIds">The opaque identifiers of the local accounts (the subjects of their identities in
+    /// their connections).</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
     /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation, containing the matching
     /// <see cref="LocalAccountNameProjection"/> records in no particular order.</returns>
@@ -117,38 +126,60 @@ public interface ILocalAccountStore : IStore
     );
 
     /// <summary>
-    /// Attempts to get a local account from the store by its username (login handle).
+    /// Attempts to get a local account from a connection by its username (login handle).
     /// </summary>
+    /// <param name="connectionId">The identifier of the local connection that holds the account.</param>
     /// <param name="userName">The username of the local account.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
     /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation, containing the
     /// <see cref="PersistedLocalAccount"/> if found; otherwise <c>null</c>.</returns>
     ValueTask<PersistedLocalAccount?> GetByUserNameOrDefaultAsync(
+        string connectionId,
         string userName,
         CancellationToken cancellationToken
     );
 
     /// <summary>
-    /// Gets the names of the local accounts from the store that have any of the specified usernames (login handles); a
-    /// name no account has contributes none. It reads none of the accounts' claims.
+    /// Attempts to get a local account from a connection by its email address.
     /// </summary>
+    /// <param name="connectionId">The identifier of the local connection that holds the account.</param>
+    /// <param name="email">The email address of the local account.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation, containing the
+    /// <see cref="PersistedLocalAccount"/> if found; otherwise <c>null</c>.</returns>
+    ValueTask<PersistedLocalAccount?> GetByEmailOrDefaultAsync(
+        string connectionId,
+        string email,
+        CancellationToken cancellationToken
+    );
+
+    /// <summary>
+    /// Gets the names of a connection's local accounts that have any of the specified usernames (login handles); a name
+    /// no account has contributes none, and an account without a username is never found by one. It reads none of the
+    /// accounts' claims.
+    /// </summary>
+    /// <param name="connectionId">The identifier of the local connection that holds the accounts.</param>
     /// <param name="userNames">The usernames (login handles) of the local accounts.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
     /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation, containing the matching
     /// <see cref="LocalAccountNameProjection"/> records in no particular order.</returns>
     ValueTask<IReadOnlyList<LocalAccountNameProjection>> GetNamesByUserNamesAsync(
+        string connectionId,
         IReadOnlyCollection<string> userNames,
         CancellationToken cancellationToken
     );
 
     /// <summary>
-    /// Gets a single page of local accounts ordered by their identifier, using keyset (cursor) pagination.
+    /// Gets a single page of a connection's local accounts ordered by their identifier, using keyset (cursor)
+    /// pagination.
     /// </summary>
+    /// <param name="connectionId">The identifier of the local connection that holds the accounts.</param>
     /// <param name="page">The <see cref="PageRequest"/> describing the pagination window (cursor and limit).</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
     /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation, containing the page and the
     /// cursor for the next page.</returns>
     ValueTask<PagedResult<PersistedLocalAccount>> GetPageAsync(
+        string connectionId,
         PageRequest page,
         CancellationToken cancellationToken
     );

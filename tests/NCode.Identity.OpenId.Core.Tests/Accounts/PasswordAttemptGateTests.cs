@@ -6,7 +6,9 @@ using NCode.Identity.OpenId.Accounts.Authentication;
 using NCode.Identity.OpenId.Accounts.DataContracts;
 using NCode.Identity.OpenId.Accounts.Stores;
 using NCode.Identity.OpenId.Authentication.Passwords;
+using NCode.Identity.OpenId.Connections;
 using NCode.Identity.OpenId.Contexts;
+using NCode.Identity.Settings;
 using Xunit;
 
 namespace NCode.Identity.OpenId.Core.Tests.Accounts;
@@ -15,17 +17,25 @@ public class PasswordAttemptGateTests : BaseTests
 {
     private const string TenantId = "tenant-1";
     private const string LocalAccountId = "account-1";
+    private const string AccountKey = "alice";
     private const string UserName = "alice";
 
     private Mock<IPasswordAttemptLimiter> MockPasswordAttemptLimiter { get; }
     private Mock<OpenIdContext> MockContext { get; }
+    private ResolvedConnection Connection { get; }
     private PasswordAttemptGate Gate { get; }
 
     public PasswordAttemptGateTests()
     {
         MockPasswordAttemptLimiter = CreateStrictMock<IPasswordAttemptLimiter>();
         MockContext = CreateStrictMock<OpenIdContext>();
-        Gate = new PasswordAttemptGate(MockPasswordAttemptLimiter.Object, MockContext.Object);
+        var mockSettings = CreateStrictMock<IReadOnlySettingCollection>();
+        Connection = LocalAccountStoreSetup.CreateConnection(TenantId, mockSettings.Object);
+        Gate = new PasswordAttemptGate(
+            MockPasswordAttemptLimiter.Object,
+            MockContext.Object,
+            Connection
+        );
     }
 
     #region Scaffolding
@@ -33,7 +43,12 @@ public class PasswordAttemptGateTests : BaseTests
     private void SetupLimit(bool isReached) =>
         MockPasswordAttemptLimiter
             .Setup(x =>
-                x.IsLimitReachedAsync(MockContext.Object, UserName, It.IsAny<CancellationToken>())
+                x.IsLimitReachedAsync(
+                    MockContext.Object,
+                    Connection,
+                    AccountKey,
+                    It.IsAny<CancellationToken>()
+                )
             )
             .ReturnsAsync(isReached)
             .Verifiable();
@@ -43,6 +58,7 @@ public class PasswordAttemptGateTests : BaseTests
         {
             TenantId = TenantId,
             LocalAccountId = LocalAccountId,
+            ConnectionId = LocalAccountStoreSetup.ConnectionId,
             UserName = UserName,
             DisplayName = "Display Name",
             Email = null,
@@ -61,7 +77,7 @@ public class PasswordAttemptGateTests : BaseTests
     {
         SetupLimit(isReached: true);
 
-        var isRefused = await Gate.IsRefusedAsync(UserName, CancellationToken.None);
+        var isRefused = await Gate.IsRefusedAsync(AccountKey, CancellationToken.None);
 
         Assert.True(isRefused);
     }
@@ -75,7 +91,7 @@ public class PasswordAttemptGateTests : BaseTests
     {
         var stored = new LocalAccountVerificationResult
         {
-            UserName = UserName,
+            AccountKey = AccountKey,
             Account = Account(),
         };
 
@@ -86,10 +102,10 @@ public class PasswordAttemptGateTests : BaseTests
     public async Task Enforce_WhenTheGateRefusedAndTheStoreVerified_ReturnsARefusal()
     {
         SetupLimit(isReached: true);
-        await Gate.IsRefusedAsync(UserName, CancellationToken.None);
+        await Gate.IsRefusedAsync(AccountKey, CancellationToken.None);
         var stored = new LocalAccountVerificationResult
         {
-            UserName = UserName,
+            AccountKey = AccountKey,
             Account = Account(),
         };
 
@@ -97,17 +113,17 @@ public class PasswordAttemptGateTests : BaseTests
 
         Assert.True(result.IsRefused);
         Assert.Null(result.Account);
-        Assert.Equal(UserName, result.UserName);
+        Assert.Equal(AccountKey, result.AccountKey);
     }
 
     [Fact]
     public async Task Enforce_WhenTheGateAllowed_ReturnsTheStoresResult()
     {
         SetupLimit(isReached: false);
-        await Gate.IsRefusedAsync(UserName, CancellationToken.None);
+        await Gate.IsRefusedAsync(AccountKey, CancellationToken.None);
         var stored = new LocalAccountVerificationResult
         {
-            UserName = UserName,
+            AccountKey = AccountKey,
             Account = Account(),
         };
 

@@ -10,7 +10,7 @@ namespace NCode.Identity.OpenId.Persistence.DataContracts;
 
 /// <summary>
 /// Contains the data for a persisted federated identity: one external connection identity owned by a federated
-/// principal. The upstream <see cref="Issuer"/> + <see cref="Subject"/> pair is the lookup-only natural key; the owning
+/// principal. The <see cref="ConnectionId"/> + <see cref="Subject"/> pair is the lookup-only natural key; the owning
 /// principal is referenced by <see cref="PrincipalId"/>.
 /// </summary>
 [PublicAPI]
@@ -36,13 +36,20 @@ public sealed class PersistedFederatedIdentity : ISupportTenantId, ISupportConcu
     public required string PrincipalId { get; init; }
 
     /// <summary>
-    /// Gets the upstream issuer that authenticated this connection identity.
+    /// Gets the identifier of the connection that authenticated this identity.
     /// </summary>
-    [MaxLength(OpenIdMaxLengths.Issuer)]
-    public required string Issuer { get; init; }
+    [MaxLength(MaxLengths.ResourceId)]
+    public required string ConnectionId { get; init; }
 
     /// <summary>
-    /// Gets the upstream subject value (the OpenID <c>sub</c>) as issued by the <see cref="Issuer"/>.
+    /// Gets the upstream issuer, when the connection is external, recorded for audit and display. It is not part of any
+    /// key. This value is <c>null</c> when the connection has no upstream issuer.
+    /// </summary>
+    [MaxLength(OpenIdMaxLengths.Issuer)]
+    public required string? Issuer { get; init; }
+
+    /// <summary>
+    /// Gets the subject value (the OpenID <c>sub</c>) as issued by the connection.
     /// </summary>
     [MaxLength(OpenIdMaxLengths.SubjectId)]
     public required string Subject { get; init; }

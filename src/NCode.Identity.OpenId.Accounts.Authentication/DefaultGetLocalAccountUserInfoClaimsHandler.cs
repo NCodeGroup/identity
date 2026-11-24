@@ -13,7 +13,6 @@ using NCode.Identity.OpenId.Authentication.Endpoints.Authorization.Messages;
 using NCode.Identity.OpenId.Authentication.Endpoints.UserInfo.Commands;
 using NCode.Identity.OpenId.Authentication.Persistence;
 using NCode.Identity.OpenId.Contexts;
-using NCode.Identity.OpenId.Persistence.Stores;
 using NCode.Identity.Persistence.Stores;
 using NCode.Mediator;
 
@@ -27,18 +26,21 @@ namespace NCode.Identity.OpenId.Accounts.Authentication;
 /// subject-claims handler keeps them out of the ID token and this handler supplies them here. In addition, individual
 /// claims requested via the OIDC <c>claims</c> request parameter's <c>userinfo</c> member (OIDC Core §5.5) are served
 /// from the account store even when the owning scope was not granted. The local account is resolved from the caller's
-/// principal via its one-to-one self-issued connection (<see cref="AccountConstants.SelfIssuer"/>), and only the claims
-/// permitted by the token's granted scopes or explicitly requested are emitted. A host fronting a different user store
-/// registers its own enricher instead. The <c>name</c> claim comes from the account's display name.
+/// principal via its identity in a <c>local</c> connection, and only the claims permitted by the token's granted scopes
+/// or explicitly requested are emitted. A host fronting a different user store registers its own enricher instead. The
+/// <c>name</c> claim comes from the account's display name.
 /// </summary>
 // See ADR-1401, ADR-1051.
 internal sealed class DefaultGetLocalAccountUserInfoClaimsHandler(
     IStoreManagerFactory storeManagerFactory,
-    IPersistedGrantService persistedGrantService
+    IPersistedGrantService persistedGrantService,
+    LocalAccountSignedInAccountFinder signedInAccountFinder
 ) : ICommandHandler<GetUserInfoClaimsCommand>, ISupportMediatorPriority
 {
     private IStoreManagerFactory StoreManagerFactory { get; } = storeManagerFactory;
     private IPersistedGrantService PersistedGrantService { get; } = persistedGrantService;
+    private LocalAccountSignedInAccountFinder SignedInAccountFinder { get; } =
+        signedInAccountFinder;
 
     /// <inheritdoc />
     public int MediatorPriority => DefaultMediatorPriorities.Low;
@@ -71,7 +73,8 @@ internal sealed class DefaultGetLocalAccountUserInfoClaimsHandler(
         }
 
         var account = await ResolveLocalAccountAsync(
-            subjectAuthentication.PrincipalId,
+            openIdContext,
+            subjectAuthentication.Subject,
             cancellationToken
         );
         if (account is null)
@@ -182,33 +185,22 @@ internal sealed class DefaultGetLocalAccountUserInfoClaimsHandler(
     }
 
     private async ValueTask<PersistedLocalAccount?> ResolveLocalAccountAsync(
-        string principalId,
+        OpenIdContext openIdContext,
+        ClaimsPrincipal subject,
         CancellationToken cancellationToken
     )
     {
         await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
 
-        // The principal owns a one-to-one self-issued connection whose subject is the local account id (ADR-1051); the
+        // The principal owns an identity in a local connection whose subject is the local account id (ADR-1051); the
         // caller presenting a non-local (external-IdP) principal simply resolves no local account and is skipped.
-        var identityStore = storeManager.GetStore<IFederatedIdentityStore>();
-        var identities = await identityStore.GetByPrincipalAsync(principalId, cancellationToken);
-
-        var localAccountId = identities
-            .FirstOrDefault(identity =>
-                string.Equals(
-                    identity.Issuer,
-                    AccountConstants.SelfIssuer,
-                    StringComparison.Ordinal
-                )
-            )
-            ?.Subject;
-        if (string.IsNullOrEmpty(localAccountId))
-        {
-            return null;
-        }
-
-        var accountStore = storeManager.GetStore<ILocalAccountStore>();
-        return await accountStore.GetByIdOrDefaultAsync(localAccountId, cancellationToken);
+        var found = await SignedInAccountFinder.FindAsync(
+            storeManager,
+            openIdContext,
+            subject,
+            cancellationToken
+        );
+        return found?.Account;
     }
 
     private static void TryAdd(IDictionary<string, object> claims, string claimType, object value)

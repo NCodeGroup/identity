@@ -171,6 +171,8 @@ public static class DefaultRegistration
             >();
             serviceCollection.Replace(signInCodeChallengeDescriptor);
 
+            serviceCollection.TryAddSingleton<LocalAccountSignedInAccountFinder>();
+
             AddLocalAccountSubjectFactory(serviceCollection);
             AddLocalAccountUserInfoClaims(serviceCollection);
             AddLocalAccountSubjectValidation(serviceCollection);

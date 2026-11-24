@@ -473,6 +473,7 @@ NCode.Identity.OpenId.Authentication.Endpoints.Authorization.Commands.ValidateAu
 NCode.Identity.OpenId.Authentication.Endpoints.Authorization.Messages.AuthorizationSourceTypes
 NCode.Identity.OpenId.Authentication.Endpoints.Authorization.Messages.IAuthorizationRequest
 NCode.Identity.OpenId.Authentication.Endpoints.Authorization.Messages.IAuthorizationRequest.AcrValues.get -> System.Collections.Generic.IReadOnlyList<string!>!
+NCode.Identity.OpenId.Authentication.Endpoints.Authorization.Messages.IAuthorizationRequest.Connection.get -> string?
 NCode.Identity.OpenId.Authentication.Endpoints.Authorization.Messages.IAuthorizationRequest.Claims.get -> NCode.Identity.OpenId.Authentication.Endpoints.Authorization.Messages.IRequestClaims?
 NCode.Identity.OpenId.Authentication.Endpoints.Authorization.Messages.IAuthorizationRequest.ClaimsLocales.get -> System.Collections.Generic.IReadOnlyList<string!>!
 NCode.Identity.OpenId.Authentication.Endpoints.Authorization.Messages.IAuthorizationRequest.ClientId.get -> string!
@@ -512,6 +513,8 @@ NCode.Identity.OpenId.Authentication.Endpoints.Authorization.Messages.IBaseAutho
 NCode.Identity.OpenId.Authentication.Endpoints.Authorization.Messages.IBaseAuthorizationRequestValues
 NCode.Identity.OpenId.Authentication.Endpoints.Authorization.Messages.IBaseAuthorizationRequestValues.AcrValues.get -> System.Collections.Generic.List<string!>?
 NCode.Identity.OpenId.Authentication.Endpoints.Authorization.Messages.IBaseAuthorizationRequestValues.AcrValues.set -> void
+NCode.Identity.OpenId.Authentication.Endpoints.Authorization.Messages.IBaseAuthorizationRequestValues.Connection.get -> string?
+NCode.Identity.OpenId.Authentication.Endpoints.Authorization.Messages.IBaseAuthorizationRequestValues.Connection.set -> void
 NCode.Identity.OpenId.Authentication.Endpoints.Authorization.Messages.IBaseAuthorizationRequestValues.Claims.get -> NCode.Identity.OpenId.Authentication.Endpoints.Authorization.Messages.IRequestClaims?
 NCode.Identity.OpenId.Authentication.Endpoints.Authorization.Messages.IBaseAuthorizationRequestValues.Claims.set -> void
 NCode.Identity.OpenId.Authentication.Endpoints.Authorization.Messages.IBaseAuthorizationRequestValues.ClaimsLocales.get -> System.Collections.Generic.List<string!>?
@@ -1109,6 +1112,8 @@ NCode.Identity.OpenId.Authentication.Endpoints.Token.Messages.ITokenRequest.Requ
 NCode.Identity.OpenId.Authentication.Endpoints.Token.Messages.ITokenRequest.RequestedTokenType.set -> void
 NCode.Identity.OpenId.Authentication.Endpoints.Token.Messages.ITokenRequest.Username.get -> string?
 NCode.Identity.OpenId.Authentication.Endpoints.Token.Messages.ITokenRequest.Username.set -> void
+NCode.Identity.OpenId.Authentication.Endpoints.Token.Messages.ITokenRequest.Connection.get -> string?
+NCode.Identity.OpenId.Authentication.Endpoints.Token.Messages.ITokenRequest.Connection.set -> void
 NCode.Identity.OpenId.Authentication.Endpoints.Token.Messages.ITokenResponse
 NCode.Identity.OpenId.Authentication.Endpoints.Token.Messages.ITokenResponse.AccessToken.get -> string?
 NCode.Identity.OpenId.Authentication.Endpoints.Token.Messages.ITokenResponse.AccessToken.set -> void
@@ -1157,9 +1162,9 @@ NCode.Identity.OpenId.Authentication.OutboundHttp.OutboundHttpReadResult
 NCode.Identity.OpenId.Authentication.OutboundHttp.OutboundHttpReadResult.Completed = 0 -> NCode.Identity.OpenId.Authentication.OutboundHttp.OutboundHttpReadResult
 NCode.Identity.OpenId.Authentication.OutboundHttp.OutboundHttpReadResult.Exceeded = 1 -> NCode.Identity.OpenId.Authentication.OutboundHttp.OutboundHttpReadResult
 NCode.Identity.OpenId.Authentication.Passwords.IPasswordAttemptLimiter
-NCode.Identity.OpenId.Authentication.Passwords.IPasswordAttemptLimiter.IsLimitReachedAsync(NCode.Identity.OpenId.Contexts.OpenIdContext! openIdContext, string! userName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<bool>
-NCode.Identity.OpenId.Authentication.Passwords.IPasswordAttemptLimiter.RecordFailureAsync(NCode.Identity.OpenId.Contexts.OpenIdContext! openIdContext, string! userName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
-NCode.Identity.OpenId.Authentication.Passwords.IPasswordAttemptLimiter.ResetAsync(string! tenantId, string! userName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+NCode.Identity.OpenId.Authentication.Passwords.IPasswordAttemptLimiter.IsLimitReachedAsync(NCode.Identity.OpenId.Contexts.OpenIdContext! openIdContext, NCode.Identity.OpenId.Connections.ResolvedConnection! connection, string! accountKey, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<bool>
+NCode.Identity.OpenId.Authentication.Passwords.IPasswordAttemptLimiter.RecordFailureAsync(NCode.Identity.OpenId.Contexts.OpenIdContext! openIdContext, NCode.Identity.OpenId.Connections.ResolvedConnection! connection, string! accountKey, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+NCode.Identity.OpenId.Authentication.Passwords.IPasswordAttemptLimiter.ResetAsync(string! tenantId, string! connectionId, string! accountKey, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 NCode.Identity.OpenId.Authentication.Passwords.IPasswordBlocklist
 NCode.Identity.OpenId.Authentication.Passwords.IPasswordBlocklist.ContainsAsync(NCode.Identity.OpenId.Authentication.Passwords.PasswordPolicyContext! context, System.ReadOnlyMemory<char> password, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<bool>
 NCode.Identity.OpenId.Authentication.Passwords.IPasswordPolicy
@@ -1468,7 +1473,7 @@ NCode.Identity.OpenId.Authentication.Subject.AuthenticationContextReferenceReque
 NCode.Identity.OpenId.Authentication.Subject.IAuthenticationContextReferenceResolver
 NCode.Identity.OpenId.Authentication.Subject.IAuthenticationContextReferenceResolver.ResolveAsync(NCode.Identity.OpenId.Authentication.Subject.AuthenticationContextReferenceRequest request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<string?>
 NCode.Identity.OpenId.Authentication.Subject.IPostCommitSecurityEffects
-NCode.Identity.OpenId.Authentication.Subject.IPostCommitSecurityEffects.ResetPasswordAttemptsAsync(string! tenantId, string! userName) -> System.Threading.Tasks.ValueTask
+NCode.Identity.OpenId.Authentication.Subject.IPostCommitSecurityEffects.ResetPasswordAttemptsAsync(string! tenantId, string! connectionId, string! accountKey) -> System.Threading.Tasks.ValueTask
 NCode.Identity.OpenId.Authentication.Subject.IPostCommitSecurityEffects.TerminateOtherSessionsAsync(NCode.Identity.OpenId.Contexts.OpenIdContext! openIdContext, string! subjectId, string! currentSessionId, string! reason) -> System.Threading.Tasks.ValueTask
 NCode.Identity.OpenId.Authentication.Subject.IPostCommitSecurityEffects.TerminateSessionsAsync(NCode.Identity.OpenId.Contexts.OpenIdContext! openIdContext, string! subjectId, string! reason) -> System.Threading.Tasks.ValueTask
 NCode.Identity.OpenId.Authentication.Subject.ISubjectIdentifierService
@@ -1925,3 +1930,12 @@ override NCode.Identity.OpenId.Authentication.Auditing.PasswordResetRequestAudit
 override NCode.Identity.OpenId.Authentication.Auditing.SecondFactorAuditEvent.EventCategory.get -> string!
 override NCode.Identity.OpenId.Authentication.Auditing.SecondFactorAuditEvent.EventName.get -> string!
 override NCode.Identity.OpenId.Authentication.Auditing.SecondFactorAuditEvent.Resources.get -> System.Collections.Generic.IReadOnlyList<NCode.Identity.Events.Audit.AuditResource!>!
+NCode.Identity.OpenId.Authentication.Connections.ISignInConnectionService
+NCode.Identity.OpenId.Authentication.Connections.ISignInConnectionService.GetOfferedAsync(NCode.Identity.OpenId.Contexts.OpenIdContext! openIdContext, string? returnUrl, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.Authentication.Connections.SignInConnections!>
+NCode.Identity.OpenId.Authentication.Connections.ISignInConnectionService.SelectAsync(NCode.Identity.OpenId.Contexts.OpenIdContext! openIdContext, string? returnUrl, string? postedName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.Connections.ConnectionSelection!>
+NCode.Identity.OpenId.Authentication.Connections.SignInConnections
+NCode.Identity.OpenId.Authentication.Connections.SignInConnections.Offered.get -> System.Collections.Generic.IReadOnlyList<NCode.Identity.OpenId.Connections.ResolvedConnection!>!
+NCode.Identity.OpenId.Authentication.Connections.SignInConnections.Offered.init -> void
+NCode.Identity.OpenId.Authentication.Connections.SignInConnections.Preselected.get -> NCode.Identity.OpenId.Connections.ResolvedConnection?
+NCode.Identity.OpenId.Authentication.Connections.SignInConnections.Preselected.init -> void
+NCode.Identity.OpenId.Authentication.Connections.SignInConnections.SignInConnections() -> void

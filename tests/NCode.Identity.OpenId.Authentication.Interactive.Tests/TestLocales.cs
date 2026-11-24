@@ -17,6 +17,7 @@ internal static class TestLocales
             {
                 SignInTitle = "Xx sign-in title",
                 UsernameLabel = "Xx username",
+                ConnectionLabel = "Xx connection",
                 PasswordLabel = "Xx password",
                 SignInButton = "Xx sign-in button",
                 AuthorizeAccessTitle = "Xx authorize title",
@@ -30,6 +31,8 @@ internal static class TestLocales
                 AuthorizationErrorTitle = "Xx error title",
                 InvalidCredentialsError = "Xx invalid credentials",
                 MissingCredentialsError = "Xx missing credentials",
+                ConnectionRequiredError = "Xx connection required",
+                ConnectionUnavailableError = "Xx connection unavailable",
                 AccessDeniedError = "Xx access denied",
                 SignInFailedError = "Xx sign-in failed",
                 ForgotPasswordLink = "Xx forgot link",

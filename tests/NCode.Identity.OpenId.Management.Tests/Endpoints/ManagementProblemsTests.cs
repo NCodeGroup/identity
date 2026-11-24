@@ -55,4 +55,18 @@ public class ManagementProblemsTests
     }
 
     #endregion
+
+    #region PatchNotApplied Tests
+
+    [Fact]
+    public void PatchNotApplied_Always_ReturnsABadRequestProblem()
+    {
+        var result = ManagementProblems.PatchNotApplied();
+
+        Assert.Equal(StatusCodes.Status400BadRequest, result.StatusCode);
+        Assert.Equal(StatusCodes.Status400BadRequest, result.ProblemDetails.Status);
+        Assert.Equal("The JSON Patch document could not be applied.", result.ProblemDetails.Detail);
+    }
+
+    #endregion
 }

@@ -49,6 +49,9 @@ const ClientsPage = lazy(() =>
 const ResourceServersPage = lazy(() =>
   import('./containers/ResourceServersPage.js').then((m) => ({ default: m.ResourceServersPage })),
 );
+const ConnectionsPage = lazy(() =>
+  import('./containers/ConnectionsPage.js').then((m) => ({ default: m.ConnectionsPage })),
+);
 const GrantsPage = lazy(() =>
   import('./containers/GrantsPage.js').then((m) => ({ default: m.GrantsPage })),
 );
@@ -227,6 +230,7 @@ export function App() {
               label="Resource servers"
               data-testid="tenant-tab-resource-servers"
             />
+            <Tab value="connections" label="Connections" data-testid="tenant-tab-connections" />
             <Tab value="grants" label="Grants" data-testid="tenant-tab-grants" />
             <Tab value="users" label="Users" data-testid="tenant-tab-users" />
             <Tab value="secrets" label="Secrets" data-testid="tenant-tab-secrets" />
@@ -244,6 +248,8 @@ export function App() {
               <ClientsPage tenantId={route.tenantId} />
             ) : route.surface === 'resource-servers' ? (
               <ResourceServersPage tenantId={route.tenantId} />
+            ) : route.surface === 'connections' ? (
+              <ConnectionsPage tenantId={route.tenantId} />
             ) : route.surface === 'grants' ? (
               <GrantsPage tenantId={route.tenantId} />
             ) : route.surface === 'users' ? (

@@ -15,6 +15,7 @@ export type Messages = {
     readonly titleFor: (productName: string) => string;
     readonly username: string;
     readonly password: string;
+    readonly connection: string;
     readonly submit: string;
     readonly forgotPassword: string;
     readonly passwordReset: string;
@@ -23,6 +24,8 @@ export type Messages = {
   readonly loginErrors: {
     readonly invalidCredentials: string;
     readonly invalidRequest: string;
+    readonly connectionRequired: string;
+    readonly connectionUnavailable: string;
     readonly accessDenied: string;
     readonly fallback: string;
   };

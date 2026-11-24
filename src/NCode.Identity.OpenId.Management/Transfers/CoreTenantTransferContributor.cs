@@ -16,10 +16,10 @@ namespace NCode.Identity.OpenId.Management.Transfers;
 
 /// <summary>
 /// Provides an implementation of <see cref="ITenantTransferContributor"/> that carries a tenant's core records: the
-/// tenant row and its settings, its clients with their secrets, its client grants, its resource servers with their
-/// scopes and secrets, its own secrets and its tenant-level role assignments. Secret values stay as their protected
-/// envelopes. Grants, consents, sessions, federated principals and identities are not carried, and the audit and usage
-/// records stay in the cell that the tenant leaves.
+/// tenant row and its settings, its connections, its clients with their secrets, its client grants, its resource
+/// servers with their scopes and secrets, its own secrets and its tenant-level role assignments. Secret values stay as
+/// their protected envelopes. Grants, consents, sessions, federated principals and identities are not carried, and the
+/// audit and usage records stay in the cell that the tenant leaves.
 /// </summary>
 // See ADR-1514.
 internal class CoreTenantTransferContributor(
@@ -34,6 +34,7 @@ internal class CoreTenantTransferContributor(
 
     private const int PageLimit = 100;
     private const string TenantProperty = "tenant";
+    private const string ConnectionsProperty = "connections";
     private const string ResourceServersProperty = "resourceServers";
     private const string ClientsProperty = "clients";
     private const string ClientGrantsProperty = "clientGrants";
@@ -66,6 +67,10 @@ internal class CoreTenantTransferContributor(
                 .GetOrDefaultAsync(tenantId, cancellationToken)
             ?? throw new InvalidOperationException($"The tenant '{tenantId}' does not exist.");
 
+        var connections = await storeManager
+            .GetStore<IConnectionStore>()
+            .GetAllAsync(cancellationToken);
+
         var resourceServerStore = storeManager.GetStore<IResourceServerStore>();
         var resourceServers = await ReadAllAsync(
             (page, token) => resourceServerStore.GetPageAsync(page, token),
@@ -96,6 +101,7 @@ internal class CoreTenantTransferContributor(
         var document = new JsonObject
         {
             [TenantProperty] = JsonSerializer.SerializeToNode(tenant, JsonOptions),
+            [ConnectionsProperty] = JsonSerializer.SerializeToNode(connections, JsonOptions),
             [ResourceServersProperty] = JsonSerializer.SerializeToNode(
                 resourceServers,
                 JsonOptions
@@ -131,6 +137,7 @@ internal class CoreTenantTransferContributor(
         }
 
         var tenant = Read<PersistedTenant>(section.Json, TenantProperty);
+        var connections = Read<List<PersistedConnection>>(section.Json, ConnectionsProperty);
         var resourceServers = Read<List<PersistedResourceServer>>(
             section.Json,
             ResourceServersProperty
@@ -145,6 +152,11 @@ internal class CoreTenantTransferContributor(
         EnsureTenant(tenantId, tenant.TenantId);
         EnsureTenant(tenantId, tenant.Settings.TenantId);
         EnsureTenant(tenantId, tenant.Secrets.TenantId);
+        connections.ForEach(connection =>
+        {
+            EnsureTenant(tenantId, connection.TenantId);
+            EnsureTenant(tenantId, connection.Settings.TenantId);
+        });
         resourceServers.ForEach(resourceServer => EnsureTenant(tenantId, resourceServer.TenantId));
         clients.ForEach(client => EnsureTenant(tenantId, client.TenantId));
         clientGrants.ForEach(grant => EnsureTenant(tenantId, grant.TenantId));
@@ -155,6 +167,14 @@ internal class CoreTenantTransferContributor(
 
         // A row refers to the rows it needs by a query, so each group is saved before the group that refers to it.
         await storeManager.GetStore<ITenantStore>().AddAsync(tenant, cancellationToken);
+        await storeManager.SaveChangesAsync(cancellationToken);
+
+        var connectionStore = storeManager.GetStore<IConnectionStore>();
+        foreach (var connection in connections)
+        {
+            await connectionStore.AddAsync(connection, cancellationToken);
+        }
+
         await storeManager.SaveChangesAsync(cancellationToken);
 
         var resourceServerStore = storeManager.GetStore<IResourceServerStore>();

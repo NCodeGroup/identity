@@ -4,6 +4,7 @@
 using System.Buffers.Text;
 using System.Security.Cryptography;
 using NCode.Buffers;
+using NCode.Identity.OpenId.Connections;
 using NCode.Identity.OpenId.Contexts;
 
 namespace NCode.Identity.OpenId.Authentication.Interactive;
@@ -22,7 +23,8 @@ internal sealed class DefaultInteractivePasswordResetter : IInteractivePasswordR
     /// <inheritdoc />
     public ValueTask<string> SendResetCodeAsync(
         OpenIdContext openIdContext,
-        string userName,
+        ResolvedConnection connection,
+        string identifier,
         InteractiveLocale locale,
         CancellationToken cancellationToken
     )

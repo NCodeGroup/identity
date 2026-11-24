@@ -1,8 +1,9 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import AddIcon from '@mui/icons-material/Add';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
+import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import {
   ConfirmDialog,
@@ -16,6 +17,7 @@ import {
 } from '@ncodegroup/identity-ui';
 import {
   pagedItems,
+  useListConnectionsInfiniteQuery,
   useListLocalAccountsInfiniteQuery,
   type LocalAccountOwner,
 } from '@ncodegroup/identity-store';
@@ -29,16 +31,96 @@ export type UsersPageProps = {
     { readonly kind: 'platform' } | { readonly kind: 'tenant'; readonly tenantId: string };
 };
 
+/** The strategy of the connections whose accounts this page administers. */
+const localStrategy = 'local';
+
 /**
- * Container: browses and administers the local accounts of the platform or of a tenant. A tenant owner is addressed in
- * the cell of the tenant route. Wires the RTK Query account list to the stateless {@link LocalAccountTable},
- * {@link LocalAccountFormDialog}, {@link LocalAccountPasswordDialog} and {@link ConfirmDialog}; the dialog and error
- * state live in {@link useLocalAccountAdministration}.
+ * Container: browses and administers the local accounts of the platform or of a tenant. A tenant owner picks one of the
+ * tenant's `local` connections (the one named `local` is preselected), because a local account belongs to one
+ * connection; the platform owner addresses the platform tenant's default connection. A tenant owner is addressed in the
+ * cell of the tenant route.
  */
 export function UsersPage({ owner }: UsersPageProps) {
+  if (owner.kind === 'platform') {
+    return <UsersList owner={owner} heading="the platform" />;
+  }
+  return <TenantUsers tenantId={owner.tenantId} />;
+}
+
+function TenantUsers({ tenantId }: { readonly tenantId: string }) {
   const cell = useTenantCell();
-  const storeOwner: LocalAccountOwner =
-    owner.kind === 'tenant' ? { kind: 'tenant', tenantId: owner.tenantId, cell } : owner;
+  const { data, isLoading, error, hasNextPage, isFetchingNextPage, fetchNextPage } =
+    useListConnectionsInfiniteQuery({ tenantId, cell });
+  const [selectedId, setSelectedId] = useState<string>();
+  // The picker offers every local connection, so the pages are read to the end.
+  useEffect(() => {
+    if (hasNextPage && !isFetchingNextPage) {
+      void fetchNextPage();
+    }
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
+  const connections = useMemo(
+    () => pagedItems(data).filter((c) => c.strategy === localStrategy),
+    [data],
+  );
+  const selected =
+    connections.find((c) => c.connectionId === selectedId) ??
+    connections.find((c) => c.name === 'local') ??
+    connections[0];
+
+  if (isLoading || error || !selected) {
+    return (
+      <>
+        <Typography variant="h5" component="h2" sx={{ mb: 1 }}>
+          Users
+        </Typography>
+        <DataStateBoundary
+          isLoading={isLoading}
+          error={error ? 'Failed to load connections.' : undefined}
+          isEmpty
+          emptyMessage="No local connections yet."
+        >
+          {null}
+        </DataStateBoundary>
+      </>
+    );
+  }
+
+  return (
+    <UsersList
+      owner={{ kind: 'tenant', tenantId, connectionId: selected.connectionId, cell }}
+      heading="this tenant"
+      connectionPicker={
+        <TextField
+          select
+          label="Connection"
+          size="small"
+          value={selected.connectionId}
+          onChange={(event) => setSelectedId(event.target.value)}
+          sx={{ mb: 2, minWidth: 240 }}
+          slotProps={{
+            select: { native: true },
+            htmlInput: { 'data-testid': 'users-connection' },
+          }}
+        >
+          {connections.map((c) => (
+            <option key={c.connectionId} value={c.connectionId}>
+              {c.displayName}
+            </option>
+          ))}
+        </TextField>
+      }
+    />
+  );
+}
+
+type UsersListProps = {
+  readonly owner: LocalAccountOwner;
+  /** What the description names as the accounts' owner. */
+  readonly heading: string;
+  readonly connectionPicker?: ReactNode;
+};
+
+function UsersList({ owner: storeOwner, heading, connectionPicker }: UsersListProps) {
   const { data, isLoading, error, hasNextPage, isFetchingNextPage, fetchNextPage } =
     useListLocalAccountsInfiniteQuery(storeOwner);
   const accounts = useMemo(() => pagedItems(data), [data]);
@@ -52,7 +134,7 @@ export function UsersPage({ owner }: UsersPageProps) {
     dialog.kind === 'edit'
       ? {
           displayName: dialog.account.displayName,
-          userName: dialog.account.userName,
+          userName: dialog.account.userName ?? '',
           email: dialog.account.email ?? '',
           emailVerified: dialog.account.emailVerified,
           password: '',
@@ -86,9 +168,9 @@ export function UsersPage({ owner }: UsersPageProps) {
         </Button>
       </Box>
       <Typography variant="body2" sx={{ mb: 2 }}>
-        Local accounts of {owner.kind === 'platform' ? 'the platform' : 'this tenant'}. The display
-        name is the name people and applications see.
+        Local accounts of {heading}. The display name is the name people and applications see.
       </Typography>
+      {connectionPicker}
       {admin.toggleError && (
         <Alert severity="error" sx={{ mb: 2 }} data-testid="local-account-toggle-error">
           {admin.toggleError}

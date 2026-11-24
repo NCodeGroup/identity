@@ -7,7 +7,7 @@
 ## Context
 
 A local account carries `Email` and `EmailVerified`
-([ADR-1051](1051-a-local-account-is-a-self-issued-connection-behind-one-pluggable-store-seam.md)), and the interactive
+([ADR-1051](1051-a-local-account-belongs-to-one-local-connection-behind-a-named-pluggable-store-seam.md)), and the interactive
 surface defers every credential operation to a seam that a backend implements
 ([ADR-1062](1062-the-op-serves-an-opt-in-interactive-sign-in-and-consent-surface-with-a-pluggable-credential-verifier.md),
 [ADR-1230](1230-an-end-user-changes-their-password-through-an-optional-seam-and-keeps-only-the-current-session.md)).
@@ -28,7 +28,7 @@ Forces:
 
 **A local account's end user verifies the account's email address, resets a forgotten password, and completes a second
 factor at sign-in, each with a six-digit code mailed to the account's address, bound to the flow that asked for it, and
-off until the tenant turns it on.**
+off until the tenant or the end user's connection turns it on.**
 
 1. **The code is six digits, hashed, short-lived and used once.** It is six decimal digits from a cryptographic random
    generator, kept in shared state only as a SHA-256 hash bound to the flow's handle, for `email_code_lifetime` (10
@@ -41,8 +41,10 @@ off until the tenant turns it on.**
    code alone opens nothing. A code is also bound to the address it was mailed to and authorizes nothing once the
    account's address differs, so an administrator who changes the address while a code is outstanding leaves the old
    mailbox unable to verify the new address, reset the password or pass the second factor.
-3. **A reset is `password_reset_enabled`, off by default.** The login page links "Forgot your password?", and the form
-   asks for the username. Whatever the username names, the next page is the same, and a code goes only to an enabled
+3. **A reset is `password_reset_enabled`, off by default.** A tenant or a connection sets it, and the connection the
+   end user signs in through decides: the forgot-password page lists only the connections that enable it and is not
+   found when none does, and the form is not found for a connection that does not. The login page links "Forgot your
+   password?" for such a connection, and the form asks for the username. Whatever the username names, the next page is the same, and a code goes only to an enabled
    account's verified address. The password policy judges the new password
    ([ADR-1236](1236-a-password-is-judged-by-one-policy-wherever-it-is-set.md)) before the code is spent. A reset sets
    the password, ends every session of the account's principal and revokes its grants
@@ -50,8 +52,10 @@ off until the tenant turns it on.**
    [ADR-1351](1351-work-that-follows-a-committed-change-runs-on-its-own-bounded-token.md)), clears its failed attempts
    ([ADR-1237](1237-failed-password-attempts-are-limited-per-account-and-a-refusal-costs-what-a-wrong-password-costs.md)),
    and sends the end user to the login page.
-4. **A verification is `email_verification_enabled`, off by default.** The account page links the email page, which
-   sends a code to the account's address and marks the address verified when the code comes back.
+4. **A verification is `email_verification_enabled`, off by default.** A tenant or a connection sets it, and the
+   connection of the signed-in principal decides: the email page and its endpoints are not found while it does not
+   enable the feature. The account page links the email page, which sends a code to the account's address and marks the
+   address verified when the code comes back.
 5. **A second factor is `email_mfa_required`, off by default and merged with `Or`.** A team can require it, and a tenant
    can't lift it. After the password and the end user's standing pass, the surface holds the verified principal for 15
    minutes from the password check, however many codes are resent, in a data-protected pending cookie,
@@ -101,7 +105,7 @@ off until the tenant turns it on.**
 
 - [ADR-1047](1047-observation-is-a-fault-isolated-event-seam-that-audit-specializes-and-protocol-errors-reach-once.md) —
   the event seam that audit specializes.
-- [ADR-1051](1051-a-local-account-is-a-self-issued-connection-behind-one-pluggable-store-seam.md) — the local account
+- [ADR-1051](1051-a-local-account-belongs-to-one-local-connection-behind-a-named-pluggable-store-seam.md) — the local account
   and its email address.
 - [ADR-1062](1062-the-op-serves-an-opt-in-interactive-sign-in-and-consent-surface-with-a-pluggable-credential-verifier.md)
   — the interactive surface and its credential seams.

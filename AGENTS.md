@@ -83,7 +83,7 @@ compiles it, no gate runs it as tests, and a `.Tests` project of its own unit-te
   `NCode.Identity.OpenId.Accounts.Authentication` (the password grant and interactive credential verification against
   local accounts) and `NCode.Identity.OpenId.Accounts.Management(.Abstractions)` (the management API's local-account
   endpoints)
-  ([ADR-1051](docs/decisions/1051-a-local-account-is-a-self-issued-connection-behind-one-pluggable-store-seam.md))
+  ([ADR-1051](docs/decisions/1051-a-local-account-belongs-to-one-local-connection-behind-a-named-pluggable-store-seam.md))
 - **Directory** — `NCode.Identity.OpenId.GlobalDirectory(.Abstractions)` (the directory ports, the cell identity, and the
   remote adapters of the directory and the control plane) and `NCode.Identity.OpenId.GlobalDirectory.Server` (the
   directory API): the global directory reserves tenant and team identifiers platform-wide, places each tenant in a cell

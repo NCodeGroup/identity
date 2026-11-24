@@ -7,6 +7,7 @@ export const es: Messages = {
     titleFor: (productName) => `Iniciar sesión en ${productName}`,
     username: 'Nombre de usuario',
     password: 'Contraseña',
+    connection: 'Iniciar sesión con',
     submit: 'Iniciar sesión',
     forgotPassword: '¿Ha olvidado su contraseña?',
     passwordReset: 'Su contraseña ha sido restablecida. Inicie sesión con su nueva contraseña.',
@@ -14,6 +15,8 @@ export const es: Messages = {
   loginErrors: {
     invalidCredentials: 'El nombre de usuario o la contraseña no son correctos.',
     invalidRequest: 'Introduzca un nombre de usuario y una contraseña.',
+    connectionRequired: 'Elija una conexión.',
+    connectionUnavailable: 'Esta conexión no está disponible. Elija otra.',
     accessDenied: 'Esta cuenta no puede iniciar sesión. Póngase en contacto con su administrador.',
     fallback: 'No se pudo iniciar sesión. Inténtelo de nuevo.',
   },

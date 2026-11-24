@@ -14,6 +14,7 @@ using NCode.Identity.OpenId.Accounts.Management.Contracts;
 using NCode.Identity.OpenId.Accounts.Stores;
 using NCode.Identity.OpenId.Authentication.Sessions;
 using NCode.Identity.OpenId.Authentication.Subject;
+using NCode.Identity.OpenId.Connections;
 using NCode.Identity.OpenId.Contexts;
 using NCode.Identity.OpenId.Management;
 using NCode.Identity.OpenId.Management.Auditing;
@@ -33,33 +34,39 @@ namespace NCode.Identity.OpenId.Accounts.Management;
 
 /*
 
-POST   api/tenants/{tenantId}/local-accounts
-GET    api/tenants/{tenantId}/local-accounts
-GET    api/tenants/{tenantId}/local-accounts/{localAccountId}
-PATCH  api/tenants/{tenantId}/local-accounts/{localAccountId}
-DELETE api/tenants/{tenantId}/local-accounts/{localAccountId}
+POST   api/tenants/{tenantId}/connections/{connectionId}/local-accounts
+GET    api/tenants/{tenantId}/connections/{connectionId}/local-accounts
+GET    api/tenants/{tenantId}/connections/{connectionId}/local-accounts/{localAccountId}
+PATCH  api/tenants/{tenantId}/connections/{connectionId}/local-accounts/{localAccountId}
+DELETE api/tenants/{tenantId}/connections/{connectionId}/local-accounts/{localAccountId}
 
-POST   api/tenants/{tenantId}/local-accounts/{localAccountId}/enable
-POST   api/tenants/{tenantId}/local-accounts/{localAccountId}/disable
-POST   api/tenants/{tenantId}/local-accounts/{localAccountId}/password
+POST   api/tenants/{tenantId}/connections/{connectionId}/local-accounts/{localAccountId}/enable
+POST   api/tenants/{tenantId}/connections/{connectionId}/local-accounts/{localAccountId}/disable
+POST   api/tenants/{tenantId}/connections/{connectionId}/local-accounts/{localAccountId}/password
 
-GET    api/tenants/{tenantId}/local-accounts/{localAccountId}/claims
-PUT    api/tenants/{tenantId}/local-accounts/{localAccountId}/claims
+GET    api/tenants/{tenantId}/connections/{connectionId}/local-accounts/{localAccountId}/claims
+PUT    api/tenants/{tenantId}/connections/{connectionId}/local-accounts/{localAccountId}/claims
 
-GET    api/tenants/{tenantId}/local-accounts/{localAccountId}/metadata
-PATCH  api/tenants/{tenantId}/local-accounts/{localAccountId}/metadata
+GET    api/tenants/{tenantId}/connections/{connectionId}/local-accounts/{localAccountId}/metadata
+PATCH  api/tenants/{tenantId}/connections/{connectionId}/local-accounts/{localAccountId}/metadata
+
+POST   api/platform/local-accounts
+GET    api/platform/local-accounts
+
+The platform routes operate on the local connection that the control-plane tenant's default_connection setting names.
 
 */
 
 /// <summary>
-/// Provides the management endpoints for local accounts. Local accounts are end-user subjects, not ownable resources,
-/// so every operation authorizes against the owning tenant scope (there is no per-account owner model). The host must
-/// register an <see cref="ILocalAccountStore"/> implementation (the Entity Framework reference or the ASP.NET Core
-/// Identity adapter) that these endpoints operate over. Deleting or disabling an account, or resetting its password,
-/// ends every session of its principal. Every password it sets meets the tenant's password policy; a refused password
-/// is answered 400 with the requirement it fails. The security effects that follow a commit (ending the sessions of a
-/// disabled account or of a reset password, and clearing failed password attempts) run through
-/// <see cref="IPostCommitSecurityEffects"/>.
+/// Provides the management endpoints for local accounts, which are nested under the local connection that holds them.
+/// Local accounts are end-user subjects, not ownable resources, so every operation authorizes against the owning tenant
+/// scope (there is no per-account owner model). A route loads its connection, answers 404 when the connection is
+/// missing or is not a local connection, and operates on the <see cref="ILocalAccountStore"/> that the connection's
+/// options select from the <see cref="LocalAccountStoreCatalog"/>; an account that another connection holds is answered
+/// 404. Deleting or disabling an account, or resetting its password, ends every session of its principal. Every
+/// password it sets meets the tenant's password policy; a refused password is answered 400 with the requirement it
+/// fails. The security effects that follow a commit (ending the sessions of a disabled account or of a reset password,
+/// and clearing failed password attempts) run through <see cref="IPostCommitSecurityEffects"/>.
 /// </summary>
 internal class LocalAccountApiEndpointHandler(
     IStoreManagerFactory storeManagerFactory,
@@ -72,10 +79,133 @@ internal class LocalAccountApiEndpointHandler(
     IOpenIdContextFactory openIdContextFactory,
     LocalAccountPasswords localAccountPasswords,
     IPostCommitSecurityEffects postCommitSecurityEffects,
-    IAmbientTenantAccessor ambientTenantAccessor
+    IAmbientTenantAccessor ambientTenantAccessor,
+    LocalAccountStoreCatalog localAccountStoreCatalog,
+    ControlPlaneDefaultConnectionReader defaultConnectionReader
 ) : ManagementApiEndpointHandler, IEndpointProvider
 {
     private const string PrincipalRoleRemovalReason = "principal role removal";
+
+    private static LocalAccountClaimsResource ToClaimsResource(
+        string tenantId,
+        PersistedLocalAccount account
+    ) =>
+        new()
+        {
+            TenantId = tenantId,
+            LocalAccountId = account.LocalAccountId,
+            Claims = account
+                .Claims.Select(claim => new LocalAccountClaim
+                {
+                    Type = claim.Type,
+                    Value = claim.Value,
+                })
+                .ToList(),
+            ConcurrencyToken = account.ConcurrencyToken,
+        };
+
+    private static LocalAccountMetadataResource ToMetadataResource(
+        string tenantId,
+        string localAccountId,
+        PersistedFederatedPrincipal principal
+    ) =>
+        new()
+        {
+            TenantId = tenantId,
+            LocalAccountId = localAccountId,
+            PrincipalId = principal.PrincipalId,
+            ProfileMetadata = principal.ProfileMetadata,
+            SystemMetadata = principal.SystemMetadata,
+            ConcurrencyToken = principal.ConcurrencyToken,
+        };
+
+    /// <summary>
+    /// Loads a connection by identifier.
+    /// </summary>
+    /// <returns>The local connection, or <see langword="null"/> when the connection is missing or its strategy is not
+    /// local.</returns>
+    private static async ValueTask<PersistedConnection?> FindLocalConnectionByIdAsync(
+        IStoreManager storeManager,
+        string connectionId,
+        CancellationToken cancellationToken
+    )
+    {
+        var connection = await storeManager
+            .GetStore<IConnectionStore>()
+            .GetOrDefaultAsync(connectionId, cancellationToken);
+        return AsLocal(connection);
+    }
+
+    /// <summary>
+    /// Narrows a connection to a local connection.
+    /// </summary>
+    /// <remarks>
+    /// This is the one check that a connection is local, which every lookup applies.
+    /// </remarks>
+    /// <param name="connection">The connection to check, or <see langword="null"/>.</param>
+    /// <returns>The connection when its strategy is local; otherwise <see langword="null"/>.</returns>
+    private static PersistedConnection? AsLocal(PersistedConnection? connection) =>
+        connection is not null && ConnectionStrategyNames.IsLocal(connection.Strategy)
+            ? connection
+            : null;
+
+    /// <summary>
+    /// Resolves the principal behind the identity of an account in its connection.
+    /// </summary>
+    /// <remarks>
+    /// A route resolves the principal before its write, so the effect that follows the commit is one call.
+    /// </remarks>
+    /// <param name="storeManager">The store manager that reads the identity.</param>
+    /// <param name="connectionId">The identifier of the connection that holds the account.</param>
+    /// <param name="localAccountId">The identifier of the local account.</param>
+    /// <param name="cancellationToken">The token that cancels the read.</param>
+    /// <returns>The identifier of the principal, or <see langword="null"/> when the account has no identity.</returns>
+    private static async ValueTask<string?> FindPrincipalIdAsync(
+        IStoreManager storeManager,
+        string connectionId,
+        string localAccountId,
+        CancellationToken cancellationToken
+    )
+    {
+        var identity = await storeManager
+            .GetStore<IFederatedIdentityStore>()
+            .GetByConnectionSubjectAsync(connectionId, localAccountId, cancellationToken);
+        return identity?.PrincipalId;
+    }
+
+    /// <summary>
+    /// Resolves the principals behind the identities of a page of accounts in one store call.
+    /// </summary>
+    /// <remarks>
+    /// An account with no identity has no entry.
+    /// </remarks>
+    /// <param name="storeManager">The store manager that reads the identities.</param>
+    /// <param name="connectionId">The identifier of the connection that holds the accounts.</param>
+    /// <param name="localAccountIds">The identifiers of the local accounts.</param>
+    /// <param name="cancellationToken">The token that cancels the read.</param>
+    /// <returns>The principal identifier of each account that has an identity, keyed by local account
+    /// identifier.</returns>
+    private static async ValueTask<IReadOnlyDictionary<string, string>> FindPrincipalIdsAsync(
+        IStoreManager storeManager,
+        string connectionId,
+        IReadOnlyCollection<string> localAccountIds,
+        CancellationToken cancellationToken
+    )
+    {
+        var identities = await storeManager
+            .GetStore<IFederatedIdentityStore>()
+            .GetByConnectionSubjectsAsync(connectionId, localAccountIds, cancellationToken);
+        var principalIds = new Dictionary<string, string>(
+            identities.Count,
+            StringComparer.OrdinalIgnoreCase
+        );
+        foreach (var identity in identities)
+        {
+            principalIds[identity.Subject] = identity.PrincipalId;
+        }
+
+        return principalIds;
+    }
 
     private IStoreManagerFactory StoreManagerFactory { get; } = storeManagerFactory;
 
@@ -94,12 +224,15 @@ internal class LocalAccountApiEndpointHandler(
     private IPostCommitSecurityEffects PostCommitSecurityEffects { get; } =
         postCommitSecurityEffects;
     private IAmbientTenantAccessor AmbientTenantAccessor { get; } = ambientTenantAccessor;
+    private LocalAccountStoreCatalog LocalAccountStoreCatalog { get; } = localAccountStoreCatalog;
+    private ControlPlaneDefaultConnectionReader DefaultConnectionReader { get; } =
+        defaultConnectionReader;
 
     /// <inheritdoc />
     public void Map(IEndpointRouteBuilder endpoints)
     {
         var accounts = endpoints
-            .MapGroup("/local-accounts")
+            .MapGroup("/connections/{connectionId}/local-accounts")
             .WithTags(OpenIdConstants.EndpointTags.LocalAccounts);
 
         accounts
@@ -117,7 +250,8 @@ internal class LocalAccountApiEndpointHandler(
             .Produces<CollectionResource<LocalAccountResource>>()
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status401Unauthorized)
-            .ProducesProblem(StatusCodes.Status403Forbidden);
+            .ProducesProblem(StatusCodes.Status403Forbidden)
+            .ProducesProblem(StatusCodes.Status404NotFound);
         accounts
             .MapGet("/{localAccountId}", GetLocalAccountAsync)
             .Produces<LocalAccountResource>()
@@ -213,23 +347,43 @@ internal class LocalAccountApiEndpointHandler(
             Email = account.Email,
             EmailVerified = account.EmailVerified,
             IsEnabled = account.IsEnabled,
+            ConnectionId = account.ConnectionId,
             ConcurrencyToken = account.ConcurrencyToken,
         };
 
     /// <summary>
-    /// Creates a local account in a tenant, together with the principal and the self-issued identity that it resolves to.
+    /// Creates a local account in a local connection, together with the principal and the identity that it resolves to.
     /// </summary>
     /// <response code="201">The created local account.</response>
-    /// <response code="400">The username is missing or longer than allowed, the display name is longer than allowed, the claims include the reserved <c>name</c> claim, or the password does not meet the tenant's password policy.</response>
-    /// <response code="404">The tenant does not exist.</response>
-    /// <response code="409">A local account with the username already exists in the tenant.</response>
-    internal virtual async ValueTask<IResult> CreateLocalAccountAsync(
+    /// <response code="400">The identifier the connection requires is missing or longer than allowed, the display name is longer than allowed, the claims include the reserved <c>name</c> claim, or the password does not meet the connection's password policy.</response>
+    /// <response code="404">The tenant does not exist, or the connection does not exist or is not a local connection.</response>
+    /// <response code="409">A local account with the username or the email address already exists in the connection.</response>
+    internal virtual ValueTask<IResult> CreateLocalAccountAsync(
         HttpContext httpContext,
         [FromRoute] string tenantId,
+        [FromRoute] string connectionId,
         [FromBody] CreateLocalAccountRequest request,
         CancellationToken cancellationToken
     )
     {
+        var route = new ConnectionRoute(tenantId, connectionId);
+        return CreateCoreAsync(httpContext, route, request, cancellationToken);
+    }
+
+    /// <summary>
+    /// Creates a local account in the connection that a route names, or in the control-plane tenant's default
+    /// connection.
+    /// </summary>
+    /// <returns>The created result, or the refusal that authorization, the connection lookup or the creation
+    /// gave.</returns>
+    private async ValueTask<IResult> CreateCoreAsync(
+        HttpContext httpContext,
+        ConnectionRoute route,
+        CreateLocalAccountRequest request,
+        CancellationToken cancellationToken
+    )
+    {
+        var (tenantId, connectionId) = route;
         var authorizationError = await LocalAccountValidator.AuthorizeCreateAsync(
             httpContext.User,
             tenantId,
@@ -242,9 +396,15 @@ internal class LocalAccountApiEndpointHandler(
 
         await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
 
+        var connection = await FindConnectionAsync(storeManager, connectionId, cancellationToken);
+        if (connection is null)
+        {
+            return ManagementProblems.ResourceNotFound();
+        }
+
         var creation = await LocalAccountCreator.StageAsync(
             storeManager,
-            tenantId,
+            connection,
             request,
             cancellationToken
         );
@@ -261,7 +421,12 @@ internal class LocalAccountApiEndpointHandler(
         // The password an administrator sets replaces the one being guessed, so its failed attempts start over. The
         // change is committed, so clearing them runs on its own bounded token, a failure is logged, and the audit
         // record follows. See ADR-1237 and ADR-1351.
-        await PostCommitSecurityEffects.ResetPasswordAttemptsAsync(tenantId, request.UserName);
+        var attemptKey = LocalAccountAttemptKeys.ForAccount(localAccountId);
+        await PostCommitSecurityEffects.ResetPasswordAttemptsAsync(
+            tenantId,
+            connection.ConnectionId,
+            attemptKey
+        );
 
         var resource = ToLocalAccountResource(account, creation.PrincipalId);
 
@@ -276,27 +441,48 @@ internal class LocalAccountApiEndpointHandler(
 
         httpContext.Response.Headers.ETag = ManagementEntityTags.Format(account.ConcurrencyToken);
         return TypedResults.Created(
-            $"/tenants/{tenantId}/local-accounts/{localAccountId}",
+            $"/tenants/{tenantId}/connections/{connection.ConnectionId}/local-accounts/{localAccountId}",
             resource
         );
     }
 
     /// <summary>
-    /// Lists the local accounts of a tenant, one page at a time.
+    /// Lists the local accounts of a local connection, one page at a time.
     /// </summary>
     /// <response code="200">A page of local accounts.</response>
-    internal virtual async ValueTask<IResult> ListLocalAccountsAsync(
+    /// <response code="404">The connection does not exist or is not a local connection.</response>
+    internal virtual ValueTask<IResult> ListLocalAccountsAsync(
         HttpContext httpContext,
         [FromRoute] string tenantId,
+        [FromRoute] string connectionId,
         [FromQuery] string? cursor,
         [FromQuery] int? limit,
         CancellationToken cancellationToken
     )
     {
+        var route = new ConnectionRoute(tenantId, connectionId);
+        var window = new PageWindow(cursor, limit);
+        return ListCoreAsync(httpContext, route, window, cancellationToken);
+    }
+
+    /// <summary>
+    /// Lists one page of the local accounts of the connection that a route names, or of the control-plane tenant's
+    /// default connection.
+    /// </summary>
+    /// <returns>The page result, or the refusal that authorization or the connection lookup gave.</returns>
+    private async ValueTask<IResult> ListCoreAsync(
+        HttpContext httpContext,
+        ConnectionRoute route,
+        PageWindow window,
+        CancellationToken cancellationToken
+    )
+    {
+        var (tenantId, connectionId) = route;
+        var (cursor, limit) = window;
         var effectiveLimit = NormalizeLimit(limit);
 
         var tenantResource = TenantScopeResource.For(tenantId);
-        return await ProcessListAsync(
+        return await ProcessListOrNotFoundAsync(
             httpContext,
             tenantResource,
             async () =>
@@ -304,9 +490,24 @@ internal class LocalAccountApiEndpointHandler(
                 await using var storeManager = await StoreManagerFactory.CreateAsync(
                     cancellationToken
                 );
-                var store = storeManager.GetStore<ILocalAccountStore>();
+
+                var connection = await FindConnectionAsync(
+                    storeManager,
+                    connectionId,
+                    cancellationToken
+                );
+                if (connection is null)
+                {
+                    return null;
+                }
+
+                var store = LocalAccountStoreCatalog.GetStore(storeManager, connection);
                 var pageRequest = new PageRequest { Cursor = cursor, Limit = effectiveLimit };
-                var page = await store.GetPageAsync(pageRequest, cancellationToken);
+                var page = await store.GetPageAsync(
+                    connection.ConnectionId,
+                    pageRequest,
+                    cancellationToken
+                );
 
                 var localAccountIds = new List<string>(page.Items.Count);
                 foreach (var account in page.Items)
@@ -314,8 +515,9 @@ internal class LocalAccountApiEndpointHandler(
                     localAccountIds.Add(account.LocalAccountId);
                 }
 
-                var principalIds = await FindSelfIssuedPrincipalIdsAsync(
+                var principalIds = await FindPrincipalIdsAsync(
                     storeManager,
+                    connection.ConnectionId,
                     localAccountIds,
                     cancellationToken
                 );
@@ -341,10 +543,11 @@ internal class LocalAccountApiEndpointHandler(
     }
 
     /// <summary>
-    /// Lists the local accounts of the platform, which are the accounts of the control-plane tenant, one page at a
-    /// time.
+    /// Lists the local accounts of the platform, which are the accounts of the control-plane tenant's default
+    /// connection, one page at a time.
     /// </summary>
     /// <response code="200">A page of local accounts.</response>
+    /// <response code="404">The control-plane tenant's default connection does not exist or is not a local connection.</response>
     internal virtual async ValueTask<IResult> ListPlatformLocalAccountsAsync(
         HttpContext httpContext,
         [FromQuery] string? cursor,
@@ -354,22 +557,18 @@ internal class LocalAccountApiEndpointHandler(
     {
         var tenantId = httpContext.GetOpenIdContext().Tenant.TenantId;
         using var scope = AmbientTenantAccessor.BeginScope(tenantId);
-        return await ListLocalAccountsAsync(
-            httpContext,
-            tenantId,
-            cursor,
-            limit,
-            cancellationToken
-        );
+        var route = new ConnectionRoute(tenantId, ConnectionId: null);
+        var window = new PageWindow(cursor, limit);
+        return await ListCoreAsync(httpContext, route, window, cancellationToken);
     }
 
     /// <summary>
-    /// Creates a local account of the platform, in the control-plane tenant.
+    /// Creates a local account of the platform, in the control-plane tenant's default connection.
     /// </summary>
     /// <response code="201">The created local account.</response>
-    /// <response code="400">The username is missing or longer than allowed, the display name is longer than allowed, the claims include the reserved <c>name</c> claim, or the password does not meet the tenant's password policy.</response>
-    /// <response code="404">The control-plane tenant does not exist.</response>
-    /// <response code="409">A local account with the username already exists in the control-plane tenant.</response>
+    /// <response code="400">The identifier the connection requires is missing or longer than allowed, the display name is longer than allowed, the claims include the reserved <c>name</c> claim, or the password does not meet the connection's password policy.</response>
+    /// <response code="404">The control-plane tenant does not exist, or its default connection does not exist or is not a local connection.</response>
+    /// <response code="409">A local account with the username or the email address already exists in the connection.</response>
     internal virtual async ValueTask<IResult> CreatePlatformLocalAccountAsync(
         HttpContext httpContext,
         [FromBody] CreateLocalAccountRequest request,
@@ -378,17 +577,19 @@ internal class LocalAccountApiEndpointHandler(
     {
         var tenantId = httpContext.GetOpenIdContext().Tenant.TenantId;
         using var scope = AmbientTenantAccessor.BeginScope(tenantId);
-        return await CreateLocalAccountAsync(httpContext, tenantId, request, cancellationToken);
+        var route = new ConnectionRoute(tenantId, ConnectionId: null);
+        return await CreateCoreAsync(httpContext, route, request, cancellationToken);
     }
 
     /// <summary>
-    /// Gets a local account of a tenant.
+    /// Gets a local account of a local connection.
     /// </summary>
     /// <response code="200">The local account.</response>
-    /// <response code="404">The local account does not exist.</response>
+    /// <response code="404">The connection or the local account does not exist, or the connection is not a local connection.</response>
     internal virtual async ValueTask<IResult> GetLocalAccountAsync(
         HttpContext httpContext,
         [FromRoute] string tenantId,
+        [FromRoute] string connectionId,
         [FromRoute] string localAccountId,
         CancellationToken cancellationToken
     )
@@ -401,20 +602,24 @@ internal class LocalAccountApiEndpointHandler(
             async token =>
             {
                 await using var storeManager = await StoreManagerFactory.CreateAsync(token);
-                var account = await storeManager
-                    .GetStore<ILocalAccountStore>()
-                    .GetByIdOrDefaultAsync(localAccountId, token);
-                if (account is null)
+                var located = await FindAccountAsync(
+                    storeManager,
+                    connectionId,
+                    localAccountId,
+                    token
+                );
+                if (located is not { } found)
                 {
                     return null;
                 }
 
-                var principalId = await FindSelfIssuedPrincipalIdAsync(
+                var principalId = await FindPrincipalIdAsync(
                     storeManager,
-                    account.LocalAccountId,
+                    found.Connection.ConnectionId,
+                    found.Account.LocalAccountId,
                     token
                 );
-                return new LocalAccountWithPrincipal(account, principalId);
+                return new LocalAccountWithPrincipal(found.Account, principalId);
             },
             value => ToLocalAccountResource(value.Account, value.PrincipalId),
             cancellationToken
@@ -425,12 +630,13 @@ internal class LocalAccountApiEndpointHandler(
     /// Updates the display name, the username and the email of a local account by applying a JSON Patch document.
     /// </summary>
     /// <response code="204">The local account was updated.</response>
-    /// <response code="400">The JSON Patch document cannot be applied, or the username or the display name is missing or longer than allowed.</response>
-    /// <response code="404">The local account does not exist.</response>
-    /// <response code="409">Another local account in the tenant already has the username.</response>
+    /// <response code="400">The JSON Patch document cannot be applied, the identifier the connection requires is missing or longer than allowed, or the display name is missing or longer than allowed.</response>
+    /// <response code="404">The connection or the local account does not exist, or the connection is not a local connection.</response>
+    /// <response code="409">Another local account in the connection already has the username or the email address.</response>
     internal virtual async ValueTask<IResult> UpdateLocalAccountAsync(
         HttpContext httpContext,
         [FromRoute] string tenantId,
+        [FromRoute] string connectionId,
         [FromRoute] string localAccountId,
         [FromBody] JsonPatchDocument<UpdateLocalAccountRequest> request,
         [FromHeader(Name = "If-Match")] string? ifMatch,
@@ -448,13 +654,19 @@ internal class LocalAccountApiEndpointHandler(
         }
 
         await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
-        var store = storeManager.GetStore<ILocalAccountStore>();
 
-        var account = await store.GetByIdOrDefaultAsync(localAccountId, cancellationToken);
-        if (account is null)
+        var located = await FindAccountAsync(
+            storeManager,
+            connectionId,
+            localAccountId,
+            cancellationToken
+        );
+        if (located is not { } found)
         {
             return ManagementProblems.ResourceNotFound();
         }
+
+        var (connection, store, account) = found;
 
         var model = new UpdateLocalAccountRequest
         {
@@ -470,16 +682,16 @@ internal class LocalAccountApiEndpointHandler(
         }
         catch (JsonPatchException)
         {
-            return TypedResults.Problem(
-                detail: "The JSON Patch document could not be applied.",
-                statusCode: StatusCodes.Status400BadRequest
-            );
+            return ManagementProblems.PatchNotApplied();
         }
 
         model.DisplayName = model.DisplayName?.Trim() ?? string.Empty;
+        model.UserName = string.IsNullOrWhiteSpace(model.UserName) ? null : model.UserName;
+        model.Email = string.IsNullOrWhiteSpace(model.Email) ? null : model.Email;
 
         var expectedConcurrencyToken = string.IsNullOrEmpty(ifMatch) ? null : ifMatch;
         var error = await LocalAccountValidator.ValidateUpdateAsync(
+            connection,
             account,
             model,
             expectedConcurrencyToken,
@@ -491,8 +703,9 @@ internal class LocalAccountApiEndpointHandler(
             return ToErrorResult(error);
         }
 
-        var principalId = await FindSelfIssuedPrincipalIdAsync(
+        var principalId = await FindPrincipalIdAsync(
             storeManager,
+            connection.ConnectionId,
             localAccountId,
             cancellationToken
         );
@@ -522,10 +735,11 @@ internal class LocalAccountApiEndpointHandler(
     /// Deletes a local account and ends the sessions of its principal.
     /// </summary>
     /// <response code="204">The local account was deleted.</response>
-    /// <response code="404">The local account does not exist.</response>
+    /// <response code="404">The connection or the local account does not exist, or the connection is not a local connection.</response>
     internal virtual async ValueTask<IResult> DeleteLocalAccountAsync(
         HttpContext httpContext,
         [FromRoute] string tenantId,
+        [FromRoute] string connectionId,
         [FromRoute] string localAccountId,
         CancellationToken cancellationToken
     )
@@ -542,12 +756,18 @@ internal class LocalAccountApiEndpointHandler(
 
         await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
 
-        var accountStore = storeManager.GetStore<ILocalAccountStore>();
-        var account = await accountStore.GetByIdOrDefaultAsync(localAccountId, cancellationToken);
-        if (account is null)
+        var located = await FindAccountAsync(
+            storeManager,
+            connectionId,
+            localAccountId,
+            cancellationToken
+        );
+        if (located is not { } found)
         {
             return ManagementProblems.ResourceNotFound();
         }
+
+        var (connection, accountStore, account) = found;
 
         var error = await LocalAccountValidator.ValidateDeleteAsync(
             account,
@@ -559,8 +779,8 @@ internal class LocalAccountApiEndpointHandler(
             return ToErrorResult(error);
         }
 
-        // The tenant's context is created before anything is written, whether or not the account has a
-        // self-issued identity: a tenant that is not served refuses the request here, so the answer depends on the
+        // The tenant's context is created before anything is written, whether or not the account has an
+        // identity: a tenant that is not served refuses the request here, so the answer depends on the
         // tenant, not on the account's shape.
         await using var tenantContext = await CreateTenantContextAsync(
             httpContext,
@@ -568,10 +788,10 @@ internal class LocalAccountApiEndpointHandler(
             cancellationToken
         );
 
-        // Cascade the account's self-issued connection, and the owning principal when this was its only identity.
+        // Cascade the account's identity in its connection, and the owning principal when this was its only identity.
         var identityStore = storeManager.GetStore<IFederatedIdentityStore>();
-        var identity = await identityStore.GetByIssuerSubjectAsync(
-            AccountConstants.SelfIssuer,
+        var identity = await identityStore.GetByConnectionSubjectAsync(
+            connection.ConnectionId,
             localAccountId,
             cancellationToken
         );
@@ -640,72 +860,98 @@ internal class LocalAccountApiEndpointHandler(
     /// Enables a local account.
     /// </summary>
     /// <response code="204">The local account was enabled.</response>
-    /// <response code="404">The local account does not exist.</response>
+    /// <response code="404">The connection or the local account does not exist, or the connection is not a local connection.</response>
     internal virtual ValueTask<IResult> EnableLocalAccountAsync(
         HttpContext httpContext,
         [FromRoute] string tenantId,
+        [FromRoute] string connectionId,
         [FromRoute] string localAccountId,
         CancellationToken cancellationToken
-    ) => SetEnabledAsync(httpContext, tenantId, localAccountId, isEnabled: true, cancellationToken);
+    )
+    {
+        var route = new AccountRoute(tenantId, connectionId, localAccountId);
+        return EnableAsync(httpContext, route, cancellationToken);
+    }
 
     /// <summary>
     /// Disables a local account and ends the sessions of its principal.
     /// </summary>
     /// <response code="204">The local account was disabled.</response>
-    /// <response code="404">The local account does not exist.</response>
+    /// <response code="404">The connection or the local account does not exist, or the connection is not a local connection.</response>
     internal virtual ValueTask<IResult> DisableLocalAccountAsync(
         HttpContext httpContext,
         [FromRoute] string tenantId,
+        [FromRoute] string connectionId,
         [FromRoute] string localAccountId,
-        CancellationToken cancellationToken
-    ) =>
-        SetEnabledAsync(httpContext, tenantId, localAccountId, isEnabled: false, cancellationToken);
-
-    private async ValueTask<IResult> SetEnabledAsync(
-        HttpContext httpContext,
-        string tenantId,
-        string localAccountId,
-        bool isEnabled,
         CancellationToken cancellationToken
     )
     {
-        var authorizationError = await LocalAccountValidator.AuthorizeUpdateAsync(
-            httpContext.User,
-            tenantId,
-            cancellationToken
-        );
-        if (authorizationError is not null)
+        var route = new AccountRoute(tenantId, connectionId, localAccountId);
+        return DisableAsync(httpContext, route, cancellationToken);
+    }
+
+    /// <summary>
+    /// Enables a local account and records the change.
+    /// </summary>
+    /// <remarks>
+    /// Enabling an account ends no session, so it needs no tenant context.
+    /// </remarks>
+    /// <returns>The result that answers the request: no content, or the refusal that authorization or the lookup
+    /// gave.</returns>
+    private async ValueTask<IResult> EnableAsync(
+        HttpContext httpContext,
+        AccountRoute route,
+        CancellationToken cancellationToken
+    )
+    {
+        var target = await LoadAccountForChangeAsync(httpContext, route, cancellationToken);
+        if (target.Refusal is { } refusal)
         {
-            return ToErrorResult(authorizationError);
+            return refusal;
         }
 
-        await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
-        var store = storeManager.GetStore<ILocalAccountStore>();
+        await using var storeManager = target.StoreManager;
+        var account = target.Account;
 
-        var account = await store.GetByIdOrDefaultAsync(localAccountId, cancellationToken);
-        if (account is null)
+        account.IsEnabled = true;
+        await target.Store.UpdateAsync(account, cancellationToken);
+        await storeManager.SaveChangesAsync(cancellationToken);
+
+        return await RecordEnabledChangeAsync(httpContext, route, target, cancellationToken);
+    }
+
+    /// <summary>
+    /// Disables a local account, ends the sessions of its principal and records the change.
+    /// </summary>
+    /// <remarks>
+    /// Disabling an account with an identity ends its principal's sessions, so the tenant's context is created before
+    /// the account is written: a tenant that is not served refuses the request here, before anything is committed or
+    /// audited. Disabling an account without an identity ends no session and needs no context.
+    /// </remarks>
+    /// <returns>The result that answers the request: no content, or the refusal that authorization or the lookup
+    /// gave.</returns>
+    private async ValueTask<IResult> DisableAsync(
+        HttpContext httpContext,
+        AccountRoute route,
+        CancellationToken cancellationToken
+    )
+    {
+        var target = await LoadAccountForChangeAsync(httpContext, route, cancellationToken);
+        if (target.Refusal is { } refusal)
         {
-            return ManagementProblems.ResourceNotFound();
+            return refusal;
         }
 
-        // The account's principal is resolved before the account is written, for the audit record and, when the account
-        // is disabled, to end its sessions. Disabling an account with a self-issued identity ends its principal's
-        // sessions, so the tenant's context is created before the account is written: a tenant that is not served
-        // refuses the request here, before anything is committed or audited. Enabling an account, or disabling one
-        // without a self-issued identity, ends no session and needs no context.
-        var principalId = await FindSelfIssuedPrincipalIdAsync(
-            storeManager,
-            localAccountId,
-            cancellationToken
-        );
+        await using var storeManager = target.StoreManager;
+        var account = target.Account;
+        var principalId = target.PrincipalId;
 
-        await using var tenantContext =
-            isEnabled || principalId is null
-                ? null
-                : await CreateTenantContextAsync(httpContext, tenantId, cancellationToken);
+        await using var tenantContext = principalId is null
+            ? null
+            : await CreateTenantContextAsync(httpContext, route.TenantId, cancellationToken);
 
-        account.IsEnabled = isEnabled;
-        await store.UpdateAsync(account, cancellationToken);
+        account.IsEnabled = false;
+        await target.Store.UpdateAsync(account, cancellationToken);
         await storeManager.SaveChangesAsync(cancellationToken);
 
         if (tenantContext is not null && principalId is not null)
@@ -720,12 +966,91 @@ internal class LocalAccountApiEndpointHandler(
             );
         }
 
-        var resource = ToLocalAccountResource(account, principalId);
+        return await RecordEnabledChangeAsync(httpContext, route, target, cancellationToken);
+    }
+
+    /// <summary>
+    /// Authorizes the update of a local account, opens a store manager, loads the account that the route names and
+    /// resolves the principal behind its identity.
+    /// </summary>
+    /// <returns>
+    /// The loaded account, which holds the open store manager that the caller disposes, or a target whose
+    /// <see cref="AccountChangeTarget.Refusal"/> is the authorization error, or the 404 answer when the connection or
+    /// the account is absent.
+    /// </returns>
+    private async ValueTask<AccountChangeTarget> LoadAccountForChangeAsync(
+        HttpContext httpContext,
+        AccountRoute route,
+        CancellationToken cancellationToken
+    )
+    {
+        var authorizationError = await LocalAccountValidator.AuthorizeUpdateAsync(
+            httpContext.User,
+            route.TenantId,
+            cancellationToken
+        );
+        if (authorizationError is not null)
+        {
+            var refusal = ToErrorResult(authorizationError);
+            return default(AccountChangeTarget) with { Refusal = refusal };
+        }
+
+        var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
+
+        try
+        {
+            var located = await FindAccountAsync(
+                storeManager,
+                route.ConnectionId,
+                route.LocalAccountId,
+                cancellationToken
+            );
+            if (located is { } found)
+            {
+                var (connection, store, account) = found;
+                var principalId = await FindPrincipalIdAsync(
+                    storeManager,
+                    connection.ConnectionId,
+                    route.LocalAccountId,
+                    cancellationToken
+                );
+
+                return new AccountChangeTarget(null, storeManager, store, account, principalId);
+            }
+        }
+        catch
+        {
+            await storeManager.DisposeAsync();
+            throw;
+        }
+
+        await storeManager.DisposeAsync();
+        var notFound = ManagementProblems.ResourceNotFound();
+        return default(AccountChangeTarget) with { Refusal = notFound };
+    }
+
+    /// <summary>
+    /// Audits the enabling or disabling of a local account and answers the request.
+    /// </summary>
+    /// <param name="httpContext">The request's context, whose response takes the entity tag.</param>
+    /// <param name="route">The route that names the account.</param>
+    /// <param name="target">The loaded account, whose principal the audit record names.</param>
+    /// <param name="cancellationToken">The token that cancels the request.</param>
+    /// <returns>The no-content result, with the account's concurrency token as the entity tag.</returns>
+    private async ValueTask<IResult> RecordEnabledChangeAsync(
+        HttpContext httpContext,
+        AccountRoute route,
+        AccountChangeTarget target,
+        CancellationToken cancellationToken
+    )
+    {
+        var account = target.Account;
+        var resource = ToLocalAccountResource(account, target.PrincipalId);
         var resourceValues = ToResourceValues(resource);
         await ManagementAuditRecorder.RecordLocalAccountChangedAsync(
             httpContext,
-            tenantId,
-            localAccountId,
+            route.TenantId,
+            route.LocalAccountId,
             ResourceChangeTypes.Updated,
             resourceValues
         );
@@ -738,11 +1063,12 @@ internal class LocalAccountApiEndpointHandler(
     /// Sets the password of a local account and ends the sessions of its principal.
     /// </summary>
     /// <response code="204">The password was set.</response>
-    /// <response code="400">The password does not meet the tenant's password policy.</response>
-    /// <response code="404">The local account or the tenant does not exist.</response>
+    /// <response code="400">The password does not meet the connection's password policy.</response>
+    /// <response code="404">The connection, the local account or the tenant does not exist, or the connection is not a local connection.</response>
     internal virtual async ValueTask<IResult> ResetPasswordAsync(
         HttpContext httpContext,
         [FromRoute] string tenantId,
+        [FromRoute] string connectionId,
         [FromRoute] string localAccountId,
         [FromBody] ResetLocalAccountPasswordRequest request,
         CancellationToken cancellationToken
@@ -759,17 +1085,23 @@ internal class LocalAccountApiEndpointHandler(
         }
 
         await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
-        var store = storeManager.GetStore<ILocalAccountStore>();
 
-        var account = await store.GetByIdOrDefaultAsync(localAccountId, cancellationToken);
-        if (account is null)
+        var located = await FindAccountAsync(
+            storeManager,
+            connectionId,
+            localAccountId,
+            cancellationToken
+        );
+        if (located is not { } found)
         {
             return ManagementProblems.ResourceNotFound();
         }
 
+        var (connection, store, account) = found;
+
         var passwordError = await LocalAccountPasswords.ValidateAsync(
             storeManager,
-            tenantId,
+            connection,
             account,
             request.Password,
             cancellationToken
@@ -779,11 +1111,12 @@ internal class LocalAccountApiEndpointHandler(
             return ToErrorResult(passwordError);
         }
 
-        // An account with a self-issued identity has its principal's sessions ended, so the tenant's context is created
+        // An account with an identity has its principal's sessions ended, so the tenant's context is created
         // before the password is written: a tenant that is not served refuses the request here, before anything is
         // committed or audited. An account without one ends no session and needs no context.
-        var principalId = await FindSelfIssuedPrincipalIdAsync(
+        var principalId = await FindPrincipalIdAsync(
             storeManager,
+            connection.ConnectionId,
             localAccountId,
             cancellationToken
         );
@@ -814,7 +1147,12 @@ internal class LocalAccountApiEndpointHandler(
         // The password an administrator sets replaces the one being guessed, so its failed attempts start over. The
         // change is committed, so clearing them runs on its own bounded token, a failure is logged, and the audit
         // record follows. See ADR-1237 and ADR-1351.
-        await PostCommitSecurityEffects.ResetPasswordAttemptsAsync(tenantId, account.UserName);
+        var attemptKey = LocalAccountAttemptKeys.ForAccount(account.LocalAccountId);
+        await PostCommitSecurityEffects.ResetPasswordAttemptsAsync(
+            tenantId,
+            connection.ConnectionId,
+            attemptKey
+        );
 
         await ManagementAuditRecorder.RecordLocalAccountChangedAsync(
             httpContext,
@@ -831,10 +1169,11 @@ internal class LocalAccountApiEndpointHandler(
     /// Gets the claims of a local account.
     /// </summary>
     /// <response code="200">The claims of the local account.</response>
-    /// <response code="404">The local account does not exist.</response>
+    /// <response code="404">The connection or the local account does not exist, or the connection is not a local connection.</response>
     internal virtual async ValueTask<IResult> GetClaimsAsync(
         HttpContext httpContext,
         [FromRoute] string tenantId,
+        [FromRoute] string connectionId,
         [FromRoute] string localAccountId,
         CancellationToken cancellationToken
     )
@@ -847,9 +1186,13 @@ internal class LocalAccountApiEndpointHandler(
             async token =>
             {
                 await using var storeManager = await StoreManagerFactory.CreateAsync(token);
-                return await storeManager
-                    .GetStore<ILocalAccountStore>()
-                    .GetByIdOrDefaultAsync(localAccountId, token);
+                var located = await FindAccountAsync(
+                    storeManager,
+                    connectionId,
+                    localAccountId,
+                    token
+                );
+                return located?.Account;
             },
             value => ToClaimsResource(tenantId, value),
             cancellationToken
@@ -861,10 +1204,11 @@ internal class LocalAccountApiEndpointHandler(
     /// </summary>
     /// <response code="204">The claims were replaced.</response>
     /// <response code="400">The claims include the reserved <c>name</c> claim, which is the account's display name.</response>
-    /// <response code="404">The local account does not exist.</response>
+    /// <response code="404">The connection or the local account does not exist, or the connection is not a local connection.</response>
     internal virtual async ValueTask<IResult> SetClaimsAsync(
         HttpContext httpContext,
         [FromRoute] string tenantId,
+        [FromRoute] string connectionId,
         [FromRoute] string localAccountId,
         [FromBody] SetLocalAccountClaimsRequest request,
         [FromHeader(Name = "If-Match")] string? ifMatch,
@@ -882,17 +1226,23 @@ internal class LocalAccountApiEndpointHandler(
         }
 
         await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
-        var store = storeManager.GetStore<ILocalAccountStore>();
 
-        var account = await store.GetByIdOrDefaultAsync(localAccountId, cancellationToken);
-        if (account is null)
+        var located = await FindAccountAsync(
+            storeManager,
+            connectionId,
+            localAccountId,
+            cancellationToken
+        );
+        if (located is not { } found)
         {
             return ManagementProblems.ResourceNotFound();
         }
 
+        var store = found.Store;
+
         var preconditionError = ManagementEntityTags.GetIfMatchErrorOrDefault(
             ifMatch,
-            account.ConcurrencyToken,
+            found.Account.ConcurrencyToken,
             "local account"
         );
         if (preconditionError is not null)
@@ -932,10 +1282,11 @@ internal class LocalAccountApiEndpointHandler(
     /// Gets the profile and system metadata of the principal of a local account.
     /// </summary>
     /// <response code="200">The metadata of the principal.</response>
-    /// <response code="404">The local account does not exist, or it has no principal.</response>
+    /// <response code="404">The connection or the local account does not exist, the connection is not a local connection, or the account has no principal.</response>
     internal virtual async ValueTask<IResult> GetMetadataAsync(
         HttpContext httpContext,
         [FromRoute] string tenantId,
+        [FromRoute] string connectionId,
         [FromRoute] string localAccountId,
         CancellationToken cancellationToken
     )
@@ -948,7 +1299,12 @@ internal class LocalAccountApiEndpointHandler(
             async token =>
             {
                 await using var storeManager = await StoreManagerFactory.CreateAsync(token);
-                return await ResolvePrincipalAsync(storeManager, localAccountId, token);
+                return await ResolvePrincipalAsync(
+                    storeManager,
+                    connectionId,
+                    localAccountId,
+                    token
+                );
             },
             value => ToMetadataResource(tenantId, localAccountId, value),
             cancellationToken
@@ -959,10 +1315,11 @@ internal class LocalAccountApiEndpointHandler(
     /// Sets the profile and system metadata that the request supplies on the principal of a local account.
     /// </summary>
     /// <response code="204">The metadata was set.</response>
-    /// <response code="404">The local account does not exist, or it has no principal.</response>
+    /// <response code="404">The connection or the local account does not exist, the connection is not a local connection, or the account has no principal.</response>
     internal virtual async ValueTask<IResult> SetMetadataAsync(
         HttpContext httpContext,
         [FromRoute] string tenantId,
+        [FromRoute] string connectionId,
         [FromRoute] string localAccountId,
         [FromBody] SetLocalAccountMetadataRequest request,
         [FromHeader(Name = "If-Match")] string? ifMatch,
@@ -984,6 +1341,7 @@ internal class LocalAccountApiEndpointHandler(
 
         var principal = await ResolvePrincipalAsync(
             storeManager,
+            connectionId,
             localAccountId,
             cancellationToken
         );
@@ -1028,49 +1386,37 @@ internal class LocalAccountApiEndpointHandler(
         return TypedResults.NoContent();
     }
 
-    private static LocalAccountClaimsResource ToClaimsResource(
-        string tenantId,
-        PersistedLocalAccount account
-    ) =>
-        new()
-        {
-            TenantId = tenantId,
-            LocalAccountId = account.LocalAccountId,
-            Claims = account
-                .Claims.Select(claim => new LocalAccountClaim
-                {
-                    Type = claim.Type,
-                    Value = claim.Value,
-                })
-                .ToList(),
-            ConcurrencyToken = account.ConcurrencyToken,
-        };
-
-    private static LocalAccountMetadataResource ToMetadataResource(
-        string tenantId,
-        string localAccountId,
-        PersistedFederatedPrincipal principal
-    ) =>
-        new()
-        {
-            TenantId = tenantId,
-            LocalAccountId = localAccountId,
-            PrincipalId = principal.PrincipalId,
-            ProfileMetadata = principal.ProfileMetadata,
-            SystemMetadata = principal.SystemMetadata,
-            ConcurrencyToken = principal.ConcurrencyToken,
-        };
-
-    private static async ValueTask<PersistedFederatedPrincipal?> ResolvePrincipalAsync(
+    /// <summary>
+    /// Resolves the principal behind the identity of a local account of a connection.
+    /// </summary>
+    /// <param name="storeManager">The store manager that reads the account, its identity and the principal.</param>
+    /// <param name="connectionId">The identifier of the connection that holds the account.</param>
+    /// <param name="localAccountId">The identifier of the local account.</param>
+    /// <param name="cancellationToken">The token that cancels the reads.</param>
+    /// <returns>The principal, or <see langword="null"/> when the connection is missing or not local, the account is
+    /// absent, or the account has no identity or principal.</returns>
+    private async ValueTask<PersistedFederatedPrincipal?> ResolvePrincipalAsync(
         IStoreManager storeManager,
+        string connectionId,
         string localAccountId,
         CancellationToken cancellationToken
     )
     {
+        var located = await FindAccountAsync(
+            storeManager,
+            connectionId,
+            localAccountId,
+            cancellationToken
+        );
+        if (located is not { } found)
+        {
+            return null;
+        }
+
         var identity = await storeManager
             .GetStore<IFederatedIdentityStore>()
-            .GetByIssuerSubjectAsync(
-                AccountConstants.SelfIssuer,
+            .GetByConnectionSubjectAsync(
+                found.Connection.ConnectionId,
                 localAccountId,
                 cancellationToken
             );
@@ -1082,6 +1428,75 @@ internal class LocalAccountApiEndpointHandler(
         return await storeManager
             .GetStore<IFederatedPrincipalStore>()
             .GetOrDefaultAsync(identity.PrincipalId, cancellationToken);
+    }
+
+    /// <summary>
+    /// Loads the connection that a route names, or the control-plane tenant's default connection, read from the stored
+    /// tenant and team documents, when the route names none, as the platform routes do.
+    /// </summary>
+    /// <returns>The local connection, or <see langword="null"/> when the connection is missing or its strategy is not
+    /// local.</returns>
+    private async ValueTask<PersistedConnection?> FindConnectionAsync(
+        IStoreManager storeManager,
+        string? connectionId,
+        CancellationToken cancellationToken
+    )
+    {
+        PersistedConnection? connection;
+        if (connectionId is null)
+        {
+            connection = await DefaultConnectionReader.FindAsync(storeManager, cancellationToken);
+        }
+        else
+        {
+            var connectionStore = storeManager.GetStore<IConnectionStore>();
+            connection = await connectionStore.GetOrDefaultAsync(connectionId, cancellationToken);
+        }
+
+        return AsLocal(connection);
+    }
+
+    /// <summary>
+    /// Loads a local account of the connection that a route names, with the connection and the store that holds it.
+    /// </summary>
+    /// <returns>The connection, the store and the account, or <see langword="null"/> when the connection is missing or
+    /// not local, or the account is absent or another connection holds it.</returns>
+    private async ValueTask<(
+        PersistedConnection Connection,
+        ILocalAccountStore Store,
+        PersistedLocalAccount Account
+    )?> FindAccountAsync(
+        IStoreManager storeManager,
+        string connectionId,
+        string localAccountId,
+        CancellationToken cancellationToken
+    )
+    {
+        var connection = await FindLocalConnectionByIdAsync(
+            storeManager,
+            connectionId,
+            cancellationToken
+        );
+        if (connection is null)
+        {
+            return null;
+        }
+
+        var store = LocalAccountStoreCatalog.GetStore(storeManager, connection);
+        var account = await store.GetByIdOrDefaultAsync(localAccountId, cancellationToken);
+        if (
+            account is null
+            || !string.Equals(
+                account.ConnectionId,
+                connection.ConnectionId,
+                StringComparison.Ordinal
+            )
+        )
+        {
+            return null;
+        }
+
+        return (connection, store, account);
     }
 
     // Materializes a context for the addressed tenant so session termination runs the seam (grant revocation,
@@ -1108,51 +1523,4 @@ internal class LocalAccountApiEndpointHandler(
         string reason,
         CancellationToken cancellationToken
     ) => await SessionService.RevokeAllAsync(tenantContext, principalId, reason, cancellationToken);
-
-    // Resolves the principal behind the account's self-issued identity, if the account has one. A route resolves it
-    // before its write, so the effect that follows the commit is one call.
-    private static async ValueTask<string?> FindSelfIssuedPrincipalIdAsync(
-        IStoreManager storeManager,
-        string localAccountId,
-        CancellationToken cancellationToken
-    )
-    {
-        var identity = await storeManager
-            .GetStore<IFederatedIdentityStore>()
-            .GetByIssuerSubjectAsync(
-                AccountConstants.SelfIssuer,
-                localAccountId,
-                cancellationToken
-            );
-        return identity?.PrincipalId;
-    }
-
-    // Resolves the principals behind the self-issued identities of a page of accounts in one store call, keyed by the
-    // local account id. An account with no self-issued identity has no entry.
-    private static async ValueTask<
-        IReadOnlyDictionary<string, string>
-    > FindSelfIssuedPrincipalIdsAsync(
-        IStoreManager storeManager,
-        IReadOnlyCollection<string> localAccountIds,
-        CancellationToken cancellationToken
-    )
-    {
-        var identities = await storeManager
-            .GetStore<IFederatedIdentityStore>()
-            .GetByIssuerSubjectsAsync(
-                AccountConstants.SelfIssuer,
-                localAccountIds,
-                cancellationToken
-            );
-        var principalIds = new Dictionary<string, string>(
-            identities.Count,
-            StringComparer.OrdinalIgnoreCase
-        );
-        foreach (var identity in identities)
-        {
-            principalIds[identity.Subject] = identity.PrincipalId;
-        }
-
-        return principalIds;
-    }
 }

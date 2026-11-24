@@ -264,6 +264,7 @@ internal sealed class DefaultLocalAccountEmailCodes(
         var flowId = CryptoService.GenerateUrlSafeKey();
         var codeHash = CreateCode(flowId, out var code);
         var state = new EmailCodeState(
+            account.ConnectionId,
             account.LocalAccountId,
             account.Email,
             codeHash,
@@ -344,6 +345,7 @@ internal sealed class DefaultLocalAccountEmailCodes(
         var codeHash = new EmailCodeHash();
         RandomNumberGenerator.Fill(codeHash);
         var state = new EmailCodeState(
+            ConnectionId: string.Empty,
             LocalAccountId: string.Empty,
             Email: string.Empty,
             codeHash,
@@ -443,7 +445,7 @@ internal sealed class DefaultLocalAccountEmailCodes(
             var storedHash = state.CodeHash;
             if (CryptographicOperations.FixedTimeEquals(storedHash, presentedHash))
             {
-                return new EmailCodeMatch(state.LocalAccountId, state.Email);
+                return new EmailCodeMatch(state.ConnectionId, state.LocalAccountId, state.Email);
             }
 
             if (attempts >= MaxAttempts)

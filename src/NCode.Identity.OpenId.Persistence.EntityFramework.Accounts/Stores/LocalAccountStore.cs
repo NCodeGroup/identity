@@ -19,8 +19,9 @@ namespace NCode.Identity.OpenId.Persistence.EntityFramework.Accounts.Stores;
 /// <see cref="ILocalAccountTransferStore"/> over the shared <see cref="OpenIdDbContext"/>, reusing the framework store
 /// base for id/concurrency generation and normalization. Credential handling is owned here: it hashes and verifies
 /// passwords through the pluggable <see cref="IPasswordHasher"/> and keeps the hash a store-internal detail that never
-/// leaves on the <see cref="PersistedLocalAccount"/> contract. A user name that no account has, and an account without
-/// a password, are verified against the hasher's dummy hash, so a wrong password takes as long either way.
+/// leaves on the <see cref="PersistedLocalAccount"/> contract. An identifier that no account of the connection has, and
+/// an account without a password, are verified against the hasher's dummy hash, so a wrong password takes as long
+/// either way. Every account belongs to one connection, whose user names and email addresses are unique within it.
 /// </summary>
 internal sealed class LocalAccountStore(
     IStoreProvider storeProvider,
@@ -33,6 +34,56 @@ internal sealed class LocalAccountStore(
         ILocalAccountStore,
         ILocalAccountTransferStore
 {
+    private static string NextSecurityStamp() => Guid.NewGuid().ToString("N");
+
+    // The store keeps no lockout counter, so a disabled account is the account locked out for good.
+    private static LocalAccountTransferRecord MapToTransferRecord(LocalAccountEntity entity) =>
+        new()
+        {
+            LocalAccountId = entity.LocalAccountId,
+            UserName = entity.UserName,
+            DisplayName = entity.DisplayName,
+            NormalizedUserName = entity.NormalizedUserName,
+            Email = entity.Email,
+            NormalizedEmail = entity.NormalizedEmail,
+            EmailVerified = entity.EmailVerified,
+            PasswordHash = entity.PasswordHash,
+            SecurityStamp = entity.SecurityStamp,
+            IsEnabled = entity.IsEnabled,
+            LockoutEnabled = !entity.IsEnabled,
+            LockoutEnd = entity.IsEnabled ? null : DateTimeOffset.MaxValue,
+            AccessFailedCount = 0,
+            Claims = entity
+                .Claims.Select(claim => new PersistedLocalAccountClaim
+                {
+                    Type = claim.Type,
+                    Value = claim.Value,
+                })
+                .ToList(),
+        };
+
+    private static PersistedLocalAccount MapFromEntity(LocalAccountEntity entity) =>
+        new()
+        {
+            TenantId = entity.Tenant.TenantId,
+            ConnectionId = entity.Connection.ConnectionId,
+            LocalAccountId = entity.LocalAccountId,
+            UserName = entity.UserName,
+            DisplayName = entity.DisplayName,
+            Email = entity.Email,
+            EmailVerified = entity.EmailVerified,
+            SecurityStamp = entity.SecurityStamp,
+            IsEnabled = entity.IsEnabled,
+            Claims = entity
+                .Claims.Select(claim => new PersistedLocalAccountClaim
+                {
+                    Type = claim.Type,
+                    Value = claim.Value,
+                })
+                .ToList(),
+            ConcurrencyToken = entity.ConcurrencyToken,
+        };
+
     /// <inheritdoc />
     protected override IStoreProvider StoreProvider { get; } = storeProvider;
 
@@ -66,6 +117,7 @@ internal sealed class LocalAccountStore(
     ) =>
         await Accounts
             .Include(entity => entity.Tenant)
+            .Include(entity => entity.Connection)
             .Include(entity => entity.Claims)
             .FirstOrDefaultAsync(predicate, cancellationToken);
 
@@ -78,6 +130,7 @@ internal sealed class LocalAccountStore(
     {
         var query = Accounts
             .Include(entity => entity.Tenant)
+            .Include(entity => entity.Connection)
             .Include(entity => entity.Claims)
             .AsQueryable();
 
@@ -102,6 +155,14 @@ internal sealed class LocalAccountStore(
         account.ConcurrencyToken = NextConcurrencyToken();
 
         var tenantEntity = await GetTenantEntityAsync(account.TenantId, cancellationToken);
+        var connectionEntity = await GetTenantConnectionAsync(
+            tenantEntity,
+            account.ConnectionId,
+            cancellationToken
+        );
+        var normalizedLocalAccountId = Normalize(account.LocalAccountId);
+        var normalizedUserName = Normalize(account.UserName);
+        var normalizedEmail = Normalize(account.Email);
 
         var entity = new LocalAccountEntity
         {
@@ -109,13 +170,15 @@ internal sealed class LocalAccountStore(
             TenantId = tenantEntity.Id,
             NormalizedTenantId = tenantEntity.NormalizedTenantId,
             Tenant = tenantEntity,
+            ConnectionId = connectionEntity.Id,
+            Connection = connectionEntity,
             LocalAccountId = account.LocalAccountId,
-            NormalizedLocalAccountId = Normalize(account.LocalAccountId),
+            NormalizedLocalAccountId = normalizedLocalAccountId,
             UserName = account.UserName,
             DisplayName = account.DisplayName,
-            NormalizedUserName = Normalize(account.UserName),
+            NormalizedUserName = normalizedUserName,
             Email = account.Email,
-            NormalizedEmail = Normalize(account.Email),
+            NormalizedEmail = normalizedEmail,
             EmailVerified = account.EmailVerified,
             PasswordHash = password is { } value ? PasswordHasher.HashPassword(value.Span) : null,
             SecurityStamp = NextSecurityStamp(),
@@ -173,34 +236,44 @@ internal sealed class LocalAccountStore(
 
     /// <inheritdoc />
     public async ValueTask<LocalAccountVerificationResult> VerifyCredentialAsync(
-        string userName,
+        LocalAccountSignInIdentifier identifier,
         ReadOnlyMemory<byte> password,
         Func<string, CancellationToken, ValueTask<bool>> isRefusedAsync,
         CancellationToken cancellationToken
     )
     {
-        var normalizedUserName = Normalize(userName);
-        var entity = await GetEntityOrDefaultAsync(
-            candidate => candidate.NormalizedUserName == normalizedUserName,
+        var connectionEntity = await GetConnectionOrDefaultAsync(
+            identifier.ConnectionId,
             cancellationToken
         );
-        // The limit counts the user name the account holds, and a refused password is verified against the dummy hash,
-        // so a refusal costs what a wrong password costs. See ADR-1237.
-        var countedUserName = entity?.UserName ?? userName;
-        var isRefused = await isRefusedAsync(countedUserName, cancellationToken);
+        var entity = connectionEntity is null
+            ? null
+            : await GetEntityByIdentifierOrDefaultAsync(
+                connectionEntity,
+                identifier,
+                cancellationToken
+            );
+        // The limit counts the account the store found, or the identifier the end user submitted, and a refused
+        // password is verified against the dummy hash, so a refusal costs what a wrong password costs. See ADR-1237.
+        var accountKey = entity is null
+            ? LocalAccountAttemptKeys.ForIdentifier(
+                identifier.UserName ?? identifier.Email ?? string.Empty
+            )
+            : LocalAccountAttemptKeys.ForAccount(entity.LocalAccountId);
+        var isRefused = await isRefusedAsync(accountKey, cancellationToken);
         // A disabled account's credential is verified too, so the sign-in can tell the end user why it is refused.
         // See ADR-1229.
         var passwordHash =
             !isRefused && entity?.PasswordHash is { Length: > 0 } storedHash ? storedHash : null;
-        // An unknown user name and an account without a password are verified against the dummy hash, so a wrong
-        // password takes as long whether or not an account has the user name. See ADR-1239.
+        // An unknown identifier and an account without a password are verified against the dummy hash, so a wrong
+        // password takes as long whether or not an account matches. See ADR-1239.
         var verifiedHash = passwordHash ?? PasswordHasher.DummyPasswordHash;
         var result = PasswordHasher.VerifyHashedPassword(verifiedHash, password.Span);
         if (entity is null || passwordHash is null || result == PasswordVerificationResult.Failed)
         {
             return new LocalAccountVerificationResult
             {
-                UserName = countedUserName,
+                AccountKey = accountKey,
                 IsRefused = isRefused,
             };
         }
@@ -213,7 +286,7 @@ internal sealed class LocalAccountStore(
 
         return new LocalAccountVerificationResult
         {
-            UserName = countedUserName,
+            AccountKey = accountKey,
             Account = MapFromEntity(entity),
         };
     }
@@ -233,15 +306,79 @@ internal sealed class LocalAccountStore(
 
     /// <inheritdoc />
     public async ValueTask<PersistedLocalAccount?> GetByUserNameOrDefaultAsync(
+        string connectionId,
         string userName,
         CancellationToken cancellationToken
     )
     {
-        var normalizedUserName = Normalize(userName);
-        return await GetOrDefaultAsync(
-            entity => entity.NormalizedUserName == normalizedUserName,
+        var connectionEntity = await GetConnectionOrDefaultAsync(connectionId, cancellationToken);
+        if (connectionEntity is null)
+        {
+            return null;
+        }
+
+        var entity = await GetEntityByUserNameOrDefaultAsync(
+            connectionEntity,
+            userName,
             cancellationToken
         );
+        return entity is null ? null : MapFromEntity(entity);
+    }
+
+    /// <inheritdoc />
+    public async ValueTask<PersistedLocalAccount?> GetByEmailOrDefaultAsync(
+        string connectionId,
+        string email,
+        CancellationToken cancellationToken
+    )
+    {
+        var connectionEntity = await GetConnectionOrDefaultAsync(connectionId, cancellationToken);
+        if (connectionEntity is null)
+        {
+            return null;
+        }
+
+        var entity = await GetEntityByEmailOrDefaultAsync(
+            connectionEntity,
+            email,
+            cancellationToken
+        );
+        return entity is null ? null : MapFromEntity(entity);
+    }
+
+    /// <inheritdoc />
+    public async ValueTask<PagedResult<PersistedLocalAccount>> GetPageAsync(
+        string connectionId,
+        PageRequest page,
+        CancellationToken cancellationToken
+    )
+    {
+        var connectionEntity = await GetConnectionOrDefaultAsync(connectionId, cancellationToken);
+        if (connectionEntity is null)
+        {
+            return new PagedResult<PersistedLocalAccount> { Items = [], NextCursor = null };
+        }
+
+        var afterId = DecodeCursor(page.Cursor);
+        var connectionKey = connectionEntity.Id;
+        var query = Accounts
+            .Include(entity => entity.Tenant)
+            .Include(entity => entity.Connection)
+            .Include(entity => entity.Claims)
+            .Where(entity => entity.ConnectionId == connectionKey);
+
+        if (afterId is { } id)
+        {
+            query = query.Where(entity => entity.Id > id);
+        }
+
+        // Fetch one extra row so a full page signals that another page exists.
+        var entities = await query
+            .OrderBy(entity => entity.Id)
+            .Take(page.Limit + 1)
+            .ToListAsync(cancellationToken);
+
+        return await BuildPageAsync(entities, page.Limit, cancellationToken);
     }
 
     /// <inheritdoc />
@@ -267,6 +404,7 @@ internal sealed class LocalAccountStore(
             .Select(entity => new LocalAccountNameProjection
             {
                 LocalAccountId = entity.LocalAccountId,
+                ConnectionId = entity.Connection.ConnectionId,
                 UserName = entity.UserName,
                 DisplayName = entity.DisplayName,
             })
@@ -275,11 +413,18 @@ internal sealed class LocalAccountStore(
 
     /// <inheritdoc />
     public async ValueTask<IReadOnlyList<LocalAccountNameProjection>> GetNamesByUserNamesAsync(
+        string connectionId,
         IReadOnlyCollection<string> userNames,
         CancellationToken cancellationToken
     )
     {
         if (userNames.Count == 0)
+        {
+            return [];
+        }
+
+        var connectionEntity = await GetConnectionOrDefaultAsync(connectionId, cancellationToken);
+        if (connectionEntity is null)
         {
             return [];
         }
@@ -291,11 +436,17 @@ internal sealed class LocalAccountStore(
             normalizedUserNames.Add(normalizedUserName);
         }
 
+        var connectionKey = connectionEntity.Id;
         return await Accounts
-            .Where(entity => normalizedUserNames.Contains(entity.NormalizedUserName))
+            .Where(entity =>
+                entity.ConnectionId == connectionKey
+                && entity.NormalizedUserName != null
+                && normalizedUserNames.Contains(entity.NormalizedUserName)
+            )
             .Select(entity => new LocalAccountNameProjection
             {
                 LocalAccountId = entity.LocalAccountId,
+                ConnectionId = entity.Connection.ConnectionId,
                 UserName = entity.UserName,
                 DisplayName = entity.DisplayName,
             })
@@ -347,11 +498,20 @@ internal sealed class LocalAccountStore(
 
     /// <inheritdoc />
     public async ValueTask<IReadOnlyList<LocalAccountTransferRecord>> ExportAsync(
+        string connectionId,
         CancellationToken cancellationToken
     )
     {
+        var connectionEntity = await GetConnectionOrDefaultAsync(connectionId, cancellationToken);
+        if (connectionEntity is null)
+        {
+            return [];
+        }
+
+        var connectionKey = connectionEntity.Id;
         var entities = await Accounts
             .Include(entity => entity.Claims)
+            .Where(entity => entity.ConnectionId == connectionKey)
             .OrderBy(entity => entity.Id)
             .ToListAsync(cancellationToken);
 
@@ -360,6 +520,7 @@ internal sealed class LocalAccountStore(
 
     /// <inheritdoc />
     public async ValueTask ImportAsync(
+        string connectionId,
         IReadOnlyList<LocalAccountTransferRecord> records,
         CancellationToken cancellationToken
     )
@@ -375,23 +536,33 @@ internal sealed class LocalAccountStore(
                 "Local accounts cannot be imported without a tenant scope. Open a tenant scope with IAmbientTenantAccessor.BeginScope."
             );
         var tenantEntity = await GetTenantEntityAsync(tenantId, cancellationToken);
+        var connectionEntity = await GetTenantConnectionAsync(
+            tenantEntity,
+            connectionId,
+            cancellationToken
+        );
 
         foreach (var record in records)
         {
             // Another store's export carries its own normalized forms, so this store derives them, as AddAsync does.
+            var normalizedLocalAccountId = Normalize(record.LocalAccountId);
+            var normalizedUserName = Normalize(record.UserName);
+            var normalizedEmail = Normalize(record.Email);
             var entity = new LocalAccountEntity
             {
                 Id = NextId(),
                 TenantId = tenantEntity.Id,
                 NormalizedTenantId = tenantEntity.NormalizedTenantId,
                 Tenant = tenantEntity,
+                ConnectionId = connectionEntity.Id,
+                Connection = connectionEntity,
                 LocalAccountId = record.LocalAccountId,
-                NormalizedLocalAccountId = Normalize(record.LocalAccountId),
+                NormalizedLocalAccountId = normalizedLocalAccountId,
                 UserName = record.UserName,
                 DisplayName = record.DisplayName,
-                NormalizedUserName = Normalize(record.UserName),
+                NormalizedUserName = normalizedUserName,
                 Email = record.Email,
-                NormalizedEmail = Normalize(record.Email),
+                NormalizedEmail = normalizedEmail,
                 EmailVerified = record.EmailVerified,
                 PasswordHash = record.PasswordHash,
                 SecurityStamp = record.SecurityStamp,
@@ -418,10 +589,18 @@ internal sealed class LocalAccountStore(
     }
 
     /// <inheritdoc />
-    public async ValueTask RemoveAllAsync(CancellationToken cancellationToken)
+    public async ValueTask RemoveAllAsync(string connectionId, CancellationToken cancellationToken)
     {
+        var connectionEntity = await GetConnectionOrDefaultAsync(connectionId, cancellationToken);
+        if (connectionEntity is null)
+        {
+            return;
+        }
+
+        var connectionKey = connectionEntity.Id;
         var entities = await Accounts
             .Include(entity => entity.Claims)
+            .Where(entity => entity.ConnectionId == connectionKey)
             .ToListAsync(cancellationToken);
 
         foreach (var entity in entities)
@@ -431,8 +610,6 @@ internal sealed class LocalAccountStore(
 
         Accounts.RemoveRange(entities);
     }
-
-    private static string NextSecurityStamp() => Guid.NewGuid().ToString("N");
 
     private async ValueTask<TenantEntity> GetTenantEntityAsync(
         string tenantId,
@@ -450,6 +627,169 @@ internal sealed class LocalAccountStore(
             ?? throw new InvalidOperationException(
                 $"An OpenId Tenant with '{tenantId}' was not found."
             );
+    }
+
+    /// <summary>
+    /// Gets the connection entity with the specified identifier within the ambient tenant, or in every tenant when the
+    /// context is unscoped.
+    /// </summary>
+    /// <param name="connectionId">The identifier of the connection.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    /// <returns>The connection entity, or <see langword="null"/> when none matches.</returns>
+    /// <remarks>
+    /// The change tracker answers first, so a connection added in the same unit of work resolves.
+    /// </remarks>
+    private async ValueTask<ConnectionEntity?> GetConnectionOrDefaultAsync(
+        string connectionId,
+        CancellationToken cancellationToken
+    )
+    {
+        var normalizedConnectionId = Normalize(connectionId);
+        var isUnscoped = DbContext.IsUnscoped;
+        var ambientTenantId = DbContext.NormalizedAmbientTenantId;
+        // The change tracker answers first, so a connection added in the same unit of work resolves.
+        var tracked = DbContext
+            .Set<ConnectionEntity>()
+            .Local.FirstOrDefault(connection =>
+                connection.NormalizedConnectionId == normalizedConnectionId
+                && (isUnscoped || connection.NormalizedTenantId == ambientTenantId)
+            );
+        return tracked
+            ?? await DbContext
+                .Set<ConnectionEntity>()
+                .SingleOrDefaultAsync(
+                    connection => connection.NormalizedConnectionId == normalizedConnectionId,
+                    cancellationToken
+                );
+    }
+
+    /// <summary>
+    /// Gets the connection entity with the specified identifier within the specified tenant.
+    /// </summary>
+    /// <param name="tenantEntity">The tenant that owns the connection.</param>
+    /// <param name="connectionId">The identifier of the connection.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    /// <returns>The connection entity.</returns>
+    /// <exception cref="InvalidOperationException">The tenant has no such connection.</exception>
+    /// <remarks>
+    /// The change tracker answers first, so a connection added in the same unit of work resolves.
+    /// </remarks>
+    private async ValueTask<ConnectionEntity> GetTenantConnectionAsync(
+        TenantEntity tenantEntity,
+        string connectionId,
+        CancellationToken cancellationToken
+    )
+    {
+        var normalizedConnectionId = Normalize(connectionId);
+        var tenantKey = tenantEntity.Id;
+        // The change tracker answers first, so a connection added in the same unit of work resolves.
+        var tracked = DbContext
+            .Set<ConnectionEntity>()
+            .Local.FirstOrDefault(connection =>
+                connection.TenantId == tenantKey
+                && connection.NormalizedConnectionId == normalizedConnectionId
+            );
+        var connectionEntity =
+            tracked
+            ?? await DbContext
+                .Set<ConnectionEntity>()
+                // Cross-tenant: the account names its tenant, which need not be the ambient tenant when written.
+                .IgnoreQueryFilters()
+                .SingleOrDefaultAsync(
+                    connection =>
+                        connection.TenantId == tenantKey
+                        && connection.NormalizedConnectionId == normalizedConnectionId,
+                    cancellationToken
+                );
+        return connectionEntity
+            ?? throw new InvalidOperationException(
+                $"A connection with '{connectionId}' was not found."
+            );
+    }
+
+    /// <summary>
+    /// Gets the account of a connection with the specified user name.
+    /// </summary>
+    /// <param name="connectionEntity">The connection that holds the account.</param>
+    /// <param name="userName">The user name, before normalization.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    /// <returns>The account entity, or <see langword="null"/> when none matches.</returns>
+    private ValueTask<LocalAccountEntity?> GetEntityByUserNameOrDefaultAsync(
+        ConnectionEntity connectionEntity,
+        string userName,
+        CancellationToken cancellationToken
+    )
+    {
+        var connectionKey = connectionEntity.Id;
+        var normalizedUserName = Normalize(userName);
+        return GetEntityOrDefaultAsync(
+            entity =>
+                entity.ConnectionId == connectionKey
+                && entity.NormalizedUserName == normalizedUserName,
+            cancellationToken
+        );
+    }
+
+    /// <summary>
+    /// Gets the account of a connection with the specified email address.
+    /// </summary>
+    /// <param name="connectionEntity">The connection that holds the account.</param>
+    /// <param name="email">The email address, before normalization.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    /// <returns>The account entity, or <see langword="null"/> when none matches.</returns>
+    private ValueTask<LocalAccountEntity?> GetEntityByEmailOrDefaultAsync(
+        ConnectionEntity connectionEntity,
+        string email,
+        CancellationToken cancellationToken
+    )
+    {
+        var connectionKey = connectionEntity.Id;
+        var normalizedEmail = Normalize(email);
+        return GetEntityOrDefaultAsync(
+            entity =>
+                entity.ConnectionId == connectionKey && entity.NormalizedEmail == normalizedEmail,
+            cancellationToken
+        );
+    }
+
+    /// <summary>
+    /// Gets the account of a connection that the sign-in identifier names by user name or email address.
+    /// </summary>
+    /// <param name="connectionEntity">The connection that holds the account.</param>
+    /// <param name="identifier">The identifier, which carries a user name, an email address or both.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    /// <returns>The account entity, or <see langword="null"/> when none matches.</returns>
+    /// <remarks>
+    /// Each value the identifier carries is looked up whatever the other finds, so the work does not tell which one
+    /// matched; the user name's match wins.
+    /// </remarks>
+    private async ValueTask<LocalAccountEntity?> GetEntityByIdentifierOrDefaultAsync(
+        ConnectionEntity connectionEntity,
+        LocalAccountSignInIdentifier identifier,
+        CancellationToken cancellationToken
+    )
+    {
+        LocalAccountEntity? byUserName = null;
+        if (identifier.UserName is { } userName)
+        {
+            byUserName = await GetEntityByUserNameOrDefaultAsync(
+                connectionEntity,
+                userName,
+                cancellationToken
+            );
+        }
+
+        LocalAccountEntity? byEmail = null;
+        if (identifier.Email is { } email)
+        {
+            byEmail = await GetEntityByEmailOrDefaultAsync(
+                connectionEntity,
+                email,
+                cancellationToken
+            );
+        }
+
+        return byUserName ?? byEmail;
     }
 
     private ValueTask<LocalAccountEntity?> GetEntityByIdOrDefaultAsync(
@@ -475,51 +815,4 @@ internal sealed class LocalAccountStore(
                 $"A local account with '{localAccountId}' was not found."
             );
     }
-
-    // The store keeps no lockout counter, so a disabled account is the account locked out for good.
-    private static LocalAccountTransferRecord MapToTransferRecord(LocalAccountEntity entity) =>
-        new()
-        {
-            LocalAccountId = entity.LocalAccountId,
-            UserName = entity.UserName,
-            DisplayName = entity.DisplayName,
-            NormalizedUserName = entity.NormalizedUserName,
-            Email = entity.Email,
-            NormalizedEmail = entity.NormalizedEmail,
-            EmailVerified = entity.EmailVerified,
-            PasswordHash = entity.PasswordHash,
-            SecurityStamp = entity.SecurityStamp,
-            IsEnabled = entity.IsEnabled,
-            LockoutEnabled = !entity.IsEnabled,
-            LockoutEnd = entity.IsEnabled ? null : DateTimeOffset.MaxValue,
-            AccessFailedCount = 0,
-            Claims = entity
-                .Claims.Select(claim => new PersistedLocalAccountClaim
-                {
-                    Type = claim.Type,
-                    Value = claim.Value,
-                })
-                .ToList(),
-        };
-
-    private static PersistedLocalAccount MapFromEntity(LocalAccountEntity entity) =>
-        new()
-        {
-            TenantId = entity.Tenant.TenantId,
-            LocalAccountId = entity.LocalAccountId,
-            UserName = entity.UserName,
-            DisplayName = entity.DisplayName,
-            Email = entity.Email,
-            EmailVerified = entity.EmailVerified,
-            SecurityStamp = entity.SecurityStamp,
-            IsEnabled = entity.IsEnabled,
-            Claims = entity
-                .Claims.Select(claim => new PersistedLocalAccountClaim
-                {
-                    Type = claim.Type,
-                    Value = claim.Value,
-                })
-                .ToList(),
-            ConcurrencyToken = entity.ConcurrencyToken,
-        };
 }

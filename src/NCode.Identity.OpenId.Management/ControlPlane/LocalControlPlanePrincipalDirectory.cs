@@ -90,8 +90,8 @@ internal sealed class LocalControlPlanePrincipalDirectory(
     }
 
     /// <summary>
-    /// Describes the principals that the federated principal store holds, each named by its first federated identity or
-    /// by its identifier.
+    /// Describes the principals that the federated principal store holds, each named by its first federated identity
+    /// (its subject and, when it has one, its issuer) or by its identifier.
     /// </summary>
     /// <param name="storeManager">The store manager that reads the principals and their identities.</param>
     /// <param name="principalIds">The principal identifiers that no describer knows.</param>
@@ -113,7 +113,7 @@ internal sealed class LocalControlPlanePrincipalDirectory(
         var identityStore = storeManager.GetStore<IFederatedIdentityStore>();
         var identities = await identityStore.GetNamesByPrincipalsAsync(foundIds, cancellationToken);
 
-        // A principal is named by its first identity, ordered by issuer, then subject.
+        // A principal is named by its first identity, ordered by connection, then subject.
         var firstIdentities = new Dictionary<string, FederatedIdentityNameProjection>(
             StringComparer.OrdinalIgnoreCase
         );
@@ -134,7 +134,7 @@ internal sealed class LocalControlPlanePrincipalDirectory(
         foreach (var principalId in foundIds)
         {
             var displayName = firstIdentities.TryGetValue(principalId, out var first)
-                ? $"{first.Subject} ({first.Issuer})"
+                ? DescribeIdentity(first)
                 : principalId;
             var summary = new PrincipalSummaryResource
             {
@@ -150,7 +150,15 @@ internal sealed class LocalControlPlanePrincipalDirectory(
     }
 
     /// <summary>
-    /// Orders two federated identities by issuer, then subject, ordinally.
+    /// Names an identity by its subject and, when it has an issuer, by that issuer in parentheses.
+    /// </summary>
+    /// <param name="identity">The identity to name.</param>
+    /// <returns>The identity's display name.</returns>
+    private static string DescribeIdentity(FederatedIdentityNameProjection identity) =>
+        identity.Issuer is null ? identity.Subject : $"{identity.Subject} ({identity.Issuer})";
+
+    /// <summary>
+    /// Orders two federated identities by connection, then subject, ordinally.
     /// </summary>
     /// <param name="left">The identity to place.</param>
     /// <param name="right">The identity to compare with.</param>
@@ -160,9 +168,9 @@ internal sealed class LocalControlPlanePrincipalDirectory(
         FederatedIdentityNameProjection right
     )
     {
-        var byIssuer = string.CompareOrdinal(left.Issuer, right.Issuer);
-        return byIssuer != 0
-            ? byIssuer < 0
+        var byConnection = string.CompareOrdinal(left.ConnectionId, right.ConnectionId);
+        return byConnection != 0
+            ? byConnection < 0
             : string.CompareOrdinal(left.Subject, right.Subject) < 0;
     }
 

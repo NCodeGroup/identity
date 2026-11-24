@@ -23,7 +23,8 @@ public sealed class AspNetIdentityLocalAccountStoreEntityFrameworkTests : IAsync
     private const string UserName = "alice";
     private const string LocalAccountId = "user-1";
     private const string TenantId = "tenant-1";
-    private const string StoredNormalizedUserName = "tenant-1|ALICE";
+    private const string ConnectionId = "connection-1";
+    private const string StoredNormalizedUserName = "tenant-1|connection-1|ALICE";
     private const string StoredSecurityStamp = "stored-stamp";
     private const string ComposedPassword = "caf\u00E9 correct horse battery";
     private const string DecomposedPassword = "cafe\u0301 correct horse battery";
@@ -73,9 +74,9 @@ public sealed class AspNetIdentityLocalAccountStoreEntityFrameworkTests : IAsync
 
         Provider = serviceCollection.BuildServiceProvider();
 
-        var storeProvider = new Mock<IStoreProvider>(MockBehavior.Strict).Object;
-        var factory = Provider.GetRequiredService<Func<IStoreProvider, ILocalAccountStore>>();
-        Store = factory(storeProvider);
+        var storeManager = new Mock<IStoreManager>(MockBehavior.Strict).Object;
+        var registration = Provider.GetRequiredService<LocalAccountStoreRegistration>();
+        Store = registration.CreateStore(storeManager);
     }
 
     public Task InitializeAsync() => Task.CompletedTask;
@@ -95,6 +96,7 @@ public sealed class AspNetIdentityLocalAccountStoreEntityFrameworkTests : IAsync
         new()
         {
             TenantId = string.Empty,
+            ConnectionId = ConnectionId,
             LocalAccountId = LocalAccountId,
             UserName = UserName,
             DisplayName = "Alice Example",
@@ -111,6 +113,26 @@ public sealed class AspNetIdentityLocalAccountStoreEntityFrameworkTests : IAsync
             ConcurrencyToken = string.Empty,
         };
 
+    private static PersistedLocalAccount CreateConnectionAccount(
+        string connectionId,
+        string localAccountId,
+        string? userName,
+        string? email
+    ) =>
+        new()
+        {
+            TenantId = string.Empty,
+            ConnectionId = connectionId,
+            LocalAccountId = localAccountId,
+            UserName = userName,
+            DisplayName = "Example",
+            Email = email,
+            EmailVerified = false,
+            IsEnabled = true,
+            Claims = [],
+            ConcurrencyToken = string.Empty,
+        };
+
     // Stores the hash of the password exactly as given, without any normalization.
     private async ValueTask SetStoredPasswordHashAsync(
         string password,
@@ -118,6 +140,7 @@ public sealed class AspNetIdentityLocalAccountStoreEntityFrameworkTests : IAsync
     )
     {
         using var scope = Provider.CreateScope();
+        using var connectionScope = AmbientLookupConnection.BeginScope(ConnectionId);
         var userManager = scope.ServiceProvider.GetRequiredService<UserManager<TestTenantUser>>();
         var user = await userManager.FindByIdAsync(LocalAccountId);
         Assert.NotNull(user);
@@ -146,6 +169,7 @@ public sealed class AspNetIdentityLocalAccountStoreEntityFrameworkTests : IAsync
     )
     {
         using var scope = Provider.CreateScope();
+        using var connectionScope = AmbientLookupConnection.BeginScope(ConnectionId);
         var userManager = scope.ServiceProvider.GetRequiredService<UserManager<TestTenantUser>>();
         var user = await userManager.FindByIdAsync(LocalAccountId);
         Assert.NotNull(user);
@@ -159,11 +183,168 @@ public sealed class AspNetIdentityLocalAccountStoreEntityFrameworkTests : IAsync
     )
     {
         using var scope = Provider.CreateScope();
+        using var connectionScope = AmbientLookupConnection.BeginScope(ConnectionId);
         var userManager = scope.ServiceProvider.GetRequiredService<UserManager<TestTenantUser>>();
-        var user = new TestTenantUser(UserName) { Id = LocalAccountId, TenantId = TenantId };
+        var user = new TestTenantUser(UserName)
+        {
+            Id = LocalAccountId,
+            TenantId = TenantId,
+            ConnectionId = ConnectionId,
+        };
         var created = await userManager.CreateAsync(user, password);
         var errors = string.Join("; ", created.Errors.Select(error => error.Description));
         Assert.True(created.Succeeded, errors);
+    }
+
+    #endregion
+
+    #region Connection Tests
+
+    [Fact]
+    public async Task AddAsync_WhenTwoConnectionsHoldTheSameUserName_KeepsEachAccountInItsConnection()
+    {
+        await Store.AddAsync(
+            CreateConnectionAccount("connection-1", "user-1", UserName, "one@example.com"),
+            FirstPassword,
+            CancellationToken.None
+        );
+        await Store.AddAsync(
+            CreateConnectionAccount("connection-2", "user-2", UserName, "two@example.com"),
+            SecondPassword,
+            CancellationToken.None
+        );
+
+        var first = await Store.VerifyCredentialAsync(
+            new LocalAccountSignInIdentifier { ConnectionId = "connection-1", UserName = UserName },
+            FirstPassword,
+            NotRefused,
+            CancellationToken.None
+        );
+        var second = await Store.VerifyCredentialAsync(
+            new LocalAccountSignInIdentifier { ConnectionId = "connection-2", UserName = UserName },
+            SecondPassword,
+            NotRefused,
+            CancellationToken.None
+        );
+        var crossed = await Store.VerifyCredentialAsync(
+            new LocalAccountSignInIdentifier { ConnectionId = "connection-2", UserName = UserName },
+            FirstPassword,
+            NotRefused,
+            CancellationToken.None
+        );
+
+        Assert.True(first.IsVerified);
+        Assert.Equal("user-1", first.Account.LocalAccountId);
+        Assert.Equal("connection-1", first.Account.ConnectionId);
+        Assert.True(second.IsVerified);
+        Assert.Equal("user-2", second.Account.LocalAccountId);
+        Assert.Null(crossed.Account);
+    }
+
+    [Fact]
+    public async Task GetByUserNameOrDefaultAsync_WhenAnotherConnectionHoldsTheUserName_ReturnsNull()
+    {
+        await Store.AddAsync(
+            CreateConnectionAccount("connection-1", "user-1", UserName, null),
+            password: null,
+            CancellationToken.None
+        );
+
+        var found = await Store.GetByUserNameOrDefaultAsync(
+            "connection-1",
+            UserName,
+            CancellationToken.None
+        );
+        var other = await Store.GetByUserNameOrDefaultAsync(
+            "connection-2",
+            UserName,
+            CancellationToken.None
+        );
+
+        Assert.NotNull(found);
+        Assert.Null(other);
+    }
+
+    [Fact]
+    public async Task AddAsync_WhenTheAccountHasNoUserName_ReadsItBackWithoutOneAndFindsItByEmail()
+    {
+        await Store.AddAsync(
+            CreateConnectionAccount("connection-1", "user-1", null, "carol@example.com"),
+            FirstPassword,
+            CancellationToken.None
+        );
+
+        var byId = await Store.GetByIdOrDefaultAsync("user-1", CancellationToken.None);
+        var byEmail = await Store.GetByEmailOrDefaultAsync(
+            "connection-1",
+            "carol@example.com",
+            CancellationToken.None
+        );
+        var byIdAsUserName = await Store.GetByUserNameOrDefaultAsync(
+            "connection-1",
+            "user-1",
+            CancellationToken.None
+        );
+        var verified = await Store.VerifyCredentialAsync(
+            new LocalAccountSignInIdentifier
+            {
+                ConnectionId = "connection-1",
+                Email = "carol@example.com",
+            },
+            FirstPassword,
+            NotRefused,
+            CancellationToken.None
+        );
+
+        Assert.NotNull(byId);
+        Assert.Null(byId.UserName);
+        Assert.NotNull(byEmail);
+        Assert.Equal("user-1", byEmail.LocalAccountId);
+        Assert.Null(byIdAsUserName);
+        Assert.True(verified.IsVerified);
+        Assert.Equal(LocalAccountAttemptKeys.ForAccount("user-1"), verified.AccountKey);
+    }
+
+    [Fact]
+    public async Task GetByEmailOrDefaultAsync_WhenAnotherConnectionHoldsTheEmail_ReturnsNull()
+    {
+        await Store.AddAsync(
+            CreateConnectionAccount("connection-1", "user-1", UserName, "alice@example.com"),
+            password: null,
+            CancellationToken.None
+        );
+
+        var other = await Store.GetByEmailOrDefaultAsync(
+            "connection-2",
+            "alice@example.com",
+            CancellationToken.None
+        );
+
+        Assert.Null(other);
+    }
+
+    [Fact]
+    public async Task GetPageAsync_WhenConnectionsHoldAccounts_ListsOnlyTheNamedConnection()
+    {
+        await Store.AddAsync(
+            CreateConnectionAccount("connection-1", "user-1", "alice", null),
+            password: null,
+            CancellationToken.None
+        );
+        await Store.AddAsync(
+            CreateConnectionAccount("connection-2", "user-2", "alice", null),
+            password: null,
+            CancellationToken.None
+        );
+
+        var page = await Store.GetPageAsync(
+            "connection-2",
+            new PageRequest { Limit = 10 },
+            CancellationToken.None
+        );
+
+        var item = Assert.Single(page.Items);
+        Assert.Equal("user-2", item.LocalAccountId);
     }
 
     #endregion
@@ -176,7 +357,7 @@ public sealed class AspNetIdentityLocalAccountStoreEntityFrameworkTests : IAsync
         await Store.AddAsync(CreateAccount(), FirstPassword, CancellationToken.None);
 
         var result = await Store.VerifyCredentialAsync(
-            UserName,
+            new LocalAccountSignInIdentifier { ConnectionId = ConnectionId, UserName = UserName },
             FirstPassword,
             NotRefused,
             CancellationToken.None
@@ -205,6 +386,7 @@ public sealed class AspNetIdentityLocalAccountStoreEntityFrameworkTests : IAsync
             {
                 Id = LocalAccountId,
                 TenantId = TenantId,
+                ConnectionId = ConnectionId,
                 UserName = userName,
                 NormalizedUserName = StoredNormalizedUserName,
                 SecurityStamp = securityStamp,
@@ -244,6 +426,7 @@ public sealed class AspNetIdentityLocalAccountStoreEntityFrameworkTests : IAsync
 
         var name = Assert.Single(names);
         Assert.Equal(LocalAccountId, name.LocalAccountId);
+        Assert.Equal(ConnectionId, name.ConnectionId);
         Assert.Equal(UserName, name.UserName);
         Assert.Equal("Alice Example", name.DisplayName);
     }
@@ -259,12 +442,47 @@ public sealed class AspNetIdentityLocalAccountStoreEntityFrameworkTests : IAsync
         await Store.AddAsync(account, FirstPassword, CancellationToken.None);
         var query = new[] { UserName };
 
-        var names = await Store.GetNamesByUserNamesAsync(query, CancellationToken.None);
+        var names = await Store.GetNamesByUserNamesAsync(
+            ConnectionId,
+            query,
+            CancellationToken.None
+        );
 
         var name = Assert.Single(names);
         Assert.Equal(LocalAccountId, name.LocalAccountId);
+        Assert.Equal(ConnectionId, name.ConnectionId);
         Assert.Equal(UserName, name.UserName);
         Assert.Equal("Alice Example", name.DisplayName);
+    }
+
+    [Fact]
+    public async Task GetNamesByUserNamesAsync_WhenTheUserNameBelongsToAnotherConnection_ReturnsNone()
+    {
+        var account = CreateConnectionAccount("connection-2", LocalAccountId, UserName, null);
+        await Store.AddAsync(account, FirstPassword, CancellationToken.None);
+        var query = new[] { UserName };
+
+        var names = await Store.GetNamesByUserNamesAsync(
+            ConnectionId,
+            query,
+            CancellationToken.None
+        );
+
+        Assert.Empty(names);
+    }
+
+    [Fact]
+    public async Task GetNamesByIdsAsync_WhenTheAccountHasNoUserName_ReadsItBackWithANullUserName()
+    {
+        var account = CreateConnectionAccount(ConnectionId, LocalAccountId, null, "a@example.com");
+        await Store.AddAsync(account, FirstPassword, CancellationToken.None);
+        var query = new[] { LocalAccountId };
+
+        var names = await Store.GetNamesByIdsAsync(query, CancellationToken.None);
+
+        var name = Assert.Single(names);
+        Assert.Equal(ConnectionId, name.ConnectionId);
+        Assert.Null(name.UserName);
     }
 
     #endregion
@@ -281,7 +499,7 @@ public sealed class AspNetIdentityLocalAccountStoreEntityFrameworkTests : IAsync
         await Store.SetPasswordAsync(LocalAccountId, SecondPassword, CancellationToken.None);
 
         var second = await Store.VerifyCredentialAsync(
-            UserName,
+            new LocalAccountSignInIdentifier { ConnectionId = ConnectionId, UserName = UserName },
             SecondPassword,
             NotRefused,
             CancellationToken.None
@@ -289,7 +507,7 @@ public sealed class AspNetIdentityLocalAccountStoreEntityFrameworkTests : IAsync
         Assert.True(second.IsVerified);
         Assert.NotEqual(before.SecurityStamp, second.Account.SecurityStamp);
         var first = await Store.VerifyCredentialAsync(
-            UserName,
+            new LocalAccountSignInIdentifier { ConnectionId = ConnectionId, UserName = UserName },
             FirstPassword,
             NotRefused,
             CancellationToken.None
@@ -307,13 +525,13 @@ public sealed class AspNetIdentityLocalAccountStoreEntityFrameworkTests : IAsync
         await Store.AddAsync(CreateAccount(), DecomposedPasswordBytes, CancellationToken.None);
 
         var composed = await Store.VerifyCredentialAsync(
-            UserName,
+            new LocalAccountSignInIdentifier { ConnectionId = ConnectionId, UserName = UserName },
             ComposedPasswordBytes,
             NotRefused,
             CancellationToken.None
         );
         var decomposed = await Store.VerifyCredentialAsync(
-            UserName,
+            new LocalAccountSignInIdentifier { ConnectionId = ConnectionId, UserName = UserName },
             DecomposedPasswordBytes,
             NotRefused,
             CancellationToken.None
@@ -334,7 +552,7 @@ public sealed class AspNetIdentityLocalAccountStoreEntityFrameworkTests : IAsync
         Assert.NotNull(before);
 
         var result = await Store.VerifyCredentialAsync(
-            UserName,
+            new LocalAccountSignInIdentifier { ConnectionId = ConnectionId, UserName = UserName },
             DecomposedPasswordBytes,
             NotRefused,
             CancellationToken.None
@@ -353,7 +571,7 @@ public sealed class AspNetIdentityLocalAccountStoreEntityFrameworkTests : IAsync
     public async Task VerifyCredentialAsync_WhenNoUserHasTheUserName_ReturnsNull()
     {
         var result = await Store.VerifyCredentialAsync(
-            "nobody",
+            new LocalAccountSignInIdentifier { ConnectionId = ConnectionId, UserName = "nobody" },
             FirstPassword,
             NotRefused,
             CancellationToken.None
@@ -368,7 +586,7 @@ public sealed class AspNetIdentityLocalAccountStoreEntityFrameworkTests : IAsync
         await CreateHostUserAsync(HostPassword, CancellationToken.None);
 
         var result = await Store.VerifyCredentialAsync(
-            UserName,
+            new LocalAccountSignInIdentifier { ConnectionId = ConnectionId, UserName = UserName },
             ComposedHostPasswordBytes,
             NotRefused,
             CancellationToken.None

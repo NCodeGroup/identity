@@ -12,14 +12,18 @@ namespace NCode.Identity.OpenId.Authentication.Passwords;
 /// <summary>
 /// Provides an additive <see cref="SettingDescriptor"/> data source for the email-code settings, composed with the base
 /// descriptor catalog from the core slice: how long a mailed one-time code is accepted, how many may be mailed per
-/// hour, and whether a tenant's accounts reset a password, verify an address or complete a sign-in with one. Every
-/// setting applies to tenants and is not advertised.
+/// hour, and whether a tenant's accounts reset a password, verify an address or complete a sign-in with one. The code
+/// lifetime and the sends per hour apply to tenants; the other settings apply to tenants and to their connections. No
+/// setting is advertised.
 /// </summary>
 // See ADR-1533.
 internal class DefaultEmailCodeSettingDescriptorDataSource(INullChangeToken nullChangeToken)
     : ICollectionDataSource<SettingDescriptor>
 {
     private static ImmutableArray<string> Tenants { get; } = [OpenIdSettingScopes.Tenant];
+
+    private static ImmutableArray<string> TenantsAndConnections { get; } =
+    [OpenIdSettingScopes.Tenant, OpenIdSettingScopes.Connection];
 
     private INullChangeToken NullChangeToken { get; } = nullChangeToken;
 
@@ -62,7 +66,7 @@ internal class DefaultEmailCodeSettingDescriptorDataSource(INullChangeToken null
             yield return new SettingDescriptor<bool>
             {
                 Name = OpenIdSettingNames.PasswordResetEnabled,
-                AppliesTo = Tenants,
+                AppliesTo = TenantsAndConnections,
                 Default = false,
                 IsDiscoverable = false,
                 OnMerge = SettingMerge.Replace,
@@ -73,7 +77,7 @@ internal class DefaultEmailCodeSettingDescriptorDataSource(INullChangeToken null
             yield return new SettingDescriptor<bool>
             {
                 Name = OpenIdSettingNames.EmailVerificationEnabled,
-                AppliesTo = Tenants,
+                AppliesTo = TenantsAndConnections,
                 Default = false,
                 IsDiscoverable = false,
                 OnMerge = SettingMerge.Replace,
@@ -84,7 +88,7 @@ internal class DefaultEmailCodeSettingDescriptorDataSource(INullChangeToken null
             yield return new SettingDescriptor<bool>
             {
                 Name = OpenIdSettingNames.EmailMfaRequired,
-                AppliesTo = Tenants,
+                AppliesTo = TenantsAndConnections,
                 Default = false,
                 IsDiscoverable = false,
                 OnMerge = SettingMerge.Or,

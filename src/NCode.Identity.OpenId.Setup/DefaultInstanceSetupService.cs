@@ -9,6 +9,7 @@ using Microsoft.Extensions.Options;
 using NCode.Identity.Cryptography;
 using NCode.Identity.OpenId.Accounts.Management;
 using NCode.Identity.OpenId.Accounts.Management.Contracts;
+using NCode.Identity.OpenId.Connections;
 using NCode.Identity.OpenId.Management;
 using NCode.Identity.OpenId.Management.Endpoints.Clients;
 using NCode.Identity.OpenId.Persistence;
@@ -25,14 +26,14 @@ namespace NCode.Identity.OpenId.Setup;
 
 /// <summary>
 /// Provides a default implementation of <see cref="IInstanceSetupService"/>. The root administrator is a local account
-/// in the control-plane tenant that holds <see cref="BuiltInRoles.GlobalAdmin"/> at the platform node. The account, its
-/// identity, the role assignment, the management console's client and the automation client when the request carries
-/// them, and the initialized mark are staged on one store manager and saved once, so the instance is initialized
-/// exactly when its root administrator exists. The automation client is a platform-owned machine client that holds
-/// <see cref="BuiltInRoles.GlobalAdmin"/> at the platform node. Both clients are staged through
-/// <see cref="IClientCreator"/>, so each passes the same validation as a client that the management API creates. Setup
-/// updates the singleton row that a host replica may have written for its generated token, and runs again, up to
-/// <see cref="MaxSetUpAttempts"/> times, when a replica changes that row while it runs.
+/// in the <c>local</c> connection of the control-plane tenant that holds <see cref="BuiltInRoles.GlobalAdmin"/> at the
+/// platform node. The account, its identity, the role assignment, the management console's client and the automation
+/// client when the request carries them, and the initialized mark are staged on one store manager and saved once, so
+/// the instance is initialized exactly when its root administrator exists. The automation client is a platform-owned
+/// machine client that holds <see cref="BuiltInRoles.GlobalAdmin"/> at the platform node. Both clients are staged
+/// through <see cref="IClientCreator"/>, so each passes the same validation as a client that the management API
+/// creates. Setup updates the singleton row that a host replica may have written for its generated token, and runs
+/// again, up to <see cref="MaxSetUpAttempts"/> times, when a replica changes that row while it runs.
 /// </summary>
 internal sealed class DefaultInstanceSetupService(
     IStoreManagerFactory storeManagerFactory,
@@ -284,12 +285,18 @@ internal sealed class DefaultInstanceSetupService(
         string issuer;
         await using (var scope = ServiceScopeFactory.CreateAsyncScope())
         {
-            var httpContext = new DefaultHttpContext { RequestServices = scope.ServiceProvider };
+            var services = scope.ServiceProvider;
+            var httpContext = new DefaultHttpContext { RequestServices = services };
             var tenant = await TenantResolver.ResolveControlPlaneTenantAsync(
                 httpContext,
                 cancellationToken
             );
             tenantId = tenant.TenantId;
+
+            // The tenant's seed contributors create its `local` connection, which the root administrator's account
+            // belongs to. The seed is idempotent, so a tenant that is already seeded is left as it is.
+            var tenantProvisioner = services.GetRequiredService<ITenantProvisioner>();
+            await tenantProvisioner.SeedAsync(tenantId, cancellationToken);
 
             // A served tenant always has an issuer, and the control-plane tenant is served.
             issuer =
@@ -378,9 +385,23 @@ internal sealed class DefaultInstanceSetupService(
                 EmailVerified = false,
                 IsEnabled = true,
             };
+            var connection = await storeManager
+                .GetStore<IConnectionStore>()
+                .GetByNameOrDefaultAsync(ConnectionDefaults.Name, cancellationToken);
+            if (connection is null)
+            {
+                return new InstanceSetupResult
+                {
+                    Error = CreateError(
+                        StatusCodes.Status500InternalServerError,
+                        $"The control-plane tenant has no '{ConnectionDefaults.Name}' connection."
+                    ),
+                };
+            }
+
             var creation = await LocalAccountCreator.StageAsync(
                 storeManager,
-                tenantId,
+                connection,
                 createRequest,
                 cancellationToken
             );

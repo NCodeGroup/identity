@@ -82,3 +82,34 @@ describe('ForgotPasswordPage', () => {
     expect(screen.getByRole('heading', { level: 1 })).not.toHaveTextContent('Reset your password');
   });
 });
+
+describe('ForgotPasswordPage connection field', () => {
+  it('carries the connection as a select when several are offered', () => {
+    const { container } = renderPage({
+      antiforgeryToken: 't',
+      returnUrl: '/',
+      connections: [
+        { name: 'local', displayName: 'Local' },
+        { name: 'corp', displayName: 'Corp' },
+      ],
+      selectedConnection: 'local',
+    });
+
+    const select = container.querySelector('select#connection') as HTMLSelectElement | null;
+    expect(select?.name).toBe('connection');
+    expect(select?.value).toBe('local');
+  });
+
+  it('carries the connection as a hidden input when one is offered', () => {
+    const { container } = renderPage({
+      antiforgeryToken: 't',
+      returnUrl: '/',
+      connections: [{ name: 'local', displayName: 'Local' }],
+      selectedConnection: 'local',
+    });
+
+    const hidden = container.querySelector('input[name="connection"]') as HTMLInputElement | null;
+    expect(hidden?.type).toBe('hidden');
+    expect(hidden?.value).toBe('local');
+  });
+});

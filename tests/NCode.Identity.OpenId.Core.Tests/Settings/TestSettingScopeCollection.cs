@@ -10,8 +10,8 @@ namespace NCode.Identity.OpenId.Core.Tests.Settings;
 
 /// <summary>
 /// A parent-walking <see cref="ISettingScopeCollection"/> for tests that need a real scope topology; by default the
-/// OpenID cascade (platform, team, tenant, client, resource server). Its failure phrase names only the scope, so a test asserts
-/// how the caller reports the phrase, not the phrase the library composes.
+/// OpenID cascade (platform, team, tenant, client, resource server, connection). Its failure phrase names only the
+/// scope, so a test asserts how the caller reports the phrase, not the phrase the library composes.
 /// </summary>
 internal sealed class TestSettingScopeCollection(params SettingScopeDescriptor[] scopes)
     : ISettingScopeCollection
@@ -37,6 +37,11 @@ internal sealed class TestSettingScopeCollection(params SettingScopeDescriptor[]
             new SettingScopeDescriptor
             {
                 Name = OpenIdSettingScopes.ResourceServer,
+                ParentName = OpenIdSettingScopes.Tenant,
+            },
+            new SettingScopeDescriptor
+            {
+                Name = OpenIdSettingScopes.Connection,
                 ParentName = OpenIdSettingScopes.Tenant,
             }
         );

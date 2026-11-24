@@ -87,19 +87,22 @@ audited; and a caller reads its own assignments, teams and tenants from `GET /ap
 11. **`IPrincipalDescriber` is a strategy collection** (see
     [ADR-1001](1001-behavior-is-a-service-a-strategy-collection-or-a-mediator-seam-chosen-by-one-ladder.md)): every
     registered describer describes the principals it knows, and the local adapter merges their answers. The
-    `local_account` describer gives an account's display name and username, and the `client` describer a client's
-    identifier as its display name. Each describer reads only the columns that name a principal, through the stores'
-    name projections (`ILocalAccountStore.GetNamesByIdsAsync` and `GetNamesByUserNamesAsync`,
+    `local_account` describer names an account through its identity in a local connection, reading the store that the
+    connection's options select, and a grant's username names an account of the control-plane tenant's default
+    connection; it gives an account's display name and username (which an account may lack), and the `client` describer
+    a client's identifier as its display name. Each describer reads only the columns that name a principal, through the
+    stores' name projections (`ILocalAccountStore.GetNamesByIdsAsync` and `GetNamesByUserNamesAsync`,
     `IClientStore.GetNamesByPrincipalsAsync`, `IFederatedIdentityStore.GetNamesByPrincipalsAsync`, which the
     `local_account` describer reads), never an account's claims or a client's settings or secrets
     ([ADR-1080](1080-filtered-reads-are-intent-named-store-methods-and-growing-criteria-are-init-only-dtos.md)). A
     package that registers another describer adds a principal type, so `PrincipalTypes` holds an open vocabulary. The
     directory describes every control-plane principal: the registered describers first, then each remaining principal
     that the federated principal store holds as `federated_user`, named by its first federated identity (ordered by
-    issuer, then subject) as `<subject> (<issuer>)`, or by its principal identifier when it has none. The fallback
-    reads only which principals exist (`IFederatedPrincipalStore.GetExistingIdsAsync`) and the names of their
-    identities (`IFederatedIdentityStore.GetNamesByPrincipalsAsync`). Only an assignment whose principal no longer
-    exists has `principal: null` on its item.
+    connection, then subject) as `<subject> (<issuer>)`, or as `<subject>` when the identity has no issuer, or by its
+    principal identifier when it has no identity. The fallback reads only which principals exist
+    (`IFederatedPrincipalStore.GetExistingIdsAsync`) and the names of their identities
+    (`IFederatedIdentityStore.GetNamesByPrincipalsAsync`). Only an assignment whose principal no longer exists has
+    `principal: null` on its item.
 12. **A grant fails closed.** A `userName` resolves through the directory after the flow authorizes and the resource
     exists, and a name or a `principalId` that the control plane does not know answers `400` without echoing it, so a
     mistyped identifier never creates an assignment that no principal holds, and only a caller with grant authority at a

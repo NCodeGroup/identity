@@ -141,6 +141,7 @@ internal class ResourceServerApiEndpointHandler(
             .ProducesValidationProblem()
             .ProducesProblem(StatusCodes.Status401Unauthorized)
             .ProducesProblem(StatusCodes.Status403Forbidden)
+            .ProducesProblem(StatusCodes.Status404NotFound)
             .ProducesProblem(StatusCodes.Status409Conflict)
             .ProducesProblem(StatusCodes.Status412PreconditionFailed)
             .ProducesProblem(StatusCodes.Status415UnsupportedMediaType);
@@ -437,6 +438,7 @@ internal class ResourceServerApiEndpointHandler(
     /// </summary>
     /// <response code="201">The created resource server.</response>
     /// <response code="400">The settings are not valid for a resource server.</response>
+    /// <response code="404">The tenant does not exist.</response>
     /// <response code="409">A resource server with the same identifier already exists.</response>
     [EndpointName("api/resource-servers/create")]
     internal virtual async ValueTask<IResult> CreateAsync(
@@ -461,6 +463,18 @@ internal class ResourceServerApiEndpointHandler(
 
         await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
         var store = storeManager.GetStore<IResourceServerStore>();
+
+        // The caller holds authority at the tenant's node, but the tenant may not exist: the store's insert would fail
+        // on it, so the absent tenant is answered 404 before anything is validated or stored.
+        var tenantNotFound = await GetTenantNotFoundOrDefaultAsync(
+            storeManager,
+            tenantId,
+            cancellationToken
+        );
+        if (tenantNotFound is not null)
+        {
+            return tenantNotFound;
+        }
 
         var resourceServerId = CryptoService.GenerateResourceId();
 
@@ -612,10 +626,7 @@ internal class ResourceServerApiEndpointHandler(
         catch (JsonPatchException exception)
         {
             Logger.JsonPatchFailed(exception);
-            return TypedResults.Problem(
-                detail: "The JSON Patch document could not be applied.",
-                statusCode: StatusCodes.Status400BadRequest
-            );
+            return ManagementProblems.PatchNotApplied();
         }
 
         resourceServer.Name = model.Name;
@@ -1298,10 +1309,7 @@ internal class ResourceServerApiEndpointHandler(
         catch (JsonPatchException exception)
         {
             Logger.JsonPatchFailed(exception);
-            return TypedResults.Problem(
-                detail: "The JSON Patch document could not be applied.",
-                statusCode: StatusCodes.Status400BadRequest
-            );
+            return ManagementProblems.PatchNotApplied();
         }
 
         var settingsValue = SerializeToElement(jsonObject);

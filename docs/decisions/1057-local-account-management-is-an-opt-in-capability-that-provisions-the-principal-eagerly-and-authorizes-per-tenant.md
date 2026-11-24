@@ -17,7 +17,7 @@ depended on the account abstractions, every management host would carry the capa
 the management audit abstraction would know the shape of an event that is not part of its slice.
 [ADR-1086](1086-endpoints-compose-as-a-declarative-group-tree-and-a-protocol-endpoint-is-a-thin-mediator-driven-provider.md)
 establishes the keyed endpoint-group model this design relies on, and
-[ADR-1051](1051-a-local-account-is-a-self-issued-connection-behind-one-pluggable-store-seam.md) applies the same
+[ADR-1051](1051-a-local-account-belongs-to-one-local-connection-behind-a-named-pluggable-store-seam.md) applies the same
 dependency inversion to the authentication slice: the password grant is an opt-in package over the account abstractions.
 
 Two facts about the account model make a plain set of CRUD endpoints insufficient:
@@ -34,7 +34,7 @@ Two facts about the account model make a plain set of CRUD endpoints insufficien
 
 **Local-account management is an opt-in capability in its own account-owned packages. The base management slice has no
 dependency on the account packages, the capability authorizes every operation against the tenant scope, and creating
-an account provisions its principal and self-issued identity in the same unit of work.**
+an account provisions its principal and connection identity in the same unit of work.**
 
 ### Two account-owned packages
 
@@ -51,7 +51,7 @@ an account provisions its principal and self-issued identity in the same unit of
 ### The endpoint attaches to the tenant group by its key
 
 The handler registers as a keyed `IEndpointProvider` under `ManagementEndpointGroups.Tenant`, so the capability attaches
-to a group it does not own with no change to that group. It is mapped at `/api/tenants/{tenantId}/local-accounts` with
+to a group it does not own with no change to that group. It is mapped at `/api/tenants/{tenantId}/connections/{connectionId}/local-accounts` with
 the OpenAPI tag `LocalAccounts`. The routes are:
 
 - `POST` and `GET` on the collection;
@@ -62,7 +62,7 @@ the OpenAPI tag `LocalAccounts`. The routes are:
 - `GET` and `PATCH` on `/{localAccountId}/metadata`.
 
 The control-plane cell also maps `GET` and `POST` on `/api/platform/local-accounts`, which list and create the
-control-plane tenant's accounts and authorize as that tenant's routes do.
+accounts of the control-plane tenant's `default_connection` and authorize as that tenant's routes do.
 
 ### Shared building blocks are public abstractions
 
@@ -83,20 +83,20 @@ orders authorization before reading, and which status it answers, is
 
 ### The principal is provisioned eagerly
 
-Create writes the account, its principal and its self-issued identity in one unit of work, so metadata and authority
+Create writes the account, its principal and its identity, keyed `(connection, account id)`, in one unit of work, so metadata and authority
 have a target before the first login. Create may also set the metadata bags.
 
-The metadata endpoint resolves the account's principal through its self-issued identity and reads and writes the bags
+The metadata endpoint resolves the account's principal through its identity and reads and writes the bags
 through `IFederatedPrincipalStore`. With create, it is the only write path for `SystemMetadata`, and the whole API is
 administrator-gated, so the bag is never writable by an end user.
 
-The account's resource carries its principal's identifier (`principalId`, `null` for an account without a self-issued
+The account's resource carries its principal's identifier (`principalId`, `null` for an account without a connection
 identity) in the create, get and list answers, because a role assignment names a principal and the account's own
-identifier is not one. Create reads it from the staged principal, get from the account's self-issued identity, and a
-list resolves its page's identities in one `IFederatedIdentityStore.GetByIssuerSubjectsAsync` call, so a grant needs no
+identifier is not one. Create reads it from the staged principal, get from the account's identity, and a
+list resolves its page's identities in one `IFederatedIdentityStore.GetByConnectionSubjectsAsync` call, so a grant needs no
 call to the metadata endpoint. A client's resource carries its `principalId` the same way.
 
-Delete ends the principal's sessions first, then removes the account, its self-issued identity, and the principal when
+Delete ends the principal's sessions first, then removes the account, its identity, and the principal when
 that was its last identity. Disable and password reset end sessions after the commit
 ([ADR-1229](1229-a-blocked-disabled-or-deleted-end-user-loses-its-sessions-and-is-refused-with-access-denied.md)). Create and reset judge
 the password with `IPasswordPolicy` and answer a refusal with a `400` problem
@@ -130,11 +130,11 @@ enforced at compile time. A local-account store registration (`AddLocalAccountEn
   principal.
 - **Ownable local accounts with an owners sub-resource.** Authority over an end-user subject is tenant administration,
   so an owner model adds a resource-node type and a sub-resource for no authority a tenant administrator lacks.
-- **Folding metadata into the account update.** Metadata belongs to the principal, which the self-issued identity
+- **Folding metadata into the account update.** Metadata belongs to the principal, which the connection identity
   resolves, not to the account, and it carries the owner-versus-server trust boundary, so it has its own endpoint.
 - **A provisioner seam between the handler and the store.** The create handler composes the account, principal and
   identity writes in one unit of work against the one store seam; a separate write seam is the split
-  [ADR-1051](1051-a-local-account-is-a-self-issued-connection-behind-one-pluggable-store-seam.md) rejects.
+  [ADR-1051](1051-a-local-account-belongs-to-one-local-connection-behind-a-named-pluggable-store-seam.md) rejects.
 - **Duplicating the endpoint base in the capability package.** It leaves the other handlers untouched but copies
   endpoint plumbing that drifts.
 - **Account-owned opt-in packages that build on a public management abstraction, with eager provisioning and
@@ -158,8 +158,8 @@ enforced at compile time. A local-account store registration (`AddLocalAccountEn
 
 - Code: `src/NCode.Identity.OpenId.Accounts.Management.Abstractions`, `src/NCode.Identity.OpenId.Accounts.Management`,
   `src/NCode.Identity.OpenId.Management.Abstractions`.
-- [ADR-1051](1051-a-local-account-is-a-self-issued-connection-behind-one-pluggable-store-seam.md): the store seam and the
-  self-issued identity.
+- [ADR-1051](1051-a-local-account-belongs-to-one-local-connection-behind-a-named-pluggable-store-seam.md): the store seam and the
+  connection identity.
 - [ADR-1035](1035-an-end-user-is-one-tenant-scoped-principal-that-every-authentication-entry-point-resolves-to.md): the
   principal an account resolves to.
 - [ADR-1055](1055-subject-metadata-lives-on-the-principal-and-projects-into-tokens-as-nested-claims-at-issuance.md): the

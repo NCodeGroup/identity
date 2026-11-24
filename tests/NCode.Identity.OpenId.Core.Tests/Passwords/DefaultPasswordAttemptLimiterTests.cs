@@ -4,9 +4,12 @@
 using Microsoft.Extensions.Logging.Testing;
 using Microsoft.Extensions.Time.Testing;
 using Moq;
+using NCode.Identity.Json;
 using NCode.Identity.OpenId.Authentication.Logging;
 using NCode.Identity.OpenId.Authentication.Passwords;
+using NCode.Identity.OpenId.Connections;
 using NCode.Identity.OpenId.Contexts;
+using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Settings;
 using NCode.Identity.OpenId.Tenants;
 using NCode.Identity.Settings;
@@ -18,6 +21,8 @@ namespace NCode.Identity.OpenId.Core.Tests.Passwords;
 public sealed class DefaultPasswordAttemptLimiterTests : BaseTests
 {
     private const string TenantId = "tenant-1";
+
+    private const string ConnectionId = "connection-1";
 
     private const string UserName = "alice";
 
@@ -39,14 +44,10 @@ public sealed class DefaultPasswordAttemptLimiterTests : BaseTests
 
     #region Scaffolding
 
-    private OpenIdContext CreateContext(Mock<IReadOnlySettingCollection> mockSettings)
+    private OpenIdContext CreateContext()
     {
-        var mockProvider = CreateStrictMock<IReadOnlySettingCollectionProvider>();
-        mockProvider.Setup(x => x.Collection).Returns(mockSettings.Object).Verifiable();
-
         var mockTenant = CreateStrictMock<OpenIdTenant>();
         mockTenant.Setup(x => x.TenantId).Returns(TenantId).Verifiable();
-        mockTenant.Setup(x => x.SettingsProvider).Returns(mockProvider.Object).Verifiable();
 
         var mockContext = CreateStrictMock<OpenIdContext>();
         mockContext.Setup(x => x.Tenant).Returns(mockTenant.Object).Verifiable();
@@ -54,7 +55,31 @@ public sealed class DefaultPasswordAttemptLimiterTests : BaseTests
         return mockContext.Object;
     }
 
-    private OpenIdContext CreateContextWithLimit(int limit)
+    private ResolvedConnection CreateConnection(Mock<IReadOnlySettingCollection> mockSettings) =>
+        new()
+        {
+            Connection = new PersistedConnection
+            {
+                TenantId = TenantId,
+                ConnectionId = ConnectionId,
+                Name = "local",
+                Strategy = ConnectionStrategyNames.Local,
+                DisplayName = "Local",
+                IsSystem = false,
+                IsEnabled = true,
+                Options = JsonElements.EmptyObject,
+                Settings = new PersistedConnectionSettings
+                {
+                    TenantId = TenantId,
+                    ConnectionId = ConnectionId,
+                    Value = JsonElements.EmptyObject,
+                },
+            },
+            Strategy = CreateLooseMock<IConnectionStrategy>().Object,
+            Settings = mockSettings.Object,
+        };
+
+    private ResolvedConnection CreateConnectionWithLimit(int limit)
     {
         var mockSettings = CreateStrictMock<IReadOnlySettingCollection>();
         mockSettings
@@ -62,10 +87,10 @@ public sealed class DefaultPasswordAttemptLimiterTests : BaseTests
             .Returns(limit)
             .Verifiable();
 
-        return CreateContext(mockSettings);
+        return CreateConnection(mockSettings);
     }
 
-    private OpenIdContext CreateContextWithWindow(TimeSpan window)
+    private ResolvedConnection CreateConnectionWithWindow(TimeSpan window)
     {
         var mockSettings = CreateStrictMock<IReadOnlySettingCollection>();
         mockSettings
@@ -73,7 +98,7 @@ public sealed class DefaultPasswordAttemptLimiterTests : BaseTests
             .Returns(window)
             .Verifiable();
 
-        return CreateContext(mockSettings);
+        return CreateConnection(mockSettings);
     }
 
     #endregion
@@ -83,14 +108,20 @@ public sealed class DefaultPasswordAttemptLimiterTests : BaseTests
     [Fact]
     public async Task IsLimitReachedAsync_WhenBelowTheLimit_ReturnsFalse()
     {
-        var context = CreateContextWithLimit(3);
-        var key = DefaultPasswordAttemptLimiter.CreateKey(TenantId, UserName);
+        var context = CreateContext();
+        var connection = CreateConnectionWithLimit(3);
+        var key = DefaultPasswordAttemptLimiter.CreateKey(TenantId, ConnectionId, UserName);
         MockCounterSet
             .Setup(x => x.GetAsync(key, CancellationToken.None))
             .ReturnsAsync(2)
             .Verifiable();
 
-        var result = await Limiter.IsLimitReachedAsync(context, UserName, CancellationToken.None);
+        var result = await Limiter.IsLimitReachedAsync(
+            context,
+            connection,
+            UserName,
+            CancellationToken.None
+        );
 
         Assert.False(result);
         Assert.Empty(Logger.Collector.GetSnapshot());
@@ -99,14 +130,20 @@ public sealed class DefaultPasswordAttemptLimiterTests : BaseTests
     [Fact]
     public async Task IsLimitReachedAsync_WhenTheLimitIsReached_ReturnsTrueAndLogs()
     {
-        var context = CreateContextWithLimit(3);
-        var key = DefaultPasswordAttemptLimiter.CreateKey(TenantId, UserName);
+        var context = CreateContext();
+        var connection = CreateConnectionWithLimit(3);
+        var key = DefaultPasswordAttemptLimiter.CreateKey(TenantId, ConnectionId, UserName);
         MockCounterSet
             .Setup(x => x.GetAsync(key, CancellationToken.None))
             .ReturnsAsync(3)
             .Verifiable();
 
-        var result = await Limiter.IsLimitReachedAsync(context, UserName, CancellationToken.None);
+        var result = await Limiter.IsLimitReachedAsync(
+            context,
+            connection,
+            UserName,
+            CancellationToken.None
+        );
 
         Assert.True(result);
         var record = Assert.Single(Logger.Collector.GetSnapshot());
@@ -116,15 +153,16 @@ public sealed class DefaultPasswordAttemptLimiterTests : BaseTests
     [Fact]
     public async Task IsLimitReachedAsync_WhenTheCounterStoreFails_Throws()
     {
-        var context = CreateContextWithLimit(3);
-        var key = DefaultPasswordAttemptLimiter.CreateKey(TenantId, UserName);
+        var context = CreateContext();
+        var connection = CreateConnectionWithLimit(3);
+        var key = DefaultPasswordAttemptLimiter.CreateKey(TenantId, ConnectionId, UserName);
         MockCounterSet
             .Setup(x => x.GetAsync(key, CancellationToken.None))
             .ThrowsAsync(new InvalidOperationException("The counter store is down."))
             .Verifiable();
 
         await Assert.ThrowsAsync<InvalidOperationException>(async () =>
-            await Limiter.IsLimitReachedAsync(context, UserName, CancellationToken.None)
+            await Limiter.IsLimitReachedAsync(context, connection, UserName, CancellationToken.None)
         );
 
         Assert.Empty(Logger.Collector.GetSnapshot());
@@ -138,23 +176,25 @@ public sealed class DefaultPasswordAttemptLimiterTests : BaseTests
     public async Task RecordFailureAsync_IncrementsTheCounterUntilTheWindowEnds()
     {
         var window = TimeSpan.FromMinutes(15);
-        var context = CreateContextWithWindow(window);
-        var key = DefaultPasswordAttemptLimiter.CreateKey(TenantId, UserName);
+        var context = CreateContext();
+        var connection = CreateConnectionWithWindow(window);
+        var key = DefaultPasswordAttemptLimiter.CreateKey(TenantId, ConnectionId, UserName);
         var expiresWhen = Now + window;
         MockCounterSet
             .Setup(x => x.IncrementAsync(key, expiresWhen, CancellationToken.None))
             .ReturnsAsync(1)
             .Verifiable();
 
-        await Limiter.RecordFailureAsync(context, UserName, CancellationToken.None);
+        await Limiter.RecordFailureAsync(context, connection, UserName, CancellationToken.None);
     }
 
     [Fact]
     public async Task RecordFailureAsync_WhenTheCounterStoreFails_Throws()
     {
         var window = TimeSpan.FromMinutes(15);
-        var context = CreateContextWithWindow(window);
-        var key = DefaultPasswordAttemptLimiter.CreateKey(TenantId, UserName);
+        var context = CreateContext();
+        var connection = CreateConnectionWithWindow(window);
+        var key = DefaultPasswordAttemptLimiter.CreateKey(TenantId, ConnectionId, UserName);
         var expiresWhen = Now + window;
         MockCounterSet
             .Setup(x => x.IncrementAsync(key, expiresWhen, CancellationToken.None))
@@ -162,7 +202,7 @@ public sealed class DefaultPasswordAttemptLimiterTests : BaseTests
             .Verifiable();
 
         await Assert.ThrowsAsync<InvalidOperationException>(async () =>
-            await Limiter.RecordFailureAsync(context, UserName, CancellationToken.None)
+            await Limiter.RecordFailureAsync(context, connection, UserName, CancellationToken.None)
         );
     }
 
@@ -173,13 +213,13 @@ public sealed class DefaultPasswordAttemptLimiterTests : BaseTests
     [Fact]
     public async Task ResetAsync_RemovesTheCounter()
     {
-        var key = DefaultPasswordAttemptLimiter.CreateKey(TenantId, UserName);
+        var key = DefaultPasswordAttemptLimiter.CreateKey(TenantId, ConnectionId, UserName);
         MockCounterSet
             .Setup(x => x.RemoveAsync(key, CancellationToken.None))
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
 
-        await Limiter.ResetAsync(TenantId, UserName, CancellationToken.None);
+        await Limiter.ResetAsync(TenantId, ConnectionId, UserName, CancellationToken.None);
     }
 
     #endregion
@@ -193,8 +233,8 @@ public sealed class DefaultPasswordAttemptLimiterTests : BaseTests
     [InlineData("jose\u0301", "jos\u00E9")]
     public void CreateKey_FoldsEverySpellingOfOneName(string first, string second)
     {
-        var firstKey = DefaultPasswordAttemptLimiter.CreateKey(TenantId, first);
-        var secondKey = DefaultPasswordAttemptLimiter.CreateKey(TenantId, second);
+        var firstKey = DefaultPasswordAttemptLimiter.CreateKey(TenantId, ConnectionId, first);
+        var secondKey = DefaultPasswordAttemptLimiter.CreateKey(TenantId, ConnectionId, second);
 
         Assert.Equal(firstKey, secondKey);
     }
@@ -202,8 +242,26 @@ public sealed class DefaultPasswordAttemptLimiterTests : BaseTests
     [Fact]
     public void CreateKey_SeparatesTenants()
     {
-        var firstKey = DefaultPasswordAttemptLimiter.CreateKey("a", UserName);
-        var secondKey = DefaultPasswordAttemptLimiter.CreateKey("b", UserName);
+        var firstKey = DefaultPasswordAttemptLimiter.CreateKey("a", ConnectionId, UserName);
+        var secondKey = DefaultPasswordAttemptLimiter.CreateKey("b", ConnectionId, UserName);
+
+        Assert.NotEqual(firstKey, secondKey);
+    }
+
+    [Fact]
+    public void CreateKey_SeparatesConnections()
+    {
+        var firstKey = DefaultPasswordAttemptLimiter.CreateKey(TenantId, "connection-a", UserName);
+        var secondKey = DefaultPasswordAttemptLimiter.CreateKey(TenantId, "connection-b", UserName);
+
+        Assert.NotEqual(firstKey, secondKey);
+    }
+
+    [Fact]
+    public void CreateKey_SeparatesConnectionIdsThatDifferOnlyByCase()
+    {
+        var firstKey = DefaultPasswordAttemptLimiter.CreateKey(TenantId, "Connection-a", UserName);
+        var secondKey = DefaultPasswordAttemptLimiter.CreateKey(TenantId, "connection-a", UserName);
 
         Assert.NotEqual(firstKey, secondKey);
     }

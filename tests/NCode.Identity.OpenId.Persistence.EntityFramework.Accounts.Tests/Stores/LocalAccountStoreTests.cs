@@ -6,6 +6,8 @@ using Microsoft.Extensions.DependencyInjection;
 using NCode.Buffers;
 using NCode.Identity.OpenId.Accounts.Credentials;
 using NCode.Identity.OpenId.Accounts.DataContracts;
+using NCode.Identity.OpenId.Accounts.Stores;
+using NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities;
 using NCode.Identity.Persistence;
 using NCode.Identity.Persistence.Stores;
 
@@ -14,6 +16,8 @@ namespace NCode.Identity.OpenId.Persistence.EntityFramework.Accounts.Stores;
 public sealed class LocalAccountStoreTests : IDisposable
 {
     private const string TenantId = "tenant-1";
+    private const string ConnectionId = "tenant-1-local";
+    private const string OtherConnectionId = "tenant-1-other";
 
     private static Func<string, CancellationToken, ValueTask<bool>> NotRefused { get; } =
         static (_, _) => ValueTask.FromResult(false);
@@ -59,11 +63,13 @@ public sealed class LocalAccountStoreTests : IDisposable
         string userName,
         string? email = null,
         bool isEnabled = true,
+        string connectionId = ConnectionId,
         params PersistedLocalAccountClaim[] claims
     ) =>
         new()
         {
             TenantId = TenantId,
+            ConnectionId = connectionId,
             LocalAccountId = localAccountId,
             UserName = userName,
             DisplayName = "Alice Example",
@@ -223,7 +229,11 @@ public sealed class LocalAccountStoreTests : IDisposable
     {
         await AddAndDetachAsync(CreateAccount("account-1", "Alice"), CancellationToken.None);
 
-        var loaded = await Store.GetByUserNameOrDefaultAsync("alice", CancellationToken.None);
+        var loaded = await Store.GetByUserNameOrDefaultAsync(
+            ConnectionId,
+            "alice",
+            CancellationToken.None
+        );
 
         Assert.NotNull(loaded);
         Assert.Equal("Alice", loaded.UserName);
@@ -232,7 +242,11 @@ public sealed class LocalAccountStoreTests : IDisposable
     [Fact]
     public async Task GetByUserNameOrDefaultAsync_WhenMissing_ReturnsNull()
     {
-        var loaded = await Store.GetByUserNameOrDefaultAsync("nobody", CancellationToken.None);
+        var loaded = await Store.GetByUserNameOrDefaultAsync(
+            ConnectionId,
+            "nobody",
+            CancellationToken.None
+        );
 
         Assert.Null(loaded);
     }
@@ -257,6 +271,7 @@ public sealed class LocalAccountStoreTests : IDisposable
         var ordered = names.OrderBy(name => name.LocalAccountId, StringComparer.Ordinal).ToList();
         Assert.Equal(2, ordered.Count);
         Assert.Equal("account-1", ordered[0].LocalAccountId);
+        Assert.Equal(ConnectionId, ordered[0].ConnectionId);
         Assert.Equal("alice", ordered[0].UserName);
         Assert.Equal("Alice Example", ordered[0].DisplayName);
         Assert.Equal("account-2", ordered[1].LocalAccountId);
@@ -302,11 +317,16 @@ public sealed class LocalAccountStoreTests : IDisposable
         await AddAndDetachAsync(seeded3, CancellationToken.None);
         var query = new[] { "alice", "bob", "nobody" };
 
-        var names = await Store.GetNamesByUserNamesAsync(query, CancellationToken.None);
+        var names = await Store.GetNamesByUserNamesAsync(
+            ConnectionId,
+            query,
+            CancellationToken.None
+        );
 
         var ordered = names.OrderBy(name => name.LocalAccountId, StringComparer.Ordinal).ToList();
         Assert.Equal(2, ordered.Count);
         Assert.Equal("account-1", ordered[0].LocalAccountId);
+        Assert.Equal(ConnectionId, ordered[0].ConnectionId);
         Assert.Equal("alice", ordered[0].UserName);
         Assert.Equal("Alice Example", ordered[0].DisplayName);
         Assert.Equal("account-2", ordered[1].LocalAccountId);
@@ -321,10 +341,33 @@ public sealed class LocalAccountStoreTests : IDisposable
         await AddAndDetachAsync(seeded1, CancellationToken.None);
         var query = new[] { "alice" };
 
-        var names = await Store.GetNamesByUserNamesAsync(query, CancellationToken.None);
+        var names = await Store.GetNamesByUserNamesAsync(
+            ConnectionId,
+            query,
+            CancellationToken.None
+        );
 
         var name = Assert.Single(names);
         Assert.Equal("Alice", name.UserName);
+    }
+
+    [Fact]
+    public async Task GetNamesByUserNamesAsync_WhenTheUserNameBelongsToAnotherConnection_ReturnsNone()
+    {
+        var keyGenerator = Provider.GetRequiredService<ISurrogateKeyGenerator>();
+        var tenant = await DbContext.Set<TenantEntity>().SingleAsync();
+        DbContext.SeedConnection(keyGenerator, tenant, OtherConnectionId, "other");
+        var seeded = CreateAccount("account-1", "alice", connectionId: OtherConnectionId);
+        await AddAndDetachAsync(seeded, CancellationToken.None);
+        var query = new[] { "alice" };
+
+        var names = await Store.GetNamesByUserNamesAsync(
+            ConnectionId,
+            query,
+            CancellationToken.None
+        );
+
+        Assert.Empty(names);
     }
 
     [Fact]
@@ -332,7 +375,11 @@ public sealed class LocalAccountStoreTests : IDisposable
     {
         var query = Array.Empty<string>();
 
-        var names = await Store.GetNamesByUserNamesAsync(query, CancellationToken.None);
+        var names = await Store.GetNamesByUserNamesAsync(
+            ConnectionId,
+            query,
+            CancellationToken.None
+        );
 
         Assert.Empty(names);
     }
@@ -353,7 +400,7 @@ public sealed class LocalAccountStoreTests : IDisposable
         );
 
         var result = await store.VerifyCredentialAsync(
-            "alice",
+            new LocalAccountSignInIdentifier { ConnectionId = ConnectionId, UserName = "alice" },
             SecureEncoding.UTF8.GetBytes("secret"),
             NotRefused,
             CancellationToken.None
@@ -376,7 +423,7 @@ public sealed class LocalAccountStoreTests : IDisposable
         );
 
         var result = await store.VerifyCredentialAsync(
-            "alice",
+            new LocalAccountSignInIdentifier { ConnectionId = ConnectionId, UserName = "alice" },
             SecureEncoding.UTF8.GetBytes("wrong"),
             NotRefused,
             CancellationToken.None
@@ -393,7 +440,7 @@ public sealed class LocalAccountStoreTests : IDisposable
         await AddAndDetachAsync(CreateAccount("account-1", "alice"), CancellationToken.None);
 
         var result = await store.VerifyCredentialAsync(
-            "alice",
+            new LocalAccountSignInIdentifier { ConnectionId = ConnectionId, UserName = "alice" },
             SecureEncoding.UTF8.GetBytes("secret"),
             NotRefused,
             CancellationToken.None
@@ -409,7 +456,7 @@ public sealed class LocalAccountStoreTests : IDisposable
         var store = CreateStoreWithPasswords();
 
         var result = await store.VerifyCredentialAsync(
-            "nobody",
+            new LocalAccountSignInIdentifier { ConnectionId = ConnectionId, UserName = "nobody" },
             SecureEncoding.UTF8.GetBytes("secret"),
             NotRefused,
             CancellationToken.None
@@ -426,7 +473,7 @@ public sealed class LocalAccountStoreTests : IDisposable
         var store = CreateStoreWithPasswords();
 
         var result = await store.VerifyCredentialAsync(
-            "nobody",
+            new LocalAccountSignInIdentifier { ConnectionId = ConnectionId, UserName = "nobody" },
             SecureEncoding.UTF8.GetBytes("secret"),
             NotRefused,
             CancellationToken.None
@@ -443,7 +490,7 @@ public sealed class LocalAccountStoreTests : IDisposable
         await AddAndDetachAsync(CreateAccount("account-1", "alice"), CancellationToken.None);
 
         var result = await store.VerifyCredentialAsync(
-            "alice",
+            new LocalAccountSignInIdentifier { ConnectionId = ConnectionId, UserName = "alice" },
             SecureEncoding.UTF8.GetBytes("secret"),
             NotRefused,
             CancellationToken.None
@@ -465,7 +512,7 @@ public sealed class LocalAccountStoreTests : IDisposable
         );
 
         var result = await store.VerifyCredentialAsync(
-            "alice",
+            new LocalAccountSignInIdentifier { ConnectionId = ConnectionId, UserName = "alice" },
             SecureEncoding.UTF8.GetBytes("secret"),
             static (_, _) => ValueTask.FromResult(true),
             CancellationToken.None
@@ -474,11 +521,11 @@ public sealed class LocalAccountStoreTests : IDisposable
         Assert.True(result.IsRefused);
         Assert.Null(result.Account);
         Assert.Equal("plain:dummy", Assert.Single(Hasher.VerifiedHashes));
-        Assert.Equal("alice", result.UserName);
+        Assert.Equal(LocalAccountAttemptKeys.ForAccount("account-1"), result.AccountKey);
     }
 
     [Fact]
-    public async Task VerifyCredentialAsync_WhenTheCaseDiffers_AsksTheGateAboutTheStoredUserName()
+    public async Task VerifyCredentialAsync_WhenTheCaseDiffers_AsksTheGateAboutTheAccountId()
     {
         var store = CreateStoreWithPasswords();
         await AddWithPasswordAndDetachAsync(
@@ -490,7 +537,7 @@ public sealed class LocalAccountStoreTests : IDisposable
         var askedUserNames = new List<string>();
 
         var result = await store.VerifyCredentialAsync(
-            "ALICE",
+            new LocalAccountSignInIdentifier { ConnectionId = ConnectionId, UserName = "ALICE" },
             SecureEncoding.UTF8.GetBytes("secret"),
             (userName, _) =>
             {
@@ -500,8 +547,11 @@ public sealed class LocalAccountStoreTests : IDisposable
             CancellationToken.None
         );
 
-        Assert.Equal("Alice", Assert.Single(askedUserNames));
-        Assert.Equal("Alice", result.UserName);
+        Assert.Equal(
+            LocalAccountAttemptKeys.ForAccount("account-1"),
+            Assert.Single(askedUserNames)
+        );
+        Assert.Equal(LocalAccountAttemptKeys.ForAccount("account-1"), result.AccountKey);
         Assert.True(result.IsVerified);
     }
 
@@ -512,7 +562,7 @@ public sealed class LocalAccountStoreTests : IDisposable
         var askedUserNames = new List<string>();
 
         var result = await store.VerifyCredentialAsync(
-            "Nobody",
+            new LocalAccountSignInIdentifier { ConnectionId = ConnectionId, UserName = "Nobody" },
             SecureEncoding.UTF8.GetBytes("secret"),
             (userName, _) =>
             {
@@ -522,9 +572,104 @@ public sealed class LocalAccountStoreTests : IDisposable
             CancellationToken.None
         );
 
-        Assert.Equal("Nobody", Assert.Single(askedUserNames));
-        Assert.Equal("Nobody", result.UserName);
+        Assert.Equal(
+            LocalAccountAttemptKeys.ForIdentifier("Nobody"),
+            Assert.Single(askedUserNames)
+        );
+        Assert.Equal(LocalAccountAttemptKeys.ForIdentifier("Nobody"), result.AccountKey);
         Assert.Equal("plain:dummy", Assert.Single(Hasher.VerifiedHashes));
+    }
+
+    [Fact]
+    public async Task VerifyCredentialAsync_WhenTheIdentifierEqualsAnAccountId_AsksTheGateAboutTheIdentifier()
+    {
+        var store = CreateStoreWithPasswords();
+        await AddWithPasswordAndDetachAsync(
+            store,
+            CreateAccount("account-1", "alice"),
+            "secret",
+            CancellationToken.None
+        );
+        var askedKeys = new List<string>();
+
+        var result = await store.VerifyCredentialAsync(
+            new LocalAccountSignInIdentifier
+            {
+                ConnectionId = ConnectionId,
+                UserName = "account-1",
+            },
+            SecureEncoding.UTF8.GetBytes("secret"),
+            (key, _) =>
+            {
+                askedKeys.Add(key);
+                return ValueTask.FromResult(false);
+            },
+            CancellationToken.None
+        );
+
+        var expected = LocalAccountAttemptKeys.ForIdentifier("account-1");
+        Assert.Equal(expected, Assert.Single(askedKeys));
+        Assert.Equal(expected, result.AccountKey);
+    }
+
+    [Fact]
+    public async Task VerifyCredentialAsync_WhenTheUserNameAndTheEmailNameDifferentAccounts_VerifiesTheUserNameAccount()
+    {
+        var store = CreateStoreWithPasswords();
+        await AddWithPasswordAndDetachAsync(
+            store,
+            CreateAccount("account-1", "alice", "alice@example.com"),
+            "secret",
+            CancellationToken.None
+        );
+        await AddWithPasswordAndDetachAsync(
+            store,
+            CreateAccount("account-2", "bob", "bob@example.com"),
+            "secret",
+            CancellationToken.None
+        );
+
+        var result = await store.VerifyCredentialAsync(
+            new LocalAccountSignInIdentifier
+            {
+                ConnectionId = ConnectionId,
+                UserName = "alice",
+                Email = "bob@example.com",
+            },
+            SecureEncoding.UTF8.GetBytes("secret"),
+            NotRefused,
+            CancellationToken.None
+        );
+
+        Assert.True(result.IsVerified);
+        Assert.Equal("account-1", result.Account.LocalAccountId);
+    }
+
+    [Fact]
+    public async Task VerifyCredentialAsync_WhenOnlyTheEmailNamesAnAccount_VerifiesTheEmailAccount()
+    {
+        var store = CreateStoreWithPasswords();
+        await AddWithPasswordAndDetachAsync(
+            store,
+            CreateAccount("account-2", "bob", "bob@example.com"),
+            "secret",
+            CancellationToken.None
+        );
+
+        var result = await store.VerifyCredentialAsync(
+            new LocalAccountSignInIdentifier
+            {
+                ConnectionId = ConnectionId,
+                UserName = "nobody",
+                Email = "bob@example.com",
+            },
+            SecureEncoding.UTF8.GetBytes("secret"),
+            NotRefused,
+            CancellationToken.None
+        );
+
+        Assert.True(result.IsVerified);
+        Assert.Equal("account-2", result.Account.LocalAccountId);
     }
 
     #endregion
@@ -550,6 +695,7 @@ public sealed class LocalAccountStoreTests : IDisposable
         DbContext.ChangeTracker.Clear();
 
         var loaded = await Store.GetByUserNameOrDefaultAsync(
+            ConnectionId,
             "alice-renamed",
             CancellationToken.None
         );

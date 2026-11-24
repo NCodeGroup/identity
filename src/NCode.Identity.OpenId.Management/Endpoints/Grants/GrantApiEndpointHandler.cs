@@ -85,6 +85,7 @@ internal class GrantApiEndpointHandler(
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status401Unauthorized)
             .ProducesProblem(StatusCodes.Status403Forbidden)
+            .ProducesProblem(StatusCodes.Status404NotFound)
             .ProducesProblem(StatusCodes.Status415UnsupportedMediaType)
             .WithNoStore();
         grants
@@ -262,6 +263,7 @@ internal class GrantApiEndpointHandler(
     /// <response code="201">The newly minted initial access token, including its one-time plaintext value.</response>
     /// <response code="400">The requested lifetime was not greater than zero or was longer than 30 days, or the
     /// resource server does not exist in the tenant or is a system resource server.</response>
+    /// <response code="404">The tenant does not exist.</response>
     [EndpointName("api/grants/initial-access-tokens/create")]
     internal virtual async ValueTask<IResult> CreateInitialAccessTokenAsync(
         HttpContext httpContext,
@@ -291,6 +293,14 @@ internal class GrantApiEndpointHandler(
         if (!authorizationResult.Succeeded)
         {
             return AuthorizationFailed(httpContext);
+        }
+
+        // The caller holds authority at the tenant's node, but the tenant may not exist: the store's insert would fail
+        // on it, so the absent tenant is answered 404 before anything else is read or stored.
+        var tenantNotFound = await GetTenantNotFoundAsync(tenantId, cancellationToken);
+        if (tenantNotFound is not null)
+        {
+            return tenantNotFound;
         }
 
         if (request.ResourceServerId is { } resourceServerId)
@@ -361,6 +371,21 @@ internal class GrantApiEndpointHandler(
         };
 
         return TypedResults.Json(response, statusCode: StatusCodes.Status201Created);
+    }
+
+    /// <summary>
+    /// Answers <c>404</c> when the tenant does not exist, in a unit of work of its own.
+    /// </summary>
+    /// <param name="tenantId">The identifier of the tenant.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    /// <returns>The not-found result, or <see langword="null"/> when the tenant exists.</returns>
+    private async ValueTask<IResult?> GetTenantNotFoundAsync(
+        string tenantId,
+        CancellationToken cancellationToken
+    )
+    {
+        await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
+        return await GetTenantNotFoundOrDefaultAsync(storeManager, tenantId, cancellationToken);
     }
 
     // A token scoped to a resource server registers a client that introspects for it and reads every token issued to

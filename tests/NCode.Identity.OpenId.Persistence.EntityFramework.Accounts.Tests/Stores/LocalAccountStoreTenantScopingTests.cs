@@ -18,6 +18,8 @@ public sealed class LocalAccountStoreTenantScopingTests : IDisposable
     private const string AccountB = "account-b";
     private const string UserA = "alice";
     private const string UserB = "bob";
+    private const string ConnectionA = "tenant-a-local";
+    private const string ConnectionB = "tenant-b-local";
 
     private ServiceProvider Provider { get; }
     private OpenIdDbContext DbContext { get; }
@@ -60,6 +62,7 @@ public sealed class LocalAccountStoreTenantScopingTests : IDisposable
         new()
         {
             TenantId = tenantId,
+            ConnectionId = TestOpenIdDbContextSetup.LocalConnectionId(tenantId),
             LocalAccountId = localAccountId,
             UserName = userName,
             DisplayName = "Alice Example",
@@ -94,12 +97,20 @@ public sealed class LocalAccountStoreTenantScopingTests : IDisposable
         await SeedAsync(CancellationToken.None);
 
         Accessor.TenantId = TenantA;
-        Assert.NotNull(await Store.GetByUserNameOrDefaultAsync(UserA, CancellationToken.None));
-        Assert.Null(await Store.GetByUserNameOrDefaultAsync(UserB, CancellationToken.None));
+        Assert.NotNull(
+            await Store.GetByUserNameOrDefaultAsync(ConnectionA, UserA, CancellationToken.None)
+        );
+        Assert.Null(
+            await Store.GetByUserNameOrDefaultAsync(ConnectionB, UserB, CancellationToken.None)
+        );
 
         Accessor.TenantId = TenantB;
-        Assert.NotNull(await Store.GetByUserNameOrDefaultAsync(UserB, CancellationToken.None));
-        Assert.Null(await Store.GetByUserNameOrDefaultAsync(UserA, CancellationToken.None));
+        Assert.NotNull(
+            await Store.GetByUserNameOrDefaultAsync(ConnectionB, UserB, CancellationToken.None)
+        );
+        Assert.Null(
+            await Store.GetByUserNameOrDefaultAsync(ConnectionA, UserA, CancellationToken.None)
+        );
     }
 
     [Fact]

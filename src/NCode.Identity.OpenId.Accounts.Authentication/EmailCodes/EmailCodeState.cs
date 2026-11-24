@@ -10,6 +10,7 @@ namespace NCode.Identity.OpenId.Accounts.Authentication.EmailCodes;
 /// code was sent for, the address it was mailed to, the hash of the code, and the guesses judged so far. The code
 /// itself is never stored.
 /// </summary>
+/// <param name="ConnectionId">The identifier of the connection the local account belongs to.</param>
 /// <param name="LocalAccountId">The identifier of the local account the code was sent for.</param>
 /// <param name="Email">The email address the code was mailed to.</param>
 /// <param name="CodeHash">The SHA-256 hash of the flow's handle and the code.</param>
@@ -19,6 +20,7 @@ namespace NCode.Identity.OpenId.Accounts.Authentication.EmailCodes;
 // A data record with no behavior to test.
 [ExcludeFromCodeCoverage]
 internal sealed record EmailCodeState(
+    string ConnectionId,
     string LocalAccountId,
     string Email,
     EmailCodeHash CodeHash,

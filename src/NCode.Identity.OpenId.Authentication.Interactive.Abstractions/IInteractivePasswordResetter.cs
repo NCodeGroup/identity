@@ -3,6 +3,7 @@
 
 using JetBrains.Annotations;
 using NCode.Buffers;
+using NCode.Identity.OpenId.Connections;
 using NCode.Identity.OpenId.Contexts;
 
 namespace NCode.Identity.OpenId.Authentication.Interactive;
@@ -20,20 +21,22 @@ namespace NCode.Identity.OpenId.Authentication.Interactive;
 public interface IInteractivePasswordResetter
 {
     /// <summary>
-    /// Starts a password reset for the account the user name names, mailing its verified address a code when it has
+    /// Starts a password reset for the account the identifier names, mailing its verified address a code when it has
     /// one, and returns the flow's handle whether or not it sent anything, so the answer never tells whether an account
     /// exists.
     /// </summary>
     /// <param name="openIdContext">The resolved <see cref="OpenIdContext"/> whose tenant scopes the account
     /// lookup.</param>
-    /// <param name="userName">The user name the end user entered.</param>
+    /// <param name="connection">The <see cref="ResolvedConnection"/> whose account the reset is for.</param>
+    /// <param name="identifier">The identifier the end user entered.</param>
     /// <param name="locale">The <see cref="InteractiveLocale"/> whose messages word the mail.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous
     /// operation.</param>
     /// <returns>The handle of the reset flow, which the reset page presents with the code.</returns>
     ValueTask<string> SendResetCodeAsync(
         OpenIdContext openIdContext,
-        string userName,
+        ResolvedConnection connection,
+        string identifier,
         InteractiveLocale locale,
         CancellationToken cancellationToken
     );

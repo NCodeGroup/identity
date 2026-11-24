@@ -19,12 +19,6 @@ public static class OpenIdSettingKeys
         new(OpenIdSettingNames.SubjectClaimTypes);
 
     /// <summary>
-    /// Gets the <see cref="SettingKey{TValue}"/> for the 'principal_issuer_claim' setting.
-    /// </summary>
-    public static SettingKey<string> PrincipalIssuerClaim =>
-        new(OpenIdSettingNames.PrincipalIssuerClaim);
-
-    /// <summary>
     /// Gets the <see cref="SettingKey{TValue}"/> for the 'federated_identity_join_claim' setting.
     /// </summary>
     public static SettingKey<string> FederatedIdentityJoinClaim =>
@@ -119,10 +113,21 @@ public static class OpenIdSettingKeys
         new(OpenIdSettingNames.AlwaysIncludeAuthTime);
 
     /// <summary>
-    /// Gets the <see cref="SettingKey{TValue}"/> for the 'allowed_identity_providers' setting.
+    /// Gets the <see cref="SettingKey{TValue}"/> for the 'allowed_connections' setting.
     /// </summary>
-    public static SettingKey<IReadOnlyCollection<string>> AllowedIdentityProviders =>
-        new(OpenIdSettingNames.AllowedIdentityProviders);
+    public static SettingKey<IReadOnlyCollection<string>> AllowedConnections =>
+        new(OpenIdSettingNames.AllowedConnections);
+
+    /// <summary>
+    /// Gets the <see cref="SettingKey{TValue}"/> for the 'default_connection' setting.
+    /// </summary>
+    public static SettingKey<string> DefaultConnection => new(OpenIdSettingNames.DefaultConnection);
+
+    /// <summary>
+    /// Gets the <see cref="SettingKey{TValue}"/> for the 'local_account_identifier' setting.
+    /// </summary>
+    public static SettingKey<string> LocalAccountIdentifier =>
+        new(OpenIdSettingNames.LocalAccountIdentifier);
 
     /// <summary>
     /// Gets the <see cref="SettingKey{TValue}"/> for the 'allow_loopback_redirect' setting. Whether a registered

@@ -17,6 +17,7 @@ using NCode.Identity.OpenId.Accounts.Stores;
 using NCode.Identity.OpenId.Authentication.Passwords;
 using NCode.Identity.OpenId.Authentication.Sessions;
 using NCode.Identity.OpenId.Authentication.Subject;
+using NCode.Identity.OpenId.Connections;
 using NCode.Identity.OpenId.Contexts;
 using NCode.Identity.OpenId.Management;
 using NCode.Identity.OpenId.Management.Auditing;
@@ -40,6 +41,9 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
     private const string TenantId = "tenant-1";
     private const string ControlPlaneTenantId = "control-plane";
     private const string TeamId = "team-1";
+    private const string ConnectionId = "connection-1";
+    private const string OtherConnectionId = "connection-2";
+    private const string LocalAccountEmail = "alice@example.com";
     private const string LocalAccountId = "account-1";
     private const string UserName = "alice";
     private const string DisplayName = "Alice";
@@ -70,11 +74,15 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
             && principalId.GetString() == expectedPrincipalId;
     }
 
-    private static PersistedLocalAccount CreateAccount(string localAccountId = LocalAccountId) =>
+    private static PersistedLocalAccount CreateAccount(
+        string localAccountId = LocalAccountId,
+        string connectionId = ConnectionId
+    ) =>
         new()
         {
             TenantId = TenantId,
             LocalAccountId = localAccountId,
+            ConnectionId = connectionId,
             DisplayName = DisplayName,
             UserName = UserName,
             Email = null,
@@ -82,6 +90,28 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
             IsEnabled = true,
             Claims = [],
             ConcurrencyToken = "account-ct",
+        };
+
+    private static PersistedConnection CreateConnection(
+        string connectionId,
+        string strategy = ConnectionStrategyNames.Local
+    ) =>
+        new()
+        {
+            TenantId = TenantId,
+            ConnectionId = connectionId,
+            Name = connectionId,
+            Strategy = strategy,
+            DisplayName = "Username and password",
+            IsSystem = false,
+            IsEnabled = true,
+            Options = JsonSerializer.SerializeToElement(new { store = "default" }),
+            Settings = new PersistedConnectionSettings
+            {
+                TenantId = TenantId,
+                ConnectionId = connectionId,
+                Value = JsonSerializer.SerializeToElement(new { }),
+            },
         };
 
     private static JsonPatchDocument<UpdateLocalAccountRequest> CreatePatch()
@@ -122,6 +152,7 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
     private Mock<IStoreManagerFactory> MockStoreManagerFactory { get; }
     private Mock<IStoreManager> MockStoreManager { get; }
     private Mock<ILocalAccountStore> MockLocalAccountStore { get; }
+    private Mock<IConnectionStore> MockConnectionStore { get; }
     private Mock<IFederatedIdentityStore> MockFederatedIdentityStore { get; }
     private Mock<IFederatedPrincipalStore> MockFederatedPrincipalStore { get; }
     private Mock<ITenantStore> MockTenantStore { get; }
@@ -135,6 +166,8 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
     private Mock<IPasswordPolicy> MockPasswordPolicy { get; }
     private Mock<IPostCommitSecurityEffects> MockPostCommitSecurityEffects { get; }
     private Mock<IAmbientTenantAccessor> MockAmbientTenantAccessor { get; }
+    private Mock<ITenantResolver> MockTenantResolver { get; }
+    private PersistedConnection Connection { get; }
     private LocalAccountApiEndpointHandler Handler { get; }
     private List<string> Calls { get; } = [];
 
@@ -144,6 +177,7 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
         MockStoreManagerFactory = MockRepository.Create<IStoreManagerFactory>();
         MockStoreManager = MockRepository.Create<IStoreManager>();
         MockLocalAccountStore = MockRepository.Create<ILocalAccountStore>();
+        MockConnectionStore = MockRepository.Create<IConnectionStore>();
         MockFederatedIdentityStore = MockRepository.Create<IFederatedIdentityStore>();
         MockFederatedPrincipalStore = MockRepository.Create<IFederatedPrincipalStore>();
         MockTenantStore = MockRepository.Create<ITenantStore>();
@@ -157,10 +191,23 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
         MockPasswordPolicy = MockRepository.Create<IPasswordPolicy>();
         MockPostCommitSecurityEffects = MockRepository.Create<IPostCommitSecurityEffects>();
         MockAmbientTenantAccessor = MockRepository.Create<IAmbientTenantAccessor>();
+        MockTenantResolver = MockRepository.Create<ITenantResolver>();
+
+        Connection = CreateConnection(ConnectionId);
+        var localAccountStoreCatalog = new LocalAccountStoreCatalog([
+            new LocalAccountStoreRegistration
+            {
+                Name = "default",
+                CreateStore = _ => MockLocalAccountStore.Object,
+                CreateTransferStore = _ =>
+                    MockRepository.Create<ILocalAccountTransferStore>().Object,
+            },
+        ]);
 
         var localAccountPasswords = new LocalAccountPasswords(
             MockEffectiveSettingsResolver.Object,
-            MockPasswordPolicy.Object
+            MockPasswordPolicy.Object,
+            new StoredTenantSettingsReader(MockEffectiveSettingsResolver.Object)
         );
 
         Handler = new LocalAccountApiEndpointHandler(
@@ -171,14 +218,20 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
             new DefaultLocalAccountCreator(
                 MockLocalAccountValidator.Object,
                 MockCryptoService.Object,
-                localAccountPasswords
+                localAccountPasswords,
+                localAccountStoreCatalog
             ),
             MockManagementAuditRecorder.Object,
             MockSessionService.Object,
             MockOpenIdContextFactory.Object,
             localAccountPasswords,
             MockPostCommitSecurityEffects.Object,
-            MockAmbientTenantAccessor.Object
+            MockAmbientTenantAccessor.Object,
+            localAccountStoreCatalog,
+            new ControlPlaneDefaultConnectionReader(
+                MockTenantResolver.Object,
+                new StoredTenantSettingsReader(MockEffectiveSettingsResolver.Object)
+            )
         );
     }
 
@@ -231,6 +284,30 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
             .Verifiable();
     }
 
+    private void SetupConnection(
+        PersistedConnection? connection = null,
+        string connectionId = ConnectionId
+    )
+    {
+        MockStoreManager
+            .Setup(x => x.GetStore<IConnectionStore>())
+            .Returns(MockConnectionStore.Object)
+            .Verifiable();
+        MockConnectionStore
+            .Setup(x => x.GetOrDefaultAsync(connectionId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(connection ?? Connection)
+            .Verifiable();
+    }
+
+    private void SetupStoreManagerCreated()
+    {
+        MockStoreManagerFactory
+            .Setup(x => x.CreateAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(MockStoreManager.Object)
+            .Verifiable();
+        MockStoreManager.Setup(x => x.DisposeAsync()).Returns(ValueTask.CompletedTask).Verifiable();
+    }
+
     // Mocks the store manager and reads the account; the store manager is only created once authorization succeeded.
     private void SetupAccount(PersistedLocalAccount? account)
     {
@@ -239,10 +316,7 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
             .ReturnsAsync(MockStoreManager.Object)
             .Verifiable();
         MockStoreManager.Setup(x => x.DisposeAsync()).Returns(ValueTask.CompletedTask).Verifiable();
-        MockStoreManager
-            .Setup(x => x.GetStore<ILocalAccountStore>())
-            .Returns(MockLocalAccountStore.Object)
-            .Verifiable();
+        SetupConnection();
         MockLocalAccountStore
             .Setup(x => x.GetByIdOrDefaultAsync(LocalAccountId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(account)
@@ -265,12 +339,13 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
             .Verifiable();
     }
 
-    // The password is judged by the tenant's effective settings, read from its stored document.
+    // The password is judged by the connection's effective settings, resolved from the stored documents.
     private void SetupPasswordAccepted()
     {
         var tenant = CreateTenant();
         var teamSettings = Mock.Of<IReadOnlySettingCollection>();
         var tenantSettings = Mock.Of<IReadOnlySettingCollection>();
+        var connectionSettings = Mock.Of<IReadOnlySettingCollection>();
 
         MockStoreManager
             .Setup(x => x.GetStore<ITenantStore>())
@@ -295,11 +370,22 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
             )
             .Returns(tenantSettings)
             .Verifiable();
+        MockEffectiveSettingsResolver
+            .Setup(x =>
+                x.ResolveStored(
+                    tenantSettings,
+                    OpenIdSettingScopes.Connection,
+                    ConnectionId,
+                    It.Is<JsonElement>(element => element.GetRawText() == "{}")
+                )
+            )
+            .Returns(connectionSettings)
+            .Verifiable();
         MockPasswordPolicy
             .Setup(x =>
                 x.ValidateAsync(
                     It.Is<PasswordPolicyContext>(context =>
-                        ReferenceEquals(context.Settings, tenantSettings)
+                        ReferenceEquals(context.Settings, connectionSettings)
                         && context.UserName == UserName
                     ),
                     It.IsAny<ReadOnlyMemory<char>>(),
@@ -346,14 +432,15 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
             .Verifiable();
     }
 
-    private void SetupSelfIssuedIdentity(Action? onLookup = null)
+    private void SetupIdentity(Action? onLookup = null)
     {
         var identity = new PersistedFederatedIdentity
         {
             TenantId = TenantId,
             FederatedIdentityId = "identity-1",
             PrincipalId = "principal-1",
-            Issuer = AccountConstants.SelfIssuer,
+            ConnectionId = ConnectionId,
+            Issuer = null,
             Subject = LocalAccountId,
             JoinKey = null,
             ConcurrencyToken = "identity-ct",
@@ -365,8 +452,8 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
             .Verifiable();
         MockFederatedIdentityStore
             .Setup(x =>
-                x.GetByIssuerSubjectAsync(
-                    AccountConstants.SelfIssuer,
+                x.GetByConnectionSubjectAsync(
+                    ConnectionId,
                     LocalAccountId,
                     It.IsAny<CancellationToken>()
                 )
@@ -376,7 +463,7 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
             .Verifiable();
     }
 
-    private void SetupNoSelfIssuedIdentity()
+    private void SetupNoIdentity()
     {
         MockStoreManager
             .Setup(x => x.GetStore<IFederatedIdentityStore>())
@@ -384,8 +471,8 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
             .Verifiable();
         MockFederatedIdentityStore
             .Setup(x =>
-                x.GetByIssuerSubjectAsync(
-                    AccountConstants.SelfIssuer,
+                x.GetByConnectionSubjectAsync(
+                    ConnectionId,
                     LocalAccountId,
                     It.IsAny<CancellationToken>()
                 )
@@ -428,10 +515,7 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
             .Setup(x => x.DisposeAsync())
             .Returns(ValueTask.CompletedTask)
             .Verifiable(Times.Once);
-        MockStoreManager
-            .Setup(x => x.GetStore<ILocalAccountStore>())
-            .Returns(MockLocalAccountStore.Object)
-            .Verifiable();
+        SetupConnection();
         MockLocalAccountStore
             .Setup(x => x.GetByIdOrDefaultAsync(LocalAccountId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(account)
@@ -450,15 +534,11 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
             .ReturnsAsync(AuthorizationResult.Success())
             .Verifiable();
 
-    // Resolves the account's self-issued identity and its principal through one store manager.
+    // Resolves the account, its identity in the connection and its principal through one store manager.
     private void SetupPrincipal(PersistedFederatedPrincipal principal)
     {
-        MockStoreManagerFactory
-            .Setup(x => x.CreateAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(MockStoreManager.Object)
-            .Verifiable();
-        MockStoreManager.Setup(x => x.DisposeAsync()).Returns(ValueTask.CompletedTask).Verifiable();
-        SetupSelfIssuedIdentity();
+        SetupAccount(CreateAccount());
+        SetupIdentity();
         MockStoreManager
             .Setup(x => x.GetStore<IFederatedPrincipalStore>())
             .Returns(MockFederatedPrincipalStore.Object)
@@ -474,6 +554,9 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
         MockLocalAccountValidator
             .Setup(x =>
                 x.ValidateUpdateAsync(
+                    It.Is<PersistedConnection>(connection =>
+                        connection.ConnectionId == ConnectionId
+                    ),
                     It.Is<PersistedLocalAccount>(account =>
                         account.LocalAccountId == LocalAccountId
                     ),
@@ -496,12 +579,58 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
         var httpContext = CreateHttpContext();
         var mockTenant = MockRepository.Create<OpenIdTenant>();
         mockTenant.Setup(x => x.TenantId).Returns(ControlPlaneTenantId).Verifiable();
+
         var mockContext = MockRepository.Create<OpenIdContext>();
         mockContext.Setup(x => x.Tenant).Returns(mockTenant.Object).Verifiable();
         var mockFeature = MockRepository.Create<IOpenIdContextFeature>();
         mockFeature.Setup(x => x.OpenIdContext).Returns(mockContext.Object).Verifiable();
         httpContext.Features.Set(mockFeature.Object);
         return httpContext;
+    }
+
+    // Resolves the control-plane tenant's default connection name from the stored tenant and team documents, the
+    // cascade the platform routes and the principal describer share.
+    private void SetupStoredDefaultConnection(string defaultName)
+    {
+        MockTenantResolver
+            .Setup(x => x.GetControlPlaneTenantId())
+            .Returns(ControlPlaneTenantId)
+            .Verifiable();
+        MockStoreManager
+            .Setup(x => x.GetStore<ITenantStore>())
+            .Returns(MockTenantStore.Object)
+            .Verifiable();
+        var tenant = new PersistedTenantBuilder
+        {
+            TenantId = ControlPlaneTenantId,
+            TeamId = TeamId,
+        }.Build();
+        MockTenantStore
+            .Setup(x => x.GetOrDefaultAsync(ControlPlaneTenantId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(tenant)
+            .Verifiable();
+
+        var teamSettings = MockRepository.Create<IReadOnlySettingCollection>();
+        MockEffectiveSettingsResolver
+            .Setup(x => x.ResolveTeamAsync(TeamId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(teamSettings.Object)
+            .Verifiable();
+        var tenantSettings = MockRepository.Create<IReadOnlySettingCollection>();
+        tenantSettings
+            .Setup(x => x.GetValue(OpenIdSettingKeys.DefaultConnection))
+            .Returns(defaultName)
+            .Verifiable();
+        MockEffectiveSettingsResolver
+            .Setup(x =>
+                x.ResolveStored(
+                    teamSettings.Object,
+                    OpenIdSettingScopes.Tenant,
+                    ControlPlaneTenantId,
+                    It.IsAny<JsonElement>()
+                )
+            )
+            .Returns(tenantSettings.Object)
+            .Verifiable();
     }
 
     private void SetupControlPlaneScope()
@@ -526,6 +655,7 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
         var result = await Handler.DisableLocalAccountAsync(
             CreateHttpContext(),
             TenantId,
+            ConnectionId,
             LocalAccountId,
             CancellationToken.None
         );
@@ -539,7 +669,7 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
     {
         SetupAuthorizeUpdate(error: null);
         SetupAccount(CreateAccount());
-        SetupSelfIssuedIdentity();
+        SetupIdentity();
         SetupTenantIsNotServed();
         var httpContext = CreateHttpContext();
 
@@ -549,6 +679,7 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
             await Handler.DisableLocalAccountAsync(
                 httpContext,
                 TenantId,
+                ConnectionId,
                 LocalAccountId,
                 CancellationToken.None
             )
@@ -562,7 +693,7 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
         account.IsEnabled = false;
         SetupAuthorizeUpdate(error: null);
         SetupAccount(account);
-        SetupSelfIssuedIdentity();
+        SetupIdentity();
         MockLocalAccountStore
             .Setup(x =>
                 x.UpdateAsync(
@@ -584,6 +715,7 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
         var result = await Handler.EnableLocalAccountAsync(
             httpContext,
             TenantId,
+            ConnectionId,
             LocalAccountId,
             CancellationToken.None
         );
@@ -599,7 +731,7 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
         SetupAuthorizeUpdate(error: null);
         SetupAccount(account);
         SetupTenantContext();
-        SetupSelfIssuedIdentity();
+        SetupIdentity();
         MockLocalAccountStore
             .Setup(x =>
                 x.UpdateAsync(
@@ -630,6 +762,7 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
         var result = await Handler.DisableLocalAccountAsync(
             httpContext,
             TenantId,
+            ConnectionId,
             LocalAccountId,
             CancellationToken.None
         );
@@ -639,12 +772,12 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
     }
 
     [Fact]
-    public async Task SetEnabledAsync_WhenDisablingAnAccountWithoutASelfIssuedIdentity_RecordsTheAuditWithoutEndingSessions()
+    public async Task SetEnabledAsync_WhenDisablingAnAccountWithoutAnIdentity_RecordsTheAuditWithoutEndingSessions()
     {
         var account = CreateAccount();
         SetupAuthorizeUpdate(error: null);
         SetupAccount(account);
-        SetupNoSelfIssuedIdentity();
+        SetupNoIdentity();
         MockLocalAccountStore
             .Setup(x =>
                 x.UpdateAsync(
@@ -664,12 +797,160 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
         var result = await Handler.DisableLocalAccountAsync(
             httpContext,
             TenantId,
+            ConnectionId,
             LocalAccountId,
             CancellationToken.None
         );
 
         Assert.IsType<NoContent>(result);
         Assert.Equal(["audit"], Calls);
+    }
+
+    [Fact]
+    public async Task SetEnabledAsync_WhenEnablingInAConnectionThatIsNotLocal_Returns404()
+    {
+        SetupAuthorizeUpdate(error: null);
+        SetupStoreManagerCreated();
+        SetupConnection(CreateConnection(ConnectionId, strategy: "other"));
+
+        var result = await Handler.EnableLocalAccountAsync(
+            CreateHttpContext(),
+            TenantId,
+            ConnectionId,
+            LocalAccountId,
+            CancellationToken.None
+        );
+
+        var problem = Assert.IsType<ProblemHttpResult>(result);
+        Assert.Equal(StatusCodes.Status404NotFound, problem.StatusCode);
+    }
+
+    [Fact]
+    public async Task SetEnabledAsync_WhenDisablingInAConnectionThatIsNotLocal_Returns404()
+    {
+        SetupAuthorizeUpdate(error: null);
+        SetupStoreManagerCreated();
+        SetupConnection(CreateConnection(ConnectionId, strategy: "other"));
+
+        var result = await Handler.DisableLocalAccountAsync(
+            CreateHttpContext(),
+            TenantId,
+            ConnectionId,
+            LocalAccountId,
+            CancellationToken.None
+        );
+
+        var problem = Assert.IsType<ProblemHttpResult>(result);
+        Assert.Equal(StatusCodes.Status404NotFound, problem.StatusCode);
+    }
+
+    [Fact]
+    public async Task SetEnabledAsync_WhenEnablingAndTheAccountStoreThrows_DisposesTheStoreManagerOnceAndRethrows()
+    {
+        SetupAccountStoreThrows();
+
+        await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await Handler.EnableLocalAccountAsync(
+                CreateHttpContext(),
+                TenantId,
+                ConnectionId,
+                LocalAccountId,
+                CancellationToken.None
+            )
+        );
+
+        MockStoreManager.Verify(x => x.DisposeAsync(), Times.Once);
+    }
+
+    [Fact]
+    public async Task SetEnabledAsync_WhenDisablingAndTheAccountStoreThrows_DisposesTheStoreManagerOnceAndRethrows()
+    {
+        SetupAccountStoreThrows();
+
+        await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await Handler.DisableLocalAccountAsync(
+                CreateHttpContext(),
+                TenantId,
+                ConnectionId,
+                LocalAccountId,
+                CancellationToken.None
+            )
+        );
+
+        MockStoreManager.Verify(x => x.DisposeAsync(), Times.Once);
+    }
+
+    [Fact]
+    public async Task SetEnabledAsync_WhenEnablingSucceeds_DisposesTheStoreManagerOnce()
+    {
+        var account = CreateAccount();
+        account.IsEnabled = false;
+        SetupAuthorizeUpdate(error: null);
+        SetupAccount(account);
+        SetupIdentity();
+        MockLocalAccountStore
+            .Setup(x =>
+                x.UpdateAsync(It.IsAny<PersistedLocalAccount>(), It.IsAny<CancellationToken>())
+            )
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable();
+        MockStoreManager
+            .Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()))
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable();
+        SetupAuditRecorded(expectedPrincipalId: "principal-1");
+
+        await Handler.EnableLocalAccountAsync(
+            CreateHttpContext(),
+            TenantId,
+            ConnectionId,
+            LocalAccountId,
+            CancellationToken.None
+        );
+
+        MockStoreManager.Verify(x => x.DisposeAsync(), Times.Once);
+    }
+
+    [Fact]
+    public async Task SetEnabledAsync_WhenDisablingSucceeds_DisposesTheStoreManagerOnce()
+    {
+        var account = CreateAccount();
+        SetupAuthorizeUpdate(error: null);
+        SetupAccount(account);
+        SetupNoIdentity();
+        MockLocalAccountStore
+            .Setup(x =>
+                x.UpdateAsync(It.IsAny<PersistedLocalAccount>(), It.IsAny<CancellationToken>())
+            )
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable();
+        MockStoreManager
+            .Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()))
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable();
+        SetupAuditRecorded(expectedPrincipalId: null);
+
+        await Handler.DisableLocalAccountAsync(
+            CreateHttpContext(),
+            TenantId,
+            ConnectionId,
+            LocalAccountId,
+            CancellationToken.None
+        );
+
+        MockStoreManager.Verify(x => x.DisposeAsync(), Times.Once);
+    }
+
+    // The account store throws when the account is read, after the store manager is open.
+    private void SetupAccountStoreThrows()
+    {
+        SetupAuthorizeUpdate(error: null);
+        SetupStoreManagerCreated();
+        SetupConnection();
+        MockLocalAccountStore
+            .Setup(x => x.GetByIdOrDefaultAsync(LocalAccountId, It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("The store failed."))
+            .Verifiable();
     }
 
     #endregion
@@ -684,6 +965,7 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
         var result = await Handler.ResetPasswordAsync(
             CreateHttpContext(),
             TenantId,
+            ConnectionId,
             LocalAccountId,
             new ResetLocalAccountPasswordRequest { Password = Password },
             CancellationToken.None
@@ -699,7 +981,7 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
         SetupAuthorizeUpdate(error: null);
         SetupAccount(CreateAccount());
         SetupPasswordAccepted();
-        SetupSelfIssuedIdentity();
+        SetupIdentity();
         SetupTenantIsNotServed();
         var httpContext = CreateHttpContext();
 
@@ -709,6 +991,7 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
             await Handler.ResetPasswordAsync(
                 httpContext,
                 TenantId,
+                ConnectionId,
                 LocalAccountId,
                 new ResetLocalAccountPasswordRequest { Password = Password },
                 CancellationToken.None
@@ -723,7 +1006,7 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
         SetupAccount(CreateAccount());
         SetupPasswordAccepted();
         SetupTenantContext();
-        SetupSelfIssuedIdentity();
+        SetupIdentity();
         MockLocalAccountStore
             .Setup(x =>
                 x.SetPasswordAsync(
@@ -750,7 +1033,13 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
         MockPostCommitSecurityEffects
-            .Setup(x => x.ResetPasswordAttemptsAsync(TenantId, UserName))
+            .Setup(x =>
+                x.ResetPasswordAttemptsAsync(
+                    TenantId,
+                    ConnectionId,
+                    LocalAccountAttemptKeys.ForAccount(LocalAccountId)
+                )
+            )
             .Callback(() => Calls.Add("attempts"))
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
@@ -760,6 +1049,7 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
         var result = await Handler.ResetPasswordAsync(
             httpContext,
             TenantId,
+            ConnectionId,
             LocalAccountId,
             new ResetLocalAccountPasswordRequest { Password = Password },
             CancellationToken.None
@@ -770,12 +1060,12 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
     }
 
     [Fact]
-    public async Task ResetPasswordAsync_WhenTheAccountHasNoSelfIssuedIdentity_ClearsTheCountAndRecordsTheAudit()
+    public async Task ResetPasswordAsync_WhenTheAccountHasNoIdentity_ClearsTheCountAndRecordsTheAudit()
     {
         SetupAuthorizeUpdate(error: null);
         SetupAccount(CreateAccount());
         SetupPasswordAccepted();
-        SetupNoSelfIssuedIdentity();
+        SetupNoIdentity();
         MockLocalAccountStore
             .Setup(x =>
                 x.SetPasswordAsync(
@@ -791,7 +1081,13 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
         MockPostCommitSecurityEffects
-            .Setup(x => x.ResetPasswordAttemptsAsync(TenantId, UserName))
+            .Setup(x =>
+                x.ResetPasswordAttemptsAsync(
+                    TenantId,
+                    ConnectionId,
+                    LocalAccountAttemptKeys.ForAccount(LocalAccountId)
+                )
+            )
             .Callback(() => Calls.Add("attempts"))
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
@@ -801,6 +1097,7 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
         var result = await Handler.ResetPasswordAsync(
             httpContext,
             TenantId,
+            ConnectionId,
             LocalAccountId,
             new ResetLocalAccountPasswordRequest { Password = Password },
             CancellationToken.None
@@ -822,6 +1119,7 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
         var result = await Handler.SetClaimsAsync(
             CreateHttpContext(),
             TenantId,
+            ConnectionId,
             LocalAccountId,
             new SetLocalAccountClaimsRequest { Claims = [] },
             null,
@@ -841,6 +1139,7 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
         var result = await Handler.SetClaimsAsync(
             CreateHttpContext(),
             TenantId,
+            ConnectionId,
             LocalAccountId,
             new SetLocalAccountClaimsRequest
             {
@@ -873,6 +1172,7 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
         var result = await Handler.SetClaimsAsync(
             httpContext,
             TenantId,
+            ConnectionId,
             LocalAccountId,
             request,
             "stale-ct",
@@ -911,6 +1211,7 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
         var result = await Handler.SetClaimsAsync(
             httpContext,
             TenantId,
+            ConnectionId,
             LocalAccountId,
             request,
             "account-ct",
@@ -932,6 +1233,7 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
         var result = await Handler.SetMetadataAsync(
             CreateHttpContext(),
             TenantId,
+            ConnectionId,
             LocalAccountId,
             new SetLocalAccountMetadataRequest(),
             null,
@@ -957,6 +1259,7 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
         var result = await Handler.SetMetadataAsync(
             httpContext,
             TenantId,
+            ConnectionId,
             LocalAccountId,
             request,
             "stale-ct",
@@ -989,6 +1292,7 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
         var result = await Handler.SetMetadataAsync(
             httpContext,
             TenantId,
+            ConnectionId,
             LocalAccountId,
             request,
             "principal-ct",
@@ -1010,6 +1314,7 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
         var result = await Handler.CreateLocalAccountAsync(
             CreateHttpContext(),
             TenantId,
+            ConnectionId,
             new CreateLocalAccountRequest { UserName = UserName, Password = Password },
             CancellationToken.None
         );
@@ -1030,6 +1335,9 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
         MockLocalAccountValidator
             .Setup(x =>
                 x.ValidateCreateAsync(
+                    It.Is<PersistedConnection>(connection =>
+                        connection.ConnectionId == ConnectionId
+                    ),
                     It.Is<PersistedLocalAccount>(account =>
                         account.UserName == UserName && account.DisplayName == UserName
                     ),
@@ -1064,10 +1372,7 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
             )
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
-        MockStoreManager
-            .Setup(x => x.GetStore<ILocalAccountStore>())
-            .Returns(MockLocalAccountStore.Object)
-            .Verifiable();
+        SetupConnection();
         MockLocalAccountStore
             .Setup(x =>
                 x.AddAsync(
@@ -1087,7 +1392,13 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
         MockPostCommitSecurityEffects
-            .Setup(x => x.ResetPasswordAttemptsAsync(TenantId, UserName))
+            .Setup(x =>
+                x.ResetPasswordAttemptsAsync(
+                    TenantId,
+                    ConnectionId,
+                    LocalAccountAttemptKeys.ForAccount("id-1")
+                )
+            )
             .Callback(() => Calls.Add("attempts"))
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
@@ -1097,6 +1408,7 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
         var result = await Handler.CreateLocalAccountAsync(
             httpContext,
             TenantId,
+            ConnectionId,
             new CreateLocalAccountRequest { UserName = UserName, Password = Password },
             CancellationToken.None
         );
@@ -1104,8 +1416,28 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
         var created = Assert.IsType<Created<LocalAccountResource>>(result);
         Assert.Equal("account-ct", created.Value?.ConcurrencyToken);
         Assert.Equal("id-1", created.Value?.PrincipalId);
+        Assert.Equal(ConnectionId, created.Value?.ConnectionId);
         Assert.Equal("\"account-ct\"", httpContext.Response.Headers.ETag);
         Assert.Equal(["attempts", "audit"], Calls);
+    }
+
+    [Fact]
+    public async Task CreateLocalAccountAsync_WhenTheConnectionIsNotLocal_Returns404()
+    {
+        SetupAuthorizeCreate(error: null);
+        SetupStoreManagerCreated();
+        SetupConnection(CreateConnection(ConnectionId, strategy: "other"));
+
+        var result = await Handler.CreateLocalAccountAsync(
+            CreateHttpContext(),
+            TenantId,
+            ConnectionId,
+            new CreateLocalAccountRequest { UserName = UserName, Password = Password },
+            CancellationToken.None
+        );
+
+        var problem = Assert.IsType<ProblemHttpResult>(result);
+        Assert.Equal(StatusCodes.Status404NotFound, problem.StatusCode);
     }
 
     #endregion
@@ -1121,12 +1453,11 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
             .ReturnsAsync(MockStoreManager.Object)
             .Verifiable();
         MockStoreManager.Setup(x => x.DisposeAsync()).Returns(ValueTask.CompletedTask).Verifiable();
-        MockStoreManager
-            .Setup(x => x.GetStore<ILocalAccountStore>())
-            .Returns(MockLocalAccountStore.Object)
-            .Verifiable();
+        SetupConnection();
         MockLocalAccountStore
-            .Setup(x => x.GetPageAsync(It.IsAny<PageRequest>(), It.IsAny<CancellationToken>()))
+            .Setup(x =>
+                x.GetPageAsync(ConnectionId, It.IsAny<PageRequest>(), It.IsAny<CancellationToken>())
+            )
             .ReturnsAsync(
                 new PagedResult<PersistedLocalAccount>
                 {
@@ -1141,8 +1472,8 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
             .Verifiable();
         MockFederatedIdentityStore
             .Setup(x =>
-                x.GetByIssuerSubjectsAsync(
-                    AccountConstants.SelfIssuer,
+                x.GetByConnectionSubjectsAsync(
+                    ConnectionId,
                     It.Is<IReadOnlyCollection<string>>(ids =>
                         ids.SequenceEqual(new[] { "account-1", "account-2" })
                     ),
@@ -1157,7 +1488,8 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
                             TenantId = TenantId,
                             FederatedIdentityId = "identity-1",
                             PrincipalId = "principal-1",
-                            Issuer = AccountConstants.SelfIssuer,
+                            ConnectionId = ConnectionId,
+                            Issuer = null,
                             Subject = "account-1",
                             JoinKey = null,
                             ConcurrencyToken = "identity-ct",
@@ -1169,6 +1501,7 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
         var result = await Handler.ListLocalAccountsAsync(
             CreateHttpContext(),
             TenantId,
+            ConnectionId,
             cursor: null,
             limit: null,
             CancellationToken.None
@@ -1180,20 +1513,134 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
         Assert.Null(json.Value?.Items[1].PrincipalId);
     }
 
+    [Fact]
+    public async Task ListLocalAccountsAsync_WhenTheConnectionIsNotLocal_Returns404()
+    {
+        SetupAuthorizationSucceeds();
+        SetupStoreManagerCreated();
+        SetupConnection(CreateConnection(ConnectionId, strategy: "other"));
+
+        var result = await Handler.ListLocalAccountsAsync(
+            CreateHttpContext(),
+            TenantId,
+            ConnectionId,
+            cursor: null,
+            limit: null,
+            CancellationToken.None
+        );
+
+        var problem = Assert.IsType<ProblemHttpResult>(result);
+        Assert.Equal(StatusCodes.Status404NotFound, problem.StatusCode);
+    }
+
+    [Fact]
+    public async Task ListLocalAccountsAsync_WhenTheConnectionIsMissing_AuthorizesOnceThenReturns404()
+    {
+        var authorizations = 0;
+        MockAuthorizationService
+            .Setup(x =>
+                x.AuthorizeAsync(
+                    It.IsAny<ClaimsPrincipal>(),
+                    It.IsAny<object?>(),
+                    It.IsAny<IEnumerable<IAuthorizationRequirement>>()
+                )
+            )
+            .Callback(() => authorizations++)
+            .ReturnsAsync(AuthorizationResult.Success())
+            .Verifiable();
+        SetupStoreManagerCreated();
+        MockStoreManager
+            .Setup(x => x.GetStore<IConnectionStore>())
+            .Returns(MockConnectionStore.Object)
+            .Verifiable();
+        MockConnectionStore
+            .Setup(x => x.GetOrDefaultAsync(ConnectionId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((PersistedConnection?)null)
+            .Verifiable();
+
+        var result = await Handler.ListLocalAccountsAsync(
+            CreateHttpContext(),
+            TenantId,
+            ConnectionId,
+            cursor: null,
+            limit: null,
+            CancellationToken.None
+        );
+
+        var problem = Assert.IsType<ProblemHttpResult>(result);
+        Assert.Equal(StatusCodes.Status404NotFound, problem.StatusCode);
+        Assert.Equal(1, authorizations);
+    }
+
+    [Fact]
+    public async Task ListLocalAccountsAsync_WhenTheCallerIsRefused_Returns403WithoutReadingTheConnection()
+    {
+        MockAuthorizationService
+            .Setup(x =>
+                x.AuthorizeAsync(
+                    It.IsAny<ClaimsPrincipal>(),
+                    It.IsAny<object?>(),
+                    It.IsAny<IEnumerable<IAuthorizationRequirement>>()
+                )
+            )
+            .ReturnsAsync(AuthorizationResult.Failed())
+            .Verifiable();
+
+        var result = await Handler.ListLocalAccountsAsync(
+            CreateHttpContext(),
+            TenantId,
+            ConnectionId,
+            cursor: null,
+            limit: null,
+            CancellationToken.None
+        );
+
+        var problem = Assert.IsType<ProblemHttpResult>(result);
+        Assert.Equal(StatusCodes.Status403Forbidden, problem.StatusCode);
+    }
+
+    [Fact]
+    public async Task ListPlatformLocalAccountsAsync_WhenTheStoredDefaultConnectionIsMissing_Returns404()
+    {
+        SetupControlPlaneScope();
+        SetupAuthorizationSucceeds();
+        SetupStoreManagerCreated();
+        SetupStoredDefaultConnection("stored-default");
+        MockStoreManager
+            .Setup(x => x.GetStore<IConnectionStore>())
+            .Returns(MockConnectionStore.Object)
+            .Verifiable();
+        MockConnectionStore
+            .Setup(x => x.GetByNameOrDefaultAsync("stored-default", It.IsAny<CancellationToken>()))
+            .ReturnsAsync((PersistedConnection?)null)
+            .Verifiable();
+
+        var result = await Handler.ListPlatformLocalAccountsAsync(
+            CreateControlPlaneHttpContext(),
+            cursor: null,
+            limit: null,
+            CancellationToken.None
+        );
+
+        var problem = Assert.IsType<ProblemHttpResult>(result);
+        Assert.Equal(StatusCodes.Status404NotFound, problem.StatusCode);
+    }
+
     #endregion
 
     #region GetLocalAccountAsync Tests
 
     [Fact]
-    public async Task GetLocalAccountAsync_WhenTheAccountHasASelfIssuedIdentity_ReturnsItsPrincipalId()
+    public async Task GetLocalAccountAsync_WhenTheAccountHasAnIdentity_ReturnsItsPrincipalId()
     {
         SetupAuthorizationSucceeds();
         SetupAccountForGet(CreateAccount());
-        SetupSelfIssuedIdentity();
+        SetupIdentity();
 
         var result = await Handler.GetLocalAccountAsync(
             CreateHttpContext(),
             TenantId,
+            ConnectionId,
             LocalAccountId,
             CancellationToken.None
         );
@@ -1203,15 +1650,16 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
     }
 
     [Fact]
-    public async Task GetLocalAccountAsync_WhenTheAccountHasNoSelfIssuedIdentity_ReturnsANullPrincipalId()
+    public async Task GetLocalAccountAsync_WhenTheAccountHasNoIdentity_ReturnsANullPrincipalId()
     {
         SetupAuthorizationSucceeds();
         SetupAccountForGet(CreateAccount());
-        SetupNoSelfIssuedIdentity();
+        SetupNoIdentity();
 
         var result = await Handler.GetLocalAccountAsync(
             CreateHttpContext(),
             TenantId,
+            ConnectionId,
             LocalAccountId,
             CancellationToken.None
         );
@@ -1226,17 +1674,81 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
     {
         SetupAuthorizationSucceeds();
         SetupAccountForGet(CreateAccount());
-        SetupNoSelfIssuedIdentity();
+        SetupNoIdentity();
 
         var result = await Handler.GetLocalAccountAsync(
             CreateHttpContext(),
             TenantId,
+            ConnectionId,
             LocalAccountId,
             CancellationToken.None
         );
 
         var json = Assert.IsType<JsonHttpResult<LocalAccountResource>>(result);
         Assert.Equal(DisplayName, json.Value?.DisplayName);
+    }
+
+    [Fact]
+    public async Task GetLocalAccountAsync_WhenTheAccountBelongsToAnotherConnection_Returns404()
+    {
+        SetupAuthorizationSucceeds();
+        SetupAccountForGet(CreateAccount(connectionId: OtherConnectionId));
+
+        var result = await Handler.GetLocalAccountAsync(
+            CreateHttpContext(),
+            TenantId,
+            ConnectionId,
+            LocalAccountId,
+            CancellationToken.None
+        );
+
+        var problem = Assert.IsType<ProblemHttpResult>(result);
+        Assert.Equal(StatusCodes.Status404NotFound, problem.StatusCode);
+    }
+
+    [Fact]
+    public async Task GetLocalAccountAsync_WhenTheConnectionIsNotLocal_Returns404()
+    {
+        SetupAuthorizationSucceeds();
+        SetupStoreManagerCreated();
+        SetupConnection(CreateConnection(ConnectionId, strategy: "other"));
+
+        var result = await Handler.GetLocalAccountAsync(
+            CreateHttpContext(),
+            TenantId,
+            ConnectionId,
+            LocalAccountId,
+            CancellationToken.None
+        );
+
+        var problem = Assert.IsType<ProblemHttpResult>(result);
+        Assert.Equal(StatusCodes.Status404NotFound, problem.StatusCode);
+    }
+
+    [Fact]
+    public async Task GetLocalAccountAsync_WhenTheConnectionDoesNotExist_Returns404()
+    {
+        SetupAuthorizationSucceeds();
+        SetupStoreManagerCreated();
+        MockStoreManager
+            .Setup(x => x.GetStore<IConnectionStore>())
+            .Returns(MockConnectionStore.Object)
+            .Verifiable();
+        MockConnectionStore
+            .Setup(x => x.GetOrDefaultAsync(ConnectionId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((PersistedConnection?)null)
+            .Verifiable();
+
+        var result = await Handler.GetLocalAccountAsync(
+            CreateHttpContext(),
+            TenantId,
+            ConnectionId,
+            LocalAccountId,
+            CancellationToken.None
+        );
+
+        var problem = Assert.IsType<ProblemHttpResult>(result);
+        Assert.Equal(StatusCodes.Status404NotFound, problem.StatusCode);
     }
 
     #endregion
@@ -1251,6 +1763,7 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
         var result = await Handler.UpdateLocalAccountAsync(
             CreateHttpContext(),
             TenantId,
+            ConnectionId,
             LocalAccountId,
             CreatePatch(),
             null,
@@ -1269,6 +1782,9 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
         MockLocalAccountValidator
             .Setup(x =>
                 x.ValidateUpdateAsync(
+                    It.Is<PersistedConnection>(connection =>
+                        connection.ConnectionId == ConnectionId
+                    ),
                     It.Is<PersistedLocalAccount>(account =>
                         account.LocalAccountId == LocalAccountId
                     ),
@@ -1294,6 +1810,7 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
         var result = await Handler.UpdateLocalAccountAsync(
             CreateHttpContext(),
             TenantId,
+            ConnectionId,
             LocalAccountId,
             CreatePatch(),
             null,
@@ -1312,6 +1829,9 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
         MockLocalAccountValidator
             .Setup(x =>
                 x.ValidateUpdateAsync(
+                    It.Is<PersistedConnection>(connection =>
+                        connection.ConnectionId == ConnectionId
+                    ),
                     It.Is<PersistedLocalAccount>(account =>
                         account.LocalAccountId == LocalAccountId
                     ),
@@ -1325,7 +1845,7 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
             )
             .ReturnsAsync((ManagementError?)null)
             .Verifiable();
-        SetupSelfIssuedIdentity(onLookup: () => Calls.Add("identity"));
+        SetupIdentity(onLookup: () => Calls.Add("identity"));
         MockLocalAccountStore
             .Setup(x =>
                 x.UpdateAsync(
@@ -1348,6 +1868,7 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
         var result = await Handler.UpdateLocalAccountAsync(
             CreateHttpContext(),
             TenantId,
+            ConnectionId,
             LocalAccountId,
             CreatePatch(),
             null,
@@ -1372,6 +1893,9 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
         MockLocalAccountValidator
             .Setup(x =>
                 x.ValidateUpdateAsync(
+                    It.Is<PersistedConnection>(connection =>
+                        connection.ConnectionId == ConnectionId
+                    ),
                     It.Is<PersistedLocalAccount>(account =>
                         account.LocalAccountId == LocalAccountId
                     ),
@@ -1388,6 +1912,7 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
         var result = await Handler.UpdateLocalAccountAsync(
             CreateHttpContext(),
             TenantId,
+            ConnectionId,
             LocalAccountId,
             patch,
             "account-ct",
@@ -1410,6 +1935,7 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
         var result = await Handler.UpdateLocalAccountAsync(
             CreateHttpContext(),
             TenantId,
+            ConnectionId,
             LocalAccountId,
             patch,
             null,
@@ -1432,6 +1958,7 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
         var result = await Handler.UpdateLocalAccountAsync(
             CreateHttpContext(),
             TenantId,
+            ConnectionId,
             LocalAccountId,
             patch,
             null,
@@ -1454,6 +1981,30 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
         var result = await Handler.UpdateLocalAccountAsync(
             CreateHttpContext(),
             TenantId,
+            ConnectionId,
+            LocalAccountId,
+            patch,
+            null,
+            CancellationToken.None
+        );
+
+        var problem = Assert.IsType<ProblemHttpResult>(result);
+        Assert.Equal(StatusCodes.Status409Conflict, problem.StatusCode);
+    }
+
+    [Fact]
+    public async Task UpdateLocalAccountAsync_WhenThePatchBlanksTheUserName_ValidatesANullUserName()
+    {
+        SetupAuthorizeUpdate(error: null);
+        SetupAccount(CreateAccount());
+        SetupUpdateValidated(null, DisplayName);
+        var patch = new JsonPatchDocument<UpdateLocalAccountRequest>();
+        patch.Replace(x => x.UserName, "  ");
+
+        var result = await Handler.UpdateLocalAccountAsync(
+            CreateHttpContext(),
+            TenantId,
+            ConnectionId,
             LocalAccountId,
             patch,
             null,
@@ -1475,6 +2026,7 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
         var result = await Handler.UpdateLocalAccountAsync(
             CreateHttpContext(),
             TenantId,
+            ConnectionId,
             LocalAccountId,
             patch,
             null,
@@ -1501,6 +2053,7 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
         var result = await Handler.DeleteLocalAccountAsync(
             CreateHttpContext(),
             TenantId,
+            ConnectionId,
             LocalAccountId,
             CancellationToken.None
         );
@@ -1520,15 +2073,34 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
 
         // No identity lookup, RemoveAsync/SaveChangesAsync, session or audit scaffold: a strict-mock failure would mean
         // the account was deleted, its sessions ended or the change audited although the tenant is not served, whether
-        // or not the account has a self-issued identity.
+        // or not the account has an identity in its connection.
         await Assert.ThrowsAsync<HttpResultException>(async () =>
             await Handler.DeleteLocalAccountAsync(
                 httpContext,
                 TenantId,
+                ConnectionId,
                 LocalAccountId,
                 CancellationToken.None
             )
         );
+    }
+
+    [Fact]
+    public async Task DeleteLocalAccountAsync_WhenTheAccountBelongsToAnotherConnection_Returns404()
+    {
+        SetupAuthorizeDelete(error: null);
+        SetupAccount(CreateAccount(connectionId: OtherConnectionId));
+
+        var result = await Handler.DeleteLocalAccountAsync(
+            CreateHttpContext(),
+            TenantId,
+            ConnectionId,
+            LocalAccountId,
+            CancellationToken.None
+        );
+
+        var problem = Assert.IsType<ProblemHttpResult>(result);
+        Assert.Equal(StatusCodes.Status404NotFound, problem.StatusCode);
     }
 
     #endregion
@@ -1559,12 +2131,19 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
             .ReturnsAsync(MockStoreManager.Object)
             .Verifiable();
         MockStoreManager.Setup(x => x.DisposeAsync()).Returns(ValueTask.CompletedTask).Verifiable();
+        SetupStoredDefaultConnection(Connection.Name);
         MockStoreManager
-            .Setup(x => x.GetStore<ILocalAccountStore>())
-            .Returns(MockLocalAccountStore.Object)
+            .Setup(x => x.GetStore<IConnectionStore>())
+            .Returns(MockConnectionStore.Object)
+            .Verifiable();
+        MockConnectionStore
+            .Setup(x => x.GetByNameOrDefaultAsync(Connection.Name, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Connection)
             .Verifiable();
         MockLocalAccountStore
-            .Setup(x => x.GetPageAsync(It.IsAny<PageRequest>(), It.IsAny<CancellationToken>()))
+            .Setup(x =>
+                x.GetPageAsync(ConnectionId, It.IsAny<PageRequest>(), It.IsAny<CancellationToken>())
+            )
             .ReturnsAsync(new PagedResult<PersistedLocalAccount> { Items = [], NextCursor = null })
             .Verifiable();
         MockStoreManager
@@ -1572,8 +2151,8 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
             .Returns(MockFederatedIdentityStore.Object);
         MockFederatedIdentityStore
             .Setup(x =>
-                x.GetByIssuerSubjectsAsync(
-                    AccountConstants.SelfIssuer,
+                x.GetByConnectionSubjectsAsync(
+                    ConnectionId,
                     It.IsAny<IReadOnlyCollection<string>>(),
                     It.IsAny<CancellationToken>()
                 )
@@ -1622,32 +2201,60 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
     #region Map Tests
 
     [Theory]
-    [InlineData("POST", "/local-accounts", new[] { 400, 401, 403, 404, 409, 412, 415 })]
-    [InlineData("GET", "/local-accounts", new[] { 400, 401, 403 })]
-    [InlineData("GET", "/local-accounts/{localAccountId}", new[] { 401, 403, 404 })]
-    [InlineData(
-        "PATCH",
-        "/local-accounts/{localAccountId}",
-        new[] { 400, 401, 403, 404, 409, 412, 415 }
-    )]
-    [InlineData("DELETE", "/local-accounts/{localAccountId}", new[] { 401, 403, 404, 412 })]
-    [InlineData("POST", "/local-accounts/{localAccountId}/enable", new[] { 401, 403, 404, 412 })]
-    [InlineData("POST", "/local-accounts/{localAccountId}/disable", new[] { 401, 403, 404, 412 })]
     [InlineData(
         "POST",
-        "/local-accounts/{localAccountId}/password",
-        new[] { 400, 401, 403, 404, 412, 415 }
+        "/connections/{connectionId}/local-accounts",
+        new[] { 400, 401, 403, 404, 409, 412, 415 }
     )]
-    [InlineData("GET", "/local-accounts/{localAccountId}/claims", new[] { 401, 403, 404 })]
+    [InlineData("GET", "/connections/{connectionId}/local-accounts", new[] { 400, 401, 403, 404 })]
     [InlineData(
-        "PUT",
-        "/local-accounts/{localAccountId}/claims",
-        new[] { 400, 401, 403, 404, 412, 415 }
+        "GET",
+        "/connections/{connectionId}/local-accounts/{localAccountId}",
+        new[] { 401, 403, 404 }
     )]
-    [InlineData("GET", "/local-accounts/{localAccountId}/metadata", new[] { 401, 403, 404 })]
     [InlineData(
         "PATCH",
-        "/local-accounts/{localAccountId}/metadata",
+        "/connections/{connectionId}/local-accounts/{localAccountId}",
+        new[] { 400, 401, 403, 404, 409, 412, 415 }
+    )]
+    [InlineData(
+        "DELETE",
+        "/connections/{connectionId}/local-accounts/{localAccountId}",
+        new[] { 401, 403, 404, 412 }
+    )]
+    [InlineData(
+        "POST",
+        "/connections/{connectionId}/local-accounts/{localAccountId}/enable",
+        new[] { 401, 403, 404, 412 }
+    )]
+    [InlineData(
+        "POST",
+        "/connections/{connectionId}/local-accounts/{localAccountId}/disable",
+        new[] { 401, 403, 404, 412 }
+    )]
+    [InlineData(
+        "POST",
+        "/connections/{connectionId}/local-accounts/{localAccountId}/password",
+        new[] { 400, 401, 403, 404, 412, 415 }
+    )]
+    [InlineData(
+        "GET",
+        "/connections/{connectionId}/local-accounts/{localAccountId}/claims",
+        new[] { 401, 403, 404 }
+    )]
+    [InlineData(
+        "PUT",
+        "/connections/{connectionId}/local-accounts/{localAccountId}/claims",
+        new[] { 400, 401, 403, 404, 412, 415 }
+    )]
+    [InlineData(
+        "GET",
+        "/connections/{connectionId}/local-accounts/{localAccountId}/metadata",
+        new[] { 401, 403, 404 }
+    )]
+    [InlineData(
+        "PATCH",
+        "/connections/{connectionId}/local-accounts/{localAccountId}/metadata",
         new[] { 400, 401, 403, 404, 412, 415 }
     )]
     public async Task Map_Always_DeclaresAndDescribesEveryProblemARouteAnswers(

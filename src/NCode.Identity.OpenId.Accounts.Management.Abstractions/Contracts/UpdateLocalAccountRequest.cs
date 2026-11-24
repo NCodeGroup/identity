@@ -22,10 +22,11 @@ public sealed class UpdateLocalAccountRequest
     public string DisplayName { get; set; } = string.Empty;
 
     /// <summary>
-    /// Gets or sets the account's username (login handle), unique within the tenant.
+    /// Gets or sets the account's username (login handle), unique within the connection, or <c>null</c> when none is
+    /// recorded.
     /// </summary>
     [JsonPropertyName("userName")]
-    public string UserName { get; set; } = string.Empty;
+    public string? UserName { get; set; }
 
     /// <summary>
     /// Gets or sets the account's email address, or <c>null</c> when none is recorded.

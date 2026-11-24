@@ -71,6 +71,9 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                         .IsUnicode(false)
                         .HasColumnType("character varying(50)");
 
+                    b.Property<Guid>("ConnectionId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("DisplayName")
                         .IsRequired()
                         .HasMaxLength(300)
@@ -110,7 +113,6 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                         .HasColumnType("character varying(300)");
 
                     b.Property<string>("NormalizedUserName")
-                        .IsRequired()
                         .HasMaxLength(300)
                         .IsUnicode(false)
                         .HasColumnType("character varying(300)");
@@ -130,21 +132,23 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                         .HasColumnType("uuid");
 
                     b.Property<string>("UserName")
-                        .IsRequired()
                         .HasMaxLength(300)
                         .IsUnicode(false)
                         .HasColumnType("character varying(300)");
 
                     b.HasKey("Id");
 
-                    b.HasIndex("TenantId");
+                    b.HasIndex("ConnectionId");
 
-                    b.HasIndex("NormalizedTenantId", "NormalizedEmail");
+                    b.HasIndex("TenantId");
 
                     b.HasIndex("NormalizedTenantId", "NormalizedLocalAccountId")
                         .IsUnique();
 
-                    b.HasIndex("NormalizedTenantId", "NormalizedUserName")
+                    b.HasIndex("NormalizedTenantId", "ConnectionId", "NormalizedEmail")
+                        .IsUnique();
+
+                    b.HasIndex("NormalizedTenantId", "ConnectionId", "NormalizedUserName")
                         .IsUnique();
 
                     b.ToTable("LocalAccounts", (string)null);
@@ -630,6 +634,95 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                     b.ToTable("ClientSecrets", (string)null);
                 });
 
+            modelBuilder.Entity("NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.ConnectionEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ConcurrencyToken")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .IsUnicode(false)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("ConnectionId")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .IsUnicode(false)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<string>("DisplayName")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<bool>("IsEnabled")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsSystem")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .IsUnicode(false)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<string>("NormalizedConnectionId")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .IsUnicode(false)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<string>("NormalizedName")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .IsUnicode(false)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<string>("NormalizedTenantId")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .IsUnicode(false)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<string>("OptionsJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("SettingsConcurrencyToken")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .IsUnicode(false)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("SettingsJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Strategy")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .IsUnicode(false)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("NormalizedTenantId", "NormalizedConnectionId")
+                        .IsUnique();
+
+                    b.HasIndex("NormalizedTenantId", "NormalizedName")
+                        .IsUnique();
+
+                    b.ToTable("Connections", (string)null);
+                });
+
             modelBuilder.Entity("NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.ConsentEntity", b =>
                 {
                     b.Property<Guid>("Id")
@@ -726,6 +819,9 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                         .IsUnicode(false)
                         .HasColumnType("character varying(50)");
 
+                    b.Property<Guid>("ConnectionId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("FederatedIdentityId")
                         .IsRequired()
                         .HasMaxLength(300)
@@ -736,7 +832,6 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                         .HasColumnType("uuid");
 
                     b.Property<string>("Issuer")
-                        .IsRequired()
                         .HasMaxLength(1000)
                         .IsUnicode(false)
                         .HasColumnType("character varying(1000)");
@@ -751,12 +846,6 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                         .HasMaxLength(300)
                         .IsUnicode(false)
                         .HasColumnType("character varying(300)");
-
-                    b.Property<string>("NormalizedIssuer")
-                        .IsRequired()
-                        .HasMaxLength(1000)
-                        .IsUnicode(false)
-                        .HasColumnType("character varying(1000)");
 
                     b.Property<string>("NormalizedJoinKey")
                         .HasMaxLength(300)
@@ -786,6 +875,8 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
 
                     b.HasKey("Id");
 
+                    b.HasIndex("ConnectionId");
+
                     b.HasIndex("FederatedPrincipalId");
 
                     b.HasIndex("TenantId", "NormalizedFederatedIdentityId")
@@ -793,7 +884,7 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
 
                     b.HasIndex("TenantId", "NormalizedJoinKey");
 
-                    b.HasIndex("TenantId", "NormalizedIssuer", "NormalizedSubject")
+                    b.HasIndex("TenantId", "ConnectionId", "NormalizedSubject")
                         .IsUnique();
 
                     b.ToTable("FederatedIdentities", (string)null);
@@ -1978,11 +2069,19 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
 
             modelBuilder.Entity("NCode.Identity.OpenId.Persistence.EntityFramework.Accounts.Entities.LocalAccountEntity", b =>
                 {
+                    b.HasOne("NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.ConnectionEntity", "Connection")
+                        .WithMany()
+                        .HasForeignKey("ConnectionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.TenantEntity", "Tenant")
                         .WithMany()
                         .HasForeignKey("TenantId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.Navigation("Connection");
 
                     b.Navigation("Tenant");
                 });
@@ -2119,6 +2218,17 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                     b.Navigation("Tenant");
                 });
 
+            modelBuilder.Entity("NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.ConnectionEntity", b =>
+                {
+                    b.HasOne("NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.TenantEntity", "Tenant")
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Tenant");
+                });
+
             modelBuilder.Entity("NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.ConsentEntity", b =>
                 {
                     b.HasOne("NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.ClientEntity", "Client")
@@ -2140,6 +2250,12 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
 
             modelBuilder.Entity("NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.FederatedIdentityEntity", b =>
                 {
+                    b.HasOne("NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.ConnectionEntity", "Connection")
+                        .WithMany()
+                        .HasForeignKey("ConnectionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.FederatedPrincipalEntity", "FederatedPrincipal")
                         .WithMany()
                         .HasForeignKey("FederatedPrincipalId")
@@ -2151,6 +2267,8 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                         .HasForeignKey("TenantId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.Navigation("Connection");
 
                     b.Navigation("FederatedPrincipal");
 

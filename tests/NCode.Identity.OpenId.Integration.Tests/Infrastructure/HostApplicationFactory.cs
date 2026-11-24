@@ -19,11 +19,11 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using NCode.Buffers;
 using NCode.Identity.AspNetCore;
 using NCode.Identity.Json;
-using NCode.Identity.OpenId.Accounts;
 using NCode.Identity.OpenId.Accounts.DataContracts;
 using NCode.Identity.OpenId.Accounts.Stores;
 using NCode.Identity.OpenId.Authentication.ClientCertificates;
 using NCode.Identity.OpenId.Authentication.Clients;
+using NCode.Identity.OpenId.Connections;
 using NCode.Identity.OpenId.Host;
 using NCode.Identity.OpenId.Host.Database;
 using NCode.Identity.OpenId.Persistence.DataContracts;
@@ -252,9 +252,89 @@ public class HostApplicationFactory : WebApplicationFactory<HostApiMarker>
     }
 
     /// <summary>
-    /// Ensures the tenant exists and seeds a passwordless local account together with the one-to-one self-issued
-    /// federated identity that a real interactive login provisions. Returns the provisioned principal id, the value a
-    /// self-issued access token carries as its public <c>sub</c>.
+    /// Gets the tenant's seeded <c>local</c> connection.
+    /// </summary>
+    /// <param name="storeManager">The store manager of the tenant's unit of work.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    public static async ValueTask<PersistedConnection> GetLocalConnectionAsync(
+        IStoreManager storeManager,
+        CancellationToken cancellationToken
+    )
+    {
+        var connectionStore = storeManager.GetStore<IConnectionStore>();
+        var connection = await connectionStore.GetByNameOrDefaultAsync(
+            ConnectionDefaults.Name,
+            cancellationToken
+        );
+        return connection
+            ?? throw new InvalidOperationException("The tenant has no 'local' connection.");
+    }
+
+    /// <summary>
+    /// Gets the identifier of the tenant's seeded <c>local</c> connection.
+    /// </summary>
+    /// <param name="storeManager">The store manager of the tenant's unit of work.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    public static async ValueTask<string> GetLocalConnectionIdAsync(
+        IStoreManager storeManager,
+        CancellationToken cancellationToken
+    )
+    {
+        var connection = await GetLocalConnectionAsync(storeManager, cancellationToken);
+        return connection.ConnectionId;
+    }
+
+    /// <summary>
+    /// Ensures the tenant exists and gets the management API path of the local accounts that its seeded <c>local</c>
+    /// connection holds.
+    /// </summary>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    public async ValueTask<string> GetLocalAccountsPathAsync(CancellationToken cancellationToken)
+    {
+        await EnsureTenantPersistedAsync(cancellationToken);
+
+        using var scope = CreateTenantScope();
+        var storeManagerFactory = scope.ServiceProvider.GetRequiredService<IStoreManagerFactory>();
+        await using var storeManager = await storeManagerFactory.CreateAsync(cancellationToken);
+        var connectionId = await GetLocalConnectionIdAsync(storeManager, cancellationToken);
+        return $"/api/tenants/{TenantId}/connections/{connectionId}/local-accounts";
+    }
+
+    /// <summary>
+    /// Gets the local-account store that the connection names.
+    /// </summary>
+    /// <param name="serviceProvider">The service provider of the tenant's scope.</param>
+    /// <param name="storeManager">The store manager of the tenant's unit of work.</param>
+    /// <param name="connection">The local connection.</param>
+    public static ILocalAccountStore GetLocalAccountStore(
+        IServiceProvider serviceProvider,
+        IStoreManager storeManager,
+        PersistedConnection connection
+    ) =>
+        serviceProvider
+            .GetRequiredService<LocalAccountStoreCatalog>()
+            .GetStore(storeManager, connection);
+
+    /// <summary>
+    /// Gets the local-account store of the tenant's seeded <c>local</c> connection.
+    /// </summary>
+    /// <param name="serviceProvider">The service provider of the tenant's scope.</param>
+    /// <param name="storeManager">The store manager of the tenant's unit of work.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    public static async ValueTask<ILocalAccountStore> GetLocalAccountStoreAsync(
+        IServiceProvider serviceProvider,
+        IStoreManager storeManager,
+        CancellationToken cancellationToken
+    )
+    {
+        var connection = await GetLocalConnectionAsync(storeManager, cancellationToken);
+        return GetLocalAccountStore(serviceProvider, storeManager, connection);
+    }
+
+    /// <summary>
+    /// Ensures the tenant exists and seeds a passwordless local account together with the one-to-one federated identity
+    /// that a real interactive login provisions. Returns the provisioned principal id, the value a access token carries
+    /// as its public <c>sub</c>.
     /// </summary>
     // See ADR-1035.
     public async ValueTask<string> SeedPasswordlessLocalAccountAsync(
@@ -270,11 +350,15 @@ public class HostApplicationFactory : WebApplicationFactory<HostApiMarker>
         var storeManagerFactory = scope.ServiceProvider.GetRequiredService<IStoreManagerFactory>();
         await using var storeManager = await storeManagerFactory.CreateAsync(cancellationToken);
 
-        var accountStore = storeManager.GetStore<ILocalAccountStore>();
+        var connection = await GetLocalConnectionAsync(storeManager, cancellationToken);
+        var connectionId = connection.ConnectionId;
+
+        var accountStore = GetLocalAccountStore(scope.ServiceProvider, storeManager, connection);
         await accountStore.AddAsync(
             new PersistedLocalAccount
             {
                 TenantId = TenantId,
+                ConnectionId = connectionId,
                 LocalAccountId = localAccountId,
                 UserName = localAccountId,
                 DisplayName = localAccountId,
@@ -306,7 +390,8 @@ public class HostApplicationFactory : WebApplicationFactory<HostApiMarker>
                 TenantId = TenantId,
                 FederatedIdentityId = $"fid-{Guid.NewGuid():N}",
                 PrincipalId = principalId,
-                Issuer = AccountConstants.SelfIssuer,
+                ConnectionId = connectionId,
+                Issuer = null,
                 Subject = localAccountId,
                 JoinKey = null,
                 ConcurrencyToken = string.Empty,
@@ -1121,8 +1206,8 @@ public class HostApplicationFactory : WebApplicationFactory<HostApiMarker>
 
     /// <summary>
     /// Ensures the tenant exists and seeds an enabled local account whose stored password hash matches
-    /// <paramref name="password"/>, so the resource-owner <c>password</c> grant can be exercised. Returns the
-    /// generated <c>LocalAccountId</c> (the subject of the account's self-issued federated identity).
+    /// <paramref name="password"/>, so the resource-owner <c>password</c> grant can be exercised. Returns the generated
+    /// <c>LocalAccountId</c> (the subject of the account's federated identity).
     /// </summary>
     public ValueTask<string> SeedLocalAccountAsync(
         string userName,
@@ -1140,7 +1225,7 @@ public class HostApplicationFactory : WebApplicationFactory<HostApiMarker>
     /// <summary>
     /// Ensures the tenant exists and seeds an enabled local account carrying the given email address, whose stored
     /// password hash matches <paramref name="password"/>. Returns the generated <c>LocalAccountId</c> (the subject of
-    /// the account's self-issued federated identity).
+    /// the account's federated identity).
     /// </summary>
     public ValueTask<string> SeedLocalAccountAsync(
         string userName,
@@ -1161,7 +1246,7 @@ public class HostApplicationFactory : WebApplicationFactory<HostApiMarker>
     /// <summary>
     /// Ensures the tenant exists and seeds an enabled local account with the given display name, whose stored password
     /// hash matches <paramref name="password"/>. Returns the generated <c>LocalAccountId</c> (the subject of the
-    /// account's self-issued federated identity).
+    /// account's federated identity).
     /// </summary>
     /// <param name="userName">The account's username.</param>
     /// <param name="displayName">The account's display name.</param>
@@ -1210,13 +1295,16 @@ public class HostApplicationFactory : WebApplicationFactory<HostApiMarker>
 
         var storeManagerFactory = serviceProvider.GetRequiredService<IStoreManagerFactory>();
         await using var storeManager = await storeManagerFactory.CreateAsync(cancellationToken);
-        var store = storeManager.GetStore<ILocalAccountStore>();
+        var connection = await GetLocalConnectionAsync(storeManager, cancellationToken);
+        var connectionId = connection.ConnectionId;
+        var store = GetLocalAccountStore(serviceProvider, storeManager, connection);
 
         // The store hashes the credential and generates the security stamp internally.
         await store.AddAsync(
             new PersistedLocalAccount
             {
                 TenantId = TenantId,
+                ConnectionId = connectionId,
                 LocalAccountId = localAccountId,
                 UserName = userName,
                 DisplayName = displayName,
@@ -1264,6 +1352,36 @@ public class HostApplicationFactory : WebApplicationFactory<HostApiMarker>
         var tenant = CreateEmptyTenant(TenantId);
         tenant.Settings.Value = System.Text.Json.JsonSerializer.SerializeToElement(settings);
         await tenantStore.AddAsync(tenant, cancellationToken);
+        await storeManager.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Ensures the tenant exists and replaces the settings document of its connection of the given name, so the
+    /// connection's settings narrow the tenant's. Call it before the factory serves a request.
+    /// </summary>
+    /// <param name="connectionName">The connection's name.</param>
+    /// <param name="settings">The connection's settings document.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    public async ValueTask SeedConnectionSettingsAsync(
+        string connectionName,
+        IReadOnlyDictionary<string, object> settings,
+        CancellationToken cancellationToken
+    )
+    {
+        await EnsureTenantPersistedAsync(cancellationToken);
+
+        using var scope = CreateTenantScope();
+        var storeManagerFactory = scope.ServiceProvider.GetRequiredService<IStoreManagerFactory>();
+        await using var storeManager = await storeManagerFactory.CreateAsync(cancellationToken);
+        var connectionStore = storeManager.GetStore<IConnectionStore>();
+        var connection =
+            await connectionStore.GetByNameOrDefaultAsync(connectionName, cancellationToken)
+            ?? throw new InvalidOperationException(
+                $"The tenant has no '{connectionName}' connection."
+            );
+
+        connection.Settings.Value = System.Text.Json.JsonSerializer.SerializeToElement(settings);
+        await connectionStore.UpdateSettingsAsync(connection.Settings, cancellationToken);
         await storeManager.SaveChangesAsync(cancellationToken);
     }
 

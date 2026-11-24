@@ -51,7 +51,8 @@ public class ConformanceSeedHandlerTests : SecretProtectionTestBase
         IOpenIdEnvironmentProvider openIdEnvironmentProvider,
         IClientKeyImporter? clientKeyImporter = null,
         CoherencePolicy? coherencePolicy = null,
-        SeededLocalAccountValidator? seededLocalAccountValidator = null
+        SeededLocalAccountValidator? seededLocalAccountValidator = null,
+        LocalAccountStoreCatalog? localAccountStoreCatalog = null
     )
     {
         // Strict mocks: on the guard paths under test the secret, protector, crypto, and time dependencies are
@@ -83,6 +84,7 @@ public class ConformanceSeedHandlerTests : SecretProtectionTestBase
                 coherencePolicy.Validator
             ),
             seededLocalAccountValidator,
+            localAccountStoreCatalog ?? LocalConnectionTestData.CreateCatalog(),
             NullLogger<ConformanceSeedHandler>.Instance
         );
     }
@@ -122,6 +124,7 @@ public class ConformanceSeedHandlerTests : SecretProtectionTestBase
                 CreateStrictMock<IEffectiveSettingsResolver>().Object,
                 CreateStrictMock<IPasswordPolicy>().Object
             ),
+            LocalConnectionTestData.CreateCatalog(),
             NullLogger<ConformanceSeedHandler>.Instance
         );
     }
@@ -176,6 +179,17 @@ public class ConformanceSeedHandlerTests : SecretProtectionTestBase
                 x.Resolve(
                     It.IsAny<IReadOnlySettingCollection>(),
                     It.IsAny<string>(),
+                    It.IsAny<JsonElement>()
+                )
+            )
+            .Returns(mockCollection.Object)
+            .Verifiable();
+        mockResolver
+            .Setup(x =>
+                x.ResolveStored(
+                    It.IsAny<IReadOnlySettingCollection>(),
+                    OpenIdSettingScopes.Connection,
+                    LocalConnectionTestData.ConnectionId,
                     It.IsAny<JsonElement>()
                 )
             )
@@ -270,24 +284,49 @@ public class ConformanceSeedHandlerTests : SecretProtectionTestBase
             TestUserFamilyName = "User",
             TestUserPassword = "conformance-password",
         };
+        var mockAccountStore = CreateStrictMock<ILocalAccountStore>();
+        // The seeded identifiers are also looked up as another account's email address and user name.
+        mockAccountStore
+            .Setup(x =>
+                x.GetByEmailOrDefaultAsync(
+                    LocalConnectionTestData.ConnectionId,
+                    It.IsAny<string>(),
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync((PersistedLocalAccount?)null);
+        mockAccountStore
+            .Setup(x =>
+                x.GetByUserNameOrDefaultAsync(
+                    LocalConnectionTestData.ConnectionId,
+                    It.Is<string>(value => value != "conformance-user"),
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync((PersistedLocalAccount?)null);
         var handler = CreateHandler(
             options,
             CreateStrictMock<ISettingSerializer>().Object,
             CreateStrictMock<IOpenIdEnvironmentProvider>().Object,
             seededLocalAccountValidator: CreateSeededLocalAccountValidator(
                 PasswordPolicyResult.Accepted
-            )
+            ),
+            localAccountStoreCatalog: LocalConnectionTestData.CreateCatalog(mockAccountStore.Object)
         );
 
+        var connection = LocalConnectionTestData.CreateConnection(WorkloadTenantId);
         var mockStoreManager = CreateStrictMock<IStoreManager>();
-        var mockAccountStore = CreateStrictMock<ILocalAccountStore>();
         mockStoreManager
-            .Setup(x => x.GetStore<ILocalAccountStore>())
-            .Returns(mockAccountStore.Object)
+            .Setup(x => x.GetStore<IConnectionStore>())
+            .Returns(LocalConnectionTestData.CreateConnectionStore(connection))
             .Verifiable();
         mockAccountStore
             .Setup(x =>
-                x.GetByUserNameOrDefaultAsync("conformance-user", It.IsAny<CancellationToken>())
+                x.GetByUserNameOrDefaultAsync(
+                    LocalConnectionTestData.ConnectionId,
+                    "conformance-user",
+                    It.IsAny<CancellationToken>()
+                )
             )
             .ReturnsAsync((PersistedLocalAccount?)null)
             .Verifiable();
@@ -314,6 +353,7 @@ public class ConformanceSeedHandlerTests : SecretProtectionTestBase
         );
 
         Assert.NotNull(captured);
+        Assert.Equal(connection.ConnectionId, captured.ConnectionId);
         Assert.Equal("conformance-user@localhost", captured.Email);
         Assert.True(captured.EmailVerified);
 
@@ -333,6 +373,27 @@ public class ConformanceSeedHandlerTests : SecretProtectionTestBase
             TestUserName = "conformance-user",
             TestUserPassword = "short",
         };
+        // No AddAsync setup: the strict store refuses an account that would be stored.
+        var mockAccountStore = CreateStrictMock<ILocalAccountStore>();
+        // The seeded identifiers are also looked up as another account's email address and user name.
+        mockAccountStore
+            .Setup(x =>
+                x.GetByEmailOrDefaultAsync(
+                    LocalConnectionTestData.ConnectionId,
+                    It.IsAny<string>(),
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync((PersistedLocalAccount?)null);
+        mockAccountStore
+            .Setup(x =>
+                x.GetByUserNameOrDefaultAsync(
+                    LocalConnectionTestData.ConnectionId,
+                    It.Is<string>(value => value != "conformance-user"),
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync((PersistedLocalAccount?)null);
         var handler = CreateHandler(
             options,
             CreateStrictMock<ISettingSerializer>().Object,
@@ -342,19 +403,23 @@ public class ConformanceSeedHandlerTests : SecretProtectionTestBase
                     PasswordPolicyErrors.TooShort,
                     "The password must have at least 15 characters."
                 )
-            )
+            ),
+            localAccountStoreCatalog: LocalConnectionTestData.CreateCatalog(mockAccountStore.Object)
         );
 
-        // No AddAsync setup: the strict store refuses an account that would be stored.
+        var connection = LocalConnectionTestData.CreateConnection(WorkloadTenantId);
         var mockStoreManager = CreateStrictMock<IStoreManager>();
-        var mockAccountStore = CreateStrictMock<ILocalAccountStore>();
         mockStoreManager
-            .Setup(x => x.GetStore<ILocalAccountStore>())
-            .Returns(mockAccountStore.Object)
+            .Setup(x => x.GetStore<IConnectionStore>())
+            .Returns(LocalConnectionTestData.CreateConnectionStore(connection))
             .Verifiable();
         mockAccountStore
             .Setup(x =>
-                x.GetByUserNameOrDefaultAsync("conformance-user", It.IsAny<CancellationToken>())
+                x.GetByUserNameOrDefaultAsync(
+                    LocalConnectionTestData.ConnectionId,
+                    "conformance-user",
+                    It.IsAny<CancellationToken>()
+                )
             )
             .ReturnsAsync((PersistedLocalAccount?)null)
             .Verifiable();

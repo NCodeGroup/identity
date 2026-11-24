@@ -53,8 +53,7 @@ public class InteractiveAuthenticationPageRendererTests
             CreateForm("__RequestVerificationToken", "token-123") with
             {
                 ReturnUrl = "/connect/authorize",
-            },
-            forgotPasswordHref: null
+            }
         );
         var html = writer.WrittenSpan.ToString();
 
@@ -85,8 +84,7 @@ public class InteractiveAuthenticationPageRendererTests
             {
                 ReturnUrl = "/",
                 ErrorMessage = "The username or password is incorrect.",
-            },
-            forgotPasswordHref: null
+            }
         );
         var html = writer.WrittenSpan.ToString();
 
@@ -104,8 +102,7 @@ public class InteractiveAuthenticationPageRendererTests
             CreateForm("__RequestVerificationToken", "t") with
             {
                 ReturnUrl = "\"><script>alert(1)</script>",
-            },
-            forgotPasswordHref: null
+            }
         );
         var html = writer.WrittenSpan.ToString();
 
@@ -122,8 +119,7 @@ public class InteractiveAuthenticationPageRendererTests
             CreateForm("__RequestVerificationToken", "t") with
             {
                 ReturnUrl = "/",
-            },
-            forgotPasswordHref: null
+            }
         );
         var html = writer.WrittenSpan.ToString();
 
@@ -143,8 +139,7 @@ public class InteractiveAuthenticationPageRendererTests
             CreateForm("__RequestVerificationToken", "t") with
             {
                 ReturnUrl = "/",
-            },
-            forgotPasswordHref: null
+            }
         );
         var html = writer.WrittenSpan.ToString();
 
@@ -173,8 +168,7 @@ public class InteractiveAuthenticationPageRendererTests
             {
                 ReturnUrl = "/",
                 ErrorMessage = new string('<', 1000),
-            },
-            forgotPasswordHref: null
+            }
         );
         var html = writer.WrittenSpan.ToString();
 
@@ -198,8 +192,7 @@ public class InteractiveAuthenticationPageRendererTests
             CreateForm("__RequestVerificationToken", "t") with
             {
                 ReturnUrl = "/",
-            },
-            forgotPasswordHref: null
+            }
         );
         var html = writer.WrittenSpan.ToString();
 
@@ -233,8 +226,7 @@ public class InteractiveAuthenticationPageRendererTests
             CreateForm("__RequestVerificationToken", "t") with
             {
                 ReturnUrl = "/",
-            },
-            forgotPasswordHref: null
+            }
         );
         var html = writer.WrittenSpan.ToString();
 
@@ -252,8 +244,7 @@ public class InteractiveAuthenticationPageRendererTests
             CreateForm("__RequestVerificationToken", "t") with
             {
                 ReturnUrl = "/",
-            },
-            forgotPasswordHref: null
+            }
         );
         var html = writer.WrittenSpan.ToString();
 
@@ -277,8 +268,7 @@ public class InteractiveAuthenticationPageRendererTests
             CreateForm("__RequestVerificationToken", "t") with
             {
                 ReturnUrl = "/",
-            },
-            forgotPasswordHref: null
+            }
         );
         return writer.WrittenSpan.ToString();
     }
@@ -367,8 +357,8 @@ public class InteractiveAuthenticationPageRendererTests
             CreateForm("__RequestVerificationToken", "t") with
             {
                 ReturnUrl = "/",
-            },
-            forgotPasswordHref: "password/forgot?ReturnUrl=%2F&a=\"b\""
+                ForgotPasswordHref = "password/forgot?ReturnUrl=%2F&a=\"b\"",
+            }
         );
         var html = writer.WrittenSpan.ToString();
 
@@ -389,8 +379,7 @@ public class InteractiveAuthenticationPageRendererTests
             CreateForm("__RequestVerificationToken", "t") with
             {
                 ReturnUrl = "/",
-            },
-            forgotPasswordHref: null
+            }
         );
         var html = writer.WrittenSpan.ToString();
 
@@ -408,8 +397,7 @@ public class InteractiveAuthenticationPageRendererTests
             {
                 ReturnUrl = "/",
                 StatusMessage = "Done <b>",
-            },
-            forgotPasswordHref: null
+            }
         );
         var html = writer.WrittenSpan.ToString();
 
@@ -418,6 +406,148 @@ public class InteractiveAuthenticationPageRendererTests
             html,
             StringComparison.Ordinal
         );
+    }
+
+    [Fact]
+    public void RenderLoginPage_WithSeveralConnections_WritesASelectWithThePreselectedOption()
+    {
+        var writer = new ArrayBufferWriter<char>();
+        InteractiveAuthenticationPageRenderer.RenderLoginPage(
+            writer,
+            CreateFrame(),
+            CreateForm("__RequestVerificationToken", "t") with
+            {
+                ReturnUrl = "/",
+                Connections = [("local", "Username and password"), ("staff", "Staff <b>")],
+                SelectedConnection = "staff",
+            }
+        );
+        var html = writer.WrittenSpan.ToString();
+
+        Assert.Contains(
+            "<label for=\"connection\">Xx connection</label>",
+            html,
+            StringComparison.Ordinal
+        );
+        Assert.Contains(
+            "<select id=\"connection\" name=\"connection\">",
+            html,
+            StringComparison.Ordinal
+        );
+        Assert.Contains(
+            "<option value=\"local\">Username and password</option>",
+            html,
+            StringComparison.Ordinal
+        );
+        Assert.Contains(
+            "<option value=\"staff\" selected>Staff &lt;b&gt;</option>",
+            html,
+            StringComparison.Ordinal
+        );
+        Assert.DoesNotContain("<option value=\"\"", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void RenderLoginPage_WithSeveralConnectionsAndNonePreselected_WritesASelectedBlankFirstOption()
+    {
+        var writer = new ArrayBufferWriter<char>();
+        InteractiveAuthenticationPageRenderer.RenderLoginPage(
+            writer,
+            CreateFrame(),
+            CreateForm("__RequestVerificationToken", "t") with
+            {
+                ReturnUrl = "/",
+                Connections = [("local", "Username and password"), ("staff", "Staff")],
+                SelectedConnection = null,
+            }
+        );
+        var html = writer.WrittenSpan.ToString();
+
+        Assert.Contains(
+            "<select id=\"connection\" name=\"connection\"><option value=\"\" selected></option><option value=\"local\">",
+            html,
+            StringComparison.Ordinal
+        );
+        Assert.DoesNotContain("\" selected>Username", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void RenderForgotPasswordPage_WithSeveralConnectionsAndNonePreselected_WritesASelectedBlankFirstOption()
+    {
+        var writer = new ArrayBufferWriter<char>();
+        InteractiveAuthenticationPageRenderer.RenderForgotPasswordPage(
+            writer,
+            CreateFrame(),
+            CreateForm("__RequestVerificationToken", "t") with
+            {
+                ReturnUrl = "/",
+                Connections = [("local", "Username and password"), ("staff", "Staff")],
+                SelectedConnection = null,
+            }
+        );
+        var html = writer.WrittenSpan.ToString();
+
+        Assert.Contains(
+            "<select id=\"connection\" name=\"connection\"><option value=\"\" selected></option><option value=\"local\">",
+            html,
+            StringComparison.Ordinal
+        );
+    }
+
+    [Fact]
+    public void RenderLoginPage_WithOneConnection_WritesAHiddenInput()
+    {
+        var writer = new ArrayBufferWriter<char>();
+        InteractiveAuthenticationPageRenderer.RenderLoginPage(
+            writer,
+            CreateFrame(),
+            CreateForm("__RequestVerificationToken", "t") with
+            {
+                ReturnUrl = "/",
+                Connections = [("local", "Username and password")],
+                SelectedConnection = "local",
+            }
+        );
+        var html = writer.WrittenSpan.ToString();
+
+        Assert.Contains(
+            "<input type=\"hidden\" name=\"connection\" value=\"local\" />",
+            html,
+            StringComparison.Ordinal
+        );
+        Assert.DoesNotContain("<select", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void RenderLoginPage_WithNoConnection_WritesNoConnectionField()
+    {
+        var html = RenderLoginPageHtml(null, null);
+
+        Assert.DoesNotContain("name=\"connection\"", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void RenderForgotPasswordPage_WithSeveralConnections_WritesASelect()
+    {
+        var writer = new ArrayBufferWriter<char>();
+        InteractiveAuthenticationPageRenderer.RenderForgotPasswordPage(
+            writer,
+            CreateFrame(),
+            CreateForm("__RequestVerificationToken", "t") with
+            {
+                ReturnUrl = "/",
+                Connections = [("local", "Username and password"), ("staff", "Staff")],
+                SelectedConnection = "local",
+            }
+        );
+        var html = writer.WrittenSpan.ToString();
+
+        Assert.Contains(
+            "<option value=\"local\" selected>Username and password</option>",
+            html,
+            StringComparison.Ordinal
+        );
+        Assert.Contains("<option value=\"staff\">Staff</option>", html, StringComparison.Ordinal);
     }
 
     private static int CountOccurrences(string text, string value)
@@ -925,8 +1055,7 @@ public class InteractiveAuthenticationPageRendererTests
             {
                 ReturnUrl = "/",
                 ErrorMessage = TestLocales.Xx.Messages.InvalidCredentialsError,
-            },
-            forgotPasswordHref: null
+            }
         );
         var html = writer.WrittenSpan.ToString();
 
@@ -965,8 +1094,7 @@ public class InteractiveAuthenticationPageRendererTests
             CreateForm("__RequestVerificationToken", "t") with
             {
                 ReturnUrl = "/",
-            },
-            forgotPasswordHref: null
+            }
         );
         var html = writer.WrittenSpan.ToString();
 

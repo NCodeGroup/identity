@@ -1279,10 +1279,7 @@ internal class TenantApiEndpointHandler(
         catch (JsonPatchException exception)
         {
             Logger.JsonPatchFailed(exception);
-            return TypedResults.Problem(
-                detail: "The JSON Patch document could not be applied.",
-                statusCode: StatusCodes.Status400BadRequest
-            );
+            return ManagementProblems.PatchNotApplied();
         }
 
         // An update that clears the issuer or the alias restores the one the tenant's strategy derives for it (ADR-1165).
@@ -1968,10 +1965,7 @@ internal class TenantApiEndpointHandler(
         catch (JsonPatchException exception)
         {
             Logger.JsonPatchFailed(exception);
-            return TypedResults.Problem(
-                detail: "The JSON Patch document could not be applied.",
-                statusCode: StatusCodes.Status400BadRequest
-            );
+            return ManagementProblems.PatchNotApplied();
         }
 
         var settingsValue = SerializeToElement(jsonObject);

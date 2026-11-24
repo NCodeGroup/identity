@@ -43,6 +43,25 @@ describe('LocalAccountTable', () => {
     expect(row).toHaveTextContent('Disabled');
   });
 
+  it('shows the email when an account has no user name', () => {
+    render(
+      <LocalAccountTable
+        accounts={[
+          {
+            localAccountId: 'c3',
+            displayName: 'Cy Email',
+            userName: null,
+            email: 'cy@example.com',
+            principalId: null,
+            isEnabled: true,
+          },
+        ]}
+      />,
+    );
+    const cells = screen.getByTestId('local-account-row-c3').querySelectorAll('td');
+    expect(cells[1]).toHaveTextContent('cy@example.com');
+  });
+
   it('shows no actions when no callbacks are supplied', () => {
     render(<LocalAccountTable accounts={accounts} />);
     expect(screen.queryByRole('columnheader', { name: 'Actions' })).not.toBeInTheDocument();

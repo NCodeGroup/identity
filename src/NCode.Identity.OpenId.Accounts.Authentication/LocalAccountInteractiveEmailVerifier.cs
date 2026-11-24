@@ -23,11 +23,16 @@ namespace NCode.Identity.OpenId.Accounts.Authentication;
 // See ADR-1533.
 internal sealed class LocalAccountInteractiveEmailVerifier(
     IStoreManagerFactory storeManagerFactory,
+    LocalAccountSignedInAccountFinder signedInAccountFinder,
+    LocalAccountStoreCatalog localAccountStoreCatalog,
     ILocalAccountEmailCodes emailCodes,
     IAuditEventRecorder auditEventRecorder
 ) : IInteractiveEmailVerifier
 {
     private IStoreManagerFactory StoreManagerFactory { get; } = storeManagerFactory;
+    private LocalAccountSignedInAccountFinder SignedInAccountFinder { get; } =
+        signedInAccountFinder;
+    private LocalAccountStoreCatalog LocalAccountStoreCatalog { get; } = localAccountStoreCatalog;
     private ILocalAccountEmailCodes EmailCodes { get; } = emailCodes;
     private IAuditEventRecorder AuditEventRecorder { get; } = auditEventRecorder;
 
@@ -40,13 +45,13 @@ internal sealed class LocalAccountInteractiveEmailVerifier(
     {
         await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
 
-        var account = await LocalAccountSignedInAccounts.FindAsync(
+        var found = await SignedInAccountFinder.FindAsync(
             storeManager,
             openIdContext,
             principal,
             cancellationToken
         );
-        if (account is not { IsEnabled: true, Email: { Length: > 0 } email })
+        if (found is not { Account: { IsEnabled: true, Email: { Length: > 0 } email } account })
         {
             return null;
         }
@@ -62,20 +67,18 @@ internal sealed class LocalAccountInteractiveEmailVerifier(
         CancellationToken cancellationToken
     )
     {
-        var settings = openIdContext.Tenant.SettingsProvider.Collection;
-        if (!settings.GetValue(OpenIdSettingKeys.EmailVerificationEnabled))
-        {
-            return InteractiveEmailCodeResult.NotSupported;
-        }
-
-        var account = await LocalAccountSignedInAccounts.FindAsync(
-            StoreManagerFactory,
+        var found = await SignedInAccountFinder.FindAsync(
             openIdContext,
             principal,
             cancellationToken
         );
 
-        if (account is not { IsEnabled: true })
+        if (found is not { Account: { IsEnabled: true } account, Connection: var connection })
+        {
+            return InteractiveEmailCodeResult.NotSupported;
+        }
+
+        if (!connection.Settings.GetValue(OpenIdSettingKeys.EmailVerificationEnabled))
         {
             return InteractiveEmailCodeResult.NotSupported;
         }
@@ -111,21 +114,20 @@ internal sealed class LocalAccountInteractiveEmailVerifier(
         CancellationToken cancellationToken
     )
     {
-        var settings = openIdContext.Tenant.SettingsProvider.Collection;
-        if (!settings.GetValue(OpenIdSettingKeys.EmailVerificationEnabled))
-        {
-            return InteractiveEmailCodeResult.NotSupported;
-        }
-
         await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
 
-        var account = await LocalAccountSignedInAccounts.FindAsync(
+        var found = await SignedInAccountFinder.FindAsync(
             storeManager,
             openIdContext,
             principal,
             cancellationToken
         );
-        if (account is not { IsEnabled: true })
+        if (found is not { Account: { IsEnabled: true } account, Connection: var connection })
+        {
+            return InteractiveEmailCodeResult.NotSupported;
+        }
+
+        if (!connection.Settings.GetValue(OpenIdSettingKeys.EmailVerificationEnabled))
         {
             return InteractiveEmailCodeResult.NotSupported;
         }
@@ -149,7 +151,7 @@ internal sealed class LocalAccountInteractiveEmailVerifier(
             return InteractiveEmailCodeResult.Refused(InteractiveEmailCodeErrors.InvalidCode);
         }
 
-        var accountStore = storeManager.GetStore<ILocalAccountStore>();
+        var accountStore = LocalAccountStoreCatalog.GetStore(storeManager, connection.Connection);
         account.EmailVerified = true;
         await accountStore.UpdateAsync(account, cancellationToken);
         await storeManager.SaveChangesAsync(cancellationToken);

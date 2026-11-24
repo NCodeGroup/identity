@@ -11,7 +11,9 @@ using NCode.Identity.OpenId.Management.Authorization;
 using NCode.Identity.OpenId.Management.Contracts;
 using NCode.Identity.OpenId.Management.Contracts.Secrets;
 using NCode.Identity.OpenId.Persistence;
+using NCode.Identity.OpenId.Persistence.Stores;
 using NCode.Identity.OpenId.Tenants;
+using NCode.Identity.Persistence.Stores;
 using NCode.Identity.Secrets;
 using NCode.Identity.Secrets.Persistence;
 using NCode.Identity.Secrets.Persistence.DataContracts;
@@ -165,6 +167,26 @@ internal abstract class BaseApiEndpointHandler : ManagementApiEndpointHandler
             detail: detail,
             title: "The settings are invalid."
         );
+    }
+
+    /// <summary>
+    /// Gets the <c>404 Not Found</c> answer for a tenant that does not exist, or <c>null</c> when the tenant exists. A
+    /// create route calls it after it authorizes the caller and before it validates or inserts, because the store's
+    /// insert of a tenant-bound row fails when no tenant has the identifier.
+    /// </summary>
+    /// <param name="storeManager">The <see cref="IStoreManager"/> that reads the tenant.</param>
+    /// <param name="tenantId">The identifier of the addressed tenant.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <returns>The <c>404 Not Found</c> result, or <c>null</c> when the tenant exists.</returns>
+    protected internal virtual async ValueTask<IResult?> GetTenantNotFoundOrDefaultAsync(
+        IStoreManager storeManager,
+        string tenantId,
+        CancellationToken cancellationToken
+    )
+    {
+        var tenantStore = storeManager.GetStore<ITenantStore>();
+        var tenant = await tenantStore.GetOrDefaultAsync(tenantId, cancellationToken);
+        return tenant is null ? ManagementProblems.ResourceNotFound() : null;
     }
 
     /// <summary>

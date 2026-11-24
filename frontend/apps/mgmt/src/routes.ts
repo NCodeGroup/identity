@@ -13,9 +13,9 @@ import {
  * - `/teams`, `/clients`, `/users`, `/settings`, `/encryption-keys` — the platform scope's surfaces;
  * - `/teams/{teamId}/{surface}` — a team scope's surfaces (`tenants`, `teams`, `clients`, `settings`, `access`,
  *   `encryption-keys` and `usage`), the team id percent-encoded as one segment;
- * - `/tenants/{tenantId}/{surface}` — a tenant scope's surfaces (`clients`, `resource-servers`, `grants`, `users`,
- *   `secrets`, `encryption-keys`, `settings`, `access` and `usage`), the tenant id percent-encoded as one segment
- *   (ADR-1255);
+ * - `/tenants/{tenantId}/{surface}` — a tenant scope's surfaces (`clients`, `resource-servers`, `connections`,
+ *   `grants`, `users`, `secrets`, `encryption-keys`, `settings`, `access` and `usage`), the tenant id percent-encoded
+ *   as one segment (ADR-1255);
  * - `/cells/{cell}/tenants/{tenantId}/{surface}` — the same tenant surfaces of a tenant that lives in a named cell, the
  *   cell percent-encoded as one segment; a tenant path without a cell addresses the control plane.
  *
@@ -46,6 +46,7 @@ export const TEAM_SURFACES = [
 export const TENANT_SURFACES = [
   'clients',
   'resource-servers',
+  'connections',
   'grants',
   'users',
   'secrets',

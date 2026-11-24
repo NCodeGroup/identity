@@ -7,9 +7,7 @@ using System.Text.Json;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using NCode.Buffers;
-using NCode.Identity.OpenId.Accounts;
 using NCode.Identity.OpenId.Accounts.DataContracts;
-using NCode.Identity.OpenId.Accounts.Stores;
 using NCode.Identity.OpenId.Authentication.Usage;
 using NCode.Identity.OpenId.Integration.Tests.Infrastructure;
 using NCode.Identity.OpenId.Management;
@@ -225,7 +223,7 @@ public class TeamManagementTests
             )
             .Sum(entry => entry.GetProperty("count").GetInt64());
 
-    // Seeds an end-user of the root tenant (a local account with a password, its principal and its self-issued identity)
+    // Seeds an end-user of the root tenant (a local account with a password, its principal and its identity in the local connection)
     // and the public console client, grants the user the role at the team, and returns a client that calls the
     // management API with the user's access token.
     private static async ValueTask<HttpClient> CreateTeamUserClientAsync(
@@ -303,12 +301,19 @@ public class TeamManagementTests
             .GetRequiredService<IStoreManagerFactory>()
             .CreateAsync(cancellationToken);
 
-        await storeManager
-            .GetStore<ILocalAccountStore>()
+        var connection = await HostApplicationFactory.GetLocalConnectionAsync(
+            storeManager,
+            cancellationToken
+        );
+        var connectionId = connection.ConnectionId;
+
+        await HostApplicationFactory
+            .GetLocalAccountStore(services, storeManager, connection)
             .AddAsync(
                 new PersistedLocalAccount
                 {
                     TenantId = RootTenantId,
+                    ConnectionId = connectionId,
                     LocalAccountId = localAccountId,
                     UserName = UserName,
                     DisplayName = UserName,
@@ -340,7 +345,8 @@ public class TeamManagementTests
                     TenantId = RootTenantId,
                     FederatedIdentityId = Guid.NewGuid().ToString("N"),
                     PrincipalId = principalId,
-                    Issuer = AccountConstants.SelfIssuer,
+                    ConnectionId = connectionId,
+                    Issuer = null,
                     Subject = localAccountId,
                     JoinKey = null,
                     ConcurrencyToken = string.Empty,
@@ -2321,7 +2327,7 @@ public class TeamManagementTests
         Assert.True(deleteGrant.StatusCode == HttpStatusCode.Forbidden, deleteGrantBody);
 
         using var deleteAccount = await teamAdmin.DeleteAsync(
-            "/api/tenants/globex-dev/local-accounts/nope"
+            "/api/tenants/globex-dev/connections/nope/local-accounts/nope"
         );
         var deleteAccountBody = await deleteAccount.Content.ReadAsStringAsync();
         Assert.True(deleteAccount.StatusCode == HttpStatusCode.Forbidden, deleteAccountBody);
@@ -3176,8 +3182,13 @@ public class TeamManagementTests
         await CreateTeamAsync(client, "wonka", new { }, CancellationToken.None);
         await CreateTenantAsync(client, "wonka", "wonka-dev", CancellationToken.None);
 
+        var accountsPath = await GetLocalAccountsPathAsync(
+            client,
+            "wonka-dev",
+            CancellationToken.None
+        );
         using var created = await client.PostAsJsonAsync(
-            "/api/tenants/wonka-dev/local-accounts",
+            accountsPath,
             new { userName = "wonka-user", password = "wonka-user-password-1" }
         );
         var createdBody = await created.Content.ReadAsStringAsync();
@@ -3186,7 +3197,7 @@ public class TeamManagementTests
             .Parse(createdBody)
             .GetProperty("localAccountId")
             .GetString();
-        var accountPath = $"/api/tenants/wonka-dev/local-accounts/{localAccountId}";
+        var accountPath = $"{accountsPath}/{localAccountId}";
 
         await SetTeamDisabledAsync(client, "wonka", isDisabled: true, CancellationToken.None);
 
@@ -3218,6 +3229,28 @@ public class TeamManagementTests
         using var disabledAgain = await client.PostAsync($"{accountPath}/disable", content: null);
         var disabledBody = await disabledAgain.Content.ReadAsStringAsync();
         Assert.True(disabledAgain.StatusCode == HttpStatusCode.NoContent, disabledBody);
+    }
+
+    private static async ValueTask<string> GetLocalAccountsPathAsync(
+        HttpClient client,
+        string tenantId,
+        CancellationToken cancellationToken
+    )
+    {
+        using var connections = await client.GetAsync(
+            $"/api/tenants/{tenantId}/connections",
+            cancellationToken
+        );
+        var connectionsBody = await connections.Content.ReadAsStringAsync(cancellationToken);
+        Assert.True(connections.StatusCode == HttpStatusCode.OK, connectionsBody);
+        var connectionId = JsonElement
+            .Parse(connectionsBody)
+            .GetProperty("items")
+            .EnumerateArray()
+            .Single(x => x.GetProperty("name").GetString() == "local")
+            .GetProperty("connectionId")
+            .GetString();
+        return $"/api/tenants/{tenantId}/connections/{connectionId}/local-accounts";
     }
 
     #endregion

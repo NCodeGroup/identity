@@ -31,8 +31,9 @@ user but the current one and revokes every grant that was issued under no sessio
    policy's. The codes are an open vocabulary whose known values are `InteractivePasswordChangeErrors`:
    `invalid_request`, `password_mismatch`, `invalid_current_password` and `not_supported`.
 3. **The local changer needs one enabled account and the current password.** It reads the principal from the cookie and
-   requires exactly one self-issued identity and an enabled account, and it reports `NotSupported` otherwise. It judges
-   the new password with `IPasswordPolicy` first and reports `Refused(code)` when the policy refuses it. It then
+   resolves the principal's single local account across its identities in local connections and requires that account
+   to be enabled, and it reports `NotSupported` otherwise. It judges the
+   new password with `IPasswordPolicy` first and reports `Refused(code)` when the policy refuses it. It then
    verifies the current password through `VerifyCredentialAsync` under the limit on failed attempts
    (`PasswordAttemptGate`), requires the verified account to be the same `LocalAccountId`, and reports
    `CurrentPasswordInvalid` otherwise. It saves the new password in one unit of work. Both passwords are encoded into

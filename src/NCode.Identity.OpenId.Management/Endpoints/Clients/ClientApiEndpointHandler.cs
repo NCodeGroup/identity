@@ -220,6 +220,7 @@ internal class ClientApiEndpointHandler(
             .ProducesValidationProblem()
             .ProducesProblem(StatusCodes.Status401Unauthorized)
             .ProducesProblem(StatusCodes.Status403Forbidden)
+            .ProducesProblem(StatusCodes.Status404NotFound)
             .ProducesProblem(StatusCodes.Status409Conflict)
             .ProducesProblem(StatusCodes.Status412PreconditionFailed)
             .ProducesProblem(StatusCodes.Status415UnsupportedMediaType);
@@ -754,6 +755,7 @@ internal class ClientApiEndpointHandler(
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
     /// <response code="201">The created client.</response>
     /// <response code="400">The request names a client identifier, the settings are not valid for a client, or the resource server the client acts for does not exist in the tenant or is a system resource server.</response>
+    /// <response code="404">The tenant does not exist.</response>
     /// <response code="409">A client with the identifier already exists.</response>
     [EndpointName("api/clients/create")]
     internal virtual async ValueTask<IResult> CreateClientAsync(
@@ -785,6 +787,18 @@ internal class ClientApiEndpointHandler(
         }
 
         await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
+
+        // The caller holds authority at the tenant's node, but the tenant may not exist: the store's insert would fail
+        // on it, so the absent tenant is answered 404 before anything is validated or stored.
+        var tenantNotFound = await GetTenantNotFoundOrDefaultAsync(
+            storeManager,
+            tenantId,
+            cancellationToken
+        );
+        if (tenantNotFound is not null)
+        {
+            return tenantNotFound;
+        }
 
         var clientId = CryptoService.GenerateResourceId();
 
@@ -1117,10 +1131,7 @@ internal class ClientApiEndpointHandler(
         catch (JsonPatchException exception)
         {
             Logger.JsonPatchFailed(exception);
-            return TypedResults.Problem(
-                detail: "The JSON Patch document could not be applied.",
-                statusCode: StatusCodes.Status400BadRequest
-            );
+            return ManagementProblems.PatchNotApplied();
         }
 
         // The core precondition (If-Match) is asserted by the validator against the hydrated
@@ -1465,10 +1476,7 @@ internal class ClientApiEndpointHandler(
         catch (JsonPatchException exception)
         {
             Logger.JsonPatchFailed(exception);
-            return TypedResults.Problem(
-                detail: "The JSON Patch document could not be applied.",
-                statusCode: StatusCodes.Status400BadRequest
-            );
+            return ManagementProblems.PatchNotApplied();
         }
 
         var settingsValue = SerializeToElement(jsonObject);

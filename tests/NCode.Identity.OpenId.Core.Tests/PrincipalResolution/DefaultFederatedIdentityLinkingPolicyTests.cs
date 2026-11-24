@@ -3,13 +3,14 @@
 
 using System.Security.Claims;
 using Moq;
+using NCode.Identity.Json;
+using NCode.Identity.OpenId.Connections;
 using NCode.Identity.OpenId.Contexts;
 using NCode.Identity.OpenId.Core.Tests;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
 using NCode.Identity.OpenId.PrincipalResolution;
 using NCode.Identity.OpenId.Settings;
-using NCode.Identity.OpenId.Tenants;
 using NCode.Identity.Persistence.Stores;
 using NCode.Identity.Settings;
 using Xunit;
@@ -20,11 +21,13 @@ public sealed class DefaultFederatedIdentityLinkingPolicyTests : BaseTests
 {
     private const string JoinKey = "user@example.com";
     private const string TenantId = "tenant-1";
+    private const string ConnectionId = "connection-1";
     private const string MatchedPrincipalId = "principal-9";
 
-    // The policy reads its settings in order and stops at the first one that settles the decision: a subject without
-    // a join claim reads no verification setting, and an unverified one never reads whether linking is explicit-only.
-    private OpenIdContext CreateOpenIdContext(
+    // The policy reads its settings from the connection in order and stops at the first one that settles the decision:
+    // a subject without a join claim reads no verification setting, and an unverified one never reads whether linking
+    // is explicit-only.
+    private ResolvedConnection CreateConnection(
         bool explicitOnly = false,
         bool requireVerified = true,
         bool readsVerification = true,
@@ -56,16 +59,31 @@ public sealed class DefaultFederatedIdentityLinkingPolicyTests : BaseTests
                 .Verifiable();
         }
 
-        var provider = CreateStrictMock<IReadOnlySettingCollectionProvider>();
-        provider.Setup(x => x.Collection).Returns(settings.Object).Verifiable();
-
-        var tenant = CreateStrictMock<OpenIdTenant>();
-        tenant.Setup(x => x.SettingsProvider).Returns(provider.Object).Verifiable();
-
-        var context = CreateStrictMock<OpenIdContext>();
-        context.Setup(x => x.Tenant).Returns(tenant.Object).Verifiable();
-        return context.Object;
+        return new ResolvedConnection
+        {
+            Connection = new PersistedConnection
+            {
+                TenantId = TenantId,
+                ConnectionId = ConnectionId,
+                Name = "upstream",
+                Strategy = ConnectionStrategyNames.Local,
+                DisplayName = "Upstream",
+                IsSystem = false,
+                IsEnabled = true,
+                Options = JsonElements.EmptyObject,
+                Settings = new PersistedConnectionSettings
+                {
+                    TenantId = TenantId,
+                    ConnectionId = ConnectionId,
+                    Value = JsonElements.EmptyObject,
+                },
+            },
+            Strategy = CreateLooseMock<IConnectionStrategy>().Object,
+            Settings = settings.Object,
+        };
     }
+
+    private OpenIdContext CreateOpenIdContext() => CreateStrictMock<OpenIdContext>().Object;
 
     private static ClaimsPrincipal CreateUser(params Claim[] claims) =>
         new(new ClaimsIdentity(claims, "test"));
@@ -79,6 +97,7 @@ public sealed class DefaultFederatedIdentityLinkingPolicyTests : BaseTests
             TenantId = TenantId,
             FederatedIdentityId = "identity-1",
             PrincipalId = principalId,
+            ConnectionId = ConnectionId,
             Issuer = "https://issuer.example",
             Subject = "subject-1",
             JoinKey = JoinKey,
@@ -90,11 +109,13 @@ public sealed class DefaultFederatedIdentityLinkingPolicyTests : BaseTests
     {
         var manager = CreateStrictMock<IStoreManager>();
 
-        var openIdContext = CreateOpenIdContext(readsVerification: false);
+        var openIdContext = CreateOpenIdContext();
+        var connection = CreateConnection(readsVerification: false);
         var policy = new DefaultFederatedIdentityLinkingPolicy();
 
         var decision = await policy.ResolveLinkAsync(
             openIdContext,
+            connection,
             CreateUser(),
             manager.Object,
             CancellationToken.None
@@ -109,11 +130,13 @@ public sealed class DefaultFederatedIdentityLinkingPolicyTests : BaseTests
     {
         var manager = CreateStrictMock<IStoreManager>();
 
-        var openIdContext = CreateOpenIdContext(readsExplicitOnly: false);
+        var openIdContext = CreateOpenIdContext();
+        var connection = CreateConnection(readsExplicitOnly: false);
         var policy = new DefaultFederatedIdentityLinkingPolicy();
 
         var decision = await policy.ResolveLinkAsync(
             openIdContext,
+            connection,
             CreateUser(new Claim("email", JoinKey), new Claim("email_verified", "false")),
             manager.Object,
             CancellationToken.None
@@ -129,11 +152,13 @@ public sealed class DefaultFederatedIdentityLinkingPolicyTests : BaseTests
     {
         var manager = CreateStrictMock<IStoreManager>();
 
-        var openIdContext = CreateOpenIdContext(explicitOnly: true);
+        var openIdContext = CreateOpenIdContext();
+        var connection = CreateConnection(explicitOnly: true);
         var policy = new DefaultFederatedIdentityLinkingPolicy();
 
         var decision = await policy.ResolveLinkAsync(
             openIdContext,
+            connection,
             VerifiedUser(),
             manager.Object,
             CancellationToken.None
@@ -159,10 +184,12 @@ public sealed class DefaultFederatedIdentityLinkingPolicyTests : BaseTests
             .Verifiable();
 
         var openIdContext = CreateOpenIdContext();
+        var connection = CreateConnection();
         var policy = new DefaultFederatedIdentityLinkingPolicy();
 
         var decision = await policy.ResolveLinkAsync(
             openIdContext,
+            connection,
             VerifiedUser(),
             manager.Object,
             CancellationToken.None
@@ -188,10 +215,12 @@ public sealed class DefaultFederatedIdentityLinkingPolicyTests : BaseTests
             .Verifiable();
 
         var openIdContext = CreateOpenIdContext();
+        var connection = CreateConnection();
         var policy = new DefaultFederatedIdentityLinkingPolicy();
 
         var decision = await policy.ResolveLinkAsync(
             openIdContext,
+            connection,
             VerifiedUser(),
             manager.Object,
             CancellationToken.None

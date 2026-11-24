@@ -7,6 +7,7 @@ export const en: Messages = {
     titleFor: (productName) => `Sign in to ${productName}`,
     username: 'Username',
     password: 'Password',
+    connection: 'Sign in with',
     submit: 'Sign in',
     forgotPassword: 'Forgot your password?',
     passwordReset: 'Your password has been reset. Sign in with your new password.',
@@ -14,6 +15,8 @@ export const en: Messages = {
   loginErrors: {
     invalidCredentials: 'The username or password is incorrect.',
     invalidRequest: 'Enter both a username and a password.',
+    connectionRequired: 'Choose a connection.',
+    connectionUnavailable: 'This connection is not available. Choose another one.',
     accessDenied: 'This account cannot sign in. Contact your administrator.',
     fallback: 'Sign-in failed. Please try again.',
   },

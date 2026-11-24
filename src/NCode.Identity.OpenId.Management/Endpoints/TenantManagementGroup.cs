@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Routing.Patterns;
 using NCode.Identity.OpenId.Management.Endpoints.AuditRecords;
 using NCode.Identity.OpenId.Management.Endpoints.AuditStreams;
 using NCode.Identity.OpenId.Management.Endpoints.Clients;
+using NCode.Identity.OpenId.Management.Endpoints.Connections;
 using NCode.Identity.OpenId.Management.Endpoints.Grants;
 using NCode.Identity.OpenId.Management.Endpoints.Principals;
 using NCode.Identity.OpenId.Management.Endpoints.ResourceServers;
@@ -47,6 +48,7 @@ internal sealed class TenantManagementGroup : IEndpointGroup
         builder.AddAuditRecordEndpoint();
         builder.AddAuditStreamEndpoint();
         builder.AddResourceServerEndpoint();
+        builder.AddConnectionEndpoint();
         builder.AddSessionEndpoint();
         builder.AddPrincipalEndpoint();
         builder.AddGroup<ClientManagementGroup>();

@@ -154,8 +154,7 @@ public class InteractiveBundleShellTests
             CreateForm("__RequestVerificationToken", "t") with
             {
                 ReturnUrl = "/",
-            },
-            forgotPasswordHref: null
+            }
         );
         var html = writer.WrittenSpan.ToString();
 

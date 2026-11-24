@@ -6,16 +6,17 @@ using System.Security.Claims;
 using NCode.Identity.Jose;
 using NCode.Identity.OpenId.Accounts.DataContracts;
 using NCode.Identity.OpenId.Authentication.Subject;
+using NCode.Identity.OpenId.Connections;
 using NCode.Identity.OpenId.Contexts;
 using NCode.Identity.OpenId.Settings;
 
 namespace NCode.Identity.OpenId.Accounts.Authentication;
 
 /// <summary>
-/// Builds the subject of a local account that has just verified a password: the tenant's subject claim, the self-issued
-/// issuer claim, the tenant identifier, the authentication time, the display name as <c>name</c>, the account's own
-/// claims, the <c>pwd</c> authentication method and the resolved authentication context class reference. The password
-/// grant and the interactive sign-in both build their subject with it, so the two paths stamp the same claims.
+/// Builds the subject of a local account that has just verified a password: the tenant's subject claim, the connection
+/// claim and <c>idp</c>, the tenant identifier, the authentication time, the display name as <c>name</c>, the account's
+/// own claims, the <c>pwd</c> authentication method and the resolved authentication context class reference. The
+/// password grant and the interactive sign-in both build their subject with it, so the two paths stamp the same claims.
 /// </summary>
 // See ADR-1035, ADR-1051, ADR-1055.
 internal sealed class LocalAccountSubjectFactory(
@@ -31,6 +32,7 @@ internal sealed class LocalAccountSubjectFactory(
     /// Creates the principal of a local account whose password was just verified.
     /// </summary>
     /// <param name="openIdContext">The context that names the tenant the account signs in to.</param>
+    /// <param name="connection">The connection the account signed in through.</param>
     /// <param name="account">The local account that verified its password.</param>
     /// <param name="authenticationType">The authentication type of the principal's identity.</param>
     /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
@@ -38,33 +40,40 @@ internal sealed class LocalAccountSubjectFactory(
     /// <paramref name="authenticationType"/>.</returns>
     public async ValueTask<ClaimsPrincipal> CreateAsync(
         OpenIdContext openIdContext,
+        ResolvedConnection connection,
         PersistedLocalAccount account,
         string authenticationType,
         CancellationToken cancellationToken
     )
     {
-        var settings = openIdContext.Tenant.SettingsProvider.Collection;
+        var settings = connection.Settings;
         var subjectClaimType = settings.GetValue(OpenIdSettingKeys.SubjectClaimTypes).First();
-        var issuerClaimType = settings.GetValue(OpenIdSettingKeys.PrincipalIssuerClaim);
 
         // The subject is built fresh with no interactive challenge to stash the tenant and authentication time in
         // auth properties, so both are stamped as claims for DefaultValidateSubjectAuthenticationHandler. The local
         // account verified a password, so the authentication time is now.
         var authTime = TimeProvider.GetUtcNow().ToUnixTimeSeconds();
         var authTimeValue = authTime.ToString(CultureInfo.InvariantCulture);
-        var claims = new List<Claim>(account.Claims.Count + 7)
+        var claims = new List<Claim>(account.Claims.Count + 8)
         {
             // The subject is stamped under the tenant's primary subject claim type so principal resolution reads it
             // back through the same tenant-aware GetSubjectId seam (ADR-1053).
             new(subjectClaimType, account.LocalAccountId),
-            new(issuerClaimType, AccountConstants.SelfIssuer),
+            new(ConnectionClaimTypes.Connection, connection.ConnectionId),
+            new(JoseClaimNames.Payload.Idp, connection.Name),
             new(JoseClaimNames.Payload.Tid, openIdContext.Tenant.TenantId),
             new(JoseClaimNames.Payload.AuthTime, authTimeValue, ClaimValueTypes.Integer64),
         };
         // The display name is the account's 'name' claim.
         var nameClaim = new Claim(JoseClaimNames.Payload.Name, account.DisplayName);
         claims.Add(nameClaim);
-        var accountClaims = account.Claims.Select(claim => new Claim(claim.Type, claim.Value));
+        // The server owns the connection and idp claims, so an account claim of either type is never copied.
+        var accountClaims = account
+            .Claims.Where(claim =>
+                claim.Type != ConnectionClaimTypes.Connection
+                && claim.Type != JoseClaimNames.Payload.Idp
+            )
+            .Select(claim => new Claim(claim.Type, claim.Value));
         claims.AddRange(accountClaims);
 
         // The local account verified a password, so record 'pwd' (RFC 8176) and resolve the authentication context
@@ -78,7 +87,7 @@ internal sealed class LocalAccountSubjectFactory(
         var acrRequest = new AuthenticationContextReferenceRequest
         {
             AuthenticationMethods = [OpenIdProtocol.AuthenticationMethods.Password],
-            IdentityProvider = null,
+            IdentityProvider = connection.Name,
             Settings = settings,
         };
         var acr = await AuthenticationContextReferenceResolver.ResolveAsync(

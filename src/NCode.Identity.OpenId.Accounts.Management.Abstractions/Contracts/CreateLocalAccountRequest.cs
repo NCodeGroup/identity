@@ -16,12 +16,14 @@ namespace NCode.Identity.OpenId.Accounts.Management.Contracts;
 public sealed class CreateLocalAccountRequest
 {
     /// <summary>
-    /// Gets the account's username (login handle), unique within the tenant.
+    /// Gets the account's username (login handle), unique within the connection, or <c>null</c> when none is recorded.
+    /// The connection's <c>local_account_identifier</c> setting says whether the account needs one.
     /// </summary>
-    public required string UserName { get; init; }
+    public string? UserName { get; init; }
 
     /// <summary>
-    /// Gets the account's display name, the source of its <c>name</c> claim, or <c>null</c> to use the username.
+    /// Gets the account's display name, the source of its <c>name</c> claim, or <c>null</c> to use the username, else
+    /// the email address.
     /// </summary>
     public string? DisplayName { get; init; }
 
@@ -31,7 +33,7 @@ public sealed class CreateLocalAccountRequest
     public required string Password { get; init; }
 
     /// <summary>
-    /// Gets the account's email address, or <c>null</c> when none is recorded.
+    /// Gets the account's email address, unique within the connection, or <c>null</c> when none is recorded.
     /// </summary>
     public string? Email { get; init; }
 

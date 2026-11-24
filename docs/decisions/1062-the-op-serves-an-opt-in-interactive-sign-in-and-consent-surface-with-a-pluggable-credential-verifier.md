@@ -95,9 +95,9 @@ The surface is the leaf package pair `NCode.Identity.OpenId.Authentication.Inter
 - The local backend is
   `AddLocalAccountInteractiveAuthentication(IServiceBuilder<LocalAccountLibrary>, IServiceBuilder<MailLibrary>)` in
   `NCode.Identity.OpenId.Accounts.Authentication`, registered like the password grant
-  ([ADR-1051](1051-a-local-account-is-a-self-issued-connection-behind-one-pluggable-store-seam.md)). It registers
-  `LocalAccountInteractiveCredentialVerifier`, which verifies through secure buffers and issues a self-issued principal,
-  and `LocalAccountInteractivePasswordChanger`
+  ([ADR-1051](1051-a-local-account-belongs-to-one-local-connection-behind-a-named-pluggable-store-seam.md)). It registers
+  `LocalAccountInteractiveCredentialVerifier`, which verifies through secure buffers and issues a principal that carries
+  the connection claim, and `LocalAccountInteractivePasswordChanger`
   ([ADR-1230](1230-an-end-user-changes-their-password-through-an-optional-seam-and-keeps-only-the-current-session.md)).
 - An LDAP, external-IdP or passwordless backend registers its own `IInteractiveCredentialVerifier`.
 
@@ -153,7 +153,7 @@ a full browser round trip needs the bundle built.
   [ADR-1229](1229-a-blocked-disabled-or-deleted-end-user-loses-its-sessions-and-is-refused-with-access-denied.md) and
   [ADR-1081](1081-consent-is-a-durable-record-of-decided-and-granted-scopes-enforced-at-the-authorization-endpoint.md):
   the principal, the standing check and the consent the login and consent pages use.
-- [ADR-1051](1051-a-local-account-is-a-self-issued-connection-behind-one-pluggable-store-seam.md) and
+- [ADR-1051](1051-a-local-account-belongs-to-one-local-connection-behind-a-named-pluggable-store-seam.md) and
   [ADR-1230](1230-an-end-user-changes-their-password-through-an-optional-seam-and-keeps-only-the-current-session.md): the local-account backend
   and the password changer.
 - [ADR-1069](1069-di-registration-proves-every-prerequisite-at-compile-time-through-marker-builders.md) and

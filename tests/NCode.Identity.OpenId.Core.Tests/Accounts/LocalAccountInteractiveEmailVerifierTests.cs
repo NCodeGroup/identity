@@ -4,18 +4,17 @@
 using System.Security.Claims;
 using Moq;
 using NCode.Buffers;
-using NCode.Identity.OpenId.Accounts;
 using NCode.Identity.OpenId.Accounts.Authentication;
 using NCode.Identity.OpenId.Accounts.Authentication.EmailCodes;
 using NCode.Identity.OpenId.Accounts.DataContracts;
 using NCode.Identity.OpenId.Accounts.Stores;
 using NCode.Identity.OpenId.Authentication.Auditing;
 using NCode.Identity.OpenId.Authentication.Interactive;
+using NCode.Identity.OpenId.Connections;
 using NCode.Identity.OpenId.Contexts;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
 using NCode.Identity.OpenId.Settings;
-using NCode.Identity.OpenId.Tenants;
 using NCode.Identity.Persistence.Stores;
 using NCode.Identity.Settings;
 using Xunit;
@@ -38,6 +37,7 @@ public class LocalAccountInteractiveEmailVerifierTests : BaseTests
     private Mock<ILocalAccountStore> MockLocalAccountStore { get; }
     private Mock<ILocalAccountEmailCodes> MockEmailCodes { get; }
     private Mock<IAuditEventRecorder> MockAuditEventRecorder { get; }
+    private Mock<IConnectionResolver> MockConnectionResolver { get; }
     private LocalAccountInteractiveEmailVerifier Verifier { get; }
 
     public LocalAccountInteractiveEmailVerifierTests()
@@ -48,8 +48,16 @@ public class LocalAccountInteractiveEmailVerifierTests : BaseTests
         MockLocalAccountStore = CreateStrictMock<ILocalAccountStore>();
         MockEmailCodes = CreateStrictMock<ILocalAccountEmailCodes>();
         MockAuditEventRecorder = CreateStrictMock<IAuditEventRecorder>();
+        MockConnectionResolver = CreateStrictMock<IConnectionResolver>();
+        var catalog = LocalAccountStoreSetup.CreateCatalog(MockLocalAccountStore);
         Verifier = new LocalAccountInteractiveEmailVerifier(
             MockStoreManagerFactory.Object,
+            new LocalAccountSignedInAccountFinder(
+                MockStoreManagerFactory.Object,
+                MockConnectionResolver.Object,
+                catalog
+            ),
+            catalog,
             MockEmailCodes.Object,
             MockAuditEventRecorder.Object
         );
@@ -61,32 +69,34 @@ public class LocalAccountInteractiveEmailVerifierTests : BaseTests
 
     private static InteractiveLocale Locale { get; } = LocalAccountMailComposerTests.CreateLocale();
 
-    private Mock<OpenIdContext> CreateContext(
-        bool? isVerificationEnabled = null,
-        bool needsSubject = true
-    )
+    private Mock<OpenIdContext> CreateContext()
     {
         var mockContext = CreateStrictMock<OpenIdContext>();
-        if (needsSubject)
-        {
-            mockContext.Setup(x => x.GetSubjectId(Principal)).Returns(PrincipalId).Verifiable();
-        }
+        mockContext.Setup(x => x.GetSubjectId(Principal)).Returns(PrincipalId).Verifiable();
+        return mockContext;
+    }
 
+    private void SetupConnection(bool? isVerificationEnabled)
+    {
+        var mockSettings = CreateStrictMock<IReadOnlySettingCollection>();
         if (isVerificationEnabled is { } isEnabled)
         {
-            var mockSettings = CreateStrictMock<IReadOnlySettingCollection>();
             mockSettings
                 .Setup(x => x.GetValue(OpenIdSettingKeys.EmailVerificationEnabled))
                 .Returns(isEnabled)
                 .Verifiable();
-            var mockProvider = CreateStrictMock<IReadOnlySettingCollectionProvider>();
-            mockProvider.Setup(x => x.Collection).Returns(mockSettings.Object).Verifiable();
-            var mockTenant = CreateStrictMock<OpenIdTenant>();
-            mockTenant.Setup(x => x.SettingsProvider).Returns(mockProvider.Object).Verifiable();
-            mockContext.Setup(x => x.Tenant).Returns(mockTenant.Object).Verifiable();
         }
 
-        return mockContext;
+        MockConnectionResolver
+            .Setup(x =>
+                x.GetByIdOrDefaultAsync(
+                    It.IsAny<OpenIdContext>(),
+                    LocalAccountStoreSetup.ConnectionId,
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync(LocalAccountStoreSetup.CreateConnection(TenantId, mockSettings.Object))
+            .Verifiable();
     }
 
     private void SetupStoreManager()
@@ -98,20 +108,17 @@ public class LocalAccountInteractiveEmailVerifierTests : BaseTests
         MockStoreManager.Setup(x => x.DisposeAsync()).Returns(ValueTask.CompletedTask).Verifiable();
     }
 
-    private void SetupAccount(PersistedLocalAccount account)
+    private void SetupAccount(PersistedLocalAccount account, bool? isVerificationEnabled = null)
     {
         SetupStoreManager();
+        SetupConnection(isVerificationEnabled);
         MockStoreManager
             .Setup(x => x.GetStore<IFederatedIdentityStore>())
             .Returns(MockFederatedIdentityStore.Object)
             .Verifiable();
         MockFederatedIdentityStore
             .Setup(x => x.GetByPrincipalAsync(PrincipalId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync([SelfIssuedIdentity()])
-            .Verifiable();
-        MockStoreManager
-            .Setup(x => x.GetStore<ILocalAccountStore>())
-            .Returns(MockLocalAccountStore.Object)
+            .ReturnsAsync([LocalIdentity()])
             .Verifiable();
         MockLocalAccountStore
             .Setup(x => x.GetByIdOrDefaultAsync(LocalAccountId, It.IsAny<CancellationToken>()))
@@ -135,7 +142,7 @@ public class LocalAccountInteractiveEmailVerifierTests : BaseTests
 
     private void SetupSuccessfulVerification(Mock<OpenIdContext> mockContext)
     {
-        SetupAccount(Account());
+        SetupAccount(Account(), isVerificationEnabled: true);
         SetupVerify(LocalAccountId);
         MockLocalAccountStore
             .Setup(x =>
@@ -179,7 +186,11 @@ public class LocalAccountInteractiveEmailVerifierTests : BaseTests
                     It.IsAny<CancellationToken>()
                 )
             )
-            .ReturnsAsync(localAccountId is null ? null : new EmailCodeMatch(localAccountId, email))
+            .ReturnsAsync(
+                localAccountId is null
+                    ? null
+                    : new EmailCodeMatch(LocalAccountStoreSetup.ConnectionId, localAccountId, email)
+            )
             .Verifiable();
 
     private static PersistedLocalAccount Account(
@@ -189,6 +200,7 @@ public class LocalAccountInteractiveEmailVerifierTests : BaseTests
         new()
         {
             TenantId = TenantId,
+            ConnectionId = LocalAccountStoreSetup.ConnectionId,
             LocalAccountId = LocalAccountId,
             UserName = UserName,
             DisplayName = "Display Name",
@@ -199,13 +211,14 @@ public class LocalAccountInteractiveEmailVerifierTests : BaseTests
             ConcurrencyToken = string.Empty,
         };
 
-    private static PersistedFederatedIdentity SelfIssuedIdentity() =>
+    private static PersistedFederatedIdentity LocalIdentity() =>
         new()
         {
             TenantId = TenantId,
             FederatedIdentityId = "fed-1",
             PrincipalId = PrincipalId,
-            Issuer = AccountConstants.SelfIssuer,
+            ConnectionId = LocalAccountStoreSetup.ConnectionId,
+            Issuer = null,
             Subject = LocalAccountId,
             JoinKey = null,
             ConcurrencyToken = string.Empty,
@@ -256,7 +269,8 @@ public class LocalAccountInteractiveEmailVerifierTests : BaseTests
     [Fact]
     public async Task SendVerificationCodeAsync_WhenDisabled_RefusesNotSupported()
     {
-        var mockContext = CreateContext(isVerificationEnabled: false, needsSubject: false);
+        var mockContext = CreateContext();
+        SetupAccount(Account(), isVerificationEnabled: false);
 
         var result = await Verifier.SendVerificationCodeAsync(
             mockContext.Object,
@@ -272,8 +286,8 @@ public class LocalAccountInteractiveEmailVerifierTests : BaseTests
     [Fact]
     public async Task SendVerificationCodeAsync_ForAVerifiedAddress_RefusesAlreadyVerified()
     {
-        var mockContext = CreateContext(isVerificationEnabled: true);
-        SetupAccount(Account(emailVerified: true));
+        var mockContext = CreateContext();
+        SetupAccount(Account(emailVerified: true), isVerificationEnabled: true);
 
         var result = await Verifier.SendVerificationCodeAsync(
             mockContext.Object,
@@ -289,9 +303,9 @@ public class LocalAccountInteractiveEmailVerifierTests : BaseTests
     [Fact]
     public async Task SendVerificationCodeAsync_PastTheHourlyLimit_RefusesTooManyCodes()
     {
-        var mockContext = CreateContext(isVerificationEnabled: true);
+        var mockContext = CreateContext();
         var account = Account();
-        SetupAccount(account);
+        SetupAccount(account, isVerificationEnabled: true);
         MockEmailCodes
             .Setup(x =>
                 x.SendAsync(
@@ -319,9 +333,9 @@ public class LocalAccountInteractiveEmailVerifierTests : BaseTests
     [Fact]
     public async Task SendVerificationCodeAsync_ForAnUnverifiedAddress_SendsACode()
     {
-        var mockContext = CreateContext(isVerificationEnabled: true);
+        var mockContext = CreateContext();
         var account = Account();
-        SetupAccount(account);
+        SetupAccount(account, isVerificationEnabled: true);
         MockEmailCodes
             .Setup(x =>
                 x.SendAsync(
@@ -353,8 +367,8 @@ public class LocalAccountInteractiveEmailVerifierTests : BaseTests
     [Fact]
     public async Task VerifyEmailAsync_WithAnotherAccountsFlow_RefusesInvalidCode()
     {
-        var mockContext = CreateContext(isVerificationEnabled: true);
-        SetupAccount(Account());
+        var mockContext = CreateContext();
+        SetupAccount(Account(), isVerificationEnabled: true);
         SetupVerify("account-2");
         SetupRecordedFailure();
 
@@ -374,8 +388,8 @@ public class LocalAccountInteractiveEmailVerifierTests : BaseTests
     [Fact]
     public async Task VerifyEmailAsync_WithAnotherAccountsFlow_RecordsInvalidCode()
     {
-        var mockContext = CreateContext(isVerificationEnabled: true);
-        SetupAccount(Account());
+        var mockContext = CreateContext();
+        SetupAccount(Account(), isVerificationEnabled: true);
         SetupVerify("account-2");
         SetupRecordedFailure();
 
@@ -405,9 +419,9 @@ public class LocalAccountInteractiveEmailVerifierTests : BaseTests
     [Fact]
     public async Task VerifyEmailAsync_WhenAnotherRequestTookTheCode_RefusesAndVerifiesNothing()
     {
-        var mockContext = CreateContext(isVerificationEnabled: true);
+        var mockContext = CreateContext();
         var account = Account();
-        SetupAccount(account);
+        SetupAccount(account, isVerificationEnabled: true);
         SetupVerify(LocalAccountId);
         SetupConsume(mockContext, consumed: false);
         SetupRecordedFailure();
@@ -437,9 +451,9 @@ public class LocalAccountInteractiveEmailVerifierTests : BaseTests
     [Fact]
     public async Task VerifyEmailAsync_WhenTheAddressChangedSinceTheCodeWasSent_RefusesAndVerifiesNothing()
     {
-        var mockContext = CreateContext(isVerificationEnabled: true);
+        var mockContext = CreateContext();
         var account = Account();
-        SetupAccount(account);
+        SetupAccount(account, isVerificationEnabled: true);
         SetupVerify(LocalAccountId, email: "old@example.com");
         SetupRecordedFailure();
 
@@ -477,7 +491,7 @@ public class LocalAccountInteractiveEmailVerifierTests : BaseTests
     [Fact]
     public async Task VerifyEmailAsync_WithTheCode_MarksTheAddressVerified()
     {
-        var mockContext = CreateContext(isVerificationEnabled: true);
+        var mockContext = CreateContext();
         SetupSuccessfulVerification(mockContext);
 
         using var code = Secret.Create(Code.AsSpan());
@@ -495,7 +509,7 @@ public class LocalAccountInteractiveEmailVerifierTests : BaseTests
     [Fact]
     public async Task VerifyEmailAsync_WithTheCode_RecordsTheVerification()
     {
-        var mockContext = CreateContext(isVerificationEnabled: true);
+        var mockContext = CreateContext();
         SetupSuccessfulVerification(mockContext);
 
         using var code = Secret.Create(Code.AsSpan());

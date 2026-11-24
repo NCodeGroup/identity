@@ -2,13 +2,16 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using System.Security.Claims;
+using Microsoft.AspNetCore.Http;
 using NCode.Buffers;
 using NCode.Identity.OpenId.Accounts.Stores;
 using NCode.Identity.OpenId.Authentication.Auditing;
 using NCode.Identity.OpenId.Authentication.Endpoints.Token.Commands;
 using NCode.Identity.OpenId.Authentication.Passwords;
 using NCode.Identity.OpenId.Authentication.Subject;
+using NCode.Identity.OpenId.Connections;
 using NCode.Identity.OpenId.Contexts;
+using NCode.Identity.OpenId.Errors;
 using NCode.Identity.OpenId.PrincipalResolution;
 using NCode.Identity.OpenId.Settings;
 using NCode.Identity.Persistence.Stores;
@@ -24,11 +27,13 @@ namespace NCode.Identity.OpenId.Accounts.Authentication;
 /// <c>NCode.Identity.OpenId.Authentication</c> handler reports the grant as unsupported when this capability is absent.
 /// A store that rejects the credentials yields a failed (not unsupported) result, so the two cases stay distinct. A
 /// password for an account that reached its limit of failed attempts is verified against the store's dummy hash and
-/// refused, as a wrong one is. A tenant that requires the email second factor refuses the grant before any password is
-/// verified, because the grant carries no second factor.
+/// refused, as a wrong one is. A connection that requires the email second factor refuses the grant before any password
+/// is verified, because the grant carries no second factor.
 /// </summary>
 internal class DefaultAuthenticatePasswordGrantHandler(
     IStoreManagerFactory storeManagerFactory,
+    IConnectionResolver connectionResolver,
+    LocalAccountStoreCatalog localAccountStoreCatalog,
     IPrincipalResolver principalResolver,
     IAuditEventRecorder auditEventRecorder,
     IPasswordAttemptLimiter passwordAttemptLimiter
@@ -42,12 +47,17 @@ internal class DefaultAuthenticatePasswordGrantHandler(
     internal const string InvalidCredentialsReason = "The provided credentials are invalid.";
 
     internal const string SecondFactorRequiredReason =
-        "The tenant requires a second factor, which the password grant cannot carry.";
+        "The connection requires a second factor, which the password grant cannot carry.";
+
+    internal const string ConnectionNotUsableDescription =
+        "The requested connection is not available for the password grant.";
 
     internal const string AttemptLimitReachedReason =
         "The account has reached its limit of failed password attempts.";
 
     private IStoreManagerFactory StoreManagerFactory { get; } = storeManagerFactory;
+    private IConnectionResolver ConnectionResolver { get; } = connectionResolver;
+    private LocalAccountStoreCatalog LocalAccountStoreCatalog { get; } = localAccountStoreCatalog;
     private IPrincipalResolver PrincipalResolver { get; } = principalResolver;
     private IAuditEventRecorder AuditEventRecorder { get; } = auditEventRecorder;
     private IPasswordAttemptLimiter PasswordAttemptLimiter { get; } = passwordAttemptLimiter;
@@ -63,7 +73,28 @@ internal class DefaultAuthenticatePasswordGrantHandler(
         CancellationToken cancellationToken
     )
     {
-        var (openIdContext, _, tokenRequest, authenticationProperties) = command;
+        var (openIdContext, client, tokenRequest, authenticationProperties) = command;
+
+        // The grant serves only a local connection, which the request names or the client's default selects.
+        var selection = await ConnectionResolver.SelectAsync(
+            openIdContext,
+            client.Settings,
+            tokenRequest.Connection,
+            cancellationToken
+        );
+        var connection = selection.Connection;
+        if (
+            selection.IsRefused
+            || connection is null
+            || !ConnectionStrategyNames.IsLocal(connection.Connection.Strategy)
+        )
+        {
+            var description = selection.ErrorDescription ?? ConnectionNotUsableDescription;
+            var error = openIdContext
+                .ErrorFactory.InvalidRequest(description)
+                .WithStatusCode(StatusCodes.Status400BadRequest);
+            return new AuthenticateSubjectDisposition(error);
+        }
 
         var username = tokenRequest.Username;
         var password = tokenRequest.Password;
@@ -72,10 +103,9 @@ internal class DefaultAuthenticatePasswordGrantHandler(
             return Failed();
         }
 
-        // The password grant carries no second factor, so a tenant that requires one refuses it before any password is
-        // verified (ADR-1533).
-        var settings = openIdContext.Tenant.SettingsProvider.Collection;
-        if (settings.GetValue(OpenIdSettingKeys.EmailMfaRequired))
+        // The password grant carries no second factor, so a connection that requires one refuses it before any password
+        // is verified (ADR-1533).
+        if (connection.Settings.GetValue(OpenIdSettingKeys.EmailMfaRequired))
         {
             await AuditEventRecorder.RecordSubjectAuthenticationFailedAsync(
                 openIdContext,
@@ -89,18 +119,20 @@ internal class DefaultAuthenticatePasswordGrantHandler(
 
         var result = await VerifyCredentialsAsync(
             openIdContext,
+            connection,
             username,
             password,
             cancellationToken
         );
 
         // A password refused at the limit is verified against the store's dummy hash and counts as a failure, as a
-        // wrong one does, under the user name the store holds. See ADR-1237.
+        // wrong one does, under the account key the store holds. See ADR-1237.
         if (result.IsVerified)
         {
             await PasswordAttemptLimiter.ResetAsync(
                 openIdContext.Tenant.TenantId,
-                result.UserName,
+                connection.ConnectionId,
+                result.AccountKey,
                 cancellationToken
             );
         }
@@ -109,7 +141,8 @@ internal class DefaultAuthenticatePasswordGrantHandler(
             // A failure is recorded even when the client disconnects.
             await PasswordAttemptLimiter.RecordFailureAsync(
                 openIdContext,
-                result.UserName,
+                connection,
+                result.AccountKey,
                 CancellationToken.None
             );
         }
@@ -139,7 +172,11 @@ internal class DefaultAuthenticatePasswordGrantHandler(
             return Failed();
         }
 
-        var subjectCommand = new CreatePasswordGrantSubjectCommand(openIdContext, account);
+        var subjectCommand = new CreatePasswordGrantSubjectCommand(
+            openIdContext,
+            connection,
+            account
+        );
         var subject = await openIdContext.Mediator.SendAsync<
             CreatePasswordGrantSubjectCommand,
             ClaimsPrincipal
@@ -171,6 +208,7 @@ internal class DefaultAuthenticatePasswordGrantHandler(
 
     private async ValueTask<LocalAccountVerificationResult> VerifyCredentialsAsync(
         OpenIdContext openIdContext,
+        ResolvedConnection connection,
         string userName,
         string password,
         CancellationToken cancellationToken
@@ -184,14 +222,20 @@ internal class DefaultAuthenticatePasswordGrantHandler(
         );
 
         await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
-        var store = storeManager.GetStore<ILocalAccountStore>();
+        var store = LocalAccountStoreCatalog.GetStore(storeManager, connection.Connection);
+        var mode = connection.Settings.GetValue(OpenIdSettingKeys.LocalAccountIdentifier);
+        var identifier = LocalAccountSignInIdentifier.ForSubmitted(
+            connection.ConnectionId,
+            mode,
+            userName
+        );
 
-        // The store asks the gate once, with the user name it holds, between its lookup and its verification. The gate
+        // The store asks the gate once, with the account key it holds, between its lookup and its verification. The gate
         // refuses a result that a store verified after a refusal and fails a store that never asked, so no store lifts
         // the limit. See ADR-1237.
-        var gate = new PasswordAttemptGate(PasswordAttemptLimiter, openIdContext);
+        var gate = new PasswordAttemptGate(PasswordAttemptLimiter, openIdContext, connection);
         var storedResult = await store.VerifyCredentialAsync(
-            userName,
+            identifier,
             buffer,
             gate.IsRefusedAsync,
             cancellationToken

@@ -214,6 +214,20 @@ public sealed class ResourceServerApiEndpointHandlerTests : IDisposable
         MockStoreManager.Setup(x => x.DisposeAsync()).Returns(ValueTask.CompletedTask).Verifiable();
     }
 
+    private void SetupTenant(bool exists)
+    {
+        var mockTenantStore = MockRepository.Create<ITenantStore>();
+        MockStoreManager
+            .Setup(x => x.GetStore<ITenantStore>())
+            .Returns(mockTenantStore.Object)
+            .Verifiable();
+        var tenant = exists ? new PersistedTenantBuilder { TenantId = TenantId }.Build() : null;
+        mockTenantStore
+            .Setup(x => x.GetOrDefaultAsync(TenantId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(tenant)
+            .Verifiable();
+    }
+
     private void SetupAuthorization(AuthorizationResult result)
     {
         MockAuthorizationService
@@ -421,6 +435,7 @@ public sealed class ResourceServerApiEndpointHandlerTests : IDisposable
             .Returns("generated-rs-id")
             .Verifiable();
         SetupStore();
+        SetupTenant(exists: true);
         SetupAuthorizeCreate(error: null);
         MockValidator
             .Setup(x =>
@@ -500,6 +515,7 @@ public sealed class ResourceServerApiEndpointHandlerTests : IDisposable
             .Returns("generated-rs-id")
             .Verifiable();
         SetupStore();
+        SetupTenant(exists: true);
         SetupAuthorizeCreate(error: null);
         MockValidator
             .Setup(x =>
@@ -545,6 +561,7 @@ public sealed class ResourceServerApiEndpointHandlerTests : IDisposable
             .Returns("generated-rs-id")
             .Verifiable();
         SetupStore();
+        SetupTenant(exists: true);
         SetupAuthorizeCreate(error: null);
         MockValidator
             .Setup(x =>
@@ -587,6 +604,7 @@ public sealed class ResourceServerApiEndpointHandlerTests : IDisposable
             .Returns("generated-rs-id")
             .Verifiable();
         SetupStore();
+        SetupTenant(exists: true);
         SetupAuthorizeCreate(error: null);
         MockValidator
             .Setup(x =>
@@ -626,6 +644,31 @@ public sealed class ResourceServerApiEndpointHandlerTests : IDisposable
 
         Assert.NotNull(added);
         Assert.True(JsonElement.DeepEquals(JsonElements.EmptyObject, added.Settings.Value));
+    }
+
+    [Fact]
+    public async Task CreateAsync_WhenTheTenantDoesNotExist_ReturnsNotFoundWithoutStoring()
+    {
+        SetupStore();
+        SetupTenant(exists: false);
+        SetupAuthorizeCreate(error: null);
+
+        // Strict mocks: no validator or AddAsync setup, so validating or storing would fail the test.
+        var result = await Handler.CreateAsync(
+            CreateHttpContext(),
+            TenantId,
+            new CreateResourceServerRequest
+            {
+                Identifier = "https://api.example.com",
+                Name = "Example API",
+                IsDisabled = false,
+                Settings = JsonSerializer.SerializeToElement(new Dictionary<string, object>()),
+            },
+            CancellationToken.None
+        );
+
+        var problem = Assert.IsType<ProblemHttpResult>(result);
+        Assert.Equal(StatusCodes.Status404NotFound, problem.StatusCode);
     }
 
     [Fact]
@@ -2699,7 +2742,7 @@ public sealed class ResourceServerApiEndpointHandlerTests : IDisposable
 
     [Theory]
     [InlineData("GET", "/resource-servers", new[] { 400, 401, 403 })]
-    [InlineData("POST", "/resource-servers", new[] { 400, 401, 403, 409, 412, 415 })]
+    [InlineData("POST", "/resource-servers", new[] { 400, 401, 403, 404, 409, 412, 415 })]
     [InlineData("GET", "/resource-servers/{resourceServerId}", new[] { 401, 403, 404 })]
     [InlineData(
         "PATCH",

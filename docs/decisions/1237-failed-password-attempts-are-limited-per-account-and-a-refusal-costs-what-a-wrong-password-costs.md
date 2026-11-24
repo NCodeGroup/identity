@@ -54,10 +54,12 @@ name.**
    `DefaultPasswordAttemptLimiter` is registered by `AddPasswordServices()`. The limiter sits above
    `ILocalAccountStore`, so it applies to every store.
 2. **One counter holds the failures of one account.** The key is `ExpiringKeys.Create("password-attempts", tenantId,
-   digest)`, where the digest is the SHA-256 of the length-prefixed UTF-8 bytes of the folded user name, so the shared
-   state holds no user name. The folding is `Normalize(NormalizationForm.FormKC)`, then `ToUpperInvariant()`, then
-   `ToLowerInvariant()`. The counted name is the one the store holds for the submitted one, which the lookup of the
-   verification itself finds, or the submitted name when no account has it. The store compares names in its database,
+   connectionId, digest)`, so attempts are counted per `(tenant, connection, account)`. The digest is the SHA-256 of the
+   length-prefixed UTF-8 bytes of the account key, so the shared state holds no user name. The account key is `account:`
+   plus the found account's `LocalAccountId`, or `identifier:` plus the submitted identifier when no account matches,
+   folded, so a submitted identifier never shares an account's count. The folding is
+   `Normalize(NormalizationForm.FormKC)`, then `ToUpperInvariant()`, then `ToLowerInvariant()`. The lookup of the
+   verification itself finds the account. The store compares names in its database,
    whose collation can match spellings that differ in .NET, such as a trailing space under a padding collation or an
    accent under an accent-insensitive one, so every spelling that matches an account shares that account's count. The
    folding gives the spellings of a name that no account has one count as well: the Entity Framework store lower-cases a
@@ -95,7 +97,8 @@ name.**
    the refusal as a failed subject authentication with the reason `attempt_limit_reached`, so an operator tells it from a
    wrong password and the client cannot. `DefaultPasswordAttemptLimiter` logs `PasswordAttemptLimitReached` at
    `Information` with the tenant's identifier and the limit each time it refuses a password, and never the user name.
-8. **Two tenant settings set the limit.** Both apply to tenants and neither is discoverable
+8. **Two settings set the limit.** Both apply to tenants and connections, a sign-in reads them from the settings of
+   its connection, and neither is discoverable
    ([ADR-1140](1140-setting-values-are-validated-against-their-domain-not-only-their-type.md)).
    - `password_failed_attempts_limit` is an `int` between 1 and 100 that defaults to 10, and merges with `Min`, so a
      narrower scope may only lower it. 100 is the most that NIST allows.
@@ -161,10 +164,10 @@ name.**
   within each window. A reset by an administrator clears the count, and an end user waits at most one window.
 - Concurrent attempts can exceed the limit by the number in flight, because the count is read before the verification and
   incremented after it.
-- A sign-in, a password grant or a change of a password makes one lookup of the account by its user name, one read of the
-  counter, and one increment or, after a verified password, one removal of it, each a round trip to the shared state when
-  a deployment uses Valkey. The change finds the signed-in account by its identifier before it, and the grant resolves the
-  principal of a verified password in a second store manager.
+- A sign-in, a password grant or a change of a password runs the lookups its connection's identifier mode names,
+  whatever matches, one read of the counter, and one increment or, after a verified password, one removal of it, each a
+  round trip to the shared state when a deployment uses Valkey. The change finds the signed-in account by its identifier
+  before it, and the grant resolves the principal of a verified password in a second store manager.
 - A password refused at the limit costs one dummy verification and one counter increment, and answers as a wrong password
   does, so neither the answer nor the work tells whether an account has the user name under any spelling that a database
   collation matches.

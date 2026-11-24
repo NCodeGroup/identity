@@ -256,6 +256,29 @@ public interface IManagementAuditRecorder
     );
 
     /// <summary>
+    /// Records that an administrator created, updated, or deleted a connection, or updated its settings.
+    /// </summary>
+    /// <param name="httpContext">The <see cref="HttpContext"/> for the current request.</param>
+    /// <param name="tenantId">The identifier of the tenant the connection belongs to.</param>
+    /// <param name="connectionId">The identifier of the affected connection.</param>
+    /// <param name="changeType">
+    /// The lifecycle transition that occurred; one of the <see cref="ResourceChangeTypes"/> values.
+    /// </param>
+    /// <param name="resourceValues">
+    /// A non-sensitive snapshot of the connection's values, or <c>null</c> when none is captured.
+    /// </param>
+    /// <returns>
+    /// A <see cref="ValueTask"/> that represents the asynchronous operation.
+    /// </returns>
+    ValueTask RecordConnectionChangedAsync(
+        HttpContext httpContext,
+        string tenantId,
+        string connectionId,
+        string changeType,
+        JsonElement? resourceValues
+    );
+
+    /// <summary>
     /// Records that an administrator created, updated, or deleted an audit stream, or rotated its signing secret.
     /// </summary>
     /// <param name="httpContext">The <see cref="HttpContext"/> for the current request.</param>

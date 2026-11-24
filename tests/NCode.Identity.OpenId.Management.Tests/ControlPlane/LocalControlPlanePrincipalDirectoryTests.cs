@@ -54,12 +54,14 @@ public sealed class LocalControlPlanePrincipalDirectoryTests : IDisposable
 
     private static FederatedIdentityNameProjection CreateFederatedIdentity(
         string principalId,
-        string issuer,
-        string subject
+        string connectionId,
+        string subject,
+        string? issuer
     ) =>
         new()
         {
             PrincipalId = principalId,
+            ConnectionId = connectionId,
             Issuer = issuer,
             Subject = subject,
         };
@@ -240,10 +242,10 @@ public sealed class LocalControlPlanePrincipalDirectoryTests : IDisposable
         var identities = SetupFederatedIdentityStore();
         var query = new ControlPlanePrincipalQuery { PrincipalIds = ["p1", "p2"] };
         var describer = CreateDescriber(["p1", "p2"], []);
-        var identityB = CreateFederatedIdentity("p1", "https://b.example", "a");
-        var identityC = CreateFederatedIdentity("p2", "https://c.example", "x");
-        var identityZ = CreateFederatedIdentity("p1", "https://a.example", "z");
-        var identityY = CreateFederatedIdentity("p1", "https://a.example", "y");
+        var identityB = CreateFederatedIdentity("p1", "connection-b", "a", "https://b.example");
+        var identityC = CreateFederatedIdentity("p2", "connection-c", "x", "https://c.example");
+        var identityZ = CreateFederatedIdentity("p1", "connection-a", "z", "https://a.example");
+        var identityY = CreateFederatedIdentity("p1", "connection-a", "y", "https://a.example");
         SetupPrincipalsRead(principals, ["p1", "p2"], "p1", "p2");
         SetupIdentitiesRead(identities, ["p1", "p2"], identityB, identityC, identityZ, identityY);
         var directory = CreateDirectory(describer.Object);
@@ -275,8 +277,8 @@ public sealed class LocalControlPlanePrincipalDirectoryTests : IDisposable
         var identities = SetupFederatedIdentityStore();
         var query = new ControlPlanePrincipalQuery { PrincipalIds = ["p1"] };
         var describer = CreateDescriber(["p1"], []);
-        var firstIdentity = CreateFederatedIdentity("p1", "https://a.example", "a");
-        var laterIdentity = CreateFederatedIdentity("p1", "https://b.example", "a");
+        var firstIdentity = CreateFederatedIdentity("p1", "connection-a", "a", "https://a.example");
+        var laterIdentity = CreateFederatedIdentity("p1", "connection-b", "a", "https://b.example");
         SetupPrincipalsRead(principals, ["p1"], "p1");
         SetupIdentitiesRead(identities, ["p1"], firstIdentity, laterIdentity);
         var directory = CreateDirectory(describer.Object);
@@ -312,6 +314,25 @@ public sealed class LocalControlPlanePrincipalDirectoryTests : IDisposable
 
         var principalIds = result.Select(summary => summary.PrincipalId);
         Assert.Equal(["p1", "p2"], principalIds);
+    }
+
+    [Fact]
+    public async Task FindAsync_WhenTheFirstIdentityHasNoIssuer_NamesItBySubjectAlone()
+    {
+        SetupScope();
+        var principals = SetupFederatedPrincipalStore();
+        var identities = SetupFederatedIdentityStore();
+        var query = new ControlPlanePrincipalQuery { PrincipalIds = ["p1"] };
+        var describer = CreateDescriber(["p1"], []);
+        var identity = CreateFederatedIdentity("p1", "connection-a", "alice", issuer: null);
+        SetupPrincipalsRead(principals, ["p1"], "p1");
+        SetupIdentitiesRead(identities, ["p1"], identity);
+        var directory = CreateDirectory(describer.Object);
+
+        var result = await directory.FindAsync(query, CancellationToken.None);
+
+        var summary = Assert.Single(result);
+        Assert.Equal("alice", summary.DisplayName);
     }
 
     [Fact]

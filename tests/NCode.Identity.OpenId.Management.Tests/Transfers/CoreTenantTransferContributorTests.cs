@@ -26,6 +26,7 @@ public sealed class CoreTenantTransferContributorTests : IDisposable
     private Mock<IStoreManagerFactory> MockStoreManagerFactory { get; }
     private Mock<IStoreManager> MockStoreManager { get; }
     private Mock<ITenantStore> MockTenantStore { get; }
+    private Mock<IConnectionStore> MockConnectionStore { get; }
     private Mock<IResourceServerStore> MockResourceServerStore { get; }
     private Mock<IClientStore> MockClientStore { get; }
     private Mock<IClientGrantStore> MockClientGrantStore { get; }
@@ -34,6 +35,7 @@ public sealed class CoreTenantTransferContributorTests : IDisposable
 
     private List<string> Calls { get; } = [];
     private List<PersistedTenant> AddedTenants { get; } = [];
+    private List<PersistedConnection> AddedConnections { get; } = [];
     private List<PersistedResourceServer> AddedResourceServers { get; } = [];
     private List<PersistedClient> AddedClients { get; } = [];
     private List<PersistedClientGrant> AddedClientGrants { get; } = [];
@@ -44,6 +46,7 @@ public sealed class CoreTenantTransferContributorTests : IDisposable
         MockStoreManagerFactory = MockRepository.Create<IStoreManagerFactory>();
         MockStoreManager = MockRepository.Create<IStoreManager>();
         MockTenantStore = MockRepository.Create<ITenantStore>();
+        MockConnectionStore = MockRepository.Create<IConnectionStore>();
         MockResourceServerStore = MockRepository.Create<IResourceServerStore>();
         MockClientStore = MockRepository.Create<IClientStore>();
         MockClientGrantStore = MockRepository.Create<IClientGrantStore>();
@@ -79,6 +82,10 @@ public sealed class CoreTenantTransferContributorTests : IDisposable
         MockStoreManager
             .Setup(x => x.GetStore<ITenantStore>())
             .Returns(MockTenantStore.Object)
+            .Verifiable();
+        MockStoreManager
+            .Setup(x => x.GetStore<IConnectionStore>())
+            .Returns(MockConnectionStore.Object)
             .Verifiable();
         MockStoreManager
             .Setup(x => x.GetStore<IResourceServerStore>())
@@ -124,6 +131,26 @@ public sealed class CoreTenantTransferContributorTests : IDisposable
             Settings = Json("""{"tenant-setting":1}"""),
             Secrets = [CreateSecret("tenant-secret", "tenant-envelope")],
         }.Build();
+
+    private static PersistedConnection CreateConnection() =>
+        new()
+        {
+            TenantId = TenantId,
+            ConnectionId = "connection-1",
+            Name = "local",
+            Strategy = "local",
+            DisplayName = "Username and password",
+            IsSystem = false,
+            IsEnabled = true,
+            ConcurrencyToken = "connection-concurrency-token",
+            Options = Json("""{"store":"default"}"""),
+            Settings = new PersistedConnectionSettings
+            {
+                TenantId = TenantId,
+                ConnectionId = "connection-1",
+                Value = Json("""{"connection-setting":4}"""),
+            },
+        };
 
     private static PersistedResourceServer CreateResourceServer() =>
         new PersistedResourceServerBuilder
@@ -200,6 +227,10 @@ public sealed class CoreTenantTransferContributorTests : IDisposable
             .Setup(x => x.GetOrDefaultAsync(TenantId, CancellationToken.None))
             .ReturnsAsync(CreateTenant())
             .Verifiable();
+        MockConnectionStore
+            .Setup(x => x.GetAllAsync(CancellationToken.None))
+            .ReturnsAsync([CreateConnection()])
+            .Verifiable();
         MockResourceServerStore
             .Setup(x =>
                 x.GetPageAsync(
@@ -262,6 +293,17 @@ public sealed class CoreTenantTransferContributorTests : IDisposable
                 {
                     Calls.Add("tenant");
                     AddedTenants.Add(tenant);
+                }
+            )
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable();
+        MockConnectionStore
+            .Setup(x => x.AddAsync(It.IsAny<PersistedConnection>(), CancellationToken.None))
+            .Callback<PersistedConnection, CancellationToken>(
+                (connection, _) =>
+                {
+                    Calls.Add("connection");
+                    AddedConnections.Add(connection);
                 }
             )
             .Returns(ValueTask.CompletedTask)
@@ -398,7 +440,14 @@ public sealed class CoreTenantTransferContributorTests : IDisposable
 
         Assert.Equal("core", section.Name);
         Assert.Equal(
-            ["clientGrants", "clients", "resourceServers", "roleAssignments", "tenant"],
+            [
+                "clientGrants",
+                "clients",
+                "connections",
+                "resourceServers",
+                "roleAssignments",
+                "tenant",
+            ],
             section.Json.EnumerateObject().Select(property => property.Name).Order().ToArray()
         );
 
@@ -415,6 +464,10 @@ public sealed class CoreTenantTransferContributorTests : IDisposable
         // The secret value stays as its protected envelope.
         var tenantSecret = tenant.GetProperty("secrets").GetProperty("value")[0];
         Assert.Equal("tenant-envelope", tenantSecret.GetProperty("encodedValue").GetString());
+
+        var connection = Assert.Single(section.Json.GetProperty("connections").EnumerateArray());
+        Assert.Equal("local", connection.GetProperty("name").GetString());
+        Assert.Equal("local", connection.GetProperty("strategy").GetString());
 
         var resourceServer = Assert.Single(
             section.Json.GetProperty("resourceServers").EnumerateArray()
@@ -464,6 +517,26 @@ public sealed class CoreTenantTransferContributorTests : IDisposable
     }
 
     [Fact]
+    public async Task ImportAsync_WhenTheConnectionsPropertyIsMissing_Throws()
+    {
+        var section = await ExportSectionAsync(CancellationToken.None);
+        var document = JsonNode.Parse(section.Json.GetRawText())!.AsObject();
+        document.Remove("connections");
+        var withoutConnections = new TenantTransferSection
+        {
+            Name = section.Name,
+            Json = JsonSerializer.SerializeToElement(document),
+        };
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await CreateContributor()
+                .ImportAsync(TenantId, withoutConnections, CancellationToken.None)
+        );
+
+        Assert.Contains("'connections'", exception.Message);
+    }
+
+    [Fact]
     public async Task ImportAsync_WhenARecordGroupIsNull_Throws()
     {
         var section = new TenantTransferSection
@@ -491,6 +564,7 @@ public sealed class CoreTenantTransferContributorTests : IDisposable
     [InlineData("tenant")]
     [InlineData("settings")]
     [InlineData("secrets")]
+    [InlineData("connections")]
     [InlineData("resourceServers")]
     [InlineData("clients")]
     [InlineData("clientGrants")]
@@ -520,6 +594,8 @@ public sealed class CoreTenantTransferContributorTests : IDisposable
         Assert.Equal(
             [
                 "tenant",
+                "save",
+                "connection",
                 "save",
                 "resource-server",
                 "save",
@@ -607,6 +683,19 @@ public sealed class CoreTenantTransferContributorTests : IDisposable
         Assert.Equal(source.DisplayName, tenant.DisplayName);
         Assert.Equal(source.Settings.Value.GetRawText(), tenant.Settings.Value.GetRawText());
         Assert.Equal(source.Secrets.Value, tenant.Secrets.Value);
+
+        var sourceConnection = CreateConnection();
+        var connection = Assert.Single(AddedConnections);
+        Assert.Equal(sourceConnection.ConnectionId, connection.ConnectionId);
+        Assert.Equal(sourceConnection.Name, connection.Name);
+        Assert.Equal(sourceConnection.Strategy, connection.Strategy);
+        Assert.Equal(sourceConnection.DisplayName, connection.DisplayName);
+        Assert.Equal(sourceConnection.IsEnabled, connection.IsEnabled);
+        Assert.Equal(sourceConnection.Options.GetRawText(), connection.Options.GetRawText());
+        Assert.Equal(
+            sourceConnection.Settings.Value.GetRawText(),
+            connection.Settings.Value.GetRawText()
+        );
 
         var sourceResourceServer = CreateResourceServer();
         var resourceServer = Assert.Single(AddedResourceServers);

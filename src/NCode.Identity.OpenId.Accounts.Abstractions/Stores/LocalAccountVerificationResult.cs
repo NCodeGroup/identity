@@ -15,10 +15,12 @@ namespace NCode.Identity.OpenId.Accounts.Stores;
 public sealed class LocalAccountVerificationResult
 {
     /// <summary>
-    /// Gets the user name that the account the store found holds, or the submitted user name when no account has it.
-    /// The limit on failed password attempts counts it.
+    /// Gets the key that the limit on failed password attempts counts under:
+    /// <see cref="LocalAccountAttemptKeys.ForAccount"/> of the found account's identifier, or
+    /// <see cref="LocalAccountAttemptKeys.ForIdentifier"/> of the submitted identifier when no account matches. A store
+    /// sets it through those two methods, so a key carries its prefix.
     /// </summary>
-    public required string UserName { get; init; }
+    public required string AccountKey { get; init; }
 
     /// <summary>
     /// Gets the account whose password verified, whether or not it is enabled, or <c>null</c>.

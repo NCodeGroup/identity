@@ -255,6 +255,7 @@ internal class AuditStreamApiEndpointHandler(
             .ProducesValidationProblem()
             .ProducesProblem(StatusCodes.Status401Unauthorized)
             .ProducesProblem(StatusCodes.Status403Forbidden)
+            .ProducesProblem(StatusCodes.Status404NotFound)
             .ProducesProblem(StatusCodes.Status409Conflict)
             .ProducesProblem(StatusCodes.Status412PreconditionFailed)
             .ProducesProblem(StatusCodes.Status415UnsupportedMediaType)
@@ -386,6 +387,7 @@ internal class AuditStreamApiEndpointHandler(
     /// <response code="400">The display name is empty, longer than 300 characters or holds a control character, or the
     /// endpoint is not an absolute <c>https</c> URL of at most 1,000 characters without user information or a
     /// fragment.</response>
+    /// <response code="404">The tenant does not exist.</response>
     /// <response code="409">The tenant holds its maximum number of audit streams, or another of its creates is
     /// running.</response>
     [EndpointName("api/audit-streams/create")]
@@ -607,7 +609,9 @@ internal class AuditStreamApiEndpointHandler(
     /// <param name="tenantId">The identifier of the OpenID Tenant.</param>
     /// <param name="streamId">The identifier of the audit stream.</param>
     /// <param name="request">The JSON Patch document that modifies the audit stream.</param>
-    /// <param name="ifMatch">The <c>If-Match</c> header that names the entity tag the update applies to.</param>
+    /// <param name="ifMatch">The optional <c>If-Match</c> header that must match the current audit stream. It accepts
+    /// <c>*</c>, a quoted strong entity tag or a comma-separated list of them, or the bare
+    /// <c>concurrencyToken</c>.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
     /// <response code="200">The updated audit stream.</response>
     /// <response code="400">The JSON Patch document cannot be applied, or the patched stream is invalid as for a
@@ -670,10 +674,7 @@ internal class AuditStreamApiEndpointHandler(
         catch (JsonPatchException exception)
         {
             Logger.JsonPatchFailed(exception);
-            return TypedResults.Problem(
-                detail: "The JSON Patch document could not be applied.",
-                statusCode: StatusCodes.Status400BadRequest
-            );
+            return ManagementProblems.PatchNotApplied();
         }
 
         var validationProblem = GetValidationProblemOrDefault(model.DisplayName, model.Endpoint);

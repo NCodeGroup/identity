@@ -10,7 +10,6 @@ using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using NCode.Identity.Mail;
-using NCode.Identity.OpenId.Accounts.Stores;
 using NCode.Identity.OpenId.Host;
 using NCode.Identity.OpenId.Integration.Tests.Infrastructure;
 using NCode.Identity.OpenId.Settings;
@@ -136,9 +135,12 @@ public class InteractiveEmailVerificationTests
         using var scope = factory.CreateTenantScope();
         var storeManagerFactory = scope.ServiceProvider.GetRequiredService<IStoreManagerFactory>();
         await using var storeManager = await storeManagerFactory.CreateAsync(cancellationToken);
-        var account = await storeManager
-            .GetStore<ILocalAccountStore>()
-            .GetByIdOrDefaultAsync(localAccountId, cancellationToken);
+        var store = await HostApplicationFactory.GetLocalAccountStoreAsync(
+            scope.ServiceProvider,
+            storeManager,
+            cancellationToken
+        );
+        var account = await store.GetByIdOrDefaultAsync(localAccountId, cancellationToken);
         Assert.NotNull(account);
         return account.EmailVerified;
     }

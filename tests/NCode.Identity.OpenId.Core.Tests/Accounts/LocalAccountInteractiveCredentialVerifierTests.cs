@@ -11,6 +11,7 @@ using NCode.Identity.OpenId.Accounts.DataContracts;
 using NCode.Identity.OpenId.Accounts.Stores;
 using NCode.Identity.OpenId.Authentication.Passwords;
 using NCode.Identity.OpenId.Authentication.Subject;
+using NCode.Identity.OpenId.Connections;
 using NCode.Identity.OpenId.Contexts;
 using NCode.Identity.OpenId.Settings;
 using NCode.Identity.OpenId.Tenants;
@@ -25,6 +26,7 @@ public class LocalAccountInteractiveCredentialVerifierTests : BaseTests
     private const string TenantId = "tenant-1";
     private const string LocalAccountId = "account-1";
     private const string UserName = "user";
+    private const string AccountKey = LocalAccountId;
     private const string Password = "password";
 
     private static DateTimeOffset Now { get; } = new(2026, 10, 23, 12, 0, 0, TimeSpan.Zero);
@@ -36,6 +38,8 @@ public class LocalAccountInteractiveCredentialVerifierTests : BaseTests
     private FakeTimeProvider TimeProvider { get; } = new(Now);
     private Mock<IPasswordAttemptLimiter> MockPasswordAttemptLimiter { get; }
     private Mock<OpenIdContext> MockContext { get; }
+    private Mock<IReadOnlySettingCollection> MockSettings { get; }
+    private ResolvedConnection Connection { get; }
     private LocalAccountInteractiveCredentialVerifier Verifier { get; }
 
     public LocalAccountInteractiveCredentialVerifierTests()
@@ -46,9 +50,15 @@ public class LocalAccountInteractiveCredentialVerifierTests : BaseTests
         MockResolver = CreateStrictMock<IAuthenticationContextReferenceResolver>();
         MockPasswordAttemptLimiter = CreateStrictMock<IPasswordAttemptLimiter>();
         MockContext = CreateStrictMock<OpenIdContext>();
+        MockSettings = CreateStrictMock<IReadOnlySettingCollection>();
+        MockSettings
+            .Setup(x => x.GetValue(OpenIdSettingKeys.LocalAccountIdentifier))
+            .Returns(LocalAccountIdentifiers.EmailOrUserName);
+        Connection = LocalAccountStoreSetup.CreateConnection(TenantId, MockSettings.Object);
         var subjectFactory = new LocalAccountSubjectFactory(MockResolver.Object, TimeProvider);
         Verifier = new LocalAccountInteractiveCredentialVerifier(
             MockStoreManagerFactory.Object,
+            LocalAccountStoreSetup.CreateCatalog(MockLocalAccountStore),
             subjectFactory,
             MockPasswordAttemptLimiter.Object
         );
@@ -59,7 +69,12 @@ public class LocalAccountInteractiveCredentialVerifierTests : BaseTests
     private void SetupLimit(bool isReached) =>
         MockPasswordAttemptLimiter
             .Setup(x =>
-                x.IsLimitReachedAsync(MockContext.Object, UserName, It.IsAny<CancellationToken>())
+                x.IsLimitReachedAsync(
+                    MockContext.Object,
+                    Connection,
+                    AccountKey,
+                    It.IsAny<CancellationToken>()
+                )
             )
             .ReturnsAsync(isReached)
             .Verifiable();
@@ -71,10 +86,6 @@ public class LocalAccountInteractiveCredentialVerifierTests : BaseTests
             .ReturnsAsync(MockStoreManager.Object)
             .Verifiable();
         MockStoreManager.Setup(x => x.DisposeAsync()).Returns(ValueTask.CompletedTask).Verifiable();
-        MockStoreManager
-            .Setup(x => x.GetStore<ILocalAccountStore>())
-            .Returns(MockLocalAccountStore.Object)
-            .Verifiable();
     }
 
     private void SetupPrincipalBuild()
@@ -84,22 +95,13 @@ public class LocalAccountInteractiveCredentialVerifierTests : BaseTests
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
 
-        var mockSettings = CreateStrictMock<IReadOnlySettingCollection>();
-        mockSettings
+        MockSettings
             .Setup(x => x.GetValue(OpenIdSettingKeys.SubjectClaimTypes))
             .Returns((IReadOnlyCollection<string>)["sub"])
             .Verifiable();
-        mockSettings
-            .Setup(x => x.GetValue(OpenIdSettingKeys.PrincipalIssuerClaim))
-            .Returns("iss")
-            .Verifiable();
-
-        var mockProvider = CreateStrictMock<IReadOnlySettingCollectionProvider>();
-        mockProvider.Setup(x => x.Collection).Returns(mockSettings.Object).Verifiable();
 
         var mockTenant = CreateStrictMock<OpenIdTenant>();
         mockTenant.Setup(x => x.TenantId).Returns(TenantId).Verifiable();
-        mockTenant.Setup(x => x.SettingsProvider).Returns(mockProvider.Object).Verifiable();
         MockContext.Setup(x => x.Tenant).Returns(mockTenant.Object).Verifiable();
 
         MockResolver
@@ -118,6 +120,7 @@ public class LocalAccountInteractiveCredentialVerifierTests : BaseTests
         {
             TenantId = TenantId,
             LocalAccountId = LocalAccountId,
+            ConnectionId = LocalAccountStoreSetup.ConnectionId,
             UserName = UserName,
             DisplayName = "Display Name",
             Email = null,
@@ -132,6 +135,28 @@ public class LocalAccountInteractiveCredentialVerifierTests : BaseTests
     #region VerifyCredentialAsync Tests
 
     [Fact]
+    public async Task VerifyCredentialAsync_WhenTheConnectionIsNotLocal_ReturnsNullWithoutReadingTheStore()
+    {
+        using var password = Secret.Create(Password.AsSpan());
+        var connection = LocalAccountStoreSetup.CreateConnection(
+            TenantId,
+            MockSettings.Object,
+            strategy: "custom"
+        );
+
+        var principal = await Verifier.VerifyCredentialAsync(
+            MockContext.Object,
+            connection,
+            UserName,
+            password,
+            CancellationToken.None
+        );
+
+        Assert.Null(principal);
+        MockStoreManagerFactory.VerifyNoOtherCalls();
+    }
+
+    [Fact]
     public async Task VerifyCredentialAsync_WhenTheAttemptLimitIsReached_RecordsAFailureAndReturnsNull()
     {
         using var password = Secret.Create(Password.AsSpan());
@@ -139,17 +164,25 @@ public class LocalAccountInteractiveCredentialVerifierTests : BaseTests
         SetupLimit(isReached: true);
         LocalAccountStoreSetup.SetupVerification(
             MockLocalAccountStore,
-            UserName,
-            UserName,
+            LocalAccountStoreSetup.EmailOrUserName(UserName),
+            AccountKey,
             Account()
         );
         MockPasswordAttemptLimiter
-            .Setup(x => x.RecordFailureAsync(MockContext.Object, UserName, CancellationToken.None))
+            .Setup(x =>
+                x.RecordFailureAsync(
+                    MockContext.Object,
+                    Connection,
+                    AccountKey,
+                    CancellationToken.None
+                )
+            )
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
 
         var principal = await Verifier.VerifyCredentialAsync(
             MockContext.Object,
+            Connection,
             UserName,
             password,
             CancellationToken.None
@@ -166,17 +199,25 @@ public class LocalAccountInteractiveCredentialVerifierTests : BaseTests
         SetupLimit(isReached: true);
         LocalAccountStoreSetup.SetupVerificationIgnoringARefusal(
             MockLocalAccountStore,
-            UserName,
-            UserName,
+            LocalAccountStoreSetup.EmailOrUserName(UserName),
+            AccountKey,
             Account()
         );
         MockPasswordAttemptLimiter
-            .Setup(x => x.RecordFailureAsync(MockContext.Object, UserName, CancellationToken.None))
+            .Setup(x =>
+                x.RecordFailureAsync(
+                    MockContext.Object,
+                    Connection,
+                    AccountKey,
+                    CancellationToken.None
+                )
+            )
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
 
         var principal = await Verifier.VerifyCredentialAsync(
             MockContext.Object,
+            Connection,
             UserName,
             password,
             CancellationToken.None
@@ -192,14 +233,15 @@ public class LocalAccountInteractiveCredentialVerifierTests : BaseTests
         SetupStoreManager();
         LocalAccountStoreSetup.SetupVerificationWithoutTheGate(
             MockLocalAccountStore,
-            UserName,
-            UserName,
+            LocalAccountStoreSetup.EmailOrUserName(UserName),
+            AccountKey,
             Account()
         );
 
         await Assert.ThrowsAsync<InvalidOperationException>(async () =>
             await Verifier.VerifyCredentialAsync(
                 MockContext.Object,
+                Connection,
                 UserName,
                 password,
                 CancellationToken.None
@@ -208,24 +250,32 @@ public class LocalAccountInteractiveCredentialVerifierTests : BaseTests
     }
 
     [Fact]
-    public async Task VerifyCredentialAsync_WhenTheStoreMatchesAnotherSpelling_CountsTheStoredUserName()
+    public async Task VerifyCredentialAsync_WhenTheStoreMatchesAnotherSpelling_CountsTheStoredAccountKey()
     {
         using var password = Secret.Create(Password.AsSpan());
         SetupStoreManager();
         SetupLimit(isReached: true);
         LocalAccountStoreSetup.SetupVerification(
             MockLocalAccountStore,
-            UserName + " ",
-            UserName,
+            LocalAccountStoreSetup.EmailOrUserName(UserName + " "),
+            AccountKey,
             Account()
         );
         MockPasswordAttemptLimiter
-            .Setup(x => x.RecordFailureAsync(MockContext.Object, UserName, CancellationToken.None))
+            .Setup(x =>
+                x.RecordFailureAsync(
+                    MockContext.Object,
+                    Connection,
+                    AccountKey,
+                    CancellationToken.None
+                )
+            )
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
 
         var principal = await Verifier.VerifyCredentialAsync(
             MockContext.Object,
+            Connection,
             UserName + " ",
             password,
             CancellationToken.None
@@ -243,17 +293,25 @@ public class LocalAccountInteractiveCredentialVerifierTests : BaseTests
         SetupLimit(isReached: false);
         LocalAccountStoreSetup.SetupVerification(
             MockLocalAccountStore,
-            UserName,
-            UserName,
+            LocalAccountStoreSetup.EmailOrUserName(UserName),
+            AccountKey,
             verified: null
         );
         MockPasswordAttemptLimiter
-            .Setup(x => x.RecordFailureAsync(MockContext.Object, UserName, CancellationToken.None))
+            .Setup(x =>
+                x.RecordFailureAsync(
+                    MockContext.Object,
+                    Connection,
+                    AccountKey,
+                    CancellationToken.None
+                )
+            )
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
 
         var principal = await Verifier.VerifyCredentialAsync(
             MockContext.Object,
+            Connection,
             UserName,
             password,
             cancellationSource.Token
@@ -270,18 +328,26 @@ public class LocalAccountInteractiveCredentialVerifierTests : BaseTests
         SetupLimit(isReached: false);
         LocalAccountStoreSetup.SetupVerification(
             MockLocalAccountStore,
-            UserName,
-            UserName,
+            LocalAccountStoreSetup.EmailOrUserName(UserName),
+            AccountKey,
             Account()
         );
         SetupPrincipalBuild();
         MockPasswordAttemptLimiter
-            .Setup(x => x.ResetAsync(TenantId, UserName, It.IsAny<CancellationToken>()))
+            .Setup(x =>
+                x.ResetAsync(
+                    TenantId,
+                    LocalAccountStoreSetup.ConnectionId,
+                    AccountKey,
+                    It.IsAny<CancellationToken>()
+                )
+            )
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
 
         var principal = await Verifier.VerifyCredentialAsync(
             MockContext.Object,
+            Connection,
             UserName,
             password,
             CancellationToken.None
@@ -291,6 +357,70 @@ public class LocalAccountInteractiveCredentialVerifierTests : BaseTests
         Assert.Equal(LocalAccountId, principal.FindFirstValue("sub"));
         var name = principal.FindFirstValue(JoseClaimNames.Payload.Name);
         Assert.Equal("Display Name", name);
+        Assert.Equal(
+            LocalAccountStoreSetup.ConnectionId,
+            principal.FindFirstValue(ConnectionClaimTypes.Connection)
+        );
+        Assert.Equal(
+            LocalAccountStoreSetup.ConnectionName,
+            principal.FindFirstValue(JoseClaimNames.Payload.Idp)
+        );
+    }
+
+    [Fact]
+    public async Task VerifyCredentialAsync_WhenTheConnectionIdentifiesByEmail_LooksUpByEmailOnly()
+    {
+        using var password = Secret.Create(Password.AsSpan());
+        var mockSettings = CreateStrictMock<IReadOnlySettingCollection>();
+        mockSettings
+            .Setup(x => x.GetValue(OpenIdSettingKeys.LocalAccountIdentifier))
+            .Returns(LocalAccountIdentifiers.Email)
+            .Verifiable();
+        var connection = LocalAccountStoreSetup.CreateConnection(TenantId, mockSettings.Object);
+        var identifier = new LocalAccountSignInIdentifier
+        {
+            ConnectionId = LocalAccountStoreSetup.ConnectionId,
+            Email = "user@example.com",
+        };
+        SetupStoreManager();
+        MockPasswordAttemptLimiter
+            .Setup(x =>
+                x.IsLimitReachedAsync(
+                    MockContext.Object,
+                    connection,
+                    AccountKey,
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync(false)
+            .Verifiable();
+        LocalAccountStoreSetup.SetupVerification(
+            MockLocalAccountStore,
+            identifier,
+            AccountKey,
+            verified: null
+        );
+        MockPasswordAttemptLimiter
+            .Setup(x =>
+                x.RecordFailureAsync(
+                    MockContext.Object,
+                    connection,
+                    AccountKey,
+                    CancellationToken.None
+                )
+            )
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable();
+
+        var principal = await Verifier.VerifyCredentialAsync(
+            MockContext.Object,
+            connection,
+            "user@example.com",
+            password,
+            CancellationToken.None
+        );
+
+        Assert.Null(principal);
     }
 
     #endregion

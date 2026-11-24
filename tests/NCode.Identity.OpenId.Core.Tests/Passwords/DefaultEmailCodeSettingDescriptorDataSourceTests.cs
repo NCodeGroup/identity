@@ -26,7 +26,7 @@ public sealed class DefaultEmailCodeSettingDescriptorDataSourceTests : BaseTests
     #region Collection Property Tests
 
     [Fact]
-    public void Collection_Always_DescribesTheFiveEmailCodeSettingsForTenants()
+    public void Collection_Always_DescribesTheFiveEmailCodeSettings()
     {
         var dataSource = CreateDataSource();
 
@@ -45,7 +45,12 @@ public sealed class DefaultEmailCodeSettingDescriptorDataSourceTests : BaseTests
         );
         foreach (var descriptor in descriptors)
         {
-            Assert.Equal<string>([OpenIdSettingScopes.Tenant], descriptor.AppliesTo);
+            var expectedScopes = descriptor.Name
+                is OpenIdSettingNames.EmailCodeLifetime
+                    or OpenIdSettingNames.EmailCodeSendsPerHour
+                ? new[] { OpenIdSettingScopes.Tenant }
+                : [OpenIdSettingScopes.Tenant, OpenIdSettingScopes.Connection];
+            Assert.Equal<string>(expectedScopes, descriptor.AppliesTo);
             Assert.False(descriptor.IsDiscoverable);
         }
 

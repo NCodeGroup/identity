@@ -33,6 +33,16 @@ public static class OpenIdCommonParameters
         };
 
     /// <summary>
+    /// Gets the <see cref="KnownParameter"/> for the <c>connection</c> message parameter which parses
+    /// <see cref="StringValues"/> into an <see cref="String"/> result.
+    /// </summary>
+    public static KnownParameter<string> Connection { get; } =
+        new(OpenIdProtocol.Parameters.Connection, CommonParameterParsers.String)
+        {
+            AllowMissingStringValues = true,
+        };
+
+    /// <summary>
     /// Gets the <see cref="KnownParameter"/> for the <c>$authorization_source_type</c> message parameter which parsers <see cref="StringValues"/> into an <see cref="string"/> result.
     /// </summary>
     public static KnownParameter<string> AuthorizationSourceType { get; } =

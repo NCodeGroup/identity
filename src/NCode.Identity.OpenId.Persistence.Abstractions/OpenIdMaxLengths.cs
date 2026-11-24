@@ -79,6 +79,16 @@ public static class OpenIdMaxLengths
     public const int ResourceServerIdentifier = 1000;
 
     /// <summary>
+    /// Specifies the maximum length of a connection's <c>Name</c>.
+    /// </summary>
+    public const int ConnectionName = 128;
+
+    /// <summary>
+    /// Specifies the maximum length of a connection's <c>Strategy</c>.
+    /// </summary>
+    public const int ConnectionStrategy = 64;
+
+    /// <summary>
     /// Specifies the maximum length of a scope's <c>Value</c>.
     /// </summary>
     public const int ScopeValue = 300;

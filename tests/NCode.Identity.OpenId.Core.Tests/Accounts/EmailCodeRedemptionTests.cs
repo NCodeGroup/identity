@@ -32,6 +32,7 @@ public class EmailCodeRedemptionTests : BaseTests
         new()
         {
             TenantId = "tenant-1",
+            ConnectionId = LocalAccountStoreSetup.ConnectionId,
             LocalAccountId = LocalAccountId,
             UserName = "user",
             DisplayName = "Display Name",
@@ -104,7 +105,7 @@ public class EmailCodeRedemptionTests : BaseTests
     public async Task TryRedeemAsync_WhenTheMatchIsForAnotherAccount_ReturnsFalseWithoutConsuming()
     {
         using var code = Secret.Create(Code.AsSpan());
-        SetupVerify(new EmailCodeMatch("account-2", Email));
+        SetupVerify(new EmailCodeMatch(LocalAccountStoreSetup.ConnectionId, "account-2", Email));
 
         var result = await Redeem(code, CancellationToken.None);
 
@@ -124,7 +125,7 @@ public class EmailCodeRedemptionTests : BaseTests
     public async Task TryRedeemAsync_WhenTheFlowWasConsumedFirst_ReturnsFalse()
     {
         using var code = Secret.Create(Code.AsSpan());
-        SetupVerify(new EmailCodeMatch(LocalAccountId, Email));
+        SetupVerify(new EmailCodeMatch(LocalAccountStoreSetup.ConnectionId, LocalAccountId, Email));
         SetupConsume(consumed: false);
 
         var result = await Redeem(code, CancellationToken.None);
@@ -136,7 +137,7 @@ public class EmailCodeRedemptionTests : BaseTests
     public async Task TryRedeemAsync_WhenTheCodeMatchesTheAccount_ConsumesTheFlowAndReturnsTrue()
     {
         using var code = Secret.Create(Code.AsSpan());
-        SetupVerify(new EmailCodeMatch(LocalAccountId, Email));
+        SetupVerify(new EmailCodeMatch(LocalAccountStoreSetup.ConnectionId, LocalAccountId, Email));
         SetupConsume(consumed: true);
 
         var result = await Redeem(code, CancellationToken.None);

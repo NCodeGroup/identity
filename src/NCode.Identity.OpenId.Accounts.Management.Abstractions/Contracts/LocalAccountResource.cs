@@ -9,8 +9,8 @@ using NCode.Identity.Persistence;
 namespace NCode.Identity.OpenId.Accounts.Management.Contracts;
 
 /// <summary>
-/// Represents the REST resource for a local account: the server-owned credential, profile, and status payload behind a
-/// self-issued connection. The credential (password hash) and security stamp are never exposed.
+/// Represents the REST resource for a local account: the server-owned credential, profile, and status payload of an
+/// account in a local connection. The credential (password hash) and security stamp are never exposed.
 /// </summary>
 [PublicAPI]
 [ExcludeFromCodeCoverage]
@@ -20,20 +20,25 @@ public sealed class LocalAccountResource : ISupportTenantId, ISupportConcurrency
     public required string TenantId { get; init; }
 
     /// <summary>
-    /// Gets the opaque identifier of the local account (its self-issued subject).
+    /// Gets the opaque identifier of the local account (its subject in its connection).
     /// </summary>
     public required string LocalAccountId { get; init; }
 
     /// <summary>
     /// Gets the identifier of the account's principal, which role assignments name to grant the account authority, or
-    /// <c>null</c> when the account has no self-issued identity.
+    /// <c>null</c> when the account has no identity.
     /// </summary>
     public required string? PrincipalId { get; init; }
 
     /// <summary>
-    /// Gets the account's username (login handle), unique within the tenant.
+    /// Gets the identifier of the local connection that holds the account.
     /// </summary>
-    public required string UserName { get; init; }
+    public required string ConnectionId { get; init; }
+
+    /// <summary>
+    /// Gets the account's username (login handle), unique within the connection, or <c>null</c> when none is recorded.
+    /// </summary>
+    public required string? UserName { get; init; }
 
     /// <summary>
     /// Gets the account's display name, the source of its <c>name</c> claim.

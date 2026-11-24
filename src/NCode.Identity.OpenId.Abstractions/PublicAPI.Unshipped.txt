@@ -77,6 +77,7 @@ const NCode.Identity.OpenId.OpenIdConstants.EndpointTags.Clients = "Clients" -> 
 const NCode.Identity.OpenId.OpenIdConstants.EndpointTags.Grants = "Grants" -> string!
 const NCode.Identity.OpenId.OpenIdConstants.EndpointTags.LocalAccounts = "LocalAccounts" -> string!
 const NCode.Identity.OpenId.OpenIdConstants.EndpointTags.OpenId = "oidc" -> string!
+const NCode.Identity.OpenId.OpenIdConstants.EndpointTags.Connections = "Connections" -> string!
 const NCode.Identity.OpenId.OpenIdConstants.EndpointTags.Principals = "Principals" -> string!
 const NCode.Identity.OpenId.OpenIdConstants.EndpointTags.ResourceServers = "ResourceServers" -> string!
 const NCode.Identity.OpenId.OpenIdConstants.EndpointTags.Platform = "Platform" -> string!
@@ -151,7 +152,6 @@ const NCode.Identity.OpenId.Settings.OpenIdSettingNames.AccessTokenSigningAlgVal
 const NCode.Identity.OpenId.Settings.OpenIdSettingNames.AccessTokenType = "access_token_type" -> string!
 const NCode.Identity.OpenId.Settings.OpenIdSettingNames.AcrValuesSupported = "acr_values_supported" -> string!
 const NCode.Identity.OpenId.Settings.OpenIdSettingNames.AdmissionCapacityPercent = "admission_capacity_percent" -> string!
-const NCode.Identity.OpenId.Settings.OpenIdSettingNames.AllowedIdentityProviders = "allowed_identity_providers" -> string!
 const NCode.Identity.OpenId.Settings.OpenIdSettingNames.AlwaysIncludeAuthTime = "always_include_auth_time" -> string!
 const NCode.Identity.OpenId.Settings.OpenIdSettingNames.AllowLoopbackRedirect = "allow_loopback_redirect" -> string!
 const NCode.Identity.OpenId.Settings.OpenIdSettingNames.AuthorizationAuthenticateScheme = "authorization_authenticate_scheme" -> string!
@@ -549,7 +549,7 @@ NCode.Identity.OpenId.PrincipalResolution.IClientPrincipalResolver
 NCode.Identity.OpenId.PrincipalResolution.IClientPrincipalResolver.GetActingClientOrDefaultAsync(NCode.Identity.OpenId.Contexts.OpenIdContext! openIdContext, System.Security.Claims.ClaimsPrincipal! user, NCode.Identity.Persistence.Stores.IStoreManager! storeManager, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.Persistence.DataContracts.PersistedClient?>
 NCode.Identity.OpenId.PrincipalResolution.IClientPrincipalResolver.GetActingClientOrDefaultAsync(NCode.Identity.OpenId.Contexts.OpenIdContext! openIdContext, System.Security.Claims.ClaimsPrincipal! user, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.Persistence.DataContracts.PersistedClient?>
 NCode.Identity.OpenId.PrincipalResolution.IFederatedIdentityLinkingPolicy
-NCode.Identity.OpenId.PrincipalResolution.IFederatedIdentityLinkingPolicy.ResolveLinkAsync(NCode.Identity.OpenId.Contexts.OpenIdContext! openIdContext, System.Security.Claims.ClaimsPrincipal! user, NCode.Identity.Persistence.Stores.IStoreManager! storeManager, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.PrincipalResolution.FederatedIdentityLinkDecision!>
+NCode.Identity.OpenId.PrincipalResolution.IFederatedIdentityLinkingPolicy.ResolveLinkAsync(NCode.Identity.OpenId.Contexts.OpenIdContext! openIdContext, NCode.Identity.OpenId.Connections.ResolvedConnection! connection, System.Security.Claims.ClaimsPrincipal! user, NCode.Identity.Persistence.Stores.IStoreManager! storeManager, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.PrincipalResolution.FederatedIdentityLinkDecision!>
 NCode.Identity.OpenId.PrincipalResolution.IPrincipalResolver
 NCode.Identity.OpenId.PrincipalResolution.IPrincipalResolver.ResolvePrincipalIdAsync(NCode.Identity.OpenId.Contexts.OpenIdContext! openIdContext, System.Security.Claims.ClaimsPrincipal! user, NCode.Identity.Persistence.Stores.IStoreManager! storeManager, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<string!>
 NCode.Identity.OpenId.PrincipalResolution.IPrincipalResolver.ResolvePrincipalIdAsync(NCode.Identity.OpenId.Contexts.OpenIdContext! openIdContext, System.Security.Claims.ClaimsPrincipal! user, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<string!>
@@ -713,7 +713,6 @@ static NCode.Identity.OpenId.Settings.OpenIdSettingKeys.AccessTokenSigningAlgVal
 static NCode.Identity.OpenId.Settings.OpenIdSettingKeys.AccessTokenType.get -> NCode.Identity.Settings.SettingKey<string!>
 static NCode.Identity.OpenId.Settings.OpenIdSettingKeys.AcrValuesSupported.get -> NCode.Identity.Settings.SettingKey<System.Collections.Generic.IReadOnlyCollection<string!>!>
 static NCode.Identity.OpenId.Settings.OpenIdSettingKeys.AdmissionCapacityPercent.get -> NCode.Identity.Settings.SettingKey<int>
-static NCode.Identity.OpenId.Settings.OpenIdSettingKeys.AllowedIdentityProviders.get -> NCode.Identity.Settings.SettingKey<System.Collections.Generic.IReadOnlyCollection<string!>!>
 static NCode.Identity.OpenId.Settings.OpenIdSettingKeys.AlwaysIncludeAuthTime.get -> NCode.Identity.Settings.SettingKey<bool>
 static NCode.Identity.OpenId.Settings.OpenIdSettingKeys.AllowLoopbackRedirect.get -> NCode.Identity.Settings.SettingKey<bool>
 static NCode.Identity.OpenId.Settings.OpenIdSettingKeys.AuthorizationAuthenticateScheme.get -> NCode.Identity.Settings.SettingKey<string!>
@@ -860,7 +859,6 @@ static NCode.Identity.OpenId.Settings.OpenIdSettingKeys.UserInfoSigningAlgValues
 virtual NCode.Identity.OpenId.Contexts.OpenIdContext.ErrorFactory.get -> NCode.Identity.OpenId.Errors.IOpenIdErrorFactory!
 virtual NCode.Identity.OpenId.Contexts.OpenIdContext.GetSubjectId(System.Security.Claims.ClaimsPrincipal! subject) -> string?
 virtual NCode.Identity.OpenId.Contexts.OpenIdContext.NormalizeSubjectId(System.Security.Claims.ClaimsPrincipal! subject, string! subjectId) -> System.Security.Claims.ClaimsPrincipal!
-const NCode.Identity.OpenId.Settings.OpenIdSettingNames.PrincipalIssuerClaim = "principal_issuer_claim" -> string!
 const NCode.Identity.OpenId.Settings.OpenIdSettingNames.SubjectClaimTypes = "subject_claim_types" -> string!
 const NCode.Identity.OpenId.Settings.OpenIdSettingNames.FederatedIdentityJoinClaim = "federated_identity_join_claim" -> string!
 const NCode.Identity.OpenId.Settings.OpenIdSettingNames.FederatedIdentityVerifiedClaim = "federated_identity_verified_claim" -> string!
@@ -883,7 +881,6 @@ static NCode.Identity.OpenId.Settings.OpenIdSettingKeys.BackchannelUserCodeParam
 static NCode.Identity.OpenId.Settings.OpenIdSettingKeys.CibaRequestLifetime.get -> NCode.Identity.Settings.SettingKey<System.TimeSpan>
 static NCode.Identity.OpenId.Settings.OpenIdSettingKeys.CibaPollingInterval.get -> NCode.Identity.Settings.SettingKey<System.TimeSpan>
 const NCode.Identity.OpenId.Settings.OpenIdSettingNames.FederatedIdentityExplicitOnly = "federated_identity_explicit_only" -> string!
-static NCode.Identity.OpenId.Settings.OpenIdSettingKeys.PrincipalIssuerClaim.get -> NCode.Identity.Settings.SettingKey<string!>
 static NCode.Identity.OpenId.Settings.OpenIdSettingKeys.SubjectClaimTypes.get -> NCode.Identity.Settings.SettingKey<System.Collections.Generic.IReadOnlyCollection<string!>!>
 static NCode.Identity.OpenId.Settings.OpenIdSettingKeys.FederatedIdentityJoinClaim.get -> NCode.Identity.Settings.SettingKey<string!>
 static NCode.Identity.OpenId.Settings.OpenIdSettingKeys.FederatedIdentityVerifiedClaim.get -> NCode.Identity.Settings.SettingKey<string!>
@@ -1097,3 +1094,75 @@ static NCode.Identity.OpenId.Settings.OpenIdSettingKeys.TenantKeyRetirementGrace
 static NCode.Identity.OpenId.Settings.OpenIdSettingKeys.TenantKeyProvider.get -> NCode.Identity.Settings.SettingKey<string!>
 NCode.Identity.OpenId.Messages.ISupportClone<T>
 NCode.Identity.OpenId.Messages.ISupportClone<T>.Clone() -> T
+NCode.Identity.OpenId.Connections.ConnectionClaimTypes
+const NCode.Identity.OpenId.Connections.ConnectionClaimTypes.Connection = "urn:ncode:identity:connection" -> string!
+NCode.Identity.OpenId.Connections.ConnectionDefaults
+const NCode.Identity.OpenId.Connections.ConnectionDefaults.Name = "local" -> string!
+NCode.Identity.OpenId.Connections.ConnectionNameRules
+const NCode.Identity.OpenId.Connections.ConnectionNameRules.MaxLength = 128 -> int
+static NCode.Identity.OpenId.Connections.ConnectionNameRules.IsValid(string? name) -> bool
+NCode.Identity.OpenId.Connections.ConnectionRequests
+static NCode.Identity.OpenId.Connections.ConnectionRequests.GetRequestedName(string? connectionParameter, System.Collections.Generic.IReadOnlyCollection<string!>! acrValues) -> string?
+NCode.Identity.OpenId.Connections.ConnectionSignInMethods
+const NCode.Identity.OpenId.Connections.ConnectionSignInMethods.Password = "password" -> string!
+NCode.Identity.OpenId.Connections.ConnectionAllowances
+static NCode.Identity.OpenId.Connections.ConnectionAllowances.IsAllowed(NCode.Identity.Settings.IReadOnlySettingCollection! clientSettings, string? connectionName) -> bool
+NCode.Identity.OpenId.Connections.ConnectionStrategyNames
+const NCode.Identity.OpenId.Connections.ConnectionStrategyNames.Local = "local" -> string!
+static NCode.Identity.OpenId.Connections.ConnectionStrategyNames.IsLocal(string? strategy) -> bool
+NCode.Identity.OpenId.Connections.IConnectionStrategy
+NCode.Identity.OpenId.Connections.IConnectionStrategy.Name.get -> string!
+NCode.Identity.OpenId.Connections.IConnectionStrategy.SignInMethod.get -> string!
+NCode.Identity.OpenId.Connections.IConnectionStrategy.ValidateOptions(System.Text.Json.JsonElement options) -> string?
+NCode.Identity.OpenId.Connections.IConnectionStrategy.ValidateOptionsChange(System.Text.Json.JsonElement current, System.Text.Json.JsonElement proposed) -> string?
+NCode.Identity.OpenId.Connections.IConnectionStrategyCatalog
+NCode.Identity.OpenId.Connections.IConnectionStrategyCatalog.Strategies.get -> System.Collections.Generic.IReadOnlyCollection<NCode.Identity.OpenId.Connections.IConnectionStrategy!>!
+NCode.Identity.OpenId.Connections.IConnectionStrategyCatalog.TryGetStrategy(string! name, out NCode.Identity.OpenId.Connections.IConnectionStrategy! strategy) -> bool
+NCode.Identity.OpenId.Connections.LocalAccountIdentifiers
+const NCode.Identity.OpenId.Connections.LocalAccountIdentifiers.Email = "email" -> string!
+const NCode.Identity.OpenId.Connections.LocalAccountIdentifiers.EmailOrUserName = "email_or_user_name" -> string!
+const NCode.Identity.OpenId.Connections.LocalAccountIdentifiers.UserName = "user_name" -> string!
+NCode.Identity.OpenId.Connections.LocalAccountStoreNames
+const NCode.Identity.OpenId.Connections.LocalAccountStoreNames.Default = "default" -> string!
+NCode.Identity.OpenId.Connections.LocalConnectionOptions
+NCode.Identity.OpenId.Connections.LocalConnectionOptions.ExtensionData.get -> System.Collections.Generic.Dictionary<string!, System.Text.Json.JsonElement>?
+NCode.Identity.OpenId.Connections.LocalConnectionOptions.ExtensionData.set -> void
+NCode.Identity.OpenId.Connections.LocalConnectionOptions.LocalConnectionOptions() -> void
+NCode.Identity.OpenId.Connections.LocalConnectionOptions.Store.get -> string!
+NCode.Identity.OpenId.Connections.LocalConnectionOptions.Store.init -> void
+const NCode.Identity.OpenId.Settings.OpenIdSettingScopes.Connection = "connection" -> string!
+const NCode.Identity.OpenId.Settings.OpenIdSettingNames.AllowedConnections = "allowed_connections" -> string!
+const NCode.Identity.OpenId.Settings.OpenIdSettingNames.DefaultConnection = "default_connection" -> string!
+const NCode.Identity.OpenId.Settings.OpenIdSettingNames.LocalAccountIdentifier = "local_account_identifier" -> string!
+static NCode.Identity.OpenId.Settings.OpenIdSettingKeys.AllowedConnections.get -> NCode.Identity.Settings.SettingKey<System.Collections.Generic.IReadOnlyCollection<string!>!>
+static NCode.Identity.OpenId.Settings.OpenIdSettingKeys.DefaultConnection.get -> NCode.Identity.Settings.SettingKey<string!>
+static NCode.Identity.OpenId.Settings.OpenIdSettingKeys.LocalAccountIdentifier.get -> NCode.Identity.Settings.SettingKey<string!>
+NCode.Identity.OpenId.Connections.ConnectionSelection
+NCode.Identity.OpenId.Connections.ConnectionSelection.Connection.get -> NCode.Identity.OpenId.Connections.ResolvedConnection?
+NCode.Identity.OpenId.Connections.ConnectionSelection.Connection.init -> void
+NCode.Identity.OpenId.Connections.ConnectionSelection.ConnectionSelection() -> void
+NCode.Identity.OpenId.Connections.ConnectionSelection.ErrorCode.get -> string?
+NCode.Identity.OpenId.Connections.ConnectionSelection.ErrorCode.init -> void
+NCode.Identity.OpenId.Connections.ConnectionSelection.ErrorDescription.get -> string?
+NCode.Identity.OpenId.Connections.ConnectionSelection.ErrorDescription.init -> void
+NCode.Identity.OpenId.Connections.ConnectionSelection.IsRefused.get -> bool
+NCode.Identity.OpenId.Connections.ConnectionSelectionErrors
+const NCode.Identity.OpenId.Connections.ConnectionSelectionErrors.Required = "required" -> string!
+const NCode.Identity.OpenId.Connections.ConnectionSelectionErrors.Unavailable = "unavailable" -> string!
+NCode.Identity.OpenId.Connections.IConnectionDependentSource
+NCode.Identity.OpenId.Connections.IConnectionDependentSource.HasDependentsAsync(NCode.Identity.Persistence.Stores.IStoreManager! storeManager, NCode.Identity.OpenId.Persistence.DataContracts.PersistedConnection! connection, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<bool>
+NCode.Identity.OpenId.Connections.IConnectionResolver
+NCode.Identity.OpenId.Connections.IConnectionResolver.GetAllowedAsync(NCode.Identity.OpenId.Contexts.OpenIdContext! openIdContext, NCode.Identity.Settings.IReadOnlySettingCollection! clientSettings, string! signInMethod, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<NCode.Identity.OpenId.Connections.ResolvedConnection!>!>
+NCode.Identity.OpenId.Connections.IConnectionResolver.GetByIdOrDefaultAsync(NCode.Identity.OpenId.Contexts.OpenIdContext! openIdContext, string! connectionId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.Connections.ResolvedConnection?>
+NCode.Identity.OpenId.Connections.IConnectionResolver.GetByNameOrDefaultAsync(NCode.Identity.OpenId.Contexts.OpenIdContext! openIdContext, string! name, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.Connections.ResolvedConnection?>
+NCode.Identity.OpenId.Connections.IConnectionResolver.SelectAsync(NCode.Identity.OpenId.Contexts.OpenIdContext! openIdContext, NCode.Identity.Settings.IReadOnlySettingCollection! clientSettings, string? requestedName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.Connections.ConnectionSelection!>
+NCode.Identity.OpenId.Connections.ResolvedConnection
+NCode.Identity.OpenId.Connections.ResolvedConnection.Connection.get -> NCode.Identity.OpenId.Persistence.DataContracts.PersistedConnection!
+NCode.Identity.OpenId.Connections.ResolvedConnection.Connection.init -> void
+NCode.Identity.OpenId.Connections.ResolvedConnection.ConnectionId.get -> string!
+NCode.Identity.OpenId.Connections.ResolvedConnection.Name.get -> string!
+NCode.Identity.OpenId.Connections.ResolvedConnection.ResolvedConnection() -> void
+NCode.Identity.OpenId.Connections.ResolvedConnection.Settings.get -> NCode.Identity.Settings.IReadOnlySettingCollection!
+NCode.Identity.OpenId.Connections.ResolvedConnection.Settings.init -> void
+NCode.Identity.OpenId.Connections.ResolvedConnection.Strategy.get -> NCode.Identity.OpenId.Connections.IConnectionStrategy!
+NCode.Identity.OpenId.Connections.ResolvedConnection.Strategy.init -> void

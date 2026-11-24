@@ -6,7 +6,9 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
 using NCode.Identity.Cryptography;
+using NCode.Identity.OpenId.Management.Contracts;
 using NCode.Identity.Persistence;
+using NCode.Identity.Persistence.Stores;
 
 namespace NCode.Identity.OpenId.Management.Endpoints;
 
@@ -71,6 +73,36 @@ public sealed class ManagementApiEndpointHandlerTests : IDisposable
                 authorizationResource,
                 authorizationRequirement,
                 readAsync,
+                mapper,
+                cancellationToken
+            );
+
+        public ValueTask<IResult> InvokeProcessListOrNotFoundAsync<TItem, TResource>(
+            HttpContext httpContext,
+            object authorizationResource,
+            Func<ValueTask<PagedResult<TItem>?>> fetchPageAsync,
+            Func<TItem, TResource> mapper,
+            CancellationToken cancellationToken
+        ) =>
+            ProcessListOrNotFoundAsync(
+                httpContext,
+                authorizationResource,
+                fetchPageAsync,
+                mapper,
+                cancellationToken
+            );
+
+        public ValueTask<IResult> InvokeProcessListAsync<TItem, TResource>(
+            HttpContext httpContext,
+            object authorizationResource,
+            Func<ValueTask<PagedResult<TItem>>> fetchPageAsync,
+            Func<TItem, TResource> mapper,
+            CancellationToken cancellationToken
+        ) =>
+            ProcessListAsync(
+                httpContext,
+                authorizationResource,
+                fetchPageAsync,
                 mapper,
                 cancellationToken
             );
@@ -281,6 +313,98 @@ public sealed class ManagementApiEndpointHandlerTests : IDisposable
         var problem = Assert.IsType<ProblemHttpResult>(result);
 
         Assert.Equal(StatusCodes.Status403Forbidden, problem.StatusCode);
+    }
+
+    #endregion
+
+    #region ProcessListOrNotFoundAsync Tests
+
+    [Fact]
+    public async Task ProcessListOrNotFoundAsync_WhenForbidden_ReturnsForbiddenWithoutFetching()
+    {
+        SetupAuthorization(AuthorizationResult.Failed());
+        var fetchCount = 0;
+
+        var result = await Handler.InvokeProcessListOrNotFoundAsync(
+            CreateHttpContext(authenticated: true),
+            new object(),
+            () =>
+            {
+                fetchCount++;
+                return ValueTask.FromResult<PagedResult<string>?>(null);
+            },
+            value => value,
+            CancellationToken.None
+        );
+
+        var problem = Assert.IsType<ProblemHttpResult>(result);
+        Assert.Equal(StatusCodes.Status403Forbidden, problem.StatusCode);
+        Assert.Equal(0, fetchCount);
+    }
+
+    [Fact]
+    public async Task ProcessListOrNotFoundAsync_WhenTheFetchFindsNothing_ReturnsNotFoundAfterOneAuthorization()
+    {
+        SetupAuthorization(AuthorizationResult.Success());
+
+        var result = await Handler.InvokeProcessListOrNotFoundAsync(
+            CreateHttpContext(authenticated: true),
+            new object(),
+            () => ValueTask.FromResult<PagedResult<string>?>(null),
+            value => value,
+            CancellationToken.None
+        );
+
+        var problem = Assert.IsType<ProblemHttpResult>(result);
+        Assert.Equal(StatusCodes.Status404NotFound, problem.StatusCode);
+        MockAuthorizationService.Verify(
+            x =>
+                x.AuthorizeAsync(
+                    It.IsAny<ClaimsPrincipal>(),
+                    It.IsAny<object?>(),
+                    It.IsAny<IEnumerable<IAuthorizationRequirement>>()
+                ),
+            Times.Once
+        );
+    }
+
+    [Fact]
+    public async Task ProcessListOrNotFoundAsync_WhenTheFetchFindsAPage_ReturnsItsMappedItems()
+    {
+        SetupAuthorization(AuthorizationResult.Success());
+
+        var result = await Handler.InvokeProcessListOrNotFoundAsync(
+            CreateHttpContext(authenticated: true),
+            new object(),
+            () =>
+                ValueTask.FromResult<PagedResult<string>?>(
+                    new PagedResult<string> { Items = ["a", "b"], NextCursor = "next" }
+                ),
+            value => value.ToUpperInvariant(),
+            CancellationToken.None
+        );
+
+        var json = Assert.IsType<JsonHttpResult<CollectionResource<string>>>(result);
+        Assert.Equal(["A", "B"], json.Value?.Items);
+        Assert.Equal("next", json.Value?.ContinuationToken);
+    }
+
+    [Fact]
+    public async Task ProcessListAsync_WhenAuthorized_ReturnsTheMappedPage()
+    {
+        SetupAuthorization(AuthorizationResult.Success());
+
+        var result = await Handler.InvokeProcessListAsync(
+            CreateHttpContext(authenticated: true),
+            new object(),
+            () =>
+                ValueTask.FromResult(new PagedResult<string> { Items = ["a"], NextCursor = null }),
+            value => value.ToUpperInvariant(),
+            CancellationToken.None
+        );
+
+        var json = Assert.IsType<JsonHttpResult<CollectionResource<string>>>(result);
+        Assert.Equal(["A"], json.Value?.Items);
     }
 
     #endregion

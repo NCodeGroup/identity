@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Options;
 using NCode.Identity.Cryptography;
+using NCode.Identity.OpenId.Accounts.Stores;
 using NCode.Identity.OpenId.Authentication.Passwords;
 using NCode.Identity.OpenId.Authentication.Sessions;
 using NCode.Identity.OpenId.Authentication.Subject;
@@ -15,6 +16,7 @@ using NCode.Identity.OpenId.Management.Auditing;
 using NCode.Identity.OpenId.Management.Endpoints;
 using NCode.Identity.OpenId.Persistence.Tenants;
 using NCode.Identity.OpenId.Settings;
+using NCode.Identity.OpenId.Tenants;
 using NCode.Identity.Persistence.Stores;
 using NCode.Identity.Registration.AspNetCore;
 
@@ -37,12 +39,15 @@ public sealed class PlatformLocalAccountEndpointProviderTests : IDisposable
         var passwordPolicy = MockRepository.Create<IPasswordPolicy>().Object;
         var localAccountPasswords = new LocalAccountPasswords(
             effectiveSettingsResolver,
-            passwordPolicy
+            passwordPolicy,
+            new StoredTenantSettingsReader(effectiveSettingsResolver)
         );
+        var localAccountStoreCatalog = new LocalAccountStoreCatalog([]);
         var creator = new DefaultLocalAccountCreator(
             validator,
             cryptoService,
-            localAccountPasswords
+            localAccountPasswords,
+            localAccountStoreCatalog
         );
 
         var storeManagerFactory = MockRepository.Create<IStoreManagerFactory>().Object;
@@ -52,6 +57,11 @@ public sealed class PlatformLocalAccountEndpointProviderTests : IDisposable
         var openIdContextFactory = MockRepository.Create<IOpenIdContextFactory>().Object;
         var postCommitSecurityEffects = MockRepository.Create<IPostCommitSecurityEffects>().Object;
         var ambientTenantAccessor = MockRepository.Create<IAmbientTenantAccessor>().Object;
+        var tenantResolver = MockRepository.Create<ITenantResolver>().Object;
+        var defaultConnectionReader = new ControlPlaneDefaultConnectionReader(
+            tenantResolver,
+            new StoredTenantSettingsReader(effectiveSettingsResolver)
+        );
         var handler = new LocalAccountApiEndpointHandler(
             storeManagerFactory,
             authorizationService,
@@ -63,7 +73,9 @@ public sealed class PlatformLocalAccountEndpointProviderTests : IDisposable
             openIdContextFactory,
             localAccountPasswords,
             postCommitSecurityEffects,
-            ambientTenantAccessor
+            ambientTenantAccessor,
+            localAccountStoreCatalog,
+            defaultConnectionReader
         );
 
         var cellOptions = new CellOptions { IsControlPlane = isControlPlane };
@@ -112,7 +124,7 @@ public sealed class PlatformLocalAccountEndpointProviderTests : IDisposable
 
     [Theory]
     [InlineData("POST", "/platform/local-accounts", new[] { 400, 401, 403, 404, 409, 412, 415 })]
-    [InlineData("GET", "/platform/local-accounts", new[] { 400, 401, 403 })]
+    [InlineData("GET", "/platform/local-accounts", new[] { 400, 401, 403, 404 })]
     public async Task Map_OnTheControlPlane_DeclaresAndDescribesEveryProblemARouteAnswers(
         string httpMethod,
         string routePattern,

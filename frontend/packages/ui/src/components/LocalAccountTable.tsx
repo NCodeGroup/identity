@@ -17,7 +17,7 @@ import KeyIcon from '@mui/icons-material/Key';
 export type LocalAccountRow = {
   readonly localAccountId: string;
   readonly displayName: string;
-  readonly userName: string;
+  readonly userName: string | null;
   readonly email: string | null;
   readonly principalId: string | null;
   readonly isEnabled: boolean;
@@ -70,7 +70,7 @@ export function LocalAccountTable({
               data-testid={`local-account-row-${id}`}
             >
               <TableCell>{account.displayName}</TableCell>
-              <TableCell>{account.userName}</TableCell>
+              <TableCell>{account.userName ?? account.email ?? '—'}</TableCell>
               <TableCell>{account.email ?? '—'}</TableCell>
               <TableCell>{account.principalId ?? '—'}</TableCell>
               <TableCell>

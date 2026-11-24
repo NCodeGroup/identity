@@ -12,13 +12,15 @@ namespace NCode.Identity.OpenId.Authentication.Passwords;
 /// <summary>
 /// Provides an additive <see cref="SettingDescriptor"/> data source for the password settings, composed with the base
 /// descriptor catalog from the core slice: the length a local account's password must have, and the failed attempts an
-/// account may accumulate before its passwords are refused. Every setting applies to tenants and is not advertised.
+/// account may accumulate before its passwords are refused. Every setting applies to tenants and to their connections
+/// and is not advertised.
 /// </summary>
 // See ADR-1236 and ADR-1237.
 internal class DefaultPasswordSettingDescriptorDataSource(INullChangeToken nullChangeToken)
     : ICollectionDataSource<SettingDescriptor>
 {
-    private static ImmutableArray<string> Tenants { get; } = [OpenIdSettingScopes.Tenant];
+    private static ImmutableArray<string> TenantsAndConnections { get; } =
+    [OpenIdSettingScopes.Tenant, OpenIdSettingScopes.Connection];
 
     private INullChangeToken NullChangeToken { get; } = nullChangeToken;
 
@@ -36,7 +38,7 @@ internal class DefaultPasswordSettingDescriptorDataSource(INullChangeToken nullC
             yield return new SettingDescriptor<int>
             {
                 Name = OpenIdSettingNames.PasswordMinLength,
-                AppliesTo = Tenants,
+                AppliesTo = TenantsAndConnections,
                 Rule = SettingRules.Between(8, 64),
                 Default = 15,
                 IsDiscoverable = false,
@@ -49,7 +51,7 @@ internal class DefaultPasswordSettingDescriptorDataSource(INullChangeToken nullC
             yield return new SettingDescriptor<int>
             {
                 Name = OpenIdSettingNames.PasswordMaxLength,
-                AppliesTo = Tenants,
+                AppliesTo = TenantsAndConnections,
                 Rule = SettingRules.Between(64, 4096),
                 Default = 128,
                 IsDiscoverable = false,
@@ -62,7 +64,7 @@ internal class DefaultPasswordSettingDescriptorDataSource(INullChangeToken nullC
             yield return new SettingDescriptor<int>
             {
                 Name = OpenIdSettingNames.PasswordFailedAttemptsLimit,
-                AppliesTo = Tenants,
+                AppliesTo = TenantsAndConnections,
                 Rule = SettingRules.Between(1, 100),
                 Default = 10,
                 IsDiscoverable = false,
@@ -76,7 +78,7 @@ internal class DefaultPasswordSettingDescriptorDataSource(INullChangeToken nullC
             yield return new SettingDescriptor<TimeSpan>
             {
                 Name = OpenIdSettingNames.PasswordFailedAttemptsWindow,
-                AppliesTo = Tenants,
+                AppliesTo = TenantsAndConnections,
                 Rule = SettingRules.Between(windowMinimum, windowMaximum),
                 Default = TimeSpan.FromMinutes(15),
                 IsDiscoverable = false,

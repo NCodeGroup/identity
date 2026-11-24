@@ -8,6 +8,7 @@ using NCode.Identity.OpenId.Accounts.DataContracts;
 using NCode.Identity.OpenId.Accounts.Management.Contracts;
 using NCode.Identity.OpenId.Accounts.Stores;
 using NCode.Identity.OpenId.Authentication.Passwords;
+using NCode.Identity.OpenId.Connections;
 using NCode.Identity.OpenId.Management;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
@@ -21,6 +22,7 @@ public sealed class DefaultLocalAccountCreatorTests : IDisposable
 {
     private const string TenantId = "tenant-1";
     private const string TeamId = "team-1";
+    private const string ConnectionId = "connection-1";
     private const string UserName = "alice";
     private const string Password = "a-long-unlisted-passphrase";
 
@@ -34,6 +36,7 @@ public sealed class DefaultLocalAccountCreatorTests : IDisposable
     private Mock<ILocalAccountValidator> MockLocalAccountValidator { get; }
     private Mock<IEffectiveSettingsResolver> MockEffectiveSettingsResolver { get; }
     private Mock<IPasswordPolicy> MockPasswordPolicy { get; }
+    private PersistedConnection Connection { get; }
     private DefaultLocalAccountCreator Creator { get; }
 
     public DefaultLocalAccountCreatorTests()
@@ -49,13 +52,42 @@ public sealed class DefaultLocalAccountCreatorTests : IDisposable
         MockEffectiveSettingsResolver = MockRepository.Create<IEffectiveSettingsResolver>();
         MockPasswordPolicy = MockRepository.Create<IPasswordPolicy>();
 
+        Connection = new PersistedConnection
+        {
+            TenantId = TenantId,
+            ConnectionId = ConnectionId,
+            Name = "local",
+            Strategy = ConnectionStrategyNames.Local,
+            DisplayName = "Username and password",
+            IsSystem = false,
+            IsEnabled = true,
+            Options = JsonSerializer.SerializeToElement(new { store = "default" }),
+            Settings = new PersistedConnectionSettings
+            {
+                TenantId = TenantId,
+                ConnectionId = ConnectionId,
+                Value = JsonSerializer.SerializeToElement(new { }),
+            },
+        };
+        var catalog = new LocalAccountStoreCatalog([
+            new LocalAccountStoreRegistration
+            {
+                Name = "default",
+                CreateStore = _ => MockLocalAccountStore.Object,
+                CreateTransferStore = _ =>
+                    MockRepository.Create<ILocalAccountTransferStore>().Object,
+            },
+        ]);
+
         Creator = new DefaultLocalAccountCreator(
             MockLocalAccountValidator.Object,
             MockCryptoService.Object,
             new LocalAccountPasswords(
                 MockEffectiveSettingsResolver.Object,
-                MockPasswordPolicy.Object
-            )
+                MockPasswordPolicy.Object,
+                new StoredTenantSettingsReader(MockEffectiveSettingsResolver.Object)
+            ),
+            catalog
         );
     }
 
@@ -71,8 +103,11 @@ public sealed class DefaultLocalAccountCreatorTests : IDisposable
         MockLocalAccountValidator
             .Setup(x =>
                 x.ValidateCreateAsync(
+                    Connection,
                     It.Is<PersistedLocalAccount>(account =>
-                        account.UserName == UserName && account.DisplayName == displayName
+                        account.UserName == UserName
+                        && account.DisplayName == displayName
+                        && account.ConnectionId == ConnectionId
                     ),
                     MockStoreManager.Object,
                     It.IsAny<CancellationToken>()
@@ -103,6 +138,7 @@ public sealed class DefaultLocalAccountCreatorTests : IDisposable
         }.Build();
         var teamSettings = Mock.Of<IReadOnlySettingCollection>();
         var tenantSettings = Mock.Of<IReadOnlySettingCollection>();
+        var connectionSettings = Mock.Of<IReadOnlySettingCollection>();
 
         MockStoreManager
             .Setup(x => x.GetStore<ITenantStore>())
@@ -127,11 +163,22 @@ public sealed class DefaultLocalAccountCreatorTests : IDisposable
             )
             .Returns(tenantSettings)
             .Verifiable();
+        MockEffectiveSettingsResolver
+            .Setup(x =>
+                x.ResolveStored(
+                    tenantSettings,
+                    OpenIdSettingScopes.Connection,
+                    ConnectionId,
+                    It.Is<JsonElement>(element => element.GetRawText() == "{}")
+                )
+            )
+            .Returns(connectionSettings)
+            .Verifiable();
         MockPasswordPolicy
             .Setup(x =>
                 x.ValidateAsync(
                     It.Is<PasswordPolicyContext>(context =>
-                        ReferenceEquals(context.Settings, tenantSettings)
+                        ReferenceEquals(context.Settings, connectionSettings)
                         && context.UserName == UserName
                     ),
                     It.IsAny<ReadOnlyMemory<char>>(),
@@ -185,10 +232,6 @@ public sealed class DefaultLocalAccountCreatorTests : IDisposable
             )
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
-        MockStoreManager
-            .Setup(x => x.GetStore<ILocalAccountStore>())
-            .Returns(MockLocalAccountStore.Object)
-            .Verifiable();
         MockLocalAccountStore
             .Setup(x =>
                 x.AddAsync(
@@ -205,7 +248,7 @@ public sealed class DefaultLocalAccountCreatorTests : IDisposable
 
         var creation = await Creator.StageAsync(
             MockStoreManager.Object,
-            TenantId,
+            Connection,
             CreateRequest(),
             CancellationToken.None
         );
@@ -220,7 +263,9 @@ public sealed class DefaultLocalAccountCreatorTests : IDisposable
         Assert.NotNull(stagedIdentity);
         Assert.Equal("identity-1", stagedIdentity.FederatedIdentityId);
         Assert.Equal("principal-1", stagedIdentity.PrincipalId);
-        Assert.Equal(AccountConstants.SelfIssuer, stagedIdentity.Issuer);
+        Assert.Equal(ConnectionId, stagedIdentity.ConnectionId);
+        Assert.Null(stagedIdentity.Issuer);
+        Assert.Equal(ConnectionId, creation.Account.ConnectionId);
         Assert.Equal("account-1", stagedIdentity.Subject);
     }
 
@@ -237,7 +282,7 @@ public sealed class DefaultLocalAccountCreatorTests : IDisposable
 
         var creation = await Creator.StageAsync(
             MockStoreManager.Object,
-            TenantId,
+            Connection,
             new CreateLocalAccountRequest
             {
                 UserName = UserName,
@@ -263,7 +308,7 @@ public sealed class DefaultLocalAccountCreatorTests : IDisposable
 
         var creation = await Creator.StageAsync(
             MockStoreManager.Object,
-            TenantId,
+            Connection,
             new CreateLocalAccountRequest
             {
                 UserName = UserName,
@@ -281,7 +326,7 @@ public sealed class DefaultLocalAccountCreatorTests : IDisposable
     {
         var creation = await Creator.StageAsync(
             MockStoreManager.Object,
-            TenantId,
+            Connection,
             new CreateLocalAccountRequest
             {
                 UserName = UserName,
@@ -310,7 +355,7 @@ public sealed class DefaultLocalAccountCreatorTests : IDisposable
 
         var creation = await Creator.StageAsync(
             MockStoreManager.Object,
-            TenantId,
+            Connection,
             CreateRequest(),
             CancellationToken.None
         );
@@ -329,13 +374,13 @@ public sealed class DefaultLocalAccountCreatorTests : IDisposable
         var conflict = new ManagementError
         {
             StatusCode = StatusCodes.Status409Conflict,
-            Detail = "A local account with the username already exists in the tenant.",
+            Detail = "A local account with the username already exists.",
         };
         SetupAccountValidated(conflict);
 
         var creation = await Creator.StageAsync(
             MockStoreManager.Object,
-            TenantId,
+            Connection,
             CreateRequest(),
             CancellationToken.None
         );

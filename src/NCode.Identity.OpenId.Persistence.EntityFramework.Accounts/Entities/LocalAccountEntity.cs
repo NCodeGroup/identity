@@ -13,12 +13,18 @@ using NCode.Identity.Persistence;
 namespace NCode.Identity.OpenId.Persistence.EntityFramework.Accounts.Entities;
 
 /// <summary>
-/// Entity framework data contract for a local account: the server-owned credential, profile, and status payload behind
-/// a self-issued connection. The complimentary DTO is <c>PersistedLocalAccount</c>. A local account is tenant-scoped.
+/// Entity framework data contract for a local account: the server-owned credential, profile, and status payload held by
+/// a local connection. The complimentary DTO is <c>PersistedLocalAccount</c>. A local account is tenant-scoped and
+/// belongs to one connection, whose user names and email addresses no other account of the connection shares.
 /// </summary>
 [Index(nameof(NormalizedTenantId), nameof(NormalizedLocalAccountId), IsUnique = true)]
-[Index(nameof(NormalizedTenantId), nameof(NormalizedUserName), IsUnique = true)]
-[Index(nameof(NormalizedTenantId), nameof(NormalizedEmail))]
+[Index(
+    nameof(NormalizedTenantId),
+    nameof(ConnectionId),
+    nameof(NormalizedUserName),
+    IsUnique = true
+)]
+[Index(nameof(NormalizedTenantId), nameof(ConnectionId), nameof(NormalizedEmail), IsUnique = true)]
 internal sealed class LocalAccountEntity : ISupportTenantEntity, ISupportConcurrencyToken
 {
     [Key]
@@ -32,6 +38,9 @@ internal sealed class LocalAccountEntity : ISupportTenantEntity, ISupportConcurr
     [MaxLength(MaxLengths.ResourceId)]
     public required string NormalizedTenantId { get; init; }
 
+    [ForeignKey(nameof(Connection))]
+    public required Guid ConnectionId { get; init; }
+
     [Unicode(false)]
     [MaxLength(MaxLengths.ResourceId)]
     public required string LocalAccountId { get; init; }
@@ -42,14 +51,14 @@ internal sealed class LocalAccountEntity : ISupportTenantEntity, ISupportConcurr
 
     [Unicode(false)]
     [MaxLength(AccountMaxLengths.UserName)]
-    public required string UserName { get; set; }
+    public required string? UserName { get; set; }
 
     [MaxLength(AccountMaxLengths.DisplayName)]
     public required string DisplayName { get; set; }
 
     [Unicode(false)]
     [MaxLength(AccountMaxLengths.UserName)]
-    public required string NormalizedUserName { get; set; }
+    public required string? NormalizedUserName { get; set; }
 
     [MaxLength(AccountMaxLengths.Email)]
     public required string? Email { get; set; }
@@ -76,6 +85,8 @@ internal sealed class LocalAccountEntity : ISupportTenantEntity, ISupportConcurr
     public required string ConcurrencyToken { get; set; }
 
     public required TenantEntity Tenant { get; init; }
+
+    public required ConnectionEntity Connection { get; init; }
 
     public ICollection<LocalAccountClaimEntity> Claims { get; init; } = [];
 }

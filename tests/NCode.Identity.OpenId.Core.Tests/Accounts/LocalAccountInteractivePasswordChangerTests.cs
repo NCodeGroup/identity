@@ -4,13 +4,13 @@
 using System.Security.Claims;
 using Moq;
 using NCode.Buffers;
-using NCode.Identity.OpenId.Accounts;
 using NCode.Identity.OpenId.Accounts.Authentication;
 using NCode.Identity.OpenId.Accounts.DataContracts;
 using NCode.Identity.OpenId.Accounts.Stores;
 using NCode.Identity.OpenId.Authentication.Auditing;
 using NCode.Identity.OpenId.Authentication.Interactive;
 using NCode.Identity.OpenId.Authentication.Passwords;
+using NCode.Identity.OpenId.Connections;
 using NCode.Identity.OpenId.Contexts;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
@@ -30,6 +30,7 @@ public class LocalAccountInteractivePasswordChangerTests : BaseTests
     private const string CurrentPassword = "current";
     private const string NewPassword = "new";
     private const string ExternalIssuer = "https://idp.example";
+    private const string ExternalConnectionId = "connection-ext";
 
     private Mock<IStoreManagerFactory> MockStoreManagerFactory { get; }
     private Mock<IStoreManager> MockStoreManager { get; }
@@ -38,6 +39,8 @@ public class LocalAccountInteractivePasswordChangerTests : BaseTests
     private Mock<IPasswordPolicy> MockPasswordPolicy { get; }
     private Mock<IPasswordAttemptLimiter> MockPasswordAttemptLimiter { get; }
     private Mock<IAuditEventRecorder> MockAuditEventRecorder { get; }
+    private Mock<IConnectionResolver> MockConnectionResolver { get; }
+    private ResolvedConnection Connection { get; }
     private LocalAccountInteractivePasswordChanger Changer { get; }
 
     private string? CapturedNewPassword { get; set; }
@@ -51,8 +54,20 @@ public class LocalAccountInteractivePasswordChangerTests : BaseTests
         MockPasswordPolicy = CreateStrictMock<IPasswordPolicy>();
         MockPasswordAttemptLimiter = CreateStrictMock<IPasswordAttemptLimiter>();
         MockAuditEventRecorder = CreateStrictMock<IAuditEventRecorder>();
+        MockConnectionResolver = CreateStrictMock<IConnectionResolver>();
+        Connection = LocalAccountStoreSetup.CreateConnection(
+            TenantId,
+            CreateLooseMock<IReadOnlySettingCollection>().Object
+        );
+        var catalog = LocalAccountStoreSetup.CreateCatalog(MockLocalAccountStore);
         Changer = new LocalAccountInteractivePasswordChanger(
             MockStoreManagerFactory.Object,
+            new LocalAccountSignedInAccountFinder(
+                MockStoreManagerFactory.Object,
+                MockConnectionResolver.Object,
+                catalog
+            ),
+            catalog,
             MockPasswordPolicy.Object,
             MockPasswordAttemptLimiter.Object,
             MockAuditEventRecorder.Object
@@ -63,22 +78,16 @@ public class LocalAccountInteractivePasswordChangerTests : BaseTests
 
     private static ClaimsPrincipal Principal { get; } = new(new ClaimsIdentity("test"));
 
-    private Mock<OpenIdTenant> SetupPolicy(
-        Mock<OpenIdContext> mockContext,
-        PasswordPolicyResult result
-    )
-    {
-        var mockSettings = CreateLooseMock<IReadOnlySettingCollection>();
-        var mockProvider = CreateStrictMock<IReadOnlySettingCollectionProvider>();
-        mockProvider.Setup(x => x.Collection).Returns(mockSettings.Object).Verifiable();
-        var mockTenant = CreateStrictMock<OpenIdTenant>();
-        mockTenant.Setup(x => x.SettingsProvider).Returns(mockProvider.Object).Verifiable();
-        mockContext.Setup(x => x.Tenant).Returns(mockTenant.Object).Verifiable();
+    private static LocalAccountSignInIdentifier Identifier { get; } =
+        new() { ConnectionId = LocalAccountStoreSetup.ConnectionId, UserName = UserName };
 
+    private void SetupPolicy(PasswordPolicyResult result) =>
         MockPasswordPolicy
             .Setup(x =>
                 x.ValidateAsync(
-                    It.Is<PasswordPolicyContext>(c => c.UserName == UserName),
+                    It.Is<PasswordPolicyContext>(c =>
+                        c.UserName == UserName && ReferenceEquals(c.Settings, Connection.Settings)
+                    ),
                     It.IsAny<ReadOnlyMemory<char>>(),
                     It.IsAny<CancellationToken>()
                 )
@@ -89,13 +98,22 @@ public class LocalAccountInteractivePasswordChangerTests : BaseTests
             .ReturnsAsync(result)
             .Verifiable();
 
-        return mockTenant;
+    private void SetupTenantId(Mock<OpenIdContext> mockContext)
+    {
+        var mockTenant = CreateStrictMock<OpenIdTenant>();
+        mockTenant.Setup(x => x.TenantId).Returns(TenantId).Verifiable();
+        mockContext.Setup(x => x.Tenant).Returns(mockTenant.Object).Verifiable();
     }
 
     private void SetupLimit(Mock<OpenIdContext> mockContext, bool isReached) =>
         MockPasswordAttemptLimiter
             .Setup(x =>
-                x.IsLimitReachedAsync(mockContext.Object, UserName, It.IsAny<CancellationToken>())
+                x.IsLimitReachedAsync(
+                    mockContext.Object,
+                    Connection,
+                    LocalAccountId,
+                    It.IsAny<CancellationToken>()
+                )
             )
             .ReturnsAsync(isReached)
             .Verifiable();
@@ -126,12 +144,32 @@ public class LocalAccountInteractivePasswordChangerTests : BaseTests
             .ReturnsAsync(identities)
             .Verifiable();
 
+    private void SetupConnection(string connectionId, ResolvedConnection connection) =>
+        MockConnectionResolver
+            .Setup(x =>
+                x.GetByIdOrDefaultAsync(
+                    It.IsAny<OpenIdContext>(),
+                    connectionId,
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync(connection)
+            .Verifiable();
+
+    private void SetupExternalConnection() =>
+        SetupConnection(
+            ExternalConnectionId,
+            LocalAccountStoreSetup.CreateConnection(
+                TenantId,
+                CreateLooseMock<IReadOnlySettingCollection>().Object,
+                strategy: "external",
+                connectionId: ExternalConnectionId
+            )
+        );
+
     private void SetupAccount(PersistedLocalAccount? account)
     {
-        MockStoreManager
-            .Setup(x => x.GetStore<ILocalAccountStore>())
-            .Returns(MockLocalAccountStore.Object)
-            .Verifiable();
+        SetupConnection(LocalAccountStoreSetup.ConnectionId, Connection);
         MockLocalAccountStore
             .Setup(x => x.GetByIdOrDefaultAsync(LocalAccountId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(account)
@@ -182,13 +220,14 @@ public class LocalAccountInteractivePasswordChangerTests : BaseTests
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
 
-    private static PersistedFederatedIdentity SelfIssuedIdentity() =>
+    private static PersistedFederatedIdentity LocalIdentity() =>
         new()
         {
             TenantId = TenantId,
             FederatedIdentityId = "fed-1",
             PrincipalId = PrincipalId,
-            Issuer = AccountConstants.SelfIssuer,
+            ConnectionId = LocalAccountStoreSetup.ConnectionId,
+            Issuer = null,
             Subject = LocalAccountId,
             JoinKey = null,
             ConcurrencyToken = string.Empty,
@@ -200,6 +239,7 @@ public class LocalAccountInteractivePasswordChangerTests : BaseTests
             TenantId = TenantId,
             FederatedIdentityId = "fed-ext",
             PrincipalId = PrincipalId,
+            ConnectionId = ExternalConnectionId,
             Issuer = ExternalIssuer,
             Subject = "external-subject",
             JoinKey = null,
@@ -210,6 +250,7 @@ public class LocalAccountInteractivePasswordChangerTests : BaseTests
         new()
         {
             TenantId = TenantId,
+            ConnectionId = LocalAccountStoreSetup.ConnectionId,
             LocalAccountId = LocalAccountId,
             UserName = UserName,
             DisplayName = "Display Name",
@@ -229,19 +270,26 @@ public class LocalAccountInteractivePasswordChangerTests : BaseTests
     {
         var mockContext = CreateContext();
         SetupStoreManager();
-        SetupIdentities(SelfIssuedIdentity());
+        SetupIdentities(LocalIdentity());
         SetupAccount(Account(isEnabled: true));
-        var mockTenant = SetupPolicy(mockContext, PasswordPolicyResult.Accepted);
-        mockTenant.Setup(x => x.TenantId).Returns(TenantId).Verifiable();
+        SetupPolicy(PasswordPolicyResult.Accepted);
+        SetupTenantId(mockContext);
         SetupLimit(mockContext, isReached: false);
         LocalAccountStoreSetup.SetupVerification(
             MockLocalAccountStore,
-            UserName,
-            UserName,
+            Identifier,
+            LocalAccountId,
             Account(isEnabled: true)
         );
         MockPasswordAttemptLimiter
-            .Setup(x => x.ResetAsync(TenantId, UserName, It.IsAny<CancellationToken>()))
+            .Setup(x =>
+                x.ResetAsync(
+                    TenantId,
+                    LocalAccountStoreSetup.ConnectionId,
+                    LocalAccountId,
+                    It.IsAny<CancellationToken>()
+                )
+            )
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
         SetupPasswordChange();
@@ -270,18 +318,25 @@ public class LocalAccountInteractivePasswordChangerTests : BaseTests
             CancellationToken.None
         );
         SetupStoreManager();
-        SetupIdentities(SelfIssuedIdentity());
+        SetupIdentities(LocalIdentity());
         SetupAccount(Account(isEnabled: true));
-        SetupPolicy(mockContext, PasswordPolicyResult.Accepted);
+        SetupPolicy(PasswordPolicyResult.Accepted);
         SetupLimit(mockContext, isReached: false);
         LocalAccountStoreSetup.SetupVerification(
             MockLocalAccountStore,
-            UserName,
-            UserName,
+            Identifier,
+            LocalAccountId,
             verified: null
         );
         MockPasswordAttemptLimiter
-            .Setup(x => x.RecordFailureAsync(mockContext.Object, UserName, CancellationToken.None))
+            .Setup(x =>
+                x.RecordFailureAsync(
+                    mockContext.Object,
+                    Connection,
+                    LocalAccountId,
+                    CancellationToken.None
+                )
+            )
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
 
@@ -308,18 +363,25 @@ public class LocalAccountInteractivePasswordChangerTests : BaseTests
             CancellationToken.None
         );
         SetupStoreManager();
-        SetupIdentities(SelfIssuedIdentity());
+        SetupIdentities(LocalIdentity());
         SetupAccount(Account(isEnabled: true));
-        SetupPolicy(mockContext, PasswordPolicyResult.Accepted);
+        SetupPolicy(PasswordPolicyResult.Accepted);
         SetupLimit(mockContext, isReached: true);
         LocalAccountStoreSetup.SetupVerification(
             MockLocalAccountStore,
-            UserName,
-            UserName,
+            Identifier,
+            LocalAccountId,
             Account(isEnabled: true)
         );
         MockPasswordAttemptLimiter
-            .Setup(x => x.RecordFailureAsync(mockContext.Object, UserName, CancellationToken.None))
+            .Setup(x =>
+                x.RecordFailureAsync(
+                    mockContext.Object,
+                    Connection,
+                    LocalAccountId,
+                    CancellationToken.None
+                )
+            )
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
 
@@ -346,18 +408,25 @@ public class LocalAccountInteractivePasswordChangerTests : BaseTests
             CancellationToken.None
         );
         SetupStoreManager();
-        SetupIdentities(SelfIssuedIdentity());
+        SetupIdentities(LocalIdentity());
         SetupAccount(Account(isEnabled: true));
-        SetupPolicy(mockContext, PasswordPolicyResult.Accepted);
+        SetupPolicy(PasswordPolicyResult.Accepted);
         SetupLimit(mockContext, isReached: true);
         LocalAccountStoreSetup.SetupVerificationIgnoringARefusal(
             MockLocalAccountStore,
-            UserName,
-            UserName,
+            Identifier,
+            LocalAccountId,
             Account(isEnabled: true)
         );
         MockPasswordAttemptLimiter
-            .Setup(x => x.RecordFailureAsync(mockContext.Object, UserName, CancellationToken.None))
+            .Setup(x =>
+                x.RecordFailureAsync(
+                    mockContext.Object,
+                    Connection,
+                    LocalAccountId,
+                    CancellationToken.None
+                )
+            )
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
 
@@ -380,12 +449,9 @@ public class LocalAccountInteractivePasswordChangerTests : BaseTests
         var mockContext = CreateContext();
         SetupFailureRecorded(mockContext, PasswordPolicyErrors.TooShort, CancellationToken.None);
         SetupStoreManager();
-        SetupIdentities(SelfIssuedIdentity());
+        SetupIdentities(LocalIdentity());
         SetupAccount(Account(isEnabled: true));
-        SetupPolicy(
-            mockContext,
-            PasswordPolicyResult.Rejected(PasswordPolicyErrors.TooShort, "too short")
-        );
+        SetupPolicy(PasswordPolicyResult.Rejected(PasswordPolicyErrors.TooShort, "too short"));
 
         using var currentPassword = Secret.Create(CurrentPassword.AsSpan());
         using var newPassword = Secret.Create(NewPassword.AsSpan());
@@ -408,6 +474,7 @@ public class LocalAccountInteractivePasswordChangerTests : BaseTests
         var mockContext = CreateContext();
         SetupStoreManager();
         SetupIdentities(ExternalIdentity());
+        SetupExternalConnection();
 
         using var currentPassword = Secret.Create(CurrentPassword.AsSpan());
         using var newPassword = Secret.Create(NewPassword.AsSpan());
@@ -427,7 +494,7 @@ public class LocalAccountInteractivePasswordChangerTests : BaseTests
     {
         var mockContext = CreateContext();
         SetupStoreManager();
-        SetupIdentities(SelfIssuedIdentity());
+        SetupIdentities(LocalIdentity());
         SetupAccount(Account(isEnabled: false));
 
         using var currentPassword = Secret.Create(CurrentPassword.AsSpan());
@@ -448,12 +515,9 @@ public class LocalAccountInteractivePasswordChangerTests : BaseTests
     {
         var mockContext = CreateContext();
         SetupStoreManager();
-        SetupIdentities(SelfIssuedIdentity());
+        SetupIdentities(LocalIdentity());
         SetupAccount(Account(isEnabled: true));
-        SetupPolicy(
-            mockContext,
-            PasswordPolicyResult.Rejected(PasswordPolicyErrors.TooShort, "too short")
-        );
+        SetupPolicy(PasswordPolicyResult.Rejected(PasswordPolicyErrors.TooShort, "too short"));
         SetupFailureRecorded(mockContext, PasswordPolicyErrors.TooShort, CancellationToken.None);
 
         using var currentPassword = Secret.Create(CurrentPassword.AsSpan());
@@ -486,6 +550,7 @@ public class LocalAccountInteractivePasswordChangerTests : BaseTests
         var mockContext = CreateContext();
         SetupStoreManager();
         SetupIdentities(ExternalIdentity());
+        SetupExternalConnection();
 
         using var currentPassword = Secret.Create(CurrentPassword.AsSpan());
         using var newPassword = Secret.Create(NewPassword.AsSpan());

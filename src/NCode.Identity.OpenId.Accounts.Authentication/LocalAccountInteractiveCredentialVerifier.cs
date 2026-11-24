@@ -6,7 +6,9 @@ using NCode.Buffers;
 using NCode.Identity.OpenId.Accounts.Stores;
 using NCode.Identity.OpenId.Authentication.Interactive;
 using NCode.Identity.OpenId.Authentication.Passwords;
+using NCode.Identity.OpenId.Connections;
 using NCode.Identity.OpenId.Contexts;
+using NCode.Identity.OpenId.Settings;
 using NCode.Identity.Persistence.Stores;
 
 namespace NCode.Identity.OpenId.Accounts.Authentication;
@@ -22,11 +24,13 @@ namespace NCode.Identity.OpenId.Accounts.Authentication;
 /// </summary>
 internal sealed class LocalAccountInteractiveCredentialVerifier(
     IStoreManagerFactory storeManagerFactory,
+    LocalAccountStoreCatalog localAccountStoreCatalog,
     LocalAccountSubjectFactory localAccountSubjectFactory,
     IPasswordAttemptLimiter passwordAttemptLimiter
 ) : IInteractiveCredentialVerifier
 {
     private IStoreManagerFactory StoreManagerFactory { get; } = storeManagerFactory;
+    private LocalAccountStoreCatalog LocalAccountStoreCatalog { get; } = localAccountStoreCatalog;
     private LocalAccountSubjectFactory LocalAccountSubjectFactory { get; } =
         localAccountSubjectFactory;
     private IPasswordAttemptLimiter PasswordAttemptLimiter { get; } = passwordAttemptLimiter;
@@ -34,27 +38,36 @@ internal sealed class LocalAccountInteractiveCredentialVerifier(
     /// <inheritdoc />
     public async ValueTask<ClaimsPrincipal?> VerifyCredentialAsync(
         OpenIdContext openIdContext,
+        ResolvedConnection connection,
         string username,
         Secret<char> password,
         CancellationToken cancellationToken
     )
     {
+        // A connection of another strategy is not this verifier's to answer, as the password grant refuses one.
+        if (!ConnectionStrategyNames.IsLocal(connection.Connection.Strategy))
+        {
+            return null;
+        }
+
         var result = await VerifyCredentialsAsync(
             openIdContext,
+            connection,
             username,
             password,
             cancellationToken
         );
 
         // A password refused at the limit is verified against the store's dummy hash and answered as a wrong one, and
-        // both count as a failure under the user name the store holds. A disabled account goes on to the sign-in's
+        // both count as a failure under the account key the store holds. A disabled account goes on to the sign-in's
         // standing check, which refuses it with its reason. See ADR-1229, ADR-1237.
         if (!result.IsVerified)
         {
             // A failure is recorded even when the client disconnects.
             await PasswordAttemptLimiter.RecordFailureAsync(
                 openIdContext,
-                result.UserName,
+                connection,
+                result.AccountKey,
                 CancellationToken.None
             );
             return null;
@@ -62,12 +75,14 @@ internal sealed class LocalAccountInteractiveCredentialVerifier(
 
         await PasswordAttemptLimiter.ResetAsync(
             openIdContext.Tenant.TenantId,
-            result.UserName,
+            connection.ConnectionId,
+            result.AccountKey,
             cancellationToken
         );
 
         return await LocalAccountSubjectFactory.CreateAsync(
             openIdContext,
+            connection,
             result.Account,
             InteractiveAuthenticationDefaults.CookieSchemeName,
             cancellationToken
@@ -76,6 +91,7 @@ internal sealed class LocalAccountInteractiveCredentialVerifier(
 
     private async ValueTask<LocalAccountVerificationResult> VerifyCredentialsAsync(
         OpenIdContext openIdContext,
+        ResolvedConnection connection,
         string username,
         Secret<char> password,
         CancellationToken cancellationToken
@@ -90,14 +106,20 @@ internal sealed class LocalAccountInteractiveCredentialVerifier(
         );
 
         await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
-        var store = storeManager.GetStore<ILocalAccountStore>();
+        var store = LocalAccountStoreCatalog.GetStore(storeManager, connection.Connection);
+        var mode = connection.Settings.GetValue(OpenIdSettingKeys.LocalAccountIdentifier);
+        var identifier = LocalAccountSignInIdentifier.ForSubmitted(
+            connection.ConnectionId,
+            mode,
+            username
+        );
 
-        // The store asks the gate once, with the user name it holds, between its lookup and its verification. The gate
-        // refuses a result that a store verified after a refusal and fails a store that never asked, so no store lifts
-        // the limit. See ADR-1237.
-        var gate = new PasswordAttemptGate(PasswordAttemptLimiter, openIdContext);
+        // The store asks the gate once, with the account key it holds, between its lookup and its verification. The
+        // gate refuses a result that a store verified after a refusal and fails a store that never asked, so no store
+        // lifts the limit. See ADR-1237.
+        var gate = new PasswordAttemptGate(PasswordAttemptLimiter, openIdContext, connection);
         var storedResult = await store.VerifyCredentialAsync(
-            username,
+            identifier,
             buffer,
             gate.IsRefusedAsync,
             cancellationToken

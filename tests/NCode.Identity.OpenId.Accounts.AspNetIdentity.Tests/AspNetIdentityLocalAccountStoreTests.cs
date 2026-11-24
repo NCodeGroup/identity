@@ -25,6 +25,7 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
     private const string SecurityStamp = "stamp";
     private const string ConcurrencyToken = "ctoken";
     private const string TenantId = "tenant-1";
+    private const string ConnectionId = "connection-1";
     private const string OtherTenantId = "tenant-2";
     private static byte[] PasswordBytes { get; } = "correct-horse"u8.ToArray();
     private static byte[] DecomposedPasswordBytes { get; } = "cafe\u0301-correct-horse"u8.ToArray();
@@ -118,6 +119,19 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
         );
     }
 
+    // A store whose collaborators are strict mocks with no setups, so a call that reaches one fails the test.
+    private AspNetIdentityLocalAccountStore<TestTenantUser> CreateStoreWithoutServices()
+    {
+        var scopeFactory = Mocks.Create<IServiceScopeFactory>();
+        var storeProvider = Mocks.Create<IStoreProvider>();
+        return new AspNetIdentityLocalAccountStore<TestTenantUser>(
+            scopeFactory.Object,
+            storeProvider.Object,
+            new AspNetIdentityDummyPasswordHash<TestTenantUser>(),
+            TenantAccessor
+        );
+    }
+
     private Mock<IPasswordHasher<TestTenantUser>> CreatePasswordHasher() =>
         Mocks.Create<IPasswordHasher<TestTenantUser>>();
 
@@ -142,6 +156,7 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
         {
             Id = LocalAccountId,
             TenantId = TenantId,
+            ConnectionId = ConnectionId,
             Email = null,
             EmailConfirmed = false,
             SecurityStamp = SecurityStamp,
@@ -174,6 +189,7 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
         new()
         {
             TenantId = string.Empty,
+            ConnectionId = ConnectionId,
             LocalAccountId = LocalAccountId,
             UserName = UserName,
             DisplayName = "Alice Example",
@@ -252,13 +268,142 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
             .Verifiable();
 
         var result = await store.VerifyCredentialAsync(
-            UserName,
+            new LocalAccountSignInIdentifier { ConnectionId = ConnectionId, UserName = UserName },
             PasswordBytes,
             NotRefused,
             CancellationToken.None
         );
 
         Assert.Null(result.Account);
+    }
+
+    [Fact]
+    public async Task VerifyCredentialAsync_WhenTheIdentifierEqualsAnAccountId_AsksTheGateAboutTheIdentifier()
+    {
+        var passwordHasher = CreatePasswordHasher();
+        var passwordStore = CreatePasswordStore();
+        var (store, userManager) = CreateStore(passwordHasher.Object, passwordStore.Object);
+        SetupDummyPasswordHash(passwordHasher);
+        userManager
+            .Setup(x => x.FindByNameAsync(LocalAccountId))
+            .ReturnsAsync((TestTenantUser?)null)
+            .Verifiable();
+        passwordHasher
+            .Setup(x =>
+                x.VerifyHashedPassword(It.IsAny<TestTenantUser>(), DummyPasswordHash, Password)
+            )
+            .Returns(PasswordVerificationResult.Failed)
+            .Verifiable();
+        var askedAccountKeys = new List<string>();
+
+        var result = await store.VerifyCredentialAsync(
+            new LocalAccountSignInIdentifier
+            {
+                ConnectionId = ConnectionId,
+                UserName = LocalAccountId,
+            },
+            PasswordBytes,
+            (accountKey, _) =>
+            {
+                askedAccountKeys.Add(accountKey);
+                return ValueTask.FromResult(false);
+            },
+            CancellationToken.None
+        );
+
+        var expected = LocalAccountAttemptKeys.ForIdentifier(LocalAccountId);
+        Assert.Equal(expected, Assert.Single(askedAccountKeys));
+        Assert.Equal(expected, result.AccountKey);
+    }
+
+    [Fact]
+    public async Task VerifyCredentialAsync_WhenNeitherTheUserNameNorTheEmailIsFound_RunsBothLookups()
+    {
+        var passwordHasher = CreatePasswordHasher();
+        var passwordStore = CreatePasswordStore();
+        var (store, userManager) = CreateStore(passwordHasher.Object, passwordStore.Object);
+        SetupDummyPasswordHash(passwordHasher);
+        userManager
+            .Setup(x => x.FindByNameAsync(UserName))
+            .ReturnsAsync((TestTenantUser?)null)
+            .Verifiable(Times.Once());
+        userManager
+            .Setup(x => x.FindByEmailAsync("alice@example.com"))
+            .ReturnsAsync((TestTenantUser?)null)
+            .Verifiable(Times.Once());
+        passwordHasher
+            .Setup(x =>
+                x.VerifyHashedPassword(It.IsAny<TestTenantUser>(), DummyPasswordHash, Password)
+            )
+            .Returns(PasswordVerificationResult.Failed)
+            .Verifiable();
+
+        var result = await store.VerifyCredentialAsync(
+            new LocalAccountSignInIdentifier
+            {
+                ConnectionId = ConnectionId,
+                UserName = UserName,
+                Email = "alice@example.com",
+            },
+            PasswordBytes,
+            NotRefused,
+            CancellationToken.None
+        );
+
+        Assert.Null(result.Account);
+    }
+
+    [Fact]
+    public async Task VerifyCredentialAsync_WhenTheUserNameAndTheEmailNameDifferentUsers_RunsBothLookupsAndPrefersTheUserName()
+    {
+        var passwordHasher = CreatePasswordHasher();
+        var passwordStore = CreatePasswordStore();
+        var (store, userManager) = CreateStore(passwordHasher.Object, passwordStore.Object);
+        SetupDummyPasswordHash(passwordHasher);
+        var user = CreateUser();
+        var emailUser = CreateUser();
+        emailUser.Id = "other-account";
+        userManager
+            .Setup(x => x.FindByNameAsync(UserName))
+            .ReturnsAsync(user)
+            .Verifiable(Times.Once());
+        userManager
+            .Setup(x => x.FindByEmailAsync("other@example.com"))
+            .ReturnsAsync(emailUser)
+            .Verifiable(Times.Once());
+        userManager.SetupGet(x => x.SupportsUserLockout).Returns(true).Verifiable();
+        userManager.Setup(x => x.IsLockedOutAsync(user)).ReturnsAsync(false).Verifiable();
+        passwordStore
+            .Setup(x => x.GetPasswordHashAsync(user, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(StoredPasswordHash)
+            .Verifiable();
+        passwordHasher
+            .Setup(x => x.VerifyHashedPassword(user, StoredPasswordHash, Password))
+            .Returns(PasswordVerificationResult.Failed)
+            .Verifiable();
+        var askedAccountKeys = new List<string>();
+
+        var result = await store.VerifyCredentialAsync(
+            new LocalAccountSignInIdentifier
+            {
+                ConnectionId = ConnectionId,
+                UserName = UserName,
+                Email = "other@example.com",
+            },
+            PasswordBytes,
+            (accountKey, _) =>
+            {
+                askedAccountKeys.Add(accountKey);
+                return ValueTask.FromResult(false);
+            },
+            CancellationToken.None
+        );
+
+        Assert.Equal(
+            LocalAccountAttemptKeys.ForAccount(LocalAccountId),
+            Assert.Single(askedAccountKeys)
+        );
+        Assert.Equal(LocalAccountAttemptKeys.ForAccount(LocalAccountId), result.AccountKey);
     }
 
     [Fact]
@@ -280,7 +425,7 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
             .Verifiable();
 
         var result = await store.VerifyCredentialAsync(
-            UserName,
+            new LocalAccountSignInIdentifier { ConnectionId = ConnectionId, UserName = UserName },
             PasswordBytes,
             NotRefused,
             CancellationToken.None
@@ -310,7 +455,7 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
             .Verifiable();
 
         var result = await store.VerifyCredentialAsync(
-            UserName,
+            new LocalAccountSignInIdentifier { ConnectionId = ConnectionId, UserName = UserName },
             PasswordBytes,
             NotRefused,
             CancellationToken.None
@@ -339,7 +484,7 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
         SetupMapping(userManager, user);
 
         var result = await store.VerifyCredentialAsync(
-            UserName,
+            new LocalAccountSignInIdentifier { ConnectionId = ConnectionId, UserName = UserName },
             PasswordBytes,
             NotRefused,
             CancellationToken.None
@@ -380,7 +525,7 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
             .Verifiable();
 
         var result = await store.VerifyCredentialAsync(
-            UserName,
+            new LocalAccountSignInIdentifier { ConnectionId = ConnectionId, UserName = UserName },
             PasswordBytes,
             NotRefused,
             CancellationToken.None
@@ -412,7 +557,7 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
             .Verifiable();
 
         var result = await store.VerifyCredentialAsync(
-            UserName,
+            new LocalAccountSignInIdentifier { ConnectionId = ConnectionId, UserName = UserName },
             PasswordBytes,
             NotRefused,
             CancellationToken.None
@@ -441,7 +586,7 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
         SetupMapping(userManager, user);
 
         var result = await store.VerifyCredentialAsync(
-            UserName,
+            new LocalAccountSignInIdentifier { ConnectionId = ConnectionId, UserName = UserName },
             DecomposedPasswordBytes,
             NotRefused,
             CancellationToken.None
@@ -488,7 +633,7 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
         SetupMapping(userManager, user);
 
         var result = await store.VerifyCredentialAsync(
-            UserName,
+            new LocalAccountSignInIdentifier { ConnectionId = ConnectionId, UserName = UserName },
             DecomposedPasswordBytes,
             NotRefused,
             CancellationToken.None
@@ -522,7 +667,7 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
             .Verifiable();
 
         var result = await store.VerifyCredentialAsync(
-            UserName,
+            new LocalAccountSignInIdentifier { ConnectionId = ConnectionId, UserName = UserName },
             DecomposedPasswordBytes,
             NotRefused,
             CancellationToken.None
@@ -565,7 +710,7 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
         SetupMapping(userManager, user);
 
         var result = await store.VerifyCredentialAsync(
-            UserName,
+            new LocalAccountSignInIdentifier { ConnectionId = ConnectionId, UserName = UserName },
             PasswordBytes,
             NotRefused,
             CancellationToken.None
@@ -607,7 +752,7 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
             .Verifiable();
 
         var result = await store.VerifyCredentialAsync(
-            UserName,
+            new LocalAccountSignInIdentifier { ConnectionId = ConnectionId, UserName = UserName },
             DecomposedPasswordBytes,
             NotRefused,
             CancellationToken.None
@@ -639,7 +784,7 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
             .Verifiable(Times.Once());
 
         var result = await store.VerifyCredentialAsync(
-            UserName,
+            new LocalAccountSignInIdentifier { ConnectionId = ConnectionId, UserName = UserName },
             PasswordBytes,
             static (_, _) => ValueTask.FromResult(true),
             CancellationToken.None
@@ -647,11 +792,11 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
 
         Assert.True(result.IsRefused);
         Assert.Null(result.Account);
-        Assert.Equal(UserName, result.UserName);
+        Assert.Equal(LocalAccountAttemptKeys.ForAccount(LocalAccountId), result.AccountKey);
     }
 
     [Fact]
-    public async Task VerifyCredentialAsync_WhenTheStoreMatchesAnotherSpelling_AsksTheGateAboutTheStoredUserName()
+    public async Task VerifyCredentialAsync_WhenTheStoreMatchesAnotherSpelling_AsksTheGateAboutTheAccountId()
     {
         const string submittedUserName = UserName + " ";
         var passwordHasher = CreatePasswordHasher();
@@ -673,21 +818,28 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
             .Setup(x => x.VerifyHashedPassword(user, StoredPasswordHash, Password))
             .Returns(PasswordVerificationResult.Failed)
             .Verifiable();
-        var askedUserNames = new List<string>();
+        var askedAccountKeys = new List<string>();
 
         var result = await store.VerifyCredentialAsync(
-            submittedUserName,
-            PasswordBytes,
-            (userName, _) =>
+            new LocalAccountSignInIdentifier
             {
-                askedUserNames.Add(userName);
+                ConnectionId = ConnectionId,
+                UserName = submittedUserName,
+            },
+            PasswordBytes,
+            (accountKey, _) =>
+            {
+                askedAccountKeys.Add(accountKey);
                 return ValueTask.FromResult(false);
             },
             CancellationToken.None
         );
 
-        Assert.Equal(UserName, Assert.Single(askedUserNames));
-        Assert.Equal(UserName, result.UserName);
+        Assert.Equal(
+            LocalAccountAttemptKeys.ForAccount(LocalAccountId),
+            Assert.Single(askedAccountKeys)
+        );
+        Assert.Equal(LocalAccountAttemptKeys.ForAccount(LocalAccountId), result.AccountKey);
         Assert.False(result.IsRefused);
         Assert.Null(result.Account);
     }
@@ -705,7 +857,11 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
 
         await Assert.ThrowsAsync<InvalidOperationException>(async () =>
             await store.VerifyCredentialAsync(
-                UserName,
+                new LocalAccountSignInIdentifier
+                {
+                    ConnectionId = ConnectionId,
+                    UserName = UserName,
+                },
                 PasswordBytes,
                 NotRefused,
                 CancellationToken.None
@@ -804,7 +960,11 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
             .Verifiable();
         SetupMapping(userManager, user);
 
-        var page = await store.GetPageAsync(new PageRequest { Limit = 10 }, CancellationToken.None);
+        var page = await store.GetPageAsync(
+            ConnectionId,
+            new PageRequest { Limit = 10 },
+            CancellationToken.None
+        );
 
         var item = Assert.Single(page.Items);
         Assert.Equal(LocalAccountId, item.LocalAccountId);
@@ -834,11 +994,30 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
         var ordered = result.OrderBy(name => name.LocalAccountId, StringComparer.Ordinal).ToList();
         Assert.Equal(2, ordered.Count);
         Assert.Equal(LocalAccountId, ordered[0].LocalAccountId);
+        Assert.Equal(ConnectionId, ordered[0].ConnectionId);
         Assert.Equal(UserName, ordered[0].UserName);
         Assert.Equal("Alice Example", ordered[0].DisplayName);
         Assert.Equal("user-2", ordered[1].LocalAccountId);
+        Assert.Equal(ConnectionId, ordered[1].ConnectionId);
         Assert.Equal("bob", ordered[1].UserName);
         Assert.Equal("Bob Example", ordered[1].DisplayName);
+    }
+
+    [Fact]
+    public async Task GetNamesByIdsAsync_WhenTheUserHasNoUserName_ReadsItBackWithANullUserName()
+    {
+        var (store, userManager) = CreateStore();
+        var user = CreateUser();
+        user.UserName = LocalAccountId;
+        SetupUsers(userManager, user);
+        var query = new[] { LocalAccountId };
+
+        var result = await store.GetNamesByIdsAsync(query, CancellationToken.None);
+
+        var name = Assert.Single(result);
+        Assert.Equal(LocalAccountId, name.LocalAccountId);
+        Assert.Equal(ConnectionId, name.ConnectionId);
+        Assert.Null(name.UserName);
     }
 
     [Fact]
@@ -918,16 +1097,65 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
         SetupUsers(userManager, user, other, unrequested);
         var query = new[] { "alice", "bob", "missing" };
 
-        var result = await store.GetNamesByUserNamesAsync(query, CancellationToken.None);
+        var result = await store.GetNamesByUserNamesAsync(
+            ConnectionId,
+            query,
+            CancellationToken.None
+        );
 
         var ordered = result.OrderBy(name => name.LocalAccountId, StringComparer.Ordinal).ToList();
         Assert.Equal(2, ordered.Count);
         Assert.Equal(LocalAccountId, ordered[0].LocalAccountId);
+        Assert.Equal(ConnectionId, ordered[0].ConnectionId);
         Assert.Equal(UserName, ordered[0].UserName);
         Assert.Equal("Alice Example", ordered[0].DisplayName);
         Assert.Equal("user-2", ordered[1].LocalAccountId);
+        Assert.Equal(ConnectionId, ordered[1].ConnectionId);
         Assert.Equal("bob", ordered[1].UserName);
         Assert.Equal("Bob Example", ordered[1].DisplayName);
+    }
+
+    [Fact]
+    public async Task GetNamesByUserNamesAsync_WhenTheUserIsOfAnotherConnection_ReturnsNone()
+    {
+        var (store, userManager) = CreateStore();
+        var user = CreateUser();
+        user.ConnectionId = "connection-2";
+        user.NormalizedUserName = "NORM-ALICE";
+        userManager.Setup(x => x.NormalizeName("alice")).Returns("NORM-ALICE").Verifiable();
+        SetupUsers(userManager, user);
+        var query = new[] { "alice" };
+
+        var result = await store.GetNamesByUserNamesAsync(
+            ConnectionId,
+            query,
+            CancellationToken.None
+        );
+
+        Assert.Empty(result);
+    }
+
+    [Fact]
+    public async Task GetNamesByUserNamesAsync_WhenTheAccountHasNoUserName_ReturnsNone()
+    {
+        var (store, userManager) = CreateStore();
+        var user = CreateUser();
+        user.UserName = LocalAccountId;
+        user.NormalizedUserName = "NORM-ACCOUNT";
+        userManager
+            .Setup(x => x.NormalizeName(LocalAccountId))
+            .Returns("NORM-ACCOUNT")
+            .Verifiable();
+        SetupUsers(userManager, user);
+        var query = new[] { LocalAccountId };
+
+        var result = await store.GetNamesByUserNamesAsync(
+            ConnectionId,
+            query,
+            CancellationToken.None
+        );
+
+        Assert.Empty(result);
     }
 
     [Fact]
@@ -937,7 +1165,11 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
         TenantScope.Dispose();
         var query = new[] { UserName };
 
-        var result = await store.GetNamesByUserNamesAsync(query, CancellationToken.None);
+        var result = await store.GetNamesByUserNamesAsync(
+            ConnectionId,
+            query,
+            CancellationToken.None
+        );
 
         Assert.Empty(result);
     }
@@ -951,11 +1183,11 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
         var query = new[] { UserName };
 
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
-            await store.GetNamesByUserNamesAsync(query, CancellationToken.None)
+            await store.GetNamesByUserNamesAsync(ConnectionId, query, CancellationToken.None)
         );
 
         Assert.Equal(
-            "A local account is found by user name only inside a tenant scope, because a user name is unique only within a tenant.",
+            "A local account is found by user name or email only inside a tenant scope, because both are unique only within a connection of a tenant.",
             exception.Message
         );
     }
@@ -974,7 +1206,11 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
         );
         var query = Array.Empty<string>();
 
-        var result = await store.GetNamesByUserNamesAsync(query, CancellationToken.None);
+        var result = await store.GetNamesByUserNamesAsync(
+            ConnectionId,
+            query,
+            CancellationToken.None
+        );
 
         Assert.Empty(result);
     }
@@ -982,6 +1218,31 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
     #endregion
 
     #region AddAsync Tests
+
+    [Fact]
+    public async Task AddAsync_WhenTheUserNameEqualsTheAccountId_Throws()
+    {
+        var store = CreateStoreWithoutServices();
+        var account = new PersistedLocalAccount
+        {
+            TenantId = string.Empty,
+            ConnectionId = ConnectionId,
+            LocalAccountId = LocalAccountId,
+            UserName = LocalAccountId,
+            DisplayName = "Alice Example",
+            Email = null,
+            EmailVerified = false,
+            IsEnabled = true,
+            Claims = [],
+            ConcurrencyToken = string.Empty,
+        };
+
+        var exception = await Assert.ThrowsAsync<ArgumentException>(async () =>
+            await store.AddAsync(account, null, CancellationToken.None)
+        );
+
+        Assert.Equal("account", exception.ParamName);
+    }
 
     [Fact]
     public async Task AddAsync_WhenPasswordAndClaims_StoresTheHashAndCreatesUserWithIdAndClaims()
@@ -1141,6 +1402,31 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
     #endregion
 
     #region UpdateAsync Tests
+
+    [Fact]
+    public async Task UpdateAsync_WhenTheUserNameEqualsTheAccountId_Throws()
+    {
+        var store = CreateStoreWithoutServices();
+        var account = new PersistedLocalAccount
+        {
+            TenantId = string.Empty,
+            ConnectionId = ConnectionId,
+            LocalAccountId = LocalAccountId,
+            UserName = LocalAccountId,
+            DisplayName = "Alice Example",
+            Email = null,
+            EmailVerified = false,
+            IsEnabled = true,
+            Claims = [],
+            ConcurrencyToken = string.Empty,
+        };
+
+        var exception = await Assert.ThrowsAsync<ArgumentException>(async () =>
+            await store.UpdateAsync(account, CancellationToken.None)
+        );
+
+        Assert.Equal("account", exception.ParamName);
+    }
 
     [Fact]
     public async Task UpdateAsync_WhenMissing_Throws()
@@ -1383,6 +1669,35 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
     #region ImportAsync Tests
 
     [Fact]
+    public async Task ImportAsync_WhenARecordsUserNameEqualsTheAccountId_Throws()
+    {
+        var store = CreateStoreWithoutServices();
+        var record = new LocalAccountTransferRecord
+        {
+            LocalAccountId = LocalAccountId,
+            UserName = LocalAccountId,
+            DisplayName = "Alice Example",
+            NormalizedUserName = LocalAccountId,
+            Email = null,
+            NormalizedEmail = null,
+            EmailVerified = false,
+            PasswordHash = null,
+            SecurityStamp = SecurityStamp,
+            IsEnabled = true,
+            LockoutEnabled = false,
+            LockoutEnd = null,
+            AccessFailedCount = 0,
+            Claims = [],
+        };
+
+        var exception = await Assert.ThrowsAsync<ArgumentException>(async () =>
+            await store.ImportAsync(ConnectionId, [record], CancellationToken.None)
+        );
+
+        Assert.Equal("records", exception.ParamName);
+    }
+
+    [Fact]
     public async Task ImportAsync_WhenARecordIsDisabledAndLockoutIsUnsupported_ThrowsBeforeCreatingIt()
     {
         var passwordStore = CreatePasswordStore();
@@ -1408,7 +1723,7 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
 
         // The user manager is strict and sets up no CreateAsync, so a created user would fail the test.
         var exception = await Assert.ThrowsAsync<NotSupportedException>(async () =>
-            await store.ImportAsync([record], CancellationToken.None)
+            await store.ImportAsync(ConnectionId, [record], CancellationToken.None)
         );
 
         Assert.Contains("does not support lockout", exception.Message);
@@ -1443,7 +1758,7 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
 
         // The user manager is strict and sets up no UpdateAsync, so an update after the refusal would fail the test.
         var exception = await Assert.ThrowsAsync<NotSupportedException>(async () =>
-            await store.ImportAsync([record], CancellationToken.None)
+            await store.ImportAsync(ConnectionId, [record], CancellationToken.None)
         );
 
         Assert.Contains("does not store claims", exception.Message);
@@ -1480,7 +1795,7 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
             Claims = [],
         };
 
-        await store.ImportAsync([record], CancellationToken.None);
+        await store.ImportAsync(ConnectionId, [record], CancellationToken.None);
     }
 
     #endregion
@@ -1494,7 +1809,11 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
         userManager.SetupGet(x => x.SupportsQueryableUsers).Returns(false).Verifiable();
 
         await Assert.ThrowsAsync<NotSupportedException>(async () =>
-            await store.GetPageAsync(new PageRequest { Limit = 10 }, CancellationToken.None)
+            await store.GetPageAsync(
+                ConnectionId,
+                new PageRequest { Limit = 10 },
+                CancellationToken.None
+            )
         );
     }
 
@@ -1504,8 +1823,18 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
         var (store, userManager) = CreateStore();
         var users = new[]
         {
-            new TestTenantUser("alice") { Id = "user-1", TenantId = TenantId },
-            new TestTenantUser("bob") { Id = "user-2", TenantId = TenantId },
+            new TestTenantUser("alice")
+            {
+                Id = "user-1",
+                TenantId = TenantId,
+                ConnectionId = ConnectionId,
+            },
+            new TestTenantUser("bob")
+            {
+                Id = "user-2",
+                TenantId = TenantId,
+                ConnectionId = ConnectionId,
+            },
         };
         userManager.SetupGet(x => x.SupportsQueryableUsers).Returns(true).Verifiable();
         userManager.SetupGet(x => x.Users).Returns(users.AsQueryable()).Verifiable();
@@ -1519,7 +1848,11 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
             .ReturnsAsync(false)
             .Verifiable();
 
-        var page = await store.GetPageAsync(new PageRequest { Limit = 10 }, CancellationToken.None);
+        var page = await store.GetPageAsync(
+            ConnectionId,
+            new PageRequest { Limit = 10 },
+            CancellationToken.None
+        );
 
         Assert.Equal(2, page.Items.Count);
         Assert.Null(page.NextCursor);
@@ -1567,7 +1900,11 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
         user.TenantId = OtherTenantId;
         userManager.Setup(x => x.FindByNameAsync(UserName)).ReturnsAsync(user).Verifiable();
 
-        var result = await store.GetByUserNameOrDefaultAsync(UserName, CancellationToken.None);
+        var result = await store.GetByUserNameOrDefaultAsync(
+            ConnectionId,
+            UserName,
+            CancellationToken.None
+        );
 
         Assert.Null(result);
     }
@@ -1578,7 +1915,11 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
         var (store, _) = CreateStore();
         TenantScope.Dispose();
 
-        var result = await store.GetByUserNameOrDefaultAsync(UserName, CancellationToken.None);
+        var result = await store.GetByUserNameOrDefaultAsync(
+            ConnectionId,
+            UserName,
+            CancellationToken.None
+        );
 
         Assert.Null(result);
     }
@@ -1591,7 +1932,7 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
         using var unscoped = TenantAccessor.BeginUnscoped("test");
 
         await Assert.ThrowsAsync<InvalidOperationException>(async () =>
-            await store.GetByUserNameOrDefaultAsync(UserName, CancellationToken.None)
+            await store.GetByUserNameOrDefaultAsync(ConnectionId, UserName, CancellationToken.None)
         );
     }
 
@@ -1643,8 +1984,18 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
         var (store, userManager) = CreateStore();
         var users = new[]
         {
-            new TestTenantUser("alice") { Id = "user-1", TenantId = TenantId },
-            new TestTenantUser("bob") { Id = "user-2", TenantId = OtherTenantId },
+            new TestTenantUser("alice")
+            {
+                Id = "user-1",
+                TenantId = TenantId,
+                ConnectionId = ConnectionId,
+            },
+            new TestTenantUser("bob")
+            {
+                Id = "user-2",
+                TenantId = OtherTenantId,
+                ConnectionId = ConnectionId,
+            },
         };
         userManager.SetupGet(x => x.SupportsQueryableUsers).Returns(true).Verifiable();
         userManager.SetupGet(x => x.Users).Returns(users.AsQueryable()).Verifiable();
@@ -1658,7 +2009,11 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
             .ReturnsAsync(false)
             .Verifiable();
 
-        var page = await store.GetPageAsync(new PageRequest { Limit = 10 }, CancellationToken.None);
+        var page = await store.GetPageAsync(
+            ConnectionId,
+            new PageRequest { Limit = 10 },
+            CancellationToken.None
+        );
 
         var item = Assert.Single(page.Items);
         Assert.Equal("user-1", item.LocalAccountId);

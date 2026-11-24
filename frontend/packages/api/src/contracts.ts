@@ -364,14 +364,16 @@ export type UpdateClientFields = {
 };
 
 /**
- * Mirror of `LocalAccountResource`. `principalId` is the account's principal, which role assignments name, or `null`
- * when it has none.
+ * Mirror of `LocalAccountResource`. `connectionId` names the local connection the account belongs to. `principalId` is
+ * the account's principal, which role assignments name, or `null` when it has none. `userName` is `null` for an account
+ * that signs in by email alone.
  */
 export type LocalAccountResource = {
   readonly tenantId: string;
+  readonly connectionId: string;
   readonly localAccountId: string;
   readonly principalId: string | null;
-  readonly userName: string;
+  readonly userName: string | null;
   readonly displayName: string;
   readonly email: string | null;
   readonly emailVerified: boolean;
@@ -381,7 +383,7 @@ export type LocalAccountResource = {
 
 /** Mirror of `CreateLocalAccountRequest`. */
 export type CreateLocalAccountRequest = {
-  readonly userName: string;
+  readonly userName: string | null;
   readonly displayName?: string;
   readonly password: string;
   readonly email?: string;
@@ -395,7 +397,7 @@ export type CreateLocalAccountRequest = {
  */
 export type UpdateLocalAccountFields = {
   readonly displayName: string;
-  readonly userName: string;
+  readonly userName: string | null;
   readonly email: string | null;
   readonly emailVerified: boolean;
 };
@@ -445,6 +447,55 @@ export type SetLocalAccountMetadataRequest = {
 /** Mirror of `ResetLocalAccountPasswordRequest`. */
 export type ResetLocalAccountPasswordRequest = {
   readonly password: string;
+};
+
+/**
+ * Mirror of `ConnectionResource`: a tenant-scoped, named sign-in resource of a registered strategy. `name` and
+ * `strategy` are immutable; `isSystem` marks a reserved connection that cannot be deleted; `options` is the strategy's
+ * JSON object (a `local` connection names its account store as `{ "store": "<name>" }`).
+ */
+export type ConnectionResource = {
+  readonly tenantId: string;
+  readonly connectionId: string;
+  readonly concurrencyToken: string;
+  readonly name: string;
+  readonly displayName: string;
+  readonly strategy: string;
+  readonly isSystem: boolean;
+  readonly isEnabled: boolean;
+  readonly options: Readonly<Record<string, unknown>>;
+};
+
+/**
+ * Mirror of `CreateConnectionRequest`. The connection id is server-generated; `name` is the operator-chosen, immutable
+ * name. `options` and `settings` default to empty objects when omitted.
+ */
+export type CreateConnectionRequest = {
+  readonly name: string;
+  readonly displayName: string;
+  readonly strategy: string;
+  readonly isEnabled?: boolean;
+  readonly options?: Readonly<Record<string, unknown>>;
+  readonly settings?: Readonly<Record<string, unknown>>;
+};
+
+/**
+ * The mutable connection fields a JSON Patch may modify (`name` and `strategy` are immutable; settings have their own
+ * surface). The store turns this into a `replace`-only JSON Patch document; keys match the server's wire property
+ * names.
+ */
+export type UpdateConnectionFields = {
+  readonly displayName: string;
+  readonly isEnabled: boolean;
+  readonly options: Readonly<Record<string, unknown>>;
+};
+
+/** Mirror of `ConnectionSettingsResource`: the `connection`-scope settings document of one connection. */
+export type ConnectionSettingsResource = {
+  readonly tenantId: string;
+  readonly connectionId: string;
+  readonly concurrencyToken: string;
+  readonly settings: Readonly<Record<string, unknown>>;
 };
 
 /** Mirror of `ScopeResource` — a scope (a permission, in Auth0 terms) owned by a resource server. */

@@ -116,6 +116,67 @@ describe('readServerPage', () => {
     );
   });
 
+  it('reads every option of the connection picker and the selected one', () => {
+    const container = pageOf(
+      '<select id="connection" name="connection"><option value="local">Local</option><option value="corp" selected>Corp</option></select>',
+    );
+
+    const page = readServerPage(container, null);
+
+    expect(page.connections).toEqual([
+      { name: 'local', displayName: 'Local' },
+      { name: 'corp', displayName: 'Corp' },
+    ]);
+    expect(page.selectedConnection).toBe('corp');
+  });
+
+  it('reads no selected connection when the picker preselects none', () => {
+    const container = pageOf(
+      '<select id="connection" name="connection"><option value=""></option><option value="local">Local</option><option value="corp">Corp</option></select>',
+    );
+
+    const page = readServerPage(container, null);
+
+    expect(page.connections).toEqual([
+      { name: 'local', displayName: 'Local' },
+      { name: 'corp', displayName: 'Corp' },
+    ]);
+    expect(page.selectedConnection).toBeNull();
+  });
+
+  it('reads the live value of the picker, not its selected attribute', () => {
+    const container = pageOf(
+      '<select id="connection" name="connection"><option value=""></option><option value="local">Local</option><option value="corp">Corp</option></select>',
+    );
+    container.querySelector<HTMLSelectElement>('select#connection')!.value = 'corp';
+
+    const page = readServerPage(container, null);
+
+    expect(page.selectedConnection).toBe('corp');
+    expect(page.connections.map((connection) => connection.name)).toEqual(['local', 'corp']);
+  });
+
+  it('names an option by its value when it has no text', () => {
+    const container = pageOf(
+      '<select id="connection" name="connection"><option value="local">Local</option></select>',
+    );
+    const option = container.querySelector('option')!;
+    Object.defineProperty(option, 'textContent', { value: null });
+
+    const page = readServerPage(container, null);
+
+    expect(page.connections).toEqual([{ name: 'local', displayName: 'local' }]);
+  });
+
+  it('reads the hidden connection field as the one connection', () => {
+    const container = pageOf('<input type="hidden" name="connection" value="local" />');
+
+    const page = readServerPage(container, null);
+
+    expect(page.connections).toEqual([{ name: 'local', displayName: 'local' }]);
+    expect(page.selectedConnection).toBe('local');
+  });
+
   it('reads no forgot-password address when the page has no link', () => {
     const container = pageOf('<a href="elsewhere">Elsewhere</a>');
 

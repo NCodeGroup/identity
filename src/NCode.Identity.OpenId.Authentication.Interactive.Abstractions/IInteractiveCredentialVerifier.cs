@@ -4,6 +4,7 @@
 using System.Security.Claims;
 using JetBrains.Annotations;
 using NCode.Buffers;
+using NCode.Identity.OpenId.Connections;
 using NCode.Identity.OpenId.Contexts;
 
 namespace NCode.Identity.OpenId.Authentication.Interactive;
@@ -25,6 +26,7 @@ public interface IInteractiveCredentialVerifier
     /// </summary>
     /// <param name="openIdContext">The resolved <see cref="OpenIdContext"/> whose tenant scopes the credential lookup
     /// and supplies the subject/issuer claim configuration.</param>
+    /// <param name="connection">The <see cref="ResolvedConnection"/> the end user signs in through.</param>
     /// <param name="username">The submitted username.</param>
     /// <param name="password">The submitted password, which the caller owns and disposes.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the
@@ -33,6 +35,7 @@ public interface IInteractiveCredentialVerifier
     /// <see langword="null"/>.</returns>
     ValueTask<ClaimsPrincipal?> VerifyCredentialAsync(
         OpenIdContext openIdContext,
+        ResolvedConnection connection,
         string username,
         Secret<char> password,
         CancellationToken cancellationToken

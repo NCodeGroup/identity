@@ -224,9 +224,14 @@ than inlining the rationale.
 - 👁 **An `.Abstractions` package holds contracts, data and the pure form rules of the values its contracts carry**
   (`TenantIdentifierRules`, `CellLabelRules`, `AbsoluteUri`, `DatabaseRoleNameRules` with the Postgres identifier
   quoting and runtime-role grant statements built on it, `PostgresIdentifiers` and `RuntimeRoleGrants`, and
-  `ExpiringKeys`, and the UUIDv7 default of `ISurrogateKeyGenerator` with `AddSurrogateKeyGenerator()`, and
-  `PageCursorProtectorExtensions`, the big-endian cursor position of a surrogate key), so every implementation of a
-  contract applies one rule; it holds no service logic and never logs. See
+  `ExpiringKeys`, `ConnectionNameRules`, and the UUIDv7 default of `ISurrogateKeyGenerator` with
+  `AddSurrogateKeyGenerator()`, and `LocalAccountStoreCatalog`, `LocalConnectionStrategy`,
+  `LocalAccountStoreCatalogWarmup` (resolves the catalog as the host starts, so a bad registration stops the host) and
+  `AddLocalAccountStore()`, which every local-account store registration calls, `LocalAccountIdentifierShadowing`,
+  which the management validator and the seeded-account validator of `NCode.Identity.Server` both call and which
+  implementation packages that cannot reference each other cannot host, and `PageCursorProtectorExtensions`,
+  the big-endian cursor position of a surrogate key), so every implementation of a contract applies one rule; it holds
+  no service logic and never logs. See
   [ADR-1500](../../docs/decisions/1500-every-package-names-one-capability-under-the-ncode-identity-prefix-as-an-abstractions-and-implementation-pair.md) and
   [ADR-1517](../../docs/decisions/1517-internal-surrogate-keys-are-uuidv7-minted-in-process-behind-one-seam-and-never-reach-a-caller.md).
 - 👁 **Mark infrastructure-public types** — template [Public API](csharp.instructions.md#public-api), with the summary
@@ -543,9 +548,9 @@ than inlining the rationale.
   a _presence marker_ minted by every implementation.** Two seams own one: the persistence framework owns
   `StoreManagerLibrary` (`NCode.Identity.Persistence.Abstractions`, minted by `AddEntityFrameworkCorePersistence`), and
   the local-account store owns `LocalAccountLibrary` (per
-  [ADR-1051](../../docs/decisions/1051-a-local-account-is-a-self-issued-connection-behind-one-pluggable-store-seam.md)):
+  [ADR-1051](../../docs/decisions/1051-a-local-account-belongs-to-one-local-connection-behind-a-named-pluggable-store-seam.md)):
   each store registration (`AddLocalAccountEntityFramework`, `AddAspNetIdentityLocalAccountStore`, a custom store)
-  receives `IServiceBuilder<StoreManagerLibrary>` and **returns** `IServiceBuilder<LocalAccountLibrary>`, and the
+  registers under a store name and receives `IServiceBuilder<StoreManagerLibrary>` and **returns** `IServiceBuilder<LocalAccountLibrary>`, and the
   account bolt-ons take it as a **required `IServiceBuilder<LocalAccountLibrary>` parameter** (their receiver stays the
   OpenId library they extend), so a capability cannot even be written without a store (the accepted cost: a custom store
   must mint/return it too). Pure contract/DTO abstractions, cross-library helpers, foundational marker-less
@@ -844,7 +849,8 @@ than inlining the rationale.
   ([ADR-1236](../../docs/decisions/1236-a-password-is-judged-by-one-policy-wherever-it-is-set.md)).
 - 👁 **Every password verification goes through `IPasswordAttemptLimiter`, inside the store's one lookup.** Pass
   the `IsRefusedAsync` of a `PasswordAttemptGate`, which asks `IsLimitReachedAsync`, as the `isRefusedAsync` of
-  `ILocalAccountStore.VerifyCredentialAsync`, and answer the result of its `Enforce`, which fails a store that never
+  `ILocalAccountStore.VerifyCredentialAsync`, which receives the account key (the found account's id, or the submitted
+  identifier when none matches), and answer the result of its `Enforce`, which fails a store that never
   asked and refuses a result verified after a refusal: the store looks the account up once, asks it about the user
   name the account holds (or the submitted name when none has it), and verifies a refused password against its dummy
   hash, so a refusal costs and answers what a wrong password does. Call `RecordFailureAsync` with

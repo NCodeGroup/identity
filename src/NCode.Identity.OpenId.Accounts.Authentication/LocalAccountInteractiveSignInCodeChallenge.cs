@@ -24,11 +24,16 @@ namespace NCode.Identity.OpenId.Accounts.Authentication;
 // See ADR-1533.
 internal sealed class LocalAccountInteractiveSignInCodeChallenge(
     IStoreManagerFactory storeManagerFactory,
+    LocalAccountSignedInAccountFinder signedInAccountFinder,
+    LocalAccountStoreCatalog localAccountStoreCatalog,
     ILocalAccountEmailCodes emailCodes,
     IAuditEventRecorder auditEventRecorder
 ) : IInteractiveSignInCodeChallenge
 {
     private IStoreManagerFactory StoreManagerFactory { get; } = storeManagerFactory;
+    private LocalAccountSignedInAccountFinder SignedInAccountFinder { get; } =
+        signedInAccountFinder;
+    private LocalAccountStoreCatalog LocalAccountStoreCatalog { get; } = localAccountStoreCatalog;
     private ILocalAccountEmailCodes EmailCodes { get; } = emailCodes;
     private IAuditEventRecorder AuditEventRecorder { get; } = auditEventRecorder;
 
@@ -40,14 +45,13 @@ internal sealed class LocalAccountInteractiveSignInCodeChallenge(
         CancellationToken cancellationToken
     )
     {
-        var account = await LocalAccountSignedInAccounts.FindAsync(
-            StoreManagerFactory,
+        var found = await SignedInAccountFinder.FindAsync(
             openIdContext,
             principal,
             cancellationToken
         );
 
-        if (account is not { IsEnabled: true })
+        if (found is not { Account: { IsEnabled: true } account })
         {
             return InteractiveEmailCodeResult.NotSupported;
         }
@@ -128,13 +132,13 @@ internal sealed class LocalAccountInteractiveSignInCodeChallenge(
     {
         await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
 
-        var account = await LocalAccountSignedInAccounts.FindAsync(
+        var found = await SignedInAccountFinder.FindAsync(
             storeManager,
             openIdContext,
             principal,
             cancellationToken
         );
-        if (account is not { IsEnabled: true })
+        if (found is not { Account: { IsEnabled: true } account, Connection: var connection })
         {
             return InteractiveEmailCodeResult.NotSupported;
         }
@@ -161,7 +165,10 @@ internal sealed class LocalAccountInteractiveSignInCodeChallenge(
 
         if (!account.EmailVerified)
         {
-            var accountStore = storeManager.GetStore<ILocalAccountStore>();
+            var accountStore = LocalAccountStoreCatalog.GetStore(
+                storeManager,
+                connection.Connection
+            );
             account.EmailVerified = true;
             await accountStore.UpdateAsync(account, cancellationToken);
             await storeManager.SaveChangesAsync(cancellationToken);

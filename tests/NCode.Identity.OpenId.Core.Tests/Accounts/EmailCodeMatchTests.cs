@@ -19,6 +19,7 @@ public class EmailCodeMatchTests : BaseTests
         new()
         {
             TenantId = "tenant-1",
+            ConnectionId = LocalAccountStoreSetup.ConnectionId,
             LocalAccountId = localAccountId,
             UserName = "user",
             DisplayName = "Display Name",
@@ -34,7 +35,11 @@ public class EmailCodeMatchTests : BaseTests
     [Fact]
     public void IsFor_WhenTheAccountAndAddressMatchIgnoringCase_ReturnsTrue()
     {
-        var match = new EmailCodeMatch(LocalAccountId, "USER@EXAMPLE.COM");
+        var match = new EmailCodeMatch(
+            LocalAccountStoreSetup.ConnectionId,
+            LocalAccountId,
+            "USER@EXAMPLE.COM"
+        );
 
         var result = match.IsFor(Account());
 
@@ -44,7 +49,7 @@ public class EmailCodeMatchTests : BaseTests
     [Fact]
     public void IsFor_ForAnotherAccount_ReturnsFalse()
     {
-        var match = new EmailCodeMatch(LocalAccountId, Email);
+        var match = new EmailCodeMatch(LocalAccountStoreSetup.ConnectionId, LocalAccountId, Email);
 
         var result = match.IsFor(Account(localAccountId: "account-2"));
 
@@ -52,9 +57,23 @@ public class EmailCodeMatchTests : BaseTests
     }
 
     [Fact]
+    public void IsFor_ForAnotherConnection_ReturnsFalse()
+    {
+        var match = new EmailCodeMatch("connection-2", LocalAccountId, Email);
+
+        var result = match.IsFor(Account());
+
+        Assert.False(result);
+    }
+
+    [Fact]
     public void IsFor_WhenTheAddressDiffers_ReturnsFalse()
     {
-        var match = new EmailCodeMatch(LocalAccountId, "old@example.com");
+        var match = new EmailCodeMatch(
+            LocalAccountStoreSetup.ConnectionId,
+            LocalAccountId,
+            "old@example.com"
+        );
 
         var result = match.IsFor(Account());
 

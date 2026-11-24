@@ -8,9 +8,10 @@ using System.Text.Json;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using NCode.Buffers;
+using NCode.Identity.Json;
 using NCode.Identity.OpenId.Accounts.DataContracts;
-using NCode.Identity.OpenId.Accounts.Stores;
 using NCode.Identity.OpenId.Authentication.Interactive;
+using NCode.Identity.OpenId.Connections;
 using NCode.Identity.OpenId.Integration.Tests.Infrastructure;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
@@ -30,6 +31,7 @@ namespace NCode.Identity.OpenId.Integration.Tests.Endpoints;
 public class InteractiveTenantRouteTests
 {
     private const string UserName = "alice";
+    private const string LocalConnectionId = "local-connection";
     private const string Password = "alice-password";
     private const string SessionCookieName = InteractiveLogin.SessionCookieName;
     private const string AntiforgeryRequestCookieName = "__Host-XSRF-TOKEN";
@@ -719,7 +721,33 @@ public class InteractiveTenantRouteTests
         }.Build();
         await storeManager.GetStore<ITenantStore>().AddAsync(tenant, cancellationToken);
         await storeManager.SaveChangesAsync(cancellationToken);
+
+        await storeManager
+            .GetStore<IConnectionStore>()
+            .AddAsync(CreateLocalConnection(tenantId), cancellationToken);
+        await storeManager.SaveChangesAsync(cancellationToken);
     }
+
+    private static PersistedConnection CreateLocalConnection(string tenantId) =>
+        new()
+        {
+            TenantId = tenantId,
+            ConnectionId = LocalConnectionId,
+            Name = ConnectionDefaults.Name,
+            Strategy = ConnectionStrategyNames.Local,
+            DisplayName = "Username and password",
+            IsSystem = false,
+            IsEnabled = true,
+            Options = JsonSerializer.SerializeToElement(
+                new LocalConnectionOptions { Store = LocalAccountStoreNames.Default }
+            ),
+            Settings = new PersistedConnectionSettings
+            {
+                TenantId = tenantId,
+                ConnectionId = LocalConnectionId,
+                Value = JsonElements.EmptyObject,
+            },
+        };
 
     private static async ValueTask SeedLocalAccountAsync(
         HostApplicationFactory factory,
@@ -732,12 +760,17 @@ public class InteractiveTenantRouteTests
         await using var storeManager = await storeManagerFactory.CreateAsync(cancellationToken);
 
         // The store hashes the credential and generates the security stamp internally.
-        await storeManager
-            .GetStore<ILocalAccountStore>()
+        await HostApplicationFactory
+            .GetLocalAccountStore(
+                scope.ServiceProvider,
+                storeManager,
+                CreateLocalConnection(tenantId)
+            )
             .AddAsync(
                 new PersistedLocalAccount
                 {
                     TenantId = tenantId,
+                    ConnectionId = LocalConnectionId,
                     LocalAccountId = Guid.NewGuid().ToString("N"),
                     UserName = UserName,
                     DisplayName = UserName,

@@ -10,6 +10,7 @@ using NCode.Identity.OpenId.Authentication.Endpoints.Authorization.Messages;
 using NCode.Identity.OpenId.Authentication.Endpoints.Authorization.Results;
 using NCode.Identity.OpenId.Authentication.Pkce;
 using NCode.Identity.OpenId.Authentication.ResourceServers;
+using NCode.Identity.OpenId.Connections;
 using NCode.Identity.OpenId.Contexts;
 using NCode.Identity.OpenId.Errors;
 using NCode.Identity.OpenId.Settings;
@@ -23,13 +24,15 @@ namespace NCode.Identity.OpenId.Authentication.Endpoints.Authorization.Handlers;
 /// </summary>
 internal class DefaultValidateAuthorizationRequestHandler(
     IClientScopeService clientScopeService,
-    ISecurityProfileCatalog securityProfileCatalog
+    ISecurityProfileCatalog securityProfileCatalog,
+    IConnectionResolver connectionResolver
 ) : ICommandHandler<ValidateAuthorizationRequestCommand>, ISupportMediatorPriority
 {
     private const int Sha256ThumbprintLength = 43;
 
     private IClientScopeService ClientScopeService { get; } = clientScopeService;
     private ISecurityProfileCatalog SecurityProfileCatalog { get; } = securityProfileCatalog;
+    private IConnectionResolver ConnectionResolver { get; } = connectionResolver;
 
     /// <inheritdoc />
     public int MediatorPriority => DefaultMediatorPriorities.High;
@@ -67,6 +70,13 @@ internal class DefaultValidateAuthorizationRequestHandler(
             cancellationToken
         );
 
+        await ValidateRequestedConnectionAsync(
+            openIdContext,
+            openIdClient,
+            authorizationRequest,
+            cancellationToken
+        );
+
         // A requested scope must be permitted by the client's grants (ADR-1026).
         var allowedScopes = await ClientScopeService.GetAllowedScopesAsync(
             openIdContext.Tenant.TenantId,
@@ -91,6 +101,39 @@ internal class DefaultValidateAuthorizationRequestHandler(
                     )
                     .AsException();
         }
+    }
+
+    /// <summary>
+    /// Validates the requested connection. A requested connection (the <c>connection</c> parameter, else the first
+    /// <c>idp:</c> <c>acr_values</c> value) must name an enabled connection that the client's
+    /// <c>allowed_connections</c> allows; a request that names none is not checked.
+    /// </summary>
+    /// <param name="openIdContext">The <see cref="OpenIdContext"/> of the request.</param>
+    /// <param name="openIdClient">The <see cref="OpenIdClient"/> whose settings select the connection.</param>
+    /// <param name="authorizationRequest">The authorization request that may name a connection.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    private async ValueTask ValidateRequestedConnectionAsync(
+        OpenIdContext openIdContext,
+        OpenIdClient openIdClient,
+        IAuthorizationRequest authorizationRequest,
+        CancellationToken cancellationToken
+    )
+    {
+        var requestedName = ConnectionRequests.GetRequestedName(
+            authorizationRequest.Connection,
+            authorizationRequest.AcrValues
+        );
+        if (requestedName is null)
+            return;
+
+        var selection = await ConnectionResolver.SelectAsync(
+            openIdContext,
+            openIdClient.Settings,
+            requestedName,
+            cancellationToken
+        );
+        if (selection.ErrorDescription is { } errorDescription)
+            throw openIdContext.ErrorFactory.InvalidRequest(errorDescription).AsException();
     }
 
     // The effective request carries response_type and redirect_uri: the request object's values when there is one

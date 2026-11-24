@@ -79,6 +79,14 @@ describe('routePath', () => {
     );
   });
 
+  it('nests the connections surface after resource-servers under its tenant', () => {
+    expect(routePath(tenantRoute('acme', 'connections'))).toBe('/tenants/acme/connections');
+    expect(parseRoute('/tenants/acme/connections')).toEqual(tenantRoute('acme', 'connections'));
+    expect(TENANT_SURFACES.indexOf('connections')).toBe(
+      TENANT_SURFACES.indexOf('resource-servers') + 1,
+    );
+  });
+
   it("nests each of the tenant's own surfaces under its tenant", () => {
     expect(routePath(tenantRoute('acme', 'secrets'))).toBe('/tenants/acme/secrets');
     expect(routePath(tenantRoute('acme', 'encryption-keys'))).toBe('/tenants/acme/encryption-keys');

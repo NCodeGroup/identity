@@ -14,8 +14,8 @@ namespace NCode.Identity.OpenId.Accounts.Management;
 
 /// <summary>
 /// Maps the routes that create and list the local accounts of the platform, which the root group serves because they
-/// name no tenant. The accounts belong to the control-plane tenant, so the routes are mapped only on the control-plane
-/// cell.
+/// name no tenant. The accounts belong to the local connection that the control-plane tenant's
+/// <c>default_connection</c> setting names, so the routes are mapped only on the control-plane cell.
 /// </summary>
 internal sealed class PlatformLocalAccountEndpointProvider(
     LocalAccountApiEndpointHandler handler,
@@ -52,6 +52,7 @@ internal sealed class PlatformLocalAccountEndpointProvider(
             .Produces<CollectionResource<LocalAccountResource>>()
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status401Unauthorized)
-            .ProducesProblem(StatusCodes.Status403Forbidden);
+            .ProducesProblem(StatusCodes.Status403Forbidden)
+            .ProducesProblem(StatusCodes.Status404NotFound);
     }
 }

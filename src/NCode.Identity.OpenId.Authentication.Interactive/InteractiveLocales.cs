@@ -35,6 +35,7 @@ public static class InteractiveLocales
             {
                 SignInTitle = "Sign in",
                 UsernameLabel = "Username",
+                ConnectionLabel = "Sign in with",
                 PasswordLabel = "Password",
                 SignInButton = "Sign in",
                 AuthorizeAccessTitle = "Authorize access",
@@ -49,6 +50,9 @@ public static class InteractiveLocales
                 AuthorizationErrorTitle = "Authorization error",
                 InvalidCredentialsError = "The username or password is incorrect.",
                 MissingCredentialsError = "Enter both a username and a password.",
+                ConnectionRequiredError = "Choose a connection.",
+                ConnectionUnavailableError =
+                    "This connection is not available. Choose another one.",
                 AccessDeniedError = "This account cannot sign in. Contact your administrator.",
                 SignInFailedError = "Sign-in failed. Please try again.",
                 ForgotPasswordLink = "Forgot your password?",
@@ -100,6 +104,7 @@ public static class InteractiveLocales
             {
                 SignInTitle = "Anmelden",
                 UsernameLabel = "Benutzername",
+                ConnectionLabel = "Anmelden mit",
                 PasswordLabel = "Passwort",
                 SignInButton = "Anmelden",
                 AuthorizeAccessTitle = "Zugriff autorisieren",
@@ -115,6 +120,9 @@ public static class InteractiveLocales
                 InvalidCredentialsError = "Der Benutzername oder das Passwort ist falsch.",
                 MissingCredentialsError =
                     "Geben Sie sowohl einen Benutzernamen als auch ein Passwort ein.",
+                ConnectionRequiredError = "Wählen Sie eine Verbindung aus.",
+                ConnectionUnavailableError =
+                    "Diese Verbindung ist nicht verfügbar. Wählen Sie eine andere aus.",
                 AccessDeniedError =
                     "Dieses Konto kann sich nicht anmelden. Wenden Sie sich an Ihren Administrator.",
                 SignInFailedError =
@@ -170,6 +178,7 @@ public static class InteractiveLocales
             {
                 SignInTitle = "Iniciar sesión",
                 UsernameLabel = "Nombre de usuario",
+                ConnectionLabel = "Iniciar sesión con",
                 PasswordLabel = "Contraseña",
                 SignInButton = "Iniciar sesión",
                 AuthorizeAccessTitle = "Autorizar acceso",
@@ -183,6 +192,8 @@ public static class InteractiveLocales
                 AuthorizationErrorTitle = "Error de autorización",
                 InvalidCredentialsError = "El nombre de usuario o la contraseña no son correctos.",
                 MissingCredentialsError = "Introduzca un nombre de usuario y una contraseña.",
+                ConnectionRequiredError = "Elija una conexión.",
+                ConnectionUnavailableError = "Esta conexión no está disponible. Elija otra.",
                 AccessDeniedError =
                     "Esta cuenta no puede iniciar sesión. Póngase en contacto con su administrador.",
                 SignInFailedError = "No se pudo iniciar sesión. Inténtelo de nuevo.",
@@ -236,6 +247,7 @@ public static class InteractiveLocales
             {
                 SignInTitle = "Se connecter",
                 UsernameLabel = "Nom d’utilisateur",
+                ConnectionLabel = "Se connecter avec",
                 PasswordLabel = "Mot de passe",
                 SignInButton = "Se connecter",
                 AuthorizeAccessTitle = "Autoriser l’accès",
@@ -250,6 +262,9 @@ public static class InteractiveLocales
                 AuthorizationErrorTitle = "Erreur d’autorisation",
                 InvalidCredentialsError = "Le nom d’utilisateur ou le mot de passe est incorrect.",
                 MissingCredentialsError = "Saisissez un nom d’utilisateur et un mot de passe.",
+                ConnectionRequiredError = "Choisissez une connexion.",
+                ConnectionUnavailableError =
+                    "Cette connexion n’est pas disponible. Choisissez-en une autre.",
                 AccessDeniedError =
                     "Ce compte ne peut pas se connecter. Contactez votre administrateur.",
                 SignInFailedError = "La connexion a échoué. Veuillez réessayer.",

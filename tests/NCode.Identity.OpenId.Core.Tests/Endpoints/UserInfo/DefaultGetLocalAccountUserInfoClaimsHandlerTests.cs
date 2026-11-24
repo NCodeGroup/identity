@@ -6,7 +6,6 @@ using System.Text.Json.Nodes;
 using Microsoft.AspNetCore.Authentication;
 using Moq;
 using NCode.Identity.Jose;
-using NCode.Identity.OpenId.Accounts;
 using NCode.Identity.OpenId.Accounts.Authentication;
 using NCode.Identity.OpenId.Accounts.DataContracts;
 using NCode.Identity.OpenId.Accounts.Stores;
@@ -14,11 +13,14 @@ using NCode.Identity.OpenId.Authentication.Endpoints.Authorization.Messages;
 using NCode.Identity.OpenId.Authentication.Endpoints.UserInfo.Commands;
 using NCode.Identity.OpenId.Authentication.Persistence;
 using NCode.Identity.OpenId.Authentication.Subject;
+using NCode.Identity.OpenId.Connections;
 using NCode.Identity.OpenId.Contexts;
+using NCode.Identity.OpenId.Core.Tests.Accounts;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
 using NCode.Identity.OpenId.Tenants;
 using NCode.Identity.Persistence.Stores;
+using NCode.Identity.Settings;
 using Xunit;
 
 namespace NCode.Identity.OpenId.Core.Tests.Endpoints.UserInfo;
@@ -29,12 +31,16 @@ public class DefaultGetLocalAccountUserInfoClaimsHandlerTests : BaseTests
     private const string PrincipalId = "principal-1";
     private const string LocalAccountId = "account-1";
     private const string AccessTokenId = "jti-1";
+    private const string ExternalConnectionId = "connection-ext";
+    private const string OtherConnectionId = "connection-2";
+    private const string OtherLocalAccountId = "account-2";
 
     private Mock<IStoreManagerFactory> MockStoreManagerFactory { get; }
     private Mock<IStoreManager> MockStoreManager { get; }
     private Mock<IFederatedIdentityStore> MockFederatedIdentityStore { get; }
     private Mock<ILocalAccountStore> MockLocalAccountStore { get; }
     private Mock<IPersistedGrantService> MockPersistedGrantService { get; }
+    private Mock<IConnectionResolver> MockConnectionResolver { get; }
     private DefaultGetLocalAccountUserInfoClaimsHandler Handler { get; }
 
     public DefaultGetLocalAccountUserInfoClaimsHandlerTests()
@@ -44,9 +50,15 @@ public class DefaultGetLocalAccountUserInfoClaimsHandlerTests : BaseTests
         MockFederatedIdentityStore = CreateStrictMock<IFederatedIdentityStore>();
         MockLocalAccountStore = CreateStrictMock<ILocalAccountStore>();
         MockPersistedGrantService = CreateStrictMock<IPersistedGrantService>();
+        MockConnectionResolver = CreateStrictMock<IConnectionResolver>();
         Handler = new DefaultGetLocalAccountUserInfoClaimsHandler(
             MockStoreManagerFactory.Object,
-            MockPersistedGrantService.Object
+            MockPersistedGrantService.Object,
+            new LocalAccountSignedInAccountFinder(
+                MockStoreManagerFactory.Object,
+                MockConnectionResolver.Object,
+                LocalAccountStoreSetup.CreateCatalog(MockLocalAccountStore)
+            )
         );
     }
 
@@ -71,25 +83,45 @@ public class DefaultGetLocalAccountUserInfoClaimsHandlerTests : BaseTests
             .ReturnsAsync(identities)
             .Verifiable();
 
+    private void SetupConnection(
+        string connectionId,
+        string strategy = ConnectionStrategyNames.Local
+    ) =>
+        MockConnectionResolver
+            .Setup(x =>
+                x.GetByIdOrDefaultAsync(
+                    It.IsAny<OpenIdContext>(),
+                    connectionId,
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync(
+                LocalAccountStoreSetup.CreateConnection(
+                    TenantId,
+                    CreateStrictMock<IReadOnlySettingCollection>().Object,
+                    strategy,
+                    connectionId
+                )
+            )
+            .Verifiable();
+
     private void SetupAccount(PersistedLocalAccount? account)
     {
-        MockStoreManager
-            .Setup(x => x.GetStore<ILocalAccountStore>())
-            .Returns(MockLocalAccountStore.Object)
-            .Verifiable();
+        SetupConnection(LocalAccountStoreSetup.ConnectionId);
         MockLocalAccountStore
             .Setup(x => x.GetByIdOrDefaultAsync(LocalAccountId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(account)
             .Verifiable();
     }
 
-    private static PersistedFederatedIdentity SelfIssuedIdentity() =>
+    private static PersistedFederatedIdentity LocalIdentity() =>
         new()
         {
             TenantId = TenantId,
             FederatedIdentityId = "fed-1",
             PrincipalId = PrincipalId,
-            Issuer = AccountConstants.SelfIssuer,
+            ConnectionId = LocalAccountStoreSetup.ConnectionId,
+            Issuer = null,
             Subject = LocalAccountId,
             JoinKey = null,
             ConcurrencyToken = string.Empty,
@@ -101,6 +133,7 @@ public class DefaultGetLocalAccountUserInfoClaimsHandlerTests : BaseTests
             TenantId = TenantId,
             FederatedIdentityId = "fed-ext",
             PrincipalId = PrincipalId,
+            ConnectionId = ExternalConnectionId,
             Issuer = "https://external.example.com",
             Subject = "external-subject",
             JoinKey = null,
@@ -115,6 +148,7 @@ public class DefaultGetLocalAccountUserInfoClaimsHandlerTests : BaseTests
         new()
         {
             TenantId = TenantId,
+            ConnectionId = LocalAccountStoreSetup.ConnectionId,
             LocalAccountId = LocalAccountId,
             UserName = "user",
             DisplayName = "Display Name",
@@ -139,10 +173,16 @@ public class DefaultGetLocalAccountUserInfoClaimsHandlerTests : BaseTests
     private GetUserInfoClaimsCommand CreateCommandCore(
         IDictionary<string, object> claims,
         string? jti,
-        string[] scopes
+        string[] scopes,
+        string? connectionId = null
     )
     {
         var identity = new ClaimsIdentity("test");
+        if (!string.IsNullOrEmpty(connectionId))
+        {
+            identity.AddClaim(new Claim(ConnectionClaimTypes.Connection, connectionId));
+        }
+
         if (scopes.Length > 0)
         {
             identity.AddClaim(new Claim(JoseClaimNames.Payload.Scope, string.Join(' ', scopes)));
@@ -161,6 +201,7 @@ public class DefaultGetLocalAccountUserInfoClaimsHandlerTests : BaseTests
         );
 
         var mockContext = CreateStrictMock<OpenIdContext>();
+        mockContext.Setup(x => x.GetSubjectId(subjectAuthentication.Subject)).Returns(PrincipalId);
         if (!string.IsNullOrEmpty(jti))
         {
             var mockTenant = CreateStrictMock<OpenIdTenant>();
@@ -231,7 +272,7 @@ public class DefaultGetLocalAccountUserInfoClaimsHandlerTests : BaseTests
     public async Task HandleAsync_WhenProfileAndEmailScopes_AddsAccountClaims()
     {
         SetupStoreManager();
-        SetupIdentities(SelfIssuedIdentity());
+        SetupIdentities(LocalIdentity());
         SetupAccount(
             Account(
                 "user@localhost",
@@ -269,7 +310,7 @@ public class DefaultGetLocalAccountUserInfoClaimsHandlerTests : BaseTests
     public async Task HandleAsync_WithProfileScope_ReturnsTheDisplayNameAsName()
     {
         SetupStoreManager();
-        SetupIdentities(SelfIssuedIdentity());
+        SetupIdentities(LocalIdentity());
         SetupAccount(Account("user@localhost", emailVerified: true));
 
         var claims = new Dictionary<string, object>();
@@ -288,7 +329,7 @@ public class DefaultGetLocalAccountUserInfoClaimsHandlerTests : BaseTests
     public async Task HandleAsync_WithoutProfileScope_OmitsName()
     {
         SetupStoreManager();
-        SetupIdentities(SelfIssuedIdentity());
+        SetupIdentities(LocalIdentity());
         SetupAccount(Account("user@localhost", emailVerified: true));
 
         var claims = new Dictionary<string, object>();
@@ -307,7 +348,7 @@ public class DefaultGetLocalAccountUserInfoClaimsHandlerTests : BaseTests
     public async Task HandleAsync_WhenOnlyEmailScope_OmitsProfileClaims()
     {
         SetupStoreManager();
-        SetupIdentities(SelfIssuedIdentity());
+        SetupIdentities(LocalIdentity());
         SetupAccount(
             Account(
                 "user@localhost",
@@ -335,10 +376,11 @@ public class DefaultGetLocalAccountUserInfoClaimsHandlerTests : BaseTests
     }
 
     [Fact]
-    public async Task HandleAsync_WhenNoSelfIssuedConnection_DoesNotResolveAccount()
+    public async Task HandleAsync_WhenNoLocalConnection_DoesNotResolveAccount()
     {
         SetupStoreManager();
         SetupIdentities(ExternalIdentity());
+        SetupConnection(ExternalConnectionId, strategy: "external");
 
         var claims = new Dictionary<string, object>();
         var command = CreateCommand(
@@ -352,11 +394,141 @@ public class DefaultGetLocalAccountUserInfoClaimsHandlerTests : BaseTests
         Assert.Empty(claims);
     }
 
+    private static PersistedFederatedIdentity OtherLocalIdentity() =>
+        new()
+        {
+            TenantId = TenantId,
+            FederatedIdentityId = "fed-2",
+            PrincipalId = PrincipalId,
+            ConnectionId = OtherConnectionId,
+            Issuer = null,
+            Subject = OtherLocalAccountId,
+            JoinKey = null,
+            ConcurrencyToken = string.Empty,
+        };
+
+    private static PersistedLocalAccount OtherAccount() =>
+        new()
+        {
+            TenantId = TenantId,
+            ConnectionId = OtherConnectionId,
+            LocalAccountId = OtherLocalAccountId,
+            UserName = "other",
+            DisplayName = "Other Name",
+            Email = "other@localhost",
+            EmailVerified = true,
+            IsEnabled = true,
+            Claims = [],
+            ConcurrencyToken = string.Empty,
+        };
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task HandleAsync_WhenSeveralLocalIdentities_ServesTheClaimedConnectionsAccount(
+        bool claimedFirst
+    )
+    {
+        SetupStoreManager();
+        var first = LocalIdentity();
+        var second = OtherLocalIdentity();
+        SetupIdentities(claimedFirst ? [second, first] : [first, second]);
+        SetupConnection(OtherConnectionId);
+        MockLocalAccountStore
+            .Setup(x => x.GetByIdOrDefaultAsync(OtherLocalAccountId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OtherAccount());
+
+        var claims = new Dictionary<string, object>();
+        var command = CreateCommandCore(
+            claims,
+            jti: null,
+            [OpenIdProtocol.ScopeTypes.OpenId, OpenIdProtocol.ScopeTypes.Email],
+            OtherConnectionId
+        );
+
+        await Handler.HandleAsync(command, CancellationToken.None);
+
+        Assert.Equal("other@localhost", claims[JoseClaimNames.Payload.Email]);
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenNoConnectionClaimAndSeveralLocalIdentities_ServesNothing()
+    {
+        SetupStoreManager();
+        SetupIdentities(LocalIdentity(), OtherLocalIdentity());
+        SetupConnection(LocalAccountStoreSetup.ConnectionId);
+        SetupConnection(OtherConnectionId);
+
+        var claims = new Dictionary<string, object>();
+        var command = CreateCommand(
+            claims,
+            OpenIdProtocol.ScopeTypes.OpenId,
+            OpenIdProtocol.ScopeTypes.Email
+        );
+
+        await Handler.HandleAsync(command, CancellationToken.None);
+
+        Assert.Empty(claims);
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenNoConnectionClaimAndOneLocalIdentity_ServesItsAccount()
+    {
+        SetupStoreManager();
+        SetupIdentities(LocalIdentity(), ExternalIdentity());
+        SetupConnection(ExternalConnectionId, strategy: "external");
+        SetupAccount(Account("user@localhost", emailVerified: true));
+
+        var claims = new Dictionary<string, object>();
+        var command = CreateCommand(
+            claims,
+            OpenIdProtocol.ScopeTypes.OpenId,
+            OpenIdProtocol.ScopeTypes.Email
+        );
+
+        await Handler.HandleAsync(command, CancellationToken.None);
+
+        Assert.Equal("user@localhost", claims[JoseClaimNames.Payload.Email]);
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenTheLocalConnectionIsDisabled_ServesNothing()
+    {
+        SetupStoreManager();
+        SetupIdentities(LocalIdentity());
+        MockConnectionResolver
+            .Setup(x =>
+                x.GetByIdOrDefaultAsync(
+                    It.IsAny<OpenIdContext>(),
+                    LocalAccountStoreSetup.ConnectionId,
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync(
+                LocalAccountSignedInAccountFinderTests.CreateDisabledConnection(
+                    TenantId,
+                    CreateStrictMock<IReadOnlySettingCollection>().Object,
+                    LocalAccountStoreSetup.ConnectionId
+                )
+            );
+
+        var claims = new Dictionary<string, object>();
+        var command = CreateCommand(
+            claims,
+            OpenIdProtocol.ScopeTypes.OpenId,
+            OpenIdProtocol.ScopeTypes.Email
+        );
+
+        await Handler.HandleAsync(command, CancellationToken.None);
+
+        Assert.Empty(claims);
+    }
+
     [Fact]
     public async Task HandleAsync_DoesNotOverrideExistingClaim()
     {
         SetupStoreManager();
-        SetupIdentities(SelfIssuedIdentity());
+        SetupIdentities(LocalIdentity());
         SetupAccount(Account("new@localhost", emailVerified: true));
 
         var claims = new Dictionary<string, object>
@@ -378,7 +550,7 @@ public class DefaultGetLocalAccountUserInfoClaimsHandlerTests : BaseTests
     public async Task HandleAsync_WhenClaimsParameterRequestsName_AddsFromAccountWithoutProfileScope()
     {
         SetupStoreManager();
-        SetupIdentities(SelfIssuedIdentity());
+        SetupIdentities(LocalIdentity());
         SetupAccount(
             Account(
                 email: null,
@@ -405,7 +577,7 @@ public class DefaultGetLocalAccountUserInfoClaimsHandlerTests : BaseTests
     {
         const string addressJson = """{"locality":"Springfield","country":"US"}""";
         SetupStoreManager();
-        SetupIdentities(SelfIssuedIdentity());
+        SetupIdentities(LocalIdentity());
         SetupAccount(
             Account(
                 email: null,
@@ -436,7 +608,7 @@ public class DefaultGetLocalAccountUserInfoClaimsHandlerTests : BaseTests
     public async Task HandleAsync_WhenPhoneScope_EmitsTypedPhoneClaims()
     {
         SetupStoreManager();
-        SetupIdentities(SelfIssuedIdentity());
+        SetupIdentities(LocalIdentity());
         SetupAccount(
             Account(
                 email: null,
@@ -471,7 +643,7 @@ public class DefaultGetLocalAccountUserInfoClaimsHandlerTests : BaseTests
     public async Task HandleAsync_WhenProfileScope_EmitsUpdatedAtAsNumber()
     {
         SetupStoreManager();
-        SetupIdentities(SelfIssuedIdentity());
+        SetupIdentities(LocalIdentity());
         SetupAccount(
             Account(
                 email: null,

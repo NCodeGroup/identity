@@ -79,6 +79,25 @@ public sealed class GrantApiEndpointHandlerTests : IDisposable
         MockStoreManager.Setup(x => x.DisposeAsync()).Returns(ValueTask.CompletedTask).Verifiable();
     }
 
+    private void SetupTenant(bool exists)
+    {
+        var mockTenantStore = MockRepository.Create<ITenantStore>();
+        MockStoreManagerFactory
+            .Setup(x => x.CreateAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(MockStoreManager.Object)
+            .Verifiable();
+        MockStoreManager
+            .Setup(x => x.GetStore<ITenantStore>())
+            .Returns(mockTenantStore.Object)
+            .Verifiable();
+        MockStoreManager.Setup(x => x.DisposeAsync()).Returns(ValueTask.CompletedTask).Verifiable();
+        var tenant = exists ? new PersistedTenantBuilder { TenantId = TenantId }.Build() : null;
+        mockTenantStore
+            .Setup(x => x.GetOrDefaultAsync(TenantId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(tenant)
+            .Verifiable();
+    }
+
     private void SetupAuthorization(AuthorizationResult result)
     {
         MockAuthorizationService
@@ -560,6 +579,7 @@ public sealed class GrantApiEndpointHandlerTests : IDisposable
         const string mintedGrantId = "iat-grant-1";
 
         SetupAuthorization(AuthorizationResult.Success());
+        SetupTenant(exists: true);
 
         MockCryptoService
             .Setup(x => x.GenerateKey(32, BinaryEncodings.Base64Url))
@@ -652,6 +672,7 @@ public sealed class GrantApiEndpointHandlerTests : IDisposable
         const long lifetimeSeconds = 3600;
 
         SetupAuthorization(AuthorizationResult.Success());
+        SetupTenant(exists: true);
 
         MockCryptoService
             .Setup(x => x.GenerateKey(32, BinaryEncodings.Base64Url))
@@ -755,6 +776,41 @@ public sealed class GrantApiEndpointHandlerTests : IDisposable
         Assert.Equal(StatusCodes.Status403Forbidden, problem.StatusCode);
     }
 
+    [Fact]
+    public async Task CreateInitialAccessTokenAsync_WhenTheTenantDoesNotExist_ReturnsNotFoundWithoutStoring()
+    {
+        SetupAuthorization(AuthorizationResult.Success());
+        SetupTenant(exists: false);
+
+        // Strict mocks: no mint, grant service or audit setup, so minting, storing or auditing would fail the test.
+        var result = await Handler.CreateInitialAccessTokenAsync(
+            CreateHttpContext(authenticated: true),
+            TenantId,
+            new CreateInitialAccessTokenRequest(),
+            CancellationToken.None
+        );
+
+        var problem = Assert.IsType<ProblemHttpResult>(result);
+        Assert.Equal(StatusCodes.Status404NotFound, problem.StatusCode);
+    }
+
+    [Fact]
+    public async Task CreateInitialAccessTokenAsync_WhenForbiddenForAMissingTenant_ReturnsForbidWithoutReadingTheTenant()
+    {
+        SetupAuthorization(AuthorizationResult.Failed());
+
+        // No store setup: a strict-mock failure would mean the tenant was read before authorization.
+        var result = await Handler.CreateInitialAccessTokenAsync(
+            CreateHttpContext(authenticated: true),
+            "missing-tenant",
+            new CreateInitialAccessTokenRequest(),
+            CancellationToken.None
+        );
+
+        var problem = Assert.IsType<ProblemHttpResult>(result);
+        Assert.Equal(StatusCodes.Status403Forbidden, problem.StatusCode);
+    }
+
     private void SetupResourceServer(string tenantId, bool isSystem)
     {
         var resourceServer = new PersistedResourceServerBuilder
@@ -785,6 +841,7 @@ public sealed class GrantApiEndpointHandlerTests : IDisposable
     public async Task CreateInitialAccessTokenAsync_WhenResourceServerIsInAnotherTenant_ReturnsBadRequest()
     {
         SetupAuthorization(AuthorizationResult.Success());
+        SetupTenant(exists: true);
         SetupResourceServer("tenant-2", isSystem: false);
 
         // No mint scaffold: a strict-mock failure would mean the resource server was not checked.
@@ -803,6 +860,7 @@ public sealed class GrantApiEndpointHandlerTests : IDisposable
     public async Task CreateInitialAccessTokenAsync_WhenResourceServerIsSystem_ReturnsBadRequest()
     {
         SetupAuthorization(AuthorizationResult.Success());
+        SetupTenant(exists: true);
         SetupResourceServer(TenantId, isSystem: true);
 
         var result = await Handler.CreateInitialAccessTokenAsync(
@@ -840,6 +898,8 @@ public sealed class GrantApiEndpointHandlerTests : IDisposable
             .ReturnsAsync(AuthorizationResult.Failed())
             .Verifiable(Times.Once);
 
+        SetupTenant(exists: true);
+
         // No resource-server store setup: a strict-mock failure would mean the resource server was read first.
         var result = await Handler.CreateInitialAccessTokenAsync(
             CreateHttpContext(authenticated: true),
@@ -860,7 +920,7 @@ public sealed class GrantApiEndpointHandlerTests : IDisposable
     [Theory]
     [InlineData("GET", "/grants", new[] { 400, 401, 403 })]
     [InlineData("DELETE", "/grants", new[] { 400, 401, 403 })]
-    [InlineData("POST", "/grants/initial-access-tokens", new[] { 400, 401, 403, 415 })]
+    [InlineData("POST", "/grants/initial-access-tokens", new[] { 400, 401, 403, 404, 415 })]
     [InlineData("GET", "/grants/{grantId}", new[] { 401, 403, 404 })]
     [InlineData("DELETE", "/grants/{grantId}", new[] { 401, 403, 404 })]
     public async Task Map_Always_DeclaresAndDescribesEveryProblemARouteAnswers(

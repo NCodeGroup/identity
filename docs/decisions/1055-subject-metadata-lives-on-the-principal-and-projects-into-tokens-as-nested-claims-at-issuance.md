@@ -153,7 +153,7 @@ metadata endpoints
 - `NCode.Identity.OpenId.Abstractions`: `IPrincipalMetadataProvider`, `PrincipalMetadata`, `SubjectMetadataClaimTypes`.
 - [ADR-1035](1035-an-end-user-is-one-tenant-scoped-principal-that-every-authentication-entry-point-resolves-to.md): the
   `FederatedPrincipal` actor whose `PrincipalId` keys the provider.
-- [ADR-1051](1051-a-local-account-is-a-self-issued-connection-behind-one-pluggable-store-seam.md): the local account
+- [ADR-1051](1051-a-local-account-belongs-to-one-local-connection-behind-a-named-pluggable-store-seam.md): the local account
   that holds `Claims`.
 - [ADR-1057](1057-local-account-management-is-an-opt-in-capability-that-provisions-the-principal-eagerly-and-authorizes-per-tenant.md): the management endpoints that write
   `SystemMetadata`.

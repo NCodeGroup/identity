@@ -93,7 +93,7 @@ export function useLocalAccountAdministration({
           owner,
           body: {
             displayName: values.displayName,
-            userName: values.userName,
+            userName: values.userName === '' ? null : values.userName,
             password: values.password,
             emailVerified: values.emailVerified,
             ...(values.email === '' ? {} : { email: values.email }),
@@ -102,11 +102,12 @@ export function useLocalAccountAdministration({
       } else if (dialog.kind === 'edit') {
         await updateLocalAccount({
           tenantId: dialog.account.tenantId,
+          connectionId: dialog.account.connectionId,
           localAccountId: dialog.account.localAccountId,
           concurrencyToken: dialog.account.concurrencyToken,
           fields: {
             displayName: values.displayName,
-            userName: values.userName,
+            userName: values.userName === '' ? null : values.userName,
             email: values.email === '' ? null : values.email,
             emailVerified: values.emailVerified,
           },
@@ -129,6 +130,7 @@ export function useLocalAccountAdministration({
     try {
       await resetPassword({
         tenantId: dialog.account.tenantId,
+        connectionId: dialog.account.connectionId,
         localAccountId: dialog.account.localAccountId,
         body: { password },
         cell,
@@ -147,6 +149,7 @@ export function useLocalAccountAdministration({
     try {
       await deleteLocalAccount({
         tenantId: dialog.account.tenantId,
+        connectionId: dialog.account.connectionId,
         localAccountId: dialog.account.localAccountId,
         cell,
       }).unwrap();
@@ -164,7 +167,12 @@ export function useLocalAccountAdministration({
     setToggleError(undefined);
     try {
       const toggle = account.isEnabled ? disableLocalAccount : enableLocalAccount;
-      await toggle({ tenantId: account.tenantId, localAccountId, cell }).unwrap();
+      await toggle({
+        tenantId: account.tenantId,
+        connectionId: account.connectionId,
+        localAccountId,
+        cell,
+      }).unwrap();
     } catch (toggleFailure) {
       setToggleError(apiErrorMessage(toggleFailure as ApiError));
     }

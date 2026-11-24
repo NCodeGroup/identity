@@ -6,64 +6,135 @@ using NCode.Buffers;
 using NCode.Identity.OpenId.Accounts.DataContracts;
 using NCode.Identity.OpenId.Authentication.Passwords;
 using NCode.Identity.OpenId.Management;
-using NCode.Identity.OpenId.Persistence.Stores;
+using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Settings;
 using NCode.Identity.Persistence.Stores;
+using NCode.Identity.Settings;
 
 namespace NCode.Identity.OpenId.Accounts.Management;
 
 /// <summary>
-/// Judges the passwords set on local accounts against the owning tenant's password policy and encodes them for the
+/// Judges the passwords set on local accounts against the owning connection's password policy and encodes them for the
 /// store without leaving the plaintext on the GC heap.
 /// </summary>
 internal sealed class LocalAccountPasswords(
     IEffectiveSettingsResolver effectiveSettingsResolver,
-    IPasswordPolicy passwordPolicy
+    IPasswordPolicy passwordPolicy,
+    StoredTenantSettingsReader storedTenantSettingsReader
 )
 {
+    /// <summary>
+    /// Encodes a password into a buffer and passes it to a callback.
+    /// </summary>
+    /// <remarks>
+    /// The buffer is pinned and zeroed on return, so the plaintext never lingers on the GC heap.
+    /// </remarks>
+    /// <param name="password">The password to encode.</param>
+    /// <param name="useAsync">The callback that receives the encoded password.</param>
+    /// <param name="cancellationToken">The token that cancels the callback.</param>
+    public static async ValueTask WithPasswordBytesAsync(
+        string password,
+        Func<ReadOnlyMemory<byte>, CancellationToken, ValueTask> useAsync,
+        CancellationToken cancellationToken
+    )
+    {
+        using var owner = SecureEncoding.UTF8.RentBytes(
+            password,
+            isSensitive: true,
+            out Memory<byte> buffer
+        );
+        await useAsync(buffer, cancellationToken);
+    }
+
     private IEffectiveSettingsResolver EffectiveSettingsResolver { get; } =
         effectiveSettingsResolver;
     private IPasswordPolicy PasswordPolicy { get; } = passwordPolicy;
+    private StoredTenantSettingsReader StoredTenantSettingsReader { get; } =
+        storedTenantSettingsReader;
 
-    // Judges a password an administrator sets by the addressed tenant's effective settings, resolved from its stored
-    // document so the tenant need not be served. A document that cannot be honored is answered 409 by the management
-    // route group. See ADR-1236 and ADR-1245.
+    /// <summary>
+    /// Resolves the effective settings of a connection from the stored documents.
+    /// </summary>
+    /// <remarks>
+    /// The tenant need not be served: the settings are the tenant's effective settings (its team's settings under its
+    /// own document), then the connection's document. A document that cannot be honored is answered 409 by the
+    /// management route group.
+    /// </remarks>
+    /// <param name="storeManager">The store manager that reads the stored documents.</param>
+    /// <param name="connection">The connection whose settings are resolved.</param>
+    /// <param name="cancellationToken">The token that cancels the reads.</param>
+    /// <returns>The effective settings, or the 404 error when the connection's tenant is not found.</returns>
+    // See ADR-1236, ADR-1245 and ADR-1535.
+    public async ValueTask<(
+        IReadOnlySettingCollection? Settings,
+        ManagementError? Error
+    )> ResolveConnectionSettingsAsync(
+        IStoreManager storeManager,
+        PersistedConnection connection,
+        CancellationToken cancellationToken
+    )
+    {
+        var tenantId = connection.TenantId;
+        var tenantSettings = await StoredTenantSettingsReader.ReadAsync(
+            storeManager,
+            tenantId,
+            cancellationToken
+        );
+        if (tenantSettings is null)
+        {
+            var error = new ManagementError
+            {
+                StatusCode = StatusCodes.Status404NotFound,
+                Detail = "The tenant was not found.",
+            };
+            return (null, error);
+        }
+
+        var connectionSettings = EffectiveSettingsResolver.ResolveStored(
+            tenantSettings,
+            OpenIdSettingScopes.Connection,
+            connection.ConnectionId,
+            connection.Settings.Value
+        );
+        return (connectionSettings, null);
+    }
+
+    /// <summary>
+    /// Judges a password that an administrator sets against the connection's password policy.
+    /// </summary>
+    /// <remarks>
+    /// The connection's effective settings are resolved from its stored documents, so the tenant need not be served.
+    /// </remarks>
+    /// <param name="storeManager">The store manager that reads the stored documents.</param>
+    /// <param name="connection">The connection that holds the account.</param>
+    /// <param name="account">The local account whose password is set.</param>
+    /// <param name="password">The password to judge.</param>
+    /// <param name="cancellationToken">The token that cancels the judgment.</param>
+    /// <returns>The refusal when the settings cannot be resolved or the policy rejects the password; otherwise
+    /// <see langword="null"/>.</returns>
     public async ValueTask<ManagementError?> ValidateAsync(
         IStoreManager storeManager,
-        string tenantId,
+        PersistedConnection connection,
         PersistedLocalAccount account,
         string password,
         CancellationToken cancellationToken
     )
     {
-        var tenant = await storeManager
-            .GetStore<ITenantStore>()
-            .GetOrDefaultAsync(tenantId, cancellationToken);
-        if (tenant is null)
-        {
-            return new ManagementError
-            {
-                StatusCode = StatusCodes.Status404NotFound,
-                Detail = "The tenant was not found.",
-            };
-        }
-
-        var teamSettings = await EffectiveSettingsResolver.ResolveTeamAsync(
-            tenant.TeamId,
+        var (settings, error) = await ResolveConnectionSettingsAsync(
+            storeManager,
+            connection,
             cancellationToken
         );
-        var tenantSettings = EffectiveSettingsResolver.ResolveStored(
-            teamSettings,
-            OpenIdSettingScopes.Tenant,
-            tenantId,
-            tenant.Settings.Value
-        );
+        if (settings is null)
+        {
+            return error;
+        }
 
         var passwordMemory = password.AsMemory();
         var policyContext = new PasswordPolicyContext
         {
-            Settings = tenantSettings,
-            UserName = account.UserName,
+            Settings = settings,
+            UserName = account.UserName ?? string.Empty,
             Email = account.Email,
         };
         var result = await PasswordPolicy.ValidateAsync(
@@ -81,20 +152,5 @@ internal sealed class LocalAccountPasswords(
             StatusCode = StatusCodes.Status400BadRequest,
             Detail = result.ErrorDescription,
         };
-    }
-
-    // Encodes the password into a pinned, zeroed-on-return buffer so the plaintext never lingers on the GC heap.
-    public static async ValueTask WithPasswordBytesAsync(
-        string password,
-        Func<ReadOnlyMemory<byte>, CancellationToken, ValueTask> useAsync,
-        CancellationToken cancellationToken
-    )
-    {
-        using var owner = SecureEncoding.UTF8.RentBytes(
-            password,
-            isSensitive: true,
-            out Memory<byte> buffer
-        );
-        await useAsync(buffer, cancellationToken);
     }
 }

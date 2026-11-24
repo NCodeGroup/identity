@@ -3,36 +3,72 @@
 
 using System.Security.Claims;
 using NCode.Identity.Cryptography;
+using NCode.Identity.Jose;
+using NCode.Identity.OpenId.Connections;
 using NCode.Identity.OpenId.Contexts;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
-using NCode.Identity.OpenId.Settings;
 using NCode.Identity.Persistence.Stores;
 
 namespace NCode.Identity.OpenId.PrincipalResolution;
 
 /// <summary>
-/// Provides the default implementation of <see cref="IPrincipalResolver"/>, which resolves an authenticated caller to
-/// a federated principal: the subject claim is interpreted first as a server-owned <c>PrincipalId</c>, then as the
-/// principal of a client acting for itself and, when neither matches, as an upstream <c>(issuer, subject)</c> external
-/// connection identity. A client acting for itself resolves to its principal while the client is enabled and to none
-/// when it is disabled, and is never provisioned as a federated principal. The subject is derived through the
-/// environment's host-configured <c>GetSubjectId</c>; the issuer claim name is a per-tenant setting.
+/// Provides the default implementation of <see cref="IPrincipalResolver"/>, which resolves an authenticated caller to a
+/// federated principal: the subject claim is interpreted first as a server-owned <c>PrincipalId</c>, then as the
+/// principal of a client acting for itself and, when neither matches, as the subject of the connection that the
+/// server-owned connection claim names. A client acting for itself resolves to its principal while the client is
+/// enabled and to none when it is disabled, and is never provisioned as a federated principal. Only a principal whose
+/// connection claim names an enabled connection is looked up or provisioned. The subject is derived through the
+/// environment's host-configured <c>GetSubjectId</c>.
 /// </summary>
-// See ADR-1053 and ADR-1466.
+// See ADR-1053, ADR-1466 and ADR-1535.
 internal class DefaultPrincipalResolver(
     IStoreManagerFactory storeManagerFactory,
     ICryptoService cryptoService,
     IFederatedIdentityLinkingPolicy linkingPolicy,
-    IClientPrincipalResolver clientPrincipalResolver
+    IClientPrincipalResolver clientPrincipalResolver,
+    IConnectionResolver connectionResolver
 ) : IPrincipalResolver
 {
     private IStoreManagerFactory StoreManagerFactory { get; } = storeManagerFactory;
     private ICryptoService CryptoService { get; } = cryptoService;
     private IFederatedIdentityLinkingPolicy LinkingPolicy { get; } = linkingPolicy;
     private IClientPrincipalResolver ClientPrincipalResolver { get; } = clientPrincipalResolver;
+    private IConnectionResolver ConnectionResolver { get; } = connectionResolver;
 
-    private async ValueTask<(bool IsActingClient, string? PrincipalId)> FindPrincipalIdAsync(
+    /// <summary>
+    /// Resolves the enabled connection that the user's server-owned connection claim names.
+    /// </summary>
+    /// <param name="openIdContext">The context of the request.</param>
+    /// <param name="user">The user whose claims carry the connection claim.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    /// <returns>The connection, or <see langword="null"/> when the claim is absent or the connection is
+    /// disabled.</returns>
+    private async ValueTask<ResolvedConnection?> ResolveEnabledConnectionAsync(
+        OpenIdContext openIdContext,
+        ClaimsPrincipal user,
+        CancellationToken cancellationToken
+    )
+    {
+        var connectionId = user.FindFirstValue(ConnectionClaimTypes.Connection);
+        if (string.IsNullOrEmpty(connectionId))
+        {
+            return null;
+        }
+
+        var connection = await ConnectionResolver.GetByIdOrDefaultAsync(
+            openIdContext,
+            connectionId,
+            cancellationToken
+        );
+        return connection is { Connection.IsEnabled: true } ? connection : null;
+    }
+
+    private async ValueTask<(
+        bool IsActingClient,
+        string? PrincipalId,
+        ResolvedConnection? Connection
+    )> FindPrincipalIdAsync(
         OpenIdContext openIdContext,
         ClaimsPrincipal user,
         IStoreManager storeManager,
@@ -42,7 +78,7 @@ internal class DefaultPrincipalResolver(
         var subject = openIdContext.GetSubjectId(user);
         if (string.IsNullOrEmpty(subject))
         {
-            return (false, null);
+            return (false, null, null);
         }
 
         // The subject may already be a server-owned PrincipalId (the steady state, where the server issued the token).
@@ -50,7 +86,7 @@ internal class DefaultPrincipalResolver(
         var existingPrincipal = await principalStore.GetOrDefaultAsync(subject, cancellationToken);
         if (existingPrincipal is not null)
         {
-            return (false, existingPrincipal.PrincipalId);
+            return (false, existingPrincipal.PrincipalId, null);
         }
 
         // Otherwise the subject may be the principal of the client that is acting for itself.
@@ -62,25 +98,27 @@ internal class DefaultPrincipalResolver(
         );
         if (actingClient is not null)
         {
-            return (true, actingClient.IsDisabled ? null : actingClient.PrincipalId);
+            return (true, actingClient.IsDisabled ? null : actingClient.PrincipalId, null);
         }
 
-        // Otherwise the subject is an upstream value paired with its issuer.
-        var settings = openIdContext.Tenant.SettingsProvider.Collection;
-        var issuerClaim = settings.GetValue(OpenIdSettingKeys.PrincipalIssuerClaim);
-        var issuer = user.FindFirstValue(issuerClaim);
-        if (string.IsNullOrEmpty(issuer))
+        // Otherwise the subject is a value of the connection that the server-owned connection claim names.
+        var connection = await ResolveEnabledConnectionAsync(
+            openIdContext,
+            user,
+            cancellationToken
+        );
+        if (connection is null)
         {
-            return (false, null);
+            return (false, null, null);
         }
 
         var identityStore = storeManager.GetStore<IFederatedIdentityStore>();
-        var identity = await identityStore.GetByIssuerSubjectAsync(
-            issuer,
+        var identity = await identityStore.GetByConnectionSubjectAsync(
+            connection.ConnectionId,
             subject,
             cancellationToken
         );
-        return (false, identity?.PrincipalId);
+        return (false, identity?.PrincipalId, connection);
     }
 
     /// <inheritdoc />
@@ -126,20 +164,19 @@ internal class DefaultPrincipalResolver(
         }
 
         var subject = openIdContext.GetSubjectId(user);
-        var settings = openIdContext.Tenant.SettingsProvider.Collection;
-        var issuerClaim = settings.GetValue(OpenIdSettingKeys.PrincipalIssuerClaim);
-        var issuer = user.FindFirstValue(issuerClaim);
 
-        // Without a resolvable upstream (issuer, subject) pair we cannot form a durable connection identity for
-        // idempotent lookup, so the subject value is used as-is: for a non-federated caller the subject is already the
-        // principal reference, and provisioning on every sight would create duplicates (ADR-1035).
-        if (string.IsNullOrEmpty(subject) || string.IsNullOrEmpty(issuer))
+        // Without a subject and an enabled connection we cannot form a durable identity for idempotent lookup, so the
+        // subject value is used as-is: for a non-federated caller the subject is already the principal reference, and
+        // provisioning on every sight would create duplicates (ADR-1035).
+        var connection = found.Connection;
+        if (string.IsNullOrEmpty(subject) || connection is null)
         {
             return subject ?? string.Empty;
         }
 
         var decision = await LinkingPolicy.ResolveLinkAsync(
             openIdContext,
+            connection,
             user,
             storeManager,
             cancellationToken
@@ -165,11 +202,13 @@ internal class DefaultPrincipalResolver(
             await principalStore.AddAsync(federatedPrincipal, cancellationToken);
         }
 
+        var issuer = user.FindFirstValue(JoseClaimNames.Payload.Iss);
         var federatedIdentity = new PersistedFederatedIdentity
         {
             TenantId = openIdContext.Tenant.TenantId,
             FederatedIdentityId = CryptoService.GenerateResourceId(),
             PrincipalId = principalId,
+            ConnectionId = connection.ConnectionId,
             Issuer = issuer,
             Subject = subject,
             JoinKey = decision.JoinKey,

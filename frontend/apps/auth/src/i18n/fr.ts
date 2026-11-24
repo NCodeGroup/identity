@@ -7,6 +7,7 @@ export const fr: Messages = {
     titleFor: (productName) => `Se connecter à ${productName}`,
     username: 'Nom d’utilisateur',
     password: 'Mot de passe',
+    connection: 'Se connecter avec',
     submit: 'Se connecter',
     forgotPassword: 'Mot de passe oublié ?',
     passwordReset:
@@ -15,6 +16,8 @@ export const fr: Messages = {
   loginErrors: {
     invalidCredentials: 'Le nom d’utilisateur ou le mot de passe est incorrect.',
     invalidRequest: 'Saisissez un nom d’utilisateur et un mot de passe.',
+    connectionRequired: 'Choisissez une connexion.',
+    connectionUnavailable: 'Cette connexion n’est pas disponible. Choisissez-en une autre.',
     accessDenied: 'Ce compte ne peut pas se connecter. Contactez votre administrateur.',
     fallback: 'La connexion a échoué. Veuillez réessayer.',
   },

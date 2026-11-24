@@ -35,16 +35,17 @@ external identities it authenticates through. Every authentication entry point r
   identities, `PersistedFederatedIdentity` (`IFederatedIdentityStore`). It is the durable twin of `ClaimsPrincipal` and
   `ClaimsIdentity`: a request that carries one identity still resolves to the principal that owns the human's other
   identities.
-- An identity carries its own `FederatedIdentityId`, the upstream `Issuer` and `Subject` natural key, and its
-  principal's `PrincipalId`. The natural key is unique per tenant and is used only to find an identity, never to
-  identify anything the system owns. The issuer is an upstream IdP for a social or enterprise connection, or
-  `AccountConstants.SelfIssuer` (`urn:ncode:identity:local-account`) for a local account.
+- An identity carries its own `FederatedIdentityId`, the `ConnectionId` of the connection it signs in through
+  ([ADR-1535](1535-a-tenant-signs-users-in-through-named-connections-and-a-local-account-belongs-to-one.md)), the
+  `Subject`, and its principal's `PrincipalId`. The `(ConnectionId, Subject)` natural key is unique per tenant and is
+  used only to find an identity, never to identify anything the system owns. An identity may also record the upstream
+  `Issuer`, the `iss` the principal carried, for audit and display; it is not part of any key.
 - A principal references everything else by its `PrincipalId`: role assignments, ownership, grants, consents, sessions
   and metering never hold an external value, so a human counts once.
 - Principals and identities are tenant-scoped with the fail-closed tenant filter
   ([ADR-1018](1018-tenant-selection-is-shared-and-tenant-bound-rows-are-scoped-at-the-persistence-layer.md)).
-  Resolution runs in the ambient tenant, the `PrincipalId` and the `(issuer, subject)` key are unique per tenant, and
-  the same human in two tenants is two principals.
+  Resolution runs in the ambient tenant, the `PrincipalId` and the `(ConnectionId, Subject)` key are unique per tenant,
+  and the same human in two tenants is two principals.
 - "Subject" names only the upstream value and the emitted `sub` claim. The `sub` value is the `PrincipalId` or its
   pairwise projection
   ([ADR-1093](1093-a-pairwise-subject-is-a-one-way-projection-of-the-principal-over-a-verified-sector.md)).
@@ -58,12 +59,13 @@ order:
 2. The principal of a client acting for itself
    ([ADR-1466](1466-a-client-is-its-own-principal-and-a-machine-client-acts-only-within-its-owning-node.md)). It is
    never provisioned, and it resolves to none while the client is disabled.
-3. The upstream `(issuer, subject)` through `GetByIssuerSubjectAsync`, with the issuer read from the claim that the
-   tenant setting `principal_issuer_claim` names.
+3. The `(connection, subject)` pair through `GetByConnectionSubjectAsync`, with the connection read from the
+   server-owned claim `urn:ncode:identity:connection`, which holds the `ConnectionId` and which the sign-in paths stamp
+   and never copy from an upstream claim.
 4. Otherwise it provisions the principal and its identity on first sight.
 
-A caller that has no subject or no issuer claim is not provisioned: its raw subject is its principal reference, so
-non-federated schemes keep working.
+A caller that has no subject, or whose connection claim names no enabled connection, is not provisioned: its raw
+subject is its principal reference, so non-federated schemes keep working.
 
 `ResolvePrincipalIdOrDefaultAsync` only looks up. The overload
 `ResolvePrincipalIdAsync(OpenIdContext, ClaimsPrincipal, CancellationToken)` owns its store unit of work and has no
@@ -92,7 +94,8 @@ persistence types in its signature, so the persistence-free interactive package 
 ### Linking
 
 `IFederatedIdentityLinkingPolicy` (`DefaultFederatedIdentityLinkingPolicy`) decides whether a new identity attaches to
-an existing principal. The tenant settings are:
+an existing principal. The settings are the connection's effective settings, the four `federated_identity_*` settings
+that apply at the `connection` scope beneath `tenant`:
 
 - `federated_identity_join_claim` names the claim that is the join key.
 - With `federated_identity_require_verified`, the claim that `federated_identity_verified_claim` names must be `true`,
@@ -103,8 +106,7 @@ Otherwise a new identity attaches to the principal of an existing identity with 
 principals are never merged automatically, because that is where account-takeover risk concentrates.
 
 By default the join claim is `email`, the verified claim is `email_verified`, verification is required and
-explicit-only is off, so a new identity attaches only on a verified email. The issuer claim, `principal_issuer_claim`,
-defaults to `iss`.
+explicit-only is off, so a new identity attaches only on a verified email.
 
 ## Options considered
 
@@ -145,5 +147,7 @@ defaults to `iss`.
   projection of the `PrincipalId`.
 - [ADR-1466](1466-a-client-is-its-own-principal-and-a-machine-client-acts-only-within-its-owning-node.md): a client
   acting for itself is a principal.
+- [ADR-1535](1535-a-tenant-signs-users-in-through-named-connections-and-a-local-account-belongs-to-one.md): the
+  connections an identity belongs to.
 - Code: `DefaultPrincipalResolver`, `IFederatedIdentityLinkingPolicy`, `SubjectAuthentication`,
   `InteractiveAuthenticationEndpointHandler`, `OwnershipHandler`.

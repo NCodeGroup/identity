@@ -12,6 +12,7 @@ using NCode.Identity.OpenId.Authentication.Interactive;
 using NCode.Identity.OpenId.Authentication.Passwords;
 using NCode.Identity.OpenId.Authentication.Sessions;
 using NCode.Identity.OpenId.Authentication.Subject;
+using NCode.Identity.OpenId.Connections;
 using NCode.Identity.OpenId.Contexts;
 using NCode.Identity.OpenId.Persistence.Stores;
 using NCode.Identity.OpenId.Settings;
@@ -30,6 +31,8 @@ namespace NCode.Identity.OpenId.Accounts.Authentication;
 // See ADR-1533.
 internal sealed class LocalAccountInteractivePasswordResetter(
     IStoreManagerFactory storeManagerFactory,
+    IConnectionResolver connectionResolver,
+    LocalAccountStoreCatalog localAccountStoreCatalog,
     IPasswordPolicy passwordPolicy,
     ILocalAccountEmailCodes emailCodes,
     ICryptoService cryptoService,
@@ -52,7 +55,61 @@ internal sealed class LocalAccountInteractivePasswordResetter(
     private static bool IsEligible([NotNullWhen(true)] PersistedLocalAccount? account) =>
         account is { IsEnabled: true, EmailVerified: true, Email: { Length: > 0 } };
 
+    /// <summary>
+    /// Determines whether a connection allows password resets, which holds only for an enabled connection of the local
+    /// strategy whose <c>password_reset_enabled</c> setting is on.
+    /// </summary>
+    /// <param name="connection">The connection the reset is for, or <see langword="null"/> when there is none.</param>
+    /// <returns><see langword="true"/> when the connection allows resets.</returns>
+    private static bool IsResetAllowed([NotNullWhen(true)] ResolvedConnection? connection) =>
+        connection is { Connection.IsEnabled: true }
+        && ConnectionStrategyNames.IsLocal(connection.Connection.Strategy)
+        && connection.Settings.GetValue(OpenIdSettingKeys.PasswordResetEnabled);
+
+    /// <summary>
+    /// Finds the account the end user named, through the lookups the connection's <c>local_account_identifier</c>
+    /// setting names. Both lookups run whatever the first finds, and the user name's match wins.
+    /// </summary>
+    private static async ValueTask<PersistedLocalAccount?> FindAccountAsync(
+        ILocalAccountStore accountStore,
+        ResolvedConnection connection,
+        string submitted,
+        CancellationToken cancellationToken
+    )
+    {
+        var mode = connection.Settings.GetValue(OpenIdSettingKeys.LocalAccountIdentifier);
+        var identifier = LocalAccountSignInIdentifier.ForSubmitted(
+            connection.ConnectionId,
+            mode,
+            submitted
+        );
+
+        PersistedLocalAccount? byUserName = null;
+        if (identifier.UserName is not null)
+        {
+            byUserName = await accountStore.GetByUserNameOrDefaultAsync(
+                identifier.ConnectionId,
+                identifier.UserName,
+                cancellationToken
+            );
+        }
+
+        PersistedLocalAccount? byEmail = null;
+        if (identifier.Email is not null)
+        {
+            byEmail = await accountStore.GetByEmailOrDefaultAsync(
+                identifier.ConnectionId,
+                identifier.Email,
+                cancellationToken
+            );
+        }
+
+        return byUserName ?? byEmail;
+    }
+
     private IStoreManagerFactory StoreManagerFactory { get; } = storeManagerFactory;
+    private IConnectionResolver ConnectionResolver { get; } = connectionResolver;
+    private LocalAccountStoreCatalog LocalAccountStoreCatalog { get; } = localAccountStoreCatalog;
     private IPasswordPolicy PasswordPolicy { get; } = passwordPolicy;
     private ILocalAccountEmailCodes EmailCodes { get; } = emailCodes;
     private ICryptoService CryptoService { get; } = cryptoService;
@@ -63,18 +120,24 @@ internal sealed class LocalAccountInteractivePasswordResetter(
     /// <inheritdoc />
     public async ValueTask<string> SendResetCodeAsync(
         OpenIdContext openIdContext,
-        string userName,
+        ResolvedConnection connection,
+        string identifier,
         InteractiveLocale locale,
         CancellationToken cancellationToken
     )
     {
-        var settings = openIdContext.Tenant.SettingsProvider.Collection;
-        if (!settings.GetValue(OpenIdSettingKeys.PasswordResetEnabled))
+        // A disabled connection, a connection of another strategy and a connection with resets off all answer as a
+        // tenant that has resets off does, with no remote work, as ResetPasswordAsync refuses them.
+        if (!IsResetAllowed(connection))
         {
             return CryptoService.GenerateUrlSafeKey();
         }
 
-        var (account, principalId) = await ReadResetCandidateAsync(userName, cancellationToken);
+        var (account, principalId) = await ReadResetCandidateAsync(
+            connection,
+            identifier,
+            cancellationToken
+        );
 
         // The end user's request is audited as the password grant's authentication is (ADR-1533).
         if (!IsEligible(account))
@@ -82,13 +145,13 @@ internal sealed class LocalAccountInteractivePasswordResetter(
             var decoyFlowId = await EmailCodes.SendDecoyAsync(
                 openIdContext,
                 EmailCodePurposes.ResetPassword,
-                userName,
+                identifier,
                 cancellationToken
             );
             await AuditEventRecorder.RecordPasswordResetRequestFailedAsync(
                 openIdContext,
                 AccountNotEligible,
-                userName,
+                identifier,
                 cancellationToken
             );
             return decoyFlowId;
@@ -115,7 +178,7 @@ internal sealed class LocalAccountInteractivePasswordResetter(
             await AuditEventRecorder.RecordPasswordResetRequestFailedAsync(
                 openIdContext,
                 InteractiveEmailCodeErrors.TooManyCodes,
-                userName,
+                identifier,
                 cancellationToken
             );
             return decoyFlowId;
@@ -139,12 +202,6 @@ internal sealed class LocalAccountInteractivePasswordResetter(
         CancellationToken cancellationToken
     )
     {
-        var settings = openIdContext.Tenant.SettingsProvider.Collection;
-        if (!settings.GetValue(OpenIdSettingKeys.PasswordResetEnabled))
-        {
-            return InteractivePasswordChangeResult.NotSupported;
-        }
-
         var flow = new EmailCodeFlow(EmailCodePurposes.ResetPassword, flowId);
         var match = await EmailCodes.VerifyAsync(openIdContext, flow, code, cancellationToken);
         if (match is null)
@@ -158,11 +215,23 @@ internal sealed class LocalAccountInteractivePasswordResetter(
             );
         }
 
+        // The connection comes from the code's own state, so a reset runs under the settings of the connection that
+        // sent the code.
+        var connection = await ConnectionResolver.GetByIdOrDefaultAsync(
+            openIdContext,
+            match.ConnectionId,
+            cancellationToken
+        );
+        if (!IsResetAllowed(connection))
+        {
+            return InteractivePasswordChangeResult.NotSupported;
+        }
+
         var localAccountId = match.LocalAccountId;
 
         await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
 
-        var accountStore = storeManager.GetStore<ILocalAccountStore>();
+        var accountStore = LocalAccountStoreCatalog.GetStore(storeManager, connection.Connection);
         var account = await accountStore.GetByIdOrDefaultAsync(localAccountId, cancellationToken);
 
         // A code authorizes nothing once the account's address differs from the one it was mailed to. See ADR-1533.
@@ -177,8 +246,8 @@ internal sealed class LocalAccountInteractivePasswordResetter(
         }
 
         var identityStore = storeManager.GetStore<IFederatedIdentityStore>();
-        var principal = await identityStore.GetByIssuerSubjectAsync(
-            AccountConstants.SelfIssuer,
+        var principal = await identityStore.GetByConnectionSubjectAsync(
+            connection.ConnectionId,
             localAccountId,
             cancellationToken
         );
@@ -188,8 +257,8 @@ internal sealed class LocalAccountInteractivePasswordResetter(
         var newPasswordMemory = newPassword.RevealMemory();
         var policyContext = new PasswordPolicyContext
         {
-            Settings = settings,
-            UserName = account.UserName,
+            Settings = connection.Settings,
+            UserName = account.UserName ?? string.Empty,
             Email = account.Email,
         };
         var policyResult = await PasswordPolicy.ValidateAsync(
@@ -244,9 +313,11 @@ internal sealed class LocalAccountInteractivePasswordResetter(
             );
         }
 
+        var attemptKey = LocalAccountAttemptKeys.ForAccount(account.LocalAccountId);
         await PostCommitSecurityEffects.ResetPasswordAttemptsAsync(
             openIdContext.Tenant.TenantId,
-            account.UserName
+            connection.ConnectionId,
+            attemptKey
         );
 
         await AuditEventRecorder.RecordPasswordResetAsync(
@@ -288,7 +359,8 @@ internal sealed class LocalAccountInteractivePasswordResetter(
     /// is mailed. The principal is read for every request, by a random identifier when no account was found, so the
     /// answer's timing says nothing about the account.
     /// </summary>
-    /// <param name="userName">The user name the end user named.</param>
+    /// <param name="connection">The connection whose account the reset is for.</param>
+    /// <param name="identifier">The identifier the end user named.</param>
     /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
     /// <returns>
     /// The account, or <see langword="null"/> when there is none, and the identifier of its principal when the account
@@ -297,19 +369,28 @@ internal sealed class LocalAccountInteractivePasswordResetter(
     private async ValueTask<(
         PersistedLocalAccount? Account,
         string? PrincipalId
-    )> ReadResetCandidateAsync(string userName, CancellationToken cancellationToken)
+    )> ReadResetCandidateAsync(
+        ResolvedConnection connection,
+        string identifier,
+        CancellationToken cancellationToken
+    )
     {
         await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
 
-        var accountStore = storeManager.GetStore<ILocalAccountStore>();
-        var account = await accountStore.GetByUserNameOrDefaultAsync(userName, cancellationToken);
+        var accountStore = LocalAccountStoreCatalog.GetStore(storeManager, connection.Connection);
+        var account = await FindAccountAsync(
+            accountStore,
+            connection,
+            identifier,
+            cancellationToken
+        );
 
         // The principal is read for every request, by a random identifier when no account was found, so the
         // answer's timing says nothing about the account. See ADR-1533.
         var principalSubject = account?.LocalAccountId ?? CryptoService.GenerateUrlSafeKey();
         var identityStore = storeManager.GetStore<IFederatedIdentityStore>();
-        var principal = await identityStore.GetByIssuerSubjectAsync(
-            AccountConstants.SelfIssuer,
+        var principal = await identityStore.GetByConnectionSubjectAsync(
+            connection.ConnectionId,
             principalSubject,
             cancellationToken
         );

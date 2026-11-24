@@ -10,25 +10,32 @@ namespace NCode.Identity.OpenId.Accounts.DataContracts;
 
 // See ADR-1080.
 /// <summary>
-/// Contains a lightweight read projection of a local account's names (its identifier, username and display name)
-/// without its claims, credential or status, for a reader that names the account's principal while it fetches only
-/// those columns.
+/// Contains a lightweight read projection of a local account's names (its identifier, connection, username and display
+/// name) without its claims, credential or status, for a reader that names the account's principal while it fetches
+/// only those columns.
 /// </summary>
 [PublicAPI]
 [ExcludeFromCodeCoverage]
 public sealed class LocalAccountNameProjection
 {
     /// <summary>
-    /// Gets the opaque, server-generated identifier of the local account (its self-issued subject).
+    /// Gets the opaque, server-generated identifier of the local account (the subject of its identity in its
+    /// connection).
     /// </summary>
     [MaxLength(MaxLengths.ResourceId)]
     public required string LocalAccountId { get; init; }
 
     /// <summary>
-    /// Gets the username (login handle) of the local account.
+    /// Gets the identifier of the local connection that holds the account.
+    /// </summary>
+    [MaxLength(MaxLengths.ResourceId)]
+    public required string ConnectionId { get; init; }
+
+    /// <summary>
+    /// Gets the username (login handle) of the local account, or <c>null</c> when the account has none.
     /// </summary>
     [MaxLength(AccountMaxLengths.UserName)]
-    public required string UserName { get; init; }
+    public required string? UserName { get; init; }
 
     /// <summary>
     /// Gets the display name of the local account.

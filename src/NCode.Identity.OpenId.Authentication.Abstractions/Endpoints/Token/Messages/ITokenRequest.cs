@@ -111,4 +111,10 @@ public interface ITokenRequest : IOpenIdRequest
     /// Gets or sets a <see cref="string"/> value containing the username of the resource owner.
     /// </summary>
     string? Username { get; set; }
+
+    /// <summary>
+    /// Gets or sets a <see cref="string"/> value containing the <c>connection</c> parameter: the name of the connection
+    /// the resource owner signs in through.
+    /// </summary>
+    string? Connection { get; set; }
 }

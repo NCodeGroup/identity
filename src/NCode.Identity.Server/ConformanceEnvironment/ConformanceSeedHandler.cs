@@ -11,6 +11,7 @@ using NCode.Identity.OpenId;
 using NCode.Identity.OpenId.Accounts.DataContracts;
 using NCode.Identity.OpenId.Accounts.Stores;
 using NCode.Identity.OpenId.Authentication.Clients;
+using NCode.Identity.OpenId.Connections;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
 using NCode.Identity.OpenId.Settings;
@@ -48,6 +49,7 @@ internal sealed class ConformanceSeedHandler(
     TimeProvider timeProvider,
     SeededClientValidator seededClientValidator,
     SeededLocalAccountValidator seededLocalAccountValidator,
+    LocalAccountStoreCatalog localAccountStoreCatalog,
     ILogger<ConformanceSeedHandler> logger
 ) : ICommandHandler<SeedTenantCommand>, ISupportMediatorPriority
 {
@@ -63,6 +65,7 @@ internal sealed class ConformanceSeedHandler(
     private SeededClientValidator SeededClientValidator { get; } = seededClientValidator;
     private SeededLocalAccountValidator SeededLocalAccountValidator { get; } =
         seededLocalAccountValidator;
+    private LocalAccountStoreCatalog LocalAccountStoreCatalog { get; } = localAccountStoreCatalog;
     private ILogger<ConformanceSeedHandler> Logger { get; } = logger;
 
     /// <inheritdoc />
@@ -230,8 +233,23 @@ internal sealed class ConformanceSeedHandler(
 
         var tenantId = context.TenantId;
 
-        var store = context.StoreManager.GetStore<ILocalAccountStore>();
-        var existing = await store.GetByUserNameOrDefaultAsync(userName, cancellationToken);
+        // The test user lives in the tenant's local connection, which the connection seed stages first.
+        var connection = await context
+            .StoreManager.GetStore<IConnectionStore>()
+            .GetByNameOrDefaultAsync(ConnectionDefaults.Name, cancellationToken);
+        if (connection is null)
+        {
+            throw new InvalidOperationException(
+                $"The conformance test user cannot be seeded: the tenant '{tenantId}' has no '{ConnectionDefaults.Name}' connection."
+            );
+        }
+
+        var store = LocalAccountStoreCatalog.GetStore(context.StoreManager, connection);
+        var existing = await store.GetByUserNameOrDefaultAsync(
+            connection.ConnectionId,
+            userName,
+            cancellationToken
+        );
         if (existing is not null)
         {
             return;
@@ -240,6 +258,7 @@ internal sealed class ConformanceSeedHandler(
         var account = new PersistedLocalAccount
         {
             TenantId = tenantId,
+            ConnectionId = connection.ConnectionId,
             LocalAccountId = Guid.NewGuid().ToString("N"),
             UserName = userName,
             DisplayName = BuildTestUserDisplayName(userName),
@@ -250,10 +269,16 @@ internal sealed class ConformanceSeedHandler(
             ConcurrencyToken = string.Empty,
         };
 
+        var seeded = new SeededLocalAccount
+        {
+            AccountKind = "conformance test user",
+            Tenant = context.Tenant,
+            Connection = connection,
+            Store = store,
+            Account = account,
+        };
         await SeededLocalAccountValidator.EnsureCanBeSeededAsync(
-            "conformance test user",
-            context.Tenant,
-            account,
+            seeded,
             password,
             cancellationToken
         );

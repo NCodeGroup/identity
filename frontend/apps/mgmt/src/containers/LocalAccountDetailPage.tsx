@@ -45,6 +45,7 @@ export function LocalAccountDetailPage({ account, cell, onBack }: LocalAccountDe
   const hasPrincipal = account.principalId !== null;
   const address = {
     tenantId: account.tenantId,
+    connectionId: account.connectionId,
     localAccountId: account.localAccountId,
     cell,
   };
@@ -111,7 +112,7 @@ export function LocalAccountDetailPage({ account, cell, onBack }: LocalAccountDe
           {account.displayName}
         </Typography>
         <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-          {account.email ? `${account.userName} · ${account.email}` : account.userName}
+          {[account.userName, account.email].filter(Boolean).join(' · ')}
         </Typography>
         {hasPrincipal ? (
           <Typography

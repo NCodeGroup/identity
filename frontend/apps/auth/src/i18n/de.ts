@@ -7,6 +7,7 @@ export const de: Messages = {
     titleFor: (productName) => `Bei ${productName} anmelden`,
     username: 'Benutzername',
     password: 'Passwort',
+    connection: 'Anmelden mit',
     submit: 'Anmelden',
     forgotPassword: 'Passwort vergessen?',
     passwordReset: 'Ihr Passwort wurde zurückgesetzt. Melden Sie sich mit Ihrem neuen Passwort an.',
@@ -14,6 +15,8 @@ export const de: Messages = {
   loginErrors: {
     invalidCredentials: 'Der Benutzername oder das Passwort ist falsch.',
     invalidRequest: 'Geben Sie sowohl einen Benutzernamen als auch ein Passwort ein.',
+    connectionRequired: 'Wählen Sie eine Verbindung aus.',
+    connectionUnavailable: 'Diese Verbindung ist nicht verfügbar. Wählen Sie eine andere aus.',
     accessDenied: 'Dieses Konto kann sich nicht anmelden. Wenden Sie sich an Ihren Administrator.',
     fallback: 'Die Anmeldung ist fehlgeschlagen. Bitte versuchen Sie es erneut.',
   },

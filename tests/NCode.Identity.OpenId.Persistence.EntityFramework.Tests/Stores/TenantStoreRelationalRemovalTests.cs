@@ -1,6 +1,7 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using System.Text.Json;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -196,6 +197,12 @@ public sealed class TenantStoreRelationalRemovalTests : IDisposable
             TestPageCursorProtector.Instance,
             DbContext
         );
+        var connectionStore = new ConnectionStore(
+            Mock.Of<IStoreProvider>(),
+            keyGenerator,
+            TestPageCursorProtector.Instance,
+            DbContext
+        );
         var identityStore = new FederatedIdentityStore(
             Mock.Of<IStoreProvider>(),
             keyGenerator,
@@ -236,13 +243,36 @@ public sealed class TenantStoreRelationalRemovalTests : IDisposable
         );
         await DbContext.SaveChangesAsync(cancellationToken);
 
+        await connectionStore.AddAsync(
+            new PersistedConnection
+            {
+                TenantId = tenantId,
+                ConnectionId = $"{tenantId}-connection",
+                Name = "local",
+                Strategy = "local",
+                DisplayName = "Username and password",
+                IsSystem = false,
+                IsEnabled = true,
+                Options = JsonSerializer.SerializeToElement(new { store = "default" }),
+                Settings = new PersistedConnectionSettings
+                {
+                    TenantId = tenantId,
+                    ConnectionId = $"{tenantId}-connection",
+                    Value = JsonSerializer.SerializeToElement(new Dictionary<string, object>()),
+                },
+            },
+            cancellationToken
+        );
+        await DbContext.SaveChangesAsync(cancellationToken);
+
         await identityStore.AddAsync(
             new PersistedFederatedIdentity
             {
                 TenantId = tenantId,
                 FederatedIdentityId = $"{tenantId}-identity",
                 PrincipalId = $"{tenantId}-principal",
-                Issuer = "https://issuer.example",
+                ConnectionId = $"{tenantId}-connection",
+                Issuer = null,
                 Subject = $"{tenantId}-subject",
                 JoinKey = null,
                 ConcurrencyToken = string.Empty,
