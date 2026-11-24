@@ -25,7 +25,8 @@ public interface IPasswordAttemptLimiter
     /// <param name="openIdContext">The <see cref="OpenIdContext"/> instance associated with the current request.</param>
     /// <param name="connection">The connection that the password is presented to; its settings set the limit.</param>
     /// <param name="accountKey">
-    /// The account key: the account's identifier, or the submitted identifier when no account matches.
+    /// The account key that <c>LocalAccountAttemptKeys</c> builds: the prefixed identifier of the account the store
+    /// found, or the prefixed submitted identifier when no account matches.
     /// </param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to observe.</param>
     /// <returns>
@@ -46,7 +47,8 @@ public interface IPasswordAttemptLimiter
     /// <param name="openIdContext">The <see cref="OpenIdContext"/> instance associated with the current request.</param>
     /// <param name="connection">The connection that the password is presented to; its settings set the window.</param>
     /// <param name="accountKey">
-    /// The account key: the account's identifier, or the submitted identifier when no account matches.
+    /// The account key that <c>LocalAccountAttemptKeys</c> builds: the prefixed identifier of the account the store
+    /// found, or the prefixed submitted identifier when no account matches.
     /// </param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to observe.</param>
     /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation.</returns>
@@ -64,7 +66,8 @@ public interface IPasswordAttemptLimiter
     /// <param name="tenantId">The identifier of the tenant that the account belongs to.</param>
     /// <param name="connectionId">The identifier of the connection that the account belongs to.</param>
     /// <param name="accountKey">
-    /// The account key: the account's identifier, or the submitted identifier when no account matches.
+    /// The account key that <c>LocalAccountAttemptKeys</c> builds: the prefixed identifier of the account the store
+    /// found, or the prefixed submitted identifier when no account matches.
     /// </param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to observe.</param>
     /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation.</returns>

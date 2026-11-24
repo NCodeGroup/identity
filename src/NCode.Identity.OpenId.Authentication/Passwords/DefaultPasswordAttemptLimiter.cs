@@ -82,15 +82,28 @@ internal class DefaultPasswordAttemptLimiter(
         await CounterSet.RemoveAsync(key, cancellationToken);
     }
 
+    /// <summary>
+    /// Builds the shared-state key that counts an account's failed attempts.
+    /// </summary>
+    /// <param name="tenantId">The identifier of the tenant.</param>
+    /// <param name="connectionId">The identifier of the connection.</param>
+    /// <param name="accountKey">The account key that <c>LocalAccountAttemptKeys</c> builds.</param>
+    /// <returns>The key, with the account key folded.</returns>
     internal static string CreateKey(string tenantId, string connectionId, string accountKey)
     {
         var normalizedKey = NormalizeAccountKey(accountKey);
         return ExpiringKeys.Create(Purpose, tenantId, connectionId, normalizedKey);
     }
 
+    /// <summary>
+    /// Folds the account key so every spelling a store treats as the same name counts together.
+    /// </summary>
+    /// <param name="accountKey">The account key that <c>LocalAccountAttemptKeys</c> builds, which holds either an
+    /// account's identifier or a submitted identifier, such as a user name or an email address.</param>
+    /// <returns>The folded key.</returns>
     // The stores compare names differently (EF lower-cases; ASP.NET Core Identity composes and upper-cases), and
-    // folding through both gives every spelling a store treats as the same name one count. The strings here come from
-    // form or JSON readers, which never yield a lone surrogate, so normalization cannot fail.
+    // folding through both gives every spelling a store treats as the same name one count. The account keys here wrap
+    // identifiers from form or JSON readers, which never yield a lone surrogate, so normalization cannot fail.
     private static string NormalizeAccountKey(string accountKey) =>
         accountKey.Normalize(NormalizationForm.FormKC).ToUpperInvariant().ToLowerInvariant();
 }

@@ -41,9 +41,9 @@ keys, principals and environment-bound values stay with their environment.**
    because the vocabulary is open. Preview answers `200` with the report and writes nothing. Promote answers `200` with
    the applied report, or `409` with the report's errors and writes nothing.
 2. **The configuration document.** `GET /api/tenants/{tenantId}/configuration` exports a tenant's settings document,
-   clients, client grants and resource servers as a `TenantConfigurationDocument`, stamped with the cell's region. It
-   holds no secret, key or credential. A source in another cell is carried by the console: it reads the document from
-   the source tenant's cell and posts it inline to the target tenant's cell.
+   connections, clients, client grants and resource servers as a `TenantConfigurationDocument`, stamped with the cell's
+   region. It holds no secret, key or credential. A source in another cell is carried by the console: it reads the
+   document from the source tenant's cell and posts it inline to the target tenant's cell.
 3. **A promotion stays within one region.** A document whose region is not the target cell's region is refused with
    `422` and nothing is written. Cells of one region share a promotion; across regions a tenant's configuration is
    entered again, because a tenant's data stays in its region. A document is untrusted input. The control-plane tenant
@@ -51,12 +51,13 @@ keys, principals and environment-bound values stay with their environment.**
    document that names a client whose `clientId` breaks the `client_id` rule (`ClientIdRules`) or starts with `cell-`,
    the namespace that the directory and the control plane read as a cell's machine client, is refused with `422` before
    planning.
-4. **What is copied, and what is never copied.** The tenant's settings document, every non-system resource server (its
-   name, `isDisabled`, settings and non-system scopes), every client no `IHostManagedClientPolicy` names in the source
-   tenant (`isDisabled`, settings and the resource server it acts for), and every client grant of a promoted client are
-   copied. The secrets and keys of any owner (each environment holds its own credentials, ADR-1050), master and root
-   keys, user grants, consents, sessions, principals, local accounts, role assignments and ownership (`Owner`,
-   `TeamAdmin`, `TenantAdmin`), usage, audit records, the tenant's metadata (issuer, mTLS alias, display name,
+4. **What is copied, and what is never copied.** The tenant's settings document, every connection (its display name,
+   strategy, options, enabled flag and settings document, and never its system flag or its id), every non-system
+   resource server (its name, `isDisabled`, settings and non-system scopes), every client no `IHostManagedClientPolicy`
+   names in the source tenant (`isDisabled`, settings and the resource server it acts for), and every client grant of a
+   promoted client are copied. The secrets and keys of any owner (each environment holds its own credentials, ADR-1050),
+   master and root keys, user grants, consents, sessions, principals, local accounts, role assignments and ownership
+   (`Owner`, `TeamAdmin`, `TenantAdmin`), usage, audit records, the tenant's metadata (issuer, mTLS alias, display name,
    `isDisabled`), system resource servers and system scopes, and host-managed clients with their grants are never
    copied.
 5. **Host-managed clients.** A client that `IHostManagedClientPolicy` names for its tenant is never in that tenant's
@@ -83,9 +84,17 @@ keys, principals and environment-bound values stay with their environment.**
    the limits, for preview and promote alike.
 8. **Identifiers and refusals.** A promoted client keeps its `clientId` and is matched by it. A resource server is
    matched by its audience `identifier`, a created one keeps the source `resourceServerId`, and the promotion maps
-   source to target resource-server ids for clients and grants. A client grant is matched by client and mapped
-   resource server. Promotion creates and updates, and never deletes, scopes included. An error per item refuses: a
-   system target resource server of that identifier; a target resource server holding the source id under another
+   source to target resource-server ids for clients and grants. A client grant is matched by client and mapped resource
+   server. A connection is matched by its name, compared case-insensitively, and a created one gets an identifier
+   that the target tenant mints and is never a system connection; a promotion names a connection by its name in its
+   changes, errors and environment settings, because the identifier of a created connection exists only once the
+   promotion applies. An update changes the display name, the enabled flag, the options and the settings document, never
+   the name or the strategy. Promotion creates and updates, and never deletes, scopes included. An error per item
+   refuses: a system target resource server of that identifier; a source connection whose name or display name breaks
+   the connection content rules, or whose name repeats another source connection's name; a source connection whose
+   strategy differs from the strategy of the target connection of that name, which a strategy cannot change; a source
+   connection whose strategy is not registered in the target, whose options its strategy rejects, or whose options its
+   strategy refuses to change on the target connection; a target resource server holding the source id under another
    identifier; a target client bound to another resource server; a target client a policy names as host-managed; a
    promoted client document naming a `jwks_uri` while the target client holds public keys; a client or grant whose
    resource server is neither promoted nor a target system one of that identifier; a grant to a system resource server
@@ -116,16 +125,19 @@ keys, principals and environment-bound values stay with their environment.**
 11. **Contributors.** The public strategy collection `ITenantPromotionContributor` (`Order`, `PlanAsync`, `ApplyAsync`)
    over `TenantPromotionContext` is open by registration
    ([ADR-1150](1150-vocabularies-are-open-unless-provably-closed.md),
-   [ADR-1206](1206-a-clients-settings-are-checked-by-registered-coherence-rules-wherever-they-are-written-or-bounded.md)). The built-in contributors are the
-   tenant settings at 100, resource servers at 200, clients at 300 and client grants at 400. The internal
-   `DefaultTenantPromoter` plans every contributor, checks the `environmentSettings` entries, then applies one
-   contributor at a time, saving and recording its audit events after each.
+   [ADR-1206](1206-a-clients-settings-are-checked-by-registered-coherence-rules-wherever-they-are-written-or-bounded.md)).
+   The built-in contributors are the tenant settings at 100, connections at 150, resource servers at 200, clients at 300
+   and client grants at 400. The connections come before the clients, whose `allowed_connections` and
+   `default_connection` settings name them. The internal `DefaultTenantPromoter` plans every contributor, checks the
+   `environmentSettings` entries, then applies one contributor at a time, saving and recording its audit events after
+   each.
 12. **Atomicity.** Every check runs in the plan before any write, so an apply fails only on a concurrent write (`412`)
     or a fault. A promotion converges: running it again completes one that stopped part way.
 13. **Audit.** Each write records the resource-change event its own endpoint records (`tenant.settings.updated`,
-    `resource_server.created` or `resource_server.updated`, `client.created` or `client.updated`; the endpoint of a
-    client grant records none either), then one `tenant.promoted` event (`ResourceChangeTypes.Promoted = "promoted"`)
-    on the target with the report as `resource_values`. The target's tenant change is announced with
+    `connection.created` or `connection.updated`, `resource_server.created` or `resource_server.updated`,
+    `client.created` or `client.updated`; the endpoint of a client grant records none either), then one
+    `tenant.promoted` event (`ResourceChangeTypes.Promoted = "promoted"`) on the target with the report as
+    `resource_values`. The target's tenant change is announced with
     `TenantChangedCommand(target, settingsChanged: true)`.
 14. **Console.** The team's tenants page has a "Promote" button that opens a dialog: pick the target, then a source among
     the tenants of the target's region, preview, fill the environment-bound values the preview asks for, and promote.

@@ -64,7 +64,9 @@ public interface ILocalAccountValidator
     /// lacks, when the username is longer than <see cref="AccountMaxLengths.UserName"/>, the email address is longer
     /// than <see cref="AccountMaxLengths.Email"/>, or the display name is empty or longer than
     /// <see cref="AccountMaxLengths.DisplayName"/>, and 409 when another account of the connection holds the username
-    /// or the email address.
+    /// or the email address, when the username is the identifier of any local account, when the username is the email
+    /// address of another account of the connection, or when the email address is the username of another account of
+    /// the connection.
     /// </summary>
     /// <param name="connection">The local <see cref="PersistedConnection"/> that holds the account.</param>
     /// <param name="account">The staged <see cref="PersistedLocalAccount"/> to be created, its display name defaulted
@@ -84,8 +86,10 @@ public interface ILocalAccountValidator
     /// connection's <c>local_account_identifier</c> setting demands a username or email address the proposed profile
     /// lacks, when the username is longer than <see cref="AccountMaxLengths.UserName"/>, the email address is longer
     /// than <see cref="AccountMaxLengths.Email"/>, or the display name is empty or longer than
-    /// <see cref="AccountMaxLengths.DisplayName"/>, and 409 when another account of the connection holds the username
-    /// or the email address.
+    /// <see cref="AccountMaxLengths.DisplayName"/>, and 409 for each conflict that validating a create lists. An update
+    /// checks only the identifiers the patch changes, so an account whose stored identifiers no longer fit the
+    /// connection's mode can still be renamed or disabled, but a patch that removes the identifier the mode requires is
+    /// refused.
     /// </summary>
     /// <param name="connection">The local <see cref="PersistedConnection"/> that holds the account.</param>
     /// <param name="account">The current <see cref="PersistedLocalAccount"/> being updated.</param>

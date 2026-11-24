@@ -29,8 +29,8 @@ internal sealed class PasswordAttemptGate(
     /// Asks whether the account that the specified account key names reached its limit of failed password attempts. A
     /// caller passes this function as the <c>isRefusedAsync</c> argument of the store's verification.
     /// </summary>
-    /// <param name="accountKey">The identifier of the account the store found, or the submitted identifier when no
-    /// account matches.</param>
+    /// <param name="accountKey">The key the store built through <c>LocalAccountAttemptKeys</c>: the prefixed identifier
+    /// of the account it found, or the prefixed submitted identifier when no account matches.</param>
     /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
     /// <returns><c>true</c> when the account reached its limit; otherwise, <c>false</c>.</returns>
     public async ValueTask<bool> IsRefusedAsync(

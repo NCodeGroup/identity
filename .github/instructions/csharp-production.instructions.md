@@ -227,7 +227,9 @@ than inlining the rationale.
   `ExpiringKeys`, `ConnectionNameRules`, and the UUIDv7 default of `ISurrogateKeyGenerator` with
   `AddSurrogateKeyGenerator()`, and `LocalAccountStoreCatalog`, `LocalConnectionStrategy`,
   `LocalAccountStoreCatalogWarmup` (resolves the catalog as the host starts, so a bad registration stops the host) and
-  `AddLocalAccountStore()`, which every local-account store registration calls, and `PageCursorProtectorExtensions`,
+  `AddLocalAccountStore()`, which every local-account store registration calls, `LocalAccountIdentifierShadowing`,
+  which the management validator and the seeded-account validator of `NCode.Identity.Server` both call and which
+  implementation packages that cannot reference each other cannot host, and `PageCursorProtectorExtensions`,
   the big-endian cursor position of a surrogate key), so every implementation of a contract applies one rule; it holds
   no service logic and never logs. See
   [ADR-1500](../../docs/decisions/1500-every-package-names-one-capability-under-the-ncode-identity-prefix-as-an-abstractions-and-implementation-pair.md) and

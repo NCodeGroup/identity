@@ -136,15 +136,25 @@ names, a user name and an email, whichever form the identifier takes and whateve
 tell which one matched; the user name's match wins. The two fields never shadow each other within a connection, whatever
 the setting says, because it can change later: a user name never equals another account's email and an email never
 equals another account's user name, so a sign-in identifier names one account. An account whose own user name equals its
-own email is allowed. The database indexes back each field; the validators guard the pair.
+own email is allowed. The database indexes back each field; the validators guard the pair. The pair rule is the pure
+logic `LocalAccountIdentifierShadowing` in `NCode.Identity.OpenId.Accounts.Abstractions`, which both validators call:
+the management validator and the seeded-account validator of `NCode.Identity.Server`, implementation packages that
+cannot reference each other.
+
+The three modes are a closed vocabulary, which [ADR-1150](1150-vocabularies-are-open-unless-provably-closed.md)'s
+three-part test allows. They are fixed by the model: each names which of a local account's two identifier fields, the
+user name and the email, both owned by `PersistedLocalAccount`, an account must have and a sign-in looks up. No package
+other than this one needs another mode, because the setting's `OneOf` rule rejects any other value, and another mode
+needs another identifier field of the account, a change to the model and not a registration.
 
 `ILocalAccountStore` takes the connection id on every lookup that is scoped to a connection
 (`GetByUserNameOrDefaultAsync`, `GetByEmailOrDefaultAsync` and `GetPageAsync`), and its
 `VerifyCredentialAsync(identifier, password, isRefusedAsync, cancellationToken)` takes a `LocalAccountSignInIdentifier`
 that carries the `ConnectionId`. Credential verification keeps its constant cost whether or not the account exists
 ([ADR-1239](1239-a-password-is-verified-in-the-same-time-whether-or-not-its-account-exists.md)). Failed-attempt limits
-key on `(tenant, connectionId, accountKey)`, where `accountKey` is the found account's `LocalAccountId`, or the submitted
-identifier when no account matches, and the limit and window come from the connection's settings
+key on `(tenant, connectionId, accountKey)`, where `accountKey` is the key that `LocalAccountAttemptKeys` builds: the
+`account:`-prefixed `LocalAccountId` of the found account, or the `identifier:`-prefixed submitted identifier when no
+account matches, and the limit and window come from the connection's settings
 ([ADR-1237](1237-failed-password-attempts-are-limited-per-account-and-a-refusal-costs-what-a-wrong-password-costs.md)).
 `DefaultLocalAccountValidator` checks email uniqueness and the cross-field rule per connection for every store, and the
 Entity Framework store's unique index backs the email. The seeders' `SeededLocalAccountValidator` applies the
