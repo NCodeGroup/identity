@@ -102,8 +102,6 @@ NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.AccessDenie
 NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.AccessDeniedError.init -> void
 NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.AllowButton.get -> string!
 NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.AllowButton.init -> void
-NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.ConnectionLabel.get -> string!
-NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.ConnectionLabel.init -> void
 NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.AuthorizationErrorTitle.get -> string!
 NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.AuthorizationErrorTitle.init -> void
 NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.AuthorizeAccessTitle.get -> string!
@@ -114,6 +112,10 @@ NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.CodeSentSta
 NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.CodeSentStatus.init -> void
 NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.ConfirmPasswordLabel.get -> string!
 NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.ConfirmPasswordLabel.init -> void
+NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.ConnectionLabel.get -> string!
+NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.ConnectionLabel.init -> void
+NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.ConnectionRequiredError.get -> string!
+NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.ConnectionRequiredError.init -> void
 NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.ConsentPromptFormat.get -> string!
 NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.ConsentPromptFormat.init -> void
 NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.DenyButton.get -> string!
@@ -128,8 +130,6 @@ NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.ForgotPassw
 NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.ForgotPasswordTitle.init -> void
 NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.InvalidCodeError.get -> string!
 NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.InvalidCodeError.init -> void
-NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.ConnectionRequiredError.get -> string!
-NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.ConnectionRequiredError.init -> void
 NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.InvalidCredentialsError.get -> string!
 NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.InvalidCredentialsError.init -> void
 NCode.Identity.OpenId.Authentication.Interactive.InteractiveMessages.MissingCredentialsError.get -> string!

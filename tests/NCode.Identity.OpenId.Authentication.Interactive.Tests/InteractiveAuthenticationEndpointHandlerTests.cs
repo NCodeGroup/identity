@@ -1092,6 +1092,58 @@ public sealed class InteractiveAuthenticationEndpointHandlerTests : IDisposable
         Assert.Contains("error=connection_required", redirect.Url, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task PostLoginAsync_WhenAnUnofferedConnectionIsPosted_RedirectsBackWithInvalidRequest()
+    {
+        var mockCatalog = MockRepository.Create<IUiLocaleCatalog>();
+        mockCatalog.SetupGet(x => x.Locales).Returns([TestLocales.Xx]).Verifiable();
+        var mockContext = MockRepository.Create<OpenIdContext>();
+        var mockFeature = MockRepository.Create<IOpenIdContextFeature>();
+        mockFeature.SetupGet(x => x.OpenIdContext).Returns(mockContext.Object).Verifiable();
+
+        var mockConnections = MockRepository.Create<ISignInConnectionService>();
+        mockConnections
+            .Setup(x =>
+                x.SelectAsync(mockContext.Object, "/", "other", It.IsAny<CancellationToken>())
+            )
+            .ReturnsAsync(
+                new ConnectionSelection { ErrorDescription = "The connection is not offered." }
+            )
+            .Verifiable();
+
+        var mockTenantResolver = MockRepository.Create<ITenantResolver>();
+        mockTenantResolver
+            .Setup(x => x.GetTenantRoute())
+            .Returns(RoutePatternFactory.Parse("/{tenantId}"))
+            .Verifiable();
+
+        using var serviceProvider = new ServiceCollection().AddRouting().BuildServiceProvider();
+        using var bundle = new SinglePageBundle<InteractiveBundleShell>(null, _ => null);
+        var handler = CreateHandler(
+            mockCatalog.Object,
+            mockTenantResolver.Object,
+            serviceProvider,
+            bundle,
+            signInConnectionService: mockConnections.Object
+        );
+
+        var httpContext = new DefaultHttpContext();
+        httpContext.Features.Set(mockFeature.Object);
+        httpContext.Request.RouteValues["tenantId"] = "acme";
+
+        var result = await handler.PostLoginAsync(
+            httpContext,
+            "alice",
+            "secret",
+            connection: "other",
+            returnUrl: null,
+            uiLocales: null
+        );
+
+        var redirect = Assert.IsType<RedirectHttpResult>(result);
+        Assert.Contains("error=invalid_request", redirect.Url, StringComparison.Ordinal);
+    }
+
     #endregion
 
     #region DescribeSignInCodeError Tests
