@@ -41,9 +41,9 @@ public static class DefaultRegistration
         /// <see cref="DirectoryClientOptions.PublishInterval"/> and when a commit wakes it. A cell that is not the control plane
         /// (<see cref="CellOptions.IsControlPlane"/> is <c>false</c>) uses the <see cref="IManagementTokenValidator"/>
         /// that validates management tokens against the management keys that its replica holds and the
-        /// <see cref="IControlPlaneAuthority"/> that asks the control-plane cell's <c>control-plane/v1/authority</c>
-        /// endpoint for the roles of a caller, with a token for the audience <c>urn:ncode:control-plane</c> from the
-        /// same <see cref="ICellTokenSource"/>. This registration adds both as keyed singletons under
+        /// <see cref="IControlPlaneAuthority"/> that answers the roles of a caller from the platform and team
+        /// authority documents that its replica holds, and an <see cref="IControlPlanePrincipalDirectory"/> that
+        /// describes no principal. This registration adds all three as keyed singletons under
         /// <see cref="ControlPlaneServiceKeys.Remote"/> on every cell and reads no <c>Cell</c> setting; the management
         /// library resolves them for a cell that is not the control plane and resolves its local adapters for the
         /// control-plane cell.
@@ -118,11 +118,11 @@ public static class DefaultRegistration
             >(ControlPlaneServiceKeys.Remote);
             serviceCollection.TryAddKeyedSingleton<
                 IControlPlaneAuthority,
-                RemoteControlPlaneAuthority
+                ReplicatedControlPlaneAuthority
             >(ControlPlaneServiceKeys.Remote);
             serviceCollection.TryAddKeyedSingleton<
                 IControlPlanePrincipalDirectory,
-                RemoteControlPlanePrincipalDirectory
+                EmptyControlPlanePrincipalDirectory
             >(ControlPlaneServiceKeys.Remote);
 
             // The start check refuses an unusable control-plane issuer before the cell registers with the directory.

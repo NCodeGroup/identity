@@ -89,7 +89,7 @@ public class DefaultRegistrationTests : BaseTests
             )
         );
         Assert.True(
-            IsRegisteredKeyed<IControlPlaneAuthority, RemoteControlPlaneAuthority>(
+            IsRegisteredKeyed<IControlPlaneAuthority, ReplicatedControlPlaneAuthority>(
                 serviceCollection,
                 ControlPlaneServiceKeys.Remote
             )
