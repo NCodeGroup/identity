@@ -65,7 +65,7 @@ public static class TypefaceProbe
             if (families.every((family) => document.fonts.check(`16px "${family}"`))) {
               return true;
             }
-            await pause(50);
+            await pause(Math.min(50, Math.max(0, deadline - performance.now())));
           }
         }
         """;
