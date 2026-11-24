@@ -224,6 +224,7 @@ internal class DefaultSettingDescriptorDataSource(
             yield return new SettingDescriptor<bool>
             {
                 Name = OpenIdSettingNames.AccessTokenSenderConstraintRequired,
+                IsSignInCritical = true,
                 AppliesTo = ClientsAndResourceServers,
                 Default = false,
 
@@ -321,6 +322,7 @@ internal class DefaultSettingDescriptorDataSource(
             yield return new SettingDescriptor<IReadOnlyCollection<string>>
             {
                 Name = OpenIdSettingNames.AllowedConnections,
+                IsSignInCritical = true,
                 AppliesTo = Clients,
                 Rule = SettingRules.Each(connectionNameRule),
 
@@ -333,6 +335,7 @@ internal class DefaultSettingDescriptorDataSource(
             yield return new SettingDescriptor<string>
             {
                 Name = OpenIdSettingNames.DefaultConnection,
+                IsSignInCritical = true,
                 AppliesTo = TenantsAndClients,
                 Rule = connectionNameRule,
                 Default = ConnectionDefaults.Name,
@@ -677,6 +680,7 @@ internal class DefaultSettingDescriptorDataSource(
             yield return new SettingDescriptor<IReadOnlyCollection<string>>
             {
                 Name = OpenIdSettingNames.GrantTypesEnabled,
+                IsSignInCritical = true,
                 AppliesTo = PlatformOnly,
                 Rule = SettingRules.Each(grantTypesEnabledItemRule),
 
@@ -1534,6 +1538,7 @@ internal class DefaultSettingDescriptorDataSource(
             yield return new SettingDescriptor<bool>
             {
                 Name = OpenIdSettingNames.RequireDPoPBoundAccessTokens,
+                IsSignInCritical = true,
                 AppliesTo = ClientsAndResourceServers,
                 Default = false,
 
