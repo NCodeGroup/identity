@@ -31,36 +31,48 @@ internal class DefaultLocalAccountValidator(
 
     /// <summary>
     /// Checks the identifiers the connection's <c>local_account_identifier</c> setting demands, and bounds the ones the
-    /// account carries.
+    /// account carries and the request changes.
     /// </summary>
     /// <param name="mode">The connection's <c>local_account_identifier</c> value.</param>
-    /// <param name="userName">The proposed username, or <c>null</c>.</param>
-    /// <param name="email">The proposed email address, or <c>null</c>.</param>
+    /// <param name="proposal">The proposed identifiers.</param>
+    /// <param name="current">The account being updated, or <c>null</c> when an account is created.</param>
+    /// <param name="userNameChanged">Whether the request changes the username.</param>
+    /// <param name="emailChanged">Whether the request changes the email address.</param>
     /// <returns>A <see cref="ManagementError"/> describing the refusal, or <c>null</c> when valid.</returns>
     private static ManagementError? GetIdentifierErrorOrDefault(
         string mode,
-        string? userName,
-        string? email
+        LocalAccountIdentifierProposal proposal,
+        PersistedLocalAccount? current,
+        bool userNameChanged,
+        bool emailChanged
     )
     {
-        var hasUserName = !string.IsNullOrWhiteSpace(userName);
-        var hasEmail = !string.IsNullOrWhiteSpace(email);
-
-        var detail = mode switch
+        // The mode is answered only when the request introduces the violation, so an account whose stored
+        // identifiers already fail it can still be renamed.
+        var detail = GetModeDetailOrDefault(mode, proposal.UserName, proposal.Email);
+        if (detail is not null && current is not null)
         {
-            LocalAccountIdentifiers.Email when !hasEmail => "The email address is required.",
-            LocalAccountIdentifiers.UserName when !hasUserName => "The username is required.",
-            LocalAccountIdentifiers.EmailOrUserName when !hasUserName && !hasEmail =>
-                "A username or an email address is required.",
-            _ => null,
-        };
+            var storedDetail = GetModeDetailOrDefault(mode, current.UserName, current.Email);
+            if (storedDetail is not null)
+            {
+                detail = null;
+            }
+        }
 
-        if (detail is null && userName is { Length: > AccountMaxLengths.UserName })
+        if (
+            detail is null
+            && userNameChanged
+            && proposal.UserName is { Length: > AccountMaxLengths.UserName }
+        )
         {
             detail = $"The username must be at most {AccountMaxLengths.UserName} characters.";
         }
 
-        if (detail is null && email is { Length: > AccountMaxLengths.Email })
+        if (
+            detail is null
+            && emailChanged
+            && proposal.Email is { Length: > AccountMaxLengths.Email }
+        )
         {
             detail = $"The email address must be at most {AccountMaxLengths.Email} characters.";
         }
@@ -68,6 +80,21 @@ internal class DefaultLocalAccountValidator(
         return detail is null
             ? null
             : new ManagementError { StatusCode = StatusCodes.Status400BadRequest, Detail = detail };
+    }
+
+    private static string? GetModeDetailOrDefault(string mode, string? userName, string? email)
+    {
+        var hasUserName = !string.IsNullOrWhiteSpace(userName);
+        var hasEmail = !string.IsNullOrWhiteSpace(email);
+
+        return mode switch
+        {
+            LocalAccountIdentifiers.Email when !hasEmail => "The email address is required.",
+            LocalAccountIdentifiers.UserName when !hasUserName => "The username is required.",
+            LocalAccountIdentifiers.EmailOrUserName when !hasUserName && !hasEmail =>
+                "A username or an email address is required.",
+            _ => null,
+        };
     }
 
     /// <summary>
@@ -131,6 +158,18 @@ internal class DefaultLocalAccountValidator(
                     Detail = "A local account with the specified username already exists.",
                 };
             }
+
+            // An email-only account is stored under its identifier as the user name, so no user name equals an
+            // account's identifier.
+            var byId = await store.GetByIdOrDefaultAsync(proposal.UserName, cancellationToken);
+            if (byId is not null)
+            {
+                return new ManagementError
+                {
+                    StatusCode = StatusCodes.Status409Conflict,
+                    Detail = "The specified username is the identifier of a local account.",
+                };
+            }
         }
 
         if (!string.IsNullOrWhiteSpace(proposal.Email))
@@ -191,6 +230,9 @@ internal class DefaultLocalAccountValidator(
     private async ValueTask<ManagementError?> ValidateIdentifierRequirementsAsync(
         PersistedConnection connection,
         LocalAccountIdentifierProposal proposal,
+        PersistedLocalAccount? current,
+        bool userNameChanged,
+        bool emailChanged,
         IStoreManager storeManager,
         CancellationToken cancellationToken
     )
@@ -207,7 +249,7 @@ internal class DefaultLocalAccountValidator(
         }
 
         var mode = settings.GetValue(OpenIdSettingKeys.LocalAccountIdentifier);
-        return GetIdentifierErrorOrDefault(mode, proposal.UserName, proposal.Email);
+        return GetIdentifierErrorOrDefault(mode, proposal, current, userNameChanged, emailChanged);
     }
 
     /// <summary>
@@ -299,6 +341,9 @@ internal class DefaultLocalAccountValidator(
         var requirementError = await ValidateIdentifierRequirementsAsync(
             connection,
             proposal,
+            null,
+            true,
+            true,
             storeManager,
             cancellationToken
         );
@@ -369,6 +414,9 @@ internal class DefaultLocalAccountValidator(
         var requirementError = await ValidateIdentifierRequirementsAsync(
             connection,
             proposal,
+            account,
+            userNameChanged,
+            emailChanged,
             storeManager,
             cancellationToken
         );
@@ -377,9 +425,16 @@ internal class DefaultLocalAccountValidator(
             return requirementError;
         }
 
+        // The store lookups cover only the identifiers the patch changes.
+        var changedProposal = new LocalAccountIdentifierProposal
+        {
+            UserName = userNameChanged ? model.UserName : null,
+            Email = emailChanged ? model.Email : null,
+            LocalAccountId = account.LocalAccountId,
+        };
         return await ValidateIdentifiersAvailableAsync(
             connection,
-            proposal,
+            changedProposal,
             storeManager,
             cancellationToken
         );

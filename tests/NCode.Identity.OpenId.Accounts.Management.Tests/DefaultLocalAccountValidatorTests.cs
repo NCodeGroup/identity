@@ -51,6 +51,11 @@ public sealed class DefaultLocalAccountValidatorTests : IDisposable
         MockEffectiveSettingsResolver = MockRepository.Create<IEffectiveSettingsResolver>();
         var mockPasswordPolicy = MockRepository.Create<IPasswordPolicy>();
 
+        // No account has a user name's value as its identifier unless a test says so.
+        MockLocalAccountStore
+            .Setup(x => x.GetByIdOrDefaultAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((PersistedLocalAccount?)null);
+
         Connection = CreateConnection(ConnectionId);
         var catalog = new LocalAccountStoreCatalog([
             new LocalAccountStoreRegistration
@@ -865,7 +870,6 @@ public sealed class DefaultLocalAccountValidatorTests : IDisposable
     public async Task ValidateUpdateAsync_WhenEmailTakenByAnotherAccountInTheConnection_Returns409()
     {
         SetupIdentifiers(LocalAccountIdentifiers.EmailOrUserName);
-        SetupUserNameLookup(existing: null);
         SetupEmailLookup(CreateAccount(localAccountId: "other-account", email: Email));
         var account = CreateAccount();
         var model = CreateModel(email: Email);
@@ -937,6 +941,120 @@ public sealed class DefaultLocalAccountValidatorTests : IDisposable
         );
 
         Assert.Null(error);
+    }
+
+    [Fact]
+    public async Task ValidateUpdateAsync_WhenUserNameChangesOnAnAccountWithoutEmailInEmailMode_ReturnsNull()
+    {
+        SetupIdentifiers(LocalAccountIdentifiers.Email);
+        SetupUserNameLookup(existing: null, userName: "new-name");
+        var account = CreateAccount(email: null);
+        var model = CreateModel(userName: "new-name");
+
+        var error = await Validator.ValidateUpdateAsync(
+            Connection,
+            account,
+            model,
+            null,
+            MockStoreManager.Object,
+            CancellationToken.None
+        );
+
+        Assert.Null(error);
+    }
+
+    [Fact]
+    public async Task ValidateUpdateAsync_WhenThePatchRemovesTheEmailInEmailMode_Returns400()
+    {
+        SetupIdentifiers(LocalAccountIdentifiers.Email);
+        var account = CreateAccount(email: Email);
+        var model = CreateModel(userName: "new-name", email: null);
+
+        var error = await Validator.ValidateUpdateAsync(
+            Connection,
+            account,
+            model,
+            null,
+            MockStoreManager.Object,
+            CancellationToken.None
+        );
+
+        Assert.NotNull(error);
+        Assert.Equal(StatusCodes.Status400BadRequest, error.StatusCode);
+    }
+
+    [Fact]
+    public async Task ValidateUpdateAsync_WhenUserNameChangesAndTheUnchangedEmailShadowsAUserName_ReturnsNull()
+    {
+        SetupIdentifiers(LocalAccountIdentifiers.EmailOrUserName);
+        SetupUserNameLookup(existing: null, userName: "new-name");
+        var account = CreateAccount(email: Email);
+        var model = CreateModel(userName: "new-name", email: Email);
+
+        var error = await Validator.ValidateUpdateAsync(
+            Connection,
+            account,
+            model,
+            null,
+            MockStoreManager.Object,
+            CancellationToken.None
+        );
+
+        Assert.Null(error);
+        MockLocalAccountStore.Verify(
+            x => x.GetByUserNameOrDefaultAsync(ConnectionId, Email, It.IsAny<CancellationToken>()),
+            Times.Never
+        );
+    }
+
+    [Fact]
+    public async Task ValidateUpdateAsync_WhenTheUserNameIsAnotherAccountsIdentifier_Returns409()
+    {
+        SetupIdentifiers(LocalAccountIdentifiers.EmailOrUserName);
+        SetupUserNameLookup(existing: null, userName: "other-account");
+        MockLocalAccountStore
+            .Setup(x => x.GetByIdOrDefaultAsync("other-account", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(CreateAccount(localAccountId: "other-account", userName: null))
+            .Verifiable();
+        var account = CreateAccount();
+        var model = CreateModel(userName: "other-account");
+
+        var error = await Validator.ValidateUpdateAsync(
+            Connection,
+            account,
+            model,
+            null,
+            MockStoreManager.Object,
+            CancellationToken.None
+        );
+
+        Assert.NotNull(error);
+        Assert.Equal(StatusCodes.Status409Conflict, error.StatusCode);
+    }
+
+    [Fact]
+    public async Task ValidateUpdateAsync_WhenTheUserNameIsTheAccountsOwnIdentifier_Returns409()
+    {
+        SetupIdentifiers(LocalAccountIdentifiers.EmailOrUserName);
+        SetupUserNameLookup(existing: null, userName: LocalAccountId);
+        var account = CreateAccount();
+        MockLocalAccountStore
+            .Setup(x => x.GetByIdOrDefaultAsync(LocalAccountId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(account)
+            .Verifiable();
+        var model = CreateModel(userName: LocalAccountId);
+
+        var error = await Validator.ValidateUpdateAsync(
+            Connection,
+            account,
+            model,
+            null,
+            MockStoreManager.Object,
+            CancellationToken.None
+        );
+
+        Assert.NotNull(error);
+        Assert.Equal(StatusCodes.Status409Conflict, error.StatusCode);
     }
 
     [Fact]
