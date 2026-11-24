@@ -187,3 +187,7 @@ NCode.Identity.OpenId.GlobalDirectory.CellLabelRules
 const NCode.Identity.OpenId.GlobalDirectory.CellLabelRules.MaxLabelLength = 31 -> int
 static NCode.Identity.OpenId.GlobalDirectory.CellLabelRules.IsValidLabel(string? label) -> bool
 static NCode.Identity.OpenId.GlobalDirectory.CellLabelRules.Description.get -> string!
+NCode.Identity.OpenId.GlobalDirectory.IPlatformTopology
+NCode.Identity.OpenId.GlobalDirectory.IPlatformTopology.HasDirectory.get -> bool
+NCode.Identity.OpenId.GlobalDirectory.IPlatformTopology.HasManagementTenant.get -> bool
+NCode.Identity.OpenId.GlobalDirectory.IPlatformTopology.IsControlPlaneCell.get -> bool

@@ -95,6 +95,11 @@ public static class DefaultRegistration
             serviceCollection.Replace(platformDirectory);
             var cellDirectory = ServiceDescriptor.Singleton<ICellDirectory, RemoteCellDirectory>();
             serviceCollection.Replace(cellDirectory);
+            var platformTopology = ServiceDescriptor.Singleton<
+                IPlatformTopology,
+                DirectoryPlatformTopology
+            >();
+            serviceCollection.Replace(platformTopology);
 
             // Every cell registers the remote management adapters under the key that Management's registration looks
             // up. Management chooses between the local and the remote adapter from the cell's options at resolution, so

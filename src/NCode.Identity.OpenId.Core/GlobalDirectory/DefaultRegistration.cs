@@ -23,6 +23,7 @@ internal static class DefaultRegistration
         /// <returns>The <see cref="IServiceBuilder{T}"/> instance for method chaining.</returns>
         public IServiceBuilder<OpenIdCoreLibrary> AddDirectoryMirrorServices()
         {
+            builder.ServiceCollection.TryAddSingleton<IPlatformTopology, LocalPlatformTopology>();
             builder.ServiceCollection.TryAddSingleton<
                 IPostCommitCommandSender,
                 DefaultPostCommitCommandSender
