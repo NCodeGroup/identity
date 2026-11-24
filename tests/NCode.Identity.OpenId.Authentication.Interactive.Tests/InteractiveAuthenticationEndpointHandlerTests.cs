@@ -583,6 +583,89 @@ public sealed class InteractiveAuthenticationEndpointHandlerTests : IDisposable
         Assert.IsType<NotFound>(result);
     }
 
+    [Fact]
+    public async Task GetEmailPageAsync_WhenThePrincipalsConnectionDoesNotResolve_IsNotFound()
+    {
+        var mockCatalog = MockRepository.Create<IUiLocaleCatalog>();
+        mockCatalog.SetupGet(x => x.Locales).Returns([TestLocales.Xx]).Verifiable();
+        var mockContext = MockRepository.Create<OpenIdContext>();
+        var mockFeature = MockRepository.Create<IOpenIdContextFeature>();
+        mockFeature.SetupGet(x => x.OpenIdContext).Returns(mockContext.Object).Verifiable();
+
+        var principal = new ClaimsPrincipal(
+            new ClaimsIdentity(
+                [
+                    new Claim(JoseClaimNames.Payload.Sid, "session-1"),
+                    new Claim(ConnectionClaimTypes.Connection, "connection-1"),
+                ],
+                authenticationType: "cookie"
+            )
+        );
+        var mockAuthentication = MockRepository.Create<IAuthenticationService>();
+        mockAuthentication
+            .Setup(x =>
+                x.AuthenticateAsync(
+                    It.IsAny<HttpContext>(),
+                    InteractiveAuthenticationDefaults.CookieSchemeName
+                )
+            )
+            .ReturnsAsync(
+                AuthenticateResult.Success(
+                    new AuthenticationTicket(
+                        principal,
+                        InteractiveAuthenticationDefaults.CookieSchemeName
+                    )
+                )
+            )
+            .Verifiable();
+
+        var mockSessionService = MockRepository.Create<ISessionService>();
+        mockSessionService
+            .Setup(x =>
+                x.ValidateAndTouchAsync(
+                    mockContext.Object,
+                    "session-1",
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync(true)
+            .Verifiable();
+
+        var mockConnectionResolver = MockRepository.Create<IConnectionResolver>();
+        mockConnectionResolver
+            .Setup(x =>
+                x.GetByIdOrDefaultAsync(
+                    mockContext.Object,
+                    "connection-1",
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync((ResolvedConnection?)null)
+            .Verifiable();
+
+        var mockTenantResolver = MockRepository.Create<ITenantResolver>();
+        using var serviceProvider = new ServiceCollection()
+            .AddRouting()
+            .AddSingleton(mockAuthentication.Object)
+            .BuildServiceProvider();
+        using var bundle = new SinglePageBundle<InteractiveBundleShell>(null, _ => null);
+        var handler = CreateHandler(
+            mockCatalog.Object,
+            mockTenantResolver.Object,
+            serviceProvider,
+            bundle,
+            connectionResolver: mockConnectionResolver.Object,
+            sessionService: mockSessionService.Object
+        );
+
+        var httpContext = new DefaultHttpContext { RequestServices = serviceProvider };
+        httpContext.Features.Set(mockFeature.Object);
+
+        var result = await handler.GetEmailPageAsync(httpContext);
+
+        Assert.IsType<NotFound>(result);
+    }
+
     #endregion
 
     #region PostSendEmailCodeAsync Tests

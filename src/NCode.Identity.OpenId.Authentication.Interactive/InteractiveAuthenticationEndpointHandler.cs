@@ -389,7 +389,7 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
     /// redirects to the validated local return URL; on failure it redirects back to the login page with an error. An
     /// end user whose standing is refused, such as a blocked principal or a disabled account, signs in nowhere: no
     /// session is created, and the parked authorization request the return URL names is answered with the refusal,
-    /// otherwise the login page shows it. A tenant that requires the email second factor holds the end user whose
+    /// otherwise the login page shows it. A connection that requires the email second factor holds the end user whose
     /// password is verified in the pending sign-in cookie instead, mails a code and redirects to the sign-in code page;
     /// when the account has been sent the most codes the tenant allows, it redirects back to the login page with
     /// <c>?error=too_many_codes</c>, and an account that cannot receive a code is refused as one whose standing is
@@ -489,7 +489,7 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
             );
         }
 
-        // A tenant that requires the email second factor keeps the end user, whose password is verified, in the pending
+        // A connection that requires the email second factor keeps the end user, whose password is verified, in the pending
         // sign-in cookie: no session is created until the mailed code is right.
         // See ADR-1533.
         var connectionSettings = selectedConnection.Settings;
@@ -2162,9 +2162,10 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
     /// </summary>
     /// <param name="httpContext">The current request.</param>
     /// <param name="principal">The signed-in principal, whose connection claim names the connection whose settings
-    /// decide.</param>
+    /// decide; without the claim the tenant's settings decide.</param>
     /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
-    /// <returns><see langword="true"/> when the connection lets its end users verify their address.</returns>
+    /// <returns><see langword="true"/> when the connection lets its end users verify their address, and
+    /// <see langword="false"/> when the claim names a connection that does not resolve.</returns>
     // See ADR-1533.
     private async ValueTask<bool> IsEmailVerificationEnabledAsync(
         HttpContext httpContext,
@@ -2174,15 +2175,19 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
     {
         var openIdContext = httpContext.GetOpenIdContext();
         var connectionId = principal.FindFirst(ConnectionClaimTypes.Connection)?.Value;
-        var connection = string.IsNullOrEmpty(connectionId)
-            ? null
-            : await ConnectionResolver.GetByIdOrDefaultAsync(
-                openIdContext,
-                connectionId,
-                cancellationToken
-            );
-        var settings = connection?.Settings ?? openIdContext.Tenant.SettingsProvider.Collection;
-        return settings.GetValue(OpenIdSettingKeys.EmailVerificationEnabled);
+        if (string.IsNullOrEmpty(connectionId))
+        {
+            var tenantSettings = openIdContext.Tenant.SettingsProvider.Collection;
+            return tenantSettings.GetValue(OpenIdSettingKeys.EmailVerificationEnabled);
+        }
+
+        var connection = await ConnectionResolver.GetByIdOrDefaultAsync(
+            openIdContext,
+            connectionId,
+            cancellationToken
+        );
+        return connection is not null
+            && connection.Settings.GetValue(OpenIdSettingKeys.EmailVerificationEnabled);
     }
 
     /// <summary>

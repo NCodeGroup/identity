@@ -272,5 +272,45 @@ public class LocalAccountSignedInAccountFinderTests : BaseTests
         Assert.Null(result);
     }
 
+    [Fact]
+    public async Task FindAsync_WhenTheClaimedConnectionIsDisabled_ReturnsNullBesideAnotherLocalIdentity()
+    {
+        var principal = CreatePrincipal(FirstConnectionId);
+        var mockContext = CreateContext(principal, PrincipalId);
+        SetupIdentities(
+            Identity(FirstConnectionId, FirstAccountId),
+            Identity(SecondConnectionId, SecondAccountId)
+        );
+        SetupConnection(FirstConnectionId, isEnabled: false);
+        SetupConnection(SecondConnectionId);
+
+        var result = await Finder.FindAsync(
+            MockStoreManager.Object,
+            mockContext.Object,
+            principal,
+            CancellationToken.None
+        );
+
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public async Task FindAsync_WhenTheClaimedConnectionHasNoIdentity_ReturnsNullBesideAnotherLocalIdentity()
+    {
+        var principal = CreatePrincipal(SecondConnectionId);
+        var mockContext = CreateContext(principal, PrincipalId);
+        SetupIdentities(Identity(FirstConnectionId, FirstAccountId));
+        SetupConnection(FirstConnectionId);
+
+        var result = await Finder.FindAsync(
+            MockStoreManager.Object,
+            mockContext.Object,
+            principal,
+            CancellationToken.None
+        );
+
+        Assert.Null(result);
+    }
+
     #endregion
 }
