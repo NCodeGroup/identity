@@ -121,8 +121,8 @@ public sealed class DefaultControlPlaneReplicaTests : BaseTests
         return key.Object;
     }
 
-    private static string KeyEntry(string keyId, string? expiresWhen = null) =>
-        $$"""{"kid":"{{keyId}}","secretType":"rsa","algorithm":"PS256","use":"sig","keySizeBits":2048,"publicKey":"AAAA","expiresWhen":{{(expiresWhen is null ? "null" : $"\"{expiresWhen}\"")}} }""";
+    private static string KeyEntry(string keyId, string expiresWhen = "2040-01-01T00:00:00Z") =>
+        $$"""{"kid":"{{keyId}}","secretType":"rsa","algorithm":"PS256","use":"sig","keySizeBits":2048,"publicKey":"AAAA","activatesWhen":"2020-01-01T00:00:00Z","retiresWhen":"2039-01-01T00:00:00Z","expiresWhen":"{{expiresWhen}}"}""";
 
     [Fact]
     public async Task GetManagementKeysAsync_WhenNoDocumentIsHeld_HasNoKeys()
@@ -143,6 +143,21 @@ public sealed class DefaultControlPlaneReplicaTests : BaseTests
             ReplicatedDocumentKinds.ManagementKeys,
             "",
             $$"""{"keys":[{{KeyEntry("k1")}}],"revokedKeyIds":[]}"""
+        );
+        SetupRevoked();
+
+        await Assert.ThrowsAsync<JsonException>(async () =>
+            await Replica.GetManagementKeysAsync(CancellationToken.None)
+        );
+    }
+
+    [Fact]
+    public async Task GetManagementKeysAsync_WhenAnEntryLacksExpiresWhen_Throws()
+    {
+        SetupDocument(
+            ReplicatedDocumentKinds.ManagementKeys,
+            "",
+            """{"keys":[{"kid":"k1","secretType":"rsa","algorithm":"PS256","use":"sig","keySizeBits":2048,"publicKey":"AAAA","activatesWhen":"2020-01-01T00:00:00Z","retiresWhen":"2039-01-01T00:00:00Z"}],"revokedKeyIds":[]}"""
         );
         SetupRevoked();
 
@@ -233,17 +248,31 @@ public sealed class DefaultControlPlaneReplicaTests : BaseTests
                 }
             )
             .Verifiable();
-        SetupDocument(
-            ReplicatedDocumentKinds.TeamAuthority,
-            "root",
-            """{"assignments":[{"principalId":"p1","roleName":"TeamAdmin"}]}"""
-        );
-        SetupDocument(ReplicatedDocumentKinds.TeamAuthority, "mid", null);
-        SetupDocument(
-            ReplicatedDocumentKinds.TeamAuthority,
-            "child",
-            """{"assignments":[{"principalId":"p1","roleName":"TeamAdmin"},{"principalId":"p1","roleName":"Auditor"}]}"""
-        );
+        MockStore
+            .Setup(x =>
+                x.GetManyAsync(
+                    ReplicatedDocumentKinds.TeamAuthority,
+                    It.Is<IReadOnlyCollection<string>>(keys =>
+                        keys.SequenceEqual(new[] { "root", "mid", "child" })
+                    ),
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync([
+                Document(
+                    ReplicatedDocumentKinds.TeamAuthority,
+                    "root",
+                    Envelope("""{"assignments":[{"principalId":"p1","roleName":"TeamAdmin"}]}""")
+                ),
+                Document(
+                    ReplicatedDocumentKinds.TeamAuthority,
+                    "child",
+                    Envelope(
+                        """{"assignments":[{"principalId":"p1","roleName":"TeamAdmin"},{"principalId":"p1","roleName":"Auditor"}]}"""
+                    )
+                ),
+            ])
+            .Verifiable();
 
         var result = await Replica.GetAuthorityAsync("p1", "Child", CancellationToken.None);
 

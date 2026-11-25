@@ -152,6 +152,41 @@ public sealed class ReplicatedDocumentStoreTests : IDisposable
     }
 
     [Fact]
+    public async Task GetManyAsync_ReturnsTheNamedDocumentsOfTheKindInOneCall()
+    {
+        foreach (var key in new[] { "a", "b", "c" })
+        {
+            await ApplyAsync(
+                new PersistedReplicatedDocument
+                {
+                    Kind = Kind,
+                    Key = key,
+                    Revision = 1,
+                    ContentJson = "{}",
+                }
+            );
+        }
+
+        await ApplyAsync(
+            new PersistedReplicatedDocument
+            {
+                Kind = "management-keys",
+                Key = "a",
+                Revision = 1,
+                ContentJson = "{}",
+            }
+        );
+
+        using var scope = Provider.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<OpenIdDbContext>();
+        var actual = await CreateStore(context)
+            .GetManyAsync(Kind, ["c", "a", "missing"], CancellationToken.None);
+
+        Assert.Equal(["a", "c"], actual.Select(document => document.Key));
+        Assert.All(actual, document => Assert.Equal(Kind, document.Kind));
+    }
+
+    [Fact]
     public async Task ListByKindAsync_ReturnsOnlyThatKind()
     {
         await ApplyAsync(CreateDocument(1, "{}"));

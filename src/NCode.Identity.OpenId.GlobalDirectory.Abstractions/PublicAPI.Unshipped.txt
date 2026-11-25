@@ -245,19 +245,19 @@ NCode.Identity.OpenId.GlobalDirectory.ManagementKeysDocumentContent.Keys.init ->
 NCode.Identity.OpenId.GlobalDirectory.ManagementKeysDocumentContent.RevokedKeyIds.get -> System.Collections.Generic.IReadOnlyList<string!>!
 NCode.Identity.OpenId.GlobalDirectory.ManagementKeysDocumentContent.RevokedKeyIds.init -> void
 NCode.Identity.OpenId.GlobalDirectory.ManagementKeyEntry
-NCode.Identity.OpenId.GlobalDirectory.ManagementKeyEntry.ActivatesWhen.get -> System.DateTimeOffset?
+NCode.Identity.OpenId.GlobalDirectory.ManagementKeyEntry.ActivatesWhen.get -> System.DateTimeOffset
 NCode.Identity.OpenId.GlobalDirectory.ManagementKeyEntry.ActivatesWhen.init -> void
 NCode.Identity.OpenId.GlobalDirectory.ManagementKeyEntry.Algorithm.get -> string!
 NCode.Identity.OpenId.GlobalDirectory.ManagementKeyEntry.Algorithm.init -> void
-NCode.Identity.OpenId.GlobalDirectory.ManagementKeyEntry.ExpiresWhen.get -> System.DateTimeOffset?
+NCode.Identity.OpenId.GlobalDirectory.ManagementKeyEntry.ExpiresWhen.get -> System.DateTimeOffset
 NCode.Identity.OpenId.GlobalDirectory.ManagementKeyEntry.ExpiresWhen.init -> void
 NCode.Identity.OpenId.GlobalDirectory.ManagementKeyEntry.KeyId.get -> string!
 NCode.Identity.OpenId.GlobalDirectory.ManagementKeyEntry.KeyId.init -> void
-NCode.Identity.OpenId.GlobalDirectory.ManagementKeyEntry.KeySizeBits.get -> int?
+NCode.Identity.OpenId.GlobalDirectory.ManagementKeyEntry.KeySizeBits.get -> int
 NCode.Identity.OpenId.GlobalDirectory.ManagementKeyEntry.KeySizeBits.init -> void
 NCode.Identity.OpenId.GlobalDirectory.ManagementKeyEntry.PublicKey.get -> string!
 NCode.Identity.OpenId.GlobalDirectory.ManagementKeyEntry.PublicKey.init -> void
-NCode.Identity.OpenId.GlobalDirectory.ManagementKeyEntry.RetiresWhen.get -> System.DateTimeOffset?
+NCode.Identity.OpenId.GlobalDirectory.ManagementKeyEntry.RetiresWhen.get -> System.DateTimeOffset
 NCode.Identity.OpenId.GlobalDirectory.ManagementKeyEntry.RetiresWhen.init -> void
 NCode.Identity.OpenId.GlobalDirectory.ManagementKeyEntry.SecretType.get -> string!
 NCode.Identity.OpenId.GlobalDirectory.ManagementKeyEntry.SecretType.init -> void

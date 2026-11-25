@@ -63,6 +63,8 @@ public class ReplicatedDocumentTests
                     KeySizeBits = 2048,
                     PublicKey = "AQAB",
                     ActivatesWhen = new DateTimeOffset(2030, 1, 1, 0, 0, 0, TimeSpan.Zero),
+                    RetiresWhen = new DateTimeOffset(2031, 1, 1, 0, 0, 0, TimeSpan.Zero),
+                    ExpiresWhen = new DateTimeOffset(2032, 1, 1, 0, 0, 0, TimeSpan.Zero),
                 },
             ],
             RevokedKeyIds = ["k0"],
@@ -79,9 +81,24 @@ public class ReplicatedDocumentTests
         Assert.Equal("k1", key.KeyId);
         Assert.Equal(2048, key.KeySizeBits);
         Assert.Equal(content.Keys[0].ActivatesWhen, key.ActivatesWhen);
-        Assert.Null(key.RetiresWhen);
+        Assert.Equal(content.Keys[0].RetiresWhen, key.RetiresWhen);
+        Assert.Equal(content.Keys[0].ExpiresWhen, key.ExpiresWhen);
         Assert.Equal("k0", Assert.Single(result.RevokedKeyIds));
         Assert.Contains("\"kid\"", json);
+    }
+
+    [Fact]
+    public void Deserialize_WhenManagementKeyLacksExpiresWhen_Throws()
+    {
+        const string json = """
+            {"keys":[{"kid":"k1","secretType":"rsa","algorithm":"PS256","use":"sig","keySizeBits":2048,
+            "publicKey":"AQAB","activatesWhen":"2030-01-01T00:00:00+00:00","retiresWhen":"2031-01-01T00:00:00+00:00"}],
+            "revokedKeyIds":[]}
+            """;
+
+        Assert.Throws<JsonException>(() =>
+            JsonSerializer.Deserialize<ManagementKeysDocumentContent>(json, DirectoryJson.Options)
+        );
     }
 
     [Fact]

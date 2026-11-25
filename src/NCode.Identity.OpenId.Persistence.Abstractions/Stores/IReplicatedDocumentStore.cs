@@ -32,6 +32,20 @@ public interface IReplicatedDocumentStore : IStore
     );
 
     /// <summary>
+    /// Gets the replicas of several documents of one kind in one read.
+    /// </summary>
+    /// <param name="kind">The kind of the documents.</param>
+    /// <param name="keys">The keys of the documents within their kind.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation, containing the replicas that
+    /// the cell holds. A key without a replica contributes nothing.</returns>
+    ValueTask<IReadOnlyList<PersistedReplicatedDocument>> GetManyAsync(
+        string kind,
+        IReadOnlyCollection<string> keys,
+        CancellationToken cancellationToken
+    );
+
+    /// <summary>
     /// Lists the replicas of one kind.
     /// </summary>
     /// <param name="kind">The kind of the documents.</param>

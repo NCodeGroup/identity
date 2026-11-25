@@ -39,10 +39,10 @@ public sealed record ManagementKeyEntry
     public required string Use { get; init; }
 
     /// <summary>
-    /// Gets the size of the key in bits, or <c>null</c> when the key has no size.
+    /// Gets the size of the key in bits.
     /// </summary>
     [JsonPropertyName("keySizeBits")]
-    public int? KeySizeBits { get; init; }
+    public required int KeySizeBits { get; init; }
 
     /// <summary>
     /// Gets the base64url public material of the key.
@@ -51,20 +51,20 @@ public sealed record ManagementKeyEntry
     public required string PublicKey { get; init; }
 
     /// <summary>
-    /// Gets when the key becomes active, or <c>null</c> for a key that is active from the start.
+    /// Gets when the key becomes active.
     /// </summary>
     [JsonPropertyName("activatesWhen")]
-    public DateTimeOffset? ActivatesWhen { get; init; }
+    public required DateTimeOffset ActivatesWhen { get; init; }
 
     /// <summary>
-    /// Gets when the key is retired, or <c>null</c> for a key that is not scheduled for retirement.
+    /// Gets when the key is retired.
     /// </summary>
     [JsonPropertyName("retiresWhen")]
-    public DateTimeOffset? RetiresWhen { get; init; }
+    public required DateTimeOffset RetiresWhen { get; init; }
 
     /// <summary>
-    /// Gets when the key expires, or <c>null</c> for a key that does not expire.
+    /// Gets when the key expires.
     /// </summary>
     [JsonPropertyName("expiresWhen")]
-    public DateTimeOffset? ExpiresWhen { get; init; }
+    public required DateTimeOffset ExpiresWhen { get; init; }
 }

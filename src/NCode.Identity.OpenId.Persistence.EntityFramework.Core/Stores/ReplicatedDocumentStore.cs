@@ -51,6 +51,26 @@ internal class ReplicatedDocumentStore(
     }
 
     /// <inheritdoc />
+    public async ValueTask<IReadOnlyList<PersistedReplicatedDocument>> GetManyAsync(
+        string kind,
+        IReadOnlyCollection<string> keys,
+        CancellationToken cancellationToken
+    )
+    {
+        if (keys.Count == 0)
+            return [];
+
+        var keyList = keys.ToList();
+        var entities = await DbContext
+            .ReplicatedDocuments.AsNoTracking()
+            .Where(entity => entity.Kind == kind && keyList.Contains(entity.Key))
+            .OrderBy(entity => entity.Key)
+            .ToListAsync(cancellationToken);
+
+        return entities.Select(MapFromEntity).ToList();
+    }
+
+    /// <inheritdoc />
     public async ValueTask<IReadOnlyList<PersistedReplicatedDocument>> ListByKindAsync(
         string kind,
         CancellationToken cancellationToken
