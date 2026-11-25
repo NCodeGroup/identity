@@ -6,6 +6,7 @@ import { useAppSelector, useGetTeamQuery, useGetTenantQuery } from '@ncodegroup/
 import { AppLayout } from './components/AppLayout.js';
 import { permittedRoute, teamExit, tenantExit } from './access.js';
 import { useCallerAccess } from './useCallerAccess.js';
+import { useConsoleKind } from './consoleKind.js';
 import { TenantCellProvider } from './tenantCell.js';
 import { announceSessionEnded, submitLogout } from './session.js';
 import { useConsoleRoute, navigateTo } from './navigation.js';
@@ -91,9 +92,7 @@ export function App() {
     user?.name ?? (typeof preferredUsername === 'string' ? preferredUsername : user?.sub);
 
   // A console that manages one cell shows no platform or team surface and addresses only its own API.
-  const consoleKind = useAppSelector((state) =>
-    state.config.runtime?.kind === 'bff' ? state.config.runtime.console : undefined,
-  );
+  const consoleKind = useConsoleKind();
   const isCellConsole = consoleKind === 'cell';
 
   const route = useConsoleRoute();

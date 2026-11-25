@@ -1,10 +1,10 @@
 import { useMemo } from 'react';
 import {
-  useAppSelector,
   useGetCallerQuery,
   useListCallerTeamsQuery,
   useListCallerTenantsQuery,
 } from '@ncodegroup/identity-store';
+import { useIsCellConsole } from './consoleKind.js';
 import { toCallerAccess, type CallerAccess } from './access.js';
 
 const noTeams: readonly never[] = [];
@@ -16,9 +16,7 @@ const noTeams: readonly never[] = [];
  * serves no teams, and treats the caller as holding none.
  */
 export function useCallerAccess(isSignedIn: boolean): CallerAccess | undefined {
-  const isCellConsole = useAppSelector(
-    (state) => state.config.runtime?.kind === 'bff' && state.config.runtime.console === 'cell',
-  );
+  const isCellConsole = useIsCellConsole();
   const caller = useGetCallerQuery(undefined, { skip: !isSignedIn });
   const callerTeams = useListCallerTeamsQuery(undefined, { skip: !isSignedIn || isCellConsole });
   const callerTenants = useListCallerTenantsQuery(undefined, { skip: !isSignedIn });

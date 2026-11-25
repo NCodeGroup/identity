@@ -15,6 +15,12 @@ namespace NCode.Identity.ManagementConsole;
 /// </summary>
 internal sealed record ManagementConsoleBootstrapDocument
 {
+    /// <summary>The <see cref="Console"/> value of the console that manages the whole platform.</summary>
+    internal const string PlatformConsole = "platform";
+
+    /// <summary>The <see cref="Console"/> value of the console that manages one cell.</summary>
+    internal const string CellConsole = "cell";
+
     [JsonPropertyName("apiBaseUrl")]
     public required string ApiBaseUrl { get; init; }
 
@@ -26,7 +32,7 @@ internal sealed record ManagementConsoleBootstrapDocument
         new Dictionary<string, bool>(StringComparer.Ordinal);
 
     [JsonPropertyName("console")]
-    public string Console { get; init; } = "platform";
+    public required string Console { get; init; }
 
     [JsonPropertyName("cell")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -63,7 +69,7 @@ internal sealed record ManagementConsoleBootstrapDocument
                 },
             },
             Features = new Dictionary<string, bool>(options.Features, StringComparer.Ordinal),
-            Console = options.Cell is null ? "platform" : "cell",
+            Console = options.Cell is null ? PlatformConsole : CellConsole,
             Cell = options.Cell,
             Cells = [.. options.Cells.Keys.Order(StringComparer.Ordinal)],
             Branding = ManagementConsoleBrandingDocument.Create(options.Branding),

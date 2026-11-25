@@ -17,7 +17,6 @@ import {
 } from '@ncodegroup/identity-ui';
 import {
   pagedItems,
-  useAppSelector,
   useGetCallerQuery,
   useGetCellScopeQuery,
   useListCellTenantsInfiniteQuery,
@@ -27,6 +26,7 @@ import {
 import { soleDestination } from '../access.js';
 import { cellRoute, platformRoute, teamRoute, tenantRoute, type ConsoleRoute } from '../routes.js';
 import { useCallerAccess } from '../useCallerAccess.js';
+import { useIsCellConsole } from '../consoleKind.js';
 
 export type HomePageProps = {
   /** Opens a route; `replace` swaps the home entry in the history instead of adding one. */
@@ -41,9 +41,7 @@ const cellAdministratorRoles = ['CellAdmin', 'GlobalAdmin'];
  * the places the caller holds authority.
  */
 export function HomePage({ onNavigate }: HomePageProps) {
-  const isCellConsole = useAppSelector(
-    (state) => state.config.runtime?.kind === 'bff' && state.config.runtime.console === 'cell',
-  );
+  const isCellConsole = useIsCellConsole();
   return isCellConsole ? (
     <CellHome onNavigate={onNavigate} />
   ) : (

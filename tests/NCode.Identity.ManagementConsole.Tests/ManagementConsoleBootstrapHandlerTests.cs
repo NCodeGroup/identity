@@ -230,7 +230,7 @@ public class ManagementConsoleBootstrapHandlerTests : BaseTests
             PathString.Empty
         );
 
-        Assert.Equal("cell", document.Console);
+        Assert.Equal(ManagementConsoleBootstrapDocument.CellConsole, document.Console);
         Assert.Equal("eu-1", document.Cell);
     }
 
@@ -243,7 +243,7 @@ public class ManagementConsoleBootstrapHandlerTests : BaseTests
             PathString.Empty
         );
 
-        Assert.Equal("platform", document.Console);
+        Assert.Equal(ManagementConsoleBootstrapDocument.PlatformConsole, document.Console);
         Assert.Null(document.Cell);
     }
 
