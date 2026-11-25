@@ -259,6 +259,7 @@ internal sealed class OwnershipHandler(
 
     private static bool IsManagementRole(string roleName) =>
         string.Equals(roleName, BuiltInRoles.Owner, StringComparison.OrdinalIgnoreCase)
+        || string.Equals(roleName, BuiltInRoles.CellAdmin, StringComparison.OrdinalIgnoreCase)
         || string.Equals(roleName, BuiltInRoles.TeamAdmin, StringComparison.OrdinalIgnoreCase)
         || string.Equals(roleName, BuiltInRoles.TenantAdmin, StringComparison.OrdinalIgnoreCase)
         || string.Equals(roleName, BuiltInRoles.GlobalAdmin, StringComparison.OrdinalIgnoreCase);

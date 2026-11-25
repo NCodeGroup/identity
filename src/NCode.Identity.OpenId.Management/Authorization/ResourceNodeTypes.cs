@@ -22,6 +22,11 @@ public static class ResourceNodeTypes
     public const string Platform = OpenIdResourceTypes.Platform;
 
     /// <summary>
+    /// A cell node, named by <c>Cell:Name</c>. A role assigned here applies across every tenant the cell holds.
+    /// </summary>
+    public const string Cell = OpenIdResourceTypes.Cell;
+
+    /// <summary>
     /// A team node. A role assigned here applies across the team and every tenant beneath it.
     /// </summary>
     // See ADR-1411

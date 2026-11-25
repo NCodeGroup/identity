@@ -28,6 +28,12 @@ public static class BuiltInRoles
     public const string TenantAdmin = "TenantAdmin";
 
     /// <summary>
+    /// The role name for cell administrators, who manage every tenant their cell holds and everything beneath them but
+    /// create no tenant, team or platform resource.
+    /// </summary>
+    public const string CellAdmin = "CellAdmin";
+
+    /// <summary>
     /// The role name for the owner of a single resource instance, who may manage that instance (and everything beneath
     /// it) but not create new resources.
     /// </summary>

@@ -1615,3 +1615,4 @@ NCode.Identity.OpenId.Management.Contracts.Platform.ManagementKeyRevocationResou
 NCode.Identity.OpenId.Management.Contracts.Platform.ManagementKeyRevocationResource.ReplacementKeyId.init -> void
 NCode.Identity.OpenId.Management.Contracts.Platform.ManagementKeyRevocationResource.RevokedKeyId.get -> string!
 NCode.Identity.OpenId.Management.Contracts.Platform.ManagementKeyRevocationResource.RevokedKeyId.init -> void
+const NCode.Identity.OpenId.Management.BuiltInRoles.CellAdmin = "CellAdmin" -> string!

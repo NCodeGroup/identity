@@ -1,6 +1,8 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using Microsoft.Extensions.Options;
+using NCode.Identity.OpenId.GlobalDirectory;
 using NCode.Identity.OpenId.Persistence.Stores;
 using NCode.Identity.OpenId.Persistence.Tenants;
 using NCode.Identity.Persistence.Stores;
@@ -10,9 +12,13 @@ namespace NCode.Identity.OpenId.Management.Authorization;
 /// <summary>
 /// Provides the default implementation of <see cref="IAuthorityChainResolver"/>.
 /// </summary>
-internal class DefaultAuthorityChainResolver(IAmbientTenantAccessor ambientTenantAccessor)
-    : IAuthorityChainResolver
+internal class DefaultAuthorityChainResolver(
+    IAmbientTenantAccessor ambientTenantAccessor,
+    IOptions<CellOptions> cellOptions
+) : IAuthorityChainResolver
 {
+    private IOptions<CellOptions> CellOptions { get; } = cellOptions;
+
     private IAmbientTenantAccessor AmbientTenantAccessor { get; } = ambientTenantAccessor;
 
     /// <inheritdoc />
@@ -57,6 +63,13 @@ internal class DefaultAuthorityChainResolver(IAmbientTenantAccessor ambientTenan
             var tenantStore = storeManager.GetStore<ITenantStore>();
             var tenant = await tenantStore.GetOrDefaultAsync(node.TenantId, cancellationToken);
             teamId = tenant?.TeamId;
+
+            // A tenant this cell holds sits beneath the cell, so the cell's administrators hold authority over it.
+            if (tenant is not null)
+            {
+                var cellNodeId = Normalize(CellOptions.Value.Name);
+                nodes.Add((ResourceNodeTypes.Cell, cellNodeId));
+            }
         }
 
         if (teamId is not null)

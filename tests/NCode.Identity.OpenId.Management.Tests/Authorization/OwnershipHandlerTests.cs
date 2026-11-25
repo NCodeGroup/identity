@@ -4,6 +4,7 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Options;
 using NCode.Identity.OpenId.Contexts;
 using NCode.Identity.OpenId.GlobalDirectory;
 using NCode.Identity.OpenId.Management.Authorization;
@@ -123,7 +124,10 @@ public class OwnershipHandlerTests : IDisposable
             authority.Object,
             accessor.Object,
             ambient.Object,
-            new DefaultAuthorityChainResolver(ambient.Object)
+            new DefaultAuthorityChainResolver(
+                ambient.Object,
+                Options.Create(new CellOptions { Name = "cell-1" })
+            )
         );
         var context = new AuthorizationHandlerContext([requirement], user, resource);
 
@@ -512,6 +516,78 @@ public class OwnershipHandlerTests : IDisposable
             TeamNode(),
             CreateSubject(),
             [Assignment(BuiltInRoles.TeamAdmin, ResourceNodeTypes.Team, "team-2")],
+            new OwnershipHandlerOptions { ReadsTenant = false },
+            CancellationToken.None
+        );
+
+        Assert.False(succeeded);
+    }
+
+    [Fact]
+    public async Task HandleRequirementAsync_WhenCellAdminAtTheCellOnATenantsClient_Succeeds()
+    {
+        var succeeded = await HandleAsync(
+            Operations.Update,
+            ClientNode(),
+            CreateSubject(),
+            [Assignment(BuiltInRoles.CellAdmin, ResourceNodeTypes.Cell, "cell-1")],
+            CancellationToken.None
+        );
+
+        Assert.True(succeeded);
+    }
+
+    [Fact]
+    public async Task HandleRequirementAsync_WhenCellAdminAtTheCellOnTheTenant_Succeeds()
+    {
+        var succeeded = await HandleAsync(
+            Operations.Update,
+            ResourceNode.For(TenantId, ResourceNodeTypes.Tenant, TenantId),
+            CreateSubject(),
+            [Assignment(BuiltInRoles.CellAdmin, ResourceNodeTypes.Cell, "cell-1")],
+            CancellationToken.None
+        );
+
+        Assert.True(succeeded);
+    }
+
+    [Fact]
+    public async Task HandleRequirementAsync_WhenCreateAndCellAdminAtTheCell_DoesNotSucceed()
+    {
+        var succeeded = await HandleAsync(
+            Operations.Create,
+            ResourceNode.For(TenantId, ResourceNodeTypes.Tenant, TenantId),
+            CreateSubject(),
+            [Assignment(BuiltInRoles.CellAdmin, ResourceNodeTypes.Cell, "cell-1")],
+            CancellationToken.None
+        );
+
+        Assert.False(succeeded);
+    }
+
+    [Fact]
+    public async Task HandleRequirementAsync_WhenCellAdminAtTheCellOnATeamNode_DoesNotSucceed()
+    {
+        var succeeded = await HandleAsync(
+            Operations.Update,
+            TeamNode(),
+            CreateSubject(),
+            [Assignment(BuiltInRoles.CellAdmin, ResourceNodeTypes.Cell, "cell-1")],
+            new OwnershipHandlerOptions { ReadsTenant = false },
+            CancellationToken.None
+        );
+
+        Assert.False(succeeded);
+    }
+
+    [Fact]
+    public async Task HandleRequirementAsync_WhenCellAdminAtTheCellOnThePlatformNode_DoesNotSucceed()
+    {
+        var succeeded = await HandleAsync(
+            Operations.Update,
+            ResourceNode.For(TenantId, ResourceNodeTypes.Platform, "platform"),
+            CreateSubject(),
+            [Assignment(BuiltInRoles.CellAdmin, ResourceNodeTypes.Cell, "cell-1")],
             new OwnershipHandlerOptions { ReadsTenant = false },
             CancellationToken.None
         );
