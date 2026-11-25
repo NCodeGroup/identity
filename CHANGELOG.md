@@ -4557,6 +4557,52 @@ Until the first stable release, the [Unreleased] section describes the product a
   ([ADR-1425](docs/decisions/1425-a-team-promotes-one-tenants-configuration-to-another-and-environment-bound-values-stay.md),
   [ADR-1465](docs/decisions/1465-role-lists-share-one-audited-grant-and-revoke-flow-and-a-caller-discovers-its-own-assignments.md)).
 
+- **A workload cell publishes and replicates documents through revisions.** The control-plane cell writes each platform,
+  team and management-key document to an outbox in the transaction that changes it, with a revision that only grows, and
+  `DirectoryOutboxPublisher` sends the newest pending revision of each document to the directory in revision order,
+  retrying with a capped exponential back-off and republishing every document whose local revision is lower than the
+  directory's when the host starts, so a restored database catches up. A cell applies a replicated document only when
+  its revision is higher than the one it holds. `ncode.identity.directory.outbox.published` counts the documents the
+  directory acknowledged, and `ncode.identity.directory.replica.age` and `ncode.identity.directory.replica.sequence`
+  report how old a cell's replica is and the highest feed sequence it applied, which the cell's readiness check carries
+  as data and never fails on, so a cell serves its last known documents while the directory is unreachable
+  ([ADR-1536](docs/decisions/1536-a-platforms-global-plane-is-a-standalone-directory-and-a-dedicated-control-plane-cell-and-every-other-cell-runs-and-is-managed-on-its-own.md),
+  [#940](https://github.com/NCodeGroup/identity/issues/940)).
+
+- **A cell with a dynamic strategy has its own management tenant, a `CellAdmin` and a cell console.** A cell whose
+  tenant strategy is `DynamicByHost` or `DynamicByPath` seeds its root tenant as the cell's management tenant, whose
+  principals the cell authorizes only from the assignments stored in it. `CellAdmin`, a built-in role at the resource
+  node `(cell, <Cell:Name>)`, manages every tenant the cell holds, as `TenantAdmin` does one tenant, and never reaches a
+  team or the platform, creates a tenant or grants `TeamAdmin` or `GlobalAdmin`. `GET /api/cell` reads the cell,
+  `GET /api/cell/tenants` lists its tenants with a continuation token, and `GET`, `POST` and `DELETE /api/cell/admins`
+  list, grant and remove its `CellAdmin`s, which only a principal of the management tenant holds. `GET /api/me` reports
+  the caller's cell roles (`cellRoles`). The cell's setup creates its first `CellAdmin` and its cell console's client,
+  and a cell console, which `ManagementConsole:Cell` and the chart's `managementConsole.cellConsole` select, signs in
+  against the management tenant and manages only that cell's tenants, so it keeps working while the global plane is
+  unreachable
+  ([ADR-1417](docs/decisions/1417-management-authority-is-a-role-assignment-at-a-node-of-the-platform-team-and-tenant-hierarchy.md),
+  [ADR-1536](docs/decisions/1536-a-platforms-global-plane-is-a-standalone-directory-and-a-dedicated-control-plane-cell-and-every-other-cell-runs-and-is-managed-on-its-own.md),
+  [#940](https://github.com/NCodeGroup/identity/issues/940),
+  [#945](https://github.com/NCodeGroup/identity/issues/945)).
+
+- **Offline commands of the host image recover a cell.** `recover-admin` creates or re-enables the local account named
+  by `Recovery:Admin:*` in the control-plane tenant and grants it `GlobalAdmin`, or in a cell with a management tenant
+  grants it `CellAdmin`, and refuses any other cell. `recover-sign-in` removes the anchor tenant's own values of the
+  settings that can block every sign-in, and the platform's values too in the control-plane cell, then re-enables its
+  default local connection, the management console client and the management resource server, logging and auditing each
+  change. `revoke-management-key` revokes a management key without a signed-in administrator, and
+  `directory-client-jwks` prints the public key set of a cell's directory client, which a global administrator registers
+  with `PUT /api/cells/{name}`. The host chart runs them as a Job
+  ([ADR-1536](docs/decisions/1536-a-platforms-global-plane-is-a-standalone-directory-and-a-dedicated-control-plane-cell-and-every-other-cell-runs-and-is-managed-on-its-own.md),
+  [#940](https://github.com/NCodeGroup/identity/issues/940),
+  [#945](https://github.com/NCodeGroup/identity/issues/945)).
+
+- **The platform console lists and registers cells.** Its Cells page lists the cells with whether each answers,
+  registers one with its public key set and retires one, and `managementConsole.cells` in the host chart names the cells
+  a platform console lists and manages, each by its management API URL
+  ([ADR-1536](docs/decisions/1536-a-platforms-global-plane-is-a-standalone-directory-and-a-dedicated-control-plane-cell-and-every-other-cell-runs-and-is-managed-on-its-own.md),
+  [#940](https://github.com/NCodeGroup/identity/issues/940)).
+
 - **A tenant moves between cells of one region.** A platform administrator disables the tenant, takes a one-hour,
   take-once `ECDH-ES+A256KW` transfer key from the target cell (`POST /api/tenant-imports/transfer-keys`), exports the
   tenant from the source cell, naming the target cell (`POST /api/tenants/{tenantId}/export` with `jwk` and
@@ -4886,6 +4932,52 @@ Until the first stable release, the [Unreleased] section describes the product a
   [ADR-1370](docs/decisions/1370-a-host-runs-the-deployment-posture-unless-configured-for-local-development-and-always-names-its-root-key-provider.md)).
 
 ### Security
+
+- **Management tokens are DPoP-bound on a platform with a directory.** The control-plane tenant issues a token for the
+  audience `urn:ncode:management` only to a token request that carries a DPoP proof, so every such token is bound by
+  `cnf.jkt`, and every cell's management API answers `401` to a management token without that binding or one sent under
+  the `Bearer` scheme. A management request carries one DPoP proof whose `htu` the cell compares with its own
+  `Cell:ManagementUrl`, never with the request's `Host`, and accepts its `jti` once, so a proof made for one cell never
+  passes in another and a token a cell received is of no use at any other
+  ([ADR-1191](docs/decisions/1191-a-management-request-is-authenticated-by-the-control-plane-tenant-and-scoped-by-its-routes-tenant.md),
+  [ADR-1536](docs/decisions/1536-a-platforms-global-plane-is-a-standalone-directory-and-a-dedicated-control-plane-cell-and-every-other-cell-runs-and-is-managed-on-its-own.md),
+  [#940](https://github.com/NCodeGroup/identity/issues/940)).
+
+- **A compromised management key is revoked at once.** `POST /api/platform/management-keys/{kid}/revoke` removes the
+  key from the control-plane tenant's key set, publishes its identifier, and every cell merges the revoked identifiers
+  into its own table, so no later document returns it; the offline `revoke-management-key` does the same when no
+  administrator can sign in
+  ([ADR-1404](docs/decisions/1404-a-tenants-provisioned-keys-roll-over-ahead-of-retirement-and-expire-after-a-grace.md),
+  [ADR-1536](docs/decisions/1536-a-platforms-global-plane-is-a-standalone-directory-and-a-dedicated-control-plane-cell-and-every-other-cell-runs-and-is-managed-on-its-own.md),
+  [#940](https://github.com/NCodeGroup/identity/issues/940)).
+
+- **Key custody is a local fence.** A tenant's key custody (`held`, `outgoing` or `incoming`) is a column of the
+  tenant's own row that a move sets, and key rollover and secret deletion read it and never the directory, so a cell
+  that still holds a moved tenant's copy never changes its keys or destroys a remote key the tenant's cell uses
+  ([ADR-1404](docs/decisions/1404-a-tenants-provisioned-keys-roll-over-ahead-of-retirement-and-expire-after-a-grace.md),
+  [ADR-1514](docs/decisions/1514-a-tenant-moves-between-cells-of-one-region-through-an-encrypted-export-and-import.md),
+  [#944](https://github.com/NCodeGroup/identity/issues/944)).
+
+- **The control-plane cell is dedicated.** It serves the control-plane tenant and no customer tenant, owns platform and
+  team authority and the pinned trust anchor, and is the only cell that writes platform and team documents to the
+  directory, so no workload cell holds authority it does not own
+  ([ADR-1536](docs/decisions/1536-a-platforms-global-plane-is-a-standalone-directory-and-a-dedicated-control-plane-cell-and-every-other-cell-runs-and-is-managed-on-its-own.md),
+  [#940](https://github.com/NCodeGroup/identity/issues/940)).
+
+- **Authority at a cell's node belongs to its `CellAdmin` and to a `GlobalAdmin`.** A management tenant's own
+  `TenantAdmin` or `TeamAdmin` holds none at the cell node, so the principals of a cell's management tenant manage the
+  cell's tenants only through the `CellAdmin` assignments stored in that cell
+  ([ADR-1417](docs/decisions/1417-management-authority-is-a-role-assignment-at-a-node-of-the-platform-team-and-tenant-hierarchy.md),
+  [ADR-1536](docs/decisions/1536-a-platforms-global-plane-is-a-standalone-directory-and-a-dedicated-control-plane-cell-and-every-other-cell-runs-and-is-managed-on-its-own.md),
+  [#940](https://github.com/NCodeGroup/identity/issues/940),
+  [#945](https://github.com/NCodeGroup/identity/issues/945)).
+
+- **A cell's directory client trusts a private certificate authority without widening the process's trust.**
+  `Directory:CaCertificatesPath`, which the chart's `directory.caCertificates` sets, names a PEM bundle that the
+  directory's own HTTP client alone trusts to validate the directory's server certificate, so the process's trust store
+  stays as it is
+  ([ADR-1536](docs/decisions/1536-a-platforms-global-plane-is-a-standalone-directory-and-a-dedicated-control-plane-cell-and-every-other-cell-runs-and-is-managed-on-its-own.md),
+  [#940](https://github.com/NCodeGroup/identity/issues/940)).
 
 - **A user name and an email never shadow each other.** Within one connection a local account's user name never equals
   another account's email, and its email never equals another account's user name, so a sign-in identifier that
