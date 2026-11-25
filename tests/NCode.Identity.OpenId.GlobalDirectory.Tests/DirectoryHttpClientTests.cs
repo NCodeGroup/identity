@@ -129,7 +129,7 @@ public class DirectoryHttpClientTests : RemoteDirectoryTestBase
     }
 
     [Fact]
-    public async Task SendAsync_WhenTheBodyStallsPastTheRequestTimeout_ThrowsDirectoryUnavailable()
+    public async Task SendAsync_WhenTheBodyStallsPastTheTotalTimeout_ThrowsDirectoryUnavailable()
     {
         var handler = new StubHttpMessageHandler(
             (_, _) =>
@@ -154,7 +154,8 @@ public class DirectoryHttpClientTests : RemoteDirectoryTestBase
                 new DirectoryClientOptions
                 {
                     Url = BaseUrl,
-                    RequestTimeout = TimeSpan.FromMilliseconds(100),
+                    AttemptTimeout = TimeSpan.FromMilliseconds(50),
+                    TotalTimeout = TimeSpan.FromMilliseconds(100),
                 }
             )
         );

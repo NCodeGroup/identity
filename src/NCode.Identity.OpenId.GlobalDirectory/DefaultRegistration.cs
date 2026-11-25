@@ -107,12 +107,16 @@ public static class DefaultRegistration
             serviceCollection.TryAddSingleton<ICellTokenSource, DefaultCellTokenSource>();
             serviceCollection.TryAddSingleton<DirectoryHttpClient>();
             serviceCollection.TryAddSingleton<DirectoryMetrics>();
+            serviceCollection.TryAddSingleton<DirectoryResiliencePipelines>();
+            serviceCollection.TryAddTransient<DirectoryResilienceHandler>();
 
             // The directory has an HTTP client of its own so that its private certificate authorities never replace the
-            // process's trust store. Every call is bounded by the options' timeouts, so the client's own is off.
+            // process's trust store. Every call is bounded by the resilience handler's pipeline and the options' total timeout, so
+            // the client's own timeout is off.
             serviceCollection
                 .AddHttpClient(DirectoryClientDefaults.HttpClientName)
                 .ConfigureHttpClient(static client => client.Timeout = Timeout.InfiniteTimeSpan)
+                .AddHttpMessageHandler<DirectoryResilienceHandler>()
                 .ConfigurePrimaryHttpMessageHandler(static provider =>
                 {
                     var clientOptions = provider.GetRequiredService<

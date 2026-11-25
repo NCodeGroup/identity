@@ -15,10 +15,10 @@ namespace NCode.Identity.OpenId.GlobalDirectory;
 /// own token endpoint, <c>directory/v1/token</c>, as the cell's machine client with a <c>private_key_jwt</c> assertion,
 /// over the directory's own HTTP client, which trusts only <see cref="DirectoryClientOptions.CaCertificatesPath"/> when
 /// it is set, and keeps the token until shortly before it expires. Concurrent callers share one request. The request
-/// runs on its own time limit, <see cref="DirectoryClientOptions.TokenRequestTimeout"/>, and each caller stops waiting
-/// with its own <see cref="CancellationToken"/>, so a caller that gives up does not end the request for the others. A
-/// failed request is remembered for <see cref="DirectoryClientOptions.TokenFailureCacheDuration"/>, during which a
-/// caller fails at once, without a request to the directory.
+/// runs on its own time limit, <see cref="DirectoryClientOptions.TotalTimeout"/>, and each caller stops waiting with
+/// its own <see cref="CancellationToken"/>, so a caller that gives up does not end the request for the others. A failed
+/// request is remembered for <see cref="DirectoryClientOptions.TokenFailureCacheDuration"/>, during which a caller
+/// fails at once, without a request to the directory.
 /// </summary>
 // See ADR-1285 and ADR-1315.
 internal sealed class DefaultCellTokenSource : ICellTokenSource
@@ -197,10 +197,7 @@ internal sealed class DefaultCellTokenSource : ICellTokenSource
 
             try
             {
-                using var source = new CancellationTokenSource(
-                    Options.TokenRequestTimeout,
-                    TimeProvider
-                );
+                using var source = new CancellationTokenSource(Options.TotalTimeout, TimeProvider);
                 var entry = await RequestTokenAsync(source.Token);
                 lock (Gate)
                 {

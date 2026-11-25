@@ -171,29 +171,72 @@ public class DirectoryClientOptionsValidatorTests : BaseTests
     }
 
     [Fact]
-    public void Validate_WhenTheTokenRequestTimeoutIsNotATimerPeriod_FailsNamingTheKey()
+    public void Validate_WhenTheTotalTimeoutIsOutOfRange_FailsNamingTheKey()
     {
         var options = CreateOptions();
-        options.TokenRequestTimeout = TimeSpan.Zero;
+        options.TotalTimeout = TimeSpan.Zero;
+        options.AttemptTimeout = TimeSpan.Zero;
 
         var result = CreateValidator().Validate(null, options);
 
         Assert.True(result.Failed);
-        var failure = Assert.Single(result.Failures);
-        Assert.Contains("Directory:TokenRequestTimeout", failure);
+        Assert.Contains(result.Failures, failure => failure.Contains("Directory:TotalTimeout"));
     }
 
     [Fact]
-    public void Validate_WhenTheRequestTimeoutIsNotATimerPeriod_FailsNamingTheKey()
+    public void Validate_WhenTheAttemptTimeoutIsOutOfRange_FailsNamingTheKey()
     {
         var options = CreateOptions();
-        options.RequestTimeout = TimeSpan.Zero;
+        options.AttemptTimeout = TimeSpan.FromHours(1);
+        options.TotalTimeout = TimeSpan.FromHours(2);
+
+        var result = CreateValidator().Validate(null, options);
+
+        Assert.True(result.Failed);
+        Assert.Contains(result.Failures, failure => failure.Contains("Directory:AttemptTimeout"));
+    }
+
+    [Fact]
+    public void Validate_WhenTheAttemptTimeoutExceedsTheTotalTimeout_FailsNamingBothKeys()
+    {
+        var options = CreateOptions();
+        options.AttemptTimeout = TimeSpan.FromSeconds(20);
+        options.TotalTimeout = TimeSpan.FromSeconds(10);
 
         var result = CreateValidator().Validate(null, options);
 
         Assert.True(result.Failed);
         var failure = Assert.Single(result.Failures);
-        Assert.Contains("Directory:RequestTimeout", failure);
+        Assert.Contains("Directory:AttemptTimeout", failure);
+        Assert.Contains("Directory:TotalTimeout", failure);
+    }
+
+    [Theory]
+    [InlineData(-1)]
+    [InlineData(11)]
+    public void Validate_WhenMaxRetryAttemptsIsOutOfRange_FailsNamingTheKey(int attempts)
+    {
+        var options = CreateOptions();
+        options.MaxRetryAttempts = attempts;
+
+        var result = CreateValidator().Validate(null, options);
+
+        Assert.True(result.Failed);
+        var failure = Assert.Single(result.Failures);
+        Assert.Contains("Directory:MaxRetryAttempts", failure);
+    }
+
+    [Fact]
+    public void Validate_WhenTheRetryDelayIsNegative_FailsNamingTheKey()
+    {
+        var options = CreateOptions();
+        options.RetryDelay = TimeSpan.FromSeconds(-1);
+
+        var result = CreateValidator().Validate(null, options);
+
+        Assert.True(result.Failed);
+        var failure = Assert.Single(result.Failures);
+        Assert.Contains("Directory:RetryDelay", failure);
     }
 
     [Fact]

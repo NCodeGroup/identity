@@ -49,7 +49,7 @@ public class DefaultCellTokenSourceTests : BaseTests
                     Url = DirectoryUrl,
                     ClientId = ClientId,
                     KeyRing = KeyRing,
-                    TokenRequestTimeout = RequestTimeout,
+                    TotalTimeout = RequestTimeout,
                     TokenFailureCacheDuration = FailureCacheDuration,
                 }
             ),

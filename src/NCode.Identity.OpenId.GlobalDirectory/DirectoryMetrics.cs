@@ -34,6 +34,37 @@ internal sealed class DirectoryMetrics
     internal const string SequenceGaugeName = "ncode.identity.directory.replica.sequence";
 
     /// <summary>
+    /// The name of the counter of the calls to the directory that were sent again after a transient failure.
+    /// </summary>
+    internal const string RetriesCounterName = "ncode.identity.directory.client.retries";
+
+    /// <summary>
+    /// The name of the counter of the attempts and calls to the directory that timed out.
+    /// </summary>
+    internal const string TimeoutsCounterName = "ncode.identity.directory.client.timeouts";
+
+    /// <summary>
+    /// The attribute that names the bounded failure of a retried attempt.
+    /// </summary>
+    internal const string ErrorTypeAttribute = "error.type";
+
+    /// <summary>
+    /// The attribute that names the scope of a timeout: <see cref="AttemptTimeoutScope"/> or
+    /// <see cref="TotalTimeoutScope"/>.
+    /// </summary>
+    internal const string TimeoutScopeAttribute = "ncode.identity.directory.client.timeout_scope";
+
+    /// <summary>
+    /// The scope of a timeout of one attempt.
+    /// </summary>
+    internal const string AttemptTimeoutScope = "attempt";
+
+    /// <summary>
+    /// The scope of a timeout of a whole call.
+    /// </summary>
+    internal const string TotalTimeoutScope = "total";
+
+    /// <summary>
     /// The attribute that names the kind of an acknowledged document.
     /// </summary>
     internal const string KindAttribute = "ncode.identity.directory.document.kind";
@@ -45,6 +76,8 @@ internal sealed class DirectoryMetrics
 
     private Meter Meter { get; }
     private Counter<long> PublishedCounter { get; }
+    private Counter<long> RetriesCounter { get; }
+    private Counter<long> TimeoutsCounter { get; }
 
     /// <summary>
     /// Initializes a new instance of the <see cref="DirectoryMetrics"/> class.
@@ -59,6 +92,38 @@ internal sealed class DirectoryMetrics
             unit: "{document}",
             description: "The documents of the outbox that the global directory acknowledged."
         );
+        RetriesCounter = Meter.CreateCounter<long>(
+            RetriesCounterName,
+            unit: "{retry}",
+            description: "The number of times a call to the global directory was sent again after a transient failure, by the failure."
+        );
+        TimeoutsCounter = Meter.CreateCounter<long>(
+            TimeoutsCounterName,
+            unit: "{timeout}",
+            description: "The number of times an attempt or a whole call to the global directory timed out, by scope."
+        );
+    }
+
+    /// <summary>
+    /// Records that a call to the directory is sent again after a transient failure.
+    /// </summary>
+    /// <param name="errorType">The bounded failure: the response's status code, <c>timeout</c>, or the
+    /// <see cref="HttpRequestError"/> in snake case.</param>
+    public void Retried(string errorType)
+    {
+        var tag = new KeyValuePair<string, object?>(ErrorTypeAttribute, errorType);
+        RetriesCounter.Add(1, tag);
+    }
+
+    /// <summary>
+    /// Records that an attempt, or a whole call, to the directory timed out.
+    /// </summary>
+    /// <param name="scope">The bounded scope: <see cref="AttemptTimeoutScope"/> or
+    /// <see cref="TotalTimeoutScope"/>.</param>
+    public void TimedOut(string scope)
+    {
+        var tag = new KeyValuePair<string, object?>(TimeoutScopeAttribute, scope);
+        TimeoutsCounter.Add(1, tag);
     }
 
     /// <summary>

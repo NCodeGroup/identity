@@ -165,6 +165,26 @@ replicated document that the directory acknowledges from the cell's outbox.
 | ---------------------------------------- | ----------------------------------------------------------- |
 | `ncode.identity.directory.document.kind` | `platform-authority`, `team-authority` or `management-keys` |
 
+### `ncode.identity.directory.client.retries`
+
+Counter, unit `{retry}`, meter `NCode.Identity.OpenId.GlobalDirectory`. Recorded each time the directory client sends a
+call to the directory again after a transient failure. Only a GET or HEAD without a body is ever retried, so a token
+request and a write are sent once
+([ADR-1385](decisions/1385-no-shipping-package-replaces-its-consumers-logging-generator-or-carries-microsoft-extensions-http-resilience.md)).
+
+| Attribute    | Values                                                                                                                                                                                                                    |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `error.type` | The failure that is retried: the response's status code (`408`, `429` or a `5xx` code), `timeout` when the per-attempt timeout cancelled the attempt, or the `HttpRequestError` in snake case, such as `connection_error` |
+
+### `ncode.identity.directory.client.timeouts`
+
+Counter, unit `{timeout}`, meter `NCode.Identity.OpenId.GlobalDirectory`. Recorded each time the directory client
+cancels an attempt or a whole call because a timeout passed. A call the caller cancels records nothing.
+
+| Attribute                                       | Values                                                   |
+| ----------------------------------------------- | -------------------------------------------------------- |
+| `ncode.identity.directory.client.timeout_scope` | `attempt` (`AttemptTimeout`) or `total` (`TotalTimeout`) |
+
 ### `ncode.identity.bff.token.refresh.duration`
 
 Histogram, unit `s`, meter `NCode.Identity.Bff`. Recorded once for each request that needed a refreshed user access

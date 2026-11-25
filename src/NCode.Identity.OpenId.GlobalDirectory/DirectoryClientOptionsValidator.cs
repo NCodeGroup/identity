@@ -16,7 +16,13 @@ namespace NCode.Identity.OpenId.GlobalDirectory;
 // See ADR-1285 (the endpoint rule) and ADR-1137 (configuration is validated at startup).
 internal sealed class DirectoryClientOptionsValidator : IValidateOptions<DirectoryClientOptions>
 {
+    private const int MaxRetryAttemptsLimit = 10;
+
     private static string Prefix => DirectoryClientOptions.SectionName;
+
+    private static TimeSpan MinTimeout { get; } = TimeSpan.FromMilliseconds(10);
+
+    private static TimeSpan MaxTimeout { get; } = TimeSpan.FromMinutes(5);
 
     /// <inheritdoc />
     public ValidateOptionsResult Validate(string? name, DirectoryClientOptions options)
@@ -84,19 +90,7 @@ internal sealed class DirectoryClientOptionsValidator : IValidateOptions<Directo
             );
         }
 
-        if (!TimerPeriod.IsValid(options.TokenRequestTimeout))
-        {
-            failures.Add(
-                $"{Prefix}:{nameof(DirectoryClientOptions.TokenRequestTimeout)} '{options.TokenRequestTimeout}' must be a time span from {TimerPeriod.MinValue} to {TimerPeriod.MaxValue}."
-            );
-        }
-
-        if (!TimerPeriod.IsValid(options.RequestTimeout))
-        {
-            failures.Add(
-                $"{Prefix}:{nameof(DirectoryClientOptions.RequestTimeout)} '{options.RequestTimeout}' must be a time span from {TimerPeriod.MinValue} to {TimerPeriod.MaxValue}."
-            );
-        }
+        AddHttpFailures(options, failures);
 
         if (!TimerPeriod.IsValid(options.TokenFailureCacheDuration))
         {
@@ -108,6 +102,49 @@ internal sealed class DirectoryClientOptionsValidator : IValidateOptions<Directo
         return failures.Count == 0
             ? ValidateOptionsResult.Success
             : ValidateOptionsResult.Fail(failures);
+    }
+
+    /// <summary>
+    /// Adds the failures of the limits that bound a call to the directory.
+    /// </summary>
+    /// <param name="options">The options to validate.</param>
+    /// <param name="failures">The list that receives each failure.</param>
+    private static void AddHttpFailures(DirectoryClientOptions options, List<string> failures)
+    {
+        if (options.AttemptTimeout < MinTimeout || options.AttemptTimeout > MaxTimeout)
+        {
+            failures.Add(
+                $"{Prefix}:{nameof(DirectoryClientOptions.AttemptTimeout)} '{options.AttemptTimeout}' must be between {MinTimeout} and {MaxTimeout}."
+            );
+        }
+
+        if (options.TotalTimeout < MinTimeout || options.TotalTimeout > MaxTimeout)
+        {
+            failures.Add(
+                $"{Prefix}:{nameof(DirectoryClientOptions.TotalTimeout)} '{options.TotalTimeout}' must be between {MinTimeout} and {MaxTimeout}."
+            );
+        }
+
+        if (options.AttemptTimeout > options.TotalTimeout)
+        {
+            failures.Add(
+                $"{Prefix}:{nameof(DirectoryClientOptions.AttemptTimeout)} '{options.AttemptTimeout}' must not be greater than {Prefix}:{nameof(DirectoryClientOptions.TotalTimeout)} '{options.TotalTimeout}'."
+            );
+        }
+
+        if (options.MaxRetryAttempts < 0 || options.MaxRetryAttempts > MaxRetryAttemptsLimit)
+        {
+            failures.Add(
+                $"{Prefix}:{nameof(DirectoryClientOptions.MaxRetryAttempts)} '{options.MaxRetryAttempts}' must be between 0 and {MaxRetryAttemptsLimit}."
+            );
+        }
+
+        if (options.RetryDelay < TimeSpan.Zero || options.RetryDelay > MaxTimeout)
+        {
+            failures.Add(
+                $"{Prefix}:{nameof(DirectoryClientOptions.RetryDelay)} '{options.RetryDelay}' must be between {TimeSpan.Zero} and {MaxTimeout}."
+            );
+        }
     }
 
     /// <summary>

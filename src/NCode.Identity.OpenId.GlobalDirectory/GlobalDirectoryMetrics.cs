@@ -15,7 +15,8 @@ public static class GlobalDirectoryMetrics
 {
     /// <summary>
     /// The name of the meter that records <c>ncode.identity.directory.outbox.published</c>,
-    /// <c>ncode.identity.directory.replica.age</c> and <c>ncode.identity.directory.replica.sequence</c>.
+    /// <c>ncode.identity.directory.replica.age</c>, <c>ncode.identity.directory.replica.sequence</c>,
+    /// <c>ncode.identity.directory.client.retries</c> and <c>ncode.identity.directory.client.timeouts</c>.
     /// </summary>
     public const string MeterName = "NCode.Identity.OpenId.GlobalDirectory";
 }

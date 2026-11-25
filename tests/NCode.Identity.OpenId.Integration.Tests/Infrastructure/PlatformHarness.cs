@@ -1160,8 +1160,7 @@ public sealed class PlatformHarness : IAsyncDisposable
             ["Directory:KeyRing"] = KeyRingName,
             ["Directory:PollInterval"] = "00:00:01",
             ["Directory:PublishInterval"] = "00:00:01",
-            ["Directory:RequestTimeout"] = "00:00:10",
-            ["Directory:TokenRequestTimeout"] = "00:00:10",
+            ["Directory:TotalTimeout"] = "00:00:10",
             ["Directory:TokenFailureCacheDuration"] = "00:00:01",
             [$"KeyRings:{KeyRingName}:PemFiles:0"] = keyPath,
         };

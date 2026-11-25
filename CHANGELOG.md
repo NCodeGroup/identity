@@ -4446,7 +4446,8 @@ Until the first stable release, the [Unreleased] section describes the product a
   `IPlatformDirectory` and `ICellDirectory`, their records and `DirectoryUnavailableException`. A cell runs on its own
   with the local adapters over its own database and no extra service, and `Directory:Url` selects the remote adapters of
   `NCode.Identity.OpenId.GlobalDirectory`, which fail closed with `503` and `Retry-After` on a transport failure, a
-  `5xx`, or a call that outlasts `DirectoryClientOptions.RequestTimeout`, its response body included. Creating a tenant,
+  `5xx`, or a call that outlasts `DirectoryClientOptions.TotalTimeout`, its response body included, after a bounded,
+  jittered retry of a read that has no body. Creating a tenant,
   through the one `ITenantPlacer` that the management API and the provisioner share, reserves its identifier and, when
   it has one, its issuer, in its team (a team's `max_tenants` is enforced there) or in no team when it belongs to the
   platform's own team, which the directory holds no record of, places the tenant in its cell and then saves it, so a

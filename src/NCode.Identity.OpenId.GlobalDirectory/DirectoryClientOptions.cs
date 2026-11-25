@@ -53,18 +53,32 @@ public sealed class DirectoryClientOptions
     public TimeSpan PollInterval { get; set; } = TimeSpan.FromSeconds(30);
 
     /// <summary>
-    /// Gets or sets how long a cell waits for a token request to the directory's token endpoint before the request ends
-    /// as a <see cref="DirectoryUnavailableException"/>. It is the period of a timer, from 1 millisecond to about 49.7
-    /// days. The default is 30 seconds.
+    /// Gets or sets how long one attempt of a call that may be retried — a GET or HEAD without a body, while
+    /// <see cref="MaxRetryAttempts"/> is above zero — may take until its response headers arrive; a longer attempt is
+    /// cancelled and retried. The default is ten seconds. It is between ten milliseconds and five minutes, and not
+    /// greater than <see cref="TotalTimeout"/>.
     /// </summary>
-    public TimeSpan TokenRequestTimeout { get; set; } = TimeSpan.FromSeconds(30);
+    public TimeSpan AttemptTimeout { get; set; } = TimeSpan.FromSeconds(10);
 
     /// <summary>
-    /// Gets or sets how long a cell waits for one call to the directory, its response body included, before the call
-    /// ends as a <see cref="DirectoryUnavailableException"/>. It is the period of a timer, from 1 millisecond to about
-    /// 49.7 days. The default is 30 seconds.
+    /// Gets or sets how long a whole call to the directory may take: every attempt, the delays between retries, and
+    /// reading the response body. A call that outlasts it ends as a <see cref="DirectoryUnavailableException"/>. The
+    /// default is 15 seconds. It is between ten milliseconds and five minutes.
     /// </summary>
-    public TimeSpan RequestTimeout { get; set; } = TimeSpan.FromSeconds(30);
+    public TimeSpan TotalTimeout { get; set; } = TimeSpan.FromSeconds(15);
+
+    /// <summary>
+    /// Gets or sets how many times a failed attempt is retried; zero turns retries off. Only a GET or HEAD request
+    /// without a body is retried, after a connection failure, a timed-out attempt, or a 408, 429 or 5xx response. The
+    /// default is two. It is between zero and ten.
+    /// </summary>
+    public int MaxRetryAttempts { get; set; } = 2;
+
+    /// <summary>
+    /// Gets or sets the base delay before a retry; it grows exponentially and is jittered. The default is one second.
+    /// It is between zero and five minutes.
+    /// </summary>
+    public TimeSpan RetryDelay { get; set; } = TimeSpan.FromSeconds(1);
 
     /// <summary>
     /// Gets or sets how long a cell remembers a failed token request, during which a caller that needs that token fails

@@ -12,9 +12,10 @@ namespace NCode.Identity.OpenId.GlobalDirectory;
 /// <summary>
 /// Sends the requests of the remote adapters to the directory service with a bearer token, over the directory's own
 /// HTTP client, which trusts only <see cref="DirectoryClientOptions.CaCertificatesPath"/> when it is set. Each call,
-/// its response body read included, is bounded by <see cref="DirectoryClientOptions.RequestTimeout"/>. It fails closed:
-/// a transport failure, a timeout, a <c>5xx</c> answer, an oversized body, a token that cannot be obtained or any
-/// status other than a success, <c>404</c> or <c>409</c> is a <see cref="DirectoryUnavailableException"/>.
+/// its response body read included, is bounded by <see cref="DirectoryClientOptions.TotalTimeout"/>, and a read that
+/// may be repeated is retried by the client's resilience pipeline. It fails closed: a transport failure, a timeout, a
+/// <c>5xx</c> answer, an oversized body, a token that cannot be obtained or any status other than a success, <c>404</c>
+/// or <c>409</c> is a <see cref="DirectoryUnavailableException"/>.
 /// </summary>
 // See ADR-1285 and ADR-1385 (the client's pipeline runs on Polly.Core alone).
 internal sealed class DirectoryHttpClient(
@@ -29,7 +30,7 @@ internal sealed class DirectoryHttpClient(
 
     private Uri BaseUri { get; } = CreateBaseUri(options.Value.Url);
 
-    private TimeSpan RequestTimeout { get; } = options.Value.RequestTimeout;
+    private TimeSpan TotalTimeout { get; } = options.Value.TotalTimeout;
 
     /// <summary>
     /// Escapes a value for use as one segment of a directory path.
@@ -101,7 +102,9 @@ internal sealed class DirectoryHttpClient(
         using var timeoutSource = CancellationTokenSource.CreateLinkedTokenSource(
             cancellationToken
         );
-        timeoutSource.CancelAfter(RequestTimeout);
+        // The pipeline's total timeout ends at the response headers; this one also bounds the body that follows, as the
+        // protocol client's does.
+        timeoutSource.CancelAfter(TotalTimeout);
 
         try
         {

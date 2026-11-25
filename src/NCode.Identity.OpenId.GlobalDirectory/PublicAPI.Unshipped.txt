@@ -4,6 +4,12 @@ NCode.Identity.OpenId.GlobalDirectory.DefaultRegistration
 NCode.Identity.OpenId.GlobalDirectory.DefaultRegistration.extension(NCode.Identity.Registration.IServiceBuilder<NCode.Identity.OpenId.Client.OpenIdClientLibrary>!)
 NCode.Identity.OpenId.GlobalDirectory.DefaultRegistration.extension(NCode.Identity.Registration.IServiceBuilder<NCode.Identity.OpenId.Client.OpenIdClientLibrary>!).AddOpenIdDirectoryClient(Microsoft.Extensions.Configuration.IConfiguration! configuration) -> NCode.Identity.Registration.IServiceBuilder<NCode.Identity.OpenId.Client.OpenIdClientLibrary>!
 NCode.Identity.OpenId.GlobalDirectory.DirectoryClientOptions
+NCode.Identity.OpenId.GlobalDirectory.DirectoryClientOptions.AttemptTimeout.get -> System.TimeSpan
+NCode.Identity.OpenId.GlobalDirectory.DirectoryClientOptions.AttemptTimeout.set -> void
+NCode.Identity.OpenId.GlobalDirectory.DirectoryClientOptions.MaxRetryAttempts.get -> int
+NCode.Identity.OpenId.GlobalDirectory.DirectoryClientOptions.MaxRetryAttempts.set -> void
+NCode.Identity.OpenId.GlobalDirectory.DirectoryClientOptions.RetryDelay.get -> System.TimeSpan
+NCode.Identity.OpenId.GlobalDirectory.DirectoryClientOptions.RetryDelay.set -> void
 NCode.Identity.OpenId.GlobalDirectory.DirectoryClientOptions.CaCertificatesPath.get -> string?
 NCode.Identity.OpenId.GlobalDirectory.DirectoryClientOptions.CaCertificatesPath.set -> void
 NCode.Identity.OpenId.GlobalDirectory.DirectoryClientOptions.ClientId.get -> string?
@@ -15,12 +21,10 @@ NCode.Identity.OpenId.GlobalDirectory.DirectoryClientOptions.PollInterval.get ->
 NCode.Identity.OpenId.GlobalDirectory.DirectoryClientOptions.PollInterval.set -> void
 NCode.Identity.OpenId.GlobalDirectory.DirectoryClientOptions.PublishInterval.get -> System.TimeSpan
 NCode.Identity.OpenId.GlobalDirectory.DirectoryClientOptions.PublishInterval.set -> void
-NCode.Identity.OpenId.GlobalDirectory.DirectoryClientOptions.RequestTimeout.get -> System.TimeSpan
-NCode.Identity.OpenId.GlobalDirectory.DirectoryClientOptions.RequestTimeout.set -> void
+NCode.Identity.OpenId.GlobalDirectory.DirectoryClientOptions.TotalTimeout.get -> System.TimeSpan
+NCode.Identity.OpenId.GlobalDirectory.DirectoryClientOptions.TotalTimeout.set -> void
 NCode.Identity.OpenId.GlobalDirectory.DirectoryClientOptions.TokenFailureCacheDuration.get -> System.TimeSpan
 NCode.Identity.OpenId.GlobalDirectory.DirectoryClientOptions.TokenFailureCacheDuration.set -> void
-NCode.Identity.OpenId.GlobalDirectory.DirectoryClientOptions.TokenRequestTimeout.get -> System.TimeSpan
-NCode.Identity.OpenId.GlobalDirectory.DirectoryClientOptions.TokenRequestTimeout.set -> void
 NCode.Identity.OpenId.GlobalDirectory.DirectoryClientOptions.Url.get -> string?
 NCode.Identity.OpenId.GlobalDirectory.DirectoryClientOptions.Url.set -> void
 NCode.Identity.OpenId.GlobalDirectory.ICellTokenSource

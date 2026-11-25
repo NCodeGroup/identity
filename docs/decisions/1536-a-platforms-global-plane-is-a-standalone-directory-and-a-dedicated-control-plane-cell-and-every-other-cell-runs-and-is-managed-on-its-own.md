@@ -85,6 +85,9 @@ tokens with keys and authority replicated through the directory's change feed.**
    `HasManagementTenant`: the host registers the local answer (no directory), the directory client replaces it when
    `Directory:Url` is set, and every rule that holds only on a platform with a directory (DPoP-only management tokens,
    the dedicated control-plane cell, the outbox) reads it.
+   The directory client's own HTTP client bounds every call with a `Polly.Core` pipeline, as ADR-1385 decision 2 says: a
+   total timeout, then, for a GET or HEAD without a body only, a jittered retry and a per-attempt timeout, so a token
+   request and every write are sent once.
 2. **The directory is a release of its own.** It is deployed by its own chart, `ncode-identity-directory`, published
    beside `ncode-identity-host`, from the `ncode-identity-directory` image, with its own database, its own route and
    backend TLS, and one replica, because it keeps its single-use state in process. The host chart keeps only a cell's
