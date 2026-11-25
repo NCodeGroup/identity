@@ -46,6 +46,29 @@ public static class DefaultRegistration
             ?? serviceProvider.GetRequiredService<TLocal>();
     }
 
+    // Picks the principal directory: the local one on the control-plane cell and on a platform without a directory,
+    // otherwise the one of a workload cell.
+    private static IControlPlanePrincipalDirectory ResolveControlPlanePrincipalDirectory(
+        IServiceProvider serviceProvider
+    )
+    {
+        var cell = serviceProvider.GetRequiredService<IOptions<CellOptions>>().Value;
+        var topology = serviceProvider.GetRequiredService<IPlatformTopology>();
+        if (cell.IsControlPlane || !topology.HasDirectory)
+            return serviceProvider.GetRequiredService<LocalControlPlanePrincipalDirectory>();
+
+        return serviceProvider.GetRequiredService<CellPrincipalDirectory>();
+    }
+
+    private static CellPrincipalDirectory CreateCellPrincipalDirectory(
+        IServiceProvider serviceProvider
+    )
+    {
+        var topology = serviceProvider.GetRequiredService<IPlatformTopology>();
+        var local = serviceProvider.GetRequiredService<LocalControlPlanePrincipalDirectory>();
+        return new CellPrincipalDirectory(topology, local);
+    }
+
     /// <param name="builder">The <see cref="OpenIdCoreLibrary"/> builder this library extends.</param>
     extension(IServiceBuilder<OpenIdCoreLibrary> builder)
     {
@@ -119,11 +142,12 @@ public static class DefaultRegistration
 
             // Describes the control-plane principals a query names, on the same terms.
             serviceCollection.TryAddSingleton<LocalControlPlanePrincipalDirectory>();
+            // A workload cell on a platform with a directory names only the principals of its own management tenant.
+            serviceCollection.TryAddSingleton(serviceProvider =>
+                CreateCellPrincipalDirectory(serviceProvider)
+            );
             serviceCollection.TryAddSingleton<IControlPlanePrincipalDirectory>(serviceProvider =>
-                ResolveControlPlaneAdapter<
-                    IControlPlanePrincipalDirectory,
-                    LocalControlPlanePrincipalDirectory
-                >(serviceProvider)
+                ResolveControlPlanePrincipalDirectory(serviceProvider)
             );
             var principalDescriberDescriptor = ServiceDescriptor.Singleton<
                 IPrincipalDescriber,

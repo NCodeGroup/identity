@@ -63,11 +63,10 @@ public static class DefaultRegistration
         /// control plane (<see cref="CellOptions.IsControlPlane"/> is <c>false</c>) uses the
         /// <see cref="IManagementTokenValidator"/> that validates management tokens against the management keys that
         /// its replica holds and the <see cref="IControlPlaneAuthority"/> that answers the roles of a caller from the
-        /// platform and team authority documents that its replica holds, and an
-        /// <see cref="IControlPlanePrincipalDirectory"/> that describes no principal. This registration adds all three
-        /// as keyed singletons under <see cref="ControlPlaneServiceKeys.Remote"/> on every cell and reads no
-        /// <c>Cell</c> setting; the management library resolves them for a cell that is not the control plane and
-        /// resolves its local adapters for the control-plane cell.
+        /// platform and team authority documents that its replica holds. This registration adds both as keyed
+        /// singletons under <see cref="ControlPlaneServiceKeys.Remote"/> on every cell and reads no <c>Cell</c>
+        /// setting; the management library resolves them for a cell that is not the control plane and resolves its
+        /// local adapters for the control-plane cell.
         /// </summary>
         /// <param name="configuration">The <see cref="IConfiguration"/> holding the <c>Directory</c> section.</param>
         /// <returns>The same <see cref="IServiceBuilder{T}"/> so that calls can be chained.</returns>
@@ -154,10 +153,6 @@ public static class DefaultRegistration
             serviceCollection.TryAddKeyedSingleton<
                 IControlPlaneAuthority,
                 ReplicatedControlPlaneAuthority
-            >(ControlPlaneServiceKeys.Remote);
-            serviceCollection.TryAddKeyedSingleton<
-                IControlPlanePrincipalDirectory,
-                EmptyControlPlanePrincipalDirectory
             >(ControlPlaneServiceKeys.Remote);
 
             // The start check refuses an unusable control-plane issuer before the cell registers with the directory.

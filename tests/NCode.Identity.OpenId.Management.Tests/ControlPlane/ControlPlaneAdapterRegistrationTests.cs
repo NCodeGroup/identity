@@ -22,19 +22,16 @@ public sealed class ControlPlaneAdapterRegistrationTests : IDisposable
 
     private Mock<IControlPlaneAuthority> MockRemoteAuthority { get; }
 
-    private Mock<IControlPlanePrincipalDirectory> MockRemoteDirectory { get; }
-
     public ControlPlaneAdapterRegistrationTests()
     {
         MockRemoteValidator = MockRepository.Create<IManagementTokenValidator>();
         MockRemoteAuthority = MockRepository.Create<IControlPlaneAuthority>();
-        MockRemoteDirectory = MockRepository.Create<IControlPlanePrincipalDirectory>();
     }
 
-    private IPlatformTopology CreateTopology()
+    private IPlatformTopology CreateTopology(bool hasDirectory)
     {
         var mockTopology = MockRepository.Create<IPlatformTopology>();
-        mockTopology.SetupGet(x => x.HasDirectory).Returns(false);
+        mockTopology.SetupGet(x => x.HasDirectory).Returns(hasDirectory);
         return mockTopology.Object;
     }
 
@@ -48,7 +45,7 @@ public sealed class ControlPlaneAdapterRegistrationTests : IDisposable
         );
         serviceCollection.AddSingleton(MockRepository.Create<IClientPrincipalResolver>().Object);
         serviceCollection.AddSingleton(MockRepository.Create<IStoreManagerFactory>().Object);
-        serviceCollection.AddSingleton(CreateTopology());
+        serviceCollection.AddSingleton(CreateTopology(registerRemote));
         serviceCollection.AddSingleton(MockRepository.Create<IAmbientTenantAccessor>().Object);
         serviceCollection.AddSingleton(MockRepository.Create<ITenantResolver>().Object);
 
@@ -61,10 +58,6 @@ public sealed class ControlPlaneAdapterRegistrationTests : IDisposable
             serviceCollection.AddKeyedSingleton(
                 ControlPlaneServiceKeys.Remote,
                 MockRemoteAuthority.Object
-            );
-            serviceCollection.AddKeyedSingleton(
-                ControlPlaneServiceKeys.Remote,
-                MockRemoteDirectory.Object
             );
         }
 
@@ -108,7 +101,7 @@ public sealed class ControlPlaneAdapterRegistrationTests : IDisposable
             serviceProvider.GetRequiredService<IControlPlaneAuthority>()
         );
         var directory = serviceProvider.GetRequiredService<IControlPlanePrincipalDirectory>();
-        Assert.Same(MockRemoteDirectory.Object, directory);
+        Assert.IsType<CellPrincipalDirectory>(directory);
     }
 
     [Fact]
