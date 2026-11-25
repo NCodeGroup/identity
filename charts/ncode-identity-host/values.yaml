@@ -583,6 +583,10 @@ managementConsole:
   # Refused in the control-plane cell and without a dynamic tenantResolution.strategyCode (DynamicByHost or
   # DynamicByPath).
   cellConsole: false
+  # The cells a platform console lists and manages, by cell name, each the cell's management API URL (https), such as
+  # eu-1: https://manage.eu-1.example.com/api. Rendered as ManagementConsole:Cells:<name>. When cell.managementUrl is set
+  # and no entry names cell.name, the release's own cell is added as <cell.managementUrl>/api. Refused with cellConsole.
+  cells: {}
   # The console's two key rings: client is KeyRings:mgmt-client, which signs the client's assertions, and dpop is
   # KeyRings:mgmt-dpop, which signs its DPoP proofs. Each holds a PEM key from a Secret, keys a key management
   # service holds, or both, and at least one key (ADR-1479, ADR-1485).

@@ -1531,6 +1531,18 @@
         "cellConsole": {
           "type": "boolean"
         },
+        "cells": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "maxLength": 31,
+            "pattern": "^[a-z](-?[a-z0-9])*$"
+          },
+          "additionalProperties": {
+            "type": "string",
+            "pattern": "^https://.+$"
+          }
+        },
         "keyRings": {
           "type": "object",
           "additionalProperties": false,

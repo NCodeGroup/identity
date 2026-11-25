@@ -141,6 +141,17 @@ jobs:
           refuse --set 'secretProtection.ownerRootKeys.providers={nope}'
           refuse --set secretProtection.remoteKeyProviders.awsKms.enabled=true --set secretProtection.remoteKeyProviders.awsKms.region=Not_A_Region
           refuse --set secretProtection.remoteKeyProviders.awsKms.enabled=true --set secretProtection.remoteKeyProviders.awsKms.pendingWindowInDays=6
+          # A platform console lists cells, named as cells are and reached over https; a cell console lists none.
+          refuse --set managementConsole.cells.Not_A_Cell=https://manage.example.com/api
+          refuse --set managementConsole.cells.eu--1=https://manage.example.com/api
+          refuse --set managementConsole.cells.eu-1=http://manage.example.com/api
+          cell_console="$CHART/ci/cell-console-values.yaml"
+          helm template release "$CHART" --values "$cell_console" > /dev/null
+          if helm template release "$CHART" --values "$cell_console" \
+            --set managementConsole.cells.eu-1=https://manage.example.com/api > /dev/null 2>&1; then
+            echo "::error::The chart rendered a cell console with managementConsole.cells."
+            exit 1
+          fi
           # A cell names itself and its region with lowercase labels, and a cell that is not the control plane names the
           # control plane's issuer.
           refuse --set cell.name=

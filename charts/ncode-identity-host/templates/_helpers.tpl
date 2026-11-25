@@ -416,6 +416,20 @@ applied. Rendered for its side effect only.
 {{- if and .Values.managementConsole.cellConsole (not .Values.cell.managementUrl) }}
 {{- fail "cell.managementUrl must be the cell's management API URL when managementConsole.cellConsole is true: the console calls /api on it." }}
 {{- end }}
+{{- if and .Values.managementConsole.cellConsole .Values.managementConsole.cells }}
+{{- fail "managementConsole.cells is refused when managementConsole.cellConsole is true: a platform console lists cells and a cell console does not." }}
+{{- end }}
+{{- range $name, $url := .Values.managementConsole.cells }}
+{{- if not (regexMatch "^[a-z](-?[a-z0-9])*$" $name) }}
+{{- fail (printf "managementConsole.cells names %s, which is not a cell name: 1 to 31 characters of lowercase letters, digits and single hyphens, starting with a letter and ending with a letter or digit." $name) }}
+{{- end }}
+{{- if gt (len $name) 31 }}
+{{- fail (printf "managementConsole.cells names %s, which is longer than 31 characters." $name) }}
+{{- end }}
+{{- if not (regexMatch "^https://.+" (toString $url)) }}
+{{- fail (printf "managementConsole.cells.%s must be the cell's management API https URL." $name) }}
+{{- end }}
+{{- end }}
 {{- if and .Values.managementConsole.cellConsole (not .Values.managementConsole.authority) }}
 {{- fail "managementConsole.authority must be the issuer of the cell's root tenant when managementConsole.cellConsole is true: the console signs in against the cell's management tenant." }}
 {{- end }}
@@ -1364,6 +1378,17 @@ The environment of the management console container.
 {{- if $console.cellConsole }}
 - name: ManagementConsole__Cell
   value: {{ .Values.cell.name | quote }}
+{{- end }}
+{{- $cells := dict }}
+{{- range $name, $url := $console.cells }}
+{{- $_ := set $cells $name $url }}
+{{- end }}
+{{- if and $.Values.cell.managementUrl (not $console.cellConsole) (not (hasKey $cells $.Values.cell.name)) }}
+{{- $_ := set $cells $.Values.cell.name (printf "%s/api" (trimSuffix "/" $.Values.cell.managementUrl)) }}
+{{- end }}
+{{- range $name, $url := $cells }}
+- name: {{ printf "ManagementConsole__Cells__%s" $name | quote }}
+  value: {{ $url | quote }}
 {{- end }}
 {{- if include "identity-host.managementConsole.valkeyEnabled" . }}
 {{ include "identity-host.valkeyEnv" (dict "scope" $console.valkey "defaults" .Values.valkey) | trim }}

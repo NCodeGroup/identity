@@ -918,6 +918,13 @@ of the cell's root tenant, which the console signs in against. The chart refuses
 without `DynamicByHost` or `DynamicByPath` as `tenantResolution.strategyCode`, and without `cell.managementUrl` and
 `managementConsole.authority`. `ci/cell-console-values.yaml` is a whole release of such a cell.
 
+A platform console lists the cells it manages. Set `managementConsole.cells` to a map of cell name to that cell's
+management API URL, such as `eu-1: https://manage.eu-1.example.com/api`; the chart renders each as
+`ManagementConsole__Cells__<name>`. Names follow the form of `cell.name` and URLs are `https`. When `cell.managementUrl`
+is set and no entry names `cell.name`, the chart adds the release's own cell as `<cell.managementUrl>/api`. The chart
+refuses `cells` together with `cellConsole`. `ci/platform-console-values.yaml` is a whole release of a platform console
+that lists two cells.
+
 For more than one replica, set `managementConsole.valkey.existingSecret` to a Secret that holds the console's own
 Valkey connection string under the `connection-string` key, or `managementConsole.valkey.parts.existingSecret` to the
 Secret your Valkey operator writes for it; see [Valkey](#valkey). Never share the server's Valkey with the console.
