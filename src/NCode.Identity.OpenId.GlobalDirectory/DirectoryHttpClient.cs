@@ -6,17 +6,15 @@ using System.Net.Http.Headers;
 using System.Net.Mime;
 using System.Text.Json;
 using Microsoft.Extensions.Options;
-using NCode.Buffers;
 
 namespace NCode.Identity.OpenId.GlobalDirectory;
 
 /// <summary>
-/// Sends the requests of the remote adapters to the directory service and to the control plane with a bearer token,
-/// over the directory's own HTTP client, which trusts only <see cref="DirectoryClientOptions.CaCertificatesPath"/> when
-/// it is set. Each call, its response body read included, is bounded by
-/// <see cref="DirectoryClientOptions.RequestTimeout"/>. It fails closed: a transport failure, a timeout, a <c>5xx</c>
-/// answer, an oversized body, a token that cannot be obtained or any status other than a success, <c>404</c> or
-/// <c>409</c> is a <see cref="DirectoryUnavailableException"/>.
+/// Sends the requests of the remote adapters to the directory service with a bearer token, over the directory's own
+/// HTTP client, which trusts only <see cref="DirectoryClientOptions.CaCertificatesPath"/> when it is set. Each call,
+/// its response body read included, is bounded by <see cref="DirectoryClientOptions.RequestTimeout"/>. It fails closed:
+/// a transport failure, a timeout, a <c>5xx</c> answer, an oversized body, a token that cannot be obtained or any
+/// status other than a success, <c>404</c> or <c>409</c> is a <see cref="DirectoryUnavailableException"/>.
 /// </summary>
 // See ADR-1285 and ADR-1385 (the client's pipeline runs on Polly.Core alone).
 internal sealed class DirectoryHttpClient(
@@ -25,8 +23,6 @@ internal sealed class DirectoryHttpClient(
     IOptions<DirectoryClientOptions> options
 )
 {
-    private const int ReadChunkBytes = 4096;
-
     private IHttpClientFactory HttpClientFactory { get; } = httpClientFactory;
 
     private ICellTokenSource TokenSource { get; } = tokenSource;
@@ -66,7 +62,7 @@ internal sealed class DirectoryHttpClient(
     }
 
     /// <summary>
-    /// Sends a request to the directory service or to the control plane.
+    /// Sends a request to the directory service.
     /// </summary>
     /// <param name="cellRequest">The call to make.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
@@ -122,7 +118,13 @@ internal sealed class DirectoryHttpClient(
                     $"{uri} answered {(int)status} to {method}."
                 );
 
-            var bytes = await ReadBodyAsync(response.Content, uri, timeoutSource.Token);
+            var endpoint = uri.AbsoluteUri;
+            var bytes = await DirectoryResponseReader.ReadAsync(
+                response.Content,
+                DirectoryClientDefaults.MaxResponseBytes,
+                endpoint,
+                timeoutSource.Token
+            );
             var result = new DirectoryResponse(status, bytes);
             if (!result.IsSuccess && !result.IsNotFound && !result.IsConflict)
                 throw new DirectoryUnavailableException(
@@ -164,44 +166,5 @@ internal sealed class DirectoryHttpClient(
 
         var endsWithSlash = url.EndsWith('/');
         return new Uri(endsWithSlash ? url : url + '/', UriKind.Absolute);
-    }
-
-    /// <summary>
-    /// Reads the body of a response, up to the largest body that the client accepts.
-    /// </summary>
-    /// <param name="content">The <see cref="HttpContent"/> of the response.</param>
-    /// <param name="uri">The URI that answered, which names the endpoint in an error.</param>
-    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
-    /// <returns>The bytes of the body.</returns>
-    /// <exception cref="DirectoryUnavailableException">
-    /// The body is larger than the largest body that the client accepts.
-    /// </exception>
-    private static async ValueTask<byte[]> ReadBodyAsync(
-        HttpContent content,
-        Uri uri,
-        CancellationToken cancellationToken
-    )
-    {
-        if (content.Headers.ContentLength > DirectoryClientDefaults.MaxResponseBytes)
-            throw new DirectoryUnavailableException(
-                $"{uri} answered with a body larger than {DirectoryClientDefaults.MaxResponseBytes} bytes."
-            );
-
-        await using var stream = await content.ReadAsStreamAsync(cancellationToken);
-        using var buffer = BufferFactory.CreatePooledStream(isSensitive: false);
-        var chunk = new byte[ReadChunkBytes];
-        while (true)
-        {
-            var read = await stream.ReadAsync(chunk, cancellationToken);
-            if (read == 0)
-                return buffer.WrittenSpan.ToArray();
-
-            if (buffer.Length + read > DirectoryClientDefaults.MaxResponseBytes)
-                throw new DirectoryUnavailableException(
-                    $"{uri} answered with a body larger than {DirectoryClientDefaults.MaxResponseBytes} bytes."
-                );
-
-            buffer.Write(chunk, 0, read);
-        }
     }
 }

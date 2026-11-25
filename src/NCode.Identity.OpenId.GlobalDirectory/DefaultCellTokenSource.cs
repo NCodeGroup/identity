@@ -13,12 +13,12 @@ namespace NCode.Identity.OpenId.GlobalDirectory;
 /// <summary>
 /// Provides the default <see cref="ICellTokenSource"/>, which requests a client-credentials token from the directory's
 /// own token endpoint, <c>directory/v1/token</c>, as the cell's machine client with a <c>private_key_jwt</c> assertion,
-/// over the client library's bounded HTTP client, and keeps the token until shortly before it expires. Concurrent
-/// callers share one request. The request runs on its own time limit,
-/// <see cref="DirectoryClientOptions.TokenRequestTimeout"/>, and each caller stops waiting with its own
-/// <see cref="CancellationToken"/>, so a caller that gives up does not end the request for the others. A failed request
-/// is remembered for <see cref="DirectoryClientOptions.TokenFailureCacheDuration"/>, during which a caller fails at
-/// once, without a request to the directory.
+/// over the directory's own HTTP client, which trusts only <see cref="DirectoryClientOptions.CaCertificatesPath"/> when
+/// it is set, and keeps the token until shortly before it expires. Concurrent callers share one request. The request
+/// runs on its own time limit, <see cref="DirectoryClientOptions.TokenRequestTimeout"/>, and each caller stops waiting
+/// with its own <see cref="CancellationToken"/>, so a caller that gives up does not end the request for the others. A
+/// failed request is remembered for <see cref="DirectoryClientOptions.TokenFailureCacheDuration"/>, during which a
+/// caller fails at once, without a request to the directory.
 /// </summary>
 // See ADR-1285 and ADR-1315.
 internal sealed class DefaultCellTokenSource : ICellTokenSource
@@ -42,7 +42,8 @@ internal sealed class DefaultCellTokenSource : ICellTokenSource
     /// <summary>
     /// Initializes a new instance of the <see cref="DefaultCellTokenSource"/> class.
     /// </summary>
-    /// <param name="httpClientFactory">The factory of the client library's bounded HTTP client.</param>
+    /// <param name="httpClientFactory">The factory of the directory's own HTTP client, which trusts only
+    /// <see cref="DirectoryClientOptions.CaCertificatesPath"/> when it is set.</param>
     /// <param name="authenticators">The client authenticators of the client library.</param>
     /// <param name="options">The <see cref="DirectoryClientOptions"/> of the cell.</param>
     /// <param name="timeProvider">The <see cref="TimeProvider"/> that supplies the current time.</param>
@@ -307,7 +308,12 @@ internal sealed class DefaultCellTokenSource : ICellTokenSource
                 cancellationToken
             );
             status = response.StatusCode;
-            body = await ReadBodyAsync(response.Content, cancellationToken);
+            body = await DirectoryResponseReader.ReadAsync(
+                response.Content,
+                DirectoryClientDefaults.MaxTokenResponseBytes,
+                TokenEndpoint.AbsoluteUri,
+                cancellationToken
+            );
         }
         catch (Exception exception) when (exception is HttpRequestException or IOException)
         {
@@ -390,42 +396,6 @@ internal sealed class DefaultCellTokenSource : ICellTokenSource
         catch (JsonException)
         {
             return null;
-        }
-    }
-
-    /// <summary>
-    /// Reads the body of a response, up to the largest body that the client accepts.
-    /// </summary>
-    /// <param name="content">The <see cref="HttpContent"/> of the response.</param>
-    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
-    /// <returns>The bytes of the body.</returns>
-    /// <exception cref="DirectoryUnavailableException">The body is larger than the client accepts.</exception>
-    private static async ValueTask<byte[]> ReadBodyAsync(
-        HttpContent content,
-        CancellationToken cancellationToken
-    )
-    {
-        const int maxBytes = 64 * 1024;
-        if (content.Headers.ContentLength > maxBytes)
-            throw new DirectoryUnavailableException(
-                $"The directory's token endpoint answered with a body larger than {maxBytes} bytes."
-            );
-
-        await using var stream = await content.ReadAsStreamAsync(cancellationToken);
-        using var buffer = new MemoryStream();
-        var chunk = new byte[4096];
-        while (true)
-        {
-            var read = await stream.ReadAsync(chunk, cancellationToken);
-            if (read == 0)
-                return buffer.ToArray();
-
-            if (buffer.Length + read > maxBytes)
-                throw new DirectoryUnavailableException(
-                    $"The directory's token endpoint answered with a body larger than {maxBytes} bytes."
-                );
-
-            buffer.Write(chunk, 0, read);
         }
     }
 }

@@ -23,6 +23,11 @@ internal static class DirectoryClientDefaults
     internal const int MaxResponseBytes = 1024 * 1024;
 
     /// <summary>
+    /// The most bytes that the directory's token endpoint response may carry.
+    /// </summary>
+    internal const int MaxTokenResponseBytes = 64 * 1024;
+
+    /// <summary>
     /// The name of the HTTP client that every call to the directory uses.
     /// </summary>
     internal const string HttpClientName = "NCode.Identity.OpenId.GlobalDirectory";

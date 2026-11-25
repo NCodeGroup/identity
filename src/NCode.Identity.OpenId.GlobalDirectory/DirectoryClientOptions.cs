@@ -68,7 +68,7 @@ public sealed class DirectoryClientOptions
 
     /// <summary>
     /// Gets or sets how long a cell remembers a failed token request, during which a caller that needs that token fails
-    /// at once without a request to the control plane. It is a timer period, from 1 millisecond to about 49.7 days. The
+    /// at once without a request to the directory. It is a timer period, from 1 millisecond to about 49.7 days. The
     /// default is 5 seconds.
     /// </summary>
     public TimeSpan TokenFailureCacheDuration { get; set; } = TimeSpan.FromSeconds(5);

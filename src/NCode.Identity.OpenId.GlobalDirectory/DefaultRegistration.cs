@@ -49,14 +49,14 @@ public static class DefaultRegistration
         /// set, and registers nothing otherwise, so a cell that runs on its own keeps the local adapters. The
         /// <c>Directory</c> section binds <see cref="DirectoryClientOptions"/> strictly and is validated when the host
         /// starts. Each adapter calls the <c>directory/v1</c> API with a client-credentials token that the directory's
-        /// own token endpoint issues to the cell's machine client, over the client library's bounded HTTP client. A
-        /// start check also refuses a client identifier other than <c>cell-</c> followed by the cell's name, a key ring
-        /// the client library lacks, a blank management URL and, for a cell that is not the control plane, a
-        /// <c>Cell:ControlPlane:Issuer</c> that is not an allowed endpoint. A call that cannot reach the directory
-        /// throws <see cref="DirectoryUnavailableException"/>. The same registration adds a hosted service that
-        /// registers the cell with the directory when the host starts, retrying while the directory is unavailable, and
-        /// a hosted service that follows the directory's change feed: every
-        /// <see cref="DirectoryClientOptions.PollInterval"/> one replica of a cell that is not the control plane
+        /// own token endpoint issues to the cell's machine client, over the directory's own HTTP client, which trusts
+        /// only <c>Directory:CaCertificatesPath</c> when it is set. A start check also refuses a client identifier
+        /// other than <c>cell-</c> followed by the cell's name, a key ring the client library lacks, a blank management
+        /// URL and, for a cell that is not the control plane, a <c>Cell:ControlPlane:Issuer</c> that is not an allowed
+        /// endpoint. A call that cannot reach the directory throws <see cref="DirectoryUnavailableException"/>. The
+        /// same registration adds a hosted service that registers the cell with the directory when the host starts,
+        /// retrying while the directory is unavailable, and a hosted service that follows the directory's change feed:
+        /// every <see cref="DirectoryClientOptions.PollInterval"/> one replica of a cell that is not the control plane
         /// mirrors the published team and platform documents into the cell, and a hosted service of the control-plane
         /// cell publishes its outbox of replicated documents to the directory every
         /// <see cref="DirectoryClientOptions.PublishInterval"/> and when a commit wakes it. A cell that is not the
@@ -144,7 +144,7 @@ public static class DefaultRegistration
             // Every cell registers the remote management adapters under the key that Management's registration looks
             // up. Management chooses between the local and the remote adapter from the cell's options at resolution, so
             // this registration never reads the Cell section: the control-plane cell keeps its local adapters, and
-            // every other cell validates management tokens against the control plane's issuer.
+            // every other cell validates management tokens against the management keys its replica holds.
             serviceCollection.TryAddSingleton<ReplicatedManagementTokenValidator>();
             serviceCollection.TryAddKeyedSingleton<IManagementTokenValidator>(
                 ControlPlaneServiceKeys.Remote,
