@@ -1345,7 +1345,7 @@ public static class DirectoryEndpoints
         if (ForbidUnlessControlPlane(httpContext, options.Value) is { } forbidden)
             return forbidden;
 
-        if (after is not null && !ReplicatedRevisionPage.TryParseContinuation(after, out _, out _))
+        if (after is not null && !ReplicatedRevisionContinuation.TryParse(after, out _, out _))
             return BadRequest("The continuation is not valid.");
 
         var boundedLimit = Math.Clamp(limit ?? DefaultRevisionsLimit, 1, MaxRevisionsLimit);
@@ -1393,7 +1393,7 @@ public static class DirectoryEndpoints
             return BadRequest("The cell's kind and its management URL are required.");
 
         if (
-            IsOverLong(descriptor.Kind, DirectoryLimits.MaxCellKindLength)
+            !CellKindRules.IsValidKind(descriptor.Kind)
             || IsOverLong(descriptor.ManagementUrl, DirectoryLimits.MaxManagementUrlLength)
         )
             return BadRequest(CellTooLongDetail);
@@ -1469,7 +1469,7 @@ public static class DirectoryEndpoints
         if (IsBlank(body.Kind))
             return BadRequest("The cell's kind is required.");
 
-        if (IsOverLong(body.Kind, DirectoryLimits.MaxCellKindLength))
+        if (!CellKindRules.IsValidKind(body.Kind))
             return BadRequest(CellTooLongDetail);
 
         if (body.Jwks.ValueKind != JsonValueKind.Object)

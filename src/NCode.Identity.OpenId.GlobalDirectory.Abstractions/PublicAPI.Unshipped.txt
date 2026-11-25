@@ -306,7 +306,9 @@ NCode.Identity.OpenId.GlobalDirectory.ReplicatedRevisionPage.Continuation.get ->
 NCode.Identity.OpenId.GlobalDirectory.ReplicatedRevisionPage.Continuation.init -> void
 NCode.Identity.OpenId.GlobalDirectory.ReplicatedRevisionPage.Revisions.get -> System.Collections.Generic.IReadOnlyList<NCode.Identity.OpenId.GlobalDirectory.ReplicatedDocument!>!
 NCode.Identity.OpenId.GlobalDirectory.ReplicatedRevisionPage.Revisions.init -> void
-static NCode.Identity.OpenId.GlobalDirectory.ReplicatedRevisionPage.CreateContinuation(string! kind, string! key) -> string!
-static NCode.Identity.OpenId.GlobalDirectory.ReplicatedRevisionPage.TryParseContinuation(string? continuation, out string? kind, out string? key) -> bool
 static NCode.Identity.OpenId.GlobalDirectory.PlatformTopologyExtensions.HoldsOnlyControlPlaneTenant(this NCode.Identity.OpenId.GlobalDirectory.IPlatformTopology! platformTopology) -> bool
 NCode.Identity.OpenId.GlobalDirectory.PlatformTopologyExtensions
+const NCode.Identity.OpenId.GlobalDirectory.CellKindRules.MaxKindLength = 32 -> int
+NCode.Identity.OpenId.GlobalDirectory.CellKindRules
+static NCode.Identity.OpenId.GlobalDirectory.CellKindRules.Description.get -> string!
+static NCode.Identity.OpenId.GlobalDirectory.CellKindRules.IsValidKind(string? kind) -> bool

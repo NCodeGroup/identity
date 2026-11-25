@@ -38,6 +38,12 @@ internal sealed class CellOptionsValidator(LocalDevelopmentMode localDevelopment
         {
             failures.Add($"{Prefix}:{nameof(options.Kind)} is required.");
         }
+        else if (!CellKindRules.IsValidKind(options.Kind))
+        {
+            failures.Add(
+                $"{Prefix}:{nameof(options.Kind)} must be a cell kind: {CellKindRules.Description}; it is '{options.Kind}'."
+            );
+        }
 
         if (!options.IsControlPlane)
         {

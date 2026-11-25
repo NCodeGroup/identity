@@ -44,7 +44,8 @@ public sealed class DirectoryChangeRecord
 
     /// <summary>
     /// Gets or sets the revision of the replicated document that the change carries, or <c>null</c> for a team or
-    /// platform change. For a replicated change, <see cref="DocumentJson"/> is the document's content as plain JSON.
+    /// platform change. For a replicated change, <see cref="DocumentJson"/> is the publishing cell's envelope, relayed
+    /// as is.
     /// </summary>
     public long? Revision { get; set; }
 }

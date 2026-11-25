@@ -240,6 +240,28 @@ public class DirectoryServerOptionsValidatorTests
         );
     }
 
+    [Fact]
+    public void Validate_WhenTheKindIsNotALabel_Succeeds()
+    {
+        var options = CreateOptions();
+        options.ControlPlane.Kind = "Dedicated_Eu";
+
+        Assert.True(CreateValidator().Validate(null, options).Succeeded);
+    }
+
+    [Fact]
+    public void Validate_WhenTheKindIsTooLong_FailsNamingTheKeyRuleAndValue()
+    {
+        var options = CreateOptions();
+        var kind = new string('k', CellKindRules.MaxKindLength + 1);
+        options.ControlPlane.Kind = kind;
+
+        Assert.Equal(
+            $"DirectoryServer:ControlPlane:Kind must be a cell kind: {CellKindRules.Description}; it is '{kind}'.",
+            SingleFailure(options)
+        );
+    }
+
     [Theory]
     [MemberData(nameof(NonLabels))]
     public void Validate_WhenCellIsNotACellLabel_FailsNamingTheKeyRuleAndValue(string cell)

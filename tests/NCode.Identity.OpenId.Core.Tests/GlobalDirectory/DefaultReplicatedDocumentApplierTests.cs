@@ -196,6 +196,23 @@ public sealed class DefaultReplicatedDocumentApplierTests : BaseTests
     }
 
     [Fact]
+    public async Task ApplyAsync_WhenAManagementKeysDocumentLacksRevokedKeyIds_Throws()
+    {
+        // Strict mocks: nothing is stored, because the content is read before it is applied.
+        await Assert.ThrowsAsync<JsonException>(async () =>
+            await Applier.ApplyAsync(
+                new ReplicatedDocument
+                {
+                    Kind = ReplicatedDocumentKinds.ManagementKeys,
+                    Revision = 2,
+                    Content = JsonElement.Parse("""{"$ver":1,"$payload":{"keys":[]}}"""),
+                },
+                CancellationToken.None
+            )
+        );
+    }
+
+    [Fact]
     public async Task ApplyAsync_WhenTheDocumentIsRetired_StoresItWithNullContent()
     {
         SetupStoreManager();

@@ -39,7 +39,7 @@ internal static class DirectoryLimits
     /// <summary>
     /// The most characters a cell's kind holds.
     /// </summary>
-    public const int MaxCellKindLength = 32;
+    public const int MaxCellKindLength = CellKindRules.MaxKindLength;
 
     /// <summary>
     /// The most characters a cell's management URL holds.

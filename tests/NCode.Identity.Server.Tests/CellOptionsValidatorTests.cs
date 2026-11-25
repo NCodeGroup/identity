@@ -181,6 +181,19 @@ public sealed class CellOptionsValidatorTests
         Assert.True(result.Succeeded);
     }
 
+    [Fact]
+    public void Validate_WhenTheKindIsTooLong_FailsNamingTheKey()
+    {
+        var options = CreateOptions();
+        options.Kind = new string('k', CellKindRules.MaxKindLength + 1);
+
+        var result = CreateValidator().Validate(name: null, options);
+
+        Assert.True(result.Failed);
+        Assert.Contains("Cell:Kind", result.FailureMessage, StringComparison.Ordinal);
+        Assert.Contains(CellKindRules.Description, result.FailureMessage, StringComparison.Ordinal);
+    }
+
     [Theory]
     [InlineData(null)]
     [InlineData("")]

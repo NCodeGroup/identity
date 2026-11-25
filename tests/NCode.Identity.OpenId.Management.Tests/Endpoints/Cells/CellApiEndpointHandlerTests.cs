@@ -317,6 +317,32 @@ public sealed class CellApiEndpointHandlerTests : IDisposable
     }
 
     [Fact]
+    public async Task RegisterCellAsync_WhenTheKindIsTooLong_Returns400WithoutRegistering()
+    {
+        SetupAuthorization(succeeds: true);
+        SetupJwks(valid: true);
+        var httpContext = CreateHttpContext(authenticated: true);
+        var valid = CreateRequest();
+        var request = new RegisterCellRequest
+        {
+            Region = valid.Region,
+            Kind = new string('k', CellKindRules.MaxKindLength + 1),
+            Jwks = valid.Jwks,
+        };
+
+        var result = await Handler.RegisterCellAsync(
+            httpContext,
+            "cell-b",
+            request,
+            CancellationToken.None
+        );
+
+        var problem = Assert.IsType<ValidationProblem>(result);
+        Assert.Contains("kind", problem.ProblemDetails.Errors.Keys);
+        // The directory mock is strict: a call to it would have failed.
+    }
+
+    [Fact]
     public async Task RegisterCellAsync_WhenTheRegistrationIsValid_RegistersAuditsAndReturnsTheCell()
     {
         SetupAuthorization(succeeds: true);

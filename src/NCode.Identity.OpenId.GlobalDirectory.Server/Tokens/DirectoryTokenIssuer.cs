@@ -153,8 +153,8 @@ internal sealed class DirectoryTokenIssuer(
             {
                 [JoseClaimNames.Payload.Sub] = clientId,
                 [JoseClaimNames.Payload.Jti] = jti,
-                ["client_id"] = clientId,
-                ["scope"] = GlobalDirectoryProtocol.DirectoryScope,
+                [JoseClaimNames.Payload.ClientId] = clientId,
+                [JoseClaimNames.Payload.Scope] = GlobalDirectoryProtocol.DirectoryScope,
             },
         };
         return await JwtEncoder.EncodeAsync(parameters, cancellationToken);

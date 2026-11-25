@@ -78,6 +78,53 @@ public sealed class DefaultDirectoryStoreCellTests : DefaultDirectoryStoreTestBa
         );
     }
 
+    [Theory]
+    [InlineData("https://cell-a.example/mgmt", "https://cell-a.example/mgmt/")]
+    [InlineData("https://cell-a.example/mgmt/", "https://cell-a.example/mgmt")]
+    public async Task ReportAsync_WhenTheManagementUrlDiffersOnlyInATrailingSlashOnItsPath_Throws(
+        string first,
+        string second
+    )
+    {
+        await ReportCellAsync(
+            CreateCell("cell-a") with
+            {
+                ManagementUrl = first,
+            },
+            CancellationToken.None
+        );
+        var other = CreateCell("cell-b") with { ManagementUrl = second };
+
+        await Assert.ThrowsAsync<CellDirectoryConflictException>(async () =>
+            await ReportCellAsync(other, CancellationToken.None)
+        );
+    }
+
+    [Fact]
+    public async Task ReportAsync_WhenTheManagementUrlHasAnotherPath_Accepts()
+    {
+        await ReportCellAsync(
+            CreateCell("cell-a") with
+            {
+                ManagementUrl = "https://cell-a.example/mgmt",
+            },
+            CancellationToken.None
+        );
+
+        await ReportCellAsync(
+            CreateCell("cell-b") with
+            {
+                ManagementUrl = "https://cell-a.example/other",
+            },
+            CancellationToken.None
+        );
+
+        var a = await Cells.GetOrDefaultAsync("cell-a", CancellationToken.None);
+        var b = await Cells.GetOrDefaultAsync("cell-b", CancellationToken.None);
+        Assert.Equal("https://cell-a.example/mgmt", a?.ManagementUrl);
+        Assert.Equal("https://cell-a.example/other", b?.ManagementUrl);
+    }
+
     [Fact]
     public async Task ReportAsync_WhenTheSameCellReportsItsUrlAgain_Accepts()
     {

@@ -53,6 +53,28 @@ internal sealed class DirectoryServerOptionsValidator(IPublicJwksReader jwksRead
     }
 
     /// <summary>
+    /// Adds a failure when the control-plane cell's kind is blank or not a valid cell kind.
+    /// </summary>
+    /// <param name="failures">The failures to add to.</param>
+    /// <param name="value">The kind to check.</param>
+    private static void ValidateKind(List<string> failures, string value)
+    {
+        var key = DirectoryControlPlaneOptions.GetConfigurationKey(
+            nameof(DirectoryControlPlaneOptions.Kind)
+        );
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            failures.Add($"{key} is required.");
+        }
+        else if (!CellKindRules.IsValidKind(value))
+        {
+            failures.Add(
+                $"{key} must be a cell kind: {CellKindRules.Description}; it is '{value}'."
+            );
+        }
+    }
+
+    /// <summary>
     /// Adds a failure when an issuer is blank or not an allowed issuer URL.
     /// </summary>
     /// <param name="failures">The failures to add to.</param>
@@ -114,7 +136,7 @@ internal sealed class DirectoryServerOptionsValidator(IPublicJwksReader jwksRead
 
         ValidateLabel(failures, nameof(DirectoryControlPlaneOptions.Cell), controlPlane.Cell);
         ValidateLabel(failures, nameof(DirectoryControlPlaneOptions.Region), controlPlane.Region);
-        ValidateLabel(failures, nameof(DirectoryControlPlaneOptions.Kind), controlPlane.Kind);
+        ValidateKind(failures, controlPlane.Kind);
 
         var tenantIdKey = DirectoryControlPlaneOptions.GetConfigurationKey(
             nameof(DirectoryControlPlaneOptions.TenantId)

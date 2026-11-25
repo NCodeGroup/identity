@@ -224,6 +224,8 @@ internal class CellApiEndpointHandler(
 
         if (string.IsNullOrWhiteSpace(request.Kind))
             errors["kind"] = ["The kind is required."];
+        else if (!CellKindRules.IsValidKind(request.Kind))
+            errors["kind"] = [$"The kind must be {CellKindRules.Description}."];
 
         if (!PublicJwksReader.TryRead(request.Jwks, out _, out var jwksError))
             errors["jwks"] = [jwksError];

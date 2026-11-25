@@ -52,6 +52,10 @@ internal sealed class DirectoryClientAssertionValidator(
     /// <summary>
     /// Reads a numeric date claim of a validated payload.
     /// </summary>
+    /// <param name="payload">The validated payload.</param>
+    /// <param name="name">The name of the claim.</param>
+    /// <param name="instant">The claim's instant when the method returns <c>true</c>; otherwise, the default.</param>
+    /// <returns><c>true</c> when the claim is present and is a valid numeric date; otherwise, <c>false</c>.</returns>
     private static bool TryGetInstant(JsonElement payload, string name, out DateTimeOffset instant)
     {
         instant = default;
@@ -64,6 +68,9 @@ internal sealed class DirectoryClientAssertionValidator(
     /// <summary>
     /// Reads a string claim of a validated payload, which is <c>null</c> when the claim is absent or not a string.
     /// </summary>
+    /// <param name="payload">The validated payload.</param>
+    /// <param name="name">The name of the claim.</param>
+    /// <returns>The claim's string, or <c>null</c> when it is absent or not a string.</returns>
     private static string? GetString(JsonElement payload, string name) =>
         payload.TryGetProperty(name, out var element) && element.ValueKind == JsonValueKind.String
             ? element.GetString()
@@ -82,6 +89,9 @@ internal sealed class DirectoryClientAssertionValidator(
     /// <summary>
     /// Logs why an assertion is refused and creates the result that gives the caller only a fixed description.
     /// </summary>
+    /// <param name="cellName">The cell the assertion names, or empty when unknown.</param>
+    /// <param name="reason">The reason that is logged and never returned.</param>
+    /// <returns>A failed result that carries only the fixed description.</returns>
     private DirectoryClientAssertionResult Refuse(string cellName, string reason) =>
         Refuse(cellName, reason, null);
 
@@ -89,6 +99,10 @@ internal sealed class DirectoryClientAssertionValidator(
     /// Logs why an assertion is refused, with the exception that caused it, and creates the result that gives the
     /// caller only a fixed description.
     /// </summary>
+    /// <param name="cellName">The cell the assertion names, or empty when unknown.</param>
+    /// <param name="reason">The reason that is logged and never returned.</param>
+    /// <param name="exception">The exception that caused the refusal, or <c>null</c> when none did.</param>
+    /// <returns>A failed result that carries only the fixed description.</returns>
     private DirectoryClientAssertionResult Refuse(
         string cellName,
         string reason,

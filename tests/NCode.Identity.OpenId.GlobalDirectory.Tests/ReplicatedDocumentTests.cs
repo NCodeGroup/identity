@@ -102,6 +102,20 @@ public class ReplicatedDocumentTests
     }
 
     [Fact]
+    public void Deserialize_WhenManagementKeysLackRevokedKeyIds_Throws()
+    {
+        const string json = """
+            {"keys":[{"kid":"k1","secretType":"rsa","algorithm":"PS256","use":"sig","keySizeBits":2048,
+            "publicKey":"AQAB","activatesWhen":"2030-01-01T00:00:00+00:00","retiresWhen":"2031-01-01T00:00:00+00:00",
+            "expiresWhen":"2032-01-01T00:00:00+00:00"}]}
+            """;
+
+        Assert.Throws<JsonException>(() =>
+            JsonSerializer.Deserialize<ManagementKeysDocumentContent>(json, DirectoryJson.Options)
+        );
+    }
+
+    [Fact]
     public void Serialize_WhenChangeCarriesAReplicatedDocument_RoundTripsIt()
     {
         var change = new DirectoryChange

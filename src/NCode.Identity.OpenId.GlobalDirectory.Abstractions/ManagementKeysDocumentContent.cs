@@ -25,5 +25,5 @@ public sealed record ManagementKeysDocumentContent
     /// Gets the identifiers of the revoked keys, which no later document returns.
     /// </summary>
     [JsonPropertyName("revokedKeyIds")]
-    public IReadOnlyList<string> RevokedKeyIds { get; init; } = [];
+    public required IReadOnlyList<string> RevokedKeyIds { get; init; }
 }

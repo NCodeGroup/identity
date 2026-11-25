@@ -27,9 +27,9 @@ internal sealed class DirectoryAuthenticationGate(DirectoryTokenIssuer tokenIssu
     /// <summary>
     /// The claim type of the machine client that the request authenticates as.
     /// </summary>
-    internal const string ClientIdClaimType = "client_id";
+    internal const string ClientIdClaimType = JoseClaimNames.Payload.ClientId;
 
-    private const string ScopeClaimType = "scope";
+    private const string ScopeClaimType = JoseClaimNames.Payload.Scope;
     private const string BearerPrefix = "Bearer ";
     private const string AuthenticationType = "DirectoryBearer";
 

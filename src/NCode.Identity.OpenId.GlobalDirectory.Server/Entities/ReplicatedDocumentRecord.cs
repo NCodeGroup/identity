@@ -27,7 +27,12 @@ public sealed class ReplicatedDocumentRecord
     public long Revision { get; set; }
 
     /// <summary>
-    /// Gets or sets the content of the document as JSON text, or <c>null</c> for a retired document.
+    /// Gets or sets the content of the document as the publishing cell's schema-versioned <c>$ver</c> and
+    /// <c>$payload</c> envelope, or <c>null</c> for a retired document.
     /// </summary>
+    /// <remarks>
+    /// The text is relayed as the cell published it, never reshaped, so it is not plain JSON content.
+    /// </remarks>
+    // See ADR-1536.
     public string? DocumentJson { get; set; }
 }

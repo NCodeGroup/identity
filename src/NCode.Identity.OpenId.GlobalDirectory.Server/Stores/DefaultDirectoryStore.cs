@@ -2554,7 +2554,7 @@ internal sealed class DefaultDirectoryStore(
         if (continuation is not null)
         {
             if (
-                !ReplicatedRevisionPage.TryParseContinuation(
+                !ReplicatedRevisionContinuation.TryParse(
                     continuation,
                     out var afterKind,
                     out var afterKey
@@ -2597,9 +2597,7 @@ internal sealed class DefaultDirectoryStore(
         }
 
         var last = hasMore ? revisions[^1] : null;
-        var next = last is null
-            ? null
-            : ReplicatedRevisionPage.CreateContinuation(last.Kind, last.Key);
+        var next = last is null ? null : ReplicatedRevisionContinuation.Create(last.Kind, last.Key);
         return new ReplicatedRevisionPage { Revisions = revisions, Continuation = next };
     }
 
