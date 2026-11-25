@@ -71,6 +71,11 @@ internal static class ReplicatedDocumentComposer
         return payloadSerializer.Serialize(content, JsonOptions).GetRawText();
     }
 
+    /// <summary>
+    /// Projects role assignments to authority assignments, ordered by principal and then by role name, both ordinally.
+    /// </summary>
+    /// <param name="assignments">The role assignments at a node.</param>
+    /// <returns>The ordered authority assignments.</returns>
     private static List<AuthorityAssignment> ProjectAssignments(
         IEnumerable<RoleAssignmentEntity> assignments
     )
