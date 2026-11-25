@@ -102,8 +102,15 @@ internal class DefaultAccessTokenPolicyService(
         return settings;
     }
 
-    // A targeted resource server that requires DPoP-bound access tokens refuses a token request without a DPoP proof, as
-    // a client's own requirement does at the token endpoint.
+    /// <summary>
+    /// Refuses a token request without a DPoP proof when the combined settings of the client and every targeted
+    /// resource server require DPoP-bound access tokens, as a client's own requirement does at the token endpoint.
+    /// </summary>
+    /// <param name="openIdContext">The <see cref="OpenIdContext"/> of the current request.</param>
+    /// <param name="settings">The combined settings of the client and the targeted resource servers.</param>
+    /// <param name="confirmation">The confirmation the token is bound to.</param>
+    /// <exception cref="OpenIdException">Thrown with the <c>invalid_dpop_proof</c> error when DPoP-bound tokens are
+    /// required and <paramref name="confirmation"/> has no JWK thumbprint.</exception>
     private static void EnsureDPoPBinding(
         OpenIdContext openIdContext,
         IReadOnlySettingCollection settings,
