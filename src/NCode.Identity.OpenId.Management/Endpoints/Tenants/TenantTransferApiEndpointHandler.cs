@@ -1,6 +1,7 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
@@ -25,6 +26,7 @@ using NCode.Identity.OpenId.Management.Transfers;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
 using NCode.Identity.OpenId.Tenants;
+using NCode.Identity.Persistence;
 using NCode.Identity.Persistence.Stores;
 using NCode.Identity.Registration.AspNetCore;
 using NCode.Identity.Secrets;
@@ -323,7 +325,9 @@ internal class TenantTransferApiEndpointHandler(
         }
 
         // The tenant's keys are fenced before the directory is asked, so no key operation of this cell runs while the
-        // offer is in flight. A refused offer or an unavailable directory lifts the fence again.
+        // offer is in flight. A refused offer or an unavailable directory lifts the fence again. Any other failure of
+        // the offer leaves the fence in place, because its outcome is unknown: the directory may have recorded the
+        // offer, and enabling the tenant lifts the fence after a live placement read.
         await tenantStore.SetKeyCustodyAsync(
             tenantId,
             TenantKeyCustody.Outgoing,
@@ -347,7 +351,7 @@ internal class TenantTransferApiEndpointHandler(
         }
         catch (DirectoryUnavailableException)
         {
-            await ReleaseFenceAsync(storeManager, tenantStore, tenantId, cancellationToken);
+            await ReleaseFenceAsync(storeManager, tenantStore, tenantId);
 
             var retryAfter = TimeSpan.FromSeconds(
                 GlobalDirectoryProtocol.UnavailableRetryAfterSeconds
@@ -362,7 +366,7 @@ internal class TenantTransferApiEndpointHandler(
 
         if (!offer.IsOffered)
         {
-            await ReleaseFenceAsync(storeManager, tenantStore, tenantId, cancellationToken);
+            await ReleaseFenceAsync(storeManager, tenantStore, tenantId);
             return await OfferConflictAsync(tenantId, offer.ConflictDetail, cancellationToken);
         }
 
@@ -406,21 +410,39 @@ internal class TenantTransferApiEndpointHandler(
         return TypedResults.Ok(resource);
     }
 
-    // Lifts the key-custody fence of a tenant whose offer the directory did not record: this cell holds its keys again.
-    private static async ValueTask ReleaseFenceAsync(
+    /// <summary>
+    /// Lifts the key-custody fence of a tenant whose offer the directory did not record, so this cell holds its keys
+    /// again. The fence is already committed, so the release runs on its own bounded token, and a client that
+    /// disconnects cannot leave the tenant fenced.
+    /// </summary>
+    /// <param name="storeManager">The <see cref="IStoreManager"/> that saves the release.</param>
+    /// <param name="tenantStore">The <see cref="ITenantStore"/> that holds the tenant.</param>
+    /// <param name="tenantId">The identifier of the tenant whose fence is lifted.</param>
+    [SuppressMessage(
+        "Design",
+        "NCID0003",
+        Justification = "The work follows a committed change and runs on its own bounded token, so no caller can pass a token that drops it (ADR-1351)."
+    )]
+    private async ValueTask ReleaseFenceAsync(
         IStoreManager storeManager,
         ITenantStore tenantStore,
-        string tenantId,
-        CancellationToken cancellationToken
+        string tenantId
     )
     {
-        await tenantStore.SetKeyCustodyAsync(
-            tenantId,
-            TenantKeyCustody.Held,
-            cell: null,
-            cancellationToken
+        await PostCommitWork.RunAsync(
+            TimeProvider,
+            static async (state, cancellationToken) =>
+            {
+                await state.TenantStore.SetKeyCustodyAsync(
+                    state.TenantId,
+                    TenantKeyCustody.Held,
+                    cell: null,
+                    cancellationToken
+                );
+                await state.StoreManager.SaveChangesAsync(cancellationToken);
+            },
+            (StoreManager: storeManager, TenantStore: tenantStore, TenantId: tenantId)
         );
-        await storeManager.SaveChangesAsync(cancellationToken);
     }
 
     // Answers an offer that the directory refuses. A directory that places the tenant in another cell has a move behind

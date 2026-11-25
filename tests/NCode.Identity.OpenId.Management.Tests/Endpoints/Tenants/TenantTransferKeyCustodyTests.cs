@@ -45,6 +45,7 @@ public sealed class TenantTransferKeyCustodyTests
     private Mock<ITenantTransferContributor> MockContributor { get; } = new();
     private Mock<ITenantDirectory> MockTenantDirectory { get; } = new();
     private List<string> Calls { get; } = [];
+    private bool? HeldWriteTokenCancelled { get; set; }
     private TenantTransferApiEndpointHandler Handler { get; }
 
     public TenantTransferKeyCustodyTests()
@@ -70,9 +71,14 @@ public sealed class TenantTransferKeyCustodyTests
                 )
             )
             .Returns(
-                (string _, string custody, string? cell, CancellationToken _) =>
+                (string _, string custody, string? cell, CancellationToken token) =>
                 {
                     Calls.Add($"{custody}:{cell}");
+                    if (custody == TenantKeyCustody.Held)
+                    {
+                        HeldWriteTokenCancelled = token.IsCancellationRequested;
+                    }
+
                     return new ValueTask<bool>(true);
                 }
             );
@@ -222,6 +228,27 @@ public sealed class TenantTransferKeyCustodyTests
         );
 
         Assert.Equal([$"outgoing:{TargetCell}", "offer", "held:"], Calls);
+    }
+
+    [Fact]
+    public async Task ExportTenantAsync_WhenTheRequestIsCancelledAndTheDirectoryIsUnavailable_LiftsTheFenceOnItsOwnToken()
+    {
+        using var requestSource = new CancellationTokenSource();
+        SetupOffer(() =>
+        {
+            requestSource.Cancel();
+            throw new DirectoryUnavailableException("The directory is unreachable.");
+        });
+
+        await Handler.ExportTenantAsync(
+            CreateHttpContext(),
+            TenantId,
+            CreateRequest(),
+            requestSource.Token
+        );
+
+        Assert.Equal([$"outgoing:{TargetCell}", "offer", "held:"], Calls);
+        Assert.False(HeldWriteTokenCancelled);
     }
 
     [Fact]
