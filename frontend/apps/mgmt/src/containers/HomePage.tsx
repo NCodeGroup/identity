@@ -53,8 +53,8 @@ export function HomePage({ onNavigate }: HomePageProps) {
 
 /**
  * Container: the home of a console that manages one cell. Lists the tenants the cell holds, a page at a time, with the
- * team of each and a link into the tenant, and links to the cell's administrators for a caller who holds
- * `CellAdmin` or `GlobalAdmin` at the cell. A tenant opens in the console's own API, which addresses no other cell.
+ * team of each and a link into the tenant, and links to the cell's administrators for a caller who holds `CellAdmin` or
+ * `GlobalAdmin` at the cell. A tenant opens in the console's own API, which addresses no other cell.
  */
 function CellHome({ onNavigate }: HomePageProps) {
   const caller = useGetCallerQuery();
