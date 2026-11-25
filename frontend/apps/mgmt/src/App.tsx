@@ -43,6 +43,9 @@ const PlatformEncryptionKeysPage = lazy(() =>
     default: m.PlatformEncryptionKeysPage,
   })),
 );
+const CellsPage = lazy(() =>
+  import('./containers/CellsPage.js').then((m) => ({ default: m.CellsPage })),
+);
 const MachineClientsPage = lazy(() =>
   import('./containers/MachineClientsPage.js').then((m) => ({ default: m.MachineClientsPage })),
 );
@@ -183,6 +186,9 @@ export function App() {
               label="Encryption keys"
               data-testid="platform-tab-encryption-keys"
             />
+            {access?.isPlatformAdministrator !== false && (
+              <Tab value="cells" label="Cells" data-testid="platform-tab-cells" />
+            )}
           </Tabs>
           <Suspense fallback={surfaceFallback}>
             {route.surface === 'teams' ? (
@@ -193,6 +199,8 @@ export function App() {
               <UsersPage owner={{ kind: 'platform' }} />
             ) : route.surface === 'settings' ? (
               <PlatformSettingsPage />
+            ) : route.surface === 'cells' ? (
+              <CellsPage />
             ) : (
               <PlatformEncryptionKeysPage />
             )}

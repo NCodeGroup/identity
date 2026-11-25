@@ -10,7 +10,7 @@ import {
  * second, so the platform ↔ team ↔ tenant boundaries (ADR-1064) stay explicit in every address:
  *
  * - `/home` — the caller's home: the places it holds authority (ADR-1465);
- * - `/teams`, `/clients`, `/users`, `/settings`, `/encryption-keys` — the platform scope's surfaces;
+ * - `/teams`, `/clients`, `/users`, `/settings`, `/encryption-keys`, `/cells` — the platform scope's surfaces;
  * - `/teams/{teamId}/{surface}` — a team scope's surfaces (`tenants`, `teams`, `clients`, `settings`, `access`,
  *   `encryption-keys` and `usage`), the team id percent-encoded as one segment;
  * - `/tenants/{tenantId}/{surface}` — a tenant scope's surfaces (`clients`, `resource-servers`, `connections`,
@@ -30,6 +30,7 @@ export const PLATFORM_SURFACES = [
   'users',
   'settings',
   'encryption-keys',
+  'cells',
 ] as const;
 
 /** The surfaces of a cell console's own cell, in tab order. */
@@ -213,7 +214,7 @@ export function parseRoute(pathname: string): ConsoleRoute | null {
   const trimmed = pathname.length > 1 && pathname.endsWith('/') ? pathname.slice(0, -1) : pathname;
   const segments = trimmed.slice(1).split('/');
 
-  if (segments[0] === 'cells') {
+  if (segments[0] === 'cells' && segments.length > 1) {
     const [, encodedCell = '', ...scoped] = segments;
     const cell = decodeSegment(encodedCell);
     if (cell === null || cell.trim().length === 0 || scoped[0] !== 'tenants') {
