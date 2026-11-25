@@ -77,9 +77,9 @@ internal static class EventIds
     public const int RecoverAdminCommandUsageInvalid = Base + 32;
 
     /// <summary>
-    /// Identifies the error that the recover-admin command ran outside the control-plane cell.
+    /// Identifies the error that the recover-admin command ran in a cell with no anchor tenant.
     /// </summary>
-    public const int RecoverAdminCommandNotOnTheControlPlane = Base + 33;
+    public const int RecoverAdminCommandNotInAnAnchorCell = Base + 33;
 
     /// <summary>
     /// Identifies the error that the recover-admin command has no administrator username.

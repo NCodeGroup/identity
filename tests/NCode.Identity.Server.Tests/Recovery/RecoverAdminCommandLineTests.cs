@@ -28,6 +28,7 @@ public class RecoverAdminCommandLineTests : BaseTests
     private static ServiceProvider CreateServices(
         IAdministratorRecoveryService recoveryService,
         bool isControlPlane,
+        bool hasManagementTenant = false,
         string? userName = UserName,
         string? password = Password
     )
@@ -35,9 +36,10 @@ public class RecoverAdminCommandLineTests : BaseTests
         var serviceCollection = new ServiceCollection();
         serviceCollection.AddLogging();
         serviceCollection.AddSingleton(recoveryService);
-        serviceCollection.AddSingleton(
-            Options.Create(new CellOptions { IsControlPlane = isControlPlane })
-        );
+        var topology = new Mock<IPlatformTopology>();
+        topology.Setup(x => x.IsControlPlaneCell).Returns(isControlPlane);
+        topology.Setup(x => x.HasManagementTenant).Returns(hasManagementTenant);
+        serviceCollection.AddSingleton(topology.Object);
         var recoveryOptions = new RecoveryOptions
         {
             Admin = new RecoveryAdminOptions { UserName = userName, Password = password },
@@ -104,7 +106,7 @@ public class RecoverAdminCommandLineTests : BaseTests
     }
 
     [Fact]
-    public async Task RunAsync_AWorkloadCell_ReturnsTwoWithoutRecovering()
+    public async Task RunAsync_AWorkloadCellWithoutAManagementTenant_ReturnsTwoWithoutRecovering()
     {
         var service = CreateStrictMock<IAdministratorRecoveryService>();
         using var services = CreateServices(service.Object, isControlPlane: false);
@@ -112,6 +114,26 @@ public class RecoverAdminCommandLineTests : BaseTests
         var exitCode = await Parse("recover-admin").RunAsync(services, CancellationToken.None);
 
         Assert.Equal(2, exitCode);
+    }
+
+    [Fact]
+    public async Task RunAsync_AWorkloadCellWithAManagementTenant_Recovers()
+    {
+        var service = CreateStrictMock<IAdministratorRecoveryService>();
+        service
+            .Setup(x =>
+                x.RecoverAsync(It.IsAny<RecoveryAdminOptions>(), It.IsAny<CancellationToken>())
+            )
+            .ReturnsAsync(new AdministratorRecoveryResult { TenantId = "management" });
+        using var services = CreateServices(
+            service.Object,
+            isControlPlane: false,
+            hasManagementTenant: true
+        );
+
+        var exitCode = await Parse("recover-admin").RunAsync(services, CancellationToken.None);
+
+        Assert.Equal(0, exitCode);
     }
 
     [Theory]
@@ -125,7 +147,12 @@ public class RecoverAdminCommandLineTests : BaseTests
     )
     {
         var service = CreateStrictMock<IAdministratorRecoveryService>();
-        using var services = CreateServices(service.Object, true, userName, password);
+        using var services = CreateServices(
+            service.Object,
+            isControlPlane: true,
+            userName: userName,
+            password: password
+        );
 
         var exitCode = await Parse("recover-admin").RunAsync(services, CancellationToken.None);
 

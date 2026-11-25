@@ -5,6 +5,7 @@ using System.Diagnostics.CodeAnalysis;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using NCode.Buffers;
 using NCode.Identity.Cryptography;
 using NCode.Identity.Events.Audit;
@@ -14,6 +15,7 @@ using NCode.Identity.OpenId.Accounts.Management.Contracts;
 using NCode.Identity.OpenId.Accounts.Stores;
 using NCode.Identity.OpenId.Authentication.Passwords;
 using NCode.Identity.OpenId.Connections;
+using NCode.Identity.OpenId.GlobalDirectory;
 using NCode.Identity.OpenId.Management;
 using NCode.Identity.OpenId.Management.Auditing;
 using NCode.Identity.OpenId.Persistence;
@@ -28,11 +30,12 @@ namespace NCode.Identity.OpenId.Setup;
 
 /// <summary>
 /// Provides a default implementation of <see cref="IAdministratorRecoveryService"/>. The administrator is a local
-/// account in the <c>local</c> connection of the control-plane tenant that holds <see cref="BuiltInRoles.GlobalAdmin"/>
-/// at the platform node. An existing account is enabled and gets the new password, a missing one is created as setup
-/// creates the root administrator, and the role assignment is added when the principal lacks it. The changes are staged
-/// on one store manager and saved once, then the account's failed password attempts are cleared and each change is
-/// audited.
+/// account in the <c>local</c> connection of the anchor tenant. In the control-plane cell it holds
+/// <see cref="BuiltInRoles.GlobalAdmin"/> at the platform node; in a workload cell with a management tenant it holds
+/// <see cref="BuiltInRoles.CellAdmin"/> at the cell's node, and any other cell refuses recovery. An existing account is
+/// enabled and gets the new password, a missing one is created as setup creates the root administrator, and the role
+/// assignment is added when the principal lacks it. The changes are staged on one store manager and saved once, then
+/// the account's failed password attempts are cleared and each change is audited.
 /// </summary>
 // See ADR-1536.
 internal sealed class DefaultAdministratorRecoveryService(
@@ -45,6 +48,8 @@ internal sealed class DefaultAdministratorRecoveryService(
     IPasswordAttemptLimiter passwordAttemptLimiter,
     IManagementAuditRecorder managementAuditRecorder,
     ICryptoService cryptoService,
+    IPlatformTopology platformTopology,
+    IOptions<CellOptions> cellOptions,
     ILogger<DefaultAdministratorRecoveryService> logger
 ) : IAdministratorRecoveryService
 {
@@ -66,6 +71,10 @@ internal sealed class DefaultAdministratorRecoveryService(
 
     private ICryptoService CryptoService { get; } = cryptoService;
 
+    private IPlatformTopology PlatformTopology { get; } = platformTopology;
+
+    private CellOptions CellOptions { get; } = cellOptions.Value;
+
     private ILogger<DefaultAdministratorRecoveryService> Logger { get; } = logger;
 
     private static AdministratorRecoveryResult CreateError(int statusCode, string detail) =>
@@ -81,6 +90,14 @@ internal sealed class DefaultAdministratorRecoveryService(
     )
     {
         ArgumentNullException.ThrowIfNull(options);
+
+        if (!PlatformTopology.IsControlPlaneCell && !PlatformTopology.HasManagementTenant)
+        {
+            return CreateError(
+                StatusCodes.Status404NotFound,
+                "Recovery runs in the control-plane cell or in a cell with a management tenant."
+            );
+        }
 
         var userName = options.UserName;
         if (string.IsNullOrWhiteSpace(userName))
@@ -145,7 +162,7 @@ internal sealed class DefaultAdministratorRecoveryService(
 
             recovered = staged;
 
-            var assignmentId = await StageGlobalAdminAsync(
+            var assignmentId = await StageAdministratorAsync(
                 storeManager,
                 tenantId,
                 recovered.PrincipalId,
@@ -261,23 +278,30 @@ internal sealed class DefaultAdministratorRecoveryService(
         };
     }
 
-    // The role that confers every management authority (ADR-1417) is held at the platform node. The assignment is
-    // staged only when the principal does not hold it, and its identifier is returned then.
-    private async ValueTask<string?> StageGlobalAdminAsync(
+    private (string RoleName, string ResourceType, string ResourceId) GetAdministratorNode() =>
+        PlatformTopology.HasManagementTenant
+            ? (BuiltInRoles.CellAdmin, OpenIdResourceTypes.Cell, CellOptions.Name)
+            : (
+                BuiltInRoles.GlobalAdmin,
+                OpenIdResourceTypes.Platform,
+                OpenIdConstants.PlatformResourceId
+            );
+
+    // The role that confers every management authority (ADR-1417) is held at the platform node, and in a cell with a
+    // management tenant the cell's administrator holds its role at the cell's node. The assignment is staged only when
+    // the principal does not hold it, and its identifier is returned then.
+    private async ValueTask<string?> StageAdministratorAsync(
         IStoreManager storeManager,
         string tenantId,
         string principalId,
         CancellationToken cancellationToken
     )
     {
+        var (roleName, resourceType, resourceId) = GetAdministratorNode();
         var store = storeManager.GetStore<IRoleAssignmentStore>();
-        var existing = await store.GetByResourceAsync(
-            OpenIdResourceTypes.Platform,
-            OpenIdConstants.PlatformResourceId,
-            cancellationToken
-        );
+        var existing = await store.GetByResourceAsync(resourceType, resourceId, cancellationToken);
         var isHeld = existing.Any(item =>
-            item.PrincipalId == principalId && item.RoleName == BuiltInRoles.GlobalAdmin
+            item.PrincipalId == principalId && item.RoleName == roleName
         );
         if (isHeld)
             return null;
@@ -288,9 +312,9 @@ internal sealed class DefaultAdministratorRecoveryService(
             TenantId = tenantId,
             AssignmentId = assignmentId,
             PrincipalId = principalId,
-            RoleName = BuiltInRoles.GlobalAdmin,
-            ResourceType = OpenIdResourceTypes.Platform,
-            ResourceId = OpenIdConstants.PlatformResourceId,
+            RoleName = roleName,
+            ResourceType = resourceType,
+            ResourceId = resourceId,
             ConcurrencyToken = string.Empty,
         };
         await store.AddAsync(assignment, cancellationToken);
@@ -326,14 +350,15 @@ internal sealed class DefaultAdministratorRecoveryService(
         if (recovered.AssignmentId is not { } assignmentId)
             return;
 
+        var (_, nodeType, nodeId) = GetAdministratorNode();
         var assignmentEvent = new RoleAssignmentChangedAuditEvent
         {
             EventSource = AuditEventSources.Management,
             TenantId = tenantId,
             SubjectId = recovered.PrincipalId,
             ResourceId = assignmentId,
-            NodeType = OpenIdResourceTypes.Platform,
-            NodeId = OpenIdConstants.PlatformResourceId,
+            NodeType = nodeType,
+            NodeId = nodeId,
             ChangeType = ResourceChangeTypes.Created,
             ResourceValues = null,
             Outcome = AuditOutcome.Success,

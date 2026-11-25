@@ -320,11 +320,11 @@ internal static partial class Log
     );
 
     [LoggerMessage(
-        EventId = EventIds.RecoverAdminCommandNotOnTheControlPlane,
+        EventId = EventIds.RecoverAdminCommandNotInAnAnchorCell,
         Level = LogLevel.Error,
-        Message = "The recover-admin command recovers the administrator of the control-plane cell; this cell is a workload cell."
+        Message = "The recover-admin command recovers the administrator of the control-plane cell or of a cell with a management tenant; this cell is neither."
     )]
-    internal static partial void RecoverAdminCommandNotOnTheControlPlane(this ILogger logger);
+    internal static partial void RecoverAdminCommandNotInAnAnchorCell(this ILogger logger);
 
     [LoggerMessage(
         EventId = EventIds.RecoverAdminCommandUserNameMissing,

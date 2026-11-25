@@ -5,6 +5,7 @@ using System.Text.Json;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using NCode.Buffers;
 using NCode.Identity.Cryptography;
 using NCode.Identity.Events.Audit;
@@ -16,6 +17,7 @@ using NCode.Identity.OpenId.Accounts.Management.Contracts;
 using NCode.Identity.OpenId.Accounts.Stores;
 using NCode.Identity.OpenId.Authentication.Passwords;
 using NCode.Identity.OpenId.Connections;
+using NCode.Identity.OpenId.GlobalDirectory;
 using NCode.Identity.OpenId.Management;
 using NCode.Identity.OpenId.Management.Auditing;
 using NCode.Identity.OpenId.Persistence;
@@ -34,6 +36,7 @@ public sealed class DefaultAdministratorRecoveryServiceTests : IDisposable
     private const string PrincipalId = "principal-1";
     private const string LocalAccountId = "account-1";
     private const string AssignmentId = "assignment-1";
+    private const string CellName = "cell-a";
     private const string UserName = "admin";
     private const string Password = "a-recovery-password-of-15-or-more";
 
@@ -87,8 +90,14 @@ public sealed class DefaultAdministratorRecoveryServiceTests : IDisposable
 
     #region Helpers
 
-    private DefaultAdministratorRecoveryService CreateService()
+    private DefaultAdministratorRecoveryService CreateService(
+        bool isControlPlane = true,
+        bool hasManagementTenant = false
+    )
     {
+        var topology = new Mock<IPlatformTopology>();
+        topology.Setup(x => x.IsControlPlaneCell).Returns(isControlPlane);
+        topology.Setup(x => x.HasManagementTenant).Returns(hasManagementTenant);
         var registration = new LocalAccountStoreRegistration
         {
             Name = LocalAccountStoreNames.Default,
@@ -105,6 +114,8 @@ public sealed class DefaultAdministratorRecoveryServiceTests : IDisposable
             MockPasswordAttemptLimiter.Object,
             MockAuditRecorder.Object,
             MockCryptoService.Object,
+            topology.Object,
+            Options.Create(new CellOptions { Name = CellName, IsControlPlane = isControlPlane }),
             NullLogger<DefaultAdministratorRecoveryService>.Instance
         );
     }
@@ -263,7 +274,9 @@ public sealed class DefaultAdministratorRecoveryServiceTests : IDisposable
 
     private void SetupRoleStore(
         IReadOnlyList<PersistedRoleAssignment> existing,
-        List<PersistedRoleAssignment> added
+        List<PersistedRoleAssignment> added,
+        string resourceType = OpenIdResourceTypes.Platform,
+        string resourceId = OpenIdConstants.PlatformResourceId
     )
     {
         MockStoreManager
@@ -271,11 +284,7 @@ public sealed class DefaultAdministratorRecoveryServiceTests : IDisposable
             .Returns(MockRoleAssignmentStore.Object);
         MockRoleAssignmentStore
             .Setup(x =>
-                x.GetByResourceAsync(
-                    OpenIdResourceTypes.Platform,
-                    OpenIdConstants.PlatformResourceId,
-                    It.IsAny<CancellationToken>()
-                )
+                x.GetByResourceAsync(resourceType, resourceId, It.IsAny<CancellationToken>())
             )
             .ReturnsAsync(existing)
             .Verifiable(Times.Once());
@@ -468,6 +477,55 @@ public sealed class DefaultAdministratorRecoveryServiceTests : IDisposable
         Assert.True(result.Created);
         Assert.Single(added);
         Assert.Equal(ResourceChangeTypes.Created, AuditEvents[0].ChangeType);
+    }
+
+    [Fact]
+    public async Task RecoverAsync_CellWithAManagementTenant_GrantsCellAdminAtTheCellNode()
+    {
+        var added = new List<PersistedRoleAssignment>();
+        SetupTenantAndStores();
+        SetupAccount(null);
+        SetupRoleStore([], added, OpenIdResourceTypes.Cell, CellName);
+        SetupSaveAndReset();
+        var creation = new LocalAccountCreation
+        {
+            PrincipalId = PrincipalId,
+            Account = CreateAccount(isEnabled: true),
+        };
+        MockLocalAccountCreator
+            .Setup(x =>
+                x.StageAsync(
+                    MockStoreManager.Object,
+                    It.IsAny<PersistedConnection>(),
+                    It.IsAny<CreateLocalAccountRequest>(),
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync(creation)
+            .Verifiable(Times.Once());
+        var service = CreateService(isControlPlane: false, hasManagementTenant: true);
+
+        var result = await service.RecoverAsync(CreateOptions(), CancellationToken.None);
+
+        Assert.True(result.Succeeded);
+        var assignment = Assert.Single(added);
+        Assert.Equal(BuiltInRoles.CellAdmin, assignment.RoleName);
+        Assert.Equal(OpenIdResourceTypes.Cell, assignment.ResourceType);
+        Assert.Equal(CellName, assignment.ResourceId);
+        var audit = Assert.IsType<RoleAssignmentChangedAuditEvent>(AuditEvents[1]);
+        Assert.Equal(OpenIdResourceTypes.Cell, audit.NodeType);
+        Assert.Equal(CellName, audit.NodeId);
+    }
+
+    [Fact]
+    public async Task RecoverAsync_WorkloadCellWithoutAManagementTenant_ReturnsNotFound()
+    {
+        var service = CreateService(isControlPlane: false, hasManagementTenant: false);
+
+        var result = await service.RecoverAsync(CreateOptions(), CancellationToken.None);
+
+        Assert.False(result.Succeeded);
+        Assert.Equal(StatusCodes.Status404NotFound, result.Error.StatusCode);
     }
 
     [Fact]

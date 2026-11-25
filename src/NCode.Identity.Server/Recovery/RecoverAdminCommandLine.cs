@@ -12,15 +12,16 @@ using NCode.Identity.Server.Logging;
 namespace NCode.Identity.Server.Recovery;
 
 /// <summary>
-/// The headless <c>recover-admin</c> command of the host: it creates or restores the administrator of the control-plane
-/// cell from the <c>Recovery:Admin:UserName</c>, <c>Recovery:Admin:DisplayName</c>, <c>Recovery:Admin:Email</c> and
-/// <c>Recovery:Admin:Password</c> configuration through <see cref="IAdministratorRecoveryService"/>, and exits without
-/// starting the server. An operator runs it as a one-off Job when every administrator's sign-in is lost.
+/// The headless <c>recover-admin</c> command of the host: it creates or restores the administrator of the anchor tenant
+/// of the control-plane cell or of a cell with a management tenant from the <c>Recovery:Admin:UserName</c>,
+/// <c>Recovery:Admin:DisplayName</c>, <c>Recovery:Admin:Email</c> and <c>Recovery:Admin:Password</c> configuration
+/// through <see cref="IAdministratorRecoveryService"/>, and exits without starting the server. An operator runs it as a
+/// one-off Job when every administrator's sign-in is lost.
 /// </summary>
 /// <remarks>
 /// The exit code is <c>0</c> when the administrator is recovered, <c>1</c> when recovery is refused or fails, which the
 /// command logs, and <c>2</c> for a usage error, when the configuration lacks the administrator's username or password,
-/// or when the cell is not the control-plane cell.
+/// or when the cell is neither the control-plane cell nor a cell with a management tenant.
 /// </remarks>
 // See ADR-1536.
 [PublicAPI]
@@ -125,12 +126,12 @@ public sealed class RecoverAdminCommandLine
             return 2;
         }
 
-        // A cell with a management tenant of its own recovers its administrator through the same command once the
-        // cell's management tenant exists; until then only the control-plane cell has an administrator to recover.
-        var cellOptions = services.GetRequiredService<IOptions<CellOptions>>().Value;
-        if (!cellOptions.IsControlPlane)
+        // The control-plane cell and a workload cell with a management tenant each have an anchor tenant whose
+        // administrator can be recovered; any other cell has none.
+        var topology = services.GetRequiredService<IPlatformTopology>();
+        if (!topology.IsControlPlaneCell && !topology.HasManagementTenant)
         {
-            logger.RecoverAdminCommandNotOnTheControlPlane();
+            logger.RecoverAdminCommandNotInAnAnchorCell();
             return 2;
         }
 
