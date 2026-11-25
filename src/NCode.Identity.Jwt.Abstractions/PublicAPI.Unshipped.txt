@@ -201,3 +201,4 @@ NCode.Identity.Jwt.Claims.IClaimsIdentityFactory
 NCode.Identity.Jwt.Claims.IClaimsIdentityFactory.CreateClaimsIdentity(System.Text.Json.JsonElement claimSet, string! authenticationType, string? nameClaimType = null, string? roleClaimType = null, string? issuer = null) -> System.Security.Claims.ClaimsIdentity!
 NCode.Identity.Jwt.UnverifiedJwt
 static NCode.Identity.Jwt.UnverifiedJwt.TryReadIssuer(string? compactJwt, out string! issuer) -> bool
+static NCode.Identity.Jwt.UnverifiedJwt.TryReadKeyId(string? compactJwt, out string! keyId) -> bool

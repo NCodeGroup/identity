@@ -45,6 +45,14 @@ internal sealed class DirectoryResilienceHandler(DirectoryResiliencePipelines pi
         }
     }
 
+    /// <summary>
+    /// Sends one attempt of the request through the inner handler. The resilience pipeline calls it once per attempt,
+    /// so a retried request is sent again.
+    /// </summary>
+    /// <param name="request">The <see cref="HttpRequestMessage"/> to send.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <returns>The <see cref="ValueTask{TResult}"/> that represents the asynchronous operation, whose result is the
+    /// response of the inner handler.</returns>
     private async ValueTask<HttpResponseMessage> SendAttemptAsync(
         HttpRequestMessage request,
         CancellationToken cancellationToken

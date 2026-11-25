@@ -17,12 +17,10 @@ public abstract class RemoteDirectoryTestBase : BaseTests
 
     internal DirectoryHttpClient CreateClient(HttpMessageHandler handler)
     {
-        var httpClient = new HttpClient(handler);
-
         var factoryMock = CreateStrictMock<IHttpClientFactory>();
         factoryMock
             .Setup(x => x.CreateClient(DirectoryClientDefaults.HttpClientName))
-            .Returns(httpClient)
+            .Returns(() => new HttpClient(handler, disposeHandler: false))
             .Verifiable(Times.AtLeastOnce);
 
         var tokenSourceMock = CreateStrictMock<ICellTokenSource>();

@@ -19,53 +19,38 @@ namespace NCode.Identity.OpenId.GlobalDirectory;
 /// pending, and a directory that cannot be reached is retried with the capped exponential backoff of the cell
 /// registration.
 /// </summary>
-internal sealed class DirectoryOutboxPublisher : BackgroundService
+/// <param name="topology">The <see cref="IPlatformTopology"/> that says whether the cell publishes.</param>
+/// <param name="outbox">The <see cref="IDirectoryOutbox"/> that holds the pending documents.</param>
+/// <param name="signal">The <see cref="IDirectoryOutboxSignal"/> that wakes the publisher.</param>
+/// <param name="directory">The <see cref="IReplicatedDocumentDirectory"/> that receives the documents.</param>
+/// <param name="options">The <see cref="DirectoryClientOptions"/> of the directory client.</param>
+/// <param name="timeProvider">The <see cref="TimeProvider"/> that supplies the current time.</param>
+/// <param name="metrics">The <see cref="DirectoryMetrics"/> that count the acknowledged documents.</param>
+/// <param name="logger">The <see cref="ILogger{TCategoryName}"/> of the publisher.</param>
+internal sealed class DirectoryOutboxPublisher(
+    IPlatformTopology topology,
+    IDirectoryOutbox outbox,
+    IDirectoryOutboxSignal signal,
+    IReplicatedDocumentDirectory directory,
+    IOptions<DirectoryClientOptions> options,
+    TimeProvider timeProvider,
+    DirectoryMetrics metrics,
+    ILogger<DirectoryOutboxPublisher> logger
+) : BackgroundService
 {
     /// <summary>
     /// The most pending documents that one drain reads.
     /// </summary>
     internal const int PageSize = 100;
 
-    private IPlatformTopology Topology { get; }
-    private IDirectoryOutbox Outbox { get; }
-    private IDirectoryOutboxSignal Signal { get; }
-    private IReplicatedDocumentDirectory Directory { get; }
-    private IOptions<DirectoryClientOptions> Options { get; }
-    private TimeProvider TimeProvider { get; }
-    private ILogger<DirectoryOutboxPublisher> Logger { get; }
-    private DirectoryMetrics Metrics { get; }
-
-    /// <summary>
-    /// Initializes a new instance of the <see cref="DirectoryOutboxPublisher"/> class.
-    /// </summary>
-    /// <param name="topology">The <see cref="IPlatformTopology"/> that says whether the cell publishes.</param>
-    /// <param name="outbox">The <see cref="IDirectoryOutbox"/> that holds the pending documents.</param>
-    /// <param name="signal">The <see cref="IDirectoryOutboxSignal"/> that wakes the publisher.</param>
-    /// <param name="directory">The <see cref="IReplicatedDocumentDirectory"/> that receives the documents.</param>
-    /// <param name="options">The <see cref="DirectoryClientOptions"/> of the directory client.</param>
-    /// <param name="timeProvider">The <see cref="TimeProvider"/> that supplies the current time.</param>
-    /// <param name="metrics">The <see cref="DirectoryMetrics"/> that count the acknowledged documents.</param>
-    /// <param name="logger">The <see cref="ILogger{TCategoryName}"/> of the publisher.</param>
-    public DirectoryOutboxPublisher(
-        IPlatformTopology topology,
-        IDirectoryOutbox outbox,
-        IDirectoryOutboxSignal signal,
-        IReplicatedDocumentDirectory directory,
-        IOptions<DirectoryClientOptions> options,
-        TimeProvider timeProvider,
-        DirectoryMetrics metrics,
-        ILogger<DirectoryOutboxPublisher> logger
-    )
-    {
-        Topology = topology;
-        Outbox = outbox;
-        Signal = signal;
-        Directory = directory;
-        Options = options;
-        TimeProvider = timeProvider;
-        Metrics = metrics;
-        Logger = logger;
-    }
+    private IPlatformTopology Topology { get; } = topology;
+    private IDirectoryOutbox Outbox { get; } = outbox;
+    private IDirectoryOutboxSignal Signal { get; } = signal;
+    private IReplicatedDocumentDirectory Directory { get; } = directory;
+    private IOptions<DirectoryClientOptions> Options { get; } = options;
+    private TimeProvider TimeProvider { get; } = timeProvider;
+    private ILogger<DirectoryOutboxPublisher> Logger { get; } = logger;
+    private DirectoryMetrics Metrics { get; } = metrics;
 
     /// <inheritdoc />
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)

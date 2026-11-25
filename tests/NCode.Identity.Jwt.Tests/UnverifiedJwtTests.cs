@@ -49,4 +49,46 @@ public class UnverifiedJwtTests
         Assert.False(result);
         Assert.Empty(issuer);
     }
+
+    private static string CompactWithHeader(string headerJson) =>
+        $"{Encode(headerJson)}.{Encode("{}")}.sig";
+
+    [Fact]
+    public void TryReadKeyId_WhenTheHeaderHasAKeyId_ReturnsIt()
+    {
+        var result = UnverifiedJwt.TryReadKeyId(
+            CompactWithHeader("{\"alg\":\"ES256\",\"kid\":\"key-1\"}"),
+            out var keyId
+        );
+
+        Assert.True(result);
+        Assert.Equal("key-1", keyId);
+    }
+
+    [Theory]
+    [InlineData("{\"alg\":\"ES256\"}")]
+    [InlineData("{\"kid\":1}")]
+    [InlineData("{\"kid\":\"\"}")]
+    [InlineData("[]")]
+    public void TryReadKeyId_WhenTheHeaderHasNoStringKeyId_ReturnsFalse(string headerJson)
+    {
+        var result = UnverifiedJwt.TryReadKeyId(CompactWithHeader(headerJson), out var keyId);
+
+        Assert.False(result);
+        Assert.Empty(keyId);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("a.b")]
+    [InlineData("a.b.c.d")]
+    [InlineData("!!!.b.c")]
+    public void TryReadKeyId_WhenTheShapeIsWrong_ReturnsFalse(string? token)
+    {
+        var result = UnverifiedJwt.TryReadKeyId(token, out var keyId);
+
+        Assert.False(result);
+        Assert.Empty(keyId);
+    }
 }

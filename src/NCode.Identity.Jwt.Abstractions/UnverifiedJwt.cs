@@ -52,4 +52,43 @@ public static class UnverifiedJwt
 
         return false;
     }
+
+    /// <summary>
+    /// Reads the <c>kid</c> header of a compact JWT without verifying it.
+    /// </summary>
+    /// <param name="compactJwt">The compact JWT, which has exactly three parts separated by periods.</param>
+    /// <param name="keyId">The <c>kid</c> header when the method returns <c>true</c>; otherwise empty.</param>
+    /// <returns><c>true</c> when the header is a JSON object with a non-empty string <c>kid</c>.</returns>
+    public static bool TryReadKeyId(string? compactJwt, out string keyId)
+    {
+        keyId = string.Empty;
+        if (string.IsNullOrEmpty(compactJwt))
+            return false;
+
+        var parts = compactJwt.Split('.');
+        if (parts.Length != 3)
+            return false;
+
+        try
+        {
+            var headerBytes = StrictBase64Url.Decode(parts[0]);
+            var header = JsonElement.Parse(headerBytes);
+            if (
+                header.ValueKind == JsonValueKind.Object
+                && header.TryGetProperty(JoseClaimNames.Header.Kid, out var element)
+                && element.ValueKind == JsonValueKind.String
+                && element.GetString() is { Length: > 0 } value
+            )
+            {
+                keyId = value;
+                return true;
+            }
+        }
+        catch (Exception exception) when (exception is FormatException or JsonException)
+        {
+            return false;
+        }
+
+        return false;
+    }
 }

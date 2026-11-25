@@ -7,7 +7,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Options;
 using NCode.Identity.Jose;
 using NCode.Identity.Jose.DPoP;
-using NCode.Identity.Json;
+using NCode.Identity.Jwt;
 using NCode.Identity.OpenId.Client;
 using NCode.Identity.OpenId.Management.ControlPlane;
 using NCode.Identity.Secrets.Collections;
@@ -126,36 +126,6 @@ internal sealed class ReplicatedManagementTokenValidator(
         return null;
     }
 
-    /// <summary>
-    /// Reads the <c>kid</c> of the header of a compact JWT.
-    /// </summary>
-    /// <param name="token">The compact JWT.</param>
-    /// <returns>The key identifier, or <c>null</c> when the header carries none or cannot be read.</returns>
-    private static string? GetKeyId(string token)
-    {
-        var separator = token.IndexOf('.');
-        if (separator <= 0)
-            return null;
-
-        try
-        {
-            var encoded = token[..separator];
-            var bytes = StrictBase64Url.Decode(encoded);
-            var header = JsonElement.Parse(bytes);
-            return header.ValueKind == JsonValueKind.Object
-                ? GetString(header, JoseClaimNames.Header.Kid)
-                : null;
-        }
-        catch (FormatException)
-        {
-            return null;
-        }
-        catch (JsonException)
-        {
-            return null;
-        }
-    }
-
     private IIssuerAccessTokenValidator AccessTokenValidator { get; } = accessTokenValidator;
     private IControlPlaneReplica Replica { get; } = replica;
     private ISecretKeyCollectionFactory KeyCollectionFactory { get; } = keyCollectionFactory;
@@ -191,8 +161,10 @@ internal sealed class ReplicatedManagementTokenValidator(
             return ManagementTokenValidation.Unavailable(retryAfter);
         }
 
-        var keyId = GetKeyId(token);
-        if (keyId is not null && managementKeys.RevokedKeyIds.Contains(keyId))
+        if (
+            UnverifiedJwt.TryReadKeyId(token, out var keyId)
+            && managementKeys.RevokedKeyIds.Contains(keyId)
+        )
             return ManagementTokenValidation.Unauthenticated;
 
         var signingKeys = KeyCollectionFactory.Create(managementKeys.Keys);
