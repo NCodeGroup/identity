@@ -1,6 +1,8 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using System.Text.Json;
+
 namespace NCode.Identity.OpenId.GlobalDirectory;
 
 /// <summary>
@@ -21,5 +23,5 @@ internal sealed record CellRegistrationRequestBody
     /// <summary>
     /// Gets the JSON Web Key Set that publishes the cell's public keys.
     /// </summary>
-    public required System.Text.Json.JsonElement Jwks { get; init; }
+    public required JsonElement Jwks { get; init; }
 }

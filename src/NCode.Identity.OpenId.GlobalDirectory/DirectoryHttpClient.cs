@@ -6,6 +6,7 @@ using System.Net.Http.Headers;
 using System.Net.Mime;
 using System.Text.Json;
 using Microsoft.Extensions.Options;
+using NCode.Buffers;
 
 namespace NCode.Identity.OpenId.GlobalDirectory;
 
@@ -122,17 +123,27 @@ internal sealed class DirectoryHttpClient(
                 );
 
             var endpoint = uri.AbsoluteUri;
-            var bytes = await DirectoryResponseReader.ReadAsync(
-                response.Content,
-                DirectoryClientDefaults.MaxResponseBytes,
-                endpoint,
-                timeoutSource.Token
-            );
-            var result = new DirectoryResponse(status, bytes);
-            if (!result.IsSuccess && !result.IsNotFound && !result.IsConflict)
-                throw new DirectoryUnavailableException(
-                    $"{uri} answered {(int)status} to {method}."
+            var responseBody = BufferFactory.CreateContiguousBufferWriter(isSensitive: false);
+            var result = new DirectoryResponse(status, responseBody);
+            try
+            {
+                await DirectoryResponseReader.ReadAsync(
+                    response.Content,
+                    responseBody,
+                    DirectoryClientDefaults.MaxResponseBytes,
+                    endpoint,
+                    timeoutSource.Token
                 );
+                if (!result.IsSuccess && !result.IsNotFound && !result.IsConflict)
+                    throw new DirectoryUnavailableException(
+                        $"{uri} answered {(int)status} to {method}."
+                    );
+            }
+            catch
+            {
+                result.Dispose();
+                throw;
+            }
 
             return result;
         }

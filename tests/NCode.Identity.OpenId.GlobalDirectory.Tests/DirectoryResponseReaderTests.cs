@@ -1,6 +1,7 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using NCode.Buffers;
 using Xunit;
 
 namespace NCode.Identity.OpenId.GlobalDirectory.Tests;
@@ -15,9 +16,12 @@ public class DirectoryResponseReaderTests
         var body = new byte[DirectoryClientDefaults.MaxTokenResponseBytes + 1];
         using var content = new ByteArrayContent(body);
 
+        using var destination = BufferFactory.CreateContiguousBufferWriter(isSensitive: false);
+
         await Assert.ThrowsAsync<DirectoryUnavailableException>(async () =>
             await DirectoryResponseReader.ReadAsync(
                 content,
+                destination,
                 DirectoryClientDefaults.MaxTokenResponseBytes,
                 Endpoint,
                 CancellationToken.None
@@ -31,9 +35,12 @@ public class DirectoryResponseReaderTests
         var body = new byte[DirectoryClientDefaults.MaxTokenResponseBytes + 1];
         using var content = new StreamContent(new UnsizedStream(body));
 
+        using var destination = BufferFactory.CreateContiguousBufferWriter(isSensitive: false);
+
         await Assert.ThrowsAsync<DirectoryUnavailableException>(async () =>
             await DirectoryResponseReader.ReadAsync(
                 content,
+                destination,
                 DirectoryClientDefaults.MaxTokenResponseBytes,
                 Endpoint,
                 CancellationToken.None
@@ -48,14 +55,17 @@ public class DirectoryResponseReaderTests
         Array.Fill(body, (byte)7);
         using var content = new ByteArrayContent(body);
 
-        var result = await DirectoryResponseReader.ReadAsync(
+        using var destination = BufferFactory.CreateContiguousBufferWriter(isSensitive: false);
+
+        await DirectoryResponseReader.ReadAsync(
             content,
+            destination,
             DirectoryClientDefaults.MaxTokenResponseBytes,
             Endpoint,
             CancellationToken.None
         );
 
-        Assert.Equal(body, result);
+        Assert.Equal(body, destination.WrittenSpan.ToArray());
     }
 
     [Fact]
@@ -65,14 +75,17 @@ public class DirectoryResponseReaderTests
         Array.Fill(body, (byte)7);
         using var content = new StreamContent(new UnsizedStream(body));
 
-        var result = await DirectoryResponseReader.ReadAsync(
+        using var destination = BufferFactory.CreateContiguousBufferWriter(isSensitive: false);
+
+        await DirectoryResponseReader.ReadAsync(
             content,
+            destination,
             DirectoryClientDefaults.MaxTokenResponseBytes,
             Endpoint,
             CancellationToken.None
         );
 
-        Assert.Equal(body, result);
+        Assert.Equal(body, destination.WrittenSpan.ToArray());
     }
 
     // A stream that cannot seek, so its content has no length and the reader counts the bytes it reads.

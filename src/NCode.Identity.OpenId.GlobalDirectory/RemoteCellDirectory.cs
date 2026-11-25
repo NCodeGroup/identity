@@ -26,7 +26,7 @@ internal sealed class RemoteCellDirectory(DirectoryHttpClient client) : ICellDir
         ArgumentNullException.ThrowIfNull(descriptor);
 
         var segment = DirectoryHttpClient.Segment(descriptor.Name);
-        var response = await Client.SendAsync(
+        using var response = await Client.SendAsync(
             HttpMethod.Put,
             $"{Prefix}/{segment}",
             descriptor,
@@ -52,7 +52,7 @@ internal sealed class RemoteCellDirectory(DirectoryHttpClient client) : ICellDir
             Kind = registration.Kind,
             Jwks = registration.Jwks,
         };
-        var response = await Client.SendAsync(
+        using var response = await Client.SendAsync(
             HttpMethod.Put,
             $"{Prefix}/{segment}/registration",
             body,
@@ -69,7 +69,7 @@ internal sealed class RemoteCellDirectory(DirectoryHttpClient client) : ICellDir
         ArgumentException.ThrowIfNullOrEmpty(name);
 
         var segment = DirectoryHttpClient.Segment(name);
-        var response = await Client.SendAsync(
+        using var response = await Client.SendAsync(
             HttpMethod.Delete,
             $"{Prefix}/{segment}",
             body: null,
@@ -85,7 +85,7 @@ internal sealed class RemoteCellDirectory(DirectoryHttpClient client) : ICellDir
         CancellationToken cancellationToken
     )
     {
-        var response = await Client.SendAsync(
+        using var response = await Client.SendAsync(
             HttpMethod.Get,
             Prefix,
             body: null,
@@ -105,7 +105,7 @@ internal sealed class RemoteCellDirectory(DirectoryHttpClient client) : ICellDir
         ArgumentException.ThrowIfNullOrEmpty(name);
 
         var segment = DirectoryHttpClient.Segment(name);
-        var response = await Client.SendAsync(
+        using var response = await Client.SendAsync(
             HttpMethod.Get,
             $"{Prefix}/{segment}",
             body: null,

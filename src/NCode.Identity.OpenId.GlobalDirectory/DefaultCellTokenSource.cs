@@ -6,6 +6,7 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Text.Json;
 using Microsoft.Extensions.Options;
+using NCode.Buffers;
 using NCode.Identity.OpenId.Client;
 
 namespace NCode.Identity.OpenId.GlobalDirectory;
@@ -24,6 +25,52 @@ namespace NCode.Identity.OpenId.GlobalDirectory;
 internal sealed class DefaultCellTokenSource : ICellTokenSource
 {
     private static TimeSpan RefreshBeforeExpiry { get; } = TimeSpan.FromSeconds(30);
+
+    /// <summary>
+    /// Creates the exception for a token endpoint answer that is not a success, mapping <c>invalid_client</c> to
+    /// <see cref="DirectoryClientNotRegisteredException"/>.
+    /// </summary>
+    /// <param name="status">The status code of the answer.</param>
+    /// <param name="body">The body of the answer.</param>
+    /// <returns>The exception to throw.</returns>
+    private static DirectoryUnavailableException CreateRefusal(
+        HttpStatusCode status,
+        ReadOnlySpan<byte> body
+    )
+    {
+        var error = ReadError(body);
+        if (string.Equals(error, OpenIdProtocol.ErrorCodes.InvalidClient, StringComparison.Ordinal))
+            return new DirectoryClientNotRegisteredException(
+                "The directory refused the cell's client authentication with 'invalid_client'."
+            );
+
+        return new DirectoryUnavailableException(
+            $"The directory refused the token request with {(int)status} '{error ?? "unknown"}'."
+        );
+    }
+
+    /// <summary>
+    /// Reads the <c>error</c> member of an RFC 6749 section 5.2 error document.
+    /// </summary>
+    /// <param name="body">The body of the answer.</param>
+    /// <returns>The error code, or <see langword="null"/> when the body holds none.</returns>
+    private static string? ReadError(ReadOnlySpan<byte> body)
+    {
+        try
+        {
+            var json = JsonSerializer.Deserialize<JsonElement>(body);
+            return
+                json.ValueKind == JsonValueKind.Object
+                && json.TryGetProperty(OpenIdProtocol.Parameters.ErrorCode, out var error)
+                && error.ValueKind == JsonValueKind.String
+                ? error.GetString()
+                : null;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
 
     private IHttpClientFactory HttpClientFactory { get; }
 
@@ -112,7 +159,7 @@ internal sealed class DefaultCellTokenSource : ICellTokenSource
     /// </summary>
     private Lazy<Task<(string Token, DateTimeOffset ExpiresAt)>>? InFlight { get; set; }
 
-    private object Gate { get; } = new();
+    private Lock Gate { get; } = new();
 
     /// <inheritdoc />
     public async ValueTask<string> GetAccessTokenAsync(CancellationToken cancellationToken)
@@ -141,8 +188,8 @@ internal sealed class DefaultCellTokenSource : ICellTokenSource
     /// <summary>
     /// Gets the cached token when the cell still uses it. The caller holds <see cref="Gate"/>.
     /// </summary>
-    /// <param name="token">The cached token when this method returns <see langword="true"/>; otherwise, an empty
-    /// token.</param>
+    /// <param name="token">The cached token when this method returns <see langword="true"/>; otherwise,
+    /// <see langword="null"/>.</param>
     /// <returns><see langword="true"/> when an unexpired token is cached; otherwise, <see langword="false"/>.</returns>
     private bool TryGetCached([NotNullWhen(true)] out string? token)
     {
@@ -294,7 +341,7 @@ internal sealed class DefaultCellTokenSource : ICellTokenSource
 
         request.Content = new FormUrlEncodedContent(parameters);
 
-        byte[] body;
+        using var body = BufferFactory.CreateContiguousBufferWriter(isSensitive: true);
         HttpStatusCode status;
         try
         {
@@ -305,8 +352,9 @@ internal sealed class DefaultCellTokenSource : ICellTokenSource
                 cancellationToken
             );
             status = response.StatusCode;
-            body = await DirectoryResponseReader.ReadAsync(
+            await DirectoryResponseReader.ReadAsync(
                 response.Content,
+                body,
                 DirectoryClientDefaults.MaxTokenResponseBytes,
                 TokenEndpoint.AbsoluteUri,
                 cancellationToken
@@ -321,12 +369,12 @@ internal sealed class DefaultCellTokenSource : ICellTokenSource
         }
 
         if (status != HttpStatusCode.OK)
-            throw CreateRefusal(status, body);
+            throw CreateRefusal(status, body.WrittenSpan);
 
         TokenResponse? tokenResponse;
         try
         {
-            tokenResponse = JsonSerializer.Deserialize<TokenResponse>(body);
+            tokenResponse = JsonSerializer.Deserialize<TokenResponse>(body.WrittenSpan);
         }
         catch (JsonException exception)
         {
@@ -351,48 +399,5 @@ internal sealed class DefaultCellTokenSource : ICellTokenSource
         var lifetime = TimeSpan.FromSeconds(expiresIn.Value);
         var expiresAt = TimeProvider.GetUtcNow() + lifetime - RefreshBeforeExpiry;
         return (accessToken, expiresAt);
-    }
-
-    /// <summary>
-    /// Creates the exception for a token endpoint answer that is not a success, mapping <c>invalid_client</c> to
-    /// <see cref="DirectoryClientNotRegisteredException"/>.
-    /// </summary>
-    /// <param name="status">The status code of the answer.</param>
-    /// <param name="body">The body of the answer.</param>
-    /// <returns>The exception to throw.</returns>
-    private static DirectoryUnavailableException CreateRefusal(HttpStatusCode status, byte[] body)
-    {
-        var error = ReadError(body);
-        if (string.Equals(error, OpenIdProtocol.ErrorCodes.InvalidClient, StringComparison.Ordinal))
-            return new DirectoryClientNotRegisteredException(
-                "The directory refused the cell's client authentication with 'invalid_client'."
-            );
-
-        return new DirectoryUnavailableException(
-            $"The directory refused the token request with {(int)status} '{error ?? "unknown"}'."
-        );
-    }
-
-    /// <summary>
-    /// Reads the <c>error</c> member of an RFC 6749 section 5.2 error document.
-    /// </summary>
-    /// <param name="body">The body of the answer.</param>
-    /// <returns>The error code, or <see langword="null"/> when the body holds none.</returns>
-    private static string? ReadError(byte[] body)
-    {
-        try
-        {
-            var json = JsonSerializer.Deserialize<JsonElement>(body);
-            return
-                json.ValueKind == JsonValueKind.Object
-                && json.TryGetProperty(OpenIdProtocol.Parameters.ErrorCode, out var error)
-                && error.ValueKind == JsonValueKind.String
-                ? error.GetString()
-                : null;
-        }
-        catch (JsonException)
-        {
-            return null;
-        }
     }
 }

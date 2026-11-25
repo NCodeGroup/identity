@@ -24,6 +24,28 @@ internal sealed class DirectoryClientOptionsValidator : IValidateOptions<Directo
 
     private static TimeSpan MaxTimeout { get; } = TimeSpan.FromMinutes(5);
 
+    /// <summary>
+    /// Checks that the file at the given path holds at least one usable CA certificate.
+    /// </summary>
+    /// <param name="path">The path of the CA certificate file.</param>
+    /// <returns>A description of why the file is unusable, or <see langword="null"/> for a usable file.</returns>
+    private static string? DescribeCaCertificatesFailure(string path)
+    {
+        if (!File.Exists(path))
+            return "must name an existing file";
+
+        try
+        {
+            var authorities = new X509Certificate2Collection();
+            authorities.ImportFromPemFile(path);
+            return authorities.Count == 0 ? "must hold at least one PEM certificate" : null;
+        }
+        catch (Exception exception) when (exception is CryptographicException or IOException)
+        {
+            return "must be a readable PEM file of certificates";
+        }
+    }
+
     /// <inheritdoc />
     public ValidateOptionsResult Validate(string? name, DirectoryClientOptions options)
     {
@@ -144,28 +166,6 @@ internal sealed class DirectoryClientOptionsValidator : IValidateOptions<Directo
             failures.Add(
                 $"{Prefix}:{nameof(DirectoryClientOptions.RetryDelay)} '{options.RetryDelay}' must be between {TimeSpan.Zero} and {MaxTimeout}."
             );
-        }
-    }
-
-    /// <summary>
-    /// Checks that the file at the given path holds at least one usable CA certificate.
-    /// </summary>
-    /// <param name="path">The path of the CA certificate file.</param>
-    /// <returns>A description of why the file is unusable, or <see langword="null"/> for a usable file.</returns>
-    private static string? DescribeCaCertificatesFailure(string path)
-    {
-        if (!File.Exists(path))
-            return "must name an existing file";
-
-        try
-        {
-            var authorities = new X509Certificate2Collection();
-            authorities.ImportFromPemFile(path);
-            return authorities.Count == 0 ? "must hold at least one PEM certificate" : null;
-        }
-        catch (Exception exception) when (exception is CryptographicException or IOException)
-        {
-            return "must be a readable PEM file of certificates";
         }
     }
 }

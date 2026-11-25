@@ -29,7 +29,7 @@ internal sealed class RemoteTenantDirectory(DirectoryHttpClient client) : ITenan
     {
         ArgumentNullException.ThrowIfNull(reservation);
 
-        var response = await Client.SendAsync(
+        using var response = await Client.SendAsync(
             HttpMethod.Post,
             $"{Prefix}reserve",
             reservation,
@@ -47,7 +47,7 @@ internal sealed class RemoteTenantDirectory(DirectoryHttpClient client) : ITenan
     {
         ArgumentNullException.ThrowIfNull(placement);
 
-        var response = await Client.SendAsync(
+        using var response = await Client.SendAsync(
             HttpMethod.Post,
             $"{Prefix}place",
             placement,
@@ -63,7 +63,7 @@ internal sealed class RemoteTenantDirectory(DirectoryHttpClient client) : ITenan
         ArgumentException.ThrowIfNullOrEmpty(tenantId);
 
         var segment = DirectoryHttpClient.Segment(tenantId);
-        var response = await Client.SendAsync(
+        using var response = await Client.SendAsync(
             HttpMethod.Post,
             $"{Prefix}{segment}/release",
             body: null,
@@ -89,7 +89,7 @@ internal sealed class RemoteTenantDirectory(DirectoryHttpClient client) : ITenan
         // target.
         var segment = DirectoryHttpClient.Segment(tenantId);
         var offerRequest = new TenantMoveOfferRequest { ToCell = toCell };
-        var response = await Client.SendAsync(
+        using var response = await Client.SendAsync(
             HttpMethod.Post,
             $"{Prefix}{segment}/move-offers",
             offerRequest,
@@ -123,7 +123,7 @@ internal sealed class RemoteTenantDirectory(DirectoryHttpClient client) : ITenan
         var tenantSegment = DirectoryHttpClient.Segment(tenantId);
         var fromCellSegment = DirectoryHttpClient.Segment(fromCell);
         var toCellSegment = DirectoryHttpClient.Segment(toCell);
-        var response = await Client.SendAsync(
+        using var response = await Client.SendAsync(
             HttpMethod.Post,
             $"{Prefix}{tenantSegment}/move?fromCell={fromCellSegment}&toCell={toCellSegment}",
             body: null,
@@ -148,7 +148,7 @@ internal sealed class RemoteTenantDirectory(DirectoryHttpClient client) : ITenan
     {
         ArgumentNullException.ThrowIfNull(retirement);
 
-        var response = await Client.SendAsync(
+        using var response = await Client.SendAsync(
             HttpMethod.Post,
             $"{Prefix}retire",
             retirement,
@@ -166,7 +166,7 @@ internal sealed class RemoteTenantDirectory(DirectoryHttpClient client) : ITenan
     {
         ArgumentNullException.ThrowIfNull(change);
 
-        var response = await Client.SendAsync(
+        using var response = await Client.SendAsync(
             HttpMethod.Post,
             $"{Prefix}change-issuer",
             change,
@@ -191,7 +191,7 @@ internal sealed class RemoteTenantDirectory(DirectoryHttpClient client) : ITenan
         ArgumentException.ThrowIfNullOrEmpty(tenantId);
 
         var segment = DirectoryHttpClient.Segment(tenantId);
-        var response = await Client.SendAsync(
+        using var response = await Client.SendAsync(
             HttpMethod.Get,
             $"{Prefix}{segment}",
             body: null,
@@ -214,7 +214,7 @@ internal sealed class RemoteTenantDirectory(DirectoryHttpClient client) : ITenan
         ArgumentException.ThrowIfNullOrEmpty(tenantId);
 
         var segment = DirectoryHttpClient.Segment(tenantId);
-        var response = await Client.SendAsync(
+        using var response = await Client.SendAsync(
             HttpMethod.Get,
             $"{Prefix}retired-ids/{segment}",
             body: null,
@@ -237,7 +237,7 @@ internal sealed class RemoteTenantDirectory(DirectoryHttpClient client) : ITenan
         ArgumentException.ThrowIfNullOrEmpty(issuer);
 
         var segment = DirectoryHttpClient.Segment(issuer);
-        var response = await Client.SendAsync(
+        using var response = await Client.SendAsync(
             HttpMethod.Get,
             $"retired-issuers?issuer={segment}",
             body: null,

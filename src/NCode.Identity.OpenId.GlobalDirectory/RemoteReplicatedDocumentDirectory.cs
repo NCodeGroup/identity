@@ -32,7 +32,12 @@ internal sealed class RemoteReplicatedDocumentDirectory(DirectoryHttpClient clie
         ArgumentNullException.ThrowIfNull(document);
 
         var path = GetPath(document.Kind, document.Key);
-        var response = await Client.SendAsync(HttpMethod.Put, path, document, cancellationToken);
+        using var response = await Client.SendAsync(
+            HttpMethod.Put,
+            path,
+            document,
+            cancellationToken
+        );
 
         response.EnsureSuccess("publish a replicated document");
         var stored = response.Read<StoredRevisionBody>();
@@ -47,7 +52,12 @@ internal sealed class RemoteReplicatedDocumentDirectory(DirectoryHttpClient clie
     )
     {
         var path = GetPath(kind, key);
-        var response = await Client.SendAsync(HttpMethod.Get, path, body: null, cancellationToken);
+        using var response = await Client.SendAsync(
+            HttpMethod.Get,
+            path,
+            body: null,
+            cancellationToken
+        );
 
         if (response.IsNotFound)
             return null;
@@ -70,7 +80,12 @@ internal sealed class RemoteReplicatedDocumentDirectory(DirectoryHttpClient clie
             path = $"{path}&after={escaped}";
         }
 
-        var response = await Client.SendAsync(HttpMethod.Get, path, body: null, cancellationToken);
+        using var response = await Client.SendAsync(
+            HttpMethod.Get,
+            path,
+            body: null,
+            cancellationToken
+        );
 
         response.EnsureSuccess("list the replicated document revisions");
         return response.Read<ReplicatedRevisionPage>();

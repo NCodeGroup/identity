@@ -61,6 +61,26 @@ public class DirectoryClientStartupCheckTests : BaseTests
     }
 
     [Fact]
+    public async Task StartingAsync_DirectoryUrlAndSeveralMisconfigurations_ThrowsOneExceptionNamingEachSetting()
+    {
+        var check = CreateCheck(
+            "https://directory.example",
+            "https://issuer.example",
+            clientId: "cell-other",
+            managementUrl: " ",
+            hasKeyRing: false
+        );
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            check.StartingAsync(CancellationToken.None)
+        );
+
+        Assert.Contains("Directory:ClientId", exception.Message);
+        Assert.Contains("Directory:KeyRing", exception.Message);
+        Assert.Contains("Cell:ManagementUrl", exception.Message);
+    }
+
+    [Fact]
     public async Task StartingAsync_ControlPlaneCellWithoutIssuer_Completes()
     {
         var check = CreateCheck("https://directory.example", null, isControlPlane: true);
