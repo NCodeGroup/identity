@@ -76,9 +76,10 @@ client reads and proves every configured key ring when the host starts.**
    and the credential selector matches a key's metadata `Use` and `Algorithm`, which the row sets. A host that
    composes the client in code reads each key with `IRemoteKeyResolver` and proves it with `IRemoteKeyProver` before
    its key ring is first resolved.
-6. **Key ring entries.** `KeyRings:{name}:RemoteKeys:{kid}`, in the top-level `KeyRings` section that `AddOpenIdClientKeyRings`
-   binds, binds `ClientRemoteKeyOptions { Provider, KeyId, Algorithm, SecretType, KeySizeBits, Curve }`. The entry's
-   name is the `kid`, as a PEM file's name is. Every selector field is explicit, because an RSA algorithm fits several sizes. A key
+6. **Key ring entries.** `KeyRings:{name}:RemoteKeys:{kid}`, in the top-level `KeyRings` section that
+   `AddOpenIdClientKeyRings` binds, binds
+   `ClientRemoteKeyOptions { Provider, KeyId, Algorithm, SecretType, KeySizeBits, Curve }`. The entry's name is the
+   `kid`, as a PEM file's name is. Every selector field is explicit, because an RSA algorithm fits several sizes. A key
    ring lists PEM files, remote keys or both, at least one key, and no two ids equal without case. The options validator
    fails startup with one message per problem: an empty ring, a duplicate id, a key without an id, an id that is not
    letters and digits in groups separated by single `.`, `_` or `-` of at most 64 characters, a malformed provider name

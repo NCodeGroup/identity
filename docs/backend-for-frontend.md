@@ -1084,14 +1084,14 @@ A BFF reads the key rings its frontends name from PEM files, from keys that a ke
 from both. The key rings are the protocol client's: `AddIdentityBff` passes the host's configuration to
 `AddOpenIdClientKeyRings`, which binds its top-level `KeyRings` section, so `KeyRings:{name}` configures the key ring
 `{name}` and registers a keyed `ISecretKeyCollectionProvider` under that name, which a frontend's
-`ClientAuthentication:KeyRing` or `DPoP:KeyRing` refers to. `PemFiles` lists the files of the ring. Each file holds one EC or RSA private key (PKCS#8, SEC1 or PKCS#1),
-read through sensitive buffers, and a key's `kid` is its file name without the extension. A key ring's name and each
-key's `kid` are letters and digits in groups separated by single `.`, `_` or `-`, at most 64 characters, and two `kid`s
-of one ring compare without case. A relative path resolves against the content root. `RemoteKeys:{kid}` names a key that
-a KMS holds, with `Provider` (the remote key provider's name, such as `aws-kms`, `azure-key-vault` or
-`google-cloud-kms`), `KeyId` (the KMS's identifier for the key), `Algorithm` (the JOSE `alg`), `SecretType` (`rsa` or
-`ecc`), `KeySizeBits` and `Curve` (for an elliptic-curve key). The host registers the provider on the secrets library's
-builder, as the sketch shows for AWS KMS.
+`ClientAuthentication:KeyRing` or `DPoP:KeyRing` refers to. `PemFiles` lists the files of the ring. Each file holds one
+EC or RSA private key (PKCS#8, SEC1 or PKCS#1), read through sensitive buffers, and a key's `kid` is its file name
+without the extension. A key ring's name and each key's `kid` are letters and digits in groups separated by single `.`,
+`_` or `-`, at most 64 characters, and two `kid`s of one ring compare without case. A relative path resolves against the
+content root. `RemoteKeys:{kid}` names a key that a KMS holds, with `Provider` (the remote key provider's name, such as
+`aws-kms`, `azure-key-vault` or `google-cloud-kms`), `KeyId` (the KMS's identifier for the key), `Algorithm` (the JOSE
+`alg`), `SecretType` (`rsa` or `ecc`), `KeySizeBits` and `Curve` (for an elliptic-curve key). The host registers the
+provider on the secrets library's builder, as the sketch shows for AWS KMS.
 
 The remote key provider's row for the algorithm decides whether a remote key signs (client assertions and DPoP proofs)
 or decrypts (encrypted ID tokens and UserInfo responses), so one ring holds a signing key and a decryption key side by
