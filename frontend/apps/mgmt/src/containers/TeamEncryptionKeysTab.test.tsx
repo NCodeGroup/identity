@@ -58,9 +58,30 @@ const rootKeysUrl = 'https://api.test/api/teams/acme/encryption-keys/root-keys';
 const providers = ['aws-kms', 'google-cloud-kms'];
 
 const cells: CellResource[] = [
-  { name: 'us-2', region: 'us-east', kind: 'shared', isControlPlane: false },
-  { name: 'eu-1', region: 'eu-west', kind: 'shared', isControlPlane: true },
-  { name: 'eu-2', region: 'eu-west', kind: 'dedicated', isControlPlane: false },
+  {
+    name: 'us-2',
+    region: 'us-east',
+    kind: 'shared',
+    isControlPlane: false,
+    isRegistered: true,
+    isRetired: false,
+  },
+  {
+    name: 'eu-1',
+    region: 'eu-west',
+    kind: 'shared',
+    isControlPlane: true,
+    isRegistered: true,
+    isRetired: false,
+  },
+  {
+    name: 'eu-2',
+    region: 'eu-west',
+    kind: 'dedicated',
+    isControlPlane: false,
+    isRegistered: true,
+    isRetired: false,
+  },
 ];
 
 const euKey: TeamRootKeyResource = {

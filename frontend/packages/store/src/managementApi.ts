@@ -17,6 +17,7 @@ import {
   type AddRoleHolderRequest,
   type CallerResource,
   type CellResource,
+  type CellScopeResource,
   type ClientOwner,
   type ClientResource,
   type CollectionResource,
@@ -58,6 +59,7 @@ import {
   type SetLocalAccountMetadataRequest,
   type PublicKeyResource,
   type ResourceServerResource,
+  type RegisterCellRequest,
   type RoleList,
   type RoleListResource,
   type ScopeResource,
@@ -230,6 +232,12 @@ const runtimeCells = (api: { getState: () => unknown }): readonly string[] => {
   return runtime?.kind === 'bff' ? (runtime.cells ?? []) : [];
 };
 
+/** The cache-tag id of the answering cell's own description. */
+const CELL_SCOPE_TAG = 'cell-scope';
+
+/** The cache-tag id of the answering cell's administrator list. */
+const CELL_ADMINS_TAG = 'cell-admins';
+
 /** A cache-tag id in the platform scope, which owns the teams and identifies every tenant. */
 const platformTag = (id: string): string => scopeTagId(PLATFORM_SCOPE, id);
 
@@ -377,6 +385,64 @@ export const managementApi = createApi({
     listCells: build.query<CellResource[], void>({
       query: () => 'api/cells',
       providesTags: [{ type: 'Cell', id: LIST_TAG }],
+    }),
+    // The cell that answers, as its own console sees it.
+    getCellScope: build.query<CellScopeResource, void>({
+      query: () => 'api/cell',
+      providesTags: [{ type: 'Cell', id: CELL_SCOPE_TAG }],
+    }),
+    // Every tenant the answering cell holds, a page at a time; each tenant's own tag lives in the platform scope.
+    listCellTenants: build.infiniteQuery<CollectionResource<TenantResource>, void, string>({
+      infiniteQueryOptions: collectionPages,
+      query: ({ pageParam }) => withParams('api/cell/tenants', cursorParams(pageParam)),
+      providesTags: (result) => [
+        { type: 'Tenant' as const, id: platformTag(LIST_TAG) },
+        ...pagedItems(result).map((t) => ({
+          type: 'Tenant' as const,
+          id: platformTag(t.tenantId),
+        })),
+      ],
+    }),
+    // The administrators of the answering cell.
+    listCellAdmins: build.query<RoleListResource, void>({
+      query: () => 'api/cell/admins',
+      providesTags: [{ type: 'RoleAssignment', id: CELL_ADMINS_TAG }],
+    }),
+    addCellAdmin: build.mutation<RoleHolderResource, AddRoleHolderRequest>({
+      query: (holder) => ({ url: 'api/cell/admins', method: 'POST', body: holder }),
+      invalidatesTags: [{ type: 'RoleAssignment', id: CELL_ADMINS_TAG }],
+    }),
+    removeCellAdmin: build.mutation<void, { principalId: string }>({
+      query: ({ principalId }) => ({
+        url: `api/cell/admins/${encodeURIComponent(principalId)}`,
+        method: 'DELETE',
+      }),
+      invalidatesTags: [{ type: 'RoleAssignment', id: CELL_ADMINS_TAG }],
+    }),
+    getCell: build.query<CellResource, { name: string }>({
+      query: ({ name }) => `api/cells/${encodeURIComponent(name)}`,
+      providesTags: (_result, _error, { name }) => [{ type: 'Cell', id: name }],
+    }),
+    registerCell: build.mutation<CellResource, { name: string; body: RegisterCellRequest }>({
+      query: ({ name, body }) => ({
+        url: `api/cells/${encodeURIComponent(name)}`,
+        method: 'PUT',
+        body,
+      }),
+      invalidatesTags: (_result, _error, { name }) => [
+        { type: 'Cell', id: LIST_TAG },
+        { type: 'Cell', id: name },
+      ],
+    }),
+    retireCell: build.mutation<void, { name: string }>({
+      query: ({ name }) => ({
+        url: `api/cells/${encodeURIComponent(name)}`,
+        method: 'DELETE',
+      }),
+      invalidatesTags: (_result, _error, { name }) => [
+        { type: 'Cell', id: LIST_TAG },
+        { type: 'Cell', id: name },
+      ],
     }),
     listTeams: build.infiniteQuery<CollectionResource<TeamResource>, void, string>({
       infiniteQueryOptions: collectionPages,
@@ -1562,6 +1628,14 @@ export const {
   useLazyGetTenantConfigurationQuery,
   useGetNewTenantAddressQuery,
   useListCellsQuery,
+  useGetCellScopeQuery,
+  useListCellTenantsInfiniteQuery,
+  useListCellAdminsQuery,
+  useAddCellAdminMutation,
+  useRemoveCellAdminMutation,
+  useGetCellQuery,
+  useRegisterCellMutation,
+  useRetireCellMutation,
   useListTeamsInfiniteQuery,
   useGetTeamQuery,
   useGetTeamUsageQuery,

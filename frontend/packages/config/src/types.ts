@@ -103,6 +103,13 @@ export type BffBootstrapDocument = {
    * when the host forwards to no named cell.
    */
   readonly cells?: readonly string[];
+  /**
+   * What the console manages: `platform` for the platform console, `cell` for the console of one cell. An open
+   * vocabulary (ADR-1150); absent for a host that publishes none.
+   */
+  readonly console?: 'platform' | 'cell' | (string & {});
+  /** The name of the cell a `cell` console manages; absent for a platform console. */
+  readonly cell?: string;
   /** Optional feature flags toggled per tier/deployment. */
   readonly features?: Readonly<Record<string, boolean>>;
   /** Optional branding overrides resolved per deployment/tenant. */
@@ -134,6 +141,10 @@ export type BffRuntimeConfig = {
   readonly bff: BffConfig;
   /** The names of the cells the host forwards to; absent when it forwards to no named cell. */
   readonly cells?: readonly string[];
+  /** What the console manages: `platform`, `cell` or another name a host publishes; absent when none. */
+  readonly console?: 'platform' | 'cell' | (string & {});
+  /** The name of the cell a `cell` console manages; absent for a platform console. */
+  readonly cell?: string;
   readonly features: Readonly<Record<string, boolean>>;
   readonly branding?: BrandingConfig;
 };

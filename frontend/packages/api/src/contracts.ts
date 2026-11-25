@@ -239,6 +239,28 @@ export type CellResource = {
   /** The cell's kind, such as `shared`, `dedicated` or `sovereign`. */
   readonly kind: string;
   readonly isControlPlane: boolean;
+  /** Whether the cell has a registration in the global directory. */
+  readonly isRegistered: boolean;
+  /** Whether the cell is retired; a retired name is never reissued. */
+  readonly isRetired: boolean;
+};
+
+/** Mirror of `CellScopeResource`: the cell that answers, as its own console sees it. */
+export type CellScopeResource = {
+  readonly name: string;
+  readonly region: string;
+  /** The cell's kind, such as `shared`, `dedicated` or `sovereign`. */
+  readonly kind: string;
+  /** Whether the cell has a management tenant of its own. */
+  readonly hasManagementTenant: boolean;
+};
+
+/** Mirror of `RegisterCellRequest`: the region, kind and JSON Web Key Set that register a cell with the directory. */
+export type RegisterCellRequest = {
+  readonly region: string;
+  readonly kind: string;
+  /** The cell's public JSON Web Key Set. */
+  readonly jwks: Readonly<Record<string, unknown>>;
 };
 
 /** Mirror of `RoleAssignmentResource`: one role a principal holds at one node of the resource tree. */
@@ -293,6 +315,8 @@ export type CallerResource = {
   readonly principalId: string | null;
   readonly isPlatformAdministrator: boolean;
   readonly assignments: readonly RoleAssignmentResource[];
+  /** The roles the caller holds at the answering cell's node, such as `CellAdmin`. */
+  readonly cellRoles: readonly string[];
 };
 
 /**

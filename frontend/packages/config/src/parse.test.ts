@@ -272,6 +272,18 @@ describe('parseBffBootstrapDocument', () => {
     expect(result.cells).toEqual(['eu-1', 'us-1']);
   });
 
+  it('reads the console kind and cell', () => {
+    const result = parseBffBootstrapDocument({ ...document, console: 'cell', cell: 'eu-1' });
+    expect(result.console).toBe('cell');
+    expect(result.cell).toBe('eu-1');
+  });
+
+  it('ignores a console kind and cell that are not text', () => {
+    const result = parseBffBootstrapDocument({ ...document, console: 1, cell: '' });
+    expect(result).not.toHaveProperty('console');
+    expect(result).not.toHaveProperty('cell');
+  });
+
   it.each([undefined, []])('defaults the cells to none (%s)', (cells) => {
     const result = parseBffBootstrapDocument({ ...document, cells });
     expect(result).not.toHaveProperty('cells');
@@ -357,6 +369,15 @@ describe('toBffRuntimeConfig', () => {
       bff,
       features: {},
     });
+  });
+
+  it('passes the console kind and cell through and omits them when absent', () => {
+    expect(
+      toBffRuntimeConfig({ apiBaseUrl: '/management', bff, console: 'cell', cell: 'eu-1' }),
+    ).toMatchObject({ console: 'cell', cell: 'eu-1' });
+    const plain = toBffRuntimeConfig({ apiBaseUrl: '/management', bff });
+    expect(plain).not.toHaveProperty('console');
+    expect(plain).not.toHaveProperty('cell');
   });
 
   it('passes the cells through and omits an empty list', () => {

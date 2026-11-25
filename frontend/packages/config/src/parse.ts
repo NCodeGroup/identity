@@ -163,12 +163,16 @@ export function parseBffBootstrapDocument(raw: unknown): BffBootstrapDocument {
   const branding = parseBrandingConfig(doc.branding);
 
   const cells = parseCells(doc.cells);
+  const consoleKind = typeof doc.console === 'string' && doc.console ? doc.console : undefined;
+  const cell = typeof doc.cell === 'string' && doc.cell ? doc.cell : undefined;
 
   return {
     apiBaseUrl,
     bff: { basePath, antiforgeryHeader: { name, value } },
     features,
     ...(cells.length > 0 ? { cells } : {}),
+    ...(consoleKind ? { console: consoleKind } : {}),
+    ...(cell ? { cell } : {}),
     ...(branding ? { branding } : {}),
   };
 }
@@ -227,6 +231,8 @@ export function toBffRuntimeConfig(document: BffBootstrapDocument): BffRuntimeCo
     apiBaseUrl: document.apiBaseUrl,
     bff: document.bff,
     ...(document.cells && document.cells.length > 0 ? { cells: document.cells } : {}),
+    ...(document.console ? { console: document.console } : {}),
+    ...(document.cell ? { cell: document.cell } : {}),
     features: document.features ?? {},
     ...(document.branding ? { branding: document.branding } : {}),
   };

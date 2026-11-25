@@ -2447,6 +2447,98 @@ describe('managementApi cells', () => {
   });
 });
 
+describe('managementApi cell endpoints', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  it('getCellScope GETs the answering cell', async () => {
+    const captured = mockFetch(
+      jsonResponse({ name: 'eu-1', region: 'eu', kind: 'shared', hasManagementTenant: true }),
+    );
+    const store = createStore();
+
+    await store.dispatch(managementApi.endpoints.getCellScope.initiate());
+
+    expect(captured[0]?.url).toBe('https://api.test/api/cell');
+    expect(captured[0]?.method).toBe('GET');
+  });
+
+  it('listCellTenants GETs the cell tenants', async () => {
+    const captured = mockFetch(jsonResponse({ items: [] }));
+    const store = createStore();
+
+    await store.dispatch(managementApi.endpoints.listCellTenants.initiate());
+
+    expect(captured[0]?.url).toBe('https://api.test/api/cell/tenants');
+    expect(captured[0]?.method).toBe('GET');
+  });
+
+  it('listCellAdmins GETs the cell administrators', async () => {
+    const captured = mockFetch(jsonResponse({ items: [], canChange: true }));
+    const store = createStore();
+
+    await store.dispatch(managementApi.endpoints.listCellAdmins.initiate());
+
+    expect(captured[0]?.url).toBe('https://api.test/api/cell/admins');
+    expect(captured[0]?.method).toBe('GET');
+  });
+
+  it('addCellAdmin POSTs the principal', async () => {
+    const captured = mockFetch(jsonResponse({ principalId: 'p-1' }, 201));
+    const store = createStore();
+
+    await store.dispatch(managementApi.endpoints.addCellAdmin.initiate({ principalId: 'p-1' }));
+
+    expect(captured[0]?.url).toBe('https://api.test/api/cell/admins');
+    expect(captured[0]?.method).toBe('POST');
+    expect(JSON.parse(captured[0]?.body ?? '')).toEqual({ principalId: 'p-1' });
+  });
+
+  it('removeCellAdmin DELETEs the principal', async () => {
+    const captured = mockFetch(new Response(null, { status: 204 }));
+    const store = createStore();
+
+    await store.dispatch(managementApi.endpoints.removeCellAdmin.initiate({ principalId: 'p/1' }));
+
+    expect(captured[0]?.url).toBe('https://api.test/api/cell/admins/p%2F1');
+    expect(captured[0]?.method).toBe('DELETE');
+  });
+
+  it('getCell GETs one cell', async () => {
+    const captured = mockFetch(jsonResponse({ name: 'eu-1' }));
+    const store = createStore();
+
+    await store.dispatch(managementApi.endpoints.getCell.initiate({ name: 'eu-1' }));
+
+    expect(captured[0]?.url).toBe('https://api.test/api/cells/eu-1');
+    expect(captured[0]?.method).toBe('GET');
+  });
+
+  it('registerCell PUTs the registration', async () => {
+    const captured = mockFetch(jsonResponse({ name: 'eu-1' }));
+    const store = createStore();
+    const body = { region: 'eu', kind: 'shared', jwks: { keys: [] } };
+
+    await store.dispatch(managementApi.endpoints.registerCell.initiate({ name: 'eu-1', body }));
+
+    expect(captured[0]?.url).toBe('https://api.test/api/cells/eu-1');
+    expect(captured[0]?.method).toBe('PUT');
+    expect(JSON.parse(captured[0]?.body ?? '')).toEqual(body);
+  });
+
+  it('retireCell DELETEs the cell', async () => {
+    const captured = mockFetch(new Response(null, { status: 204 }));
+    const store = createStore();
+
+    await store.dispatch(managementApi.endpoints.retireCell.initiate({ name: 'eu-1' }));
+
+    expect(captured[0]?.url).toBe('https://api.test/api/cells/eu-1');
+    expect(captured[0]?.method).toBe('DELETE');
+  });
+});
+
 describe('managementApi across cells', () => {
   const tenant = (tenantId: string) => ({
     tenantId,

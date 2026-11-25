@@ -20,6 +20,7 @@ describe('toCallerAccess', () => {
       principalId: 'p1',
       isPlatformAdministrator: false,
       assignments: [],
+      cellRoles: [],
     };
     const teams = [{ teamId: 'acme' }, { teamId: 'beta' }] as TeamResource[];
     const tenants = [{ tenantId: 'web' }, { tenantId: 'api', cell: 'eu' }] as CellTenantResource[];
@@ -36,6 +37,7 @@ describe('toCallerAccess', () => {
       principalId: null,
       isPlatformAdministrator: true,
       assignments: [],
+      cellRoles: [],
     };
 
     expect(toCallerAccess(caller, [], []).isPlatformAdministrator).toBe(true);
