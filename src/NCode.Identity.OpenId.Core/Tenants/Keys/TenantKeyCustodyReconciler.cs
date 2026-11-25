@@ -19,8 +19,9 @@ namespace NCode.Identity.OpenId.Tenants.Keys;
 /// service does nothing on a platform without a directory. Every <see cref="CellOptions.KeyCustodyReconcileInterval"/>
 /// one replica runs a pass, under a lease on the shared-state port keyed by the window: it lists the tenants whose
 /// custody is <see cref="TenantKeyCustody.Incoming"/>, reads each one's placement, and sets the custody of each tenant
-/// that the directory places in this cell to <see cref="TenantKeyCustody.Held"/>. A directory that cannot be reached
-/// skips the pass, and a tenant that cannot be handled is logged and left for the next pass.
+/// that the directory places in this cell to <see cref="TenantKeyCustody.Held"/> while it is still incoming, so a
+/// tenant whose custody changed since the pass listed it is left unchanged. A directory that cannot be reached skips
+/// the pass, and a tenant that cannot be handled is logged and left for the next pass.
 /// </summary>
 // See ADR-1536.
 internal sealed class TenantKeyCustodyReconciler(
@@ -153,7 +154,9 @@ internal sealed class TenantKeyCustodyReconciler(
     }
 
     /// <summary>
-    /// Sets a tenant's key custody to held.
+    /// Sets a tenant's key custody to held when the tenant is still incoming; a tenant whose custody changed since the
+    /// pass listed it is left unchanged. The tenant is read and written through one store manager, so its concurrency
+    /// token covers the check and the write together, and a writer that lands in between fails the save.
     /// </summary>
     /// <param name="tenantId">The tenant whose keys this cell now holds.</param>
     /// <param name="cancellationToken">The token that cancels the operation.</param>
@@ -161,6 +164,17 @@ internal sealed class TenantKeyCustodyReconciler(
     {
         await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
         var tenantStore = storeManager.GetStore<ITenantStore>();
+        var tenant = await tenantStore.GetOrDefaultAsync(tenantId, cancellationToken);
+        if (
+            tenant is null
+            || !string.Equals(
+                tenant.KeyCustody,
+                TenantKeyCustody.Incoming,
+                StringComparison.Ordinal
+            )
+        )
+            return;
+
         var exists = await tenantStore.SetKeyCustodyAsync(
             tenantId,
             TenantKeyCustody.Held,

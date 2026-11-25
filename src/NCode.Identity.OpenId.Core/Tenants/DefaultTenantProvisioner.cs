@@ -99,7 +99,7 @@ internal sealed class DefaultTenantProvisioner(
             return existing;
 
         // The control-plane cell of a platform with a directory is dedicated to its control-plane tenant, so the
-        // strategy answers not found for every other tenant.
+        // provisioner refuses every other tenant as not found.
         if (
             PlatformTopology.HoldsOnlyControlPlaneTenant()
             && !RootTenantRules.IsTrustAnchor(CellOptions, TenantResolver, tenantId)

@@ -213,7 +213,7 @@ internal sealed class DefaultDirectoryStore(
     /// <summary>
     /// Gets the detail that refuses an offer or a move of the control-plane cell's root tenant, which
     /// <see cref="DirectoryControlPlaneOptions.TenantId"/> names: the directory places that tenant in the control-plane
-    /// cell from its own configuration and accepts only the tokens it issues, so it never leaves that cell.
+    /// cell from its own configuration, which alone changes it, so it never leaves that cell.
     /// </summary>
     /// <param name="tenantId">The identifier of the tenant to offer or move.</param>
     /// <returns>

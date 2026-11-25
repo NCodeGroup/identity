@@ -6,6 +6,7 @@ using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Time.Testing;
 using Moq;
 using NCode.Identity.OpenId.GlobalDirectory;
+using NCode.Identity.OpenId.Logging;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
 using NCode.Identity.OpenId.Persistence.Tenants;
@@ -102,6 +103,80 @@ public sealed class TenantKeyCustodyReconcilerTests : BaseTests
                     }
             );
 
+    private void SetupStoredCustody(string tenantId, string custody)
+    {
+        var tenant = new PersistedTenantBuilder { TenantId = tenantId }.Build();
+        tenant.KeyCustody = custody;
+        MockTenantStore
+            .Setup(x => x.GetOrDefaultAsync(tenantId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(tenant);
+    }
+
+    [Fact]
+    public async Task ReconcileAsync_WhenTenantIsNoLongerIncoming_LeavesItsCustody()
+    {
+        MockTopology.SetupGet(x => x.HasDirectory).Returns(true);
+        SetupLease(true);
+        SetupIncoming("t1");
+        SetupPlacement("t1", CellName);
+        SetupStoredCustody("t1", TenantKeyCustody.Outgoing);
+
+        await Reconciler.ReconcileAsync(CancellationToken.None);
+
+        MockTenantStore.Verify(
+            x =>
+                x.SetKeyCustodyAsync(
+                    It.IsAny<string>(),
+                    It.IsAny<string>(),
+                    It.IsAny<string?>(),
+                    It.IsAny<CancellationToken>()
+                ),
+            Times.Never
+        );
+        MockStoreManager.Verify(
+            x => x.SaveChangesAsync(It.IsAny<CancellationToken>()),
+            Times.Never
+        );
+        Assert.DoesNotContain(
+            Logger.Collector.GetSnapshot(),
+            record => record.Id.Id == EventIds.TenantKeyCustodyHeld
+        );
+    }
+
+    [Fact]
+    public async Task ReconcileAsync_WhenTheSaveConflicts_LeavesTheTenantForTheNextPass()
+    {
+        MockTopology.SetupGet(x => x.HasDirectory).Returns(true);
+        SetupLease(true);
+        SetupIncoming("t1");
+        SetupPlacement("t1", CellName);
+        SetupStoredCustody("t1", TenantKeyCustody.Incoming);
+        MockTenantStore
+            .Setup(x =>
+                x.SetKeyCustodyAsync(
+                    "t1",
+                    TenantKeyCustody.Held,
+                    null,
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync(true);
+        MockStoreManager
+            .Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new StoreConcurrencyException("conflict"));
+
+        await Reconciler.ReconcileAsync(CancellationToken.None);
+
+        var records = Logger.Collector.GetSnapshot();
+        Assert.Contains(
+            records,
+            record =>
+                record.Id.Id == EventIds.TenantKeyCustodyTenantFailed
+                && record.Message.Contains("'t1'")
+        );
+        Assert.DoesNotContain(records, record => record.Id.Id == EventIds.TenantKeyCustodyHeld);
+    }
+
     [Fact]
     public async Task ReconcileAsync_WhenDirectoryPlacesTenantHere_SetsHeld()
     {
@@ -109,6 +184,7 @@ public sealed class TenantKeyCustodyReconcilerTests : BaseTests
         SetupLease(true);
         SetupIncoming("t1");
         SetupPlacement("t1", CellName);
+        SetupStoredCustody("t1", TenantKeyCustody.Incoming);
         MockTenantStore
             .Setup(x =>
                 x.SetKeyCustodyAsync(
@@ -179,6 +255,7 @@ public sealed class TenantKeyCustodyReconcilerTests : BaseTests
             .Setup(x => x.GetPlacementOrDefaultAsync("t1", It.IsAny<CancellationToken>()))
             .ThrowsAsync(new InvalidOperationException("store error"));
         SetupPlacement("t2", CellName);
+        SetupStoredCustody("t2", TenantKeyCustody.Incoming);
         MockTenantStore
             .Setup(x =>
                 x.SetKeyCustodyAsync(

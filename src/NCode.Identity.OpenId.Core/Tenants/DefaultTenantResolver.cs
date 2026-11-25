@@ -187,8 +187,8 @@ internal class DefaultTenantResolver(
         // The identifier, issuer and host rules hold across every tenant, so the lookups read across tenants.
         using var unscoped = AmbientTenantAccessor.BeginUnscoped("tenant address validation");
 
-        // The control-plane cell judges its control-plane tenant without the directory, which accepts only that
-        // tenant's tokens, so the directory cannot answer for it before the cell serves (ADR-1411).
+        // The control-plane cell judges its control-plane tenant without the directory, which pins that tenant from
+        // its own configuration, so the directory cannot answer for it before the cell serves (ADR-1536).
         var judgedByDirectory = !RootTenantRules.IsTrustAnchor(CellOptions, this, tenantId);
 
         // A tenant identifier names its tenant in every route and management call, so one that belonged to a deleted
