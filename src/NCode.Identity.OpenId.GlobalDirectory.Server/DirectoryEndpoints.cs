@@ -329,14 +329,14 @@ public static class DirectoryEndpoints
         headers.CacheControl = "no-store";
         headers.Pragma = "no-cache";
 
-        if (!httpContext.Request.HasFormContentType)
+        var form = await httpContext.Request.TryReadFormAsync(cancellationToken);
+        if (form is null)
             return TokenError(
                 StatusCodes.Status400BadRequest,
                 OpenIdProtocol.ErrorCodes.InvalidRequest,
                 "The request is a form."
             );
 
-        var form = await httpContext.Request.ReadFormAsync(cancellationToken);
         var grantType = form[OpenIdProtocol.Parameters.GrantType];
         if (grantType.Count != 1 || string.IsNullOrEmpty(grantType[0]))
             return TokenError(

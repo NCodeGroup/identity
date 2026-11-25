@@ -1,13 +1,14 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
-using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using NCode.Identity.Jose;
 using NCode.Identity.Jose.Algorithms;
 using NCode.Identity.Json;
 using NCode.Identity.Jwt.Validation;
+using NCode.Identity.OpenId.GlobalDirectory.Server.Logging;
 using NCode.Identity.OpenId.GlobalDirectory.Server.Stores;
 using NCode.Identity.Secrets.Persistence;
 using NCode.Identity.SharedState;
@@ -29,7 +30,8 @@ internal sealed class DirectoryClientAssertionValidator(
     IAlgorithmCollectionProvider algorithmCollectionProvider,
     IJwtValidator jwtValidator,
     IExpiringKeySet replayKeys,
-    IOptions<DirectoryServerOptions> options
+    IOptions<DirectoryServerOptions> options,
+    ILogger<DirectoryClientAssertionValidator> logger
 )
 {
     /// <summary>
@@ -42,6 +44,8 @@ internal sealed class DirectoryClientAssertionValidator(
     /// </summary>
     internal static TimeSpan ClockSkew => TimeSpan.FromSeconds(30);
 
+    private const string InvalidDescription = "The assertion is invalid.";
+    private const string UnregisteredDescription = "The cell is not registered.";
     private const string ReplayKeyPrefix = "directory-assertion:";
 
     /// <summary>
@@ -92,6 +96,28 @@ internal sealed class DirectoryClientAssertionValidator(
         return element.TryGetNumericDate(out instant);
     }
 
+    /// <summary>
+    /// Reads a string claim of a validated payload, which is <c>null</c> when the claim is absent or not a string.
+    /// </summary>
+    private static string? GetString(JsonElement payload, string name) =>
+        payload.TryGetProperty(name, out var element) && element.ValueKind == JsonValueKind.String
+            ? element.GetString()
+            : null;
+
+    /// <summary>
+    /// Logs why an assertion is refused and creates the result that gives the caller only a fixed description.
+    /// </summary>
+    private DirectoryClientAssertionResult Refuse(
+        string cellName,
+        string reason,
+        string description = InvalidDescription,
+        Exception? exception = null
+    )
+    {
+        Logger.ClientAssertionRefused(cellName, reason, exception);
+        return DirectoryClientAssertionResult.Fail(description);
+    }
+
     private TimeProvider TimeProvider { get; } = timeProvider;
     private DefaultDirectoryStore Store { get; } = store;
     private IPublicJwksReader JwksReader { get; } = jwksReader;
@@ -100,6 +126,7 @@ internal sealed class DirectoryClientAssertionValidator(
     private IJwtValidator JwtValidator { get; } = jwtValidator;
     private IExpiringKeySet ReplayKeys { get; } = replayKeys;
     private DirectoryServerOptions Options { get; } = options.Value;
+    private ILogger<DirectoryClientAssertionValidator> Logger { get; } = logger;
 
     /// <summary>
     /// Validates a client assertion.
@@ -108,7 +135,7 @@ internal sealed class DirectoryClientAssertionValidator(
     /// <param name="tokenEndpointUrl">The absolute URL of the token endpoint that received the assertion.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to observe.</param>
     /// <returns>The result, which names the authenticated cell or the reason the assertion is refused.</returns>
-    public async ValueTask<Result> ValidateAsync(
+    public async ValueTask<DirectoryClientAssertionResult> ValidateAsync(
         string assertion,
         string tokenEndpointUrl,
         CancellationToken cancellationToken
@@ -116,21 +143,28 @@ internal sealed class DirectoryClientAssertionValidator(
     {
         ArgumentException.ThrowIfNullOrEmpty(tokenEndpointUrl);
         if (string.IsNullOrEmpty(assertion) || !TryReadIssuer(assertion, out var issuer))
-            return Result.Fail("The assertion is not a well-formed JWT.");
+            return Refuse(string.Empty, "The assertion is not a well-formed JWT.");
 
         if (
             !issuer.StartsWith(DirectoryTokenIssuer.ClientIdPrefix, StringComparison.Ordinal)
             || issuer.Length == DirectoryTokenIssuer.ClientIdPrefix.Length
         )
-            return Result.Fail("The assertion's issuer is not a cell's client identifier.");
+            return Refuse(
+                string.Empty,
+                "The assertion's issuer is not a cell's client identifier."
+            );
 
         var cellName = issuer[DirectoryTokenIssuer.ClientIdPrefix.Length..];
         var jwks = await Store.GetCellClientKeysAsync(cellName, cancellationToken);
         if (jwks is not { } jwksElement)
-            return Result.Fail("The cell is not registered.");
+            return Refuse(
+                cellName,
+                "The cell is not registered or is retired.",
+                UnregisteredDescription
+            );
 
         if (!JwksReader.TryRead(jwksElement, out var keys, out var keyError))
-            return Result.Fail($"The cell's registered keys are unusable: {keyError}");
+            return Refuse(cellName, $"The cell's registered keys are unusable: {keyError}");
 
         var algorithms = DirectoryTokenIssuer.GetAsymmetricSignatureAlgorithms(
             AlgorithmCollectionProvider.Collection
@@ -154,68 +188,33 @@ internal sealed class DirectoryClientAssertionValidator(
 
         var result = await JwtValidator.ValidateAsync(assertion, parameters, cancellationToken);
         if (!result.IsValid)
-            return Result.Fail($"The assertion is invalid: {result.Exception.Message}");
+            return Refuse(
+                cellName,
+                "The assertion failed validation.",
+                exception: result.Exception
+            );
 
         var payload = result.DecodedJwt.Payload;
-        var subject = payload.TryGetProperty(JoseClaimNames.Payload.Sub, out var subElement)
-            ? subElement.GetString()
-            : null;
+        var subject = GetString(payload, JoseClaimNames.Payload.Sub);
         if (!string.Equals(subject, issuer, StringComparison.Ordinal))
-            return Result.Fail("The assertion's subject is not its issuer.");
+            return Refuse(cellName, "The assertion's subject is not its issuer.");
 
         if (!TryGetInstant(payload, JoseClaimNames.Payload.Exp, out var expires))
-            return Result.Fail("The assertion has no expiry.");
+            return Refuse(cellName, "The assertion has no expiry.");
 
         var now = TimeProvider.GetUtcNow();
         if (expires - now > MaxLifetime + ClockSkew)
-            return Result.Fail("The assertion's expiry is too far ahead.");
+            return Refuse(cellName, "The assertion's expiry is too far ahead.");
 
-        var jti = payload.TryGetProperty(JoseClaimNames.Payload.Jti, out var jtiElement)
-            ? jtiElement.GetString()
-            : null;
+        var jti = GetString(payload, JoseClaimNames.Payload.Jti);
         if (string.IsNullOrEmpty(jti))
-            return Result.Fail("The assertion has no identifier.");
+            return Refuse(cellName, "The assertion has no identifier.");
 
         var replayKey = $"{ReplayKeyPrefix}{cellName}:{jti}";
         var replayExpires = expires + ClockSkew;
         var accepted = await ReplayKeys.TryAddAsync(replayKey, replayExpires, cancellationToken);
-        return accepted ? Result.Success(cellName) : Result.Fail("The assertion was used before.");
-    }
-
-    /// <summary>
-    /// The outcome of validating a client assertion.
-    /// </summary>
-    internal sealed class Result
-    {
-        private Result() { }
-
-        /// <summary>
-        /// Gets whether the assertion is valid.
-        /// </summary>
-        [MemberNotNullWhen(true, nameof(CellName))]
-        [MemberNotNullWhen(false, nameof(FailureReason))]
-        public bool IsValid => CellName is not null;
-
-        /// <summary>
-        /// Gets the name of the authenticated cell of a valid assertion.
-        /// </summary>
-        public string? CellName { get; private init; }
-
-        /// <summary>
-        /// Gets why the assertion is refused.
-        /// </summary>
-        public string? FailureReason { get; private init; }
-
-        /// <summary>
-        /// Creates the result of a valid assertion.
-        /// </summary>
-        /// <param name="cellName">The name of the authenticated cell.</param>
-        public static Result Success(string cellName) => new() { CellName = cellName };
-
-        /// <summary>
-        /// Creates the result of a refused assertion.
-        /// </summary>
-        /// <param name="reason">The reason the assertion is refused.</param>
-        public static Result Fail(string reason) => new() { FailureReason = reason };
+        return accepted
+            ? DirectoryClientAssertionResult.Success(cellName)
+            : Refuse(cellName, "The assertion was used before.");
     }
 }

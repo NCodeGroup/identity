@@ -5,6 +5,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Security.Cryptography;
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Primitives;
 using Moq;
@@ -82,7 +83,8 @@ public sealed class DirectoryTokenIssuerTests : DefaultDirectoryStoreTestBase, I
             ServiceProvider.GetRequiredService<IAlgorithmCollectionProvider>(),
             ServiceProvider.GetRequiredService<NCode.Identity.Jwt.Validation.IJwtValidator>(),
             ServiceProvider.GetRequiredService<IExpiringKeySet>(),
-            options
+            options,
+            NullLogger<DirectoryClientAssertionValidator>.Instance
         );
     }
 
@@ -165,7 +167,7 @@ public sealed class DirectoryTokenIssuerTests : DefaultDirectoryStoreTestBase, I
             .EncodeAsync(parameters, cancellationToken);
     }
 
-    private async ValueTask<DirectoryClientAssertionValidator.Result> ValidateAsync(
+    private async ValueTask<DirectoryClientAssertionResult> ValidateAsync(
         string assertion,
         CancellationToken cancellationToken = default
     ) => await Validator.ValidateAsync(assertion, TokenEndpoint, cancellationToken);
@@ -260,7 +262,7 @@ public sealed class DirectoryTokenIssuerTests : DefaultDirectoryStoreTestBase, I
         var result = await ValidateAsync(assertion);
 
         Assert.False(result.IsValid);
-        Assert.Contains("'aud'", result.FailureReason);
+        Assert.Equal("The assertion is invalid.", result.FailureReason);
     }
 
     [Fact]

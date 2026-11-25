@@ -127,6 +127,7 @@ public sealed class DirectoryTokenEndpointTests : IAsyncLifetime
         string audience = TokenEndpoint,
         TimeSpan? expiresIn = null,
         string? jti = null,
+        long? numericJti = null,
         CancellationToken cancellationToken = default
     )
     {
@@ -147,7 +148,7 @@ public sealed class DirectoryTokenEndpointTests : IAsyncLifetime
             ExtraPayloadClaims = new Dictionary<string, object>
             {
                 ["sub"] = clientId,
-                ["jti"] = jti ?? Guid.NewGuid().ToString("N"),
+                ["jti"] = numericJti is { } number ? number : jti ?? Guid.NewGuid().ToString("N"),
             },
         };
         var encoder = Host.Services.GetRequiredService<IJwtEncoder>();
@@ -171,6 +172,15 @@ public sealed class DirectoryTokenEndpointTests : IAsyncLifetime
 
         using var content = new FormUrlEncodedContent(fields);
         return await Client.PostAsync(TokenPath, content, cancellationToken);
+    }
+
+    private static async ValueTask<string> ReadErrorDescriptionAsync(
+        HttpResponseMessage response,
+        CancellationToken cancellationToken = default
+    )
+    {
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>(cancellationToken);
+        return body.GetProperty("error_description").GetString() ?? string.Empty;
     }
 
     private static async ValueTask<string> ReadErrorAsync(
@@ -292,7 +302,47 @@ public sealed class DirectoryTokenEndpointTests : IAsyncLifetime
         var response = await PostAsync(assertion);
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("invalid_client", body.GetProperty("error").GetString());
+        Assert.Equal(
+            "The assertion is invalid.",
+            body.GetProperty("error_description").GetString()
+        );
+    }
+
+    [Fact]
+    public async Task Token_WhenTheCellIsUnknown_DescribesOnlyTheRegistration()
+    {
+        var assertion = await CreateAssertionAsync("cell-y");
+
+        var response = await PostAsync(assertion);
+
+        Assert.Equal("The cell is not registered.", await ReadErrorDescriptionAsync(response));
+    }
+
+    [Fact]
+    public async Task Token_WhenTheJtiIsANumber_AnswersInvalidClient()
+    {
+        var assertion = await CreateAssertionAsync(numericJti: 7);
+
+        var response = await PostAsync(assertion);
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
         Assert.Equal("invalid_client", await ReadErrorAsync(response));
+    }
+
+    [Fact]
+    public async Task Token_WhenTheFormHasMoreValuesThanTheLimit_AnswersInvalidRequest()
+    {
+        var fields = Enumerable
+            .Range(0, 1100)
+            .Select(index => new KeyValuePair<string, string>($"f{index}", "v"));
+        using var content = new FormUrlEncodedContent(fields);
+
+        var response = await Client.PostAsync(TokenPath, content);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal("invalid_request", await ReadErrorAsync(response));
     }
 
     [Fact]
