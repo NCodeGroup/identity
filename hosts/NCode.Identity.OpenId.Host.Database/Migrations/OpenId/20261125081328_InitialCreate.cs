@@ -1419,6 +1419,11 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                 column: "Path");
 
             migrationBuilder.CreateIndex(
+                name: "IX_Tenants_KeyCustody",
+                table: "Tenants",
+                column: "KeyCustody");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_Tenants_NormalizedIssuer",
                 table: "Tenants",
                 column: "NormalizedIssuer",

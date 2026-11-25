@@ -2044,6 +2044,8 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
 
                     b.HasKey("Id");
 
+                    b.HasIndex("KeyCustody");
+
                     b.HasIndex("NormalizedIssuer")
                         .IsUnique()
                         .HasFilter("\"NormalizedIssuer\" IS NOT NULL");
