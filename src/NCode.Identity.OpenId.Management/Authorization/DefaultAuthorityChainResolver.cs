@@ -47,6 +47,13 @@ internal class DefaultAuthorityChainResolver(
             nodes.Add((node.ResourceType, normalizedResourceId));
         }
 
+        // A cell node sits directly beneath the platform and above every tenant the cell holds; the tenant a request
+        // names belongs to the cell, never to its chain, so no tenant or team administrator reaches the cell.
+        if (string.Equals(node.ResourceType, ResourceNodeTypes.Cell, StringComparison.Ordinal))
+        {
+            return nodes;
+        }
+
         string? teamId = null;
         if (string.Equals(node.ResourceType, ResourceNodeTypes.Team, StringComparison.Ordinal))
         {
@@ -141,6 +148,7 @@ internal class DefaultAuthorityChainResolver(
 
     private static bool IsGloballyUniqueNodeType(string resourceType) =>
         string.Equals(resourceType, ResourceNodeTypes.Platform, StringComparison.Ordinal)
+        || string.Equals(resourceType, ResourceNodeTypes.Cell, StringComparison.Ordinal)
         || string.Equals(resourceType, ResourceNodeTypes.Team, StringComparison.Ordinal)
         || string.Equals(resourceType, ResourceNodeTypes.Tenant, StringComparison.Ordinal);
 

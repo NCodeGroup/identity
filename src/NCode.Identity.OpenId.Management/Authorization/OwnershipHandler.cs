@@ -227,8 +227,8 @@ internal sealed class OwnershipHandler(
     }
 
     // The teams the control plane is asked about: a team node's own team, otherwise the tenant's team and, for a
-    // client node, the team that owns the client. With no team, the control plane is asked once for the platform's
-    // roles alone.
+    // client node, the team that owns the client. A platform or cell node has no team, so the control plane is asked
+    // once for the platform's roles alone.
     private async ValueTask<IReadOnlyList<string?>> GetTeamIdsAsync(
         IResourceNode node,
         IStoreManager storeManager,
@@ -241,7 +241,10 @@ internal sealed class OwnershipHandler(
         }
 
         var teamIds = new List<string>();
-        if (!string.Equals(node.ResourceType, ResourceNodeTypes.Platform, StringComparison.Ordinal))
+        if (
+            !string.Equals(node.ResourceType, ResourceNodeTypes.Platform, StringComparison.Ordinal)
+            && !string.Equals(node.ResourceType, ResourceNodeTypes.Cell, StringComparison.Ordinal)
+        )
         {
             var tenant = await storeManager
                 .GetStore<ITenantStore>()

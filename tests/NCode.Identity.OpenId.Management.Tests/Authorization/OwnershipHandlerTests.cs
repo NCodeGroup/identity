@@ -597,6 +597,69 @@ public class OwnershipHandlerTests : IDisposable
         Assert.False(succeeded);
     }
 
+    private static ResourceNode CellNode() =>
+        ResourceNode.For(TenantId, ResourceNodeTypes.Cell, "cell-1");
+
+    [Fact]
+    public async Task HandleRequirementAsync_WhenCellAdminAtTheCellOnTheCellNode_Succeeds()
+    {
+        var succeeded = await HandleAsync(
+            Operations.Update,
+            CellNode(),
+            CreateSubject(),
+            [Assignment(BuiltInRoles.CellAdmin, ResourceNodeTypes.Cell, "cell-1")],
+            new OwnershipHandlerOptions { ReadsTenant = false },
+            CancellationToken.None
+        );
+
+        Assert.True(succeeded);
+    }
+
+    [Fact]
+    public async Task HandleRequirementAsync_WhenTenantAdminAtTheManagementTenantOnTheCellNode_DoesNotSucceed()
+    {
+        var succeeded = await HandleAsync(
+            Operations.Update,
+            CellNode(),
+            CreateSubject(),
+            [Assignment(BuiltInRoles.TenantAdmin, ResourceNodeTypes.Tenant, TenantId)],
+            new OwnershipHandlerOptions { ReadsTenant = false },
+            CancellationToken.None
+        );
+
+        Assert.False(succeeded);
+    }
+
+    [Fact]
+    public async Task HandleRequirementAsync_WhenTeamAdminAtTheManagementTenantsTeamOnTheCellNode_DoesNotSucceed()
+    {
+        var succeeded = await HandleAsync(
+            Operations.Update,
+            CellNode(),
+            CreateSubject(),
+            [Assignment(BuiltInRoles.TeamAdmin, ResourceNodeTypes.Team, TeamId)],
+            new OwnershipHandlerOptions { ReadsTenant = false },
+            CancellationToken.None
+        );
+
+        Assert.False(succeeded);
+    }
+
+    [Fact]
+    public async Task HandleRequirementAsync_WhenGlobalAdminAtThePlatformOnTheCellNode_Succeeds()
+    {
+        var succeeded = await HandleAsync(
+            Operations.Update,
+            CellNode(),
+            CreateSubject(),
+            [Assignment(BuiltInRoles.GlobalAdmin, ResourceNodeTypes.Platform, "platform")],
+            new OwnershipHandlerOptions { ReadsTenant = false },
+            CancellationToken.None
+        );
+
+        Assert.True(succeeded);
+    }
+
     [Fact]
     public async Task HandleRequirementAsync_WhenTeamAdminAtAnotherTeamOnATenantsClient_DoesNotSucceed()
     {

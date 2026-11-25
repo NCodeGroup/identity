@@ -130,6 +130,23 @@ public class DefaultAuthorityChainResolverTests : IDisposable
     }
 
     [Fact]
+    public async Task GetAncestorNodesAsync_ForACellNode_ReturnsThePlatformAndTheCellOnly()
+    {
+        var manager = MockRepository.Create<IStoreManager>();
+        var node = ResourceNode.For(TenantId, ResourceNodeTypes.Cell, "Cell-1");
+
+        var nodes = await Resolver.GetAncestorNodesAsync(
+            node,
+            manager.Object,
+            CancellationToken.None
+        );
+
+        Assert.Equal(2, nodes.Count);
+        Assert.Contains((ResourceNodeTypes.Platform, "platform"), nodes);
+        Assert.Contains((ResourceNodeTypes.Cell, "cell-1"), nodes);
+    }
+
+    [Fact]
     public async Task GetAncestorNodesAsync_ForAnUnknownTenant_AddsNoTeam()
     {
         var manager = CreateStoreManager(null, null);
