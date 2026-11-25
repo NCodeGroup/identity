@@ -17,9 +17,9 @@ public class RootTenantSeedingTests(HostApplicationFactory factory)
     private HostApplicationFactory Factory { get; } = factory;
 
     // The static single-tenant strategy serves only its own tenant, which is the root tenant, so the Development host
-    // (the control-plane cell) holds the control plane's resource servers in the served tenant (ADR-1411).
+    // (the control-plane cell) seeds no directory resource server: the directory issues its own tokens.
     [Fact]
-    public async Task ResolvingTheStaticTenant_SeedsTheDirectoryResourceServerIntoIt()
+    public async Task ResolvingTheStaticTenant_SeedsNoDirectoryResourceServer()
     {
         using var warmupClient = Factory.CreateClient();
         using var warmupResponse = await warmupClient.GetAsync("/oauth2/jwks");
@@ -36,7 +36,7 @@ public class RootTenantSeedingTests(HostApplicationFactory factory)
             CancellationToken.None
         );
 
-        Assert.NotNull(directoryResourceServer);
+        Assert.Null(directoryResourceServer);
     }
 
     // The static single-tenant strategy serves only its own tenant, which is the root tenant, so no separate root

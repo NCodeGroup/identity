@@ -123,8 +123,6 @@ on their next seed:
 - `OpenIdIdentityResourceServerSeedHandler` seeds the OpenID identity resource server.
 - `ManagementResourceServerSeedHandler` seeds the management resource server, with the control-plane families only
   when `Plane == Root`.
-- `ControlPlaneResourceServerSeedHandler` seeds `urn:ncode:directory` and `urn:ncode:control-plane` when
-  `Plane == Root`.
 - `TenantKeySeedHandler` provisions the tenant's keys
   ([ADR-1169](1169-every-tenant-is-provisioned-with-a-persisted-key-for-each-configured-algorithm-it-uses.md)).
 - `BootstrapAdminSeedHandler` seeds the development bootstrap client.

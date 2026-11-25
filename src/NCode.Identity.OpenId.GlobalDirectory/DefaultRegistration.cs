@@ -29,13 +29,14 @@ public static class DefaultRegistration
         /// <see cref="IPlatformDirectory"/> and <see cref="ICellDirectory"/> when the <c>Directory:Url</c> setting is
         /// set, and registers nothing otherwise, so a cell that runs on its own keeps the local adapters. The
         /// <c>Directory</c> section binds <see cref="DirectoryClientOptions"/> strictly and is validated when the host
-        /// starts. Each adapter calls the <c>directory/v1</c> API with a client-credentials token for the audience
-        /// <c>urn:ncode:directory</c>, which the OpenID client library requests as the cell's machine client from the
-        /// issuer named by <c>Cell:ControlPlane:Issuer</c>, over the client library's bounded HTTP client. A start
-        /// check also refuses a <c>Cell:ControlPlane:Issuer</c> that is not an allowed endpoint. A call that cannot
-        /// reach the directory throws <see cref="DirectoryUnavailableException"/>. The same registration adds a hosted
-        /// service that registers the cell with the directory when the host starts, retrying while the directory is
-        /// unavailable, and a hosted service that follows the directory's change feed: every
+        /// starts. Each adapter calls the <c>directory/v1</c> API with a client-credentials token that the directory's
+        /// own token endpoint issues to the cell's machine client, over the client library's bounded HTTP client. A
+        /// start check also refuses a client identifier other than <c>cell-</c> followed by the cell's name, a key ring
+        /// the client library lacks, a blank management URL and, for a cell that is not the control plane, a
+        /// <c>Cell:ControlPlane:Issuer</c> that is not an allowed endpoint. A call that cannot reach the directory
+        /// throws <see cref="DirectoryUnavailableException"/>. The same registration adds a hosted service that
+        /// registers the cell with the directory when the host starts, retrying while the directory is unavailable, and
+        /// a hosted service that follows the directory's change feed: every
         /// <see cref="DirectoryClientOptions.PollInterval"/> one replica of a cell that is not the control plane
         /// mirrors the published team and platform documents into the cell, and a hosted service of the control-plane
         /// cell publishes its outbox of replicated documents to the directory every

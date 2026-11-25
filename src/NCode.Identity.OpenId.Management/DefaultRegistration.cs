@@ -171,12 +171,6 @@ public static class DefaultRegistration
             >();
             serviceCollection.TryAddEnumerable(managementSeedDescriptor);
 
-            var controlPlaneSeedDescriptor = ServiceDescriptor.Singleton<
-                ICommandHandler<SeedTenantCommand>,
-                ControlPlaneResourceServerSeedHandler
-            >();
-            serviceCollection.TryAddEnumerable(controlPlaneSeedDescriptor);
-
             // Refuses a management URL whose origin is not the root tenant's issuer origin on a platform with a directory.
             var managementUrlCheckDescriptor = ServiceDescriptor.Singleton<
                 IHostedService,
