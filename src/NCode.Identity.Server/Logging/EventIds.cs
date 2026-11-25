@@ -130,4 +130,29 @@ internal static class EventIds
     /// Identifies the error that the recover-sign-in command failed with an exception.
     /// </summary>
     public const int RecoverSignInCommandFailed = Base + 43;
+
+    /// <summary>
+    /// Identifies the error that the directory-client-jwks command line is invalid.
+    /// </summary>
+    public const int DirectoryClientJwksCommandUsageInvalid = Base + 44;
+
+    /// <summary>
+    /// Identifies the error that the directory-client-jwks command was given no key ring.
+    /// </summary>
+    public const int DirectoryClientJwksCommandNoKeyRing = Base + 45;
+
+    /// <summary>
+    /// Identifies the error that the directory-client-jwks command was given an unknown key ring.
+    /// </summary>
+    public const int DirectoryClientJwksCommandUnknownKeyRing = Base + 46;
+
+    /// <summary>
+    /// Identifies the information that the directory-client-jwks command wrote the key set.
+    /// </summary>
+    public const int DirectoryClientJwksCommandWritten = Base + 47;
+
+    /// <summary>
+    /// Identifies the error that the directory-client-jwks command failed with an exception.
+    /// </summary>
+    public const int DirectoryClientJwksCommandFailed = Base + 48;
 }

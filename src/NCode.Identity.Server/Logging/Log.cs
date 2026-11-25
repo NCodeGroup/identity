@@ -415,4 +415,56 @@ internal static partial class Log
         this ILogger logger,
         Exception exception
     );
+
+    [LoggerMessage(
+        EventId = EventIds.DirectoryClientJwksCommandUsageInvalid,
+        Level = LogLevel.Error,
+        Message = "The directory-client-jwks command line is invalid: {Error} {Usage}"
+    )]
+    internal static partial void DirectoryClientJwksCommandUsageInvalid(
+        this ILogger logger,
+        string error,
+        string usage
+    );
+
+    [LoggerMessage(
+        EventId = EventIds.DirectoryClientJwksCommandNoKeyRing,
+        Level = LogLevel.Error,
+        Message = "The directory-client-jwks command names no key ring and Directory:KeyRing is not set. {Usage}"
+    )]
+    internal static partial void DirectoryClientJwksCommandNoKeyRing(
+        this ILogger logger,
+        string usage
+    );
+
+    [LoggerMessage(
+        EventId = EventIds.DirectoryClientJwksCommandUnknownKeyRing,
+        Level = LogLevel.Error,
+        Message = "The directory-client-jwks command found no key ring named '{KeyRing}'."
+    )]
+    internal static partial void DirectoryClientJwksCommandUnknownKeyRing(
+        this ILogger logger,
+        string keyRing
+    );
+
+    [LoggerMessage(
+        EventId = EventIds.DirectoryClientJwksCommandWritten,
+        Level = LogLevel.Information,
+        Message = "The directory-client-jwks command wrote {Count} public key(s) of the key ring '{KeyRing}'."
+    )]
+    internal static partial void DirectoryClientJwksCommandWritten(
+        this ILogger logger,
+        string keyRing,
+        int count
+    );
+
+    [LoggerMessage(
+        EventId = EventIds.DirectoryClientJwksCommandFailed,
+        Level = LogLevel.Error,
+        Message = "The directory-client-jwks command failed; no key set is written."
+    )]
+    internal static partial void DirectoryClientJwksCommandFailed(
+        this ILogger logger,
+        Exception exception
+    );
 }

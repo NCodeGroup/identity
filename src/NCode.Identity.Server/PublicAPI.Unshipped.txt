@@ -253,3 +253,13 @@ NCode.Identity.Server.Recovery.RecoverSignInCommandLine.RunAsync(System.IService
 static NCode.Identity.Server.Recovery.RecoverSignInCommandLine.GetHostArguments(string![]! args) -> string![]!
 static NCode.Identity.Server.Recovery.RecoverSignInCommandLine.Parse(System.Collections.Generic.IReadOnlyList<string!>! args) -> NCode.Identity.Server.Recovery.RecoverSignInCommandLine?
 static NCode.Identity.Server.Recovery.RecoverSignInCommandLine.Usage.get -> string!
+const NCode.Identity.Server.Recovery.DirectoryClientJwksCommandLine.CommandName = "directory-client-jwks" -> string!
+const NCode.Identity.Server.Recovery.DirectoryClientJwksCommandLine.KeyRingOption = "--key-ring" -> string!
+NCode.Identity.Server.Recovery.DirectoryClientJwksCommandLine
+NCode.Identity.Server.Recovery.DirectoryClientJwksCommandLine.Error.get -> string?
+NCode.Identity.Server.Recovery.DirectoryClientJwksCommandLine.KeyRing.get -> string?
+NCode.Identity.Server.Recovery.DirectoryClientJwksCommandLine.RunAsync(System.IServiceProvider! services, System.IO.TextWriter! output, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<int>
+static NCode.Identity.Server.Recovery.DirectoryClientJwksCommandLine.ConfigureLogging(NCode.Identity.Server.Recovery.DirectoryClientJwksCommandLine? command, Microsoft.Extensions.Logging.ILoggingBuilder! logging) -> void
+static NCode.Identity.Server.Recovery.DirectoryClientJwksCommandLine.GetHostArguments(string![]! args) -> string![]!
+static NCode.Identity.Server.Recovery.DirectoryClientJwksCommandLine.Parse(System.Collections.Generic.IReadOnlyList<string!>! args) -> NCode.Identity.Server.Recovery.DirectoryClientJwksCommandLine?
+static NCode.Identity.Server.Recovery.DirectoryClientJwksCommandLine.Usage.get -> string!
