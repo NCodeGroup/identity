@@ -8,23 +8,23 @@ using JetBrains.Annotations;
 namespace NCode.Identity.OpenId.GlobalDirectory;
 
 /// <summary>
-/// Describes the content of an authority document: the role assignments at one node and, for the platform document, the
+/// Describes the content of the platform authority document: the role assignments at the platform node and the
 /// control-plane tenant's clients.
 /// </summary>
 [PublicAPI]
 [ExcludeFromCodeCoverage]
-public sealed record AuthorityDocumentContent
+public sealed record PlatformAuthorityDocumentContent
 {
     /// <summary>
-    /// Gets the role assignments at the node.
+    /// Gets the role assignments at the platform node.
     /// </summary>
     [JsonPropertyName("assignments")]
     public required IReadOnlyList<AuthorityAssignment> Assignments { get; init; }
 
     /// <summary>
     /// Gets the enabled clients of the control-plane tenant, which the platform document lists so that a cell knows
-    /// offline whether a token's subject is a client acting for itself. It is empty in a team document.
+    /// offline whether a token's subject is a client acting for itself.
     /// </summary>
     [JsonPropertyName("clients")]
-    public IReadOnlyList<AuthorityClient> Clients { get; init; } = [];
+    public required IReadOnlyList<AuthorityClient> Clients { get; init; }
 }

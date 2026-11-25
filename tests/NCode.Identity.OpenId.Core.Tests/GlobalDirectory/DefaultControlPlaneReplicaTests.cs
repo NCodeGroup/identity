@@ -181,6 +181,16 @@ public sealed class DefaultControlPlaneReplicaTests : BaseTests
     }
 
     [Fact]
+    public async Task GetAuthorityAsync_WhenThePlatformDocumentLacksClients_Throws()
+    {
+        SetupDocument(ReplicatedDocumentKinds.PlatformAuthority, "", """{"assignments":[]}""");
+
+        await Assert.ThrowsAsync<JsonException>(async () =>
+            await Replica.GetAuthorityAsync("p1", null, CancellationToken.None)
+        );
+    }
+
+    [Fact]
     public async Task GetManagementKeysAsync_WhenAKeyIsRevoked_NeverReturnsIt()
     {
         var kept = SetupKey("k2");

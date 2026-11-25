@@ -61,18 +61,21 @@ internal sealed class DefaultControlPlaneReplica(
     /// <summary>
     /// Gets the names of the roles that an authority document assigns to a principal.
     /// </summary>
-    /// <param name="content">The authority document's content, when the document exists.</param>
+    /// <param name="assignments">The authority document's role assignments, when the document exists.</param>
     /// <param name="principalId">The principal whose roles are read.</param>
     /// <returns>The distinct role names in ordinal order, or an empty array when there are none.</returns>
-    private static string[] GetRoleNames(AuthorityDocumentContent? content, string principalId)
+    private static string[] GetRoleNames(
+        IReadOnlyList<AuthorityAssignment>? assignments,
+        string principalId
+    )
     {
-        if (content is null)
+        if (assignments is null)
             return [];
 
         return
         [
-            .. content
-                .Assignments.Where(assignment =>
+            .. assignments
+                .Where(assignment =>
                     string.Equals(assignment.PrincipalId, principalId, StringComparison.Ordinal)
                 )
                 .Select(assignment => assignment.RoleName)
@@ -186,9 +189,9 @@ internal sealed class DefaultControlPlaneReplica(
             string.Empty,
             cancellationToken
         );
-        var platformContent = Deserialize<AuthorityDocumentContent>(platformDocument);
+        var platformContent = Deserialize<PlatformAuthorityDocumentContent>(platformDocument);
 
-        var platformRoles = GetRoleNames(platformContent, principalId);
+        var platformRoles = GetRoleNames(platformContent?.Assignments, principalId);
         var clientId = platformContent
             ?.Clients.FirstOrDefault(client =>
                 string.Equals(client.PrincipalId, principalId, StringComparison.Ordinal)
@@ -206,8 +209,8 @@ internal sealed class DefaultControlPlaneReplica(
             );
             foreach (var teamDocument in teamDocuments)
             {
-                var teamContent = Deserialize<AuthorityDocumentContent>(teamDocument);
-                var chainRoles = GetRoleNames(teamContent, principalId);
+                var teamContent = Deserialize<TeamAuthorityDocumentContent>(teamDocument);
+                var chainRoles = GetRoleNames(teamContent?.Assignments, principalId);
                 teamRoles.AddRange(chainRoles);
             }
         }

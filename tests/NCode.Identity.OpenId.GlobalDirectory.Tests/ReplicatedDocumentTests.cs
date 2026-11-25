@@ -11,7 +11,7 @@ public class ReplicatedDocumentTests
     [Fact]
     public void Serialize_WhenAuthorityContent_RoundTripsThroughTheEnvelope()
     {
-        var content = new AuthorityDocumentContent
+        var content = new PlatformAuthorityDocumentContent
         {
             Assignments =
             [
@@ -37,7 +37,7 @@ public class ReplicatedDocumentTests
         Assert.Equal("", roundTripped.Key);
         Assert.Equal(3, roundTripped.Revision);
         Assert.NotNull(roundTripped.Content);
-        var result = roundTripped.Content.Value.Deserialize<AuthorityDocumentContent>(
+        var result = roundTripped.Content.Value.Deserialize<PlatformAuthorityDocumentContent>(
             DirectoryJson.Options
         );
         Assert.NotNull(result);
@@ -45,6 +45,33 @@ public class ReplicatedDocumentTests
         Assert.Equal("console", Assert.Single(result.Clients).ClientId);
         Assert.Contains("\"assignments\"", json);
         Assert.Contains("\"roleName\"", json);
+    }
+
+    [Fact]
+    public void Deserialize_WhenPlatformAuthorityLacksClients_Throws()
+    {
+        const string json = """{"assignments":[]}""";
+
+        Assert.Throws<JsonException>(() =>
+            JsonSerializer.Deserialize<PlatformAuthorityDocumentContent>(
+                json,
+                DirectoryJson.Options
+            )
+        );
+    }
+
+    [Fact]
+    public void Serialize_WhenTeamAuthorityContent_CarriesNoClients()
+    {
+        var content = new TeamAuthorityDocumentContent
+        {
+            Assignments = [new AuthorityAssignment { PrincipalId = "p1", RoleName = "TeamAdmin" }],
+        };
+
+        var json = JsonSerializer.Serialize(content, DirectoryJson.Options);
+
+        Assert.Contains("\"assignments\"", json);
+        Assert.DoesNotContain("clients", json);
     }
 
     [Fact]

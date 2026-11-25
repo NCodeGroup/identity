@@ -224,11 +224,14 @@ NCode.Identity.OpenId.GlobalDirectory.ReplicatedDocumentKinds
 const NCode.Identity.OpenId.GlobalDirectory.ReplicatedDocumentKinds.ManagementKeys = "management-keys" -> string!
 const NCode.Identity.OpenId.GlobalDirectory.ReplicatedDocumentKinds.PlatformAuthority = "platform-authority" -> string!
 const NCode.Identity.OpenId.GlobalDirectory.ReplicatedDocumentKinds.TeamAuthority = "team-authority" -> string!
-NCode.Identity.OpenId.GlobalDirectory.AuthorityDocumentContent
-NCode.Identity.OpenId.GlobalDirectory.AuthorityDocumentContent.Assignments.get -> System.Collections.Generic.IReadOnlyList<NCode.Identity.OpenId.GlobalDirectory.AuthorityAssignment!>!
-NCode.Identity.OpenId.GlobalDirectory.AuthorityDocumentContent.Assignments.init -> void
-NCode.Identity.OpenId.GlobalDirectory.AuthorityDocumentContent.Clients.get -> System.Collections.Generic.IReadOnlyList<NCode.Identity.OpenId.GlobalDirectory.AuthorityClient!>!
-NCode.Identity.OpenId.GlobalDirectory.AuthorityDocumentContent.Clients.init -> void
+NCode.Identity.OpenId.GlobalDirectory.PlatformAuthorityDocumentContent
+NCode.Identity.OpenId.GlobalDirectory.PlatformAuthorityDocumentContent.Assignments.get -> System.Collections.Generic.IReadOnlyList<NCode.Identity.OpenId.GlobalDirectory.AuthorityAssignment!>!
+NCode.Identity.OpenId.GlobalDirectory.PlatformAuthorityDocumentContent.Assignments.init -> void
+NCode.Identity.OpenId.GlobalDirectory.PlatformAuthorityDocumentContent.Clients.get -> System.Collections.Generic.IReadOnlyList<NCode.Identity.OpenId.GlobalDirectory.AuthorityClient!>!
+NCode.Identity.OpenId.GlobalDirectory.PlatformAuthorityDocumentContent.Clients.init -> void
+NCode.Identity.OpenId.GlobalDirectory.TeamAuthorityDocumentContent
+NCode.Identity.OpenId.GlobalDirectory.TeamAuthorityDocumentContent.Assignments.get -> System.Collections.Generic.IReadOnlyList<NCode.Identity.OpenId.GlobalDirectory.AuthorityAssignment!>!
+NCode.Identity.OpenId.GlobalDirectory.TeamAuthorityDocumentContent.Assignments.init -> void
 NCode.Identity.OpenId.GlobalDirectory.AuthorityAssignment
 NCode.Identity.OpenId.GlobalDirectory.AuthorityAssignment.PrincipalId.get -> string!
 NCode.Identity.OpenId.GlobalDirectory.AuthorityAssignment.PrincipalId.init -> void

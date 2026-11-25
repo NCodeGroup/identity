@@ -497,8 +497,17 @@ internal sealed class ReplicatedDocumentOutboxInterceptor(
         }
 
         var assignments = OverlayAssignments(context, document, rows.Assignments);
+        if (document.Kind == ReplicatedDocumentKinds.TeamAuthority)
+        {
+            return ReplicatedDocumentComposer.ComposeTeamAuthority(PayloadSerializer, assignments);
+        }
+
         var clients = OverlayClients(context, rows.Clients);
-        return ReplicatedDocumentComposer.ComposeAuthority(PayloadSerializer, assignments, clients);
+        return ReplicatedDocumentComposer.ComposePlatformAuthority(
+            PayloadSerializer,
+            assignments,
+            clients
+        );
     }
 
     private static List<RoleAssignmentEntity> OverlayAssignments(

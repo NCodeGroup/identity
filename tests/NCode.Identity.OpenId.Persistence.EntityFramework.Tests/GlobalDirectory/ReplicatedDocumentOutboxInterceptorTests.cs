@@ -245,7 +245,7 @@ public sealed class ReplicatedDocumentOutboxInterceptorTests : IDisposable
         Assert.Equal(ReplicatedDocumentKinds.PlatformAuthority, outbox.Kind);
         Assert.Equal(string.Empty, outbox.Key);
         Assert.Equal(1, outbox.Revision);
-        var content = ReadContent<AuthorityDocumentContent>(outbox.ContentJson!);
+        var content = ReadContent<PlatformAuthorityDocumentContent>(outbox.ContentJson!);
         var assignment = Assert.Single(content!.Assignments);
         Assert.Equal("principal-a", assignment.PrincipalId);
         Assert.Equal("GlobalAdmin", assignment.RoleName);
@@ -277,7 +277,7 @@ public sealed class ReplicatedDocumentOutboxInterceptorTests : IDisposable
 
         var outbox = await ListOutboxAsync();
         Assert.Equal([1L, 2L], outbox.Select(entry => entry.Revision).ToArray());
-        var content = ReadContent<AuthorityDocumentContent>(outbox[1].ContentJson!);
+        var content = ReadContent<PlatformAuthorityDocumentContent>(outbox[1].ContentJson!);
         Assert.Equal(2, content!.Assignments.Count);
         var revision = Assert.Single(await ListRevisionsAsync());
         Assert.Equal(2, revision.Revision);

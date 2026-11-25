@@ -21,30 +21,22 @@ internal static class ReplicatedDocumentComposer
     private static JsonSerializerOptions JsonOptions { get; } = new(JsonSerializerDefaults.Web);
 
     /// <summary>
-    /// Composes the JSON content of an authority document.
+    /// Composes the JSON content of the platform authority document.
     /// </summary>
     /// <param name="payloadSerializer">The serializer of the payloads stored at rest.</param>
-    /// <param name="assignments">The role assignments at the node.</param>
+    /// <param name="assignments">The role assignments at the platform node.</param>
     /// <param name="clients">The clients of the control-plane tenant, of which only the enabled ones are
     /// listed.</param>
     /// <returns>The JSON content.</returns>
-    internal static string ComposeAuthority(
+    internal static string ComposePlatformAuthority(
         IPersistedPayloadSerializer payloadSerializer,
         IEnumerable<RoleAssignmentEntity> assignments,
         IEnumerable<ClientEntity> clients
     )
     {
-        var content = new AuthorityDocumentContent
+        var content = new PlatformAuthorityDocumentContent
         {
-            Assignments = assignments
-                .Select(assignment => new AuthorityAssignment
-                {
-                    PrincipalId = assignment.PrincipalId,
-                    RoleName = assignment.RoleName,
-                })
-                .OrderBy(assignment => assignment.PrincipalId, StringComparer.Ordinal)
-                .ThenBy(assignment => assignment.RoleName, StringComparer.Ordinal)
-                .ToList(),
+            Assignments = ProjectAssignments(assignments),
             Clients = clients
                 .Where(client => !client.IsDisabled && !string.IsNullOrEmpty(client.PrincipalId))
                 .Select(client => new AuthorityClient
@@ -58,6 +50,40 @@ internal static class ReplicatedDocumentComposer
         };
 
         return payloadSerializer.Serialize(content, JsonOptions).GetRawText();
+    }
+
+    /// <summary>
+    /// Composes the JSON content of a team authority document, which carries no clients.
+    /// </summary>
+    /// <param name="payloadSerializer">The serializer of the payloads stored at rest.</param>
+    /// <param name="assignments">The role assignments at the team's node.</param>
+    /// <returns>The JSON content.</returns>
+    internal static string ComposeTeamAuthority(
+        IPersistedPayloadSerializer payloadSerializer,
+        IEnumerable<RoleAssignmentEntity> assignments
+    )
+    {
+        var content = new TeamAuthorityDocumentContent
+        {
+            Assignments = ProjectAssignments(assignments),
+        };
+
+        return payloadSerializer.Serialize(content, JsonOptions).GetRawText();
+    }
+
+    private static List<AuthorityAssignment> ProjectAssignments(
+        IEnumerable<RoleAssignmentEntity> assignments
+    )
+    {
+        return assignments
+            .Select(assignment => new AuthorityAssignment
+            {
+                PrincipalId = assignment.PrincipalId,
+                RoleName = assignment.RoleName,
+            })
+            .OrderBy(assignment => assignment.PrincipalId, StringComparer.Ordinal)
+            .ThenBy(assignment => assignment.RoleName, StringComparer.Ordinal)
+            .ToList();
     }
 
     /// <summary>

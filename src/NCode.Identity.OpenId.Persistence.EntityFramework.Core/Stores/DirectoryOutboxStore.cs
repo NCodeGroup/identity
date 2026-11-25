@@ -178,7 +178,7 @@ internal class DirectoryOutboxStore(
                     .IgnoreQueryFilters()
                     .Where(entity => entity.NormalizedTenantId == controlPlane)
                     .ToListAsync(cancellationToken);
-                return ReplicatedDocumentComposer.ComposeAuthority(
+                return ReplicatedDocumentComposer.ComposePlatformAuthority(
                     PayloadSerializer,
                     platformAssignments,
                     clients
@@ -203,10 +203,9 @@ internal class DirectoryOutboxStore(
                         && entity.NormalizedResourceId == key
                     )
                     .ToListAsync(cancellationToken);
-                return ReplicatedDocumentComposer.ComposeAuthority(
+                return ReplicatedDocumentComposer.ComposeTeamAuthority(
                     PayloadSerializer,
-                    teamAssignments,
-                    []
+                    teamAssignments
                 );
 
             case ReplicatedDocumentKinds.ManagementKeys:

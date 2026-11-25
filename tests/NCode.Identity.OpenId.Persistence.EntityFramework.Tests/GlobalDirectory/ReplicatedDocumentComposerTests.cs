@@ -118,9 +118,9 @@ public class ReplicatedDocumentComposerTests
         };
 
     [Fact]
-    public void ComposeAuthority_WhenInputOrderDiffers_ProducesTheSameJson()
+    public void ComposePlatformAuthority_WhenInputOrderDiffers_ProducesTheSameJson()
     {
-        var first = ReplicatedDocumentComposer.ComposeAuthority(
+        var first = ReplicatedDocumentComposer.ComposePlatformAuthority(
             PayloadSerializer,
             [
                 CreateAssignment("b", "Admin"),
@@ -129,7 +129,7 @@ public class ReplicatedDocumentComposerTests
             ],
             [CreateClient("two", "p2", false), CreateClient("one", "p1", false)]
         );
-        var second = ReplicatedDocumentComposer.ComposeAuthority(
+        var second = ReplicatedDocumentComposer.ComposePlatformAuthority(
             PayloadSerializer,
             [
                 CreateAssignment("a", "Admin"),
@@ -141,7 +141,7 @@ public class ReplicatedDocumentComposerTests
 
         Assert.Equal(first, second);
 
-        var content = Read<AuthorityDocumentContent>(first);
+        var content = Read<PlatformAuthorityDocumentContent>(first);
         Assert.Equal(
             [("a", "Admin"), ("a", "Viewer"), ("b", "Admin")],
             content.Assignments.Select(item => (item.PrincipalId, item.RoleName))
@@ -150,15 +150,15 @@ public class ReplicatedDocumentComposerTests
     }
 
     [Fact]
-    public void ComposeAuthority_WhenClientIsDisabled_LeavesItOut()
+    public void ComposePlatformAuthority_WhenClientIsDisabled_LeavesItOut()
     {
-        var json = ReplicatedDocumentComposer.ComposeAuthority(
+        var json = ReplicatedDocumentComposer.ComposePlatformAuthority(
             PayloadSerializer,
             [],
             [CreateClient("on", "p1", false), CreateClient("off", "p2", true)]
         );
 
-        var content = Read<AuthorityDocumentContent>(json);
+        var content = Read<PlatformAuthorityDocumentContent>(json);
         var client = Assert.Single(content.Clients);
         Assert.Equal("on", client.ClientId);
     }
@@ -238,9 +238,9 @@ public class ReplicatedDocumentComposerTests
     }
 
     [Fact]
-    public void ComposeAuthority_StoresTheContentInTheVersionedEnvelope()
+    public void ComposePlatformAuthority_StoresTheContentInTheVersionedEnvelope()
     {
-        var json = ReplicatedDocumentComposer.ComposeAuthority(
+        var json = ReplicatedDocumentComposer.ComposePlatformAuthority(
             PayloadSerializer,
             [CreateAssignment("a", "Admin")],
             []
@@ -248,8 +248,30 @@ public class ReplicatedDocumentComposerTests
 
         var root = JsonElement.Parse(json);
         Assert.Equal(1, root.GetProperty("$ver").GetInt32());
-        var assignments = root.GetProperty("$payload").GetProperty("assignments");
-        Assert.Equal(1, assignments.GetArrayLength());
+        var payload = root.GetProperty("$payload");
+        Assert.Equal(1, payload.GetProperty("assignments").GetArrayLength());
+        Assert.Equal(0, payload.GetProperty("clients").GetArrayLength());
+    }
+
+    [Fact]
+    public void ComposeTeamAuthority_StoresTheAssignmentsWithoutClients()
+    {
+        var json = ReplicatedDocumentComposer.ComposeTeamAuthority(
+            PayloadSerializer,
+            [CreateAssignment("b", "Admin"), CreateAssignment("a", "Admin")]
+        );
+
+        var root = JsonElement.Parse(json);
+        Assert.Equal(1, root.GetProperty("$ver").GetInt32());
+        var payload = root.GetProperty("$payload");
+        Assert.False(payload.TryGetProperty("clients", out _));
+        Assert.Equal(
+            ["a", "b"],
+            payload
+                .GetProperty("assignments")
+                .EnumerateArray()
+                .Select(item => item.GetProperty("principalId").GetString())
+        );
     }
 
     [Fact]
