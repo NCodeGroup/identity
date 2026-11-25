@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using System.Text.Json;
+using NCode.Identity.Json;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
 using NCode.Identity.OpenId.Persistence.Tenants;
@@ -24,6 +25,7 @@ internal sealed class DefaultControlPlaneReplica(
     IStoreManagerFactory storeManagerFactory,
     IAmbientTenantAccessor ambientTenantAccessor,
     ISecretSerializer secretSerializer,
+    IPersistedPayloadSerializer payloadSerializer,
     TimeProvider timeProvider
 ) : IControlPlaneReplica
 {
@@ -37,6 +39,7 @@ internal sealed class DefaultControlPlaneReplica(
     private IStoreManagerFactory StoreManagerFactory { get; } = storeManagerFactory;
     private IAmbientTenantAccessor AmbientTenantAccessor { get; } = ambientTenantAccessor;
     private ISecretSerializer SecretSerializer { get; } = secretSerializer;
+    private IPersistedPayloadSerializer PayloadSerializer { get; } = payloadSerializer;
     private TimeProvider TimeProvider { get; } = timeProvider;
 
     /// <inheritdoc />
@@ -182,13 +185,14 @@ internal sealed class DefaultControlPlaneReplica(
         ];
     }
 
-    private static T? Deserialize<T>(PersistedReplicatedDocument? document)
+    private T? Deserialize<T>(PersistedReplicatedDocument? document)
         where T : class
     {
         if (document?.ContentJson is not { } contentJson)
             return null;
 
-        return JsonSerializer.Deserialize<T>(contentJson, JsonOptions);
+        var contentElement = JsonElement.Parse(contentJson);
+        return PayloadSerializer.Deserialize<T>(contentElement, JsonOptions);
     }
 
     private static PersistedSecret ToPersistedSecret(ManagementKeyEntry entry)

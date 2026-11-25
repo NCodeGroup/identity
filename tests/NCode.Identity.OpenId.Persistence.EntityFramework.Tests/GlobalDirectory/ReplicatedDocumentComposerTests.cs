@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using System.Text.Json;
+using Microsoft.Extensions.DependencyInjection;
+using NCode.Identity.Json;
 using NCode.Identity.OpenId.GlobalDirectory;
 using NCode.Identity.OpenId.Persistence.EntityFramework.Core.GlobalDirectory;
 using NCode.Identity.Secrets;
@@ -12,6 +14,15 @@ namespace NCode.Identity.OpenId.Persistence.EntityFramework.GlobalDirectory;
 public class ReplicatedDocumentComposerTests
 {
     private static JsonSerializerOptions JsonOptions { get; } = new(JsonSerializerDefaults.Web);
+
+    private static IPersistedPayloadSerializer PayloadSerializer { get; } =
+        new ServiceCollection()
+            .AddPersistedPayloadSerializer()
+            .BuildServiceProvider()
+            .GetRequiredService<IPersistedPayloadSerializer>();
+
+    private static T Read<T>(string json) =>
+        PayloadSerializer.Deserialize<T>(JsonElement.Parse(json), JsonOptions);
 
     private static RoleAssignmentEntity CreateAssignment(string principalId, string roleName) =>
         new()
@@ -110,6 +121,7 @@ public class ReplicatedDocumentComposerTests
     public void ComposeAuthority_WhenInputOrderDiffers_ProducesTheSameJson()
     {
         var first = ReplicatedDocumentComposer.ComposeAuthority(
+            PayloadSerializer,
             [
                 CreateAssignment("b", "Admin"),
                 CreateAssignment("a", "Viewer"),
@@ -118,6 +130,7 @@ public class ReplicatedDocumentComposerTests
             [CreateClient("two", "p2", false), CreateClient("one", "p1", false)]
         );
         var second = ReplicatedDocumentComposer.ComposeAuthority(
+            PayloadSerializer,
             [
                 CreateAssignment("a", "Admin"),
                 CreateAssignment("a", "Viewer"),
@@ -128,8 +141,7 @@ public class ReplicatedDocumentComposerTests
 
         Assert.Equal(first, second);
 
-        var content = JsonSerializer.Deserialize<AuthorityDocumentContent>(first, JsonOptions);
-        Assert.NotNull(content);
+        var content = Read<AuthorityDocumentContent>(first);
         Assert.Equal(
             [("a", "Admin"), ("a", "Viewer"), ("b", "Admin")],
             content.Assignments.Select(item => (item.PrincipalId, item.RoleName))
@@ -141,12 +153,12 @@ public class ReplicatedDocumentComposerTests
     public void ComposeAuthority_WhenClientIsDisabled_LeavesItOut()
     {
         var json = ReplicatedDocumentComposer.ComposeAuthority(
+            PayloadSerializer,
             [],
             [CreateClient("on", "p1", false), CreateClient("off", "p2", true)]
         );
 
-        var content = JsonSerializer.Deserialize<AuthorityDocumentContent>(json, JsonOptions);
-        Assert.NotNull(content);
+        var content = Read<AuthorityDocumentContent>(json);
         var client = Assert.Single(content.Clients);
         Assert.Equal("on", client.ClientId);
     }
@@ -155,12 +167,12 @@ public class ReplicatedDocumentComposerTests
     public void ComposeManagementKeys_WhenSecretIsSymmetric_LeavesItOut()
     {
         var json = ReplicatedDocumentComposer.ComposeManagementKeys(
+            PayloadSerializer,
             [CreateSecret("sym", SecretTypes.Symmetric), CreateSecret("ecc", SecretTypes.Ecc)],
             []
         );
 
-        var content = JsonSerializer.Deserialize<ManagementKeysDocumentContent>(json, JsonOptions);
-        Assert.NotNull(content);
+        var content = Read<ManagementKeysDocumentContent>(json);
         var key = Assert.Single(content.Keys);
         Assert.Equal("ecc", key.KeyId);
         Assert.Equal("public-material", key.PublicKey);
@@ -171,12 +183,12 @@ public class ReplicatedDocumentComposerTests
     public void ComposeManagementKeys_WhenSecretHoldsOnlyPublicMaterial_UsesTheEncodedValue()
     {
         var json = ReplicatedDocumentComposer.ComposeManagementKeys(
+            PayloadSerializer,
             [CreateSecret("pub", SecretTypes.Ecc, publicKey: null, encoding: SecretEncodings.Spki)],
             []
         );
 
-        var content = JsonSerializer.Deserialize<ManagementKeysDocumentContent>(json, JsonOptions);
-        Assert.NotNull(content);
+        var content = Read<ManagementKeysDocumentContent>(json);
         Assert.Equal("encoded-value", Assert.Single(content.Keys).PublicKey);
     }
 
@@ -185,10 +197,13 @@ public class ReplicatedDocumentComposerTests
     {
         var secret = CreateSecret("generated-secret", SecretTypes.Ecc, hasKeyId: false);
 
-        var json = ReplicatedDocumentComposer.ComposeManagementKeys([secret], []);
+        var json = ReplicatedDocumentComposer.ComposeManagementKeys(
+            PayloadSerializer,
+            [secret],
+            []
+        );
 
-        var content = JsonSerializer.Deserialize<ManagementKeysDocumentContent>(json, JsonOptions);
-        Assert.NotNull(content);
+        var content = Read<ManagementKeysDocumentContent>(json);
         Assert.Equal("generated-secret", Assert.Single(content.Keys).KeyId);
     }
 
@@ -196,6 +211,7 @@ public class ReplicatedDocumentComposerTests
     public void ComposeManagementKeys_WhenUseIsNotSignature_LeavesItOut()
     {
         var json = ReplicatedDocumentComposer.ComposeManagementKeys(
+            PayloadSerializer,
             [
                 CreateSecret("enc", SecretTypes.Rsa, use: "enc"),
                 CreateSecret("any", SecretTypes.Rsa, use: null),
@@ -203,8 +219,7 @@ public class ReplicatedDocumentComposerTests
             []
         );
 
-        var content = JsonSerializer.Deserialize<ManagementKeysDocumentContent>(json, JsonOptions);
-        Assert.NotNull(content);
+        var content = Read<ManagementKeysDocumentContent>(json);
         Assert.Equal("any", Assert.Single(content.Keys).KeyId);
     }
 
@@ -212,13 +227,44 @@ public class ReplicatedDocumentComposerTests
     public void ComposeManagementKeys_SortsKeysAndRevokedIds()
     {
         var json = ReplicatedDocumentComposer.ComposeManagementKeys(
+            PayloadSerializer,
             [CreateSecret("k2", SecretTypes.Ecc), CreateSecret("k1", SecretTypes.Ecc)],
             [CreateRevoked("z"), CreateRevoked("a")]
         );
 
-        var content = JsonSerializer.Deserialize<ManagementKeysDocumentContent>(json, JsonOptions);
-        Assert.NotNull(content);
+        var content = Read<ManagementKeysDocumentContent>(json);
         Assert.Equal(["k1", "k2"], content.Keys.Select(key => key.KeyId));
         Assert.Equal(["a", "z"], content.RevokedKeyIds);
+    }
+
+    [Fact]
+    public void ComposeAuthority_StoresTheContentInTheVersionedEnvelope()
+    {
+        var json = ReplicatedDocumentComposer.ComposeAuthority(
+            PayloadSerializer,
+            [CreateAssignment("a", "Admin")],
+            []
+        );
+
+        var root = JsonElement.Parse(json);
+        Assert.Equal(1, root.GetProperty("$ver").GetInt32());
+        var assignments = root.GetProperty("$payload").GetProperty("assignments");
+        Assert.Equal(1, assignments.GetArrayLength());
+    }
+
+    [Fact]
+    public void ComposeManagementKeys_StoresTheContentInTheVersionedEnvelope()
+    {
+        var json = ReplicatedDocumentComposer.ComposeManagementKeys(
+            PayloadSerializer,
+            [CreateSecret("k1", SecretTypes.Ecc)],
+            [CreateRevoked("r1")]
+        );
+
+        var root = JsonElement.Parse(json);
+        Assert.Equal(1, root.GetProperty("$ver").GetInt32());
+        var payload = root.GetProperty("$payload");
+        Assert.Equal(1, payload.GetProperty("keys").GetArrayLength());
+        Assert.Equal("r1", payload.GetProperty("revokedKeyIds")[0].GetString());
     }
 }

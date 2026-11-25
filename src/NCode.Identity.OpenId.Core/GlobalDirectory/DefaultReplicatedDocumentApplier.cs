@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using System.Text.Json;
+using NCode.Identity.Json;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
 using NCode.Identity.OpenId.Persistence.Tenants;
@@ -18,6 +19,7 @@ namespace NCode.Identity.OpenId.GlobalDirectory;
 internal sealed class DefaultReplicatedDocumentApplier(
     IStoreManagerFactory storeManagerFactory,
     IAmbientTenantAccessor ambientTenantAccessor,
+    IPersistedPayloadSerializer payloadSerializer,
     TimeProvider timeProvider
 ) : IReplicatedDocumentApplier
 {
@@ -30,6 +32,7 @@ internal sealed class DefaultReplicatedDocumentApplier(
 
     private IStoreManagerFactory StoreManagerFactory { get; } = storeManagerFactory;
     private IAmbientTenantAccessor AmbientTenantAccessor { get; } = ambientTenantAccessor;
+    private IPersistedPayloadSerializer PayloadSerializer { get; } = payloadSerializer;
     private TimeProvider TimeProvider { get; } = timeProvider;
 
     /// <inheritdoc />
@@ -79,7 +82,7 @@ internal sealed class DefaultReplicatedDocumentApplier(
         await storeManager.SaveChangesAsync(cancellationToken);
     }
 
-    private static IReadOnlyList<string> GetRevokedKeyIds(string kind, string? contentJson)
+    private IReadOnlyList<string> GetRevokedKeyIds(string kind, string? contentJson)
     {
         if (
             contentJson is null
@@ -93,10 +96,11 @@ internal sealed class DefaultReplicatedDocumentApplier(
             return [];
         }
 
-        var keysContent = JsonSerializer.Deserialize<ManagementKeysDocumentContent>(
-            contentJson,
+        var contentElement = JsonElement.Parse(contentJson);
+        var keysContent = PayloadSerializer.Deserialize<ManagementKeysDocumentContent>(
+            contentElement,
             JsonOptions
         );
-        return keysContent?.RevokedKeyIds ?? [];
+        return keysContent.RevokedKeyIds;
     }
 }

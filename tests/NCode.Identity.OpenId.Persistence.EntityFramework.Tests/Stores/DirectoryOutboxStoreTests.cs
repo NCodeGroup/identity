@@ -4,6 +4,7 @@
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using NCode.Identity.Json;
 using NCode.Identity.OpenId.Persistence.Stores;
 using NCode.Identity.Persistence.Stores;
 
@@ -42,6 +43,10 @@ public sealed class DirectoryOutboxStoreTests : IDisposable
             Mock.Of<IStoreProvider>(),
             context,
             Mock.Of<IDirectoryOutboxPolicy>(policy => policy.ControlPlaneTenantId == "root"),
+            new ServiceCollection()
+                .AddPersistedPayloadSerializer()
+                .BuildServiceProvider()
+                .GetRequiredService<IPersistedPayloadSerializer>(),
             TimeProvider.System
         );
 

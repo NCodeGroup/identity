@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using Microsoft.EntityFrameworkCore;
+using NCode.Identity.Json;
 using NCode.Identity.OpenId.GlobalDirectory;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities;
@@ -22,6 +23,7 @@ internal class DirectoryOutboxStore(
     IStoreProvider storeProvider,
     OpenIdDbContext openIdDbContext,
     IDirectoryOutboxPolicy policy,
+    IPersistedPayloadSerializer payloadSerializer,
     TimeProvider timeProvider
 ) : IDirectoryOutboxStore
 {
@@ -30,6 +32,8 @@ internal class DirectoryOutboxStore(
     private OpenIdDbContext DbContext { get; } = openIdDbContext;
 
     private IDirectoryOutboxPolicy Policy { get; } = policy;
+
+    private IPersistedPayloadSerializer PayloadSerializer { get; } = payloadSerializer;
 
     private TimeProvider TimeProvider { get; } = timeProvider;
 
@@ -174,7 +178,11 @@ internal class DirectoryOutboxStore(
                     .IgnoreQueryFilters()
                     .Where(entity => entity.NormalizedTenantId == controlPlane)
                     .ToListAsync(cancellationToken);
-                return ReplicatedDocumentComposer.ComposeAuthority(platformAssignments, clients);
+                return ReplicatedDocumentComposer.ComposeAuthority(
+                    PayloadSerializer,
+                    platformAssignments,
+                    clients
+                );
 
             case ReplicatedDocumentKinds.TeamAuthority:
                 var hasTeam = await DbContext
@@ -195,7 +203,11 @@ internal class DirectoryOutboxStore(
                         && entity.NormalizedResourceId == key
                     )
                     .ToListAsync(cancellationToken);
-                return ReplicatedDocumentComposer.ComposeAuthority(teamAssignments, []);
+                return ReplicatedDocumentComposer.ComposeAuthority(
+                    PayloadSerializer,
+                    teamAssignments,
+                    []
+                );
 
             case ReplicatedDocumentKinds.ManagementKeys:
                 var tenantSecrets = await DbContext
@@ -210,7 +222,11 @@ internal class DirectoryOutboxStore(
                     .Set<RevokedManagementKeyEntity>()
                     .AsNoTracking()
                     .ToListAsync(cancellationToken);
-                return ReplicatedDocumentComposer.ComposeManagementKeys(tenantSecrets, revoked);
+                return ReplicatedDocumentComposer.ComposeManagementKeys(
+                    PayloadSerializer,
+                    tenantSecrets,
+                    revoked
+                );
 
             default:
                 throw new ArgumentException(

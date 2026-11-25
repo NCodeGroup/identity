@@ -1,8 +1,11 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using System.Text.Json;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Time.Testing;
 using Moq;
+using NCode.Identity.Json;
 using NCode.Identity.OpenId.GlobalDirectory;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
@@ -18,6 +21,12 @@ namespace NCode.Identity.OpenId.Core.Tests.GlobalDirectory;
 public sealed class DefaultControlPlaneReplicaTests : BaseTests
 {
     private const string UnscopedReason = "control-plane replica";
+
+    private static IPersistedPayloadSerializer PayloadSerializer { get; } =
+        new ServiceCollection()
+            .AddPersistedPayloadSerializer()
+            .BuildServiceProvider()
+            .GetRequiredService<IPersistedPayloadSerializer>();
 
     private Mock<IStoreManagerFactory> MockStoreManagerFactory { get; }
     private Mock<IStoreManager> MockStoreManager { get; }
@@ -56,6 +65,7 @@ public sealed class DefaultControlPlaneReplicaTests : BaseTests
             MockStoreManagerFactory.Object,
             mockAmbientTenantAccessor.Object,
             MockSecretSerializer.Object,
+            PayloadSerializer,
             TimeProvider
         );
     }
@@ -73,7 +83,13 @@ public sealed class DefaultControlPlaneReplicaTests : BaseTests
             ContentJson = contentJson,
         };
 
-    private void SetupDocument(string kind, string key, string? contentJson) =>
+    private static string Envelope(string payloadJson) =>
+        $$"""{"$ver":1,"$payload":{{payloadJson}}}""";
+
+    private void SetupDocument(string kind, string key, string? payloadJson) =>
+        SetupRawDocument(kind, key, payloadJson is null ? null : Envelope(payloadJson));
+
+    private void SetupRawDocument(string kind, string key, string? contentJson) =>
         MockStore
             .Setup(x => x.GetOrDefaultAsync(kind, key, It.IsAny<CancellationToken>()))
             .ReturnsAsync(contentJson is null ? null : Document(kind, key, contentJson))
@@ -118,6 +134,35 @@ public sealed class DefaultControlPlaneReplicaTests : BaseTests
 
         Assert.False(result.HasKeys);
         Assert.Empty(result.Keys);
+    }
+
+    [Fact]
+    public async Task GetManagementKeysAsync_WhenTheContentLacksTheEnvelope_Throws()
+    {
+        SetupRawDocument(
+            ReplicatedDocumentKinds.ManagementKeys,
+            "",
+            $$"""{"keys":[{{KeyEntry("k1")}}],"revokedKeyIds":[]}"""
+        );
+        SetupRevoked();
+
+        await Assert.ThrowsAsync<JsonException>(async () =>
+            await Replica.GetManagementKeysAsync(CancellationToken.None)
+        );
+    }
+
+    [Fact]
+    public async Task GetAuthorityAsync_WhenTheContentLacksTheEnvelope_Throws()
+    {
+        SetupRawDocument(
+            ReplicatedDocumentKinds.PlatformAuthority,
+            "",
+            """{"assignments":[],"clients":[]}"""
+        );
+
+        await Assert.ThrowsAsync<JsonException>(async () =>
+            await Replica.GetAuthorityAsync("p1", null, CancellationToken.None)
+        );
     }
 
     [Fact]

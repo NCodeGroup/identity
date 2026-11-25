@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using System.Text.Json;
+using NCode.Identity.Json;
 using NCode.Identity.OpenId.GlobalDirectory;
 using NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities;
 using NCode.Identity.Secrets;
@@ -11,7 +12,7 @@ namespace NCode.Identity.OpenId.Persistence.EntityFramework.Core.GlobalDirectory
 
 /// <summary>
 /// Composes the content of the replicated documents from persisted rows. Every function is pure and orders its output,
-/// so the same rows always produce the same JSON.
+/// so the same rows always produce the same JSON, which is the versioned envelope of the content.
 /// </summary>
 internal static class ReplicatedDocumentComposer
 {
@@ -22,11 +23,13 @@ internal static class ReplicatedDocumentComposer
     /// <summary>
     /// Composes the JSON content of an authority document.
     /// </summary>
+    /// <param name="payloadSerializer">The serializer of the payloads stored at rest.</param>
     /// <param name="assignments">The role assignments at the node.</param>
     /// <param name="clients">The clients of the control-plane tenant, of which only the enabled ones are
     /// listed.</param>
     /// <returns>The JSON content.</returns>
     internal static string ComposeAuthority(
+        IPersistedPayloadSerializer payloadSerializer,
         IEnumerable<RoleAssignmentEntity> assignments,
         IEnumerable<ClientEntity> clients
     )
@@ -54,16 +57,18 @@ internal static class ReplicatedDocumentComposer
                 .ToList(),
         };
 
-        return JsonSerializer.Serialize(content, JsonOptions);
+        return payloadSerializer.Serialize(content, JsonOptions).GetRawText();
     }
 
     /// <summary>
     /// Composes the JSON content of the management keys document.
     /// </summary>
+    /// <param name="payloadSerializer">The serializer of the payloads stored at rest.</param>
     /// <param name="secrets">The secrets of the control-plane tenant.</param>
     /// <param name="revoked">The revoked management keys.</param>
     /// <returns>The JSON content.</returns>
     internal static string ComposeManagementKeys(
+        IPersistedPayloadSerializer payloadSerializer,
         IEnumerable<TenantSecretEntity> secrets,
         IEnumerable<RevokedManagementKeyEntity> revoked
     )
@@ -118,6 +123,6 @@ internal static class ReplicatedDocumentComposer
                 .ToList(),
         };
 
-        return JsonSerializer.Serialize(content, JsonOptions);
+        return payloadSerializer.Serialize(content, JsonOptions).GetRawText();
     }
 }

@@ -5,6 +5,7 @@ using System.Text.Json;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using NCode.Identity.Json;
 using NCode.Identity.OpenId.GlobalDirectory;
 using NCode.Identity.OpenId.Persistence.Stores;
 using NCode.Identity.OpenId.Persistence.Tenants;
@@ -24,6 +25,14 @@ public sealed class ReplicatedDocumentOutboxInterceptorTests : IDisposable
     private TestOutboxPolicy Policy { get; } = new();
     private CountingNotifier Notifier { get; } = new();
     private SettableAmbientTenantAccessor Accessor { get; } = new();
+
+    private T ReadContent<T>(string contentJson) =>
+        Provider
+            .GetRequiredService<IPersistedPayloadSerializer>()
+            .Deserialize<T>(
+                JsonElement.Parse(contentJson),
+                new JsonSerializerOptions(JsonSerializerDefaults.Web)
+            );
 
     public ReplicatedDocumentOutboxInterceptorTests()
     {
@@ -236,10 +245,7 @@ public sealed class ReplicatedDocumentOutboxInterceptorTests : IDisposable
         Assert.Equal(ReplicatedDocumentKinds.PlatformAuthority, outbox.Kind);
         Assert.Equal(string.Empty, outbox.Key);
         Assert.Equal(1, outbox.Revision);
-        var content = JsonSerializer.Deserialize<AuthorityDocumentContent>(
-            outbox.ContentJson!,
-            new JsonSerializerOptions(JsonSerializerDefaults.Web)
-        );
+        var content = ReadContent<AuthorityDocumentContent>(outbox.ContentJson!);
         var assignment = Assert.Single(content!.Assignments);
         Assert.Equal("principal-a", assignment.PrincipalId);
         Assert.Equal("GlobalAdmin", assignment.RoleName);
@@ -271,10 +277,7 @@ public sealed class ReplicatedDocumentOutboxInterceptorTests : IDisposable
 
         var outbox = await ListOutboxAsync();
         Assert.Equal([1L, 2L], outbox.Select(entry => entry.Revision).ToArray());
-        var content = JsonSerializer.Deserialize<AuthorityDocumentContent>(
-            outbox[1].ContentJson!,
-            new JsonSerializerOptions(JsonSerializerDefaults.Web)
-        );
+        var content = ReadContent<AuthorityDocumentContent>(outbox[1].ContentJson!);
         Assert.Equal(2, content!.Assignments.Count);
         var revision = Assert.Single(await ListRevisionsAsync());
         Assert.Equal(2, revision.Revision);
@@ -357,10 +360,7 @@ public sealed class ReplicatedDocumentOutboxInterceptorTests : IDisposable
 
         var entry = Assert.Single(await ListOutboxAsync());
         Assert.Equal(ReplicatedDocumentKinds.ManagementKeys, entry.Kind);
-        var content = JsonSerializer.Deserialize<ManagementKeysDocumentContent>(
-            entry.ContentJson!,
-            new JsonSerializerOptions(JsonSerializerDefaults.Web)
-        );
+        var content = ReadContent<ManagementKeysDocumentContent>(entry.ContentJson!);
         var key = Assert.Single(content!.Keys);
         Assert.Equal("kid-1", key.KeyId);
     }
@@ -386,10 +386,7 @@ public sealed class ReplicatedDocumentOutboxInterceptorTests : IDisposable
         );
 
         var entry = Assert.Single(await ListOutboxAsync());
-        var content = JsonSerializer.Deserialize<ManagementKeysDocumentContent>(
-            entry.ContentJson!,
-            new JsonSerializerOptions(JsonSerializerDefaults.Web)
-        );
+        var content = ReadContent<ManagementKeysDocumentContent>(entry.ContentJson!);
         Assert.Equal(["kid-9"], content!.RevokedKeyIds.ToArray());
     }
 }

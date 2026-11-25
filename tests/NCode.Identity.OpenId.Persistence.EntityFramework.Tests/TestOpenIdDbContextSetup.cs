@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using NCode.Identity.Json;
 using NCode.Identity.OpenId.Persistence.EntityFramework.Core.GlobalDirectory;
 using NCode.Identity.OpenId.Persistence.Stores;
 using NCode.Identity.OpenId.Persistence.Tenants;
@@ -43,6 +44,7 @@ internal static class TestOpenIdDbContextSetup
         );
         serviceCollection.TryAddSingleton<IDirectoryOutboxPolicy, NoOpDirectoryOutboxPolicy>();
         serviceCollection.TryAddSingleton<IDirectoryOutboxNotifier, NoOpDirectoryOutboxNotifier>();
+        serviceCollection.AddPersistedPayloadSerializer();
         serviceCollection.TryAddSingleton(TimeProvider.System);
         serviceCollection.TryAddSingleton<
             IAmbientTenantAccessor,

@@ -5,6 +5,7 @@ using System.Runtime.CompilerServices;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using NCode.Identity.Json;
 using NCode.Identity.OpenId.GlobalDirectory;
 using NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities;
 using NCode.Identity.OpenId.Persistence.Stores;
@@ -21,11 +22,13 @@ namespace NCode.Identity.OpenId.Persistence.EntityFramework.Core.GlobalDirectory
 internal sealed class ReplicatedDocumentOutboxInterceptor(
     IDirectoryOutboxPolicy policy,
     IDirectoryOutboxNotifier notifier,
+    IPersistedPayloadSerializer payloadSerializer,
     TimeProvider timeProvider
 ) : SaveChangesInterceptor, IOpenIdSaveChangesInterceptor
 {
     private IDirectoryOutboxPolicy Policy { get; } = policy;
     private IDirectoryOutboxNotifier Notifier { get; } = notifier;
+    private IPersistedPayloadSerializer PayloadSerializer { get; } = payloadSerializer;
     private TimeProvider TimeProvider { get; } = timeProvider;
 
     // The rows that a save added or changed, per context, so the publisher is woken only after a save that wrote any,
@@ -486,12 +489,16 @@ internal sealed class ReplicatedDocumentOutboxInterceptor(
         {
             var tenantSecrets = OverlayTenantSecrets(context, rows.TenantSecrets);
             var revoked = OverlayRevoked(context, rows.Revoked);
-            return ReplicatedDocumentComposer.ComposeManagementKeys(tenantSecrets, revoked);
+            return ReplicatedDocumentComposer.ComposeManagementKeys(
+                PayloadSerializer,
+                tenantSecrets,
+                revoked
+            );
         }
 
         var assignments = OverlayAssignments(context, document, rows.Assignments);
         var clients = OverlayClients(context, rows.Clients);
-        return ReplicatedDocumentComposer.ComposeAuthority(assignments, clients);
+        return ReplicatedDocumentComposer.ComposeAuthority(PayloadSerializer, assignments, clients);
     }
 
     private static List<RoleAssignmentEntity> OverlayAssignments(

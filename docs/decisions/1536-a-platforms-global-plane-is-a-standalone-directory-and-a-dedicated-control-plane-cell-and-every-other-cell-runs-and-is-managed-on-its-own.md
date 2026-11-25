@@ -144,7 +144,10 @@ tokens with keys and authority replicated through the directory's change feed.**
 7. **The control-plane cell publishes the authority and its keys through an outbox, and the feed replicates them.**
    Beside the team and platform documents, the control-plane cell publishes to the directory, and the change feed
    carries to every cell, three more kinds of document, each one envelope, a `ReplicatedDocument` of `Kind`, `Key`,
-   `Revision` and `Content`, where `Content` is null for a retired document:
+   `Revision` and `Content`, where `Content` is null for a retired document. Every other `Content` is the
+   schema-versioned envelope of the stored payloads, `{ "$ver": 1, "$payload": { ... } }`, written and read through
+   `IPersistedPayloadSerializer`; the directory relays it as an opaque value, a reader of content without the envelope
+   throws, and the shapes below are each document's `$payload`:
    - The `platform-authority` document (key empty) lists every role assignment at the platform node and the enabled
      clients of the control-plane tenant: `{ assignments: [{ principalId, roleName }], clients: [{ principalId,
      clientId }] }`. The clients let a workload cell know, offline, whether a token's subject is a client acting for

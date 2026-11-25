@@ -3,6 +3,7 @@
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using NCode.Identity.Json;
 using NCode.Identity.OpenId.Persistence.Stores;
 using NCode.Identity.Registration;
 
@@ -25,6 +26,8 @@ internal static class DefaultRegistration
         /// <returns>The <see cref="IServiceBuilder{T}"/> instance for method chaining.</returns>
         public IServiceBuilder<OpenIdCoreLibrary> AddDirectoryMirrorServices()
         {
+            // The replicated documents' contents are stored as versioned envelopes through the one serializer.
+            builder.ServiceCollection.AddPersistedPayloadSerializer();
             builder.ServiceCollection.TryAddSingleton<IPlatformTopology, LocalPlatformTopology>();
             builder.ServiceCollection.TryAddSingleton<
                 IPostCommitCommandSender,

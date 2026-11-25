@@ -2,8 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using System.Text.Json;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Time.Testing;
 using Moq;
+using NCode.Identity.Json;
 using NCode.Identity.OpenId.GlobalDirectory;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
@@ -16,6 +18,12 @@ namespace NCode.Identity.OpenId.Core.Tests.GlobalDirectory;
 public sealed class DefaultReplicatedDocumentApplierTests : BaseTests
 {
     private const string UnscopedReason = "directory replicated document";
+
+    private static IPersistedPayloadSerializer PayloadSerializer { get; } =
+        new ServiceCollection()
+            .AddPersistedPayloadSerializer()
+            .BuildServiceProvider()
+            .GetRequiredService<IPersistedPayloadSerializer>();
 
     private Mock<IStoreManagerFactory> MockStoreManagerFactory { get; }
     private Mock<IStoreManager> MockStoreManager { get; }
@@ -35,6 +43,20 @@ public sealed class DefaultReplicatedDocumentApplierTests : BaseTests
             .Setup(x => x.BeginUnscoped(UnscopedReason))
             .Returns(CreateLooseMock<IDisposable>().Object)
             .Verifiable();
+
+        Applier = new DefaultReplicatedDocumentApplier(
+            MockStoreManagerFactory.Object,
+            MockAmbientTenantAccessor.Object,
+            PayloadSerializer,
+            TimeProvider
+        );
+    }
+
+    /// <summary>
+    /// Sets up the store manager that a document which reaches the store opens and disposes.
+    /// </summary>
+    private void SetupStoreManager()
+    {
         MockStoreManagerFactory
             .Setup(x => x.CreateAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(MockStoreManager.Object)
@@ -44,17 +66,12 @@ public sealed class DefaultReplicatedDocumentApplierTests : BaseTests
             .Returns(MockStore.Object)
             .Verifiable();
         MockStoreManager.Setup(x => x.DisposeAsync()).Returns(ValueTask.CompletedTask).Verifiable();
-
-        Applier = new DefaultReplicatedDocumentApplier(
-            MockStoreManagerFactory.Object,
-            MockAmbientTenantAccessor.Object,
-            TimeProvider
-        );
     }
 
     [Fact]
     public async Task ApplyAsync_WhenTheDocumentIsNewer_StoresItAndSaves()
     {
+        SetupStoreManager();
         MockStore
             .Setup(x =>
                 x.TryApplyAsync(
@@ -89,6 +106,7 @@ public sealed class DefaultReplicatedDocumentApplierTests : BaseTests
     [Fact]
     public async Task ApplyAsync_WhenTheRevisionIsLower_ChangesNothing()
     {
+        SetupStoreManager();
         MockStore
             .Setup(x =>
                 x.TryApplyAsync(
@@ -105,7 +123,9 @@ public sealed class DefaultReplicatedDocumentApplierTests : BaseTests
             {
                 Kind = ReplicatedDocumentKinds.ManagementKeys,
                 Revision = 1,
-                Content = JsonElement.Parse("""{"keys":[],"revokedKeyIds":["k1"]}"""),
+                Content = JsonElement.Parse(
+                    """{"$ver":1,"$payload":{"keys":[],"revokedKeyIds":["k1"]}}"""
+                ),
             },
             CancellationToken.None
         );
@@ -114,6 +134,7 @@ public sealed class DefaultReplicatedDocumentApplierTests : BaseTests
     [Fact]
     public async Task ApplyAsync_WhenAManagementKeysDocumentRevokesKeys_RecordsEachRevokedKey()
     {
+        SetupStoreManager();
         MockStore
             .Setup(x =>
                 x.TryApplyAsync(
@@ -149,15 +170,35 @@ public sealed class DefaultReplicatedDocumentApplierTests : BaseTests
             {
                 Kind = ReplicatedDocumentKinds.ManagementKeys,
                 Revision = 2,
-                Content = JsonElement.Parse("""{"keys":[],"revokedKeyIds":["k1","k2"]}"""),
+                Content = JsonElement.Parse(
+                    """{"$ver":1,"$payload":{"keys":[],"revokedKeyIds":["k1","k2"]}}"""
+                ),
             },
             CancellationToken.None
         );
     }
 
     [Fact]
+    public async Task ApplyAsync_WhenAManagementKeysDocumentLacksTheEnvelope_Throws()
+    {
+        // Strict mocks: nothing is stored, because the content is read before it is applied.
+        await Assert.ThrowsAsync<JsonException>(async () =>
+            await Applier.ApplyAsync(
+                new ReplicatedDocument
+                {
+                    Kind = ReplicatedDocumentKinds.ManagementKeys,
+                    Revision = 2,
+                    Content = JsonElement.Parse("""{"keys":[],"revokedKeyIds":["k1"]}"""),
+                },
+                CancellationToken.None
+            )
+        );
+    }
+
+    [Fact]
     public async Task ApplyAsync_WhenTheDocumentIsRetired_StoresItWithNullContent()
     {
+        SetupStoreManager();
         MockStore
             .Setup(x =>
                 x.TryApplyAsync(
