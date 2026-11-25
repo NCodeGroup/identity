@@ -309,11 +309,80 @@ public class DirectoryReplicatedDocumentEndpointsTests : IAsyncLifetime
         var response = await Client.GetAsync(GlobalDirectoryProtocol.ReplicatedRevisionsPath);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var revisions = await response.Content.ReadFromJsonAsync<ReplicatedDocument[]>(WebOptions);
-        Assert.NotNull(revisions);
-        var revision = Assert.Single(revisions);
+        var page = await response.Content.ReadFromJsonAsync<ReplicatedRevisionPage>(WebOptions);
+        Assert.NotNull(page);
+        Assert.Null(page.Continuation);
+        var revision = Assert.Single(page.Revisions);
         Assert.Equal(7, revision.Revision);
         Assert.Null(revision.Content);
+    }
+
+    [Fact]
+    public async Task ListRevisions_WithALimit_PagesByKindAndKeyThroughTheContinuation()
+    {
+        await AuthenticateAsync(ControlPlaneCell);
+        await StoreDirectlyAsync(CreateDocument(ReplicatedDocumentKinds.PlatformAuthority, "", 1));
+        await StoreDirectlyAsync(CreateDocument(ReplicatedDocumentKinds.ManagementKeys, "", 2));
+        await StoreDirectlyAsync(
+            CreateDocument(ReplicatedDocumentKinds.TeamAuthority, "team-1", 3)
+        );
+
+        var path = $"{GlobalDirectoryProtocol.ReplicatedRevisionsPath}?limit=2";
+        var first = await GetPageAsync(path);
+        var second = await GetPageAsync(
+            $"{path}&after={Uri.EscapeDataString(first.Continuation!)}"
+        );
+
+        Assert.Equal(2, first.Revisions.Count);
+        Assert.Equal(ReplicatedDocumentKinds.ManagementKeys, first.Revisions[0].Kind);
+        Assert.Equal(ReplicatedDocumentKinds.PlatformAuthority, first.Revisions[1].Kind);
+        Assert.NotNull(first.Continuation);
+        var last = Assert.Single(second.Revisions);
+        Assert.Equal(ReplicatedDocumentKinds.TeamAuthority, last.Kind);
+        Assert.Null(second.Continuation);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-5)]
+    public async Task ListRevisions_WithALimitBelowOne_ClampsToOne(int limit)
+    {
+        await AuthenticateAsync(ControlPlaneCell);
+        await StoreDirectlyAsync(CreateDocument(ReplicatedDocumentKinds.PlatformAuthority, "", 1));
+        await StoreDirectlyAsync(CreateDocument(ReplicatedDocumentKinds.ManagementKeys, "", 2));
+
+        var page = await GetPageAsync(
+            $"{GlobalDirectoryProtocol.ReplicatedRevisionsPath}?limit={limit}"
+        );
+
+        Assert.Single(page.Revisions);
+        Assert.NotNull(page.Continuation);
+    }
+
+    [Fact]
+    public async Task ListRevisions_WithALimitAboveTheMaximum_Answers200()
+    {
+        await AuthenticateAsync(ControlPlaneCell);
+        await StoreDirectlyAsync(CreateDocument(ReplicatedDocumentKinds.PlatformAuthority, "", 1));
+
+        var page = await GetPageAsync(
+            $"{GlobalDirectoryProtocol.ReplicatedRevisionsPath}?limit=1000000"
+        );
+
+        Assert.Single(page.Revisions);
+        Assert.Null(page.Continuation);
+    }
+
+    [Fact]
+    public async Task ListRevisions_WithAnInvalidContinuation_AnswersBadRequest()
+    {
+        await AuthenticateAsync(ControlPlaneCell);
+
+        var response = await Client.GetAsync(
+            $"{GlobalDirectoryProtocol.ReplicatedRevisionsPath}?after=nocolon"
+        );
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
     [Fact]
@@ -324,6 +393,21 @@ public class DirectoryReplicatedDocumentEndpointsTests : IAsyncLifetime
         var response = await Client.GetAsync(GlobalDirectoryProtocol.ReplicatedRevisionsPath);
 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    private async ValueTask<ReplicatedRevisionPage> GetPageAsync(
+        string path,
+        CancellationToken cancellationToken = default
+    )
+    {
+        var response = await Client.GetAsync(path, cancellationToken);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var page = await response.Content.ReadFromJsonAsync<ReplicatedRevisionPage>(
+            WebOptions,
+            cancellationToken
+        );
+        return Assert.IsType<ReplicatedRevisionPage>(page);
     }
 
     private async ValueTask StoreDirectlyAsync(

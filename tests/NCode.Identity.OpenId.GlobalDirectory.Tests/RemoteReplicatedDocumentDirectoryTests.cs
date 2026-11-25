@@ -117,17 +117,22 @@ public class RemoteReplicatedDocumentDirectoryTests : RemoteDirectoryTestBase
     [Fact]
     public async Task ListRevisionsAsync_WhenCalled_ReturnsTheRevisions()
     {
-        var body = """[{"kind":"platform-authority","key":"","revision":4}]""";
+        var body =
+            """{"revisions":[{"kind":"platform-authority","key":"","revision":4}],"continuation":"platform-authority:"}""";
         var handler = StubHttpMessageHandler.Respond(HttpStatusCode.OK, body);
         var directory = new RemoteReplicatedDocumentDirectory(CreateClient(handler));
 
-        var result = await directory.ListRevisionsAsync(CancellationToken.None);
+        var result = await directory.ListRevisionsAsync("a:b", 50, CancellationToken.None);
 
-        var item = Assert.Single(result);
+        Assert.Equal("platform-authority:", result.Continuation);
+        var item = Assert.Single(result.Revisions);
         Assert.Equal(ReplicatedDocumentKinds.PlatformAuthority, item.Kind);
         Assert.Equal(4, item.Revision);
         var request = Assert.Single(handler.Requests);
-        Assert.Equal($"{Origin}replicated-revisions", request.RequestUri?.AbsoluteUri);
+        Assert.Equal(
+            $"{Origin}replicated-revisions?limit=50&after=a%3Ab",
+            request.RequestUri?.AbsoluteUri
+        );
     }
 
     #endregion

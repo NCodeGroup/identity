@@ -178,13 +178,35 @@ public class DirectoryOutboxPublisherTests : BaseTests
     }
 
     [Fact]
-    public async Task RepublishBehindAsync_WhenTheLocalRevisionIsBehind_RepublishesAboveTheDirectorys()
+    public async Task RepublishBehindAsync_WhenTheLocalRevisionIsBehindAcrossTwoPages_RepublishesAboveTheDirectorys()
     {
         var platform = ReplicatedDocumentKinds.PlatformAuthority;
         var keys = ReplicatedDocumentKinds.ManagementKeys;
         DirectoryMock
-            .Setup(x => x.ListRevisionsAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync([Revision(platform, "", 9), Revision(keys, "", 2)])
+            .Setup(x =>
+                x.ListRevisionsAsync(
+                    null,
+                    DirectoryOutboxPublisher.PageSize,
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync(
+                new ReplicatedRevisionPage
+                {
+                    Revisions = [Revision(platform, "", 9)],
+                    Continuation = "next",
+                }
+            )
+            .Verifiable(Times.Once);
+        DirectoryMock
+            .Setup(x =>
+                x.ListRevisionsAsync(
+                    "next",
+                    DirectoryOutboxPublisher.PageSize,
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync(new ReplicatedRevisionPage { Revisions = [Revision(keys, "", 2)] })
             .Verifiable(Times.Once);
         OutboxMock
             .Setup(x => x.ListLocalRevisionsAsync(It.IsAny<CancellationToken>()))
@@ -206,8 +228,14 @@ public class DirectoryOutboxPublisherTests : BaseTests
         var calls = 0;
         TopologyMock.Setup(x => x.IsControlPlaneCell).Returns(true).Verifiable(Times.Once);
         DirectoryMock
-            .Setup(x => x.ListRevisionsAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync([])
+            .Setup(x =>
+                x.ListRevisionsAsync(
+                    null,
+                    DirectoryOutboxPublisher.PageSize,
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync(new ReplicatedRevisionPage { Revisions = [] })
             .Verifiable(Times.Once);
         OutboxMock
             .Setup(x => x.ListLocalRevisionsAsync(It.IsAny<CancellationToken>()))

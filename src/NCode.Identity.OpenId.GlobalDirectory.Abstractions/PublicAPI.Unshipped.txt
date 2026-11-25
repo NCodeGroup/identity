@@ -263,7 +263,7 @@ NCode.Identity.OpenId.GlobalDirectory.ManagementKeyEntry.Use.get -> string!
 NCode.Identity.OpenId.GlobalDirectory.ManagementKeyEntry.Use.init -> void
 NCode.Identity.OpenId.GlobalDirectory.IReplicatedDocumentDirectory
 NCode.Identity.OpenId.GlobalDirectory.IReplicatedDocumentDirectory.GetOrDefaultAsync(string! kind, string! key, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.GlobalDirectory.ReplicatedDocument?>
-NCode.Identity.OpenId.GlobalDirectory.IReplicatedDocumentDirectory.ListRevisionsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<NCode.Identity.OpenId.GlobalDirectory.ReplicatedDocument!>!>
+NCode.Identity.OpenId.GlobalDirectory.IReplicatedDocumentDirectory.ListRevisionsAsync(string? continuation, int limit, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.GlobalDirectory.ReplicatedRevisionPage!>
 NCode.Identity.OpenId.GlobalDirectory.IReplicatedDocumentDirectory.PublishAsync(NCode.Identity.OpenId.GlobalDirectory.ReplicatedDocument! document, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<long>
 NCode.Identity.OpenId.GlobalDirectory.IReplicatedDocumentApplier
 NCode.Identity.OpenId.GlobalDirectory.IReplicatedDocumentApplier.ApplyAsync(NCode.Identity.OpenId.GlobalDirectory.ReplicatedDocument! document, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
@@ -299,3 +299,10 @@ NCode.Identity.OpenId.GlobalDirectory.IDirectoryOutboxSignal
 NCode.Identity.OpenId.GlobalDirectory.IDirectoryOutboxSignal.Notify() -> void
 NCode.Identity.OpenId.GlobalDirectory.IDirectoryOutboxSignal.WaitAsync(System.TimeSpan timeout, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 static NCode.Identity.OpenId.GlobalDirectory.GlobalDirectoryProtocol.ClientAssertionSigningAlgorithms.get -> System.Collections.Generic.IReadOnlyList<string!>!
+NCode.Identity.OpenId.GlobalDirectory.ReplicatedRevisionPage
+NCode.Identity.OpenId.GlobalDirectory.ReplicatedRevisionPage.Continuation.get -> string?
+NCode.Identity.OpenId.GlobalDirectory.ReplicatedRevisionPage.Continuation.init -> void
+NCode.Identity.OpenId.GlobalDirectory.ReplicatedRevisionPage.Revisions.get -> System.Collections.Generic.IReadOnlyList<NCode.Identity.OpenId.GlobalDirectory.ReplicatedDocument!>!
+NCode.Identity.OpenId.GlobalDirectory.ReplicatedRevisionPage.Revisions.init -> void
+static NCode.Identity.OpenId.GlobalDirectory.ReplicatedRevisionPage.CreateContinuation(string! kind, string! key) -> string!
+static NCode.Identity.OpenId.GlobalDirectory.ReplicatedRevisionPage.TryParseContinuation(string? continuation, out string? kind, out string? key) -> bool

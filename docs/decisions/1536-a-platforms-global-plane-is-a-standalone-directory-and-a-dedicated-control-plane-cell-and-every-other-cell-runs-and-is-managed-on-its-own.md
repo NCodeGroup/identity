@@ -181,9 +181,9 @@ tokens with keys and authority replicated through the directory's change feed.**
      changes nothing, so a retried publication is idempotent and a delayed one never overwrites a newer one.
    - **Crash and restore recovery.** A crash between the commit and the publication leaves the row in the outbox, and
      the publisher sends it at the next start. At startup the publisher also reads the revisions the directory holds
-     (`GET /directory/v1/replicated-revisions`), and a document whose local revision is behind the directory's, as after
-     a restore of the control-plane cell's database, is republished from its current state at the revision after the
-     directory's.
+     (`GET /directory/v1/replicated-revisions`, in pages of at most 1000 that follow the `after` continuation), and a
+     document whose local revision is behind the directory's, as after a restore of the control-plane cell's database,
+     is republished from its current state at the revision after the directory's.
    - **Routes.** The directory maps `PUT` and `GET /directory/v1/platform/authority`, `PUT` and
      `GET /directory/v1/teams/{teamId}/authority`, `PUT` and `GET /directory/v1/platform/management-keys` and
      `GET /directory/v1/replicated-revisions`. Only the anchor cell may `PUT` a document or read the revisions (`403`

@@ -36,12 +36,18 @@ public interface IReplicatedDocumentDirectory
     );
 
     /// <summary>
-    /// Lists the revision of every document the directory holds.
+    /// Lists a page of the revisions of the documents the directory holds, ordered by kind and then by key.
     /// </summary>
+    /// <param name="continuation">The <see cref="ReplicatedRevisionPage.Continuation"/> of the previous page, or
+    /// <c>null</c> for the first page.</param>
+    /// <param name="limit">The largest number of documents the page holds.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
     /// <returns>The <see cref="ValueTask{TResult}"/> that represents the asynchronous operation, whose result is the
-    /// documents with a <c>null</c> <see cref="ReplicatedDocument.Content"/>.</returns>
-    ValueTask<IReadOnlyList<ReplicatedDocument>> ListRevisionsAsync(
+    /// <see cref="ReplicatedRevisionPage"/> whose documents have a <c>null</c>
+    /// <see cref="ReplicatedDocument.Content"/>.</returns>
+    ValueTask<ReplicatedRevisionPage> ListRevisionsAsync(
+        string? continuation,
+        int limit,
         CancellationToken cancellationToken
     );
 }

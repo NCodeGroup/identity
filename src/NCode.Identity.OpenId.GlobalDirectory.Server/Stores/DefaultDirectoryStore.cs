@@ -2548,14 +2548,37 @@ internal sealed class DefaultDirectoryStore(
     }
 
     /// <inheritdoc />
-    async ValueTask<
-        IReadOnlyList<ReplicatedDocument>
-    > IReplicatedDocumentDirectory.ListRevisionsAsync(CancellationToken cancellationToken)
+    async ValueTask<ReplicatedRevisionPage> IReplicatedDocumentDirectory.ListRevisionsAsync(
+        string? continuation,
+        int limit,
+        CancellationToken cancellationToken
+    )
     {
+        ArgumentOutOfRangeException.ThrowIfLessThan(limit, 1);
+
         await using var dbContext = await DbContextFactory.CreateDbContextAsync(cancellationToken);
 
-        var records = await dbContext
-            .ReplicatedDocuments.AsNoTracking()
+        var query = dbContext.ReplicatedDocuments.AsNoTracking();
+        if (continuation is not null)
+        {
+            if (
+                !ReplicatedRevisionPage.TryParseContinuation(
+                    continuation,
+                    out var afterKind,
+                    out var afterKey
+                )
+            )
+            {
+                throw new ArgumentException("The continuation is not valid.", nameof(continuation));
+            }
+
+            query = query.Where(entity =>
+                entity.Kind.CompareTo(afterKind) > 0
+                || (entity.Kind == afterKind && entity.Key.CompareTo(afterKey) > 0)
+            );
+        }
+
+        var records = await query
             .OrderBy(entity => entity.Kind)
             .ThenBy(entity => entity.Key)
             .Select(entity => new
@@ -2564,10 +2587,13 @@ internal sealed class DefaultDirectoryStore(
                 entity.Key,
                 entity.Revision,
             })
+            .Take(limit + 1)
             .ToListAsync(cancellationToken);
 
-        var revisions = new List<ReplicatedDocument>(records.Count);
-        foreach (var record in records)
+        var hasMore = records.Count > limit;
+        var count = hasMore ? limit : records.Count;
+        var revisions = new List<ReplicatedDocument>(count);
+        foreach (var record in records.Take(count))
         {
             var revision = new ReplicatedDocument
             {
@@ -2578,7 +2604,11 @@ internal sealed class DefaultDirectoryStore(
             revisions.Add(revision);
         }
 
-        return revisions;
+        var last = hasMore ? revisions[^1] : null;
+        var next = last is null
+            ? null
+            : ReplicatedRevisionPage.CreateContinuation(last.Kind, last.Key);
+        return new ReplicatedRevisionPage { Revisions = revisions, Continuation = next };
     }
 
     /// <summary>

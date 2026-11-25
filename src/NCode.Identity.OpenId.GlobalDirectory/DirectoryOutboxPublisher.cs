@@ -130,7 +130,19 @@ internal sealed class DirectoryOutboxPublisher : BackgroundService
     /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation.</returns>
     internal async ValueTask RepublishBehindAsync(CancellationToken cancellationToken)
     {
-        var remote = await Directory.ListRevisionsAsync(cancellationToken);
+        var remote = new List<ReplicatedDocument>();
+        string? continuation = null;
+        do
+        {
+            var page = await Directory.ListRevisionsAsync(
+                continuation,
+                PageSize,
+                cancellationToken
+            );
+            remote.AddRange(page.Revisions);
+            continuation = page.Continuation;
+        } while (continuation is not null);
+
         var local = await Outbox.ListLocalRevisionsAsync(cancellationToken);
 
         foreach (var document in local)

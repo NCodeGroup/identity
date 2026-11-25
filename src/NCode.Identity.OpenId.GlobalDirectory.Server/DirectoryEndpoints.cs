@@ -1306,28 +1306,38 @@ public static class DirectoryEndpoints
     }
 
     /// <summary>
-    /// Lists the revision of every replicated document, which the control-plane cell reads when it starts.
+    /// Lists a page of the revisions of the replicated documents, ordered by kind and then by key, which the
+    /// control-plane cell reads when it starts. The page size is clamped to a range of one to the maximum page size, so
+    /// an out-of-range query value is bounded and never rejected.
     /// </summary>
     /// <param name="httpContext">The <see cref="HttpContext"/> that carries the authenticated calling cell.</param>
     /// <param name="options">The <see cref="DirectoryServerOptions"/> that name the control-plane cell.</param>
     /// <param name="directory">The <see cref="IReplicatedDocumentDirectory"/> that holds the documents.</param>
+    /// <param name="after">The continuation of the previous page, or <c>null</c> for the first page.</param>
+    /// <param name="limit">The requested page size.</param>
     /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
     /// <returns>
-    /// <c>200 OK</c> with the documents, whose content is <c>null</c>; or <c>403 Forbidden</c> when the caller is not
-    /// the control-plane cell.
+    /// <c>200 OK</c> with a page of documents, whose content is <c>null</c>; <c>400 Bad Request</c> when the
+    /// continuation is not valid; or <c>403 Forbidden</c> when the caller is not the control-plane cell.
     /// </returns>
     private static async ValueTask<IResult> ListReplicatedRevisionsAsync(
         HttpContext httpContext,
         IOptions<DirectoryServerOptions> options,
         IReplicatedDocumentDirectory directory,
+        [FromQuery] string? after,
+        [FromQuery] int? limit,
         CancellationToken cancellationToken
     )
     {
         if (ForbidUnlessControlPlane(httpContext, options.Value) is { } forbidden)
             return forbidden;
 
-        var revisions = await directory.ListRevisionsAsync(cancellationToken);
-        return TypedResults.Ok(revisions);
+        if (after is not null && !ReplicatedRevisionPage.TryParseContinuation(after, out _, out _))
+            return BadRequest("The continuation is not valid.");
+
+        var boundedLimit = Math.Clamp(limit ?? DefaultChangesLimit, 1, MaxChangesLimit);
+        var page = await directory.ListRevisionsAsync(after, boundedLimit, cancellationToken);
+        return TypedResults.Ok(page);
     }
 
     #endregion

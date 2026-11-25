@@ -221,8 +221,10 @@ public sealed class DefaultDirectoryStoreReplicatedDocumentTests : DefaultDirect
             CancellationToken.None
         );
 
-        var revisions = await Replicated.ListRevisionsAsync(CancellationToken.None);
+        var page = await Replicated.ListRevisionsAsync(null, 10, CancellationToken.None);
+        var revisions = page.Revisions;
 
+        Assert.Null(page.Continuation);
         Assert.Equal(2, revisions.Count);
         Assert.All(revisions, revision => Assert.Null(revision.Content));
         Assert.Equal(
