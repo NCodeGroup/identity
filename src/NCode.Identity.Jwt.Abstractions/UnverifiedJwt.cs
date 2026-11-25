@@ -63,7 +63,12 @@ public static class UnverifiedJwt
 
         try
         {
-            var bytes = StrictBase64Url.Decode(span[ranges[segmentIndex]]);
+            var segment = span[ranges[segmentIndex]];
+            using var lease = StrictBase64Url.RentDecoded(
+                segment,
+                isSensitive: false,
+                out ReadOnlySpan<byte> bytes
+            );
             var json = JsonElement.Parse(bytes);
             if (
                 json.ValueKind == JsonValueKind.Object

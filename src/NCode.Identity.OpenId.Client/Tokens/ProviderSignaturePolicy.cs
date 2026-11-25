@@ -1,6 +1,7 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.ExceptionServices;
 using System.Text.Json;
 using NCode.Identity.Jose;
@@ -70,11 +71,7 @@ internal static class ProviderSignaturePolicy
     {
         var keys = await keySetResolver.GetSigningKeysAsync(authority, cancellationToken);
 
-        if (
-            !token.Header.TryGetProperty(JoseClaimNames.Header.Kid, out var kidElement)
-            || kidElement.ValueKind != JsonValueKind.String
-            || kidElement.GetString() is not { Length: > 0 } kid
-        )
+        if (!TryGetKeyId(token, out var kid))
             return keys;
 
         if (keys.TryGetByKeyId(kid, out var key))
@@ -95,15 +92,30 @@ internal static class ProviderSignaturePolicy
     {
         cancellationToken.ThrowIfCancellationRequested();
 
-        if (
-            !token.Header.TryGetProperty(JoseClaimNames.Header.Kid, out var kidElement)
-            || kidElement.ValueKind != JsonValueKind.String
-            || kidElement.GetString() is not { Length: > 0 } kid
-        )
+        if (!TryGetKeyId(token, out var kid))
             return ValueTask.FromResult<IEnumerable<SecretKey>>(keys);
 
         IEnumerable<SecretKey> selected = keys.TryGetByKeyId(kid, out var key) ? [key] : [];
         return ValueTask.FromResult(selected);
+    }
+
+    /// <summary>
+    /// Reads the <c>kid</c> header of a token.
+    /// </summary>
+    /// <param name="token">The token.</param>
+    /// <param name="kid">The <c>kid</c> header when the method returns <see langword="true"/>.</param>
+    /// <returns><see langword="true"/> when the header holds a non-empty string <c>kid</c>.</returns>
+    private static bool TryGetKeyId(JoseToken token, [NotNullWhen(true)] out string? kid)
+    {
+        kid = null;
+        if (
+            !token.Header.TryGetProperty(JoseClaimNames.Header.Kid, out var kidElement)
+            || kidElement.ValueKind != JsonValueKind.String
+        )
+            return false;
+
+        kid = kidElement.GetString();
+        return kid is { Length: > 0 };
     }
 
     /// <summary>

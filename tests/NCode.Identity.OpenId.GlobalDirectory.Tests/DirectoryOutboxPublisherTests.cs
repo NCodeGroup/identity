@@ -30,17 +30,20 @@ public class DirectoryOutboxPublisherTests : BaseTests
         OutboxMock = CreateStrictMock<IDirectoryOutbox>();
         SignalMock = CreateStrictMock<IDirectoryOutboxSignal>();
         DirectoryMock = CreateStrictMock<IReplicatedDocumentDirectory>();
-        Publisher = new DirectoryOutboxPublisher(
+        Publisher = CreatePublisher(TimeProvider);
+    }
+
+    private DirectoryOutboxPublisher CreatePublisher(TimeProvider timeProvider) =>
+        new(
             TopologyMock.Object,
             OutboxMock.Object,
             SignalMock.Object,
             DirectoryMock.Object,
             Options.Create(new DirectoryClientOptions()),
-            TimeProvider,
+            timeProvider,
             new DirectoryMetrics(new TestMeterFactory()),
             NullLogger<DirectoryOutboxPublisher>.Instance
         );
-    }
 
     protected override void Dispose(bool disposing)
     {
@@ -345,14 +348,16 @@ public class DirectoryOutboxPublisherTests : BaseTests
             .Setup(x =>
                 x.ListPendingAsync(DirectoryOutboxPublisher.PageSize, It.IsAny<CancellationToken>())
             )
-            .ReturnsAsync(() => acknowledged ? [] : [pending]);
+            .ReturnsAsync(() => acknowledged ? [] : [pending])
+            .Verifiable();
         DirectoryMock
             .Setup(x => x.PublishAsync(pending, It.IsAny<CancellationToken>()))
             .Returns(() =>
                 Interlocked.Increment(ref calls) == 1
                     ? throw new DirectoryUnavailableException("The directory is unavailable.")
                     : ValueTask.FromResult(1L)
-            );
+            )
+            .Verifiable(Times.Exactly(2));
         OutboxMock
             .Setup(x => x.AcknowledgeAsync(kind, "", 1, It.IsAny<CancellationToken>()))
             .Returns(() =>
@@ -363,22 +368,50 @@ public class DirectoryOutboxPublisherTests : BaseTests
             .Verifiable(Times.Once);
         SignalMock
             .Setup(x => x.WaitAsync(TimeSpan.FromSeconds(5), It.IsAny<CancellationToken>()))
-            .Returns(() =>
-            {
-                published.TrySetResult();
-                return ValueTask.FromCanceled(new CancellationToken(true));
-            });
+            .Returns(
+                (TimeSpan _, CancellationToken cancellationToken) =>
+                {
+                    // The wait lasts until the publisher stops, as the real signal's does, so the loop arms no
+                    // second timer before the test stops it.
+                    published.TrySetResult();
+                    var wait = Task.Delay(System.Threading.Timeout.Infinite, cancellationToken);
+                    return new ValueTask(wait);
+                }
+            )
+            .Verifiable(Times.Once);
 
-        await Publisher.StartAsync(CancellationToken.None);
+        var armed = new TaskCompletionSource<(TimerCallback Callback, object? State)>(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        var timerMock = CreateStrictMock<ITimer>();
+        timerMock.Setup(x => x.Dispose());
+        var timeProviderMock = CreateStrictMock<TimeProvider>();
+        timeProviderMock
+            .Setup(x =>
+                x.CreateTimer(
+                    It.IsAny<TimerCallback>(),
+                    It.IsAny<object?>(),
+                    It.Is<TimeSpan>(dueTime => dueTime > TimeSpan.Zero),
+                    System.Threading.Timeout.InfiniteTimeSpan
+                )
+            )
+            .Returns(
+                (TimerCallback callback, object? state, TimeSpan _, TimeSpan _) =>
+                {
+                    armed.TrySetResult((callback, state));
+                    return timerMock.Object;
+                }
+            )
+            .Verifiable(Times.Once);
+        using var publisher = CreatePublisher(timeProviderMock.Object);
 
-        using var cts = new CancellationTokenSource(Timeout);
-        while (!published.Task.IsCompleted)
-        {
-            TimeProvider.Advance(TimeSpan.FromSeconds(1));
-            await Task.Delay(1, cts.Token);
-        }
+        await publisher.StartAsync(CancellationToken.None);
 
-        await Publisher.StopAsync(CancellationToken.None);
+        var (timerCallback, timerState) = await armed.Task.WaitAsync(Timeout);
+        timerCallback(timerState);
+        await published.Task.WaitAsync(Timeout);
+
+        await publisher.StopAsync(CancellationToken.None);
 
         Assert.Equal(2, calls);
     }
