@@ -42,8 +42,7 @@ tenant is created there instead.**
    (`ITenantResolver.IsRequiredTenant`: the root tenant, which under the static strategy is its tenant), which never
    leaves its cell, because it is part of its cell's deployment, which creates it on demand. The control-plane cell's
    root tenant is also the tenant the directory places in that cell from its own configuration
-   (`DirectoryServer:ControlPlaneTenantId`) and whose tokens are the only ones it accepts, and that cell creates, judges
-   and keys it without the directory, so the directory refuses to offer or move it as well.
+   (`DirectoryServer:ControlPlane:TenantId`), and that cell creates, judges and keys it without the directory, so the directory refuses to offer or move it as well.
 2. **The target publishes a transfer key.** `ITenantTransferKeyService` makes an EC P-256 key with a random `kid`, `use`
    `enc` and `alg` `ECDH-ES+A256KW`, keeps its private half protected by Data Protection in the shared expiring value
    set for one hour, and returns the public JWK. `POST api/tenant-imports/transfer-keys` serves it. Taking the key

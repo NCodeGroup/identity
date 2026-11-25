@@ -31,6 +31,11 @@
 # therefore return empty until something resolves them. Invoke the discovery endpoint below once to
 # build an OpenIdContext, which materializes the platform (DefaultOpenIdPlatformFactory) and the
 # tenant (StaticSingleTenantStrategy); after that they appear in the corresponding list endpoints.
+#
+# DPoP: on a platform with a directory (the host sets Directory:Url) a management token is bound to a DPoP proof. Send
+# it as 'Authorization: DPoP <token>' with a 'DPoP: <proof>' header whose 'htu' is the request URL under the cell's
+# Cell:ManagementUrl and whose 'jti' is new for each request; 'Bearer' and an unbound token get 401. A platform of one
+# cell accepts 'Bearer' too, as the requests below send it.
 
 ### Discovery — materializes the platform + static-single tenant on first call (run this before the lists)
 GET {{host}}/.well-known/openid-configuration
@@ -245,4 +250,58 @@ Accept: application/json
 
 ### Rekey the platform (update:platform_encryption_keys, central-admin)
 POST {{host}}/api/platform/encryption-keys/rekey
+Accept: application/json
+
+### List the cells of the platform (control-plane cell, GlobalAdmin)
+GET {{host}}/api/cells
+Accept: application/json
+
+### Get a cell
+GET {{host}}/api/cells/REPLACE_WITH_cellName
+Accept: application/json
+
+### Register a cell (control-plane cell, GlobalAdmin) — its region, its kind and the public JWK Set of its directory client
+PUT {{host}}/api/cells/REPLACE_WITH_cellName
+Content-Type: application/json
+Accept: application/json
+
+{
+  "region": "eu",
+  "kind": "shared",
+  "jwks": { "keys": [] }
+}
+
+### Retire a cell — 409 while it holds tenants
+DELETE {{host}}/api/cells/REPLACE_WITH_cellName
+
+### Get the cell this host serves (CellAdmin of a cell with a management tenant)
+GET {{host}}/api/cell
+Accept: application/json
+
+### List the tenants of this cell
+GET {{host}}/api/cell/tenants?limit=50
+Accept: application/json
+
+### List the cell's administrators
+GET {{host}}/api/cell/admins
+Accept: application/json
+
+### Grant CellAdmin to a principal of the cell's management tenant, by user name or by principal identifier
+POST {{host}}/api/cell/admins
+Content-Type: application/json
+Accept: application/json
+
+{
+  "userName": "REPLACE_WITH_userName"
+}
+
+### Remove a cell administrator
+DELETE {{host}}/api/cell/admins/REPLACE_WITH_principalId
+
+### Revoke a compromised management signing key in every cell (control-plane cell, GlobalAdmin) — a successor signs at once
+POST {{host}}/api/platform/management-keys/REPLACE_WITH_kid/revoke
+Accept: application/json
+
+### The caller, with the roles it holds at the platform, its teams and its cell
+GET {{host}}/api/me
 Accept: application/json

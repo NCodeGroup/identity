@@ -72,18 +72,15 @@ audited; and a caller reads its own assignments, teams and tenants from `GET /ap
 
 ### The holders' names
 
-9. **Names are read through the control plane.** The port `IControlPlanePrincipalDirectory` answers a
-   `ControlPlanePrincipalQuery` of principal ids and user names with `PrincipalSummaryResource` items. Its local
-   adapter, in the control-plane cell, describes the principals from the control-plane tenant's own tables. Its remote
-   adapter, in every other cell, posts the query to the control-plane cell and sends a query of more than 100 names in
-   chunks of 100 and answers each principal once, with the first summary the chunks give for it. A list handler never
-   reads names from the serving cell's own tables. Names match as the stores key them, ignoring case: a principal
-   identifier or username that differs from the stored one only in case names that principal, and its summary carries
-   the stored casing, which a grant records.
-10. **`POST /control-plane/v1/principals` answers the cells.** It sits behind the cell gate that guards
-    `POST /control-plane/v1/authority` and answers `400` when `principalIds` or `userNames` is null or holds a null or
-    blank name, and for a query of more than 100 names (`ControlPlanePrincipalQuery.MaxNames`, principal ids plus user
-    names).
+9. **Names are read through one port.** The port `IControlPlanePrincipalDirectory` answers a
+   `ControlPlanePrincipalQuery` of principal ids and user names with `PrincipalSummaryResource` items. Its adapter
+   describes the principals from the tables of the cell's own management tenant, the control-plane tenant in the
+   control-plane cell, and calls no other cell. A list handler never reads names from another cell's tables. Names match
+   as the stores key them, ignoring case: a principal identifier or username that differs from the stored one only in
+   case names that principal, and its summary carries the stored casing, which a grant records.
+10. **A query is bounded.** `ControlPlanePrincipalQuery` answers `400` when `principalIds` or `userNames` is null or
+    holds a null or blank name, and for a query of more than 100 names (`ControlPlanePrincipalQuery.MaxNames`, principal
+    ids plus user names).
 11. **`IPrincipalDescriber` is a strategy collection** (see
     [ADR-1001](1001-behavior-is-a-service-a-strategy-collection-or-a-mediator-seam-chosen-by-one-ladder.md)): every
     registered describer describes the principals it knows, and the local adapter merges their answers. The

@@ -104,10 +104,10 @@ returned committed row, so the tenant's system resource servers exist before its
 
 The root tenant is the control-plane tenant the selected strategy names through
 `ITenantStrategy.GetControlPlaneTenantId` and `GetControlPlaneTenantDisplayName`. The control-plane cell seeds it in the
-root plane, so it holds the management resource server's control-plane families, `urn:ncode:directory` and
-`urn:ncode:control-plane`. Every other cell seeds its root tenant in the workload plane: that cell validates management
-tokens against the control-plane cell and maps no platform or team route, and its root tenant serves as the context of
-its management requests and the tenant of its platform events. Under the host and path strategies
+root plane, so it holds the management resource server's control-plane families. Every other cell seeds its root tenant
+in the workload plane: that cell validates management tokens against the authority and keys it replicates from the
+control-plane cell and maps no platform or team route, and its root tenant serves as the context of its management
+requests and the tenant of its platform events. Under the host and path strategies
 `TenantResolution:Root` names it: `TenantId`, default `root`, `DisplayName`, default `Root Tenant`, `Issuer` and
 `MtlsEndpointAliasAuthority`. Under the static strategy its own tenant is the root tenant, and the host refuses those
 four settings at startup. `Root:TeamId` and `Root:TeamDisplayName` name the platform's team under every strategy.

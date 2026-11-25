@@ -147,7 +147,7 @@ helm install identity charts/ncode-identity-host \
 
 `ci/high-availability-values.yaml` shows a rolling three-replica release with Valkey, an ingress, and a retired local
 root key. `ci/cell-values.yaml` shows a cell that is not the control plane, and `ci/directory-values.yaml` the
-control-plane cell that reaches the platform's directory as its own machine client.
+control-plane cell that reaches the platform's directory as its own client.
 
 ## The cell
 
@@ -169,8 +169,8 @@ it, and the chart renders them as the `Cell` section the host binds:
 - `cell.isControlPlane` (default `false`), whether the cell is the control-plane cell, which serves platform and team
   management and setup (`Cell__IsControlPlane`);
 - `cell.controlPlaneIssuer`, the issuer of the control-plane cell (`Cell__ControlPlane__Issuer`), required when
-  `cell.isControlPlane` is `false` because the cell accepts platform and team management tokens from it, and when
-  `directory.url` is set because the cell asks it for the token it presents to the directory;
+  `cell.isControlPlane` is `false` because the cell accepts platform and team management tokens issued under it, and
+  when `directory.url` is set because the cell checks the issuer against its replicated keys;
 - `tenantResolution.staticSingle.tenantId` and `displayName`, the cell's own tenant under the `StaticSingle` strategy
   (`StaticSingle:TenantId` and `StaticSingle:DisplayName`), the tenant identifier `default` when empty, which the chart
   writes for the cell. A cell that is not the control plane must name its tenant, because a
@@ -200,12 +200,12 @@ through `directory.caCertificates`: `existingSecret` or `existingConfigMap` (nev
 authorities while every other outbound call of the process keeps the system store. The chart refuses
 `directory.caCertificates` while `directory.url` is empty.
 
-The cell's `directory` values say the same as the platform's bootstrap runbook: for every cell that sets
-`directory.url`, the control-plane cell included, the platform's operator registers the machine client
-`cell-<cell.name>` in the control-plane cell's root tenant with its key ring's public keys, and `directory.url`,
-`directory.clientId`, `directory.keyRing` and `directory.keys.*` give the cell the client and its private keys. A
-control-plane cell without `directory.url` keeps the local adapters, so its teams and platform changes never reach the
-directory. [Run the cells of a platform](../../docs/platform-bootstrap.md#9-run-the-cells-of-a-platform) lists the
+The cell's `directory` values say the same as the platform's bootstrap runbook: the control-plane cell's public keys
+are pinned in the directory chart's `controlPlane.clientJwks`, the platform's operator registers every workload cell
+with its key ring's public keys (`PUT /api/cells/{name}` in the control-plane cell), and `directory.url`,
+`directory.clientId`, `directory.keyRing` and `directory.keys.*` give the cell the client and its private keys. The cell
+signs an assertion with them and the directory issues the cell's token at its own token endpoint. A control-plane cell
+without `directory.url` keeps the local adapters, so its teams and platform changes never reach the directory. [Run the cells of a platform](../../docs/platform-bootstrap.md#9-run-the-cells-of-a-platform) lists the
 steps. Only the Deployment carries the directory client's settings and key: the setup and secret-protection Jobs run
 offline commands that never call the directory.
 
@@ -268,8 +268,8 @@ Rendering fails, before anything is applied, when:
   single hyphens, starting with a letter and ending with a letter or digit, with no two hyphens in a row), or
   `cell.isControlPlane` is `false` and `cell.controlPlaneIssuer` is empty, because the host's remote-key sweep reads the
   cell's name and a cell that is not the control plane reaches the control plane's issuer;
-- `directory.url` is set and `cell.controlPlaneIssuer` is empty, because the cell asks the control-plane cell's issuer
-  for the token it presents to the directory;
+- `directory.url` is set and `cell.controlPlaneIssuer` is empty, because the cell checks the control-plane cell's issuer
+  against the keys it replicates;
 - `directory.url` is set and `directory.clientId` is not `cell-<cell.name>` or `cell.managementUrl` is empty, because
   the directory knows a cell by its machine client and the cell registers its management URL with the directory;
 - `directory.clientId` is set and is not `cell-` followed by a cell name, the machine client the cell authenticates as;

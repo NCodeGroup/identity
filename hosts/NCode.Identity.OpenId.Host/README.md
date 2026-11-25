@@ -191,6 +191,42 @@ dotnet NCode.Identity.OpenId.Host.dll setup
 The Helm chart's opt-in `setup.job` runs it. [First use of a deployed instance](../../docs/first-deployed-instance.md)
 walks the whole sequence.
 
+### Offline commands
+
+The host image runs these offline commands, each with the cell's schema-owner credentials as a one-off Job, and none
+serves traffic:
+
+| Command                                          | What it does                                                                                              |
+|--------------------------------------------------|-----------------------------------------------------------------------------------------------------------|
+| `setup`                                          | Creates the root administrator, as above                                                                  |
+| `secret-protection rewrap`, `rewrap-recovery`    | Rewraps the master keys, as above                                                                         |
+| `recover-admin`                                  | Creates or re-enables an administrator account from `Recovery__Admin__*` and grants it the cell's role    |
+| `recover-sign-in`                                | Removes the values of the settings that block every sign-in and re-enables the sign-in surface            |
+| `revoke-management-key <kid>`                    | Revokes a management signing key in the cell's own database                                               |
+| `directory-client-jwks [--key-ring <name>]`      | Prints the public JWK Set of a cell's directory-client key ring                                           |
+
+`recover-admin` and `recover-sign-in` run in the control-plane cell and in a workload cell that has a management tenant.
+`recover-admin` reads `Recovery__Admin__UserName`, `__Password`, `__Email` and `__DisplayName`, and grants `GlobalAdmin` in the control-plane cell or `CellAdmin` in a workload cell. `recover-sign-in`
+removes the anchor tenant's own values of the settings that can block every sign-in, and in the control-plane cell the
+platform's values too, then re-enables the tenant's default local connection, the management console client and the
+management resource server. Each logs and audits what it changes, and after its commit announces the change to the
+running replicas, which take it up at once. The Helm chart's `recovery.*` values render each command as a Job, and
+`recovery.revokeManagementKey.keyId` runs `revoke-management-key`
+([Recovery](../../charts/ncode-identity-host/README.md#recovery)).
+
+### Cells of a platform
+
+A platform of more than one cell has a global directory, which runs from the `ncode-identity-directory` chart as a
+release of its own, and a control-plane cell dedicated to the control-plane tenant
+([ADR-1536](../../docs/decisions/1536-a-platforms-global-plane-is-a-standalone-directory-and-a-dedicated-control-plane-cell-and-every-other-cell-runs-and-is-managed-on-its-own.md)).
+A host reaches the directory when `Directory:Url` is set, and it signs the assertion that authenticates its cell at the
+directory's token endpoint with the keys of the key ring `Directory:KeyRing` names. No host image runs the directory.
+On such a platform every management token is bound to a DPoP proof: the host refuses a management token sent under the
+`Bearer` scheme or without a `cnf.jkt` confirmation, checks the proof's `htu` against `Cell:ManagementUrl` and accepts
+each proof's `jti` once. A platform of one cell, with no `Directory:Url`, accepts both. The runbook is
+[Run the cells of a platform](../../docs/platform-bootstrap.md#9-run-the-cells-of-a-platform), and
+`Management.http` holds the requests of the cell, cell and revocation endpoints.
+
 ### Development credentials
 
 The `BootstrapAdmin` client and the seeded `admin` account below are for development only, and a host without
@@ -445,7 +481,8 @@ the deployment provides:
   characters of lowercase letters, digits and single hyphens, starting with a letter and ending with a letter or digit,
   with no two hyphens in a row. The name tags the keys the cell creates in a key management service and prefixes its
   Valkey keys. The control-plane cell also sets `Cell__IsControlPlane=true`, and every other cell sets
-  `Cell__ControlPlane__Issuer` to the control-plane cell's issuer
+  `Cell__ControlPlane__Issuer` to the control-plane cell's issuer. A cell on a platform with a directory also sets
+  `Cell__ManagementUrl`, whose origin is the origin of its root tenant's issuer, and `Directory__Url`
   ([ADR-1411](../../docs/decisions/1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md)).
 
 More than one replica needs Valkey to share single-use state: set `ConnectionStrings__valkey`, or the parts

@@ -62,12 +62,9 @@ parameters. An endpoint filter does only the work that follows binding.**
    more raises its limit with a `RequestSizeLimitAttribute` of its own, as the tenant import does, because an endpoint
    applies the last request size limit in its metadata and a group's conventions add theirs before a route's. So an
    authenticated caller without authority makes a cell read at most that much.
-6. **`ControlPlaneAuthenticationGate` and `DirectoryAuthenticationGate` authenticate the other two APIs.** The
-   control-plane authority route materializes the control-plane environment, validates the bearer or DPoP access token
-   for the control-plane audience, requires its scope and a cell's machine client, and answers `401` or `403`; its
-   handler opens the unscoped scope itself. The directory group validates the bearer access token against the directory
-   issuer, audience and scope, answers `401`, or `503` while the issuer cannot be reached, and publishes the calling
-   client for its routes' handlers.
+6. **`DirectoryAuthenticationGate` authenticates the directory API.** The directory group validates the bearer access
+   token against the directory's own issuer, audience and scope, answers `401`, and publishes the calling client for its
+   routes' handlers.
 7. **An endpoint filter never authenticates.** An endpoint filter runs after binding, so a filter that authenticates
    costs a request its body. An authenticated API adds a gate.
 
@@ -117,5 +114,4 @@ parameters. An endpoint filter does only the work that follows binding.**
 - `src/NCode.Identity.OpenId.Management/Endpoints/ManagementFailureEndpointFilter.cs`
 - `src/NCode.Identity.OpenId.Management/Endpoints/ManagementRootGroup.cs`
 - `src/NCode.Identity.OpenId.Management/Endpoints/Tenants/TenantImportAuthorizationGate.cs`
-- `src/NCode.Identity.OpenId.Management/ControlPlane/ControlPlaneAuthenticationGate.cs`
 - `src/NCode.Identity.OpenId.GlobalDirectory.Server/DirectoryAuthenticationGate.cs`

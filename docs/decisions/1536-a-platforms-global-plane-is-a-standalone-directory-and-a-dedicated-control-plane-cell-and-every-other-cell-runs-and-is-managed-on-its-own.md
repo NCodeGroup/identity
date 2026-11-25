@@ -9,46 +9,37 @@
 A platform is a global directory over independent cells
 ([ADR-1411](1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md)),
 and a cell is the unit of release, restore and failure: its outage leaves every other cell serving
-([ADR-1134](1134-the-platform-and-the-host-follow-written-cloud-native-operating-principles.md), point 12). Serving
-already holds to that. A cell serves a tenant from its own tenant row and never calls the directory, and it mirrors the
-team and platform documents and the team root keys from the directory's change feed
+([ADR-1134](1134-the-platform-and-the-host-follow-written-cloud-native-operating-principles.md), point 12). A cell
+serves a tenant from its own tenant row and never calls the directory, and it mirrors the team and platform documents
+and the team root keys from the directory's change feed
 ([`DirectoryChangeFeedService`](../../src/NCode.Identity.OpenId.GlobalDirectory/DirectoryChangeFeedService.cs), polled
 every `Directory:PollInterval`, 30 seconds by default).
 
-Management and the directory do not hold to it. One cell, the control-plane cell (`Cell:IsControlPlane`), holds the
-platform and team authority, the platform and team settings, setup and the team root keys (ADR-1411, decision 4), and it
-can serve customer tenants as any cell does. Every other cell depends on it at run time:
+Management and the directory must hold to the same rule. One cell, the control-plane cell (`Cell:IsControlPlane`),
+holds the platform and team authority, the platform and team settings, setup and the team root keys (ADR-1411,
+decision 4). If it also served customer tenants, or if any other cell called it at run time, it would be a single
+point of failure:
 
-- Its management API validates every management token against the control-plane tenant's issuer
-  (`Cell:ControlPlane:Issuer`), fetching that issuer's discovery document and key set into an in-memory cache
-  ([`RemoteManagementTokenValidator`](../../src/NCode.Identity.OpenId.GlobalDirectory/ControlPlane/RemoteManagementTokenValidator.cs);
-  [ADR-1191](1191-a-management-request-is-authenticated-by-the-control-plane-tenant-and-scoped-by-its-routes-tenant.md),
-  decision 2).
-- It asks the control-plane cell's `POST /control-plane/v1/authority` who a caller is at the platform and team nodes,
-  with a client-credentials token for the audience `urn:ncode:control-plane`, caches an answer for 30 seconds and
-  answers `503` when the control-plane cell cannot be reached
-  ([`RemoteControlPlaneAuthority`](../../src/NCode.Identity.OpenId.GlobalDirectory/ControlPlane/RemoteControlPlaneAuthority.cs);
+- A cell that validates every management token against the control-plane tenant's issuer, fetching that issuer's
+  discovery document and key set, or asks the control-plane cell who a caller is at the platform and team nodes, refuses
+  management requests with `503` whenever the control-plane cell cannot be reached
+  ([ADR-1191](1191-a-management-request-is-authenticated-by-the-control-plane-tenant-and-scoped-by-its-routes-tenant.md),
+  decision 2;
   [ADR-1417](1417-management-authority-is-a-role-assignment-at-a-node-of-the-platform-team-and-tenant-hierarchy.md),
   decision 5).
-- It obtains its directory token from the control-plane tenant, where its machine client `cell-<name>` is registered
-  ([`DefaultCellTokenSource`](../../src/NCode.Identity.OpenId.GlobalDirectory/DefaultCellTokenSource.cs);
-  [`docs/platform-bootstrap.md`](../platform-bootstrap.md), section 9), and the directory accepts only tokens of that
-  one issuer, `DirectoryServer:Issuer`
-  ([`DirectoryAuthenticationGate`](../../src/NCode.Identity.OpenId.GlobalDirectory.Server/DirectoryAuthenticationGate.cs)).
-- The directory itself runs from the control-plane cell's Helm release: the host chart's `directory.enabled` adds the
-  directory's Deployment, Service and migration Job to a cell's release
-  ([`directory-deployment.yaml`](../../charts/ncode-identity-host/templates/directory-deployment.yaml)), and the chart's
-  only directory example is a control-plane cell
-  ([`ci/directory-values.yaml`](../../charts/ncode-identity-host/ci/directory-values.yaml)).
+- A cell that obtains its directory token from the control-plane tenant, and a directory that accepts only that
+  tenant's tokens
+  ([`DirectoryAuthenticationGate`](../../src/NCode.Identity.OpenId.GlobalDirectory.Server/DirectoryAuthenticationGate.cs)),
+  leaves no cell able to reach the directory while the control-plane cell is down, which stops the creation, deletion
+  and move of tenants and teams and the team feed platform-wide.
+- A directory that runs from a cell's own Helm release fails and rolls back with that release, because they are one
+  release.
 - The management console is a client of the control-plane tenant and forwards that tenant's token to every cell
   ([ADR-1437](1437-the-management-console-is-a-confidential-client-whose-own-bff-host-serves-only-the-console.md),
   decision 6).
 
-So one cell, which may also carry customer workloads, is a single point of failure for the management of every tenant in
-every cell and for the whole directory. An outage, a bad release, a restore or an overload of that cell refuses
-management requests in every other cell with `503`, leaves no cell able to obtain a directory token, and so stops the
-creation, deletion and move of tenants and teams and the team feed platform-wide. A failed upgrade of its release fails
-and rolls back the directory with it, because they are one release.
+An outage, a bad release, a restore or an overload of one cell must therefore never refuse management in another cell or
+stop the directory.
 
 The forces:
 
@@ -97,8 +88,8 @@ tokens with keys and authority replicated through the directory's change feed.**
 2. **The directory is a release of its own.** It is deployed by its own chart, `ncode-identity-directory`, published
    beside `ncode-identity-host`, from the `ncode-identity-directory` image, with its own database, its own route and
    backend TLS, and one replica, because it keeps its single-use state in process. The host chart keeps only a cell's
-   directory client (`directory.url`, `directory.clientId`, `directory.keyRing`, `directory.keys`); `directory.enabled`
-   and every directory-server value leave it, so no cell's release can run, upgrade or roll back the directory.
+   directory client (`directory.url`, `directory.clientId`, `directory.keyRing`, `directory.keys`) and holds no directory-server value, so no cell's release can run, upgrade or roll back the
+   directory.
 3. **The directory issues the cells' tokens.** The directory has a token endpoint, `POST /directory/v1/token`, which
    grants `client_credentials` to the machine client `cell-<name>` of a registered cell. The client authenticates with
    `private_key_jwt` (RFC 7523): an assertion whose `iss` and `sub` are `cell-<name>`, whose `aud` is the token
@@ -234,9 +225,9 @@ tokens with keys and authority replicated through the directory's change feed.**
      tenant or of a cell's management tenant, holds a DPoP key beside its client key. A cell's management tenant
      (decision 10) issues and its cell accepts management tokens under the same rule.
 
-   The remote `IControlPlaneAuthority` answers from the replicated platform and team authority, and a tenant's own
+   The replicated `IControlPlaneAuthority` answers from the replicated platform and team authority, and a tenant's own
    assignments stay in the tenant's cell. No cell calls another cell to authorize a request: the control-plane cell maps
-   no authority endpoint, and no cell holds a token for the audience `urn:ncode:control-plane`, which does not exist. A
+   no authority endpoint, and no cell holds a token for the control-plane cell. A
    cell whose replica holds no management keys yet refuses management tokens with `503`, and a cell with keys accepts
    them whatever the control-plane cell's or the directory's state. A workload cell holds no control-plane user names,
    because the directory holds no personal data, so its `IControlPlanePrincipalDirectory` names only the principals of
@@ -452,14 +443,9 @@ tokens with keys and authority replicated through the directory's change feed.**
   management token cannot use it anywhere else.
 - Starting a platform begins with provisioning keys: the directory's signing key and the control-plane cell's
   directory-client key exist, and the anchor's public JWKS is in the directory's configuration, before either release.
-- The work lands so that no workload cell is ever without a working authorization path
-  ([#940](https://github.com/NCodeGroup/identity/issues/940)): the replicated authority and management keys land first,
-  while every cell still obtains its directory token from the control-plane tenant, and the directory's token endpoint,
-  which retires the cells' machine clients there, lands after them.
 - A platform of more than one cell runs one more release and database for the directory and dedicates compute to the
   control-plane cell. A platform of one cell runs one host and its database, with no directory.
-- Adding a cell is a platform action: a global administrator registers its name, region, kind and public keys, instead
-  of registering a machine client in the control-plane tenant.
+- Adding a cell is a platform action: a global administrator registers its name, region, kind and public keys.
 - The directory is a token issuer for the cells, with a key ring of its own to back up and rotate, and it still runs one
   replica; a second replica needs the shared-state adapter for its assertion-replay record, as for its other single-use
   state.
@@ -500,9 +486,8 @@ tokens with keys and authority replicated through the directory's change feed.**
   — the hosted platform's regions and domain
 - [`DirectoryAuthenticationGate`](../../src/NCode.Identity.OpenId.GlobalDirectory.Server/DirectoryAuthenticationGate.cs),
   [`DefaultCellTokenSource`](../../src/NCode.Identity.OpenId.GlobalDirectory/DefaultCellTokenSource.cs),
-  [`RemoteManagementTokenValidator`](../../src/NCode.Identity.OpenId.GlobalDirectory/ControlPlane/RemoteManagementTokenValidator.cs),
-  [`RemoteControlPlaneAuthority`](../../src/NCode.Identity.OpenId.GlobalDirectory/ControlPlane/RemoteControlPlaneAuthority.cs),
-  [`ControlPlaneAuthorityEndpointProvider`](../../src/NCode.Identity.OpenId.Management/ControlPlane/ControlPlaneAuthorityEndpointProvider.cs),
+  [`ReplicatedManagementTokenValidator`](../../src/NCode.Identity.OpenId.GlobalDirectory/ControlPlane/ReplicatedManagementTokenValidator.cs),
+  [`ReplicatedControlPlaneAuthority`](../../src/NCode.Identity.OpenId.GlobalDirectory/ControlPlane/ReplicatedControlPlaneAuthority.cs),
   [`DirectoryChangeFeedService`](../../src/NCode.Identity.OpenId.GlobalDirectory/DirectoryChangeFeedService.cs),
   [`DefaultDirectoryStore`](../../src/NCode.Identity.OpenId.GlobalDirectory.Server/Stores/DefaultDirectoryStore.cs)
 - [RFC 6749](https://datatracker.ietf.org/doc/html/rfc6749) section 4.4,
