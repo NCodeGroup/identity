@@ -135,6 +135,21 @@ jobs:
           refuse --set keys.pemSecret= --set "$key.provider=google-cloud-kms" \
             --set "$key.keyId=projects/p/locations/l/keyRings/r/cryptoKeys/directory-signing" \
             --set "$key.algorithm=ES256" --set "$key.secretType=ecc" --set "$key.keySizeBits=256"
+          # The chart refuses a workload identity the directory could not use: Azure needs a tenant and a client, and
+          # Google needs a full provider resource name.
+          azure=(--set keys.pemSecret= --set "$key.provider=azure-key-vault" \
+            --set "$key.keyId=https://contoso.vault.azure.net/keys/directory-signing/0123456789abcdef0123456789abcdef" \
+            --set "$key.algorithm=ES256" --set "$key.secretType=ecc" --set "$key.keySizeBits=256")
+          helm template release "$CHART" --values "$base" "${azure[@]}" --set azure.workloadIdentity.tenantId=t \
+            --set azure.workloadIdentity.clientId=c > /dev/null
+          refuse "${azure[@]}" --set azure.workloadIdentity.tenantId=t
+          refuse "${azure[@]}" --set azure.workloadIdentity.clientId=c
+          google=(--set keys.pemSecret= --set "$key.provider=google-cloud-kms" \
+            --set "$key.keyId=projects/p/locations/l/keyRings/r/cryptoKeys/directory-signing/cryptoKeyVersions/1" \
+            --set "$key.algorithm=ES256" --set "$key.secretType=ecc" --set "$key.keySizeBits=256")
+          helm template release "$CHART" --values "$base" "${google[@]}" \
+            --set google.workloadIdentityFederation.provider=projects/123456789012/locations/global/workloadIdentityPools/ncode-identity/providers/cluster > /dev/null
+          refuse "${google[@]}" --set google.workloadIdentityFederation.provider=projects/p/providers/x
           # The control-plane cell is pinned in full: its name, region, root tenant, issuer and client key set.
           refuse --set controlPlane.cell=
           refuse --set controlPlane.region=
@@ -175,6 +190,12 @@ jobs:
           refuse --set backendTls.certManager.issuerRef.kind=Deployment
           refuse --set backendTls.certManager.duration=90d
           refuse --set backendTls.certManager.privateKey.size=1024
+          # A certificate renews before it expires, an ECDSA key is at most 521 bits and an RSA key at least 2048.
+          refuse --set backendTls.certManager.renewBefore=2160h
+          refuse --set backendTls.certManager.privateKey.size=2048
+          helm template release "$CHART" --values "$base" --set backendTls.certManager.privateKey.algorithm=RSA \
+            --set backendTls.certManager.privateKey.size=2048 > /dev/null
+          refuse --set backendTls.certManager.privateKey.algorithm=RSA --set backendTls.certManager.privateKey.size=256
           refuse --set backendTls.clientCertificate.commonName=
           refuse --set 'backendTls.clientCertificate.commonName=a b'
           refuse --set backendTls.clientCertificate.required=yes

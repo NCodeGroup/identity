@@ -284,13 +284,14 @@ kmsCredentials.volumes projects. Takes the dict that kmsCredentials.server rende
 
 {{/*
 The AWS web identity environment entries: the SDK exchanges the projected token for short-lived credentials of the role.
-Empty unless the component uses AWS KMS or Amazon SES and names a role. Takes the dict that kmsCredentials.server or
-kmsCredentials.mail renders.
+Empty unless the component uses AWS KMS and names a role. Takes the dict that kmsCredentials.server renders.
 */}}
 {{- define "identity-directory.kmsCredentials.awsEnv" -}}
 {{- $awsWebIdentityRoot := "/var/run/secrets/tokens/aws" }}
-{{- /* A pod that uses AWS KMS neither for the root key, nor for a tenant's root key, nor for a tenant's keys, and sends no mail through Amazon SES never carries AWS credentials, whatever the web identity values say. */}}
-{{- if and (or .awsKms .amazonSes) .webIdentity.roleArn }}
+{{- /*
+A pod whose key ring names no AWS KMS key never carries AWS credentials, whatever the web identity values say.
+*/}}
+{{- if and .awsKms .webIdentity.roleArn }}
 # The SDK exchanges the projected token for short-lived credentials of this role.
 - name: AWS_ROLE_ARN
   value: {{ .webIdentity.roleArn | quote }}
@@ -308,7 +309,10 @@ renders.
 */}}
 {{- define "identity-directory.kmsCredentials.azureEnv" -}}
 {{- $azureWorkloadIdentityRoot := "/var/run/secrets/tokens/azure" }}
-{{- /* A pod that uses Azure Key Vault neither for the root key, nor for a tenant's root key, nor for a tenant's keys never carries Azure credentials, whatever the workload identity values say. */}}
+{{- /*
+A pod whose key ring names no Azure Key Vault key never carries Azure credentials, whatever the workload identity
+values say.
+*/}}
 {{- if and .azureKeyVault .workloadIdentity.clientId }}
 # Azure.Identity exchanges the projected token for an Entra token of this identity, and tries no other
 # credential.
@@ -340,13 +344,13 @@ federation. Takes the dict that kmsCredentials.server renders.
 
 {{/*
 The volume mounts of the AWS, Azure and Google workload credentials, each present only when the component uses that
-service with an identity. Takes the dict that kmsCredentials.server or kmsCredentials.mail renders.
+service with an identity. Takes the dict that kmsCredentials.server renders.
 */}}
 {{- define "identity-directory.kmsCredentials.volumeMounts" -}}
 {{- $awsWebIdentityRoot := "/var/run/secrets/tokens/aws" }}
 {{- $azureWorkloadIdentityRoot := "/var/run/secrets/tokens/azure" }}
 {{- $googleCloudTokenRoot := "/var/run/secrets/tokens/google" }}
-{{- if and (or .awsKms .amazonSes) .webIdentity.roleArn }}
+{{- if and .awsKms .webIdentity.roleArn }}
 - name: aws-web-identity
   mountPath: {{ $awsWebIdentityRoot }}
   readOnly: true
@@ -365,10 +369,10 @@ service with an identity. Takes the dict that kmsCredentials.server or kmsCreden
 
 {{/*
 The volumes of the AWS, Azure and Google workload credentials, each present only when the component uses that service
-with an identity. Takes the dict that kmsCredentials.server or kmsCredentials.mail renders.
+with an identity. Takes the dict that kmsCredentials.server renders.
 */}}
 {{- define "identity-directory.kmsCredentials.volumes" -}}
-{{- if and (or .awsKms .amazonSes) .webIdentity.roleArn }}
+{{- if and .awsKms .webIdentity.roleArn }}
 # The pod does not mount the default service account token, so this one is projected explicitly, for AWS only.
 - name: aws-web-identity
   projected:

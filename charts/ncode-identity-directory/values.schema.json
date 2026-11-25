@@ -115,6 +115,64 @@
           }
         }
       }
+    },
+    "databaseParts": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "existingSecret": {
+          "type": "string"
+        },
+        "hostKey": {
+          "type": "string"
+        },
+        "portKey": {
+          "type": "string"
+        },
+        "databaseKey": {
+          "type": "string"
+        },
+        "usernameKey": {
+          "type": "string"
+        },
+        "passwordKey": {
+          "type": "string"
+        }
+      }
+    },
+    "databaseConnectionRequired": {
+      "anyOf": [
+        {
+          "required": [
+            "existingSecret"
+          ],
+          "properties": {
+            "existingSecret": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        {
+          "required": [
+            "parts"
+          ],
+          "properties": {
+            "parts": {
+              "type": "object",
+              "required": [
+                "existingSecret"
+              ],
+              "properties": {
+                "existingSecret": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            }
+          }
+        }
+      ]
     }
   },
   "required": [
@@ -314,28 +372,7 @@
           "minLength": 1
         },
         "parts": {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "existingSecret": {
-              "type": "string"
-            },
-            "hostKey": {
-              "type": "string"
-            },
-            "portKey": {
-              "type": "string"
-            },
-            "databaseKey": {
-              "type": "string"
-            },
-            "usernameKey": {
-              "type": "string"
-            },
-            "passwordKey": {
-              "type": "string"
-            }
-          }
+          "$ref": "#/definitions/databaseParts"
         }
       },
       "required": [
@@ -343,38 +380,7 @@
       ],
       "allOf": [
         {
-          "anyOf": [
-            {
-              "required": [
-                "existingSecret"
-              ],
-              "properties": {
-                "existingSecret": {
-                  "type": "string",
-                  "minLength": 1
-                }
-              }
-            },
-            {
-              "required": [
-                "parts"
-              ],
-              "properties": {
-                "parts": {
-                  "type": "object",
-                  "required": [
-                    "existingSecret"
-                  ],
-                  "properties": {
-                    "existingSecret": {
-                      "type": "string",
-                      "minLength": 1
-                    }
-                  }
-                }
-              }
-            }
-          ]
+          "$ref": "#/definitions/databaseConnectionRequired"
         }
       ]
     },
@@ -393,64 +399,12 @@
               "type": "string"
             },
             "parts": {
-              "type": "object",
-              "additionalProperties": false,
-              "properties": {
-                "existingSecret": {
-                  "type": "string"
-                },
-                "hostKey": {
-                  "type": "string"
-                },
-                "portKey": {
-                  "type": "string"
-                },
-                "databaseKey": {
-                  "type": "string"
-                },
-                "usernameKey": {
-                  "type": "string"
-                },
-                "passwordKey": {
-                  "type": "string"
-                }
-              }
+              "$ref": "#/definitions/databaseParts"
             }
           },
           "allOf": [
             {
-              "anyOf": [
-                {
-                  "required": [
-                    "existingSecret"
-                  ],
-                  "properties": {
-                    "existingSecret": {
-                      "type": "string",
-                      "minLength": 1
-                    }
-                  }
-                },
-                {
-                  "required": [
-                    "parts"
-                  ],
-                  "properties": {
-                    "parts": {
-                      "type": "object",
-                      "required": [
-                        "existingSecret"
-                      ],
-                      "properties": {
-                        "existingSecret": {
-                          "type": "string",
-                          "minLength": 1
-                        }
-                      }
-                    }
-                  }
-                }
-              ]
+              "$ref": "#/definitions/databaseConnectionRequired"
             }
           ]
         },
