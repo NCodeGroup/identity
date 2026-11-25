@@ -1,0 +1,23 @@
+# A production release of the global directory: its Deployment, its Service and the Job that migrates its own database,
+# with the signing key from a Secret.
+issuer: https://directory.example.com
+keyRing: directory
+keys:
+  pemSecret: directory-key
+controlPlane:
+  cell: control-plane
+  region: ci
+  kind: dedicated
+  tenantId: control-plane
+  issuer: https://id.example.com
+  clientJwks: '{"keys":[{"kty":"EC","crv":"P-256","kid":"control-plane-client","use":"sig","alg":"ES256","x":"f83OJ3D2xF1Bg8vub9tLe1gHMzV76e8Tus9uPHvRVEU","y":"x_FEzRu9m36HLN_tue659LNpXW6pCyStikYjKIWI5a0"}]}'
+allowedHosts:
+  - directory.example.com
+database:
+  existingSecret: directory-database
+  runtimeRole: ncode_directory_app
+migrations:
+  database:
+    existingSecret: directory-database-owner
+backendTls:
+  existingSecret: directory-tls

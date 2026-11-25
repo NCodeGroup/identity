@@ -157,16 +157,62 @@ google:
     serviceAccountEmail: ""
     tokenExpirationSeconds: 3600
 
-# The directory's serving certificate: a kubernetes.io/tls Secret with tls.crt, tls.key and ca.crt, or empty for a
-# cert-manager Certificate from the issuer of backendTls.certManager.
+# TLS between the ingress and the pods. The pods serve HTTPS only, because the chart never sets LocalDevelopment:Enabled.
+# The chart mounts the certificate at /etc/ncode-identity/tls and points the probes, the Service and the Ingress at the
+# pods' HTTPS port.
 backendTls:
+  # A kubernetes.io/tls Secret the operator created, with tls.crt, tls.key and ca.crt. Its certificate names the
+  # Service's DNS names: <service>, <service>.<namespace>, <service>.<namespace>.svc and
+  # <service>.<namespace>.svc.cluster.local. Empty makes the chart create a cert-manager Certificate.
   existingSecret: ""
-  # A Secret in the release namespace that the ingress controller reads to verify the directory's pods and, when
-  # clientCertificate.required is true, to authenticate to them. Empty uses <release>-ingress.
+  # The name of a Secret in the release namespace that the ingress controller reads: ca.crt verifies the pods'
+  # certificate (Traefik rootCAs) and tls.crt and tls.key are the controller's client certificate, which it presents
+  # when clientCertificate.required is true (Traefik certificatesSecrets, a Gateway's backend client certificate). Empty
+  # makes the chart issue <release>-ingress from the issuer of certManager when the route uses it.
   ingressSecret: ""
-  # A ConfigMap in the release namespace that holds only ca.crt, for a Gateway API implementation to verify the
-  # directory's pods. Empty uses the CA ConfigMap of the release.
+  clientCertificate:
+    # Whether the pods refuse a request whose connection carries no certificate from the ingress controller, except
+    # the liveness and readiness probes. The controller's certificate must have the subject CN=<commonName>.
+    required: false
+    # The common name of the ingress controller's certificate; the pods accept only the subject CN=<commonName>.
+    commonName: ncode-identity-ingress
+  # A ConfigMap in the release namespace that holds only ca.crt, the CA that signs the pods' certificate, which the
+  # Gateway API mode's BackendTLSPolicy verifies the pods against. trust-manager makes it, or: kubectl create configmap
+  # <name> --from-file=ca.crt=<ca.pem>. Empty with caPublisher.enabled names <release>-ca, which the publisher writes.
   caConfigMap: ""
+  # An opt-in hook Job that publishes the ca.crt of the chart's private CA to the CA ConfigMap after cert-manager issues
+  # it, so a release that uses the private CA needs no manual ConfigMap. It runs 'kubectl apply -k' and never sees the
+  # CA's private key.
+  caPublisher:
+    enabled: false
+    # The official kubectl image, pinned by tag and by the digest of its multi-architecture index; the digest wins when
+    # set.
+    image:
+      repository: registry.k8s.io/kubectl
+      tag: v1.37.2
+      digest: sha256:fe049faa65ae483ac200009a949a68fa4c9985daea12c9cb1195c9c7965301fc
+      pullPolicy: IfNotPresent
+    activeDeadlineSeconds: 600
+    resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
+      limits:
+        memory: 64Mi
+  certManager:
+    # The issuer of the pods' certificate. An empty name makes the chart create a private CA: a self-signed Issuer, a CA
+    # Certificate and a CA Issuer, which signs the pods' certificate. Name an Issuer or ClusterIssuer of your own, such
+    # as one backed by your organization's CA, to use it instead.
+    issuerRef:
+      name: ""
+      kind: Issuer
+      group: cert-manager.io
+    # Hours, because the chart passes them to cert-manager as they are.
+    duration: 2160h
+    renewBefore: 720h
+    privateKey:
+      algorithm: ECDSA
+      size: 256
 
 service:
   type: ClusterIP
@@ -175,6 +221,9 @@ service:
 # Routes every path of each host in allowedHosts to the directory.
 ingress:
   enabled: false
+  # traefik (a ServersTransport and Service annotations) or other (nothing: the operator wires HTTPS to the Service and
+  # the trust in the CA). Required when the Ingress is enabled.
+  controller: ""
   className: ""
   annotations: {}
   tls: []
@@ -197,6 +246,12 @@ serviceAccount:
   name: ""
   annotations: {}
 
+# The ingress removes a terminating pod from its endpoints asynchronously, so the pod keeps serving for this long
+# before the directory starts shutting down.
+preStopSleepSeconds: 10
+# Covers the preStop drain plus the directory's 30-second graceful shutdown.
+terminationGracePeriodSeconds: 45
+
 probes:
   startup:
     periodSeconds: 2
@@ -217,6 +272,11 @@ resources:
     memory: 128Mi
   limits:
     memory: 256Mi
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+priorityClassName: ""
 
 # Any other directory setting, as environment variables, and extra volumes. The migration Job receives the environment
 # variables too.

@@ -1,0 +1,138 @@
+{{- include "identity-directory.validate" . }}
+{{- $probeHost := first .Values.allowedHosts }}
+# The directory keeps its single-use state in process, so two replicas must never run at once, not even during an update.
+# Recreate waits until the old pod has terminated.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "identity-directory.fullname" . }}
+  labels:
+    {{- include "identity-directory.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  revisionHistoryLimit: 5
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "identity-directory.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "identity-directory.labels" . | nindent 8 }}
+      {{- with include "identity-directory.backupAnnotations" . | trim }}
+      annotations:
+        {{- . | nindent 8 }}
+      {{- end }}
+    spec:
+      # The directory never calls the Kubernetes API, so its own account mounts no token; a workload credential is projected
+      # explicitly.
+      serviceAccountName: {{ include "identity-directory.serviceAccountName" . }}
+      {{- include "identity-directory.processNamespace" . | nindent 6 }}
+      automountServiceAccountToken: false
+      {{- with include "identity-directory.imagePullSecrets" . }}
+      {{- . | trim | nindent 6 }}
+      {{- end }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . }}
+      {{- end }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      # The restricted Pod Security Standard: the image's non-root 'app' user, whose group can read the mounted keys.
+      securityContext:
+        {{- include "identity-directory.podSecurityContext" . | nindent 8 }}
+      containers:
+        - name: directory
+          image: {{ include "identity-directory.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            {{- include "identity-directory.containerSecurityContext" . | nindent 12 }}
+          ports:
+            - name: https
+              containerPort: 8443
+              protocol: TCP
+          env:
+            {{- include "identity-directory.env" . | trim | nindent 12 }}
+          {{- with .Values.extraEnvFrom }}
+          envFrom:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          # The kubelet sends the pod's IP as the Host header, which AllowedHosts rejects, so each probe names an allowed
+          # host.
+          startupProbe:
+            httpGet:
+              path: /health/live
+              port: https
+              scheme: HTTPS
+              httpHeaders:
+                - name: Host
+                  value: {{ $probeHost | quote }}
+            periodSeconds: {{ .Values.probes.startup.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.startup.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.startup.failureThreshold }}
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: https
+              scheme: HTTPS
+              httpHeaders:
+                - name: Host
+                  value: {{ $probeHost | quote }}
+            periodSeconds: {{ .Values.probes.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.liveness.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.liveness.failureThreshold }}
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: https
+              scheme: HTTPS
+              httpHeaders:
+                - name: Host
+                  value: {{ $probeHost | quote }}
+            periodSeconds: {{ .Values.probes.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.readiness.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.readiness.failureThreshold }}
+          lifecycle:
+            # The image has no shell, so the drain uses the kubelet's sleep action rather than 'sleep' in the container.
+            preStop:
+              sleep:
+                seconds: {{ .Values.preStopSleepSeconds }}
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            # The root filesystem is read-only; the runtime's diagnostics socket and temporary files go here.
+            - name: tmp
+              mountPath: /tmp
+            - name: tls
+              mountPath: /etc/ncode-identity/tls
+              readOnly: true
+            {{- with include "identity-directory.keyRingVolumeMounts" . }}
+            {{- . | trim | nindent 12 }}
+            {{- end }}
+            {{- with include "identity-directory.kmsCredentials.volumeMounts" (include "identity-directory.kmsCredentials.server" . | fromYaml) }}
+            {{- . | trim | nindent 12 }}
+            {{- end }}
+            {{- with .Values.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 64Mi
+        - name: tls
+          secret:
+            secretName: {{ include "identity-directory.backendTls.secretName" . }}
+            defaultMode: 0440
+        {{- with include "identity-directory.keyRingVolumes" . }}
+        {{- . | trim | nindent 8 }}
+        {{- end }}
+        {{- with include "identity-directory.kmsCredentials.volumes" (include "identity-directory.kmsCredentials.server" . | fromYaml) }}
+        {{- . | trim | nindent 8 }}
+        {{- end }}
+        {{- with .Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with include "identity-directory.scheduling" . }}
+      {{- . | trim | nindent 6 }}
+      {{- end }}
