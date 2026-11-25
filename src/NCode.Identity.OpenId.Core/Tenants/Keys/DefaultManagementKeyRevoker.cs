@@ -269,7 +269,7 @@ internal sealed class DefaultManagementKeyRevoker(
     /// <param name="tenantId">The tenant whose key was revoked.</param>
     /// <param name="auditEvents">The audit events to publish.</param>
     /// <param name="revoked">The revoked key, whose remote key is destroyed.</param>
-    /// <remarks>See ADR-1351 and ADR-1471.</remarks>
+    // See ADR-1351 and ADR-1471.
     [SuppressMessage(
         "Design",
         "NCID0003",
