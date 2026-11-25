@@ -18,7 +18,9 @@ namespace NCode.Identity.OpenId.GlobalDirectory.Host.Migrations.Directory
                     Name = table.Column<string>(type: "character varying(31)", maxLength: 31, nullable: false),
                     Region = table.Column<string>(type: "character varying(31)", maxLength: 31, nullable: false),
                     Kind = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: false),
-                    ManagementUrl = table.Column<string>(type: "character varying(2000)", maxLength: 2000, nullable: false),
+                    ManagementUrl = table.Column<string>(type: "character varying(2000)", maxLength: 2000, nullable: true),
+                    ClientJwksJson = table.Column<string>(type: "text", nullable: true),
+                    IsRetired = table.Column<bool>(type: "boolean", nullable: false),
                     IsControlPlane = table.Column<bool>(type: "boolean", nullable: false)
                 },
                 constraints: table =>

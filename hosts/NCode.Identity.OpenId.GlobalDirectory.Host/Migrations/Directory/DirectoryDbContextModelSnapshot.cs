@@ -28,7 +28,13 @@ namespace NCode.Identity.OpenId.GlobalDirectory.Host.Migrations.Directory
                         .HasMaxLength(31)
                         .HasColumnType("character varying(31)");
 
+                    b.Property<string>("ClientJwksJson")
+                        .HasColumnType("text");
+
                     b.Property<bool>("IsControlPlane")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsRetired")
                         .HasColumnType("boolean");
 
                     b.Property<string>("Kind")
@@ -37,7 +43,6 @@ namespace NCode.Identity.OpenId.GlobalDirectory.Host.Migrations.Directory
                         .HasColumnType("character varying(32)");
 
                     b.Property<string>("ManagementUrl")
-                        .IsRequired()
                         .HasMaxLength(2000)
                         .HasColumnType("character varying(2000)");
 
