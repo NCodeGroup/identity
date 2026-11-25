@@ -37,6 +37,7 @@ internal sealed class DefaultTenantProvisioner(
     ITenantResolver tenantResolver,
     IOptions<TenantResolutionOptions> optionsAccessor,
     IOptions<CellOptions> cellOptionsAccessor,
+    IPlatformTopology platformTopology,
     IMediator mediator,
     ITeamProvisioner teamProvisioner,
     ITenantPlacer tenantPlacer,
@@ -55,6 +56,7 @@ internal sealed class DefaultTenantProvisioner(
     /// Gets the options of the cell that the host runs.
     /// </summary>
     private CellOptions CellOptions { get; } = cellOptionsAccessor.Value;
+    private IPlatformTopology PlatformTopology { get; } = platformTopology;
     private IMediator Mediator { get; } = mediator;
     private ITeamProvisioner TeamProvisioner { get; } = teamProvisioner;
 
@@ -95,6 +97,17 @@ internal sealed class DefaultTenantProvisioner(
         var existing = await store.GetOrDefaultAsync(tenantId, cancellationToken);
         if (existing is not null)
             return existing;
+
+        // The control-plane cell of a platform with a directory is dedicated to its control-plane tenant, so the
+        // strategy answers not found for every other tenant.
+        if (
+            PlatformTopology.HasDirectory
+            && PlatformTopology.IsControlPlaneCell
+            && !RootTenantRules.IsTrustAnchor(CellOptions, TenantResolver, tenantId)
+        )
+        {
+            throw TenantErrors.NotFound(tenantId);
+        }
 
         // A tenant created on demand is written like any other: at the address its strategy derives for it, judged by
         // the rules every tenant write applies (ADR-1160, ADR-1165).

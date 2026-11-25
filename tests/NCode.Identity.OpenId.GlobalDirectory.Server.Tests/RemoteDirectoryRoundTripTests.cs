@@ -292,27 +292,29 @@ public class RemoteDirectoryRoundTripTests : IAsyncLifetime
     [Fact]
     public async Task PlaceAsync_WhenTheTenantHasNoIssuer_AnswersAPlacementWithoutAnIssuer()
     {
+        // The control-plane cell holds only its root tenant, so a workload cell holds this one.
+        await ActAsAsync(OtherCellName);
         await ReportCellAsync(
             new CellDescriptor
             {
-                Name = CellName,
+                Name = OtherCellName,
                 Region = Region,
                 Kind = CellKinds.Shared,
-                ManagementUrl = "https://a.example/",
+                ManagementUrl = "https://b.example/",
             },
             CancellationToken.None
         );
         Assert.True(
             (
                 await Tenants.ReserveAsync(
-                    CreateReservation(TenantId, issuer: null),
+                    CreateReservation(TenantId, issuer: null, OtherCellName),
                     CancellationToken.None
                 )
             ).IsReserved
         );
 
         var placeResult = await Tenants.PlaceAsync(
-            new TenantPlacementRequest { TenantId = TenantId, Cell = CellName },
+            new TenantPlacementRequest { TenantId = TenantId, Cell = OtherCellName },
             CancellationToken.None
         );
 
@@ -321,27 +323,29 @@ public class RemoteDirectoryRoundTripTests : IAsyncLifetime
         Assert.NotNull(placement);
         Assert.Equal(TenantId, placement.TenantId);
         Assert.Null(placement.Issuer);
-        Assert.Equal(CellName, placement.Cell);
+        Assert.Equal(OtherCellName, placement.Cell);
         Assert.Equal(Region, placement.Region);
     }
 
     [Fact]
     public async Task PlaceAsync_WhenTheTenantIsReserved_AnswersThePlacement()
     {
+        // The control-plane cell holds only its root tenant, so a workload cell holds this one.
+        await ActAsAsync(OtherCellName);
         await ReportCellAsync(
             new CellDescriptor
             {
-                Name = CellName,
+                Name = OtherCellName,
                 Region = Region,
                 Kind = CellKinds.Shared,
-                ManagementUrl = "https://a.example/",
+                ManagementUrl = "https://b.example/",
             },
             CancellationToken.None
         );
         Assert.True(
             (
                 await Tenants.ReserveAsync(
-                    CreateReservation(TenantId, TenantIssuer),
+                    CreateReservation(TenantId, TenantIssuer, OtherCellName),
                     CancellationToken.None
                 )
             ).IsReserved
@@ -353,7 +357,7 @@ public class RemoteDirectoryRoundTripTests : IAsyncLifetime
             {
                 TenantId = TenantId,
                 Issuer = TenantIssuer,
-                Cell = CellName,
+                Cell = OtherCellName,
             },
             CancellationToken.None
         );
@@ -363,7 +367,7 @@ public class RemoteDirectoryRoundTripTests : IAsyncLifetime
         Assert.NotNull(placement);
         Assert.Equal(TenantId, placement.TenantId);
         Assert.Equal(TenantIssuer, placement.Issuer);
-        Assert.Equal(CellName, placement.Cell);
+        Assert.Equal(OtherCellName, placement.Cell);
         Assert.Equal(Region, placement.Region);
     }
 

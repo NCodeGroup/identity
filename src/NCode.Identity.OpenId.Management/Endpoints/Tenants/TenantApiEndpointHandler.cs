@@ -113,6 +113,7 @@ internal class TenantApiEndpointHandler(
     IRemoteSecretDestroyer remoteSecretDestroyer,
     ITenantDirectory tenantDirectory,
     IOptions<CellOptions> cellOptions,
+    IPlatformTopology platformTopology,
     ITenantPlacer tenantPlacer,
     ITenantConfigurationExporter tenantConfigurationExporter,
     IManagementAuditRecorder managementAuditRecorder,
@@ -143,6 +144,7 @@ internal class TenantApiEndpointHandler(
     private IRemoteSecretDestroyer RemoteSecretDestroyer { get; } = remoteSecretDestroyer;
     private ITenantDirectory TenantDirectory { get; } = tenantDirectory;
     private CellOptions CellOptions { get; } = cellOptions.Value;
+    private IPlatformTopology PlatformTopology { get; } = platformTopology;
 
     /// <summary>
     /// Gets the placer that reserves and places in the global directory a tenant this handler creates.
@@ -775,7 +777,7 @@ internal class TenantApiEndpointHandler(
     /// <response code="201">The created tenant.</response>
     /// <response code="400">The tenant has no display name, its identifier, issuer or mutual-TLS endpoint-alias authority is not valid, or its settings are not valid for a tenant.</response>
     /// <response code="404">The team does not exist.</response>
-    /// <response code="409">A tenant with the identifier already exists, the identifier belonged to a deleted tenant, the issuer or the mutual-TLS endpoint-alias authority conflicts with another tenant's or with one that belonged to another tenant, or the team or a team above it holds its maximum number of tenants.</response>
+    /// <response code="409">A tenant with the identifier already exists, the identifier belonged to a deleted tenant, the issuer or the mutual-TLS endpoint-alias authority conflicts with another tenant's or with one that belonged to another tenant, the team or a team above it holds its maximum number of tenants, or the cell is the control-plane cell of a platform with a directory, which holds only the control-plane tenant.</response>
     /// <response code="503">The global directory cannot be reached; the response carries Retry-After.</response>
     [EndpointName("api/teams/tenants/create")]
     internal virtual async ValueTask<IResult> CreateTenantAsync(
@@ -798,6 +800,16 @@ internal class TenantApiEndpointHandler(
         if (authorizationError is not null)
         {
             return ToErrorResult(authorizationError);
+        }
+
+        // The control-plane cell of a platform with a directory is dedicated to the control-plane tenant, which exists
+        // before any request, so no other tenant is created in it.
+        if (PlatformTopology.HasDirectory && PlatformTopology.IsControlPlaneCell)
+        {
+            return TypedResults.Problem(
+                detail: "The control-plane cell holds only the control-plane tenant.",
+                statusCode: StatusCodes.Status409Conflict
+            );
         }
 
         await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);

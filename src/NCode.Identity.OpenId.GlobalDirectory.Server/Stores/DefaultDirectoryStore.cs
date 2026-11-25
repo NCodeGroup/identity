@@ -239,6 +239,29 @@ internal sealed class DefaultDirectoryStore(
             : null;
     }
 
+    /// <summary>
+    /// Gets the detail that refuses a placement or a move of a tenant into the control-plane cell: that cell is
+    /// dedicated to its root tenant, which the directory holds from its own configuration, so no other tenant is placed
+    /// in it.
+    /// </summary>
+    /// <param name="tenantId">The identifier of the tenant to place or move.</param>
+    /// <param name="cell">The name of the cell that would hold the tenant.</param>
+    /// <returns>
+    /// The detail of the refusal, or <c>null</c> when the cell is not the control-plane cell or the tenant is its root
+    /// tenant.
+    /// </returns>
+    private string? GetDedicatedControlPlaneCellDetailOrDefault(string tenantId, string cell)
+    {
+        var controlPlane = ServerOptions.Value.ControlPlane;
+        var isControlPlaneCell = string.Equals(cell, controlPlane.Cell, StringComparison.Ordinal);
+        if (!isControlPlaneCell || GetControlPlaneTenantMoveDetailOrDefault(tenantId) is not null)
+        {
+            return null;
+        }
+
+        return $"The cell '{cell}' is the control-plane cell, which holds only the control-plane tenant, so it cannot hold the tenant '{tenantId}'.";
+    }
+
     #region ITenantDirectory
 
     /// <inheritdoc />
@@ -389,6 +412,15 @@ internal sealed class DefaultDirectoryStore(
         CancellationToken cancellationToken
     )
     {
+        var dedicatedDetail = GetDedicatedControlPlaneCellDetailOrDefault(
+            placement.TenantId,
+            placement.Cell
+        );
+        if (dedicatedDetail is not null)
+        {
+            return ReservationResult.Conflict(dedicatedDetail);
+        }
+
         await using var dbContext = await DbContextFactory.CreateDbContextAsync(cancellationToken);
         var executionStrategy = dbContext.Database.CreateExecutionStrategy();
         return await executionStrategy.ExecuteAsync(
@@ -543,6 +575,12 @@ internal sealed class DefaultDirectoryStore(
         if (controlPlaneDetail is not null)
         {
             return MoveResult.Conflict(controlPlaneDetail);
+        }
+
+        var dedicatedDetail = GetDedicatedControlPlaneCellDetailOrDefault(tenantId, toCell);
+        if (dedicatedDetail is not null)
+        {
+            return MoveResult.Conflict(dedicatedDetail);
         }
 
         await using var dbContext = await DbContextFactory.CreateDbContextAsync(cancellationToken);

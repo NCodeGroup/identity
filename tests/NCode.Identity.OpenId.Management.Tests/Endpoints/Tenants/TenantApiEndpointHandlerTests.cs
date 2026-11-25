@@ -166,6 +166,7 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
             MockRemoteSecretDestroyer.Object,
             MockTenantDirectory.Object,
             Options.Create(CellOptions),
+            Mock.Of<IPlatformTopology>(),
             MockTenantPlacer.Object,
             MockTenantConfigurationExporter.Object,
             MockManagementAuditRecorder.Object,

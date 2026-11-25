@@ -121,6 +121,7 @@ public sealed class TenantKeyCustodyEndpointTests
                     Kind = CellKinds.Shared,
                 }
             ),
+            Mock.Of<IPlatformTopology>(),
             Mock.Of<ITenantPlacer>(),
             Mock.Of<ITenantConfigurationExporter>(),
             MockManagementAuditRecorder.Object,
