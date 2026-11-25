@@ -81,7 +81,9 @@ internal static class ReplicatedDocumentComposer
             )
                 continue;
 
-            if (string.IsNullOrEmpty(secret.KeyId))
+            // A key without a key identifier is identified by its secret identifier, which its tokens' kid carries.
+            var keyId = secret.KeyId ?? secret.SecretId;
+            if (string.IsNullOrEmpty(keyId))
                 continue;
 
             var publicKey = secret.PublicKey;
@@ -93,7 +95,7 @@ internal static class ReplicatedDocumentComposer
 
             var entry = new ManagementKeyEntry
             {
-                KeyId = secret.KeyId,
+                KeyId = keyId,
                 SecretType = secret.SecretType,
                 Algorithm = secret.Algorithm ?? string.Empty,
                 Use = SignatureUse,

@@ -65,7 +65,8 @@ public class ReplicatedDocumentComposerTests
         string secretType,
         string? use = "sig",
         string? publicKey = "public-material",
-        string encoding = "pkcs8"
+        string encoding = "pkcs8",
+        bool hasKeyId = true
     ) =>
         new()
         {
@@ -79,7 +80,7 @@ public class ReplicatedDocumentComposerTests
                 Id = Guid.NewGuid(),
                 SecretId = keyId,
                 NormalizedSecretId = keyId,
-                KeyId = keyId,
+                KeyId = hasKeyId ? keyId : null,
                 ConcurrencyToken = "token",
                 Use = use,
                 Algorithm = "ES256",
@@ -177,6 +178,18 @@ public class ReplicatedDocumentComposerTests
         var content = JsonSerializer.Deserialize<ManagementKeysDocumentContent>(json, JsonOptions);
         Assert.NotNull(content);
         Assert.Equal("encoded-value", Assert.Single(content.Keys).PublicKey);
+    }
+
+    [Fact]
+    public void ComposeManagementKeys_WhenSecretHasNoKeyId_UsesTheSecretId()
+    {
+        var secret = CreateSecret("generated-secret", SecretTypes.Ecc, hasKeyId: false);
+
+        var json = ReplicatedDocumentComposer.ComposeManagementKeys([secret], []);
+
+        var content = JsonSerializer.Deserialize<ManagementKeysDocumentContent>(json, JsonOptions);
+        Assert.NotNull(content);
+        Assert.Equal("generated-secret", Assert.Single(content.Keys).KeyId);
     }
 
     [Fact]
