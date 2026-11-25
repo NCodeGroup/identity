@@ -1,0 +1,25 @@
+# A release whose database is a Postgres operator's Secret (CloudNativePG's `<cluster>-app`), with a separate schema
+# credential for the migration Job. No connection string is built by hand.
+issuer: https://directory.example.com
+keyRing: directory
+keys:
+  pemSecret: directory-key
+controlPlane:
+  cell: control-plane
+  region: ci
+  kind: dedicated
+  tenantId: control-plane
+  issuer: https://id.example.com
+  clientJwks: '{"keys":[{"kty":"EC","crv":"P-256","kid":"control-plane-client","use":"sig","alg":"ES256","x":"f83OJ3D2xF1Bg8vub9tLe1gHMzV76e8Tus9uPHvRVEU","y":"x_FEzRu9m36HLN_tue659LNpXW6pCyStikYjKIWI5a0"}]}'
+allowedHosts:
+  - directory.example.com
+database:
+  parts:
+    existingSecret: directory-db-app
+  runtimeRole: ncode_directory_app
+migrations:
+  database:
+    parts:
+      existingSecret: directory-db-schema
+backendTls:
+  existingSecret: directory-tls

@@ -1,0 +1,32 @@
+# A release whose signing key is in AWS KMS, reached through web identity federation. No private key is a Secret.
+issuer: https://directory.example.com
+keyRing: directory
+keys:
+  remoteKeys:
+    directory:
+      provider: aws-kms
+      keyId: arn:aws:kms:us-west-2:111122223333:key/1234abcd-12ab-34cd-56ef-1234567890ab
+      algorithm: ES256
+      secretType: ecc
+      keySizeBits: 256
+      curve: P-256
+controlPlane:
+  cell: control-plane
+  region: ci
+  kind: dedicated
+  tenantId: control-plane
+  issuer: https://id.example.com
+  clientJwks: '{"keys":[{"kty":"EC","crv":"P-256","kid":"control-plane-client","use":"sig","alg":"ES256","x":"f83OJ3D2xF1Bg8vub9tLe1gHMzV76e8Tus9uPHvRVEU","y":"x_FEzRu9m36HLN_tue659LNpXW6pCyStikYjKIWI5a0"}]}'
+allowedHosts:
+  - directory.example.com
+database:
+  existingSecret: directory-database
+  runtimeRole: ncode_directory_app
+migrations:
+  database:
+    existingSecret: directory-database-owner
+aws:
+  webIdentity:
+    roleArn: arn:aws:iam::111122223333:role/ncode-identity-directory-key
+backendTls:
+  existingSecret: directory-tls

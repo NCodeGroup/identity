@@ -1,0 +1,32 @@
+# A release for a kind cluster. The directory image is built from the repository and loaded into the cluster's nodes, so
+# it is never pulled. Traefik routes to the pods through the release's ServersTransport. The workflow creates the
+# runtime and owner database Secrets and the signing key Secret this release names.
+image:
+  repository: ncode-identity-directory
+  tag: kind
+  pullPolicy: Never
+issuer: https://directory.example.com
+keyRing: directory
+keys:
+  pemSecret: directory-key
+controlPlane:
+  cell: control-plane
+  region: ci
+  kind: dedicated
+  tenantId: control-plane
+  issuer: https://id.example.com
+  clientJwks: '{"keys":[{"kty":"EC","crv":"P-256","kid":"control-plane-client","use":"sig","alg":"ES256","x":"f83OJ3D2xF1Bg8vub9tLe1gHMzV76e8Tus9uPHvRVEU","y":"x_FEzRu9m36HLN_tue659LNpXW6pCyStikYjKIWI5a0"}]}'
+allowedHosts:
+  - directory.example.com
+database:
+  parts:
+    existingSecret: postgres-runtime
+  runtimeRole: ncode_directory_app
+migrations:
+  database:
+    parts:
+      existingSecret: postgres-app
+ingress:
+  enabled: true
+  controller: traefik
+  className: traefik
