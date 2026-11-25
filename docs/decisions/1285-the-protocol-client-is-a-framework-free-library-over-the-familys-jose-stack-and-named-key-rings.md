@@ -45,9 +45,9 @@ configuration. No package of the client references an ASP.NET Core shared framew
    and validates the names at startup, and the one section the client binds is a host's key rings (decision 4).
 4. **Credentials come from a named key ring.** `KeyRing` names a keyed `ISecretKeyCollectionProvider`
    (`AddKeyedSingleton<ISecretKeyCollectionProvider>(name, …)`), read through `IClientKeyRingProvider`.
-   `AddOpenIdClientKeyRings(section)` binds a host's key rings by name from one configuration section, strictly, loads
-   every ring from PEM files and key management service keys through a hosted service when the host starts, and
-   registers a keyed provider for each
+   `AddOpenIdClientKeyRings(configuration)` binds a host's key rings by name from the configuration's top-level
+   `KeyRings` section, strictly, loads every ring from PEM files and key management service keys through a hosted
+   service when the host starts, and registers a keyed provider for each
    ([ADR-1439](1439-a-bff-loads-its-configured-key-rings-at-start-and-refuses-frontends-naming-an-unknown-ring.md)).
    The keys rotate and can be held in a key management service
    ([ADR-1479](1479-a-protocol-clients-and-a-bffs-keys-can-be-held-in-a-key-management-service.md)).
@@ -134,7 +134,7 @@ configuration. No package of the client references an ASP.NET Core shared framew
 ## Consequences
 
 - A consumer builds a `ClientRegistration` and registers a keyed key ring under the name it gives as `KeyRing`, or
-  names the ring in the section that `AddOpenIdClientKeyRings` binds.
+  names the ring in the top-level `KeyRings` section that `AddOpenIdClientKeyRings` binds.
 - A console app or worker that uses the client needs only `Microsoft.NETCore.App`. An ASP.NET Core host such as the
   backend-for-frontend resolves the same `Microsoft.Extensions.*` assemblies from its shared framework.
 - The framework cannot return unnoticed. Restoring with the framework reference fails with NU1510, because the direct

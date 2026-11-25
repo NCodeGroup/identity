@@ -38,11 +38,13 @@ keyed `ISecretKeyCollectionProvider` named after the key ring, and a BFF host po
 section. A BFF refuses a set of frontends that names a key ring it does not find. A host that needs another source
 registers the keyed provider in code.**
 
-1. **The section.** `AddOpenIdClientKeyRings(section)` on the protocol client's builder binds the named key rings
-   under a configuration section and registers one keyed provider for each. The BFF host's composition root,
-   `AddIdentityBff`, and the identity server each point it at their top-level `KeyRings` section, so each
+1. **The section.** `AddOpenIdClientKeyRings(configuration)` on the protocol client's builder binds the named key
+   rings under the top-level `KeyRings` section of the configuration it is given
+   (`OpenIdClientDefaults.KeyRingsSectionName`) and registers one keyed provider for each. The BFF host's composition
+   root, `AddIdentityBff`, the identity server and the directory host each pass their configuration, so each
    `KeyRings:{name}` entry registers one provider. `{name}` is the key ring's name, and a frontend's
-   `ClientAuthentication:KeyRing` or `DPoP:KeyRing` refers to it. A ring lists `PemFiles`, `RemoteKeys` or both. Remote keys that a key management service holds are described in
+   `ClientAuthentication:KeyRing` or `DPoP:KeyRing` refers to it. A ring lists `PemFiles`, `RemoteKeys` or both. Remote
+   keys that a key management service holds are described in
    [ADR-1479](1479-a-protocol-clients-and-a-bffs-keys-can-be-held-in-a-key-management-service.md).
 2. **The file formats.** Each PEM file holds one private key of one of the three standard encodings: PKCS#8, SEC1 (EC)
    or PKCS#1 (RSA). The loader reads a file as an EC key first and as an RSA key when that fails. A file that holds

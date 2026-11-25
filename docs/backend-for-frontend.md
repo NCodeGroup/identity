@@ -1081,10 +1081,10 @@ app.MapFallbackToFile("index.html");                    // the SPA itself, same 
 ```
 
 A BFF reads the key rings its frontends name from PEM files, from keys that a key management service (KMS) holds, or
-from both. The key rings are the protocol client's: `AddIdentityBff` points `AddOpenIdClientKeyRings` at the host's
-top-level `KeyRings` section, so `KeyRings:{name}` configures the key ring `{name}` and registers a keyed
-`ISecretKeyCollectionProvider` under that name, which a frontend's `ClientAuthentication:KeyRing` or `DPoP:KeyRing`
-refers to. `PemFiles` lists the files of the ring. Each file holds one EC or RSA private key (PKCS#8, SEC1 or PKCS#1),
+from both. The key rings are the protocol client's: `AddIdentityBff` passes the host's configuration to
+`AddOpenIdClientKeyRings`, which binds its top-level `KeyRings` section, so `KeyRings:{name}` configures the key ring
+`{name}` and registers a keyed `ISecretKeyCollectionProvider` under that name, which a frontend's
+`ClientAuthentication:KeyRing` or `DPoP:KeyRing` refers to. `PemFiles` lists the files of the ring. Each file holds one EC or RSA private key (PKCS#8, SEC1 or PKCS#1),
 read through sensitive buffers, and a key's `kid` is its file name without the extension. A key ring's name and each
 key's `kid` are letters and digits in groups separated by single `.`, `_` or `-`, at most 64 characters, and two `kid`s
 of one ring compare without case. A relative path resolves against the content root. `RemoteKeys:{kid}` names a key that
