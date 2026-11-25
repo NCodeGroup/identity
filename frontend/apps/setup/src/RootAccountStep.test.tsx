@@ -3,11 +3,15 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { AppThemeProvider } from '@ncodegroup/identity-ui';
 import { RootAccountStep } from './RootAccountStep.js';
 
-function renderStep() {
+function renderStep(administratorRole = 'GlobalAdmin') {
   const onContinue = vi.fn();
   render(
     <AppThemeProvider>
-      <RootAccountStep minimumPasswordLength={15} onContinue={onContinue} />
+      <RootAccountStep
+        minimumPasswordLength={15}
+        administratorRole={administratorRole}
+        onContinue={onContinue}
+      />
     </AppThemeProvider>,
   );
   return { onContinue };
@@ -29,6 +33,14 @@ function submit(): void {
 }
 
 describe('RootAccountStep', () => {
+  it('titles the step for a cell administrator when the role is CellAdmin', () => {
+    renderStep('CellAdmin');
+
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(
+      'Create the cell administrator',
+    );
+  });
+
   it('renders the account fields with their autocomplete hints', () => {
     renderStep();
 

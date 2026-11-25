@@ -25,13 +25,23 @@ afterEach(() => {
 
 describe('getStatus', () => {
   it('reads the status from the relative status endpoint', async () => {
-    const fetchMock = stubFetch(json(200, { tokenSource: 'generated', minimumPasswordLength: 15 }));
+    const fetchMock = stubFetch(
+      json(200, {
+        tokenSource: 'generated',
+        minimumPasswordLength: 15,
+        administratorRole: 'GlobalAdmin',
+      }),
+    );
 
     const result = await getStatus();
 
     expect(result).toEqual({
       kind: 'ok',
-      status: { tokenSource: 'generated', minimumPasswordLength: 15 },
+      status: {
+        tokenSource: 'generated',
+        minimumPasswordLength: 15,
+        administratorRole: 'GlobalAdmin',
+      },
     });
     expect(fetchMock).toHaveBeenCalledWith('./api/status', {
       headers: { accept: 'application/json' },

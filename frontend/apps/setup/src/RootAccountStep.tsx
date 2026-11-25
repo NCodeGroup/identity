@@ -4,6 +4,7 @@ import Button from '@mui/material/Button';
 import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
+import { administratorTitle } from './administratorTitle.js';
 
 /** The root administrator's account, as the operator entered it. */
 export type RootAccount = {
@@ -16,6 +17,8 @@ export type RootAccount = {
 export type RootAccountStepProps = {
   /** The shortest password the instance accepts. */
   readonly minimumPasswordLength: number;
+  /** The role of the administrator the setup creates: `CellAdmin` or `GlobalAdmin`. */
+  readonly administratorRole: string;
   /** Called with the checked account when the operator continues. */
   readonly onContinue: (account: RootAccount) => void;
 };
@@ -24,7 +27,12 @@ export type RootAccountStepProps = {
  * The second step of the setup wizard: it collects and checks the root administrator's account. The password and its
  * confirmation stay in the component's state; the next step creates the account.
  */
-export function RootAccountStep({ minimumPasswordLength, onContinue }: RootAccountStepProps) {
+export function RootAccountStep({
+  minimumPasswordLength,
+  administratorRole,
+  onContinue,
+}: RootAccountStepProps) {
+  const title = administratorTitle(administratorRole);
   const [displayName, setDisplayName] = useState('');
   const [userName, setUserName] = useState('');
   const [email, setEmail] = useState('');
@@ -64,12 +72,11 @@ export function RootAccountStep({ minimumPasswordLength, onContinue }: RootAccou
   return (
     <Stack spacing={3} component="form" onSubmit={handleSubmit}>
       <Typography variant="h5" component="h1">
-        Create the root administrator
+        Create the {title}
       </Typography>
 
       <Typography variant="body2">
-        The root administrator is a local account that holds every management authority on this
-        instance.
+        The {title} is a local account that holds every management authority on this instance.
       </Typography>
 
       {error ? <Alert severity="error">{error}</Alert> : null}

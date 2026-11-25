@@ -5,6 +5,8 @@ export type SetupTokenSource = 'configured' | 'generated';
 export interface SetupStatus {
   readonly tokenSource: SetupTokenSource;
   readonly minimumPasswordLength: number;
+  /** The role of the administrator the setup creates: `CellAdmin` or `GlobalAdmin`. */
+  readonly administratorRole: string;
 }
 
 /** The management console's client that the instance registers in the same setup as the root administrator. */
