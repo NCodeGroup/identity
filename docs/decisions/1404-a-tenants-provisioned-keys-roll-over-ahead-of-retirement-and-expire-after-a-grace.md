@@ -131,8 +131,10 @@ makes to a tenant's key on its own is an audit event.**
    unit of work as a `management-keys` replicated document that the directory carries to every cell, so a workload cell
    validates management tokens against keys it holds and a successor is known to every cell before it signs.
 10. **A compromised management key is revoked, never retired.** `POST /api/platform/management-keys/{kid}/revoke`
-    removes the key from the control-plane tenant's key set in one unit of work, activates a pending successor at once
-    when one exists, and otherwise generates one that is active at once, so management does not pause. The key's
+    removes the key from the control-plane tenant's key set in one unit of work. When no remaining key of its use and
+    algorithm is active, it activates a pending successor of that use and algorithm at once, or otherwise generates one
+    that is active at once, so management does not pause; otherwise the active key keeps signing and is the key the
+    answer names. The key's
     identifier joins the revoked list of the management keys document, and a cell applies the list so that no later
     document returns the key. The offline `revoke-management-key <kid>` command adds the identifier to a workload
     cell's revoked list.

@@ -20,11 +20,11 @@ namespace NCode.Identity.OpenId.Tenants.Keys;
 
 /// <summary>
 /// Provides the default implementation of <see cref="IManagementKeyRevoker"/>. In one unit of work it removes the key
-/// from the control-plane tenant, activates the key's pending successor of the same use at once or, when none exists,
-/// generates a successor that is active at once, and records the revocation, so the outbox that the persistence layer
-/// writes publishes the management keys document in the same commit. Once the unit of work has committed, the
-/// revocation is audited, the tenant is announced so every replica reloads its key set, and a revoked remote key is
-/// destroyed in its key management service.
+/// from the control-plane tenant and, when no remaining key of its use and algorithm is active, activates the key's
+/// pending successor at once or, when none exists, generates a successor that is active at once. It records the
+/// revocation, so the outbox that the persistence layer writes publishes the management keys document in the same
+/// commit. Once the unit of work has committed, the revocation is audited, the tenant is announced so every replica
+/// reloads its key set, and a revoked remote key is destroyed in its key management service.
 /// </summary>
 // See ADR-1536 and ADR-1351.
 internal sealed class DefaultManagementKeyRevoker(
@@ -41,6 +41,111 @@ internal sealed class DefaultManagementKeyRevoker(
     ILogger<DefaultManagementKeyRevoker> logger
 ) : IManagementKeyRevoker
 {
+    /// <summary>
+    /// Finds a remaining key that is active at <paramref name="now"/> for the revoked key's use and algorithm. Such a
+    /// key keeps signing after the revocation, so no replacement is needed.
+    /// </summary>
+    /// <param name="remaining">The tenant's keys that the revocation leaves.</param>
+    /// <param name="revoked">The revoked key, whose use and algorithm the active key shares.</param>
+    /// <param name="now">The current time.</param>
+    /// <returns>The active key, or <see langword="null"/> when no remaining key qualifies.</returns>
+    private static PersistedSecret? FindActiveKey(
+        IReadOnlyList<PersistedSecret> remaining,
+        PersistedSecret revoked,
+        DateTimeOffset now
+    ) =>
+        remaining
+            .Where(secret =>
+                secret.ActivatesWhen <= now
+                && now < secret.RetiresWhen
+                && string.Equals(secret.Use, revoked.Use, StringComparison.Ordinal)
+                && string.Equals(secret.Algorithm, revoked.Algorithm, StringComparison.Ordinal)
+            )
+            .OrderBy(secret => secret.ActivatesWhen)
+            .FirstOrDefault();
+
+    /// <summary>
+    /// Finds the published key of the same use and algorithm that activates soonest after <paramref name="now"/>. Such
+    /// a key is already in every cell's replica, so activating it pauses no management request.
+    /// </summary>
+    /// <param name="remaining">The tenant's keys that the revocation leaves.</param>
+    /// <param name="revoked">The revoked key, whose use and algorithm the successor shares.</param>
+    /// <param name="now">The current time.</param>
+    /// <returns>The pending successor, or <see langword="null"/> when no remaining key qualifies.</returns>
+    private static PersistedSecret? FindPendingSuccessor(
+        IReadOnlyList<PersistedSecret> remaining,
+        PersistedSecret revoked,
+        DateTimeOffset now
+    ) =>
+        remaining
+            .Where(secret =>
+                secret.ActivatesWhen > now
+                && secret.ExpiresWhen > now
+                && string.Equals(secret.Use, revoked.Use, StringComparison.Ordinal)
+                && string.Equals(secret.Algorithm, revoked.Algorithm, StringComparison.Ordinal)
+            )
+            .OrderBy(secret => secret.ActivatesWhen)
+            .FirstOrDefault();
+
+    /// <summary>
+    /// Gets the key identifier of the key that signs after the revocation: the remaining active key's, else the pending
+    /// successor's, else the newly generated key's.
+    /// </summary>
+    /// <param name="activeKey">The remaining active key, when one exists.</param>
+    /// <param name="successor">The pending successor, when one exists.</param>
+    /// <param name="remaining">The tenant's keys that the revocation leaves.</param>
+    /// <param name="result">The rollover result that holds any newly generated key.</param>
+    /// <returns>The key identifier of the key that signs.</returns>
+    private static string GetReplacementKeyId(
+        PersistedSecret? activeKey,
+        PersistedSecret? successor,
+        IReadOnlyList<PersistedSecret> remaining,
+        TenantKeyRolloverResult result
+    )
+    {
+        var existing = activeKey ?? successor;
+        if (existing is not null)
+            return existing.KeyId ?? existing.SecretId;
+
+        var remainingIds = remaining
+            .Select(secret => secret.SecretId)
+            .ToHashSet(StringComparer.Ordinal);
+        var generated = result.Secrets.First(secret => !remainingIds.Contains(secret.SecretId));
+        return generated.KeyId ?? generated.SecretId;
+    }
+
+    /// <summary>
+    /// Creates the audit event that records a key's revocation as compromised.
+    /// </summary>
+    /// <param name="tenantId">The tenant that owns the key.</param>
+    /// <param name="secret">The revoked key.</param>
+    /// <param name="now">The current time, which is the event's time.</param>
+    /// <returns>The audit event.</returns>
+    private static TenantKeyAuditEvent CreateAuditEvent(
+        string tenantId,
+        PersistedSecret secret,
+        DateTimeOffset now
+    ) =>
+        new()
+        {
+            EventId = Guid.CreateVersion7(now),
+            EventTime = now,
+            EventSource = AuditEventSources.OpenId,
+            TenantId = tenantId,
+            Actor = AuditActor.System,
+            Outcome = AuditOutcome.Success,
+            Change = TenantKeyChanges.Revoked,
+            Reason = TenantKeyChangeReasons.Compromised,
+            SecretId = secret.SecretId,
+            KeyId = secret.KeyId ?? secret.SecretId,
+            SecretType = secret.SecretType,
+            Algorithm = secret.Algorithm,
+            Use = secret.Use,
+            ActivatesWhen = secret.ActivatesWhen,
+            RetiresWhen = secret.RetiresWhen,
+            ExpiresWhen = secret.ExpiresWhen,
+        };
+
     private IOptions<OpenIdOptions> OptionsAccessor { get; } = optionsAccessor;
     private ITenantResolver TenantResolver { get; } = tenantResolver;
     private ITenantKeyPolicy TenantKeyPolicy { get; } = tenantKeyPolicy;
@@ -81,13 +186,15 @@ internal sealed class DefaultManagementKeyRevoker(
         await tenantStore.RemoveSecretAsync(tenantId, revoked.SecretId, cancellationToken);
 
         var plan = new TenantKeyRolloverPlan { Now = now };
-        var successor = FindPendingSuccessor(remaining, revoked, now);
-        if (successor is not null)
+        var activeKey = FindActiveKey(remaining, revoked, now);
+        var successor = activeKey is null ? FindPendingSuccessor(remaining, revoked, now) : null;
+        // When another key of the same use and algorithm keeps signing, the plan stays empty.
+        if (activeKey is null && successor is not null)
         {
             var activation = new TenantKeyActivation { Secret = successor, ActivatesWhen = now };
             plan.Activations.Add(activation);
         }
-        else
+        else if (activeKey is null)
         {
             var generation = await CreateGenerationAsync(tenant, revoked, now, cancellationToken);
             plan.Generations.Add(generation);
@@ -101,7 +208,7 @@ internal sealed class DefaultManagementKeyRevoker(
             cancellationToken
         );
 
-        var replacementKeyId = GetReplacementKeyId(successor, remaining, result);
+        var replacementKeyId = GetReplacementKeyId(activeKey, successor, remaining, result);
 
         var replicatedDocumentStore = storeManager.GetStore<IReplicatedDocumentStore>();
         var revokedKey = new PersistedRevokedManagementKey
@@ -120,52 +227,6 @@ internal sealed class DefaultManagementKeyRevoker(
         await RunAfterCommitAsync(tenantId, auditEvents, revoked);
 
         return ManagementKeyRevocationResult.Revoked(replacementKeyId);
-    }
-
-    /// <summary>
-    /// Finds the published key of the same use that activates soonest after <paramref name="now"/>. Such a key is
-    /// already in every cell's replica, so activating it pauses no management request.
-    /// </summary>
-    /// <param name="remaining">The tenant's keys that the revocation leaves.</param>
-    /// <param name="revoked">The revoked key, whose use the successor shares.</param>
-    /// <param name="now">The current time.</param>
-    /// <returns>The pending successor, or <see langword="null"/> when no remaining key qualifies.</returns>
-    private static PersistedSecret? FindPendingSuccessor(
-        IReadOnlyList<PersistedSecret> remaining,
-        PersistedSecret revoked,
-        DateTimeOffset now
-    ) =>
-        remaining
-            .Where(secret =>
-                secret.ActivatesWhen > now
-                && secret.ExpiresWhen > now
-                && string.Equals(secret.Use, revoked.Use, StringComparison.Ordinal)
-            )
-            .OrderBy(secret => secret.ActivatesWhen)
-            .FirstOrDefault();
-
-    /// <summary>
-    /// Gets the key identifier that replaces the revoked key: the pending successor's, or the newly generated key's
-    /// when there is no successor.
-    /// </summary>
-    /// <param name="successor">The pending successor, when one exists.</param>
-    /// <param name="remaining">The tenant's keys that the revocation leaves.</param>
-    /// <param name="result">The rollover result that holds any newly generated key.</param>
-    /// <returns>The key identifier of the replacement.</returns>
-    private static string GetReplacementKeyId(
-        PersistedSecret? successor,
-        IReadOnlyList<PersistedSecret> remaining,
-        TenantKeyRolloverResult result
-    )
-    {
-        if (successor is not null)
-            return successor.KeyId ?? successor.SecretId;
-
-        var remainingIds = remaining
-            .Select(secret => secret.SecretId)
-            .ToHashSet(StringComparer.Ordinal);
-        var generated = result.Secrets.First(secret => !remainingIds.Contains(secret.SecretId));
-        return generated.KeyId ?? generated.SecretId;
     }
 
     /// <summary>
@@ -228,38 +289,6 @@ internal sealed class DefaultManagementKeyRevoker(
             Reason = TenantKeyChangeReasons.Compromised,
         };
     }
-
-    /// <summary>
-    /// Creates the audit event that records a key's revocation as compromised.
-    /// </summary>
-    /// <param name="tenantId">The tenant that owns the key.</param>
-    /// <param name="secret">The revoked key.</param>
-    /// <param name="now">The current time, which is the event's time.</param>
-    /// <returns>The audit event.</returns>
-    private static TenantKeyAuditEvent CreateAuditEvent(
-        string tenantId,
-        PersistedSecret secret,
-        DateTimeOffset now
-    ) =>
-        new()
-        {
-            EventId = Guid.CreateVersion7(now),
-            EventTime = now,
-            EventSource = AuditEventSources.OpenId,
-            TenantId = tenantId,
-            Actor = AuditActor.System,
-            Outcome = AuditOutcome.Success,
-            Change = TenantKeyChanges.Revoked,
-            Reason = TenantKeyChangeReasons.Compromised,
-            SecretId = secret.SecretId,
-            KeyId = secret.KeyId ?? secret.SecretId,
-            SecretType = secret.SecretType,
-            Algorithm = secret.Algorithm,
-            Use = secret.Use,
-            ActivatesWhen = secret.ActivatesWhen,
-            RetiresWhen = secret.RetiresWhen,
-            ExpiresWhen = secret.ExpiresWhen,
-        };
 
     /// <summary>
     /// Finishes the work that follows the committed change. The audit events are published and the tenant is announced

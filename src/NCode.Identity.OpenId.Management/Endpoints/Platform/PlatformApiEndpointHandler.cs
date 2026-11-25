@@ -363,7 +363,8 @@ internal class PlatformApiEndpointHandler(
 
     /// <summary>
     /// Revokes a compromised management key of the control-plane tenant: the key leaves the tenant's key set at once
-    /// and a successor signs in its place.
+    /// and the key that signs after the revocation is reported: the remaining active key of the same use and algorithm,
+    /// or else a successor that is activated or generated at once.
     /// </summary>
     /// <param name="httpContext">The <see cref="HttpContext"/> for the current request.</param>
     /// <param name="kid">The key identifier of the management key to revoke.</param>

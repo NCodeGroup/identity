@@ -338,7 +338,9 @@ tokens with keys and authority replicated through the directory's change feed.**
     published and verifies tokens for the retirement grace (`tenant_key_retirement_grace`, seven days by default,
     ADR-1404), so a rollover never answers a compromise. A global administrator revokes the key's identifier through the
     control-plane cell's management API. In one transaction, the revocation removes the key from the control-plane
-    tenant's key set, activates a replacement at once, without the activation delay, and writes the management keys
+    tenant's key set, activates a replacement at once, without the activation delay, only when no remaining key of the
+    revoked key's use and algorithm is active (a retired or pending key revoked beside an active signer plans none and
+    reports that signer), and writes the management keys
     document at its next revision without the key and with its identifier listed as revoked (decision 7). The
     control-plane cell refuses the key at once. Every other cell drops it within the publish latency plus one feed poll
     (decision 9) and keeps its identifier as revoked, so no later document returns it; until then, the cell also refuses

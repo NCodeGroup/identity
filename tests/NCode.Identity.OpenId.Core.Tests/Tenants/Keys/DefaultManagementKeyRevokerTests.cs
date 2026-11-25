@@ -246,6 +246,64 @@ public sealed class DefaultManagementKeyRevokerTests : BaseTests
         Assert.Equal("RS256", generation.Specification.Algorithm);
     }
 
+    private async ValueTask AssertKeepsTheActiveKeyAsync(
+        PersistedSecret revoked,
+        IReadOnlyList<PersistedSecret> others,
+        CancellationToken cancellationToken
+    )
+    {
+        var active = CreateSecret("active", Now.AddDays(-30));
+        SetupTenant([revoked, active, .. others]);
+        SetupRollover([active, .. others]);
+
+        var result = await Revoker.RevokeAsync(revoked.SecretId, cancellationToken);
+
+        Assert.True(result.IsRevoked);
+        Assert.Equal("active", result.ReplacementKeyId);
+        Assert.NotNull(AppliedPlan);
+        Assert.Empty(AppliedPlan.Activations);
+        Assert.Empty(AppliedPlan.Generations);
+        MockTenantStore.Verify(
+            x => x.RemoveSecretAsync(TenantId, revoked.SecretId, It.IsAny<CancellationToken>()),
+            Times.Once
+        );
+        var revokedKey = Assert.Single(AddedRevokedKeys);
+        Assert.Equal(revoked.SecretId, revokedKey.KeyId);
+        var auditEvent = Assert.Single(PublishedEvents);
+        Assert.Equal(TenantKeyChanges.Revoked, auditEvent.Change);
+    }
+
+    [Fact]
+    public async Task RevokeAsync_WhenTheKeyIsRetired_KeepsTheActiveKeyAndChangesNoOther()
+    {
+        var retired = TenantKeyTestData.CreateSecret(
+            "retired",
+            Now.AddDays(-100),
+            Now.AddDays(-100),
+            Now.AddDays(-3),
+            Now.AddDays(4)
+        );
+
+        await AssertKeepsTheActiveKeyAsync(retired, [], CancellationToken.None);
+    }
+
+    [Fact]
+    public async Task RevokeAsync_WhenTheKeyIsPending_KeepsTheActiveKeyAndChangesNoOther()
+    {
+        var pending = CreateSecret("pending", Now.AddDays(60));
+
+        await AssertKeepsTheActiveKeyAsync(pending, [], CancellationToken.None);
+    }
+
+    [Fact]
+    public async Task RevokeAsync_WhenAnotherActiveKeyRemains_KeepsItAndChangesNoOther()
+    {
+        var revoked = CreateSecret("old", Now.AddDays(-40));
+        var pending = CreateSecret("next", Now.AddDays(60));
+
+        await AssertKeepsTheActiveKeyAsync(revoked, [pending], CancellationToken.None);
+    }
+
     [Fact]
     public async Task RevokeAsync_WhenTheKeyIsUnknown_ChangesNothing()
     {
