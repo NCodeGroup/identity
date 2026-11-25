@@ -44,7 +44,8 @@ public sealed class DefaultDirectoryStoreCellTests : DefaultDirectoryStoreTestBa
             },
             await Cells.GetOrDefaultAsync("cell-a", CancellationToken.None)
         );
-        Assert.Single(await Cells.ListAsync(CancellationToken.None));
+        var listedCells = await Cells.ListAsync(CancellationToken.None);
+        Assert.Equal(["cell-a", ControlPlaneCell], listedCells.Select(cell => cell.Name));
     }
 
     [Fact]
@@ -84,7 +85,8 @@ public sealed class DefaultDirectoryStoreCellTests : DefaultDirectoryStoreTestBa
 
         await Cells.ReportAsync(CreateCell("cell-a"), CancellationToken.None);
 
-        Assert.Single(await Cells.ListAsync(CancellationToken.None));
+        var listedCells = await Cells.ListAsync(CancellationToken.None);
+        Assert.Equal(["cell-a", ControlPlaneCell], listedCells.Select(cell => cell.Name));
     }
 
     #endregion
@@ -99,15 +101,15 @@ public sealed class DefaultDirectoryStoreCellTests : DefaultDirectoryStoreTestBa
 
         var cells = await Cells.ListAsync(CancellationToken.None);
 
-        Assert.Equal(["cell-a", "cell-b"], cells.Select(cell => cell.Name));
+        Assert.Equal(["cell-a", "cell-b", ControlPlaneCell], cells.Select(cell => cell.Name));
     }
 
     [Fact]
-    public async Task ListAsync_WhenNoCellIsRegistered_ReturnsNothing()
+    public async Task ListAsync_WhenNoCellIsRegistered_ReturnsOnlyTheControlPlaneCell()
     {
         var cells = await Cells.ListAsync(CancellationToken.None);
 
-        Assert.Empty(cells);
+        Assert.Equal([ControlPlaneCell], cells.Select(cell => cell.Name));
     }
 
     #endregion

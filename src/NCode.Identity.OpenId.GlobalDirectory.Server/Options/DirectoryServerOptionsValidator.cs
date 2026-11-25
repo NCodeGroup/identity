@@ -31,14 +31,6 @@ internal sealed class DirectoryServerOptionsValidator(IPublicJwksReader jwksRead
     /// <returns>The key, which starts with the options section.</returns>
     private static string Key(string name) => $"{DirectoryServerOptions.SectionName}:{name}";
 
-    /// <summary>
-    /// Builds the configuration key of an option of the control plane.
-    /// </summary>
-    /// <param name="name">The name of the control-plane option.</param>
-    /// <returns>The key, which starts with the control-plane section.</returns>
-    private static string ControlPlaneKey(string name) =>
-        $"{DirectoryServerOptions.SectionName}:{nameof(DirectoryServerOptions.ControlPlane)}:{name}";
-
     private IPublicJwksReader JwksReader { get; } = jwksReader;
 
     /// <inheritdoc />
@@ -73,7 +65,9 @@ internal sealed class DirectoryServerOptionsValidator(IPublicJwksReader jwksRead
         ValidateLabel(failures, nameof(DirectoryControlPlaneOptions.Region), controlPlane.Region);
         ValidateLabel(failures, nameof(DirectoryControlPlaneOptions.Kind), controlPlane.Kind);
 
-        var tenantIdKey = ControlPlaneKey(nameof(DirectoryControlPlaneOptions.TenantId));
+        var tenantIdKey = DirectoryControlPlaneOptions.GetConfigurationKey(
+            nameof(DirectoryControlPlaneOptions.TenantId)
+        );
         var tenantId = controlPlane.TenantId;
         if (string.IsNullOrWhiteSpace(tenantId))
         {
@@ -86,7 +80,9 @@ internal sealed class DirectoryServerOptionsValidator(IPublicJwksReader jwksRead
             );
         }
 
-        var anchorIssuerKey = ControlPlaneKey(nameof(DirectoryControlPlaneOptions.Issuer));
+        var anchorIssuerKey = DirectoryControlPlaneOptions.GetConfigurationKey(
+            nameof(DirectoryControlPlaneOptions.Issuer)
+        );
         ValidateIssuer(failures, anchorIssuerKey, controlPlane.Issuer);
 
         ValidateClientJwks(failures, controlPlane.ClientJwks);
@@ -104,7 +100,7 @@ internal sealed class DirectoryServerOptionsValidator(IPublicJwksReader jwksRead
     /// <param name="value">The value to check.</param>
     private static void ValidateLabel(List<string> failures, string property, string value)
     {
-        var key = ControlPlaneKey(property);
+        var key = DirectoryControlPlaneOptions.GetConfigurationKey(property);
         if (string.IsNullOrWhiteSpace(value))
         {
             failures.Add($"{key} is required.");
@@ -144,7 +140,9 @@ internal sealed class DirectoryServerOptionsValidator(IPublicJwksReader jwksRead
     /// <param name="clientJwks">The key set to check.</param>
     private void ValidateClientJwks(List<string> failures, string clientJwks)
     {
-        var key = ControlPlaneKey(nameof(DirectoryControlPlaneOptions.ClientJwks));
+        var key = DirectoryControlPlaneOptions.GetConfigurationKey(
+            nameof(DirectoryControlPlaneOptions.ClientJwks)
+        );
         if (string.IsNullOrWhiteSpace(clientJwks))
         {
             failures.Add($"{key} is required.");

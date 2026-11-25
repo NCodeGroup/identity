@@ -25,7 +25,7 @@ using Xunit;
 
 namespace NCode.Identity.OpenId.GlobalDirectory.Server.Tokens;
 
-public sealed class DirectoryTokenIssuerTests : DefaultDirectoryStoreTestBase, IAsyncLifetime
+public sealed class DirectoryTokenIssuerTests : DefaultDirectoryStoreTestBase
 {
     private const string DirectoryIssuer = "https://directory.example";
     private const string TokenEndpoint = "https://directory.example/directory/v1/token";
@@ -106,14 +106,13 @@ public sealed class DirectoryTokenIssuerTests : DefaultDirectoryStoreTestBase, I
         );
     }
 
-    public Task InitializeAsync() => Task.CompletedTask;
-
-    public async Task DisposeAsync()
+    protected override async ValueTask DisposeAsyncCore()
     {
         await ServiceProvider.DisposeAsync();
         DirectoryRsa.Dispose();
         CellRsa.Dispose();
         OtherRsa.Dispose();
+        await base.DisposeAsyncCore();
     }
 
     private async ValueTask RegisterCellAsync(CancellationToken cancellationToken = default)

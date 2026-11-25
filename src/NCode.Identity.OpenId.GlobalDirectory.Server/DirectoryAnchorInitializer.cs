@@ -27,62 +27,12 @@ internal sealed class DirectoryAnchorInitializer(
     DirectoryAnchorState state
 ) : IHostedService
 {
-    private IDbContextFactory<DirectoryDbContext> DbContextFactory { get; } = dbContextFactory;
-
-    private IOptions<DirectoryServerOptions> ServerOptions { get; } = options;
-
-    private ISurrogateKeyGenerator KeyGenerator { get; } = keyGenerator;
-
-    private TimeProvider TimeProvider { get; } = timeProvider;
-
-    private DirectoryAnchorState State { get; } = state;
-
     /// <summary>
     /// Normalizes an identifier the way the directory keys it.
     /// </summary>
     /// <param name="value">The identifier.</param>
     /// <returns>The lower-cased identifier.</returns>
     private static string Normalize(string value) => value.ToLowerInvariant();
-
-    /// <summary>
-    /// Gets the configuration key of a control-plane option, for error messages.
-    /// </summary>
-    /// <param name="name">The option's name.</param>
-    /// <returns>The configuration key.</returns>
-    private static string ConfigurationKey(string name) =>
-        $"{DirectoryServerOptions.SectionName}:{nameof(DirectoryServerOptions.ControlPlane)}:{name}";
-
-    /// <inheritdoc />
-    public async Task StartAsync(CancellationToken cancellationToken)
-    {
-        var controlPlane = ServerOptions.Value.ControlPlane;
-
-        await using var dbContext = await DbContextFactory.CreateDbContextAsync(cancellationToken);
-        var executionStrategy = dbContext.Database.CreateExecutionStrategy();
-        await executionStrategy.ExecuteAsync(
-            async _ =>
-            {
-                // A retried attempt starts from the database, not from the failed attempt's tracked entities.
-                dbContext.ChangeTracker.Clear();
-                await using var transaction = await dbContext.Database.BeginTransactionAsync(
-                    IsolationLevel.Serializable,
-                    cancellationToken
-                );
-
-                await EnsureCellAsync(dbContext, controlPlane, cancellationToken);
-                await EnsureTenantAsync(dbContext, controlPlane, cancellationToken);
-
-                await dbContext.SaveChangesAsync(cancellationToken);
-                await transaction.CommitAsync(cancellationToken);
-            },
-            cancellationToken
-        );
-
-        State.MarkInitialized();
-    }
-
-    /// <inheritdoc />
-    public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
     /// <summary>
     /// Ensures the control-plane cell exists and matches the directory's configuration.
@@ -117,7 +67,9 @@ internal sealed class DirectoryAnchorInitializer(
 
         if (cell.IsRetired)
         {
-            var cellKey = ConfigurationKey(nameof(DirectoryControlPlaneOptions.Cell));
+            var cellKey = DirectoryControlPlaneOptions.GetConfigurationKey(
+                nameof(DirectoryControlPlaneOptions.Cell)
+            );
             throw new InvalidOperationException(
                 $"The cell '{controlPlane.Cell}' that {cellKey} names is retired, so it cannot be the control-plane cell; set the key to a cell name that was never retired."
             );
@@ -129,6 +81,48 @@ internal sealed class DirectoryAnchorInitializer(
         cell.ClientJwksJson = controlPlane.ClientJwks;
         cell.IsControlPlane = true;
     }
+
+    private IDbContextFactory<DirectoryDbContext> DbContextFactory { get; } = dbContextFactory;
+
+    private IOptions<DirectoryServerOptions> ServerOptions { get; } = options;
+
+    private ISurrogateKeyGenerator KeyGenerator { get; } = keyGenerator;
+
+    private TimeProvider TimeProvider { get; } = timeProvider;
+
+    private DirectoryAnchorState State { get; } = state;
+
+    /// <inheritdoc />
+    public async Task StartAsync(CancellationToken cancellationToken)
+    {
+        var controlPlane = ServerOptions.Value.ControlPlane;
+
+        await using var dbContext = await DbContextFactory.CreateDbContextAsync(cancellationToken);
+        var executionStrategy = dbContext.Database.CreateExecutionStrategy();
+        await executionStrategy.ExecuteAsync(
+            async _ =>
+            {
+                // A retried attempt starts from the database, not from the failed attempt's tracked entities.
+                dbContext.ChangeTracker.Clear();
+                await using var transaction = await dbContext.Database.BeginTransactionAsync(
+                    IsolationLevel.Serializable,
+                    cancellationToken
+                );
+
+                await EnsureCellAsync(dbContext, controlPlane, cancellationToken);
+                await EnsureTenantAsync(dbContext, controlPlane, cancellationToken);
+
+                await dbContext.SaveChangesAsync(cancellationToken);
+                await transaction.CommitAsync(cancellationToken);
+            },
+            cancellationToken
+        );
+
+        State.MarkInitialized();
+    }
+
+    /// <inheritdoc />
+    public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
     /// <summary>
     /// Ensures the control-plane tenant exists in the control-plane cell and matches the directory's configuration.
@@ -156,7 +150,9 @@ internal sealed class DirectoryAnchorInitializer(
                 && string.Equals(existing.Cell, controlPlane.Cell, StringComparison.Ordinal);
             if (!isHeld)
             {
-                var tenantKey = ConfigurationKey(nameof(DirectoryControlPlaneOptions.TenantId));
+                var tenantKey = DirectoryControlPlaneOptions.GetConfigurationKey(
+                    nameof(DirectoryControlPlaneOptions.TenantId)
+                );
                 throw new InvalidOperationException(
                     $"The tenant '{tenantId}' that {tenantKey} names is retired or held by another cell, so the directory cannot place it in the control-plane cell; set {tenantKey} to the control-plane cell's root tenant identifier, which no other cell holds or retired."
                 );
@@ -183,7 +179,9 @@ internal sealed class DirectoryAnchorInitializer(
         );
         if (isIssuerHeld || isIssuerRetired)
         {
-            var issuerKey = ConfigurationKey(nameof(DirectoryControlPlaneOptions.Issuer));
+            var issuerKey = DirectoryControlPlaneOptions.GetConfigurationKey(
+                nameof(DirectoryControlPlaneOptions.Issuer)
+            );
             throw new InvalidOperationException(
                 $"Another tenant holds or retired the issuer that {issuerKey} names, so the directory cannot place the control-plane cell's root tenant '{tenantId}' under it; set {issuerKey} to the control-plane cell's issuer, which no other tenant holds or retired."
             );

@@ -45,7 +45,8 @@ public sealed class DefaultDirectoryStoreCellRegistryTests : DefaultDirectorySto
         Assert.NotNull(listed);
         Assert.True(listed.IsRegistered);
         Assert.Null(listed.ManagementUrl);
-        Assert.Single(await Cells.ListAsync(CancellationToken.None));
+        var listedCells = await Cells.ListAsync(CancellationToken.None);
+        Assert.Equal(["cell-a", ControlPlaneCell], listedCells.Select(cell => cell.Name));
     }
 
     [Fact]
@@ -132,7 +133,8 @@ public sealed class DefaultDirectoryStoreCellRegistryTests : DefaultDirectorySto
         Assert.NotNull(retired);
         Assert.True(retired.IsRetired);
         Assert.Null(retired.ManagementUrl);
-        Assert.Single(await Cells.ListAsync(CancellationToken.None));
+        var listedCells = await Cells.ListAsync(CancellationToken.None);
+        Assert.Equal(["cell-a", ControlPlaneCell], listedCells.Select(cell => cell.Name));
     }
 
     [Fact]

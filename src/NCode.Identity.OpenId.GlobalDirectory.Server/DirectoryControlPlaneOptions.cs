@@ -15,6 +15,15 @@ namespace NCode.Identity.OpenId.GlobalDirectory.Server;
 public sealed class DirectoryControlPlaneOptions
 {
     /// <summary>
+    /// Builds the configuration key of a control-plane option, which every message that names a misconfigured option
+    /// uses.
+    /// </summary>
+    /// <param name="name">The name of the control-plane option.</param>
+    /// <returns>The key, which starts with the control-plane section.</returns>
+    internal static string GetConfigurationKey(string name) =>
+        $"{DirectoryServerOptions.SectionName}:{nameof(DirectoryServerOptions.ControlPlane)}:{name}";
+
+    /// <summary>
     /// Gets or sets the name of the control-plane cell. Only that cell publishes the platform document, reserves,
     /// publishes, releases or retires a team, and registers or retires other cells; it also releases, retires and
     /// changes the issuer of any tenant. It is required.
