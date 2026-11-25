@@ -14,8 +14,8 @@ namespace NCode.Identity.OpenId.GlobalDirectory;
 public static class GlobalDirectoryProtocol
 {
     /// <summary>
-    /// Contains the reserved audience identifier for the global directory API: 'urn:ncode:directory'. The control-plane
-    /// cell's root tenant seeds the resource server that carries it.
+    /// Contains the reserved audience identifier for the global directory API: 'urn:ncode:directory', the audience of
+    /// the access tokens that the directory issues.
     /// </summary>
     public const string DirectoryAudience = "urn:ncode:directory";
 
@@ -54,8 +54,8 @@ public static class GlobalDirectoryProtocol
     public const string ReplicatedRevisionsPath = "/directory/v1/replicated-revisions";
 
     /// <summary>
-    /// The seconds a route asks the caller to wait when the directory, the control plane or the issuer of its access
-    /// tokens cannot be reached.
+    /// The seconds a route asks the caller to wait when the directory or the issuer of its access tokens cannot be
+    /// reached.
     /// </summary>
     public const int UnavailableRetryAfterSeconds = 5;
 }

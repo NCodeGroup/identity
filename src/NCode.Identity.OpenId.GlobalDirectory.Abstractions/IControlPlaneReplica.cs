@@ -1,9 +1,7 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
-using System.Diagnostics.CodeAnalysis;
 using JetBrains.Annotations;
-using NCode.Identity.Secrets.Keys;
 
 namespace NCode.Identity.OpenId.GlobalDirectory;
 
@@ -36,53 +34,4 @@ public interface IControlPlaneReplica
         string? teamId,
         CancellationToken cancellationToken
     );
-}
-
-/// <summary>
-/// Describes the management keys that a cell holds in its replica.
-/// </summary>
-[PublicAPI]
-[ExcludeFromCodeCoverage]
-public sealed record ReplicatedManagementKeys
-{
-    /// <summary>
-    /// Gets a value that indicates whether the replica holds a management keys document with at least one key. A cell
-    /// that holds none has not yet received the document and cannot validate a management token.
-    /// </summary>
-    public required bool HasKeys { get; init; }
-
-    /// <summary>
-    /// Gets the public keys that are not expired and not revoked, including keys that activate later.
-    /// </summary>
-    public required IReadOnlyCollection<SecretKey> Keys { get; init; }
-
-    /// <summary>
-    /// Gets the identifiers of the keys that the cell refuses.
-    /// </summary>
-    public required IReadOnlySet<string> RevokedKeyIds { get; init; }
-}
-
-/// <summary>
-/// Describes the roles that a principal holds according to the replicated authority documents.
-/// </summary>
-[PublicAPI]
-[ExcludeFromCodeCoverage]
-public sealed record ReplicatedAuthority
-{
-    /// <summary>
-    /// Gets the names of the roles held at the platform node, distinct and ordered ordinally.
-    /// </summary>
-    public IReadOnlyList<string> PlatformRoles { get; init; } = [];
-
-    /// <summary>
-    /// Gets the names of the roles held at the requested team and at every team above it, distinct and ordered
-    /// ordinally. It is empty when no team was requested.
-    /// </summary>
-    public IReadOnlyList<string> TeamRoles { get; init; } = [];
-
-    /// <summary>
-    /// Gets the identifier of the control-plane client that the principal acts as, or <c>null</c> when the principal is
-    /// not an enabled client of the control-plane tenant.
-    /// </summary>
-    public string? ClientId { get; init; }
 }
