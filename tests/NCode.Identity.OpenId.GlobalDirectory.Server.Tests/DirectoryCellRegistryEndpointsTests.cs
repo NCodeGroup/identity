@@ -205,6 +205,18 @@ public class DirectoryCellRegistryEndpointsTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task RegisterCell_WhenTheKindIsOverMaxLength_AnswersBadRequestStatingTheRule()
+    {
+        var kind = new string('k', CellKindRules.MaxKindLength + 1);
+
+        var response = await RegisterAsync(body: CreateBody(kind: kind));
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var content = await response.Content.ReadAsStringAsync();
+        Assert.Contains(CellKindRules.Description, content, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task RegisterCell_WhenTheKeySetIsUnreadable_AnswersBadRequest()
     {
         var response = await RegisterAsync(body: CreateBody(jwks: """{"keys":[{"kty":"bad"}]}"""));

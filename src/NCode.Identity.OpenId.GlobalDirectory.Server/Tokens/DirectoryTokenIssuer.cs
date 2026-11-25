@@ -78,7 +78,9 @@ internal sealed class DirectoryTokenIssuer(
     /// </summary>
     /// <param name="algorithms">The registered algorithms.</param>
     /// <returns>The codes of the permitted algorithms.</returns>
-    internal static List<string> GetAsymmetricSignatureAlgorithms(IAlgorithmCollection algorithms)
+    internal static IReadOnlyList<string> GetAsymmetricSignatureAlgorithms(
+        IAlgorithmCollection algorithms
+    )
     {
         var result = new List<string>();
         foreach (var algorithm in algorithms)

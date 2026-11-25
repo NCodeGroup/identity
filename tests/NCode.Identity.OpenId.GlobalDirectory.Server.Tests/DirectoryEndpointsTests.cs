@@ -55,9 +55,10 @@ public class DirectoryEndpointsTests : IAsyncLifetime
 
     private static JsonSerializerOptions WebOptions { get; } = new(JsonSerializerDefaults.Web);
 
-    private static string CellTooLongDetail =>
-        $"A cell's kind is at most {DirectoryLimits.MaxCellKindLength} characters and its management URL at most "
-        + $"{DirectoryLimits.MaxManagementUrlLength}.";
+    private static string InvalidCellKindDetail => $"A cell's kind is {CellKindRules.Description}.";
+
+    private static string ManagementUrlTooLongDetail =>
+        $"A cell's management URL is at most {DirectoryLimits.MaxManagementUrlLength} characters.";
 
     private static string InvalidTenantIdDetail =>
         $"The tenant identifier must be 1 to {TenantIdentifierRules.MaxTenantIdLength} lowercase letters, digits or "
@@ -2579,7 +2580,7 @@ public class DirectoryEndpointsTests : IAsyncLifetime
         );
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        Assert.Equal(CellTooLongDetail, await ReadProblemDetailAsync(response));
+        Assert.Equal(InvalidCellKindDetail, await ReadProblemDetailAsync(response));
         var listResponse = await Client.GetAsync("/directory/v1/cells");
         Assert.DoesNotContain(
             await ReadAsync<List<CellDescriptor>>(listResponse),
@@ -2603,7 +2604,7 @@ public class DirectoryEndpointsTests : IAsyncLifetime
         );
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        Assert.Equal(CellTooLongDetail, await ReadProblemDetailAsync(response));
+        Assert.Equal(ManagementUrlTooLongDetail, await ReadProblemDetailAsync(response));
         var listResponse = await Client.GetAsync("/directory/v1/cells");
         Assert.DoesNotContain(
             await ReadAsync<List<CellDescriptor>>(listResponse),

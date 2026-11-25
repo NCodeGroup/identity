@@ -47,7 +47,11 @@ internal sealed class DirectoryClientAssertionValidator(
     internal static TimeSpan ClockSkew => TimeSpan.FromSeconds(30);
 
     private const string InvalidDescription = "The assertion is invalid.";
-    private const string ReplayKeyPrefix = "directory-assertion:";
+
+    /// <summary>
+    /// The kind of record the assertion replay keys hold.
+    /// </summary>
+    internal const string ReplayPurpose = "directory_assertion_jti";
 
     /// <summary>
     /// Reads a numeric date claim of a validated payload.
@@ -194,7 +198,9 @@ internal sealed class DirectoryClientAssertionValidator(
         if (string.IsNullOrEmpty(jti))
             return Refuse(cellName, "The assertion has no identifier.");
 
-        var replayKey = $"{ReplayKeyPrefix}{cellName}:{jti}";
+        // The key is a digest of the length-prefixed jti, scoped to the cell, so a caller's jti cannot lengthen it or
+        // collide with another cell's.
+        var replayKey = ExpiringKeys.Create(ReplayPurpose, cellName, jti);
         var replayExpires = expires + ClockSkew;
         var accepted = await ReplayKeys.TryAddAsync(replayKey, replayExpires, cancellationToken);
         return accepted

@@ -279,6 +279,26 @@ public sealed class DirectoryTokenIssuerTests : DefaultDirectoryStoreTestBase
     }
 
     [Fact]
+    public async Task ValidateAssertionAsync_WhenTheAssertionIsGood_RecordsItsJtiUnderTheCellsDigestKey()
+    {
+        await RegisterCellAsync();
+        var assertion = await CreateAssertionAsync(jti: "j-1");
+        var expectedKey = ExpiringKeys.Create(
+            DirectoryClientAssertionValidator.ReplayPurpose,
+            "cell-a",
+            "j-1"
+        );
+
+        var result = await ValidateAsync(assertion);
+
+        Assert.True(result.IsValid, result.FailureReason);
+        var recorded = await ServiceProvider
+            .GetRequiredService<IExpiringKeySet>()
+            .ContainsAsync(expectedKey, CancellationToken.None);
+        Assert.True(recorded);
+    }
+
+    [Fact]
     public async Task ValidateAssertionAsync_WhenTheAssertionIsExpired_IsRefused()
     {
         await RegisterCellAsync();

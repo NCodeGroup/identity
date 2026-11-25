@@ -32,7 +32,8 @@ internal sealed class DirectoryServerOptionsValidator(IPublicJwksReader jwksRead
     private static string Key(string name) => $"{DirectoryServerOptions.SectionName}:{name}";
 
     /// <summary>
-    /// Adds a failure when a control-plane label is blank or too long.
+    /// Adds a failure when a control-plane label is blank or is not a cell label that <see cref="CellLabelRules"/>
+    /// accepts.
     /// </summary>
     /// <param name="failures">The failures to add to.</param>
     /// <param name="property">The name of the control-plane option.</param>

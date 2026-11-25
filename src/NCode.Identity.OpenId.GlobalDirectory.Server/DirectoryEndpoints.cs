@@ -112,12 +112,16 @@ public static class DirectoryEndpoints
     private const string JwksRequiredDetail = "The cell's key set is a public JSON Web Key Set.";
 
     /// <summary>
-    /// Gets the problem detail that the cell registration route answers with when the kind or the management URL is
-    /// longer than the directory stores.
+    /// Gets the problem detail that the cell routes answer with when the kind is not a valid cell kind.
     /// </summary>
-    private static string CellTooLongDetail =>
-        $"A cell's kind is at most {DirectoryLimits.MaxCellKindLength} characters and its management URL at most "
-        + $"{DirectoryLimits.MaxManagementUrlLength}.";
+    private static string InvalidCellKindDetail => $"A cell's kind is {CellKindRules.Description}.";
+
+    /// <summary>
+    /// Gets the problem detail that the cell registration route answers with when the management URL is longer than the
+    /// directory stores.
+    /// </summary>
+    private static string ManagementUrlTooLongDetail =>
+        $"A cell's management URL is at most {DirectoryLimits.MaxManagementUrlLength} characters.";
 
     private static string InvalidCellLabelDetail =>
         $"A cell and its region are each {CellLabelRules.Description}.";
@@ -1371,13 +1375,13 @@ public static class DirectoryEndpoints
     /// <param name="directory">The <see cref="ICellDirectory"/> that holds the registration.</param>
     /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
     /// <returns>
-    /// <c>200 OK</c> when the cell is registered; <c>400 Bad Request</c> when the kind or the management URL is blank
-    /// or longer than the directory stores, the management URL is not an absolute <c>https</c> URL (or an <c>http</c>
-    /// URL in local development) without user information, a query or a fragment, the name or the region is not a
-    /// <see cref="CellLabelRules"/> label, or the descriptor names a cell other than the route's; <c>403 Forbidden</c>
-    /// when the cell is not the caller or claims to be the control plane without being it; <c>409 Conflict</c> when the
-    /// cell is not registered or is retired, its region or kind differs from its registration, or another cell reports
-    /// the management URL.
+    /// <c>200 OK</c> when the cell is registered; <c>400 Bad Request</c> when the kind is blank or not a valid cell
+    /// kind, the management URL is blank or longer than the directory stores, the management URL is not an absolute
+    /// <c>https</c> URL (or an <c>http</c> URL in local development) without user information, a query or a fragment,
+    /// the name or the region is not a <see cref="CellLabelRules"/> label, or the descriptor names a cell other than
+    /// the route's; <c>403 Forbidden</c> when the cell is not the caller or claims to be the control plane without
+    /// being it; <c>409 Conflict</c> when the cell is not registered or is retired, its region or kind differs from its
+    /// registration, or another cell reports the management URL.
     /// </returns>
     private static async ValueTask<IResult> RegisterCellAsync(
         string name,
@@ -1392,11 +1396,11 @@ public static class DirectoryEndpoints
         if (IsBlank(descriptor.Kind) || IsBlank(descriptor.ManagementUrl))
             return BadRequest("The cell's kind and its management URL are required.");
 
-        if (
-            !CellKindRules.IsValidKind(descriptor.Kind)
-            || IsOverLong(descriptor.ManagementUrl, DirectoryLimits.MaxManagementUrlLength)
-        )
-            return BadRequest(CellTooLongDetail);
+        if (!CellKindRules.IsValidKind(descriptor.Kind))
+            return BadRequest(InvalidCellKindDetail);
+
+        if (IsOverLong(descriptor.ManagementUrl, DirectoryLimits.MaxManagementUrlLength))
+            return BadRequest(ManagementUrlTooLongDetail);
 
         var isManagementUrl = localDevelopmentMode.Enabled
             ? AbsoluteUri.TryParseAnyHttpServiceUrl(descriptor.ManagementUrl, out _)
@@ -1446,9 +1450,9 @@ public static class DirectoryEndpoints
     /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
     /// <returns>
     /// <c>204 No Content</c> when the cell is registered; <c>400 Bad Request</c> when the name or the region is not a
-    /// <see cref="CellLabelRules"/> label, the kind is blank or longer than the directory stores, or the key set is not
-    /// a public JSON Web Key Set; <c>403 Forbidden</c> when the caller is not the control-plane cell;
-    /// <c>409 Conflict</c> when the directory refuses the registration.
+    /// <see cref="CellLabelRules"/> label, the kind is blank or not a valid cell kind, or the key set is not a public
+    /// JSON Web Key Set; <c>403 Forbidden</c> when the caller is not the control-plane cell; <c>409 Conflict</c> when
+    /// the directory refuses the registration.
     /// </returns>
     private static async ValueTask<IResult> RegisterCellClientAsync(
         string name,
@@ -1470,7 +1474,7 @@ public static class DirectoryEndpoints
             return BadRequest("The cell's kind is required.");
 
         if (!CellKindRules.IsValidKind(body.Kind))
-            return BadRequest(CellTooLongDetail);
+            return BadRequest(InvalidCellKindDetail);
 
         if (body.Jwks.ValueKind != JsonValueKind.Object)
             return BadRequest(JwksRequiredDetail);
