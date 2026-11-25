@@ -12,7 +12,13 @@ import {
   RoleAssignmentTable,
   type RoleAssignmentRow,
 } from '@ncodegroup/identity-ui';
-import { apiErrorMessage, managementApi, type ApiError } from '@ncodegroup/identity-store';
+import {
+  apiErrorMessage,
+  useAddCellAdminMutation,
+  useListCellAdminsQuery,
+  useRemoveCellAdminMutation,
+  type ApiError,
+} from '@ncodegroup/identity-store';
 
 /** The prefix of the test ids of the administrator list, which is the role it lists. */
 const testIdPrefix = 'CellAdmin';
@@ -23,11 +29,9 @@ const testIdPrefix = 'CellAdmin';
  * change it; a refused grant or revoke shows the server's error.
  */
 export function CellAdminsPage() {
-  const { data, isLoading, error: loadError } = managementApi.endpoints.listCellAdmins.useQuery();
-  const [addCellAdmin, { isLoading: isGranting }] =
-    managementApi.endpoints.addCellAdmin.useMutation();
-  const [removeCellAdmin, { isLoading: isRevoking }] =
-    managementApi.endpoints.removeCellAdmin.useMutation();
+  const { data, isLoading, error: loadError } = useListCellAdminsQuery();
+  const [addCellAdmin, { isLoading: isGranting }] = useAddCellAdminMutation();
+  const [removeCellAdmin, { isLoading: isRevoking }] = useRemoveCellAdminMutation();
   const [grantBy, setGrantBy] = useState<'userName' | 'principalId'>('userName');
   const [principalId, setPrincipalId] = useState('');
   const [revoking, setRevoking] = useState<RoleAssignmentRow>();

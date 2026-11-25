@@ -16,10 +16,11 @@ import {
   UnavailableCellsAlert,
 } from '@ncodegroup/identity-ui';
 import {
-  managementApi,
   pagedItems,
   useAppSelector,
   useGetCallerQuery,
+  useGetCellScopeQuery,
+  useListCellTenantsInfiniteQuery,
   useListCallerTeamsQuery,
   useListCallerTenantsQuery,
 } from '@ncodegroup/identity-store';
@@ -57,9 +58,9 @@ export function HomePage({ onNavigate }: HomePageProps) {
  */
 function CellHome({ onNavigate }: HomePageProps) {
   const caller = useGetCallerQuery();
-  const scope = managementApi.endpoints.getCellScope.useQuery();
+  const scope = useGetCellScopeQuery();
   const { data, isLoading, error, hasNextPage, isFetchingNextPage, fetchNextPage } =
-    managementApi.endpoints.listCellTenants.useInfiniteQuery();
+    useListCellTenantsInfiniteQuery();
   const tenants = pagedItems(data);
   const canListAdmins = (caller.data?.cellRoles ?? []).some((role) =>
     cellAdministratorRoles.includes(role),

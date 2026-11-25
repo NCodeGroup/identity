@@ -13,9 +13,11 @@ const runtime: BffRuntimeConfig = {
   features: {},
 };
 
-function renderAccess(isSignedIn: boolean, cells?: readonly string[]) {
+function renderAccess(isSignedIn: boolean, cells?: readonly string[], console?: 'cell') {
   const store = createAppStore({
-    config: { runtime: cells ? { ...runtime, cells } : runtime },
+    config: {
+      runtime: { ...runtime, ...(cells ? { cells } : {}), ...(console ? { console } : {}) },
+    },
   });
   const wrapper = ({ children }: { readonly children: ReactNode }) => (
     <Provider store={store}>{children}</Provider>
@@ -100,5 +102,21 @@ describe('useCallerAccess', () => {
     const { result } = renderAccess(true, ['eu']);
 
     await waitFor(() => expect(result.current?.tenants).toEqual([{ tenantId: 'web', cell: 'eu' }]));
+  });
+
+  it('sends no teams request in a cell console and holds no team', async () => {
+    const fetchMock = installFetch();
+
+    const { result } = renderAccess(true, undefined, 'cell');
+
+    await waitFor(() =>
+      expect(result.current).toEqual({
+        isPlatformAdministrator: false,
+        teamIds: [],
+        tenants: [],
+      }),
+    );
+    const urls = fetchMock.mock.calls.map(([input]) => (input as Request).url);
+    expect(urls.some((url) => url.endsWith('/api/me/teams'))).toBe(false);
   });
 });
