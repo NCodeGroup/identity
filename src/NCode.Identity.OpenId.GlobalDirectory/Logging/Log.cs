@@ -104,4 +104,16 @@ internal static partial class Log
         string key,
         long revision
     );
+
+    [LoggerMessage(
+        EventId = EventIds.DirectoryOutboxDocumentFailed,
+        Level = LogLevel.Error,
+        Message = "Publishing the {Kind} document '{Key}' to the global directory failed; it stays pending."
+    )]
+    internal static partial void DirectoryOutboxDocumentFailed(
+        this ILogger logger,
+        Exception exception,
+        string kind,
+        string key
+    );
 }

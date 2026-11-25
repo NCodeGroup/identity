@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using System.Diagnostics.Metrics;
+using System.Runtime.ExceptionServices;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -166,7 +167,8 @@ internal sealed class DirectoryOutboxPublisher : BackgroundService
     /// </summary>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
     /// <returns>The <see cref="ValueTask{TResult}"/> that represents the asynchronous operation, whose result is the
-    /// number of documents sent.</returns>
+    /// number of documents sent. A document whose publication fails stays pending and does not stop the documents after
+    /// it; the pass then throws the first failure.</returns>
     internal async ValueTask<int> DrainAsync(CancellationToken cancellationToken)
     {
         var pending = await Outbox.ListPendingAsync(PageSize, cancellationToken);
@@ -176,24 +178,19 @@ internal sealed class DirectoryOutboxPublisher : BackgroundService
             .ToList();
 
         var sent = 0;
+        ExceptionDispatchInfo? firstFailure = null;
         foreach (var document in newest)
         {
-            var stored = await Directory.PublishAsync(document, cancellationToken);
-            var through = Math.Max(stored, document.Revision);
-            await Outbox.AcknowledgeAsync(document.Kind, document.Key, through, cancellationToken);
-
-            // A higher stored revision means the directory holds a document newer than the local source, as after a
-            // restore of the database, so the current local document is enqueued above it and sent in the next drain.
-            if (stored > document.Revision)
+            try
             {
-                var atRevision = stored + 1;
-                await Outbox.RepublishAsync(
-                    document.Kind,
-                    document.Key,
-                    atRevision,
-                    cancellationToken
-                );
-                Logger.DirectoryOutboxRepublished(document.Kind, document.Key, atRevision);
+                await PublishOneAsync(document, cancellationToken);
+            }
+            catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
+            {
+                // The row stays pending for the next drain, and the documents after it are still sent.
+                Logger.DirectoryOutboxDocumentFailed(exception, document.Kind, document.Key);
+                firstFailure ??= ExceptionDispatchInfo.Capture(exception);
+                continue;
             }
 
             var kind = new KeyValuePair<string, object?>(KindAttribute, document.Kind);
@@ -201,6 +198,35 @@ internal sealed class DirectoryOutboxPublisher : BackgroundService
             sent++;
         }
 
+        // The pass reports its failure after every document had its turn, so the publisher's backoff applies.
+        firstFailure?.Throw();
+
         return sent;
+    }
+
+    /// <summary>
+    /// Publishes one pending document, acknowledges it through the revision the directory stores, and enqueues the
+    /// current local document above that revision when the directory holds a newer one.
+    /// </summary>
+    /// <param name="document">The pending document to publish.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation.</returns>
+    private async ValueTask PublishOneAsync(
+        ReplicatedDocument document,
+        CancellationToken cancellationToken
+    )
+    {
+        var stored = await Directory.PublishAsync(document, cancellationToken);
+        var through = Math.Max(stored, document.Revision);
+        await Outbox.AcknowledgeAsync(document.Kind, document.Key, through, cancellationToken);
+
+        // A higher stored revision means the directory holds a document newer than the local source, as after a
+        // restore of the database, so the current local document is enqueued above it and sent in the next drain.
+        if (stored > document.Revision)
+        {
+            var atRevision = stored + 1;
+            await Outbox.RepublishAsync(document.Kind, document.Key, atRevision, cancellationToken);
+            Logger.DirectoryOutboxRepublished(document.Kind, document.Key, atRevision);
+        }
     }
 }

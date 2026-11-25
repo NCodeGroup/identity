@@ -149,6 +149,36 @@ public class DirectoryOutboxPublisherTests : BaseTests
     }
 
     [Fact]
+    public async Task DrainAsync_WhenTheFirstDocumentFails_SendsTheSecondAndLeavesTheFirstPending()
+    {
+        var kind = ReplicatedDocumentKinds.TeamAuthority;
+        var first = Document(kind, "team-a", 1);
+        var second = Document(kind, "team-b", 2);
+        OutboxMock
+            .Setup(x =>
+                x.ListPendingAsync(DirectoryOutboxPublisher.PageSize, It.IsAny<CancellationToken>())
+            )
+            .ReturnsAsync([first, second])
+            .Verifiable(Times.Once);
+        DirectoryMock
+            .Setup(x => x.PublishAsync(first, It.IsAny<CancellationToken>()))
+            .Returns(() => throw new DirectoryUnavailableException("The document is refused."))
+            .Verifiable(Times.Once);
+        DirectoryMock
+            .Setup(x => x.PublishAsync(second, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(2)
+            .Verifiable(Times.Once);
+        OutboxMock
+            .Setup(x => x.AcknowledgeAsync(kind, "team-b", 2, It.IsAny<CancellationToken>()))
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable(Times.Once);
+
+        await Assert.ThrowsAsync<DirectoryUnavailableException>(async () =>
+            await Publisher.DrainAsync(CancellationToken.None)
+        );
+    }
+
+    [Fact]
     public async Task DrainAsync_WhenTheDirectoryHoldsAHigherRevision_AcknowledgesThroughItAndRepublishesAboveIt()
     {
         var kind = ReplicatedDocumentKinds.TeamAuthority;

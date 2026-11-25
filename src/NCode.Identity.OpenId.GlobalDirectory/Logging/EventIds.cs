@@ -61,4 +61,10 @@ internal static class EventIds
     /// registration for the cell yet; the registration is retried after a delay.
     /// </summary>
     public const int CellNotRegisteredYet = Base + 8;
+
+    /// <summary>
+    /// Identifies the error that publishing one document of the control-plane cell's outbox failed; the document stays
+    /// pending and the publisher sends the documents after it.
+    /// </summary>
+    public const int DirectoryOutboxDocumentFailed = Base + 9;
 }
