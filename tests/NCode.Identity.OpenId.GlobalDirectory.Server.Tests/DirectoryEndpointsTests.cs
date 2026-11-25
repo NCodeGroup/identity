@@ -2504,7 +2504,7 @@ public class DirectoryEndpointsTests : IAsyncLifetime
 
         Assert.Equal(HttpStatusCode.OK, putResponse.StatusCode);
         var cells = await ReadAsync<List<CellDescriptor>>(listResponse);
-        Assert.Equal("a", Assert.Single(cells).Name);
+        Assert.Equal("a", Assert.Single(cells, cell => cell.ManagementUrl is not null).Name);
         var cell = await ReadAsync<CellDescriptor>(getResponse);
         Assert.Equal("https://a.example/", cell.ManagementUrl);
     }
@@ -2522,7 +2522,10 @@ public class DirectoryEndpointsTests : IAsyncLifetime
 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
         var listResponse = await Client.GetAsync("/directory/v1/cells");
-        Assert.Empty(await ReadAsync<List<CellDescriptor>>(listResponse));
+        Assert.DoesNotContain(
+            await ReadAsync<List<CellDescriptor>>(listResponse),
+            cell => cell.ManagementUrl is not null
+        );
     }
 
     [Fact]
@@ -2555,7 +2558,10 @@ public class DirectoryEndpointsTests : IAsyncLifetime
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         var listResponse = await Client.GetAsync("/directory/v1/cells");
-        Assert.Empty(await ReadAsync<List<CellDescriptor>>(listResponse));
+        Assert.DoesNotContain(
+            await ReadAsync<List<CellDescriptor>>(listResponse),
+            cell => cell.ManagementUrl is not null
+        );
     }
 
     [Fact]
@@ -2575,7 +2581,10 @@ public class DirectoryEndpointsTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         Assert.Equal(CellTooLongDetail, await ReadProblemDetailAsync(response));
         var listResponse = await Client.GetAsync("/directory/v1/cells");
-        Assert.Empty(await ReadAsync<List<CellDescriptor>>(listResponse));
+        Assert.DoesNotContain(
+            await ReadAsync<List<CellDescriptor>>(listResponse),
+            cell => cell.ManagementUrl is not null
+        );
     }
 
     [Fact]
@@ -2596,7 +2605,10 @@ public class DirectoryEndpointsTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         Assert.Equal(CellTooLongDetail, await ReadProblemDetailAsync(response));
         var listResponse = await Client.GetAsync("/directory/v1/cells");
-        Assert.Empty(await ReadAsync<List<CellDescriptor>>(listResponse));
+        Assert.DoesNotContain(
+            await ReadAsync<List<CellDescriptor>>(listResponse),
+            cell => cell.ManagementUrl is not null
+        );
     }
 
     [Fact]
@@ -2616,7 +2628,10 @@ public class DirectoryEndpointsTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         Assert.Equal(InvalidManagementUrlDetail, await ReadProblemDetailAsync(response));
         var listResponse = await Client.GetAsync("/directory/v1/cells");
-        Assert.Empty(await ReadAsync<List<CellDescriptor>>(listResponse));
+        Assert.DoesNotContain(
+            await ReadAsync<List<CellDescriptor>>(listResponse),
+            cell => cell.ManagementUrl is not null
+        );
     }
 
     [Fact]
@@ -2636,7 +2651,10 @@ public class DirectoryEndpointsTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         Assert.Equal(InvalidManagementUrlDetail, await ReadProblemDetailAsync(response));
         var listResponse = await Client.GetAsync("/directory/v1/cells");
-        Assert.Empty(await ReadAsync<List<CellDescriptor>>(listResponse));
+        Assert.DoesNotContain(
+            await ReadAsync<List<CellDescriptor>>(listResponse),
+            cell => cell.ManagementUrl is not null
+        );
     }
 
     [Fact]
@@ -2678,7 +2696,10 @@ public class DirectoryEndpointsTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         Assert.Equal(InvalidManagementUrlDetail, await ReadProblemDetailAsync(response));
         var listResponse = await Client.GetAsync("/directory/v1/cells");
-        Assert.Empty(await ReadAsync<List<CellDescriptor>>(listResponse));
+        Assert.DoesNotContain(
+            await ReadAsync<List<CellDescriptor>>(listResponse),
+            cell => cell.ManagementUrl is not null
+        );
     }
 
     [Fact]
@@ -2725,7 +2746,10 @@ public class DirectoryEndpointsTests : IAsyncLifetime
             await ReadProblemDetailAsync(response)
         );
         var listResponse = await Client.GetAsync("/directory/v1/cells");
-        Assert.Empty(await ReadAsync<List<CellDescriptor>>(listResponse));
+        Assert.DoesNotContain(
+            await ReadAsync<List<CellDescriptor>>(listResponse),
+            cell => cell.ManagementUrl is not null
+        );
     }
 
     [Fact]
@@ -2752,7 +2776,7 @@ public class DirectoryEndpointsTests : IAsyncLifetime
     {
         await AuthenticateAsync();
 
-        var response = await Client.GetAsync("/directory/v1/cells/a");
+        var response = await Client.GetAsync("/directory/v1/cells/unregistered");
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }

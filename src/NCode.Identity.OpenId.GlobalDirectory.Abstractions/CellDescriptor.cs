@@ -29,9 +29,10 @@ public sealed record CellDescriptor
     public required string Kind { get; init; }
 
     /// <summary>
-    /// Gets the absolute URL at which the cell's management API is reachable.
+    /// Gets the absolute URL at which the cell's management API is reachable, or <c>null</c> while the cell has not
+    /// reported one.
     /// </summary>
-    public required string ManagementUrl { get; init; }
+    public required string? ManagementUrl { get; init; }
 
     /// <summary>
     /// Gets a value indicating whether the cell is the control-plane cell.

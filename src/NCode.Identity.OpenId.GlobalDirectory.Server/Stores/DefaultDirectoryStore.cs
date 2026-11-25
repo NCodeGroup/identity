@@ -1977,6 +1977,12 @@ internal sealed class DefaultDirectoryStore(
         CancellationToken cancellationToken
     )
     {
+        var reportedUrl =
+            descriptor.ManagementUrl
+            ?? throw new ArgumentException(
+                "A cell's report carries its management URL.",
+                nameof(descriptor)
+            );
         await using var dbContext = await DbContextFactory.CreateDbContextAsync(cancellationToken);
         var executionStrategy = dbContext.Database.CreateExecutionStrategy();
         await executionStrategy.ExecuteAsync(
@@ -2028,7 +2034,7 @@ internal sealed class DefaultDirectoryStore(
                 }
 
                 // No two cells report one management URL: a caller's DPoP proof is bound to the URL it names.
-                var normalizedUrl = NormalizeManagementUrl(descriptor.ManagementUrl);
+                var normalizedUrl = NormalizeManagementUrl(reportedUrl);
                 var otherCells = await dbContext
                     .Cells.AsNoTracking()
                     .Where(entity => entity.Name != descriptor.Name && entity.ManagementUrl != null)
@@ -2051,7 +2057,7 @@ internal sealed class DefaultDirectoryStore(
                 }
 
                 // Whether a cell is the control-plane cell is the directory's own fact, never the cell's report.
-                cell.ManagementUrl = descriptor.ManagementUrl;
+                cell.ManagementUrl = reportedUrl;
 
                 await dbContext.SaveChangesAsync(cancellationToken);
                 await transaction.CommitAsync(cancellationToken);
@@ -2266,7 +2272,6 @@ internal sealed class DefaultDirectoryStore(
 
         var records = await dbContext
             .Cells.AsNoTracking()
-            .Where(entity => entity.ManagementUrl != null && !entity.IsRetired)
             .OrderBy(entity => entity.Name)
             .ToListAsync(cancellationToken);
         return [.. records.Select(ToDescriptor)];
@@ -2282,10 +2287,7 @@ internal sealed class DefaultDirectoryStore(
 
         var record = await dbContext
             .Cells.AsNoTracking()
-            .SingleOrDefaultAsync(
-                entity => entity.Name == name && entity.ManagementUrl != null && !entity.IsRetired,
-                cancellationToken
-            );
+            .SingleOrDefaultAsync(entity => entity.Name == name, cancellationToken);
         return record is null ? null : ToDescriptor(record);
     }
 
@@ -2315,7 +2317,7 @@ internal sealed class DefaultDirectoryStore(
             Name = record.Name,
             Region = record.Region,
             Kind = record.Kind,
-            ManagementUrl = record.ManagementUrl ?? string.Empty,
+            ManagementUrl = record.ManagementUrl,
             IsControlPlane = record.IsControlPlane,
             IsRegistered = record.ClientJwksJson is not null,
             IsRetired = record.IsRetired,

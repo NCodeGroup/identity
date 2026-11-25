@@ -1,6 +1,7 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
@@ -8,31 +9,51 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Options;
 using NCode.Identity.AspNetCore;
+using NCode.Identity.Cryptography;
+using NCode.Identity.Events.Audit;
 using NCode.Identity.OpenId.GlobalDirectory;
+using NCode.Identity.OpenId.Management.Auditing;
 using NCode.Identity.OpenId.Management.Contracts.Cells;
 using NCode.Identity.Registration.AspNetCore;
+using NCode.Identity.Secrets.Persistence;
 
 namespace NCode.Identity.OpenId.Management.Endpoints.Cells;
 
 /*
 
-GET api/cells (control-plane cell only)
+GET    api/cells (control-plane cell only)
+GET    api/cells/{name}
+PUT    api/cells/{name}
+DELETE api/cells/{name}
 
 */
 
 /// <summary>
-/// Provides the API endpoint that lists the cells of the platform, so a management client learns each cell's name,
-/// region and kind. The directory owns the list, so the route is mapped only on the control-plane cell. It answers any
-/// caller that the management caller gate authenticated from a management access token, which it reads from
-/// <see cref="IManagementCallerFeature"/>, and it never returns a cell's management URL.
+/// Provides the API endpoints that list, read, register and retire the cells of the platform. The directory owns the
+/// registry, so the routes are mapped only on the control-plane cell. The list answers any caller that the management
+/// caller gate authenticated from a management access token, which it reads from
+/// <see cref="IManagementCallerFeature"/>; reading, registering and retiring a cell are authorized at the platform
+/// node. No route returns a cell's management URL.
 /// </summary>
 internal class CellApiEndpointHandler(
     ICellDirectory cellDirectory,
+    IAuthorizationService authorizationService,
+    ICryptoService cryptoService,
+    IPublicJwksReader publicJwksReader,
+    IManagementAuditRecorder managementAuditRecorder,
     IOptions<CellOptions> cellOptions
-) : IEndpointProvider
+) : BaseApiEndpointHandler, IEndpointProvider
 {
     private ICellDirectory CellDirectory { get; } = cellDirectory;
+    private IPublicJwksReader PublicJwksReader { get; } = publicJwksReader;
+    private IManagementAuditRecorder ManagementAuditRecorder { get; } = managementAuditRecorder;
     private CellOptions CellOptions { get; } = cellOptions.Value;
+
+    /// <inheritdoc />
+    protected override IAuthorizationService AuthorizationService { get; } = authorizationService;
+
+    /// <inheritdoc />
+    protected override ICryptoService CryptoService { get; } = cryptoService;
 
     /// <inheritdoc />
     public void Map(IEndpointRouteBuilder endpoints)
@@ -49,6 +70,31 @@ internal class CellApiEndpointHandler(
             .AddEndpointFilter<ControlPlaneScopeEndpointFilter>()
             .Produces<IReadOnlyList<CellResource>>()
             .ProducesProblem(StatusCodes.Status401Unauthorized);
+        endpoints
+            .MapGet("/cells/{name}", GetCellAsync)
+            .WithTags(OpenIdConstants.EndpointTags.Platform)
+            .AddEndpointFilter<ControlPlaneScopeEndpointFilter>()
+            .Produces<CellResource>()
+            .ProducesProblem(StatusCodes.Status401Unauthorized)
+            .ProducesProblem(StatusCodes.Status403Forbidden)
+            .ProducesProblem(StatusCodes.Status404NotFound);
+        endpoints
+            .MapPut("/cells/{name}", RegisterCellAsync)
+            .WithTags(OpenIdConstants.EndpointTags.Platform)
+            .AddEndpointFilter<ControlPlaneScopeEndpointFilter>()
+            .Produces<CellResource>()
+            .ProducesValidationProblem()
+            .ProducesProblem(StatusCodes.Status401Unauthorized)
+            .ProducesProblem(StatusCodes.Status403Forbidden)
+            .ProducesProblem(StatusCodes.Status409Conflict);
+        endpoints
+            .MapDelete("/cells/{name}", RetireCellAsync)
+            .WithTags(OpenIdConstants.EndpointTags.Platform)
+            .AddEndpointFilter<ControlPlaneScopeEndpointFilter>()
+            .Produces(StatusCodes.Status204NoContent)
+            .ProducesProblem(StatusCodes.Status401Unauthorized)
+            .ProducesProblem(StatusCodes.Status403Forbidden)
+            .ProducesProblem(StatusCodes.Status409Conflict);
     }
 
     /// <summary>
@@ -64,6 +110,8 @@ internal class CellApiEndpointHandler(
             Region = descriptor.Region,
             Kind = descriptor.Kind,
             IsControlPlane = descriptor.IsControlPlane,
+            IsRegistered = descriptor.IsRegistered,
+            IsRetired = descriptor.IsRetired,
         };
 
     /// <summary>
@@ -93,6 +141,189 @@ internal class CellApiEndpointHandler(
             return DirectoryUnavailableProblem(httpContext);
         }
     }
+
+    /// <summary>
+    /// Gets a cell of the platform, whether it is retired or not.
+    /// </summary>
+    /// <param name="httpContext">The <see cref="HttpContext"/> for the current request.</param>
+    /// <param name="name">The name of the cell.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <response code="200">The cell.</response>
+    /// <response code="404">No cell has the name.</response>
+    /// <response code="503">The global directory cannot be reached; the response carries Retry-After.</response>
+    [EndpointName("api/cells/get")]
+    internal virtual async ValueTask<IResult> GetCellAsync(
+        HttpContext httpContext,
+        [FromRoute] string name,
+        CancellationToken cancellationToken
+    )
+    {
+        var platformNode = GetPlatformNode(httpContext);
+        var authorizationFailure = await GetAuthorizationFailureAsync(
+            httpContext,
+            platformNode,
+            Operations.Read,
+            cancellationToken
+        );
+        if (authorizationFailure is not null)
+            return authorizationFailure;
+
+        try
+        {
+            var descriptor = await CellDirectory.GetOrDefaultAsync(name, cancellationToken);
+            if (descriptor is null)
+                return ManagementProblems.ResourceNotFound();
+
+            var resource = ToCellResource(descriptor);
+            return TypedResults.Json(resource);
+        }
+        catch (DirectoryUnavailableException)
+        {
+            return DirectoryUnavailableProblem(httpContext);
+        }
+    }
+
+    /// <summary>
+    /// Registers a cell with the global directory, so the cell can authenticate to the directory's token endpoint with
+    /// the keys of the request's JSON Web Key Set.
+    /// </summary>
+    /// <param name="httpContext">The <see cref="HttpContext"/> for the current request.</param>
+    /// <param name="name">The name of the cell.</param>
+    /// <param name="request">The region, kind and public JSON Web Key Set of the cell.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <response code="200">The registered cell.</response>
+    /// <response code="400">The region or kind is blank, or the key set is not a valid public JSON Web Key Set.</response>
+    /// <response code="409">The directory refuses the registration; the detail names the reason.</response>
+    /// <response code="503">The global directory cannot be reached; the response carries Retry-After.</response>
+    [EndpointName("api/cells/register")]
+    internal virtual async ValueTask<IResult> RegisterCellAsync(
+        HttpContext httpContext,
+        [FromRoute] string name,
+        [FromBody] RegisterCellRequest request,
+        CancellationToken cancellationToken
+    )
+    {
+        var platformNode = GetPlatformNode(httpContext);
+        var authorizationFailure = await GetAuthorizationFailureAsync(
+            httpContext,
+            platformNode,
+            Operations.Update,
+            cancellationToken
+        );
+        if (authorizationFailure is not null)
+            return authorizationFailure;
+
+        var errors = new Dictionary<string, string[]>(StringComparer.Ordinal);
+        if (string.IsNullOrWhiteSpace(request.Region))
+            errors["region"] = ["The region is required."];
+
+        if (string.IsNullOrWhiteSpace(request.Kind))
+            errors["kind"] = ["The kind is required."];
+
+        if (!PublicJwksReader.TryRead(request.Jwks, out _, out var jwksError))
+            errors["jwks"] = [jwksError];
+
+        if (errors.Count > 0)
+            return TypedResults.ValidationProblem(errors);
+
+        var registration = new CellRegistration
+        {
+            Name = name,
+            Region = request.Region,
+            Kind = request.Kind,
+            Jwks = request.Jwks,
+        };
+
+        try
+        {
+            await CellDirectory.RegisterAsync(registration, cancellationToken);
+            var descriptor = await CellDirectory.GetOrDefaultAsync(name, cancellationToken);
+            var resource = descriptor is null
+                ? new CellResource
+                {
+                    Name = name,
+                    Region = request.Region,
+                    Kind = request.Kind,
+                    IsControlPlane = false,
+                    IsRegistered = true,
+                    IsRetired = false,
+                }
+                : ToCellResource(descriptor);
+            var resourceValues = ToResourceValues(resource);
+            await ManagementAuditRecorder.RecordPlatformChangedAsync(
+                httpContext,
+                ResourceChangeTypes.Updated,
+                resourceValues
+            );
+
+            return TypedResults.Json(resource);
+        }
+        catch (CellDirectoryConflictException exception)
+        {
+            return ConflictProblem(exception);
+        }
+        catch (DirectoryUnavailableException)
+        {
+            return DirectoryUnavailableProblem(httpContext);
+        }
+    }
+
+    /// <summary>
+    /// Retires a cell, so its name is never reissued.
+    /// </summary>
+    /// <param name="httpContext">The <see cref="HttpContext"/> for the current request.</param>
+    /// <param name="name">The name of the cell.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <response code="204">The cell is retired.</response>
+    /// <response code="409">The cell still holds tenants or is the control-plane cell; the detail names the reason.</response>
+    /// <response code="503">The global directory cannot be reached; the response carries Retry-After.</response>
+    [EndpointName("api/cells/retire")]
+    internal virtual async ValueTask<IResult> RetireCellAsync(
+        HttpContext httpContext,
+        [FromRoute] string name,
+        CancellationToken cancellationToken
+    )
+    {
+        var platformNode = GetPlatformNode(httpContext);
+        var authorizationFailure = await GetAuthorizationFailureAsync(
+            httpContext,
+            platformNode,
+            Operations.Delete,
+            cancellationToken
+        );
+        if (authorizationFailure is not null)
+            return authorizationFailure;
+
+        try
+        {
+            await CellDirectory.RetireAsync(name, cancellationToken);
+            var retired = new { name };
+            var resourceValues = ToResourceValues(retired);
+            await ManagementAuditRecorder.RecordPlatformChangedAsync(
+                httpContext,
+                ResourceChangeTypes.Deleted,
+                resourceValues
+            );
+
+            return TypedResults.NoContent();
+        }
+        catch (CellDirectoryConflictException exception)
+        {
+            return ConflictProblem(exception);
+        }
+        catch (DirectoryUnavailableException)
+        {
+            return DirectoryUnavailableProblem(httpContext);
+        }
+    }
+
+    /// <summary>
+    /// Answers <c>409 Conflict</c> with the directory's detail.
+    /// </summary>
+    /// <param name="exception">The <see cref="CellDirectoryConflictException"/> that the directory raised.</param>
+    /// <returns>The <see cref="ProblemHttpResult"/> that names the reason.</returns>
+    private static ProblemHttpResult ConflictProblem(CellDirectoryConflictException exception) =>
+        TypedResults.Problem(detail: exception.Message, statusCode: StatusCodes.Status409Conflict);
 
     /// <summary>
     /// Answers <c>503 Service Unavailable</c> with a <c>Retry-After</c> for a request that needs the directory while it

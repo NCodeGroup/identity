@@ -651,12 +651,24 @@ NCode.Identity.OpenId.Management.Contracts.Cells.CellResource
 NCode.Identity.OpenId.Management.Contracts.Cells.CellResource.CellResource() -> void
 NCode.Identity.OpenId.Management.Contracts.Cells.CellResource.IsControlPlane.get -> bool
 NCode.Identity.OpenId.Management.Contracts.Cells.CellResource.IsControlPlane.init -> void
+NCode.Identity.OpenId.Management.Contracts.Cells.CellResource.IsRegistered.get -> bool
+NCode.Identity.OpenId.Management.Contracts.Cells.CellResource.IsRegistered.init -> void
+NCode.Identity.OpenId.Management.Contracts.Cells.CellResource.IsRetired.get -> bool
+NCode.Identity.OpenId.Management.Contracts.Cells.CellResource.IsRetired.init -> void
 NCode.Identity.OpenId.Management.Contracts.Cells.CellResource.Kind.get -> string!
 NCode.Identity.OpenId.Management.Contracts.Cells.CellResource.Kind.init -> void
 NCode.Identity.OpenId.Management.Contracts.Cells.CellResource.Name.get -> string!
 NCode.Identity.OpenId.Management.Contracts.Cells.CellResource.Name.init -> void
 NCode.Identity.OpenId.Management.Contracts.Cells.CellResource.Region.get -> string!
 NCode.Identity.OpenId.Management.Contracts.Cells.CellResource.Region.init -> void
+NCode.Identity.OpenId.Management.Contracts.Cells.RegisterCellRequest
+NCode.Identity.OpenId.Management.Contracts.Cells.RegisterCellRequest.Jwks.get -> System.Text.Json.JsonElement
+NCode.Identity.OpenId.Management.Contracts.Cells.RegisterCellRequest.Jwks.init -> void
+NCode.Identity.OpenId.Management.Contracts.Cells.RegisterCellRequest.Kind.get -> string!
+NCode.Identity.OpenId.Management.Contracts.Cells.RegisterCellRequest.Kind.init -> void
+NCode.Identity.OpenId.Management.Contracts.Cells.RegisterCellRequest.RegisterCellRequest() -> void
+NCode.Identity.OpenId.Management.Contracts.Cells.RegisterCellRequest.Region.get -> string!
+NCode.Identity.OpenId.Management.Contracts.Cells.RegisterCellRequest.Region.init -> void
 NCode.Identity.OpenId.Management.Contracts.ManagementProblemMembers
 NCode.Identity.OpenId.Management.Contracts.PrincipalSummaryResource
 NCode.Identity.OpenId.Management.Contracts.PrincipalSummaryResource.DisplayName.get -> string!

@@ -34,15 +34,18 @@ public sealed class DefaultDirectoryStoreCellRegistryTests : DefaultDirectorySto
     #region RegisterCellAsync Tests
 
     [Fact]
-    public async Task RegisterCellAsync_WhenTheCellIsNew_StoresTheKeysAndListsNoDescriptorYet()
+    public async Task RegisterCellAsync_WhenTheCellIsNew_StoresTheKeysAndListsTheCellWithoutAManagementUrl()
     {
         await CellRegistry.RegisterCellAsync(CreateRegistration("cell-a"), CancellationToken.None);
 
         var keys = await CellRegistry.GetCellClientKeysAsync("cell-a", CancellationToken.None);
         Assert.NotNull(keys);
         Assert.Equal("one", keys.Value.GetProperty("keys")[0].GetProperty("kid").GetString());
-        Assert.Null(await Cells.GetOrDefaultAsync("cell-a", CancellationToken.None));
-        Assert.Empty(await Cells.ListAsync(CancellationToken.None));
+        var listed = await Cells.GetOrDefaultAsync("cell-a", CancellationToken.None);
+        Assert.NotNull(listed);
+        Assert.True(listed.IsRegistered);
+        Assert.Null(listed.ManagementUrl);
+        Assert.Single(await Cells.ListAsync(CancellationToken.None));
     }
 
     [Fact]
@@ -121,15 +124,18 @@ public sealed class DefaultDirectoryStoreCellRegistryTests : DefaultDirectorySto
     #region RetireCellAsync Tests
 
     [Fact]
-    public async Task RetireCellAsync_WhenTheCellHoldsNoTenant_RetiresItAndDropsItsKeysAndDescriptor()
+    public async Task RetireCellAsync_WhenTheCellHoldsNoTenant_RetiresItAndDropsItsKeysAndKeepsItListed()
     {
         await ReportCellAsync(CreateDescriptor("cell-a"), CancellationToken.None);
 
         await CellRegistry.RetireCellAsync("cell-a", CancellationToken.None);
 
         Assert.Null(await CellRegistry.GetCellClientKeysAsync("cell-a", CancellationToken.None));
-        Assert.Null(await Cells.GetOrDefaultAsync("cell-a", CancellationToken.None));
-        Assert.Empty(await Cells.ListAsync(CancellationToken.None));
+        var retired = await Cells.GetOrDefaultAsync("cell-a", CancellationToken.None);
+        Assert.NotNull(retired);
+        Assert.True(retired.IsRetired);
+        Assert.Null(retired.ManagementUrl);
+        Assert.Single(await Cells.ListAsync(CancellationToken.None));
     }
 
     [Fact]

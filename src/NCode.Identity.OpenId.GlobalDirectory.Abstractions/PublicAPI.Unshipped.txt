@@ -19,7 +19,7 @@ NCode.Identity.OpenId.GlobalDirectory.CellDescriptor.IsRetired.get -> bool
 NCode.Identity.OpenId.GlobalDirectory.CellDescriptor.IsRetired.init -> void
 NCode.Identity.OpenId.GlobalDirectory.CellDescriptor.Kind.get -> string!
 NCode.Identity.OpenId.GlobalDirectory.CellDescriptor.Kind.init -> void
-NCode.Identity.OpenId.GlobalDirectory.CellDescriptor.ManagementUrl.get -> string!
+NCode.Identity.OpenId.GlobalDirectory.CellDescriptor.ManagementUrl.get -> string?
 NCode.Identity.OpenId.GlobalDirectory.CellDescriptor.ManagementUrl.init -> void
 NCode.Identity.OpenId.GlobalDirectory.CellDescriptor.Name.get -> string!
 NCode.Identity.OpenId.GlobalDirectory.CellDescriptor.Name.init -> void

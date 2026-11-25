@@ -688,7 +688,9 @@ public class RemoteDirectoryRoundTripTests : IAsyncLifetime
     [Fact]
     public async Task ReportAsync_WhenTheCallerIsTheCell_RegistersItAndListsIt()
     {
-        Assert.Null(await Cells.GetOrDefaultAsync(CellName, CancellationToken.None));
+        var unreported = await Cells.GetOrDefaultAsync(CellName, CancellationToken.None);
+        Assert.NotNull(unreported);
+        Assert.Null(unreported.ManagementUrl);
 
         await ReportCellAsync(
             new CellDescriptor
@@ -706,8 +708,11 @@ public class RemoteDirectoryRoundTripTests : IAsyncLifetime
         Assert.Equal(Region, cell.Region);
         Assert.Equal(CellKinds.Dedicated, cell.Kind);
         Assert.Equal("https://a.example/", cell.ManagementUrl);
-        var listed = Assert.Single(await Cells.ListAsync(CancellationToken.None));
-        Assert.Equal(CellName, listed.Name);
+        var listed = Assert.Single(
+            await Cells.ListAsync(CancellationToken.None),
+            candidate => candidate.Name == CellName
+        );
+        Assert.Equal("https://a.example/", listed.ManagementUrl);
     }
 
     #endregion

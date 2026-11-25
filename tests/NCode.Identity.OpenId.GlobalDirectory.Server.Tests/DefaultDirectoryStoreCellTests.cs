@@ -58,7 +58,9 @@ public sealed class DefaultDirectoryStoreCellTests : DefaultDirectoryStoreTestBa
         );
 
         Assert.Contains("cell-a", exception.Message);
-        Assert.Null(await Cells.GetOrDefaultAsync("cell-b", CancellationToken.None));
+        var stored = await Cells.GetOrDefaultAsync("cell-b", CancellationToken.None);
+        Assert.NotNull(stored);
+        Assert.Null(stored.ManagementUrl);
     }
 
     [Theory]
