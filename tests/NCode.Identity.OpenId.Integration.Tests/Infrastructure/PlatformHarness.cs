@@ -18,6 +18,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using NCode.Buffers;
 using NCode.Identity.Jose;
 using NCode.Identity.Jwt;
@@ -34,6 +35,8 @@ using NCode.Identity.Secrets;
 using NCode.Identity.Secrets.Collections;
 using NCode.Identity.Secrets.KeyMaterial;
 using NCode.Identity.Secrets.Keys;
+using NCode.Identity.Secrets.Persistence.DataContracts;
+using NCode.Identity.Server.Recovery;
 
 namespace NCode.Identity.OpenId.Integration.Tests.Infrastructure;
 
@@ -135,6 +138,8 @@ public sealed class PlatformHarness : IAsyncDisposable
 
     private ECDsa? DPoPKey { get; set; }
 
+    private IReadOnlyDictionary<string, string?>? CellSettings { get; init; }
+
     private string KeyDirectory { get; } =
         Path.Combine(Path.GetTempPath(), "platform-harness-" + Guid.NewGuid().ToString("N"));
 
@@ -145,9 +150,22 @@ public sealed class PlatformHarness : IAsyncDisposable
     /// </summary>
     /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
     /// <returns>The started platform, which the caller disposes.</returns>
-    public static async ValueTask<PlatformHarness> StartAsync(CancellationToken cancellationToken)
+    public static ValueTask<PlatformHarness> StartAsync(CancellationToken cancellationToken) =>
+        StartAsync(cellSettings: null, cancellationToken);
+
+    /// <summary>
+    /// Starts the directory, the control-plane cell and both workload cells, with configuration that every cell reads
+    /// in addition to its own.
+    /// </summary>
+    /// <param name="cellSettings">The configuration of every cell, or <see langword="null"/> for none.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    /// <returns>The started platform, which the caller disposes.</returns>
+    public static async ValueTask<PlatformHarness> StartAsync(
+        IReadOnlyDictionary<string, string?>? cellSettings,
+        CancellationToken cancellationToken
+    )
     {
-        var harness = new PlatformHarness();
+        var harness = new PlatformHarness { CellSettings = cellSettings };
         try
         {
             await harness.InitializeAsync(cancellationToken);
@@ -176,11 +194,13 @@ public sealed class PlatformHarness : IAsyncDisposable
         );
 
         var controlPlane = new PlatformCellFactory(
-            CreateCellSettings(
-                ControlPlaneName,
-                ControlPlaneUrl,
-                controlKey.Path,
-                isControlPlane: true
+            AddExtraSettings(
+                CreateCellSettings(
+                    ControlPlaneName,
+                    ControlPlaneUrl,
+                    controlKey.Path,
+                    isControlPlane: true
+                )
             ),
             Router,
             ControlPlaneName,
@@ -194,7 +214,9 @@ public sealed class PlatformHarness : IAsyncDisposable
         );
 
         var cellA = new PlatformCellFactory(
-            CreateCellSettings(CellAName, CellAUrl, alphaKey.Path, isControlPlane: false),
+            AddExtraSettings(
+                CreateCellSettings(CellAName, CellAUrl, alphaKey.Path, isControlPlane: false)
+            ),
             Router,
             CellAName,
             Logs
@@ -203,7 +225,9 @@ public sealed class PlatformHarness : IAsyncDisposable
         Router.Add(CellAName, "alpha.platform.test", () => cellA.Server.CreateHandler());
 
         var cellB = new PlatformCellFactory(
-            CreateCellSettings(CellBName, CellBUrl, betaKey.Path, isControlPlane: false),
+            AddExtraSettings(
+                CreateCellSettings(CellBName, CellBUrl, betaKey.Path, isControlPlane: false)
+            ),
             Router,
             CellBName,
             Logs
@@ -797,6 +821,182 @@ public sealed class PlatformHarness : IAsyncDisposable
             cancellationToken
         );
 
+    /// <summary>
+    /// Runs the <c>recover-admin</c> command against a cell's services with the administrator in its
+    /// <c>Recovery:Admin</c> configuration.
+    /// </summary>
+    /// <param name="cellName">The name of the cell.</param>
+    /// <param name="userName">The administrator's username.</param>
+    /// <param name="password">The administrator's password.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    /// <returns>The command's exit code.</returns>
+    public async ValueTask<int> RunRecoverAdminCommandAsync(
+        string cellName,
+        string userName,
+        string password,
+        CancellationToken cancellationToken
+    )
+    {
+        await EnsureTenantPersistedAsync(cellName, cancellationToken);
+
+        var command =
+            RecoverAdminCommandLine.Parse([RecoverAdminCommandLine.CommandName])
+            ?? throw new InvalidOperationException("The command line does not parse.");
+        var options = new RecoveryOptions
+        {
+            Admin = new RecoveryAdminOptions { UserName = userName, Password = password },
+        };
+
+        await using var scope = GetCell(cellName).Services.CreateAsyncScope();
+        var services = new OverridingServiceProvider(
+            scope.ServiceProvider,
+            typeof(IOptions<RecoveryOptions>),
+            Microsoft.Extensions.Options.Options.Create(options)
+        );
+        return await command.RunAsync(services, cancellationToken);
+    }
+
+    /// <summary>
+    /// Runs the <c>recover-sign-in</c> command against a cell's services.
+    /// </summary>
+    /// <param name="cellName">The name of the cell.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    /// <returns>The command's exit code.</returns>
+    public async ValueTask<int> RunRecoverSignInCommandAsync(
+        string cellName,
+        CancellationToken cancellationToken
+    )
+    {
+        await EnsureTenantPersistedAsync(cellName, cancellationToken);
+
+        var command =
+            RecoverSignInCommandLine.Parse([RecoverSignInCommandLine.CommandName])
+            ?? throw new InvalidOperationException("The command line does not parse.");
+
+        await using var scope = GetCell(cellName).Services.CreateAsyncScope();
+        return await command.RunAsync(scope.ServiceProvider, cancellationToken);
+    }
+
+    /// <summary>
+    /// Sets the key-custody fence of a tenant that a cell holds directly in the cell's database, as a tenant move does.
+    /// </summary>
+    /// <param name="cellName">The name of the cell.</param>
+    /// <param name="tenantId">The identifier of the tenant.</param>
+    /// <param name="custody">One of the <c>TenantKeyCustody</c> values.</param>
+    /// <param name="otherCell">The name of the other cell of the move, or <see langword="null"/> for none.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    public async ValueTask SetKeyCustodyAsync(
+        string cellName,
+        string tenantId,
+        string custody,
+        string? otherCell,
+        CancellationToken cancellationToken
+    )
+    {
+        await EnsureTenantPersistedAsync(cellName, cancellationToken);
+
+        using var scope = new TenantServiceScope(GetCell(cellName).Services, tenantId);
+        var storeManagerFactory = scope.ServiceProvider.GetRequiredService<IStoreManagerFactory>();
+        await using var storeManager = await storeManagerFactory.CreateAsync(cancellationToken);
+        var exists = await storeManager
+            .GetStore<ITenantStore>()
+            .SetKeyCustodyAsync(tenantId, custody, otherCell, cancellationToken);
+        if (!exists)
+            throw new InvalidOperationException($"The tenant '{tenantId}' does not exist.");
+
+        await storeManager.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Reads the secrets of a tenant that a cell holds directly from the cell's database.
+    /// </summary>
+    /// <param name="cellName">The name of the cell.</param>
+    /// <param name="tenantId">The identifier of the tenant.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    /// <returns>The tenant's secrets.</returns>
+    public async ValueTask<IReadOnlyList<PersistedSecret>> GetTenantSecretsAsync(
+        string cellName,
+        string tenantId,
+        CancellationToken cancellationToken
+    )
+    {
+        await EnsureTenantPersistedAsync(cellName, cancellationToken);
+
+        using var scope = new TenantServiceScope(GetCell(cellName).Services, tenantId);
+        var storeManagerFactory = scope.ServiceProvider.GetRequiredService<IStoreManagerFactory>();
+        await using var storeManager = await storeManagerFactory.CreateAsync(cancellationToken);
+        var secrets = await storeManager
+            .GetStore<ITenantStore>()
+            .GetSecretsOrDefaultAsync(tenantId, cancellationToken);
+        return [.. secrets?.Value ?? []];
+    }
+
+    /// <summary>
+    /// Changes the lifecycle of a secret of a tenant that a cell holds directly in the cell's database, without the
+    /// tenant seeding or announcing the change.
+    /// </summary>
+    /// <param name="cellName">The name of the cell.</param>
+    /// <param name="tenantId">The identifier of the tenant.</param>
+    /// <param name="secretId">The identifier of the secret.</param>
+    /// <param name="activatesWhen">The instant the secret activates.</param>
+    /// <param name="retiresWhen">The instant the secret retires.</param>
+    /// <param name="expiresWhen">The instant the secret expires.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    public async ValueTask SetTenantSecretLifecycleAsync(
+        string cellName,
+        string tenantId,
+        string secretId,
+        DateTimeOffset activatesWhen,
+        DateTimeOffset retiresWhen,
+        DateTimeOffset expiresWhen,
+        CancellationToken cancellationToken
+    )
+    {
+        await EnsureTenantPersistedAsync(cellName, cancellationToken);
+
+        using var scope = new TenantServiceScope(GetCell(cellName).Services, tenantId);
+        var storeManagerFactory = scope.ServiceProvider.GetRequiredService<IStoreManagerFactory>();
+        await using var storeManager = await storeManagerFactory.CreateAsync(cancellationToken);
+        var store = storeManager.GetStore<ITenantStore>();
+        var secret =
+            await store.GetSecretOrDefaultAsync(tenantId, secretId, cancellationToken)
+            ?? throw new InvalidOperationException($"The secret '{secretId}' does not exist.");
+        await store.UpdateSecretAsync(
+            tenantId,
+            secret with
+            {
+                ActivatesWhen = activatesWhen,
+                RetiresWhen = retiresWhen,
+                ExpiresWhen = expiresWhen,
+            },
+            cancellationToken
+        );
+        await storeManager.SaveChangesAsync(cancellationToken);
+    }
+
+    private IReadOnlyDictionary<string, string?> AddExtraSettings(
+        Dictionary<string, string?> settings
+    )
+    {
+        if (CellSettings is null)
+            return settings;
+
+        foreach (var (key, value) in CellSettings)
+            settings[key] = value;
+
+        return settings;
+    }
+
+    private sealed class OverridingServiceProvider(
+        IServiceProvider inner,
+        Type serviceType,
+        object instance
+    ) : IServiceProvider
+    {
+        public object? GetService(Type requestedType) =>
+            requestedType == serviceType ? instance : inner.GetService(requestedType);
+    }
+
     private async ValueTask EnsureTenantPersistedAsync(
         string cellName,
         CancellationToken cancellationToken
@@ -1108,10 +1308,67 @@ public sealed class PlatformHarness : IAsyncDisposable
         /// <param name="body">The JSON body, or <see langword="null"/> for none.</param>
         /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
         /// <returns>The response, which the caller disposes.</returns>
-        public async ValueTask<HttpResponseMessage> SendAsync(
+        public ValueTask<HttpResponseMessage> SendAsync(
             HttpMethod method,
             string url,
             object? body,
+            CancellationToken cancellationToken
+        ) => SendAsync(method, url, body, ifMatch: null, cancellationToken);
+
+        /// <summary>
+        /// Sends a request with the token, a fresh proof and an <c>If-Match</c> header.
+        /// </summary>
+        /// <param name="method">The HTTP method.</param>
+        /// <param name="url">The absolute URL of the request.</param>
+        /// <param name="body">The JSON body, or <see langword="null"/> for none.</param>
+        /// <param name="ifMatch">The concurrency token for the <c>If-Match</c> header, or <see langword="null"/> for
+        /// none.</param>
+        /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+        /// <returns>The response, which the caller disposes.</returns>
+        public ValueTask<HttpResponseMessage> SendAsync(
+            HttpMethod method,
+            string url,
+            object? body,
+            string? ifMatch,
+            CancellationToken cancellationToken
+        ) =>
+            SendContentAsync(
+                method,
+                url,
+                body is null ? null : JsonContent.Create(body),
+                ifMatch,
+                cancellationToken
+            );
+
+        /// <summary>
+        /// Sends a <c>PATCH</c> request with a JSON Patch document, the token and a fresh proof.
+        /// </summary>
+        /// <param name="url">The absolute URL of the request.</param>
+        /// <param name="operations">The operations of the JSON Patch document.</param>
+        /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+        /// <returns>The response, which the caller disposes.</returns>
+        public ValueTask<HttpResponseMessage> SendJsonPatchAsync(
+            string url,
+            object operations,
+            CancellationToken cancellationToken
+        ) =>
+            SendContentAsync(
+                HttpMethod.Patch,
+                url,
+                new StringContent(
+                    JsonSerializer.Serialize(operations),
+                    SecureEncoding.UTF8,
+                    "application/json-patch+json"
+                ),
+                ifMatch: null,
+                cancellationToken
+            );
+
+        private async ValueTask<HttpResponseMessage> SendContentAsync(
+            HttpMethod method,
+            string url,
+            HttpContent? content,
+            string? ifMatch,
             CancellationToken cancellationToken
         )
         {
@@ -1131,8 +1388,9 @@ public sealed class PlatformHarness : IAsyncDisposable
                 AccessToken
             );
             request.Headers.Add(OpenIdProtocol.DPoP.HeaderName, proof);
-            if (body is not null)
-                request.Content = JsonContent.Create(body);
+            if (ifMatch is not null)
+                request.Headers.TryAddWithoutValidation("If-Match", ifMatch);
+            request.Content = content;
 
             return await client.SendAsync(request, cancellationToken);
         }
