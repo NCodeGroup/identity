@@ -388,7 +388,7 @@ public class InstanceSetupCommandLineTests : BaseTests
     }
 
     [Fact]
-    public async Task RunAsync_CreateRootFails_ReturnsOneAndLogsOnlyTheStatusCode()
+    public async Task RunAsync_CreateRootFails_ReturnsOneAndLogsTheRefusal()
     {
         var loggerProvider = new CapturingLoggerProvider();
         var setupService = CreateStrictMock<IInstanceSetupService>();
@@ -420,13 +420,9 @@ public class InstanceSetupCommandLineTests : BaseTests
         Assert.Equal(1, exitCode);
         Assert.Contains(
             loggerProvider.Messages,
-            message => message.Contains("status code 400", StringComparison.Ordinal)
-        );
-        Assert.DoesNotContain(
-            loggerProvider.Messages,
             message =>
                 message.Contains(
-                    "The password does not satisfy the password policy.",
+                    "status code 400: The password does not satisfy the password policy.",
                     StringComparison.Ordinal
                 )
         );
@@ -713,12 +709,11 @@ public class InstanceSetupCommandLineTests : BaseTests
         Assert.Equal(1, exitCode);
         Assert.Contains(
             loggerProvider.Messages,
-            message => message.Contains("status code 400", StringComparison.Ordinal)
-        );
-        Assert.DoesNotContain(
-            loggerProvider.Messages,
             message =>
-                message.Contains("The automation client needs a JWK Set.", StringComparison.Ordinal)
+                message.Contains(
+                    "status code 400: The automation client needs a JWK Set.",
+                    StringComparison.Ordinal
+                )
         );
     }
 

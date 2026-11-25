@@ -863,13 +863,15 @@ public sealed class PlatformHarness : IAsyncDisposable
 
     /// <summary>
     /// Runs the <c>setup</c> command against a cell's services with the root administrator in its <c>Setup:Root</c>
-    /// configuration and, when given, the management console's client in <c>Setup:ManagementConsole</c>. The cell
+    /// configuration and, when given, the management console's client in <c>Setup:ManagementConsole</c> and the
+    /// automation client in <c>Setup:Automation</c>. The cell
     /// serves no request first, so a workload cell's management tenant does not exist until setup creates it.
     /// </summary>
     /// <param name="cellName">The name of the cell.</param>
     /// <param name="userName">The root administrator's username.</param>
     /// <param name="password">The root administrator's password.</param>
     /// <param name="managementConsole">The management console's client, or <see langword="null"/> for none.</param>
+    /// <param name="automation">The automation client, or <see langword="null"/> for none.</param>
     /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
     /// <returns>The command's exit code.</returns>
     public async ValueTask<int> RunSetupCommandAsync(
@@ -877,6 +879,7 @@ public sealed class PlatformHarness : IAsyncDisposable
         string userName,
         string password,
         SetupManagementConsoleOptions? managementConsole,
+        SetupAutomationOptions? automation,
         CancellationToken cancellationToken
     )
     {
@@ -894,6 +897,8 @@ public sealed class PlatformHarness : IAsyncDisposable
         };
         if (managementConsole is not null)
             options.ManagementConsole = managementConsole;
+        if (automation is not null)
+            options.Automation = automation;
 
         await using var scope = GetCell(cellName).Services.CreateAsyncScope();
         var services = new OverridingServiceProvider(

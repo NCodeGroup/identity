@@ -178,7 +178,8 @@ public sealed class InstanceSetupCommandLine : IHostCommand
         var result = await setupService.SetUpAsync(request, cancellationToken);
         if (!result.Succeeded)
         {
-            logger.InstanceSetupCommandRefused(result.Error.StatusCode);
+            var refusal = result.Error;
+            logger.InstanceSetupCommandRefused(refusal.StatusCode, refusal.Detail);
             return 1;
         }
 

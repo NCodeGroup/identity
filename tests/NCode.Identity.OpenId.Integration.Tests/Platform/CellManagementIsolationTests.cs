@@ -35,6 +35,12 @@ public class CellManagementIsolationTests
     private const string ConsoleJwks =
         """{"keys":[{"kty":"EC","crv":"P-256","kid":"console","x":"f83OJ3D2xF1Bg8vub9tLe1gHMzV76e8Tus9uPHvRVEU","y":"x_FEzRu9m36HLN_tue659LNpXW6pCyStikYjKIWI5a0"}]}""";
 
+    private const string AutomationClientId = "platform-automation";
+
+    // A public JWK Set of one P-256 key, which setup imports by value for the automation client.
+    private const string AutomationJwks =
+        """{"keys":[{"kty":"EC","crv":"P-256","kid":"automation","x":"f83OJ3D2xF1Bg8vub9tLe1gHMzV76e8Tus9uPHvRVEU","y":"x_FEzRu9m36HLN_tue659LNpXW6pCyStikYjKIWI5a0"}]}""";
+
     private static CancellationTokenSource CreateTimeout() => new(TimeSpan.FromMinutes(3));
 
     #region Scaffolding
@@ -157,6 +163,7 @@ public class CellManagementIsolationTests
                 BaseUrl = ConsoleBaseUrl,
                 Jwks = ConsoleJwks,
             },
+            automation: null,
             timeout.Token
         );
         Assert.Equal(0, exitCode);
@@ -208,7 +215,7 @@ public class CellManagementIsolationTests
     }
 
     [Fact]
-    public async Task Setup_InTheControlPlaneCell_PublishesTheRootAdministratorSoAWorkloadCellAcceptsItsToken()
+    public async Task Setup_InTheControlPlaneCell_CreatesTheAutomationClientAndPublishesTheRootAdministrator()
     {
         using var timeout = CreateTimeout();
         await using var platform = await PlatformHarness.StartAsync(timeout.Token);
@@ -219,9 +226,26 @@ public class CellManagementIsolationTests
             RootUserName,
             RootPassword,
             managementConsole: null,
+            new SetupAutomationOptions { ClientId = AutomationClientId, Jwks = AutomationJwks },
             timeout.Token
         );
         Assert.Equal(0, exitCode);
+
+        using (
+            var scope = new TenantServiceScope(
+                platform.ControlPlane.Services,
+                PlatformHarness.ControlPlaneTenantId
+            )
+        )
+        {
+            var storeManagerFactory =
+                scope.ServiceProvider.GetRequiredService<IStoreManagerFactory>();
+            await using var storeManager = await storeManagerFactory.CreateAsync(timeout.Token);
+            var automation = await storeManager
+                .GetStore<IClientStore>()
+                .GetOrDefaultAsync(AutomationClientId, timeout.Token);
+            Assert.NotNull(automation);
+        }
 
         // The root administrator's GlobalAdmin assignment reaches the workload cell through the outbox and the feed,
         // with no restart in between.
