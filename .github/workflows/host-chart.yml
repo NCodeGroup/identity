@@ -152,6 +152,39 @@ jobs:
             echo "::error::The chart rendered a cell console with managementConsole.cells."
             exit 1
           fi
+          # Each cell console rule refuses on its own: the message names the rule, so a case never passes on another.
+          refuse_cell_console() {
+            expected="$1"
+            shift
+            if output=$(helm template release "$CHART" --values "$cell_console" "$@" 2>&1 > /dev/null); then
+              echo "::error::The chart rendered a cell console it must refuse: $*"
+              exit 1
+            fi
+            if [[ "$output" != *"$expected"* ]]; then
+              echo "::error::The chart refused a cell console for another reason: $output"
+              exit 1
+            fi
+          }
+          # The control-plane cell's console is the platform console.
+          refuse_cell_console "the control-plane cell's console is the platform console" --set cell.isControlPlane=true
+          # A cell console needs a dynamic strategy: a static cell has no management tenant to sign in against.
+          refuse_cell_console "requires a dynamic tenantResolution.strategyCode" \
+            --set tenantResolution.strategyCode=StaticSingle \
+            --set tenantResolution.staticSingle.issuer=https://manage.eu.example.com \
+            --set tenantResolution.staticSingle.tenantId=ci-eu --set setup.job.enabled=false
+          # A cell console calls the cell's management API, so the cell names its management URL; the console needs
+          # directory.url, so the directory rule refuses first.
+          refuse_cell_console "cell.managementUrl must be the URL of the cell's management API" --set cell.managementUrl=
+          # A cell console signs in against the cell's root tenant, so it names the authority.
+          refuse_cell_console "managementConsole.authority must be" --set managementConsole.authority=
+          # The directory's CA certificates come from a Secret or a ConfigMap, one key, and need the directory's URL.
+          refuse --set directory.caCertificates.existingSecret=directory-ca
+          refuse --values "$CHART/ci/directory-values.yaml" --set directory.caCertificates.existingConfigMap=directory-ca
+          refuse --values "$CHART/ci/directory-values.yaml" --set directory.caCertificates.key=
+          # The ConfigMap form is accepted.
+          helm template release "$CHART" --values "$base" --values "$CHART/ci/directory-values.yaml" \
+            --set directory.caCertificates.existingSecret= \
+            --set directory.caCertificates.existingConfigMap=directory-ca > /dev/null
           # A cell names itself and its region with lowercase labels, and a cell that is not the control plane names the
           # control plane's issuer.
           refuse --set cell.name=
@@ -189,8 +222,8 @@ jobs:
           # The recovery Jobs: recover-admin reads the administrator from a Secret, and the revocation Job needs its key id.
           refuse --set recovery.recoverAdmin.enabled=true
           refuse --set recovery.revokeManagementKey.enabled=true
-          # Setup runs in the control-plane cell only. The same release renders as the control-plane cell, so the
-          # refusal is the rule it names.
+          # Setup runs in the control-plane cell and in a cell that serves a dynamic strategy; a static workload cell is
+          # refused. The same release renders as the control-plane cell, so the refusal is the rule it names.
           helm template release "$CHART" --values "$base" --values "$CHART/ci/setup-values.yaml" \
             --values "$CHART/ci/cell-values.yaml" > /dev/null
           refuse --values "$CHART/ci/setup-values.yaml" --values "$CHART/ci/cell-values.yaml" \

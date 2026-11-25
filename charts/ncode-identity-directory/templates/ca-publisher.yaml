@@ -45,11 +45,14 @@ metadata:
     {{- include "identity-directory.commonLabels" . | nindent 4 }}
     app.kubernetes.io/component: ca-publisher
 rules:
+  # Narrowed to the CA ConfigMap by name.
   - apiGroups: [""]
     resources: ["configmaps"]
     resourceNames:
       - {{ $target }}
     verbs: ["get", "patch"]
+  # `kubectl apply -k` creates the CA ConfigMap on the first install. RBAC cannot narrow `create` by name, so the rule
+  # names no resource; the Job runs only the pinned kubectl image with fixed arguments.
   - apiGroups: [""]
     resources: ["configmaps"]
     verbs: ["create"]

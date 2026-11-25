@@ -410,9 +410,6 @@ applied. Rendered for its side effect only.
 {{- if and .Values.managementConsole.cellConsole (not (include "identity-host.dynamicStrategy" .)) }}
 {{- fail "managementConsole.cellConsole requires a dynamic tenantResolution.strategyCode (DynamicByHost or DynamicByPath): only a cell that serves a dynamic strategy has a management tenant for its console to sign in against." }}
 {{- end }}
-{{- if and .Values.managementConsole.cellConsole (not .Values.cell.managementUrl) }}
-{{- fail "cell.managementUrl must be the cell's management API URL when managementConsole.cellConsole is true: the console calls /api on it." }}
-{{- end }}
 {{- if and .Values.managementConsole.cellConsole .Values.managementConsole.cells }}
 {{- fail "managementConsole.cells is refused when managementConsole.cellConsole is true: a platform console lists cells and a cell console does not." }}
 {{- end }}

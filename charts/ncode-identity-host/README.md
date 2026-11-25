@@ -397,7 +397,7 @@ Delete both Secrets once the instance is initialized. The guide
 ## Recovery
 
 Three offline commands of the host image repair an instance that no one can sign in to or manage. Each renders a Job per
-release revision, with the credentials of the schema owner and no hook; enable one only while it is needed.
+release revision, with the runtime role's connection (`database`), as the host does, and no hook; enable one only while it is needed.
 
 | Value                                        | Meaning                                                                                       |
 | -------------------------------------------- | --------------------------------------------------------------------------------------------- |

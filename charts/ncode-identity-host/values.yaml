@@ -44,7 +44,8 @@ cell:
   # true when the cell is the control-plane cell, which serves platform and team management and setup.
   isControlPlane: false
   # The issuer of the control-plane cell. Required when isControlPlane is false: the cell accepts platform and team
-  # management tokens it issues, verified against the keys the directory replicates. An `https` URL, or an `http` URL on a loopback host, with no user information, query or fragment.
+  # management tokens it issues, verified against the keys the directory replicates. An `https` URL, or an `http` URL on
+  # a loopback host, with no user information, query or fragment.
   controlPlaneIssuer: ""
   # The time between two passes that set the key custody of an incoming tenant to held once the directory places the
   # tenant in this cell, a .NET TimeSpan from 00:00:00.001 to 49.17:02:47.294 (Cell:KeyCustodyReconcileInterval).
@@ -385,7 +386,7 @@ setup:
     jwks: ""
 
 # Offline recovery of an instance, each a one-off Job from the host image that runs for this release revision with the
-# credentials of the schema owner: recover-admin creates or re-enables an administrator account in the anchor tenant,
+# runtime role's connection (database), as the host does: recover-admin creates or re-enables an administrator account in the anchor tenant,
 # recover-sign-in repairs the settings that block every sign-in, and revoke-management-key revokes a management signing
 # key in this cell. Enable one only while it is needed, and delete its Secret afterwards.
 recovery:

@@ -18,8 +18,8 @@
 {{- range $index, $item := $jobs }}
 {{- include "identity-host.validate" $ }}
 ---
-# Runs the host image's {{ $item.name }} command once for this release revision, offline, with the credentials of the
-# schema owner and no hook. Disable it once it has completed.
+# Runs the host image's {{ $item.name }} command once for this release revision, offline, with the runtime role's
+# connection (database), as the host does, and no hook. Disable it once it has completed.
 apiVersion: batch/v1
 kind: Job
 metadata:

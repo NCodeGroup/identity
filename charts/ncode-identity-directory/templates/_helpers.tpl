@@ -92,8 +92,8 @@ The pattern of the ARN of an AWS KMS key or alias.
 
 {{/*
 The pattern of a service URL: https, or http on a loopback host, written with its authority and with no user
-information, query, fragment or white space. The directory applies the rule itself when it starts; the pattern is the chart's
-check before anything is applied.
+information, query, fragment or white space. The directory applies the rule itself when it starts; the pattern is the
+chart's check before anything is applied.
 */}}
 {{- define "identity-directory.serviceUrlPattern" -}}
 (?i)^(https://[^/?#@\s\v\x{85}\p{Z}]+|http://(localhost|127(\.[0-9]{1,3}){3}|\[::1\])(:[0-9]+)?)(/[^?#\s\v\x{85}\p{Z}]*)?$
