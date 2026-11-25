@@ -1396,8 +1396,8 @@ public sealed class PlatformHarness : IAsyncDisposable
         }
 
         /// <summary>
-        /// Sends a <c>GET</c> request with the token and a proof that names another URL than the request's, as a
-        /// token and proof that were meant for one cell reach another.
+        /// Sends a <c>GET</c> request with the token and a proof that names another URL than the request's, as a token
+        /// and proof that were meant for one cell reach another.
         /// </summary>
         /// <param name="proofUrl">The absolute URL that the proof names as its target.</param>
         /// <param name="requestUrl">The absolute URL that the request is sent to.</param>
