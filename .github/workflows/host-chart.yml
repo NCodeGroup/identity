@@ -1125,63 +1125,6 @@ jobs:
           helm install release "$CHART" --namespace "$NAMESPACE" --values "$CHART/ci/kind-values.yaml" \
             --wait --timeout 10m
 
-      # The automation client, which only the control-plane cell's setup Job created, registers the workload cell with
-      # its directory-client key set. management-request.mjs gets a DPoP-bound management token with private_key_jwt
-      # and sends the request with a proof for the public URL, through a port-forward to the cell's own HTTPS port.
-      - name: Register the workload cell through the control-plane cell's management API
-        run: |
-          set -euo pipefail
-          kubectl -n "$NAMESPACE" get secret release-ncode-identity-host-tls --output jsonpath='{.data.ca\.crt}' \
-            | base64 --decode > "$RUNNER_TEMP/control-plane-ca.crt"
-          kubectl -n "$NAMESPACE" port-forward svc/release-ncode-identity-host 8443:443 > /dev/null 2>&1 &
-          trap "kill $! 2> /dev/null || true" EXIT
-          body=$(node -e 'const jwks = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")); console.log(JSON.stringify({ region: "ci", kind: "shared", jwks }));' "$RUNNER_TEMP/workload-client-jwks.json")
-          node build/kind/management-request.mjs --issuer https://id.example.com --client-id ci-automation \
-            --key "$RUNNER_TEMP/keys/ci-automation.pem" --ca "$RUNNER_TEMP/control-plane-ca.crt" \
-            --connect "https://id.example.com=127.0.0.1:8443,release-ncode-identity-host.$NAMESPACE.svc" \
-            --method PUT --url https://id.example.com/api/cells/ci-kind-cell --body "$body" \
-            --expect 200 --attempts 24 --delay-seconds 5
-
-      # The workload cell's own setup Job runs on its empty database with its directory client, so it reserves the
-      # cell's management tenant through the directory and creates the cell's first CellAdmin and its cell console's
-      # client, with no ordering trick: it does not wait for the Deployment to serve.
-      - name: Install the workload cell
-        run: |
-          set -euo pipefail
-          helm install cell "$CHART" --namespace "$CELL_NAMESPACE" --values "$CHART/ci/kind-cell-values.yaml" \
-            --values "$RUNNER_TEMP/cell-trust-values.yaml" --wait --timeout 10m
-          kubectl -n "$CELL_NAMESPACE" wait --for=condition=complete job -l app.kubernetes.io/component=setup \
-            --timeout=5m
-          kubectl -n "$CELL_NAMESPACE" wait --for=condition=ready pod -l app.kubernetes.io/component=server \
-            --timeout=5m
-
-      # The workload cell accepts the automation client's DPoP-bound management token once its replica holds the keys
-      # and the platform authority that the control-plane cell's setup published, with no reset or restart, and it
-      # lists the CellAdmin and the console client that its own setup created.
-      - name: The workload cell accepts a platform administrator after setup
-        run: |
-          set -euo pipefail
-          kubectl -n "$CELL_NAMESPACE" get secret cell-ncode-identity-host-tls --output jsonpath='{.data.ca\.crt}' \
-            | base64 --decode > "$RUNNER_TEMP/cell-ca.crt"
-          kubectl -n "$NAMESPACE" port-forward svc/release-ncode-identity-host 8443:443 > /dev/null 2>&1 &
-          control_plane_forward=$!
-          kubectl -n "$CELL_NAMESPACE" port-forward svc/cell-ncode-identity-host 9443:443 > /dev/null 2>&1 &
-          cell_forward=$!
-          trap "kill $control_plane_forward $cell_forward 2> /dev/null || true" EXIT
-          request() {
-            node build/kind/management-request.mjs --issuer https://id.example.com --client-id ci-automation \
-              --key "$RUNNER_TEMP/keys/ci-automation.pem" \
-              --ca "$RUNNER_TEMP/control-plane-ca.crt" --ca "$RUNNER_TEMP/cell-ca.crt" \
-              --connect "https://id.example.com=127.0.0.1:8443,release-ncode-identity-host.$NAMESPACE.svc" \
-              --connect "https://cell.example.com=127.0.0.1:9443,cell-ncode-identity-host.$CELL_NAMESPACE.svc" \
-              --method GET --expect 200 --attempts 24 --delay-seconds 5 --url "$1"
-          }
-          tenants=$(request https://cell.example.com/api/cell/tenants)
-          grep -q '"ci-kind-cell-manage"' <<< "$tenants"
-          admins=$(request https://cell.example.com/api/cell/admins)
-          grep -q '"CellAdmin"' <<< "$admins" || grep -q '"root"' <<< "$admins"
-          request https://cell.example.com/api/tenants/ci-kind-cell-manage/clients/ci-kind-cell-console > /dev/null
-
       # route <namespace/service> <host> <path> sends one request with the Host header through a port-forward to the
       # Service's port 80 and prints the HTTP status code, or 000 when the request fails. expect_route <expected>
       # <namespace/service> <host> <path> <description> requires the expected status code within 12 attempts five
@@ -1617,6 +1560,63 @@ jobs:
           set -euo pipefail
           kubectl -n "$NAMESPACE" wait --for=condition=ready pod -l app.kubernetes.io/component=server --timeout=5m
           kubectl -n "$DIRECTORY_NAMESPACE" wait --for=condition=ready pod -l app.kubernetes.io/component=directory --timeout=5m
+
+      # The automation client, which only the control-plane cell's setup Job created, registers the workload cell with
+      # its directory-client key set. management-request.mjs gets a DPoP-bound management token with private_key_jwt
+      # and sends the request with a proof for the public URL, through a port-forward to the cell's own HTTPS port.
+      - name: Register the workload cell through the control-plane cell's management API
+        run: |
+          set -euo pipefail
+          kubectl -n "$NAMESPACE" get secret release-ncode-identity-host-tls --output jsonpath='{.data.ca\.crt}' \
+            | base64 --decode > "$RUNNER_TEMP/control-plane-ca.crt"
+          kubectl -n "$NAMESPACE" port-forward svc/release-ncode-identity-host 8443:443 > /dev/null 2>&1 &
+          trap "kill $! 2> /dev/null || true" EXIT
+          body=$(node -e 'const jwks = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")); console.log(JSON.stringify({ region: "ci", kind: "shared", jwks }));' "$RUNNER_TEMP/workload-client-jwks.json")
+          node build/kind/management-request.mjs --issuer https://id.example.com --client-id ci-automation \
+            --key "$RUNNER_TEMP/keys/ci-automation.pem" --ca "$RUNNER_TEMP/control-plane-ca.crt" \
+            --connect "https://id.example.com=127.0.0.1:8443,release-ncode-identity-host.$NAMESPACE.svc" \
+            --method PUT --url https://id.example.com/api/cells/ci-kind-cell --body "$body" \
+            --expect 200 --attempts 24 --delay-seconds 5
+
+      # The workload cell's own setup Job runs on its empty database with its directory client, so it reserves the
+      # cell's management tenant through the directory and creates the cell's first CellAdmin and its cell console's
+      # client, with no ordering trick: it does not wait for the Deployment to serve.
+      - name: Install the workload cell
+        run: |
+          set -euo pipefail
+          helm install cell "$CHART" --namespace "$CELL_NAMESPACE" --values "$CHART/ci/kind-cell-values.yaml" \
+            --values "$RUNNER_TEMP/cell-trust-values.yaml" --wait --timeout 10m
+          kubectl -n "$CELL_NAMESPACE" wait --for=condition=complete job -l app.kubernetes.io/component=setup \
+            --timeout=5m
+          kubectl -n "$CELL_NAMESPACE" wait --for=condition=ready pod -l app.kubernetes.io/component=server \
+            --timeout=5m
+
+      # The workload cell accepts the automation client's DPoP-bound management token once its replica holds the keys
+      # and the platform authority that the control-plane cell's setup published, with no reset or restart, and it
+      # lists the CellAdmin and the console client that its own setup created.
+      - name: The workload cell accepts a platform administrator after setup
+        run: |
+          set -euo pipefail
+          kubectl -n "$CELL_NAMESPACE" get secret cell-ncode-identity-host-tls --output jsonpath='{.data.ca\.crt}' \
+            | base64 --decode > "$RUNNER_TEMP/cell-ca.crt"
+          kubectl -n "$NAMESPACE" port-forward svc/release-ncode-identity-host 8443:443 > /dev/null 2>&1 &
+          control_plane_forward=$!
+          kubectl -n "$CELL_NAMESPACE" port-forward svc/cell-ncode-identity-host 9443:443 > /dev/null 2>&1 &
+          cell_forward=$!
+          trap "kill $control_plane_forward $cell_forward 2> /dev/null || true" EXIT
+          request() {
+            node build/kind/management-request.mjs --issuer https://id.example.com --client-id ci-automation \
+              --key "$RUNNER_TEMP/keys/ci-automation.pem" \
+              --ca "$RUNNER_TEMP/control-plane-ca.crt" --ca "$RUNNER_TEMP/cell-ca.crt" \
+              --connect "https://id.example.com=127.0.0.1:8443,release-ncode-identity-host.$NAMESPACE.svc" \
+              --connect "https://cell.example.com=127.0.0.1:9443,cell-ncode-identity-host.$CELL_NAMESPACE.svc" \
+              --method GET --expect 200 --attempts 24 --delay-seconds 5 --url "$1"
+          }
+          tenants=$(request https://cell.example.com/api/cell/tenants)
+          grep -q '"ci-kind-cell-manage"' <<< "$tenants"
+          admins=$(request https://cell.example.com/api/cell/admins)
+          grep -q '"CellAdmin"' <<< "$admins" || grep -q '"root"' <<< "$admins"
+          request https://cell.example.com/api/tenants/ci-kind-cell-manage/clients/ci-kind-cell-console > /dev/null
 
       # route <namespace/service> <host> <path> sends one request with the Host header through a port-forward to the
       # Service's port 80 and prints the HTTP status code, or 000 when the request fails. expect_route <expected>
