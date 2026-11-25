@@ -111,8 +111,8 @@ public static class DefaultRegistration
             serviceCollection.TryAddTransient<DirectoryResilienceHandler>();
 
             // The directory has an HTTP client of its own so that its private certificate authorities never replace the
-            // process's trust store. Every call is bounded by the resilience handler's pipeline and the options' total timeout, so
-            // the client's own timeout is off.
+            // process's trust store. Every call is bounded by the resilience handler's pipeline and the options' total
+            // timeout, so the client's own timeout is off.
             serviceCollection
                 .AddHttpClient(DirectoryClientDefaults.HttpClientName)
                 .ConfigureHttpClient(static client => client.Timeout = Timeout.InfiniteTimeSpan)

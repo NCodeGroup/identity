@@ -1,5 +1,6 @@
 import type { CallerResource, TeamResource } from '@ncodegroup/identity-api';
 import type { CellTenantResource } from '@ncodegroup/identity-store';
+import { CELL_CONSOLE_KIND } from './consoleKind.js';
 import { HOME_ROUTE, platformRoute, teamRoute, tenantRoute, type ConsoleRoute } from './routes.js';
 
 /**
@@ -101,10 +102,10 @@ export function permittedRoute(
   access: CallerAccess | undefined,
   consoleKind?: string,
 ): ConsoleRoute {
-  if (consoleKind === 'cell' && (route.kind === 'platform' || route.kind === 'team')) {
+  if (consoleKind === CELL_CONSOLE_KIND && (route.kind === 'platform' || route.kind === 'team')) {
     return HOME_ROUTE;
   }
-  if (consoleKind !== 'cell' && route.kind === 'cell') {
+  if (consoleKind !== CELL_CONSOLE_KIND && route.kind === 'cell') {
     return HOME_ROUTE;
   }
   if (access !== undefined && !access.isPlatformAdministrator && route.kind === 'platform') {

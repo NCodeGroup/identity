@@ -474,8 +474,7 @@ The OpenTelemetry environment of every container the chart runs: the collector's
 {{- end }}
 
 {{/*
-The volume mounts of the directory container: the PEM key of the key ring, the serving certificate and the workload
-credentials.
+The volume mount of the key ring's PEM key at /etc/ncode-identity/key-ring, rendered when keys.pemSecret is set.
 */}}
 {{- define "identity-directory.keyRingVolumeMounts" -}}
 {{- if .Values.keys.pemSecret }}

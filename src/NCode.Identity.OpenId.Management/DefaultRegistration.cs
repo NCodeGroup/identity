@@ -210,7 +210,8 @@ public static class DefaultRegistration
             >();
             serviceCollection.TryAddEnumerable(managementSeedDescriptor);
 
-            // Refuses a management URL whose origin is not the root tenant's issuer origin on a platform with a directory.
+            // Refuses a management URL whose origin is not the root tenant's issuer origin on a platform with a
+            // directory.
             var managementUrlCheckDescriptor = ServiceDescriptor.Singleton<
                 IHostedService,
                 ManagementUrlStartupCheck

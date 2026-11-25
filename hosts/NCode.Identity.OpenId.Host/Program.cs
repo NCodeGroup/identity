@@ -26,8 +26,9 @@ using NCode.Identity.SharedState.Valkey;
 // developer-only startup logic does NOT belong here — put it in the owning package as an extension
 // (dev helpers live in NCode.Identity.Server/DevelopmentEnvironment, e.g. AddDeveloperCors). If a step
 // needs an `if`, a `foreach`, a policy builder, or config parsing, move it to a package extension.
-// See csharp-production.instructions.md §4. The offline commands' dispatch below is the one exception: only the entry
-// point can return an exit code.
+// See csharp-production.instructions.md §4. This file keeps two branches, for the same reason: only the entry point can
+// return an exit code. They are the standalone 'directory-client-jwks' command, which runs in a host of its own before
+// the builder, and the dispatch of the built host's offline commands.
 
 // OFFLINE COMMANDS: HostCommands.Select picks the one command the first argument names, and the host is built with
 // the arguments it returns, none for a command, whose own arguments a command-line configuration provider would read as
@@ -214,8 +215,7 @@ serviceCollection.AddHostDatabase(configuration);
 var app = builder.Build();
 
 // A command runs against the built services, never starts the hosted services or binds a port, disposes the services
-// when it ends, and returns its exit code. This is the only branch this file keeps, because only the entry point
-// can return an exit code.
+// when it ends, and returns its exit code. This is the second of the two branches the header names.
 if (hostCommand.Command is { } command)
 {
     await using (app)

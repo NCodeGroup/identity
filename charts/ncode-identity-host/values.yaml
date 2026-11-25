@@ -386,9 +386,9 @@ setup:
     jwks: ""
 
 # Offline recovery of an instance, each a one-off Job from the host image that runs for this release revision with the
-# runtime role's connection (database), as the host does: recover-admin creates or re-enables an administrator account in the anchor tenant,
-# recover-sign-in repairs the settings that block every sign-in, and revoke-management-key revokes a management signing
-# key in this cell. Enable one only while it is needed, and delete its Secret afterwards.
+# runtime role's connection (database), as the host does: recover-admin creates or re-enables an administrator account
+# in the anchor tenant, recover-sign-in repairs the settings that block every sign-in, and revoke-management-key
+# revokes a management signing key in this cell. Enable one only while it is needed, and delete its Secret afterwards.
 recovery:
   recoverAdmin:
     enabled: false

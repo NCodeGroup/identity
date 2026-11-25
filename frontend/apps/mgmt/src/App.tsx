@@ -6,7 +6,7 @@ import { useAppSelector, useGetTeamQuery, useGetTenantQuery } from '@ncodegroup/
 import { AppLayout } from './components/AppLayout.js';
 import { permittedRoute, teamExit, tenantExit } from './access.js';
 import { useCallerAccess } from './useCallerAccess.js';
-import { useConsoleKind } from './consoleKind.js';
+import { useConsoleKind, useIsCellConsole } from './consoleKind.js';
 import { TenantCellProvider } from './tenantCell.js';
 import { announceSessionEnded, submitLogout } from './session.js';
 import { useConsoleRoute, navigateTo } from './navigation.js';
@@ -93,7 +93,7 @@ export function App() {
 
   // A console that manages one cell shows no platform or team surface and addresses only its own API.
   const consoleKind = useConsoleKind();
-  const isCellConsole = consoleKind === 'cell';
+  const isCellConsole = useIsCellConsole();
 
   const route = useConsoleRoute();
   const scope = route.kind === 'home' || route.kind === 'cell' ? undefined : routeScope(route);

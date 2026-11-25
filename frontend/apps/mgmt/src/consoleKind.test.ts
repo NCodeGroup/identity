@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createAppStore } from '@ncodegroup/identity-store';
 import type { BffRuntimeConfig, OpenIdRuntimeConfig } from '@ncodegroup/identity-config';
-import { selectConsoleKind } from './consoleKind.js';
+import { CELL_CONSOLE_KIND, selectConsoleKind } from './consoleKind.js';
 
 const bff: BffRuntimeConfig = {
   kind: 'bff',
@@ -26,7 +26,7 @@ function kindOf(runtime: BffRuntimeConfig | OpenIdRuntimeConfig) {
 
 describe('selectConsoleKind', () => {
   it('reads cell from a BFF cell console', () => {
-    expect(kindOf({ ...bff, console: 'cell', cell: 'eu-1' })).toBe('cell');
+    expect(kindOf({ ...bff, console: CELL_CONSOLE_KIND, cell: 'eu-1' })).toBe(CELL_CONSOLE_KIND);
   });
 
   it('reads platform from a BFF platform console', () => {

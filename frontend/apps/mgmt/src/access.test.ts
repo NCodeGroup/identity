@@ -9,6 +9,7 @@ import {
   toCallerAccess,
   type CallerAccess,
 } from './access.js';
+import { CELL_CONSOLE_KIND } from './consoleKind.js';
 import { cellRoute, HOME_ROUTE, platformRoute, teamRoute, tenantRoute } from './routes.js';
 
 const admin: CallerAccess = { isPlatformAdministrator: true, teamIds: [], tenants: [] };
@@ -172,9 +173,13 @@ describe('permittedRoute', () => {
 
 describe('permittedRoute in a cell console', () => {
   it('sends a platform or team route home and keeps a cell route', () => {
-    expect(permittedRoute(platformRoute('teams'), undefined, 'cell')).toEqual(HOME_ROUTE);
-    expect(permittedRoute(teamRoute('acme'), undefined, 'cell')).toEqual(HOME_ROUTE);
-    expect(permittedRoute(cellRoute('admins'), undefined, 'cell')).toEqual(cellRoute('admins'));
+    expect(permittedRoute(platformRoute('teams'), undefined, CELL_CONSOLE_KIND)).toEqual(
+      HOME_ROUTE,
+    );
+    expect(permittedRoute(teamRoute('acme'), undefined, CELL_CONSOLE_KIND)).toEqual(HOME_ROUTE);
+    expect(permittedRoute(cellRoute('admins'), undefined, CELL_CONSOLE_KIND)).toEqual(
+      cellRoute('admins'),
+    );
   });
 
   it('sends a cell route home in a console that is not a cell console', () => {
