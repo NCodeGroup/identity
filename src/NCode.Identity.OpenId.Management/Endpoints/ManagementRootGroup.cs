@@ -84,6 +84,7 @@ internal sealed class ManagementRootGroup : IEndpointGroup
         builder.AddPlatformEndpoint();
         builder.AddEndpoint<CellApiEndpointHandler>();
         builder.AddEndpoint<CellScopeApiEndpointHandler>();
+        builder.AddEndpoint<CellAdminApiEndpointHandler>();
         builder.AddTeamEndpoint();
         builder.AddMachineClientEndpoint();
         builder.AddTenantEndpoint();
