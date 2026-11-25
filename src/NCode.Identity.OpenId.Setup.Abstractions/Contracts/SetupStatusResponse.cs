@@ -26,6 +26,12 @@ public sealed class SetupStatusResponse
     public required int MinimumPasswordLength { get; init; }
 
     /// <summary>
+    /// Gets the role that the first administrator holds: <c>CellAdmin</c> in a cell with a management tenant, and
+    /// <c>GlobalAdmin</c> otherwise.
+    /// </summary>
+    public required string AdministratorRole { get; init; }
+
+    /// <summary>
     /// Gets or sets the unrecognized members, so an unknown wire member round-trips instead of being dropped.
     /// </summary>
     [JsonExtensionData]

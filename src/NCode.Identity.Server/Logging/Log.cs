@@ -254,11 +254,11 @@ internal static partial class Log
     internal static partial void InstanceSetupCommandRootPasswordMissing(this ILogger logger);
 
     [LoggerMessage(
-        EventId = EventIds.InstanceSetupCommandNotOnTheControlPlane,
+        EventId = EventIds.InstanceSetupCommandNotInAnAnchorCell,
         Level = LogLevel.Error,
-        Message = "Setup belongs to the control-plane cell, and this cell is not the control plane; run the setup command there."
+        Message = "Setup runs in the control-plane cell or in a cell with a management tenant, and this cell is neither."
     )]
-    internal static partial void InstanceSetupCommandNotOnTheControlPlane(this ILogger logger);
+    internal static partial void InstanceSetupCommandNotInAnAnchorCell(this ILogger logger);
 
     [LoggerMessage(
         EventId = EventIds.InstanceSetupCommandFailed,

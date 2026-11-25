@@ -14,6 +14,7 @@ using NCode.Identity.OpenId.Accounts.DataContracts;
 using NCode.Identity.OpenId.Accounts.Management;
 using NCode.Identity.OpenId.Accounts.Management.Contracts;
 using NCode.Identity.OpenId.Connections;
+using NCode.Identity.OpenId.GlobalDirectory;
 using NCode.Identity.OpenId.Management;
 using NCode.Identity.OpenId.Management.Endpoints.Clients;
 using NCode.Identity.OpenId.Persistence;
@@ -93,7 +94,19 @@ public sealed class DefaultInstanceSetupServiceTests : IDisposable
 
     #region Helpers
 
-    private DefaultInstanceSetupService CreateService(string? apiReferencePath = null) =>
+    private DefaultInstanceSetupService CreateService(string? apiReferencePath = null)
+    {
+        var topology = new Mock<IPlatformTopology>();
+        topology.Setup(x => x.IsControlPlaneCell).Returns(true);
+        topology.Setup(x => x.HasManagementTenant).Returns(false);
+        return CreateService(topology.Object, new CellOptions(), apiReferencePath);
+    }
+
+    private DefaultInstanceSetupService CreateService(
+        IPlatformTopology topology,
+        CellOptions cellOptions,
+        string? apiReferencePath = null
+    ) =>
         new(
             MockStoreManagerFactory.Object,
             MockTenantResolver.Object,
@@ -102,6 +115,8 @@ public sealed class DefaultInstanceSetupServiceTests : IDisposable
             MockLocalAccountCreator.Object,
             MockClientCreator.Object,
             MockCryptoService.Object,
+            topology,
+            Options.Create(cellOptions),
             Options.Create(new SetupInstanceLinksOptions { ApiReferencePath = apiReferencePath }),
             TimeProvider,
             MockLogger.Object

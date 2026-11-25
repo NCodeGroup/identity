@@ -10,6 +10,7 @@ using NCode.Identity.Cryptography;
 using NCode.Identity.OpenId.Accounts.Management;
 using NCode.Identity.OpenId.Accounts.Management.Contracts;
 using NCode.Identity.OpenId.Connections;
+using NCode.Identity.OpenId.GlobalDirectory;
 using NCode.Identity.OpenId.Management;
 using NCode.Identity.OpenId.Management.Endpoints.Clients;
 using NCode.Identity.OpenId.Persistence;
@@ -26,14 +27,16 @@ namespace NCode.Identity.OpenId.Setup;
 
 /// <summary>
 /// Provides a default implementation of <see cref="IInstanceSetupService"/>. The root administrator is a local account
-/// in the <c>local</c> connection of the control-plane tenant that holds <see cref="BuiltInRoles.GlobalAdmin"/> at the
-/// platform node. The account, its identity, the role assignment, the management console's client and the automation
-/// client when the request carries them, and the initialized mark are staged on one store manager and saved once, so
-/// the instance is initialized exactly when its root administrator exists. The automation client is a platform-owned
-/// machine client that holds <see cref="BuiltInRoles.GlobalAdmin"/> at the platform node. Both clients are staged
-/// through <see cref="IClientCreator"/>, so each passes the same validation as a client that the management API
-/// creates. Setup updates the singleton row that a host replica may have written for its generated token, and runs
-/// again, up to <see cref="MaxSetUpAttempts"/> times, when a replica changes that row while it runs.
+/// in the <c>local</c> connection of the anchor tenant. In the control-plane cell it holds
+/// <see cref="BuiltInRoles.GlobalAdmin"/> at the platform node; in a workload cell with a management tenant it holds
+/// <see cref="BuiltInRoles.CellAdmin"/> at the cell's node, and any other cell refuses setup. The account, its
+/// identity, the role assignment, the management console's client and the automation client when the request carries
+/// them, and the initialized mark are staged on one store manager and saved once, so the instance is initialized
+/// exactly when its root administrator exists. The automation client is a platform-owned machine client that holds
+/// <see cref="BuiltInRoles.GlobalAdmin"/> at the platform node. Both clients are staged through
+/// <see cref="IClientCreator"/>, so each passes the same validation as a client that the management API creates. Setup
+/// updates the singleton row that a host replica may have written for its generated token, and runs again, up to
+/// <see cref="MaxSetUpAttempts"/> times, when a replica changes that row while it runs.
 /// </summary>
 internal sealed class DefaultInstanceSetupService(
     IStoreManagerFactory storeManagerFactory,
@@ -43,6 +46,8 @@ internal sealed class DefaultInstanceSetupService(
     ILocalAccountCreator localAccountCreator,
     IClientCreator clientCreator,
     ICryptoService cryptoService,
+    IPlatformTopology platformTopology,
+    IOptions<CellOptions> cellOptions,
     IOptions<SetupInstanceLinksOptions> instanceLinksOptions,
     TimeProvider timeProvider,
     ILogger<DefaultInstanceSetupService> logger
@@ -73,6 +78,10 @@ internal sealed class DefaultInstanceSetupService(
     private IClientCreator ClientCreator { get; } = clientCreator;
 
     private ICryptoService CryptoService { get; } = cryptoService;
+
+    private IPlatformTopology PlatformTopology { get; } = platformTopology;
+
+    private CellOptions CellOptions { get; } = cellOptions.Value;
 
     private SetupInstanceLinksOptions InstanceLinksOptions { get; } = instanceLinksOptions.Value;
 
@@ -183,23 +192,29 @@ internal sealed class DefaultInstanceSetupService(
         };
     }
 
-    // The role that confers every management authority (ADR-1417) is held at the platform node.
-    private async ValueTask StageGlobalAdminAsync(
+    // The role that confers every management authority (ADR-1417) is held at the platform node, and in a cell with a
+    // management tenant the cell's administrator holds its role at the cell's node.
+    private async ValueTask StageAdministratorAsync(
         IStoreManager storeManager,
         string tenantId,
         string principalId,
         CancellationToken cancellationToken
     )
     {
+        var isCellAdministrator = PlatformTopology.HasManagementTenant;
         var store = storeManager.GetStore<IRoleAssignmentStore>();
         var assignment = new PersistedRoleAssignment
         {
             TenantId = tenantId,
             AssignmentId = CryptoService.GenerateResourceId(),
             PrincipalId = principalId,
-            RoleName = BuiltInRoles.GlobalAdmin,
-            ResourceType = OpenIdResourceTypes.Platform,
-            ResourceId = OpenIdConstants.PlatformResourceId,
+            RoleName = isCellAdministrator ? BuiltInRoles.CellAdmin : BuiltInRoles.GlobalAdmin,
+            ResourceType = isCellAdministrator
+                ? OpenIdResourceTypes.Cell
+                : OpenIdResourceTypes.Platform,
+            ResourceId = isCellAdministrator
+                ? CellOptions.Name
+                : OpenIdConstants.PlatformResourceId,
             ConcurrencyToken = string.Empty,
         };
         await store.AddAsync(assignment, cancellationToken);
@@ -212,6 +227,17 @@ internal sealed class DefaultInstanceSetupService(
     )
     {
         ArgumentNullException.ThrowIfNull(request);
+
+        if (!PlatformTopology.IsControlPlaneCell && !PlatformTopology.HasManagementTenant)
+        {
+            return new InstanceSetupResult
+            {
+                Error = CreateError(
+                    StatusCodes.Status404NotFound,
+                    "Setup runs in the control-plane cell or in a cell with a management tenant."
+                ),
+            };
+        }
 
         var root = request.Root;
 
@@ -411,7 +437,7 @@ internal sealed class DefaultInstanceSetupService(
             principalId = creation.PrincipalId;
             displayName = creation.Account.DisplayName;
 
-            await StageGlobalAdminAsync(storeManager, tenantId, principalId, cancellationToken);
+            await StageAdministratorAsync(storeManager, tenantId, principalId, cancellationToken);
 
             if (consoleRegistration is { } registration)
             {
@@ -456,7 +482,7 @@ internal sealed class DefaultInstanceSetupService(
                 if (!machineCreation.Succeeded)
                     return CreateClientFailureResult(machineCreation, "automation client");
 
-                await StageGlobalAdminAsync(
+                await StageAdministratorAsync(
                     storeManager,
                     tenantId,
                     machineCreation.Client.PrincipalId,

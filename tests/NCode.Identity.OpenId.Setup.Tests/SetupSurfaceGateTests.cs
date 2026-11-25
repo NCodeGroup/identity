@@ -3,7 +3,6 @@
 
 using System.Net;
 using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.Options;
 using NCode.Identity.AspNetCore;
 using NCode.Identity.OpenId.GlobalDirectory;
 
@@ -25,13 +24,22 @@ public sealed class SetupSurfaceGateTests : IDisposable
 
     private DefaultSetupSurfaceGate CreateGate(
         bool localDevelopmentEnabled = false,
-        bool isControlPlane = true
+        bool isControlPlane = true,
+        bool hasManagementTenant = false
     ) =>
         new(
             MockInstanceSetupService.Object,
             new LocalDevelopmentMode(localDevelopmentEnabled),
-            Options.Create(new CellOptions { IsControlPlane = isControlPlane })
+            CreateTopology(isControlPlane, hasManagementTenant)
         );
+
+    private static IPlatformTopology CreateTopology(bool isControlPlane, bool hasManagementTenant)
+    {
+        var topology = new Mock<IPlatformTopology>();
+        topology.Setup(x => x.IsControlPlaneCell).Returns(isControlPlane);
+        topology.Setup(x => x.HasManagementTenant).Returns(hasManagementTenant);
+        return topology.Object;
+    }
 
     private void SetupIsInitialized(bool isInitialized) =>
         MockInstanceSetupService
@@ -65,6 +73,20 @@ public sealed class SetupSurfaceGateTests : IDisposable
         );
 
         Assert.False(isServed);
+    }
+
+    [Fact]
+    public async Task IsServedAsync_WhenTheCellHasAManagementTenantAndTheInstanceIsNotInitialized_IsServed()
+    {
+        SetupIsInitialized(false);
+        var gate = CreateGate(isControlPlane: false, hasManagementTenant: true);
+
+        var isServed = await gate.IsServedAsync(
+            CreateHttpContext(isHttps: true),
+            CancellationToken.None
+        );
+
+        Assert.True(isServed);
     }
 
     [Fact]

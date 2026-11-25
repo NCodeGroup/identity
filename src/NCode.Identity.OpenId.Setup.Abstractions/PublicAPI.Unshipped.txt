@@ -81,6 +81,8 @@ NCode.Identity.OpenId.Setup.Contracts.SetupManagementConsoleHint.ExtensionData.g
 NCode.Identity.OpenId.Setup.Contracts.SetupManagementConsoleHint.ExtensionData.set -> void
 NCode.Identity.OpenId.Setup.Contracts.SetupManagementConsoleHint.SetupManagementConsoleHint() -> void
 NCode.Identity.OpenId.Setup.Contracts.SetupStatusResponse
+NCode.Identity.OpenId.Setup.Contracts.SetupStatusResponse.AdministratorRole.get -> string!
+NCode.Identity.OpenId.Setup.Contracts.SetupStatusResponse.AdministratorRole.init -> void
 NCode.Identity.OpenId.Setup.Contracts.SetupStatusResponse.ExtensionData.get -> System.Collections.Generic.Dictionary<string!, System.Text.Json.JsonElement>?
 NCode.Identity.OpenId.Setup.Contracts.SetupStatusResponse.ExtensionData.set -> void
 NCode.Identity.OpenId.Setup.Contracts.SetupStatusResponse.MinimumPasswordLength.get -> int

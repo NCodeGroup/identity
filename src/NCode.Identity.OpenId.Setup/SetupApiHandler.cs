@@ -8,6 +8,8 @@ using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using NCode.Identity.AspNetCore;
+using NCode.Identity.OpenId.GlobalDirectory;
+using NCode.Identity.OpenId.Management;
 using NCode.Identity.OpenId.Setup.Contracts;
 
 namespace NCode.Identity.OpenId.Setup;
@@ -24,7 +26,8 @@ internal sealed class SetupApiHandler(
     ISetupTokenService setupTokenService,
     SetupRateLimiter rateLimiter,
     ISetupSurfaceGate surfaceGate,
-    IOptions<SetupOptions> optionsAccessor
+    IOptions<SetupOptions> optionsAccessor,
+    IPlatformTopology platformTopology
 )
 {
     private IInstanceSetupService InstanceSetupService { get; } = instanceSetupService;
@@ -37,9 +40,11 @@ internal sealed class SetupApiHandler(
 
     private IOptions<SetupOptions> OptionsAccessor { get; } = optionsAccessor;
 
+    private IPlatformTopology PlatformTopology { get; } = platformTopology;
+
     /// <summary>
     /// Describes the setup an uninitialized instance expects: where its setup token comes from and the shortest root
-    /// password it accepts.
+    /// password it accepts, and the role its first administrator holds.
     /// </summary>
     /// <param name="httpContext">The <see cref="HttpContext"/> for the current request.</param>
     /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
@@ -58,6 +63,9 @@ internal sealed class SetupApiHandler(
         {
             TokenSource = SetupTokenService.TokenSource,
             MinimumPasswordLength = SetupDefaults.MinimumRootPasswordLength,
+            AdministratorRole = PlatformTopology.HasManagementTenant
+                ? BuiltInRoles.CellAdmin
+                : BuiltInRoles.GlobalAdmin,
         };
         return TypedResults.Ok(status);
     }
