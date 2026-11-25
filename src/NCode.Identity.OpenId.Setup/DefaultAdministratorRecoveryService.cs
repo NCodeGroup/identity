@@ -25,6 +25,7 @@ using NCode.Identity.OpenId.Persistence.Tenants;
 using NCode.Identity.OpenId.Setup.Logging;
 using NCode.Identity.OpenId.Tenants;
 using NCode.Identity.Persistence.Stores;
+using NCode.Mediator;
 
 namespace NCode.Identity.OpenId.Setup;
 
@@ -180,6 +181,10 @@ internal sealed class DefaultAdministratorRecoveryService(
                 cancellationToken
             );
         }
+
+        var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
+        var tenantCommand = new TenantChangedCommand(tenantId, SettingsChanged: false);
+        await mediator.SendAsync(tenantCommand, cancellationToken);
 
         await RecordAuditAsync(httpContext, tenantId, recovered);
 

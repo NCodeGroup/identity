@@ -15,10 +15,12 @@ using NCode.Identity.OpenId.Management.Auditing;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
 using NCode.Identity.OpenId.Persistence.Tenants;
+using NCode.Identity.OpenId.Platform;
 using NCode.Identity.OpenId.Setup.Logging;
 using NCode.Identity.OpenId.Tenants;
 using NCode.Identity.Persistence.Stores;
 using NCode.Identity.Settings;
+using NCode.Mediator;
 
 namespace NCode.Identity.OpenId.Setup;
 
@@ -86,11 +88,11 @@ internal sealed class DefaultSignInRecoveryService(
         await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
 
         var staged = new List<StagedChange>();
-        JsonElement? platformSettings = null;
+        PlatformChange? platformChange = null;
 
         if (PlatformTopology.IsControlPlaneCell)
         {
-            platformSettings = await StagePlatformSettingsAsync(
+            platformChange = await StagePlatformSettingsAsync(
                 storeManager,
                 criticalNames,
                 staged,
@@ -115,8 +117,16 @@ internal sealed class DefaultSignInRecoveryService(
                 await storeManager.SaveChangesAsync(cancellationToken);
         }
 
-        if (platformSettings is { } settings)
-            await TryPublishAsync(settings, cancellationToken);
+        if (platformChange is { } change)
+            await TryPublishAsync(change.Settings, cancellationToken);
+
+        await AnnounceAsync(
+            scope.ServiceProvider,
+            tenantId,
+            platformChange,
+            staged,
+            cancellationToken
+        );
 
         await RecordAuditAsync(httpContext, tenant, staged);
 
@@ -175,7 +185,7 @@ internal sealed class DefaultSignInRecoveryService(
         return JsonSerializer.SerializeToElement(document);
     }
 
-    private static async ValueTask<JsonElement?> StagePlatformSettingsAsync(
+    private static async ValueTask<PlatformChange?> StagePlatformSettingsAsync(
         IStoreManager storeManager,
         IReadOnlyList<string> criticalNames,
         List<StagedChange> staged,
@@ -197,9 +207,10 @@ internal sealed class DefaultSignInRecoveryService(
         if (updated is not { } value)
             return null;
 
+        var previous = settings.Value.Clone();
         settings.Value = value;
         await store.UpdateSettingsAsync(settings, cancellationToken);
-        return value;
+        return new PlatformChange(previous, value);
     }
 
     private static async ValueTask StageTenantSettingsAsync(
@@ -316,6 +327,34 @@ internal sealed class DefaultSignInRecoveryService(
         staged.Add(item);
     }
 
+    // Announces the committed repairs through the scope's mediator, so this process evicts its cached settings and the
+    // replicas that share the broadcaster refresh at once instead of at their next periodic refresh.
+    private static async ValueTask AnnounceAsync(
+        IServiceProvider services,
+        string tenantId,
+        PlatformChange? platformChange,
+        List<StagedChange> staged,
+        CancellationToken cancellationToken
+    )
+    {
+        var mediator = services.GetRequiredService<IMediator>();
+
+        if (platformChange is { } change)
+        {
+            var platformCommand = new PlatformSettingsChangedCommand(
+                change.Previous,
+                change.Settings
+            );
+            await mediator.SendAsync(platformCommand, cancellationToken);
+        }
+
+        if (staged.Any(item => item.Change.Scope != SignInRepairScopes.Platform))
+        {
+            var tenantCommand = new TenantChangedCommand(tenantId, SettingsChanged: true);
+            await mediator.SendAsync(tenantCommand, cancellationToken);
+        }
+    }
+
     // A directory that cannot be reached leaves the saved platform settings unpublished, which the log reports.
     private async ValueTask TryPublishAsync(
         JsonElement settings,
@@ -401,6 +440,8 @@ internal sealed class DefaultSignInRecoveryService(
             }
         }
     }
+
+    private readonly record struct PlatformChange(JsonElement Previous, JsonElement Settings);
 
     private sealed record StagedChange(SignInRepairChange Change, string ResourceId);
 }

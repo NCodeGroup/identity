@@ -228,8 +228,8 @@ public class KeyCustodyAndRecoveryTests
             cancellationToken
         );
 
-    // The offline command changes the cell's database, and a running cell reads a tenant's settings again within
-    // OpenId:Tenant:SettingsPeriodicRefreshInterval, so the sign-in is tried until the cell has read the repair.
+    // The offline command changes the cell's database and announces the change, so the sign-in is tried until the
+    // running cell has applied the announcement.
     private static async ValueTask<PlatformHarness.ManagementCaller> SignInOnceRefreshedAsync(
         PlatformHarness platform,
         string cellName,
@@ -265,12 +265,6 @@ public class KeyCustodyAndRecoveryTests
         );
         return caller ?? throw new InvalidOperationException("The sign-in did not complete.");
     }
-
-    private static IReadOnlyDictionary<string, string?> FastSettingsRefresh { get; } =
-        new Dictionary<string, string?>
-        {
-            ["OpenId:Tenant:SettingsPeriodicRefreshInterval"] = "00:00:02",
-        };
 
     private static async ValueTask AssertAcceptedAsync(
         PlatformHarness.ManagementCaller caller,
@@ -753,10 +747,7 @@ public class KeyCustodyAndRecoveryTests
     public async Task RecoverSignIn_WhenASettingBlocksTheControlPlaneTenant_ATokenIsAcquired()
     {
         using var timeout = CreateTimeout();
-        await using var platform = await PlatformHarness.StartAsync(
-            FastSettingsRefresh,
-            timeout.Token
-        );
+        await using var platform = await PlatformHarness.StartAsync(timeout.Token);
         var administrator = await StartReplicatedPlatformAsync(platform, timeout.Token);
         await platform.RecoverGlobalAdministratorAsync(
             GlobalAdminUserName,
@@ -823,10 +814,7 @@ public class KeyCustodyAndRecoveryTests
     public async Task RecoverSignIn_WhenSettingsBlockTheManagementTenantOfACell_ATokenIsAcquired()
     {
         using var timeout = CreateTimeout();
-        await using var platform = await PlatformHarness.StartAsync(
-            FastSettingsRefresh,
-            timeout.Token
-        );
+        await using var platform = await PlatformHarness.StartAsync(timeout.Token);
         var administrator = await StartReplicatedPlatformAsync(platform, timeout.Token);
         await platform.RecoverCellAdministratorAsync(
             CellAdminUserName,

@@ -26,6 +26,7 @@ using NCode.Identity.OpenId.Persistence.Stores;
 using NCode.Identity.OpenId.Persistence.Tenants;
 using NCode.Identity.OpenId.Tenants;
 using NCode.Identity.Persistence.Stores;
+using NCode.Mediator;
 
 namespace NCode.Identity.OpenId.Setup;
 
@@ -52,6 +53,7 @@ public sealed class DefaultAdministratorRecoveryServiceTests : IDisposable
     private Mock<IServiceScopeFactory> MockServiceScopeFactory { get; }
     private Mock<IServiceScope> MockServiceScope { get; }
     private Mock<IServiceProvider> MockServiceProvider { get; }
+    private Mock<IMediator> MockMediator { get; } = new();
     private Mock<IAmbientTenantAccessor> MockAmbientTenantAccessor { get; }
     private Mock<IDisposable> MockUnscopedScope { get; }
     private Mock<IDisposable> MockTenantScope { get; }
@@ -186,6 +188,9 @@ public sealed class DefaultAdministratorRecoveryServiceTests : IDisposable
             .Returns(MockServiceScope.Object)
             .Verifiable(Times.Once());
         MockServiceScope.Setup(x => x.ServiceProvider).Returns(MockServiceProvider.Object);
+        MockServiceProvider
+            .Setup(x => x.GetService(typeof(IMediator)))
+            .Returns(MockMediator.Object);
         MockServiceScope.Setup(x => x.Dispose()).Verifiable(Times.Once());
         MockTenantResolver
             .Setup(x =>
@@ -410,6 +415,14 @@ public sealed class DefaultAdministratorRecoveryServiceTests : IDisposable
         Assert.IsType<LocalAccountChangedAuditEvent>(AuditEvents[0]);
         Assert.Equal(ResourceChangeTypes.Updated, AuditEvents[0].ChangeType);
         Assert.IsType<RoleAssignmentChangedAuditEvent>(AuditEvents[1]);
+        MockMediator.Verify(
+            x =>
+                x.SendAsync(
+                    new TenantChangedCommand(TenantId, false),
+                    It.IsAny<CancellationToken>()
+                ),
+            Times.Once
+        );
     }
 
     [Fact]
@@ -540,5 +553,9 @@ public sealed class DefaultAdministratorRecoveryServiceTests : IDisposable
 
         Assert.False(result.Succeeded);
         Assert.Equal(StatusCodes.Status409Conflict, result.Error.StatusCode);
+        MockMediator.Verify(
+            x => x.SendAsync(It.IsAny<TenantChangedCommand>(), It.IsAny<CancellationToken>()),
+            Times.Never
+        );
     }
 }

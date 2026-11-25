@@ -16,10 +16,12 @@ using NCode.Identity.OpenId.Management.Auditing;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
 using NCode.Identity.OpenId.Persistence.Tenants;
+using NCode.Identity.OpenId.Platform;
 using NCode.Identity.OpenId.Settings;
 using NCode.Identity.OpenId.Tenants;
 using NCode.Identity.Persistence.Stores;
 using NCode.Identity.Settings;
+using NCode.Mediator;
 
 namespace NCode.Identity.OpenId.Setup;
 
@@ -38,6 +40,7 @@ public sealed class DefaultSignInRecoveryServiceTests
     private Mock<ITenantResolver> MockTenantResolver { get; } = new();
     private Mock<IServiceScopeFactory> MockServiceScopeFactory { get; } = new();
     private Mock<IServiceScope> MockServiceScope { get; } = new();
+    private Mock<IMediator> MockMediator { get; } = new();
     private Mock<IAmbientTenantAccessor> MockAmbientTenantAccessor { get; } = new();
     private Mock<IPlatformTopology> MockTopology { get; } = new();
     private Mock<IPlatformDirectory> MockPlatformDirectory { get; } = new();
@@ -47,7 +50,11 @@ public sealed class DefaultSignInRecoveryServiceTests
     private DefaultSignInRecoveryService CreateService(bool isControlPlaneCell)
     {
         MockServiceScopeFactory.Setup(x => x.CreateScope()).Returns(MockServiceScope.Object);
-        MockServiceScope.Setup(x => x.ServiceProvider).Returns(new Mock<IServiceProvider>().Object);
+        var mockServiceProvider = new Mock<IServiceProvider>();
+        mockServiceProvider
+            .Setup(x => x.GetService(typeof(IMediator)))
+            .Returns(MockMediator.Object);
+        MockServiceScope.Setup(x => x.ServiceProvider).Returns(mockServiceProvider.Object);
         MockTenantResolver
             .Setup(x =>
                 x.ResolveControlPlaneTenantAsync(
@@ -199,6 +206,18 @@ public sealed class DefaultSignInRecoveryServiceTests
             x => x.GetSettingsOrDefaultAsync(It.IsAny<CancellationToken>()),
             Times.Never
         );
+        MockMediator.Verify(
+            x => x.SendAsync(It.IsAny<TenantChangedCommand>(), It.IsAny<CancellationToken>()),
+            Times.Never
+        );
+        MockMediator.Verify(
+            x =>
+                x.SendAsync(
+                    It.IsAny<PlatformSettingsChangedCommand>(),
+                    It.IsAny<CancellationToken>()
+                ),
+            Times.Never
+        );
     }
 
     [Fact]
@@ -269,6 +288,14 @@ public sealed class DefaultSignInRecoveryServiceTests
         Assert.False(client.IsDisabled);
         Assert.False(resourceServer.IsDisabled);
         MockStoreManager.Verify(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
+        MockMediator.Verify(
+            x =>
+                x.SendAsync(
+                    new TenantChangedCommand(TenantId, true),
+                    It.IsAny<CancellationToken>()
+                ),
+            Times.Once
+        );
         MockAuditRecorder.Verify(
             x =>
                 x.RecordTenantChangedAsync(
@@ -315,6 +342,18 @@ public sealed class DefaultSignInRecoveryServiceTests
         Assert.Equal(SignInRepairScopes.Platform, change.Scope);
         Assert.Equal(OpenIdSettingNames.PasswordMinLength, change.Name);
         Assert.False(platformSettings.Value.TryGetProperty("password_min_length", out _));
+        MockMediator.Verify(
+            x =>
+                x.SendAsync(
+                    It.IsAny<PlatformSettingsChangedCommand>(),
+                    It.IsAny<CancellationToken>()
+                ),
+            Times.Once
+        );
+        MockMediator.Verify(
+            x => x.SendAsync(It.IsAny<TenantChangedCommand>(), It.IsAny<CancellationToken>()),
+            Times.Never
+        );
         MockPlatformDirectory.Verify(
             x =>
                 x.PublishAsync(
