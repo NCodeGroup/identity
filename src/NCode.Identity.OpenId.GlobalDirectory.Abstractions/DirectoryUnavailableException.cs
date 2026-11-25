@@ -10,7 +10,7 @@ namespace NCode.Identity.OpenId.GlobalDirectory;
 /// closed on it and never treats an unreachable directory as an answer.
 /// </summary>
 [PublicAPI]
-public sealed class DirectoryUnavailableException : Exception
+public class DirectoryUnavailableException : Exception
 {
     /// <summary>
     /// Initializes a new instance of the <see cref="DirectoryUnavailableException"/> class with the specified error

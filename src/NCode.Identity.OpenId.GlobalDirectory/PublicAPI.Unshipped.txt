@@ -22,4 +22,4 @@ NCode.Identity.OpenId.GlobalDirectory.DirectoryClientOptions.TokenRequestTimeout
 NCode.Identity.OpenId.GlobalDirectory.DirectoryClientOptions.Url.get -> string?
 NCode.Identity.OpenId.GlobalDirectory.DirectoryClientOptions.Url.set -> void
 NCode.Identity.OpenId.GlobalDirectory.ICellTokenSource
-NCode.Identity.OpenId.GlobalDirectory.ICellTokenSource.GetAccessTokenAsync(string! audience, string! scope, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<string!>
+NCode.Identity.OpenId.GlobalDirectory.ICellTokenSource.GetAccessTokenAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<string!>

@@ -102,6 +102,34 @@ public class CellRegistrationServiceTests : BaseTests
     }
 
     [Fact]
+    public async Task StartAsync_WhenTheDirectoryHasNoRegistrationForTheCell_RetriesAfterTheDelay()
+    {
+        var calls = 0;
+        CellDirectoryMock
+            .Setup(x => x.ReportAsync(ExpectedDescriptor, It.IsAny<CancellationToken>()))
+            .Returns(() =>
+                Interlocked.Increment(ref calls) == 1
+                    ? throw new DirectoryClientNotRegisteredException(
+                        "The directory has no registration for the cell."
+                    )
+                    : ValueTask.CompletedTask
+            )
+            .Verifiable(Times.Exactly(2));
+
+        await Service.StartAsync(CancellationToken.None);
+
+        using var cts = new CancellationTokenSource(Timeout);
+        while (!Service.ExecuteTask!.IsCompleted)
+        {
+            TimeProvider.Advance(TimeSpan.FromSeconds(1));
+            await Task.Delay(1, cts.Token);
+        }
+
+        await Service.ExecuteTask;
+        await Service.StopAsync(CancellationToken.None);
+    }
+
+    [Fact]
     public async Task StartAsync_WhenTheHostStopsWhileWaiting_StopsWithoutThrowing()
     {
         var attempted = new TaskCompletionSource(

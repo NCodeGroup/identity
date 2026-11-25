@@ -108,13 +108,7 @@ public class DirectoryHttpClientTests : RemoteDirectoryTestBase
         var expected = new DirectoryUnavailableException("No token.");
         var tokenSourceMock = CreateStrictMock<ICellTokenSource>();
         tokenSourceMock
-            .Setup(x =>
-                x.GetAccessTokenAsync(
-                    GlobalDirectoryProtocol.DirectoryAudience,
-                    GlobalDirectoryProtocol.DirectoryScope,
-                    It.IsAny<CancellationToken>()
-                )
-            )
+            .Setup(x => x.GetAccessTokenAsync(It.IsAny<CancellationToken>()))
             .Throws(expected)
             .Verifiable(Times.Once);
         var client = new DirectoryHttpClient(
@@ -151,13 +145,7 @@ public class DirectoryHttpClientTests : RemoteDirectoryTestBase
             .Verifiable(Times.Once);
         var tokenSourceMock = CreateStrictMock<ICellTokenSource>();
         tokenSourceMock
-            .Setup(x =>
-                x.GetAccessTokenAsync(
-                    GlobalDirectoryProtocol.DirectoryAudience,
-                    GlobalDirectoryProtocol.DirectoryScope,
-                    It.IsAny<CancellationToken>()
-                )
-            )
+            .Setup(x => x.GetAccessTokenAsync(It.IsAny<CancellationToken>()))
             .Returns(new ValueTask<string>(AccessToken))
             .Verifiable(Times.Once);
         var client = new DirectoryHttpClient(

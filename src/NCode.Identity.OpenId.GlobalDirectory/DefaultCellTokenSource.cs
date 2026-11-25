@@ -1,94 +1,141 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
-using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
+using System.Net;
+using System.Net.Http.Headers;
+using System.Text.Json;
 using Microsoft.Extensions.Options;
 using NCode.Identity.OpenId.Client;
 
 namespace NCode.Identity.OpenId.GlobalDirectory;
 
 /// <summary>
-/// Provides the default <see cref="ICellTokenSource"/>, which requests a client-credentials token through
-/// <see cref="ITokenClient"/> as the cell's machine client and keeps one token for each audience and scope until
-/// shortly before it expires. Each audience and scope has its own single flight: concurrent callers for one audience
-/// and scope share one request, and a request for one audience and scope never waits on a request for another. The
-/// request runs on its own time limit, <see cref="DirectoryClientOptions.TokenRequestTimeout"/>, and each caller stops
-/// waiting with its own <see cref="CancellationToken"/>, so a caller that gives up does not end the request for the
-/// others. A failed request is remembered for <see cref="DirectoryClientOptions.TokenFailureCacheDuration"/>, during
-/// which a caller that needs that token fails at once, without a request to the control plane.
+/// Provides the default <see cref="ICellTokenSource"/>, which requests a client-credentials token from the directory's
+/// own token endpoint, <c>directory/v1/token</c>, as the cell's machine client with a <c>private_key_jwt</c> assertion,
+/// over the client library's bounded HTTP client, and keeps the token until shortly before it expires. Concurrent
+/// callers share one request. The request runs on its own time limit,
+/// <see cref="DirectoryClientOptions.TokenRequestTimeout"/>, and each caller stops waiting with its own
+/// <see cref="CancellationToken"/>, so a caller that gives up does not end the request for the others. A failed request
+/// is remembered for <see cref="DirectoryClientOptions.TokenFailureCacheDuration"/>, during which a caller fails at
+/// once, without a request to the directory.
 /// </summary>
 // See ADR-1285 and ADR-1315.
-internal sealed class DefaultCellTokenSource(
-    ITokenClient tokenClient,
-    IOptions<DirectoryClientOptions> options,
-    IOptions<CellOptions> cellOptions,
-    TimeProvider timeProvider
-) : ICellTokenSource
+internal sealed class DefaultCellTokenSource : ICellTokenSource
 {
     private static TimeSpan RefreshBeforeExpiry { get; } = TimeSpan.FromSeconds(30);
 
-    private ITokenClient TokenClient { get; } = tokenClient;
+    private IHttpClientFactory HttpClientFactory { get; }
 
-    private DirectoryClientOptions Options { get; } = options.Value;
+    private IClientAuthenticator? Authenticator { get; }
 
-    private CellOptions CellOptions { get; } = cellOptions.Value;
+    private DirectoryClientOptions Options { get; }
 
-    private TimeProvider TimeProvider { get; } = timeProvider;
+    private TimeProvider TimeProvider { get; }
 
-    // The three dictionaries below are keyed by audience and scope. The cell asks for the directory's and the control
-    // plane's audience and scope pairs only, a fixed set, so none of them grows without bound.
+    private OpenIdProviderMetadata Metadata { get; }
 
-    /// <summary>
-    /// Gets the token of each audience and scope, with the time at which the cell stops using it.
-    /// </summary>
-    private ConcurrentDictionary<
-        (string Audience, string Scope),
-        (string Token, DateTimeOffset ExpiresAt)
-    > Cache { get; } = new();
+    private ClientRegistration Registration { get; }
+
+    private Uri TokenEndpoint { get; }
 
     /// <summary>
-    /// Gets the request that is running for each audience and scope. Every caller of that audience and scope waits on
-    /// it, and it leaves the dictionary when it ends.
+    /// Initializes a new instance of the <see cref="DefaultCellTokenSource"/> class.
     /// </summary>
-    private ConcurrentDictionary<
-        (string Audience, string Scope),
-        Lazy<Task<(string Token, DateTimeOffset ExpiresAt)>>
-    > InFlight { get; } = new();
-
-    /// <summary>
-    /// Gets the time at which the cell stops remembering that the request for each audience and scope failed.
-    /// </summary>
-    private ConcurrentDictionary<
-        (string Audience, string Scope),
-        DateTimeOffset
-    > Failures { get; } = new();
-
-    /// <inheritdoc />
-    public async ValueTask<string> GetAccessTokenAsync(
-        string audience,
-        string scope,
-        CancellationToken cancellationToken
+    /// <param name="httpClientFactory">The factory of the client library's bounded HTTP client.</param>
+    /// <param name="authenticators">The client authenticators of the client library.</param>
+    /// <param name="options">The <see cref="DirectoryClientOptions"/> of the cell.</param>
+    /// <param name="timeProvider">The <see cref="TimeProvider"/> that supplies the current time.</param>
+    public DefaultCellTokenSource(
+        IHttpClientFactory httpClientFactory,
+        IEnumerable<IClientAuthenticator> authenticators,
+        IOptions<DirectoryClientOptions> options,
+        TimeProvider timeProvider
     )
     {
-        ArgumentException.ThrowIfNullOrEmpty(audience);
-        ArgumentException.ThrowIfNullOrEmpty(scope);
+        HttpClientFactory = httpClientFactory;
+        Options = options.Value;
+        TimeProvider = timeProvider;
 
-        var key = (audience, scope);
-        if (TryGetCachedEntry(key, out var cached))
-            return cached.Token;
-
-        ThrowIfFailureRemembered(key);
-
-        // A caller whose token is already cancelled starts no request.
-        cancellationToken.ThrowIfCancellationRequested();
-
-        var flight = InFlight.GetOrAdd(
-            key,
-            k => new Lazy<Task<(string Token, DateTimeOffset ExpiresAt)>>(() =>
-                RunFlightAsync(k).AsTask()
+        Authenticator = authenticators.FirstOrDefault(static authenticator =>
+            string.Equals(
+                authenticator.MethodName,
+                OpenIdProtocol.ClientAuthenticationMethods.PrivateKeyJwt,
+                StringComparison.Ordinal
             )
         );
+
+        var issuer = (Options.Url ?? string.Empty).TrimEnd('/');
+        var tokenEndpoint = $"{issuer}/{DirectoryClientDefaults.ApiPrefix}token";
+        TokenEndpoint = new Uri(tokenEndpoint, UriKind.Absolute);
+        Metadata = new OpenIdProviderMetadata
+        {
+            Issuer = issuer,
+            TokenEndpoint = tokenEndpoint,
+            TokenEndpointAuthMethodsSupported =
+            [
+                OpenIdProtocol.ClientAuthenticationMethods.PrivateKeyJwt,
+            ],
+            TokenEndpointAuthSigningAlgValuesSupported =
+            [
+                "PS256",
+                "ES256",
+                "PS384",
+                "ES384",
+                "PS512",
+                "ES512",
+            ],
+        };
+        Registration = new ClientRegistration(
+            issuer,
+            Options.ClientId ?? string.Empty,
+            OpenIdProtocol.ClientAuthenticationMethods.PrivateKeyJwt
+        )
+        {
+            KeyRing = Options.KeyRing,
+        };
+    }
+
+    /// <summary>
+    /// Gets the token that the cell stops using at <see cref="CachedExpiresAt"/>.
+    /// </summary>
+    private string? CachedToken { get; set; }
+
+    /// <summary>
+    /// Gets the time at which the cell stops using <see cref="CachedToken"/>.
+    /// </summary>
+    private DateTimeOffset CachedExpiresAt { get; set; }
+
+    /// <summary>
+    /// Gets the time at which the cell stops remembering that the request failed.
+    /// </summary>
+    private DateTimeOffset FailureRememberedUntil { get; set; }
+
+    /// <summary>
+    /// Gets the request that is running, which every caller waits on and which ends when it completes.
+    /// </summary>
+    private Lazy<Task<(string Token, DateTimeOffset ExpiresAt)>>? InFlight { get; set; }
+
+    private object Gate { get; } = new();
+
+    /// <inheritdoc />
+    public async ValueTask<string> GetAccessTokenAsync(CancellationToken cancellationToken)
+    {
+        Lazy<Task<(string Token, DateTimeOffset ExpiresAt)>> flight;
+        lock (Gate)
+        {
+            if (TryGetCached(out var cached))
+                return cached;
+
+            ThrowIfFailureRemembered();
+
+            // A caller whose token is already cancelled starts no request.
+            cancellationToken.ThrowIfCancellationRequested();
+
+            flight = InFlight ??= new Lazy<Task<(string Token, DateTimeOffset ExpiresAt)>>(() =>
+                RunFlightAsync().AsTask()
+            );
+        }
 
         // The caller stops waiting with its own token, and the request never runs on it.
         var entry = await flight.Value.WaitAsync(cancellationToken);
@@ -96,61 +143,41 @@ internal sealed class DefaultCellTokenSource(
     }
 
     /// <summary>
-    /// Gets the cached token of an audience and scope when the cell still uses it.
+    /// Gets the cached token when the cell still uses it. The caller holds <see cref="Gate"/>.
     /// </summary>
-    /// <param name="key">The audience and scope of the token.</param>
-    /// <param name="entry">
-    /// The cached token and the time at which the cell stops using it when this method returns <see langword="true"/>;
-    /// otherwise, an empty token.
-    /// </param>
+    /// <param name="token">The cached token when this method returns <see langword="true"/>; otherwise, an empty
+    /// token.</param>
     /// <returns><see langword="true"/> when an unexpired token is cached; otherwise, <see langword="false"/>.</returns>
-    private bool TryGetCachedEntry(
-        (string Audience, string Scope) key,
-        out (string Token, DateTimeOffset ExpiresAt) entry
-    )
+    private bool TryGetCached([NotNullWhen(true)] out string? token)
     {
-        if (Cache.TryGetValue(key, out var cached) && cached.ExpiresAt > TimeProvider.GetUtcNow())
+        if (CachedToken is { } cached && CachedExpiresAt > TimeProvider.GetUtcNow())
         {
-            entry = cached;
+            token = cached;
             return true;
         }
 
-        entry = (string.Empty, default);
+        token = null;
         return false;
     }
 
     /// <summary>
-    /// Throws when the cell remembers that the request for an audience and scope failed, and the memory has not ended.
+    /// Throws when the cell remembers that the request failed, and the memory has not ended. The caller holds
+    /// <see cref="Gate"/>.
     /// </summary>
-    /// <param name="key">The audience and scope of the token.</param>
-    /// <exception cref="DirectoryUnavailableException">
-    /// The request for the audience and scope failed moments ago.
-    /// </exception>
-    private void ThrowIfFailureRemembered((string Audience, string Scope) key)
+    /// <exception cref="DirectoryUnavailableException">The request failed moments ago.</exception>
+    private void ThrowIfFailureRemembered()
     {
-        if (
-            Failures.TryGetValue(key, out var rememberedUntil)
-            && rememberedUntil > TimeProvider.GetUtcNow()
-        )
+        if (FailureRememberedUntil > TimeProvider.GetUtcNow())
             throw new DirectoryUnavailableException(
-                $"The token request for '{key.Audience}' failed moments ago."
+                "The directory token request failed moments ago."
             );
     }
 
     /// <summary>
-    /// Remembers that the request for an audience and scope failed, for
-    /// <see cref="DirectoryClientOptions.TokenFailureCacheDuration"/>.
+    /// Requests the token for every caller that waits on it, and clears the running request when it ends. The request
+    /// runs on a time limit of its own, never on a caller's token. It checks the cache and the remembered failure
+    /// first, because another request may have ended since its callers looked.
     /// </summary>
-    /// <param name="key">The audience and scope of the token.</param>
-    private void RememberFailure((string Audience, string Scope) key) =>
-        Failures[key] = TimeProvider.GetUtcNow() + Options.TokenFailureCacheDuration;
-
-    /// <summary>
-    /// Requests the token of an audience and scope for every caller that waits on it, and leaves the dictionary of
-    /// running requests when it ends. The request runs on a time limit of its own, never on a caller's token. It checks
-    /// the cache and the remembered failure first, because another request may have ended since its callers looked.
-    /// </summary>
-    /// <param name="key">The audience and scope of the token.</param>
     /// <returns>The access token and the time at which the cell stops using it, before the token expires.</returns>
     /// <exception cref="DirectoryUnavailableException">
     /// The cell remembers that the last request failed, or the request fails or outlasts its time limit.
@@ -160,16 +187,17 @@ internal sealed class DefaultCellTokenSource(
         "NCID0003",
         Justification = "The shared request runs on its own bounded token, so no caller's token reaches it (ADR-1315)."
     )]
-    private async ValueTask<(string Token, DateTimeOffset ExpiresAt)> RunFlightAsync(
-        (string Audience, string Scope) key
-    )
+    private async ValueTask<(string Token, DateTimeOffset ExpiresAt)> RunFlightAsync()
     {
         try
         {
-            if (TryGetCachedEntry(key, out var cached))
-                return cached;
+            lock (Gate)
+            {
+                if (TryGetCached(out var cached))
+                    return (cached, CachedExpiresAt);
 
-            ThrowIfFailureRemembered(key);
+                ThrowIfFailureRemembered();
+            }
 
             try
             {
@@ -177,100 +205,232 @@ internal sealed class DefaultCellTokenSource(
                     Options.TokenRequestTimeout,
                     TimeProvider
                 );
-                var entry = await RequestTokenAsync(key.Audience, key.Scope, source.Token);
-                Cache[key] = entry;
-                Failures.TryRemove(key, out _);
+                var entry = await RequestTokenAsync(source.Token);
+                lock (Gate)
+                {
+                    CachedToken = entry.Token;
+                    CachedExpiresAt = entry.ExpiresAt;
+                    FailureRememberedUntil = default;
+                }
+
                 return entry;
             }
             catch (OperationCanceledException exception)
             {
-                RememberFailure(key);
+                RememberFailure();
                 throw new DirectoryUnavailableException(
-                    $"The token request for '{key.Audience}' was cancelled or timed out.",
+                    "The directory token request was cancelled or timed out.",
                     exception
                 );
             }
             catch (DirectoryUnavailableException)
             {
-                RememberFailure(key);
+                RememberFailure();
                 throw;
             }
         }
         finally
         {
-            InFlight.TryRemove(key, out _);
+            lock (Gate)
+                InFlight = null;
         }
     }
 
     /// <summary>
-    /// Requests a client-credentials access token from the control plane, authenticating the cell with its private key.
+    /// Remembers that the request failed, for <see cref="DirectoryClientOptions.TokenFailureCacheDuration"/>.
     /// </summary>
-    /// <param name="audience">The resource that the token is for.</param>
-    /// <param name="scope">The scope that the token carries.</param>
+    private void RememberFailure()
+    {
+        lock (Gate)
+            FailureRememberedUntil = TimeProvider.GetUtcNow() + Options.TokenFailureCacheDuration;
+    }
+
+    /// <summary>
+    /// Requests a client-credentials access token from the directory's token endpoint, authenticating the cell with its
+    /// private key.
+    /// </summary>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
     /// <returns>The access token and the time at which the cell stops using it, before the token expires.</returns>
+    /// <exception cref="DirectoryClientNotRegisteredException">
+    /// The directory refuses the cell's client authentication.
+    /// </exception>
     /// <exception cref="DirectoryUnavailableException">
-    /// The cell is not configured to authenticate, the token endpoint cannot be reached, or the control plane refuses
-    /// the request or answers without an access token or without a positive <c>expires_in</c> lifetime.
+    /// The cell is not configured to authenticate, the token endpoint cannot be reached, or the directory refuses the
+    /// request or answers without an access token or without a positive <c>expires_in</c> lifetime.
     /// </exception>
     private async ValueTask<(string Token, DateTimeOffset ExpiresAt)> RequestTokenAsync(
-        string audience,
-        string scope,
         CancellationToken cancellationToken
     )
     {
-        var authority = CellOptions.ControlPlane.Issuer;
-        var clientId = Options.ClientId;
-        if (string.IsNullOrEmpty(authority) || string.IsNullOrEmpty(clientId))
+        if (
+            Authenticator is null
+            || string.IsNullOrEmpty(Options.ClientId)
+            || string.IsNullOrEmpty(Options.KeyRing)
+        )
             throw new DirectoryUnavailableException(
-                $"The cell is not configured to authenticate to '{audience}'."
+                "The cell is not configured to authenticate to the directory."
             );
 
-        var registration = new ClientRegistration(
-            authority,
-            clientId,
-            OpenIdProtocol.ClientAuthenticationMethods.PrivateKeyJwt
-        )
+        var parameters = new List<KeyValuePair<string, string>>
         {
-            KeyRing = Options.KeyRing,
+            new(OpenIdProtocol.Parameters.GrantType, OpenIdProtocol.GrantTypes.ClientCredentials),
         };
 
-        var request = new ClientCredentialsTokenRequest { Scope = scope, Resources = [audience] };
+        using var request = new HttpRequestMessage(HttpMethod.Post, TokenEndpoint);
+        var acceptJson = new MediaTypeWithQualityHeaderValue(OpenIdProtocol.MediaTypes.Json);
+        request.Headers.Accept.Add(acceptJson);
 
-        TokenResult result;
+        var context = new ClientAuthenticationContext(
+            Registration,
+            Metadata,
+            TokenEndpoint.AbsoluteUri,
+            request,
+            parameters
+        );
         try
         {
-            result = await TokenClient.RequestTokenAsync(registration, request, cancellationToken);
+            await Authenticator.AuthenticateAsync(context, cancellationToken);
         }
-        catch (OpenIdProviderException exception)
+        catch (InvalidOperationException exception)
         {
             throw new DirectoryUnavailableException(
-                $"The token endpoint of the control plane could not be reached for '{audience}'.",
+                "The cell cannot sign its client assertion for the directory.",
                 exception
             );
         }
 
-        if (!result.IsSuccess)
+        request.Content = new FormUrlEncodedContent(parameters);
+
+        byte[] body;
+        HttpStatusCode status;
+        try
+        {
+            var client = HttpClientFactory.CreateClient(OpenIdClientDefaults.HttpClientName);
+            using var response = await client.SendAsync(
+                request,
+                HttpCompletionOption.ResponseHeadersRead,
+                cancellationToken
+            );
+            status = response.StatusCode;
+            body = await ReadBodyAsync(response.Content, cancellationToken);
+        }
+        catch (Exception exception) when (exception is HttpRequestException or IOException)
         {
             throw new DirectoryUnavailableException(
-                $"The control plane refused the token request for '{audience}' with '{result.Error.Error}'."
+                $"The directory's token endpoint could not be reached: {TokenEndpoint}.",
+                exception
             );
         }
 
-        var accessToken = result.Response.AccessToken;
+        if (status != HttpStatusCode.OK)
+            throw CreateRefusal(status, body);
+
+        TokenResponse? tokenResponse;
+        try
+        {
+            tokenResponse = JsonSerializer.Deserialize<TokenResponse>(body);
+        }
+        catch (JsonException exception)
+        {
+            throw new DirectoryUnavailableException(
+                "The directory answered the token request with a document that is not a token response.",
+                exception
+            );
+        }
+
+        var accessToken = tokenResponse?.AccessToken;
         if (string.IsNullOrEmpty(accessToken))
             throw new DirectoryUnavailableException(
-                $"The control plane answered the token request for '{audience}' without an access token."
+                "The directory answered the token request without an access token."
             );
 
-        var expiresIn = result.Response.ExpiresIn;
+        var expiresIn = tokenResponse?.ExpiresIn;
         if (expiresIn is not > 0)
             throw new DirectoryUnavailableException(
-                $"The control plane answered the token request for '{audience}' without a positive expires_in."
+                "The directory answered the token request without a positive expires_in."
             );
 
         var lifetime = TimeSpan.FromSeconds(expiresIn.Value);
         var expiresAt = TimeProvider.GetUtcNow() + lifetime - RefreshBeforeExpiry;
         return (accessToken, expiresAt);
+    }
+
+    /// <summary>
+    /// Creates the exception for a token endpoint answer that is not a success, mapping <c>invalid_client</c> to
+    /// <see cref="DirectoryClientNotRegisteredException"/>.
+    /// </summary>
+    /// <param name="status">The status code of the answer.</param>
+    /// <param name="body">The body of the answer.</param>
+    /// <returns>The exception to throw.</returns>
+    private static DirectoryUnavailableException CreateRefusal(HttpStatusCode status, byte[] body)
+    {
+        var error = ReadError(body);
+        if (string.Equals(error, OpenIdProtocol.ErrorCodes.InvalidClient, StringComparison.Ordinal))
+            return new DirectoryClientNotRegisteredException(
+                "The directory refused the cell's client authentication with 'invalid_client'."
+            );
+
+        return new DirectoryUnavailableException(
+            $"The directory refused the token request with {(int)status} '{error ?? "unknown"}'."
+        );
+    }
+
+    /// <summary>
+    /// Reads the <c>error</c> member of an RFC 6749 section 5.2 error document.
+    /// </summary>
+    /// <param name="body">The body of the answer.</param>
+    /// <returns>The error code, or <see langword="null"/> when the body holds none.</returns>
+    private static string? ReadError(byte[] body)
+    {
+        try
+        {
+            var json = JsonSerializer.Deserialize<JsonElement>(body);
+            return
+                json.ValueKind == JsonValueKind.Object
+                && json.TryGetProperty(OpenIdProtocol.Parameters.ErrorCode, out var error)
+                && error.ValueKind == JsonValueKind.String
+                ? error.GetString()
+                : null;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Reads the body of a response, up to the largest body that the client accepts.
+    /// </summary>
+    /// <param name="content">The <see cref="HttpContent"/> of the response.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <returns>The bytes of the body.</returns>
+    /// <exception cref="DirectoryUnavailableException">The body is larger than the client accepts.</exception>
+    private static async ValueTask<byte[]> ReadBodyAsync(
+        HttpContent content,
+        CancellationToken cancellationToken
+    )
+    {
+        const int maxBytes = 64 * 1024;
+        if (content.Headers.ContentLength > maxBytes)
+            throw new DirectoryUnavailableException(
+                $"The directory's token endpoint answered with a body larger than {maxBytes} bytes."
+            );
+
+        await using var stream = await content.ReadAsStreamAsync(cancellationToken);
+        using var buffer = new MemoryStream();
+        var chunk = new byte[4096];
+        while (true)
+        {
+            var read = await stream.ReadAsync(chunk, cancellationToken);
+            if (read == 0)
+                return buffer.ToArray();
+
+            if (buffer.Length + read > maxBytes)
+                throw new DirectoryUnavailableException(
+                    $"The directory's token endpoint answered with a body larger than {maxBytes} bytes."
+                );
+
+            buffer.Write(chunk, 0, read);
+        }
     }
 }

@@ -8,8 +8,8 @@ namespace NCode.Identity.OpenId.GlobalDirectory;
 
 /// <summary>
 /// Configures how a cell reaches the global directory service. Bound from the <c>Directory</c> configuration section.
-/// The cell authenticates as a confidential client of the control-plane cell, whose issuer is
-/// <see cref="ControlPlaneOptions.Issuer"/>, with a <c>private_key_jwt</c> assertion signed by the named key ring.
+/// The cell authenticates to the directory's own token endpoint as a confidential client, with a <c>private_key_jwt</c>
+/// assertion signed by the named key ring.
 /// </summary>
 [PublicAPI]
 [ExcludeFromCodeCoverage]
@@ -45,9 +45,9 @@ public sealed class DirectoryClientOptions
     public TimeSpan PollInterval { get; set; } = TimeSpan.FromSeconds(30);
 
     /// <summary>
-    /// Gets or sets how long a cell waits for a token request to the control plane, its discovery and token calls
-    /// together, before the request ends as a <see cref="DirectoryUnavailableException"/>. It is the period of a timer,
-    /// from 1 millisecond to about 49.7 days. The default is 30 seconds.
+    /// Gets or sets how long a cell waits for a token request to the directory's token endpoint before the request ends
+    /// as a <see cref="DirectoryUnavailableException"/>. It is the period of a timer, from 1 millisecond to about 49.7
+    /// days. The default is 30 seconds.
     /// </summary>
     public TimeSpan TokenRequestTimeout { get; set; } = TimeSpan.FromSeconds(30);
 

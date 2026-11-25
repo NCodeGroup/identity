@@ -105,13 +105,7 @@ public class RemoteDirectoryRoundTripTests : IAsyncLifetime
 
         var tokenSourceMock = Mocks.Create<ICellTokenSource>();
         tokenSourceMock
-            .Setup(x =>
-                x.GetAccessTokenAsync(
-                    GlobalDirectoryProtocol.DirectoryAudience,
-                    GlobalDirectoryProtocol.DirectoryScope,
-                    It.IsAny<CancellationToken>()
-                )
-            )
+            .Setup(x => x.GetAccessTokenAsync(It.IsAny<CancellationToken>()))
             .Returns(() => new ValueTask<string>(AccessToken))
             .Verifiable(Times.AtLeastOnce);
 

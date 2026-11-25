@@ -55,4 +55,10 @@ internal static class EventIds
     /// directory's.
     /// </summary>
     public const int DirectoryOutboxRepublished = Base + 7;
+
+    /// <summary>
+    /// Identifies the warning that the directory refused the cell's client authentication because it has no
+    /// registration for the cell yet; the registration is retried after a delay.
+    /// </summary>
+    public const int CellNotRegisteredYet = Base + 8;
 }

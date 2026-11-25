@@ -92,7 +92,10 @@ internal sealed class CellRegistrationService(
             {
                 var jitter = Random.Shared.NextDouble();
                 var delay = GetDelay(attempt, jitter);
-                Logger.CellRegistrationFailed(exception, attempt, delay);
+                if (exception is DirectoryClientNotRegisteredException)
+                    Logger.CellNotRegisteredYet(exception, attempt, delay);
+                else
+                    Logger.CellRegistrationFailed(exception, attempt, delay);
                 await Task.Delay(delay, TimeProvider, cancellationToken);
             }
         }

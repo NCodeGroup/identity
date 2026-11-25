@@ -27,6 +27,18 @@ internal static partial class Log
     );
 
     [LoggerMessage(
+        EventId = EventIds.CellNotRegisteredYet,
+        Level = LogLevel.Warning,
+        Message = "The global directory has no registration for this cell yet, on attempt {Attempt}; retrying in {Delay}."
+    )]
+    internal static partial void CellNotRegisteredYet(
+        this ILogger logger,
+        Exception exception,
+        int attempt,
+        TimeSpan delay
+    );
+
+    [LoggerMessage(
         EventId = EventIds.DirectoryChangeFeedUnavailable,
         Level = LogLevel.Warning,
         Message = "Following the global directory's change feed failed because the directory is unavailable; retrying at the next interval."

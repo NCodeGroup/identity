@@ -62,15 +62,7 @@ internal sealed class DirectoryHttpClient(
     )
     {
         var uri = new Uri(BaseUri, DirectoryClientDefaults.ApiPrefix + path);
-        var cellRequest = new CellApiRequest(
-            method,
-            uri,
-            GlobalDirectoryProtocol.DirectoryAudience,
-            GlobalDirectoryProtocol.DirectoryScope
-        )
-        {
-            Body = body,
-        };
+        var cellRequest = new CellApiRequest(method, uri) { Body = body };
         return SendAsync(cellRequest, cancellationToken);
     }
 
@@ -92,11 +84,7 @@ internal sealed class DirectoryHttpClient(
 
         var method = cellRequest.Method;
         var uri = cellRequest.Uri;
-        var accessToken = await TokenSource.GetAccessTokenAsync(
-            cellRequest.Audience,
-            cellRequest.Scope,
-            cancellationToken
-        );
+        var accessToken = await TokenSource.GetAccessTokenAsync(cancellationToken);
 
         using var request = new HttpRequestMessage(method, uri);
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);

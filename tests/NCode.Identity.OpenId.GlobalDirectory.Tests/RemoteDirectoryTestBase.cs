@@ -28,13 +28,7 @@ public abstract class RemoteDirectoryTestBase : BaseTests
 
         var tokenSourceMock = CreateStrictMock<ICellTokenSource>();
         tokenSourceMock
-            .Setup(x =>
-                x.GetAccessTokenAsync(
-                    GlobalDirectoryProtocol.DirectoryAudience,
-                    GlobalDirectoryProtocol.DirectoryScope,
-                    It.IsAny<CancellationToken>()
-                )
-            )
+            .Setup(x => x.GetAccessTokenAsync(It.IsAny<CancellationToken>()))
             .Returns(new ValueTask<string>(AccessToken))
             .Verifiable(Times.AtLeastOnce);
 

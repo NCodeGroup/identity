@@ -64,6 +64,9 @@ NCode.Identity.OpenId.GlobalDirectory.DirectoryChange.Sequence.get -> long
 NCode.Identity.OpenId.GlobalDirectory.DirectoryChange.Sequence.init -> void
 NCode.Identity.OpenId.GlobalDirectory.DirectoryChange.TeamId.get -> string?
 NCode.Identity.OpenId.GlobalDirectory.DirectoryChange.TeamId.init -> void
+NCode.Identity.OpenId.GlobalDirectory.DirectoryClientNotRegisteredException
+NCode.Identity.OpenId.GlobalDirectory.DirectoryClientNotRegisteredException.DirectoryClientNotRegisteredException(string! message) -> void
+NCode.Identity.OpenId.GlobalDirectory.DirectoryClientNotRegisteredException.DirectoryClientNotRegisteredException(string! message, System.Exception! innerException) -> void
 NCode.Identity.OpenId.GlobalDirectory.DirectoryUnavailableException
 NCode.Identity.OpenId.GlobalDirectory.DirectoryUnavailableException.DirectoryUnavailableException(string! message) -> void
 NCode.Identity.OpenId.GlobalDirectory.DirectoryUnavailableException.DirectoryUnavailableException(string! message, System.Exception! innerException) -> void
