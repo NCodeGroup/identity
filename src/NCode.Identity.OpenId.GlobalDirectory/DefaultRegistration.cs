@@ -106,6 +106,7 @@ public static class DefaultRegistration
             serviceCollection.TryAddSingleton(TimeProvider.System);
             serviceCollection.TryAddSingleton<ICellTokenSource, DefaultCellTokenSource>();
             serviceCollection.TryAddSingleton<DirectoryHttpClient>();
+            serviceCollection.TryAddSingleton<DirectoryMetrics>();
 
             // The directory has an HTTP client of its own so that its private certificate authorities never replace the
             // process's trust store. Every call is bounded by the options' timeouts, so the client's own is off.

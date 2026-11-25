@@ -50,7 +50,7 @@ public class DirectoryChangeFeedServiceTests : BaseTests
         ExpiringKeySetMock = CreateStrictMock<IExpiringKeySet>();
         ReplicaHealth = new DirectoryReplicaHealth(
             TimeProvider,
-            new TestMeterFactory(),
+            new DirectoryMetrics(new TestMeterFactory()),
             Options.Create(new CellOptions { Name = "cell-a" })
         );
     }

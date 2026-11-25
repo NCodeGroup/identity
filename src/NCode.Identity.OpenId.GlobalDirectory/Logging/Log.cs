@@ -116,4 +116,16 @@ internal static partial class Log
         string kind,
         string key
     );
+
+    [LoggerMessage(
+        EventId = EventIds.DirectoryOutboxRepublishFailed,
+        Level = LogLevel.Error,
+        Message = "Republishing the {Kind} document '{Key}' to the global directory failed; the pass is retried."
+    )]
+    internal static partial void DirectoryOutboxRepublishFailed(
+        this ILogger logger,
+        Exception exception,
+        string kind,
+        string key
+    );
 }

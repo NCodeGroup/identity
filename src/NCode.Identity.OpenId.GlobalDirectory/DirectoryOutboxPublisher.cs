@@ -1,7 +1,6 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
-using System.Diagnostics.Metrics;
 using System.Runtime.ExceptionServices;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -23,21 +22,9 @@ namespace NCode.Identity.OpenId.GlobalDirectory;
 internal sealed class DirectoryOutboxPublisher : BackgroundService
 {
     /// <summary>
-    /// The name of the meter that holds the publisher's instruments.
-    /// </summary>
-    internal const string MeterName = "NCode.Identity.OpenId.GlobalDirectory";
-
-    /// <summary>
-    /// The name of the counter of the documents that the directory has acknowledged.
-    /// </summary>
-    internal const string PublishedCounterName = "ncode.identity.directory.outbox.published";
-
-    /// <summary>
     /// The most pending documents that one drain reads.
     /// </summary>
     internal const int PageSize = 100;
-
-    private const string KindAttribute = "ncode.identity.directory.document.kind";
 
     private IPlatformTopology Topology { get; }
     private IDirectoryOutbox Outbox { get; }
@@ -46,7 +33,7 @@ internal sealed class DirectoryOutboxPublisher : BackgroundService
     private IOptions<DirectoryClientOptions> Options { get; }
     private TimeProvider TimeProvider { get; }
     private ILogger<DirectoryOutboxPublisher> Logger { get; }
-    private Counter<long> Published { get; }
+    private DirectoryMetrics Metrics { get; }
 
     /// <summary>
     /// Initializes a new instance of the <see cref="DirectoryOutboxPublisher"/> class.
@@ -57,7 +44,7 @@ internal sealed class DirectoryOutboxPublisher : BackgroundService
     /// <param name="directory">The <see cref="IReplicatedDocumentDirectory"/> that receives the documents.</param>
     /// <param name="options">The <see cref="DirectoryClientOptions"/> of the directory client.</param>
     /// <param name="timeProvider">The <see cref="TimeProvider"/> that supplies the current time.</param>
-    /// <param name="meterFactory">The <see cref="IMeterFactory"/> that creates the publisher's meter.</param>
+    /// <param name="metrics">The <see cref="DirectoryMetrics"/> that count the acknowledged documents.</param>
     /// <param name="logger">The <see cref="ILogger{TCategoryName}"/> of the publisher.</param>
     public DirectoryOutboxPublisher(
         IPlatformTopology topology,
@@ -66,7 +53,7 @@ internal sealed class DirectoryOutboxPublisher : BackgroundService
         IReplicatedDocumentDirectory directory,
         IOptions<DirectoryClientOptions> options,
         TimeProvider timeProvider,
-        IMeterFactory meterFactory,
+        DirectoryMetrics metrics,
         ILogger<DirectoryOutboxPublisher> logger
     )
     {
@@ -76,14 +63,8 @@ internal sealed class DirectoryOutboxPublisher : BackgroundService
         Directory = directory;
         Options = options;
         TimeProvider = timeProvider;
+        Metrics = metrics;
         Logger = logger;
-
-        var meter = meterFactory.Create(MeterName);
-        Published = meter.CreateCounter<long>(
-            PublishedCounterName,
-            unit: "{document}",
-            description: "The documents of the outbox that the global directory acknowledged."
-        );
     }
 
     /// <inheritdoc />
@@ -136,7 +117,8 @@ internal sealed class DirectoryOutboxPublisher : BackgroundService
 
     /// <summary>
     /// Republishes every document whose local revision is lower than the directory's, at the directory's revision plus
-    /// one.
+    /// one. A document whose republication fails does not stop the documents after it; the pass then throws the first
+    /// failure.
     /// </summary>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
     /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation.</returns>
@@ -159,6 +141,7 @@ internal sealed class DirectoryOutboxPublisher : BackgroundService
 
         var local = await Outbox.ListLocalRevisionsAsync(cancellationToken);
 
+        ExceptionDispatchInfo? firstFailure = null;
         foreach (var document in local)
         {
             if (!remote.TryGetValue((document.Kind, document.Key), out var remoteRevision))
@@ -168,9 +151,28 @@ internal sealed class DirectoryOutboxPublisher : BackgroundService
                 continue;
 
             var atRevision = remoteRevision + 1;
-            await Outbox.RepublishAsync(document.Kind, document.Key, atRevision, cancellationToken);
+            try
+            {
+                await Outbox.RepublishAsync(
+                    document.Kind,
+                    document.Key,
+                    atRevision,
+                    cancellationToken
+                );
+            }
+            catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
+            {
+                // The documents after it are still republished, and the pass reports itself incomplete below.
+                Logger.DirectoryOutboxRepublishFailed(exception, document.Kind, document.Key);
+                firstFailure ??= ExceptionDispatchInfo.Capture(exception);
+                continue;
+            }
+
             Logger.DirectoryOutboxRepublished(document.Kind, document.Key, atRevision);
         }
+
+        // The pass is incomplete, so the publisher's backoff retries it.
+        firstFailure?.Throw();
     }
 
     /// <summary>
@@ -205,8 +207,7 @@ internal sealed class DirectoryOutboxPublisher : BackgroundService
                 continue;
             }
 
-            var kind = new KeyValuePair<string, object?>(KindAttribute, document.Kind);
-            Published.Add(1, kind);
+            Metrics.Published(document.Kind);
             sent++;
         }
 

@@ -25,3 +25,5 @@ NCode.Identity.OpenId.GlobalDirectory.DirectoryClientOptions.Url.get -> string?
 NCode.Identity.OpenId.GlobalDirectory.DirectoryClientOptions.Url.set -> void
 NCode.Identity.OpenId.GlobalDirectory.ICellTokenSource
 NCode.Identity.OpenId.GlobalDirectory.ICellTokenSource.GetAccessTokenAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<string!>
+NCode.Identity.OpenId.GlobalDirectory.GlobalDirectoryMetrics
+const NCode.Identity.OpenId.GlobalDirectory.GlobalDirectoryMetrics.MeterName = "NCode.Identity.OpenId.GlobalDirectory" -> string!

@@ -37,7 +37,7 @@ public class DirectoryOutboxPublisherTests : BaseTests
             DirectoryMock.Object,
             Options.Create(new DirectoryClientOptions()),
             TimeProvider,
-            new TestMeterFactory(),
+            new DirectoryMetrics(new TestMeterFactory()),
             NullLogger<DirectoryOutboxPublisher>.Instance
         );
     }
@@ -119,7 +119,7 @@ public class DirectoryOutboxPublisherTests : BaseTests
         using var listener = new MeterListener();
         listener.InstrumentPublished = (instrument, meterListener) =>
         {
-            if (instrument.Name == DirectoryOutboxPublisher.PublishedCounterName)
+            if (instrument.Name == DirectoryMetrics.PublishedCounterName)
                 meterListener.EnableMeasurementEvents(instrument);
         };
         listener.SetMeasurementEventCallback<long>(
@@ -273,6 +273,47 @@ public class DirectoryOutboxPublisherTests : BaseTests
             .Verifiable(Times.Once);
 
         await Publisher.RepublishBehindAsync(CancellationToken.None);
+    }
+
+    [Fact]
+    public async Task RepublishBehindAsync_WhenOneDocumentFails_RepublishesTheOthersAndThrows()
+    {
+        var platform = ReplicatedDocumentKinds.PlatformAuthority;
+        var keys = ReplicatedDocumentKinds.ManagementKeys;
+        var failure = new InvalidOperationException("The document could not be composed.");
+        DirectoryMock
+            .Setup(x =>
+                x.ListRevisionsAsync(
+                    null,
+                    DirectoryOutboxPublisher.PageSize,
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync(
+                new ReplicatedRevisionPage
+                {
+                    Revisions = [Revision(platform, "", 9), Revision(keys, "", 5)],
+                }
+            )
+            .Verifiable(Times.Once);
+        OutboxMock
+            .Setup(x => x.ListLocalRevisionsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync([Revision(platform, "", 3), Revision(keys, "", 2)])
+            .Verifiable(Times.Once);
+        OutboxMock
+            .Setup(x => x.RepublishAsync(platform, "", 10, It.IsAny<CancellationToken>()))
+            .Returns(() => throw failure)
+            .Verifiable(Times.Once);
+        OutboxMock
+            .Setup(x => x.RepublishAsync(keys, "", 6, It.IsAny<CancellationToken>()))
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable(Times.Once);
+
+        var thrown = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await Publisher.RepublishBehindAsync(CancellationToken.None)
+        );
+
+        Assert.Same(failure, thrown);
     }
 
     [Fact]

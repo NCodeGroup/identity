@@ -17,7 +17,7 @@ public class DirectoryReplicaHealthTests : BaseTests
     private DirectoryReplicaHealth CreateHealth() =>
         new(
             TimeProvider,
-            new TestMeterFactory(),
+            new DirectoryMetrics(new TestMeterFactory()),
             Options.Create(new CellOptions { Name = "cell-a" })
         );
 

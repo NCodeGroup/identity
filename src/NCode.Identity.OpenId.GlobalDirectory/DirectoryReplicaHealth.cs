@@ -17,21 +17,6 @@ namespace NCode.Identity.OpenId.GlobalDirectory;
 internal sealed class DirectoryReplicaHealth : IHealthCheck
 {
     /// <summary>
-    /// The name of the meter that holds the replica's instruments, shared with the outbox publisher's.
-    /// </summary>
-    internal const string MeterName = DirectoryOutboxPublisher.MeterName;
-
-    /// <summary>
-    /// The name of the gauge of the seconds since the last completed feed pass.
-    /// </summary>
-    internal const string AgeGaugeName = "ncode.identity.directory.replica.age";
-
-    /// <summary>
-    /// The name of the gauge of the highest feed sequence that the cell has applied.
-    /// </summary>
-    internal const string SequenceGaugeName = "ncode.identity.directory.replica.sequence";
-
-    /// <summary>
     /// The key of the health data that holds the seconds since the last completed feed pass.
     /// </summary>
     internal const string AgeDataKey = "replicaAgeSeconds";
@@ -46,8 +31,6 @@ internal sealed class DirectoryReplicaHealth : IHealthCheck
     /// </summary>
     internal const string HealthCheckName = "directory-replica";
 
-    private const string CellNameAttribute = "cell.name";
-
     private TimeProvider TimeProvider { get; }
     private IOptions<CellOptions> CellOptionsAccessor { get; }
 
@@ -59,11 +42,11 @@ internal sealed class DirectoryReplicaHealth : IHealthCheck
     /// Initializes a new instance of the <see cref="DirectoryReplicaHealth"/> class.
     /// </summary>
     /// <param name="timeProvider">The <see cref="TimeProvider"/> that supplies the current time.</param>
-    /// <param name="meterFactory">The <see cref="IMeterFactory"/> that creates the replica's meter.</param>
+    /// <param name="metrics">The <see cref="DirectoryMetrics"/> that observe the replica's age and sequence.</param>
     /// <param name="cellOptions">The <see cref="CellOptions"/> that name the cell.</param>
     public DirectoryReplicaHealth(
         TimeProvider timeProvider,
-        IMeterFactory meterFactory,
+        DirectoryMetrics metrics,
         IOptions<CellOptions> cellOptions
     )
     {
@@ -71,19 +54,7 @@ internal sealed class DirectoryReplicaHealth : IHealthCheck
         CellOptionsAccessor = cellOptions;
         _lastPassTicks = timeProvider.GetUtcNow().UtcTicks;
 
-        var meter = meterFactory.Create(MeterName);
-        meter.CreateObservableGauge(
-            AgeGaugeName,
-            ObserveAge,
-            unit: "s",
-            description: "The seconds since the cell's replica of the directory's documents last completed a feed pass."
-        );
-        meter.CreateObservableGauge(
-            SequenceGaugeName,
-            ObserveSequence,
-            unit: "{sequence}",
-            description: "The highest feed sequence that the cell's replica has applied."
-        );
+        metrics.ObserveReplica(ObserveAge, ObserveSequence);
     }
 
     /// <summary>
@@ -156,5 +127,5 @@ internal sealed class DirectoryReplicaHealth : IHealthCheck
     /// </summary>
     /// <returns>The tag that carries the cell's name.</returns>
     private KeyValuePair<string, object?> CellTag() =>
-        new(CellNameAttribute, CellOptionsAccessor.Value.Name);
+        new(DirectoryMetrics.CellNameAttribute, CellOptionsAccessor.Value.Name);
 }

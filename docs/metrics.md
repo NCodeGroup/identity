@@ -24,15 +24,16 @@ the only package that references the OpenTelemetry SDK. It adds:
 
 ## Meters
 
-| Meter                                  | Package                                | Public name constant                    |
-| -------------------------------------- | -------------------------------------- | --------------------------------------- |
-| `NCode.Identity.OpenId.Authentication` | `NCode.Identity.OpenId.Authentication` | `OpenIdAuthenticationMetrics.MeterName` |
-| `NCode.Identity.Events`                | `NCode.Identity.Events`                | `EventMetrics.MeterName`                |
-| `NCode.Identity.SharedState.Valkey`    | `NCode.Identity.SharedState.Valkey`    | `ValkeyMetrics.MeterName`               |
-| `NCode.Identity.Mail`                  | `NCode.Identity.Mail`                  | `MailMetrics.MeterName`                 |
-| `NCode.Identity.Bff`                   | `NCode.Identity.Bff`                   | `BffTelemetry.MeterName`                |
-| `NCode.Identity.OpenId.Client`         | `NCode.Identity.OpenId.Client`         | `OpenIdClientMetrics.MeterName`         |
-| `NCode.Buffers`                        | `NCode.Buffers`                        | `BufferMetrics.MeterName`               |
+| Meter                                   | Package                                 | Public name constant                    |
+| --------------------------------------- | --------------------------------------- | --------------------------------------- |
+| `NCode.Identity.OpenId.Authentication`  | `NCode.Identity.OpenId.Authentication`  | `OpenIdAuthenticationMetrics.MeterName` |
+| `NCode.Identity.Events`                 | `NCode.Identity.Events`                 | `EventMetrics.MeterName`                |
+| `NCode.Identity.SharedState.Valkey`     | `NCode.Identity.SharedState.Valkey`     | `ValkeyMetrics.MeterName`               |
+| `NCode.Identity.Mail`                   | `NCode.Identity.Mail`                   | `MailMetrics.MeterName`                 |
+| `NCode.Identity.Bff`                    | `NCode.Identity.Bff`                    | `BffTelemetry.MeterName`                |
+| `NCode.Identity.OpenId.GlobalDirectory` | `NCode.Identity.OpenId.GlobalDirectory` | `GlobalDirectoryMetrics.MeterName`      |
+| `NCode.Identity.OpenId.Client`          | `NCode.Identity.OpenId.Client`          | `OpenIdClientMetrics.MeterName`         |
+| `NCode.Buffers`                         | `NCode.Buffers`                         | `BufferMetrics.MeterName`               |
 
 ## Protocol requests: `http.server.request.duration`
 
@@ -139,8 +140,8 @@ Counter, unit `{message}`, meter `NCode.Identity.Mail`. Recorded once for each d
 
 ### `ncode.identity.directory.replica.age`
 
-Observable gauge, unit `s`. The seconds since a cell last applied a page of the directory's change feed, so a cell
-whose replica falls behind shows a growing value.
+Observable gauge, unit `s`, meter `NCode.Identity.OpenId.GlobalDirectory`. The seconds since a cell last applied a
+page of the directory's change feed, so a cell whose replica falls behind shows a growing value.
 
 | Attribute   | Values                                |
 | ----------- | ------------------------------------- |
@@ -148,7 +149,8 @@ whose replica falls behind shows a growing value.
 
 ### `ncode.identity.directory.replica.sequence`
 
-Observable gauge, unit `{sequence}`. The sequence of the last change that a cell applied from the directory's change feed.
+Observable gauge, unit `{sequence}`, meter `NCode.Identity.OpenId.GlobalDirectory`. The sequence of the last change
+that a cell applied from the directory's change feed.
 
 | Attribute   | Values                                |
 | ----------- | ------------------------------------- |
@@ -156,8 +158,8 @@ Observable gauge, unit `{sequence}`. The sequence of the last change that a cell
 
 ### `ncode.identity.directory.outbox.published`
 
-Counter, unit `{document}`. Recorded in the control-plane cell for each replicated document that the directory
-acknowledges from the cell's outbox.
+Counter, unit `{document}`, meter `NCode.Identity.OpenId.GlobalDirectory`. Recorded in the control-plane cell for each
+replicated document that the directory acknowledges from the cell's outbox.
 
 | Attribute                                | Values                                                      |
 | ---------------------------------------- | ----------------------------------------------------------- |

@@ -67,4 +67,10 @@ internal static class EventIds
     /// pending and the publisher sends the documents after it.
     /// </summary>
     public const int DirectoryOutboxDocumentFailed = Base + 9;
+
+    /// <summary>
+    /// Identifies the error that republishing one document of the control-plane cell's outbox failed; the documents
+    /// after it are still republished and the pass is retried.
+    /// </summary>
+    public const int DirectoryOutboxRepublishFailed = Base + 10;
 }
