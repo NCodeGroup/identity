@@ -142,7 +142,7 @@ internal sealed class DirectoryOutboxPublisher : BackgroundService
     /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation.</returns>
     internal async ValueTask RepublishBehindAsync(CancellationToken cancellationToken)
     {
-        var remote = new List<ReplicatedDocument>();
+        var remote = new Dictionary<(string Kind, string Key), long>();
         string? continuation = null;
         do
         {
@@ -151,7 +151,9 @@ internal sealed class DirectoryOutboxPublisher : BackgroundService
                 PageSize,
                 cancellationToken
             );
-            remote.AddRange(page.Revisions);
+            foreach (var revision in page.Revisions)
+                remote[(revision.Kind, revision.Key)] = revision.Revision;
+
             continuation = page.Continuation;
         } while (continuation is not null);
 
@@ -159,14 +161,13 @@ internal sealed class DirectoryOutboxPublisher : BackgroundService
 
         foreach (var document in local)
         {
-            var match = remote.FirstOrDefault(candidate =>
-                string.Equals(candidate.Kind, document.Kind, StringComparison.Ordinal)
-                && string.Equals(candidate.Key, document.Key, StringComparison.Ordinal)
-            );
-            if (match is null || document.Revision >= match.Revision)
+            if (!remote.TryGetValue((document.Kind, document.Key), out var remoteRevision))
                 continue;
 
-            var atRevision = match.Revision + 1;
+            if (document.Revision >= remoteRevision)
+                continue;
+
+            var atRevision = remoteRevision + 1;
             await Outbox.RepublishAsync(document.Kind, document.Key, atRevision, cancellationToken);
             Logger.DirectoryOutboxRepublished(document.Kind, document.Key, atRevision);
         }
@@ -228,16 +229,18 @@ internal sealed class DirectoryOutboxPublisher : BackgroundService
     )
     {
         var stored = await Directory.PublishAsync(document, cancellationToken);
-        var through = Math.Max(stored, document.Revision);
-        await Outbox.AcknowledgeAsync(document.Kind, document.Key, through, cancellationToken);
 
         // A higher stored revision means the directory holds a document newer than the local source, as after a
         // restore of the database, so the current local document is enqueued above it and sent in the next drain.
+        // The enqueue comes before the acknowledgement, so a failure leaves the pending row in place.
         if (stored > document.Revision)
         {
             var atRevision = stored + 1;
             await Outbox.RepublishAsync(document.Kind, document.Key, atRevision, cancellationToken);
             Logger.DirectoryOutboxRepublished(document.Kind, document.Key, atRevision);
         }
+
+        var through = Math.Max(stored, document.Revision);
+        await Outbox.AcknowledgeAsync(document.Kind, document.Key, through, cancellationToken);
     }
 }

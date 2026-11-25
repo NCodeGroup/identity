@@ -1131,7 +1131,6 @@ public sealed class TenantImportApiEndpointHandlerTests : IDisposable
     public async Task ImportTenantAsync_WhenTheCellIsTheControlPlaneCell_ReturnsConflictBeforeWritingAnything()
     {
         SetupAuthorization(AuthorizationResult.Success());
-        SetupPackage();
         MockPlatformTopology.Setup(x => x.IsControlPlaneCell).Returns(true);
 
         var result = await Handler.ImportTenantAsync(

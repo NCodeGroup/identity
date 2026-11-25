@@ -208,6 +208,31 @@ public class DirectoryOutboxPublisherTests : BaseTests
     }
 
     [Fact]
+    public async Task DrainAsync_WhenTheRepublishThrows_DoesNotAcknowledgeSoTheRowStaysPending()
+    {
+        var kind = ReplicatedDocumentKinds.TeamAuthority;
+        var pending = Document(kind, "team-a", 2);
+        OutboxMock
+            .Setup(x =>
+                x.ListPendingAsync(DirectoryOutboxPublisher.PageSize, It.IsAny<CancellationToken>())
+            )
+            .ReturnsAsync([pending])
+            .Verifiable(Times.Once);
+        DirectoryMock
+            .Setup(x => x.PublishAsync(pending, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(7)
+            .Verifiable(Times.Once);
+        OutboxMock
+            .Setup(x => x.RepublishAsync(kind, "team-a", 8, It.IsAny<CancellationToken>()))
+            .Returns(() => throw new InvalidOperationException("The outbox is unavailable."))
+            .Verifiable(Times.Once);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await Publisher.DrainAsync(CancellationToken.None)
+        );
+    }
+
+    [Fact]
     public async Task RepublishBehindAsync_WhenTheLocalRevisionIsBehindAcrossTwoPages_RepublishesAboveTheDirectorys()
     {
         var platform = ReplicatedDocumentKinds.PlatformAuthority;

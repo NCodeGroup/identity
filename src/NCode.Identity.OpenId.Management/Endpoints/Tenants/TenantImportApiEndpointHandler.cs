@@ -191,6 +191,16 @@ internal class TenantImportApiEndpointHandler(
             return authorizationFailure;
         }
 
+        // The control-plane cell of a platform with a directory holds only the control-plane tenant, so nothing is
+        // written for another one, and the single-use transfer key is not spent.
+        if (PlatformTopology.HoldsOnlyControlPlaneTenant())
+        {
+            return TypedResults.Problem(
+                detail: "The control-plane cell holds only the control-plane tenant.",
+                statusCode: StatusCodes.Status409Conflict
+            );
+        }
+
         // TakeAsync refuses an empty kid, and no transfer key has one.
         if (string.IsNullOrWhiteSpace(request.Kid))
         {
@@ -264,16 +274,6 @@ internal class TenantImportApiEndpointHandler(
         if (contributors.Count != sections.Count)
         {
             return Unprocessable("The package has a section that this cell does not import.");
-        }
-
-        // The control-plane cell of a platform with a directory holds only the control-plane tenant, so nothing is
-        // written for another one.
-        if (PlatformTopology.HoldsOnlyControlPlaneTenant())
-        {
-            return TypedResults.Problem(
-                detail: "The control-plane cell holds only the control-plane tenant.",
-                statusCode: StatusCodes.Status409Conflict
-            );
         }
 
         TenantPlacement? placement;

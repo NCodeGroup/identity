@@ -2102,7 +2102,6 @@ internal sealed class DefaultDirectoryStore(
     }
 
     /// <inheritdoc />
-    /// <inheritdoc />
     async ValueTask ICellDirectory.RegisterAsync(
         CellRegistration registration,
         CancellationToken cancellationToken
