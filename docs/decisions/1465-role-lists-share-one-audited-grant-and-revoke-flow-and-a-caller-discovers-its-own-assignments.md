@@ -34,8 +34,8 @@ audited; and a caller reads its own assignments, teams and tenants from `GET /ap
 
 ### Routes and contracts
 
-1. **The role lists are `…/owners` on a team, tenant, client and resource server and `…/admins` on a team, a tenant and
-   a cell** (the cell's is `/api/cell/admins`, see ADR-1536). `GET` reads the list, `POST` grants and `DELETE
+1. **The role lists are `…/owners` on a team, tenant, client and resource server and `…/admins` on a team, a tenant
+   and a cell** (the cell's is `/api/cell/admins`, see ADR-1536). `GET` reads the list, `POST` grants and `DELETE
    …/{principalId}` revokes.
 2. **The contracts name no role and no owner.** `GET` answers `RoleListResource { items, canChange }`. An item, and the
    answer to a grant, is `RoleHolderResource { assignmentId, principalId, roleName, principal }`, where `principal` is a
