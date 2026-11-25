@@ -112,6 +112,7 @@ jobs:
           refuse --set keyRing=directory__signing
           refuse --set keys.pemSecret=
           refuse --set tokenLifetime=
+          refuse --set tokenLifetime=5m
           # A remote key's id never collides with the key ring's PEM key.
           refuse --set "$key.provider=aws-kms" --set "$key.keyId=arn:aws:kms:us-west-2:111122223333:key/abcd" \
             --set "$key.algorithm=ES256" --set "$key.secretType=ecc" --set "$key.keySizeBits=256" \

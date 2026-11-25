@@ -156,7 +156,7 @@ hostnames are `allowedHosts`, attached to the Gateways in `httpRoute.parentRefs`
 | `keyRing` | `DirectoryServer:KeyRing`, the key ring that signs the tokens. Required. |
 | `keys.pemSecret` | Secret holding the private key under `<keyRing>.pem`. |
 | `keys.remoteKeys` | Keys a key management service holds, by key id: `provider`, `keyId`, `algorithm`, `secretType`, `keySizeBits` and, for an elliptic-curve key, `curve`. |
-| `tokenLifetime` | `DirectoryServer:TokenLifetime`, such as `5m`. |
+| `tokenLifetime` | `DirectoryServer:TokenLifetime`, as a time span such as `00:05:00`, between `00:01:00` and `01:00:00`. |
 | `controlPlane.cell`, `.region`, `.kind`, `.tenantId`, `.issuer`, `.clientJwks` | The anchor, as [The anchor and the control-plane client](#the-anchor-and-the-control-plane-client) says. All required. |
 | `allowedHosts` | `AllowedHosts`; the probes send the first. Required; `*` is refused. |
 | `backup.location` | The `ncode.io/backup-location` annotation of the pods that own a database. The chart starts no backup. |

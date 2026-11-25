@@ -42,8 +42,9 @@ keys:
   #    keySizeBits: 256
   #    curve: P-256
 
-# The lifetime of the tokens the directory issues (DirectoryServer:TokenLifetime), as a duration such as 5m.
-tokenLifetime: 5m
+# The lifetime of the tokens the directory issues (DirectoryServer:TokenLifetime), as a time span such as 00:05:00,
+# between 00:01:00 and 01:00:00.
+tokenLifetime: "00:05:00"
 
 # The platform's control-plane cell, the only cell that writes the platform and the teams (DirectoryServer:ControlPlane).
 # Every value is required.
