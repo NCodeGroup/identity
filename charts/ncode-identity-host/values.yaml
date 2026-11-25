@@ -345,7 +345,8 @@ setup:
     key: token
   # A Job from the host image that runs the 'setup' command, which creates the root administrator once and exits 0 on an
   # instance that is already initialized, so it can run on every release. It needs no setup token. Setup runs in the
-  # control-plane cell only, so enabled is refused unless cell.isControlPlane is true.
+  # control-plane cell and in a cell that serves a dynamic tenantResolution.strategyCode (DynamicByHost or DynamicByPath),
+  # so enabled is refused otherwise.
   job:
     enabled: false
     # Secret holding the root administrator's user name, email and password under the keys below. Required when the Job is
@@ -575,8 +576,13 @@ managementConsole:
   # set from https://<host>/bff/jwks.
   host: ""
   # Bff:Frontends:mgmt:Authority. Defaults to tenantResolution.staticSingle.issuer under StaticSingle. The console calls
-  # the management API at /api on its origin.
+  # the management API at /api on its origin. Required for a cell console, as the issuer of the cell's root tenant.
   authority: ""
+  # true makes this console the console of the workload cell this release runs (ManagementConsole:Cell is cell.name): it
+  # signs in against the cell's management tenant, whose issuer authority names, and calls /api on cell.managementUrl.
+  # Refused in the control-plane cell and without a dynamic tenantResolution.strategyCode (DynamicByHost or
+  # DynamicByPath).
+  cellConsole: false
   # The console's two key rings: client is KeyRings:mgmt-client, which signs the client's assertions, and dpop is
   # KeyRings:mgmt-dpop, which signs its DPoP proofs. Each holds a PEM key from a Secret, keys a key management
   # service holds, or both, and at least one key (ADR-1479, ADR-1485).

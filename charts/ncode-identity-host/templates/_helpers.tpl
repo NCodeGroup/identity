@@ -404,8 +404,20 @@ applied. Rendered for its side effect only.
 {{- if and .Values.setup.token.existingSecret (not .Values.setup.token.key) }}
 {{- fail "setup.token.key must name the key that holds the setup token in setup.token.existingSecret." }}
 {{- end }}
-{{- if and .Values.setup.job.enabled (not .Values.cell.isControlPlane) }}
-{{- fail "setup.job.enabled requires cell.isControlPlane: setup runs in the control-plane cell only." }}
+{{- if and .Values.setup.job.enabled (not .Values.cell.isControlPlane) (not (include "identity-host.dynamicStrategy" .)) }}
+{{- fail "setup.job.enabled requires cell.isControlPlane or a dynamic tenantResolution.strategyCode (DynamicByHost or DynamicByPath): setup runs in the control-plane cell and in a cell that serves a management tenant of its own." }}
+{{- end }}
+{{- if and .Values.managementConsole.cellConsole .Values.cell.isControlPlane }}
+{{- fail "managementConsole.cellConsole is refused when cell.isControlPlane is true: the control-plane cell's console is the platform console." }}
+{{- end }}
+{{- if and .Values.managementConsole.cellConsole (not (include "identity-host.dynamicStrategy" .)) }}
+{{- fail "managementConsole.cellConsole requires a dynamic tenantResolution.strategyCode (DynamicByHost or DynamicByPath): only a cell that serves a dynamic strategy has a management tenant for its console to sign in against." }}
+{{- end }}
+{{- if and .Values.managementConsole.cellConsole (not .Values.cell.managementUrl) }}
+{{- fail "cell.managementUrl must be the cell's management API URL when managementConsole.cellConsole is true: the console calls /api on it." }}
+{{- end }}
+{{- if and .Values.managementConsole.cellConsole (not .Values.managementConsole.authority) }}
+{{- fail "managementConsole.authority must be the issuer of the cell's root tenant when managementConsole.cellConsole is true: the console signs in against the cell's management tenant." }}
 {{- end }}
 {{- if and .Values.setup.job.enabled (not .Values.setup.job.existingSecret) }}
 {{- fail "setup.job.existingSecret must name the Secret holding the root administrator's user name and password when setup.job.enabled is true." }}
@@ -1181,11 +1193,23 @@ release resolves its tenant with StaticSingle, else empty.
 {{- end }}
 
 {{/*
+Whether the release resolves its tenant with a dynamic strategy (DynamicByHost or DynamicByPath), which a cell with a
+management tenant of its own serves. Renders `true`, or nothing.
+*/}}
+{{- define "identity-host.dynamicStrategy" -}}
+{{- if has .Values.tenantResolution.strategyCode (list "DynamicByHost" "DynamicByPath") }}true{{ end }}
+{{- end }}
+
+{{/*
 The URL the console calls the server's management API through: /api on the origin of the console's authority, the URL
-the server compares the console's DPoP proofs with.
+the server compares the console's DPoP proofs with. A cell console calls /api on the cell's management URL.
 */}}
 {{- define "identity-host.managementConsole.managementApiUrl" -}}
+{{- if .Values.managementConsole.cellConsole }}
+{{- printf "%s/api" (trimSuffix "/" .Values.cell.managementUrl) }}
+{{- else }}
 {{- printf "%s/api" (regexFind "^https://[^/]+" (include "identity-host.managementConsole.authority" .)) }}
+{{- end }}
 {{- end }}
 
 {{/*
@@ -1337,6 +1361,10 @@ The environment of the management console container.
 {{- include "identity-host.kmsCredentials.googleEnv" $credentials }}
 - name: ManagementConsole__ManagementApiUrl
   value: {{ include "identity-host.managementConsole.managementApiUrl" . | quote }}
+{{- if $console.cellConsole }}
+- name: ManagementConsole__Cell
+  value: {{ .Values.cell.name | quote }}
+{{- end }}
 {{- if include "identity-host.managementConsole.valkeyEnabled" . }}
 {{ include "identity-host.valkeyEnv" (dict "scope" $console.valkey "defaults" .Values.valkey) | trim }}
 {{- end }}

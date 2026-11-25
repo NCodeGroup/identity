@@ -1,0 +1,64 @@
+# A production release of a workload cell that serves a dynamic tenant-resolution strategy: it has a management tenant of
+# its own, runs the setup Job that creates the cell's first administrator and registers the cell console's client, and
+# runs the cell console, which signs in against the cell's root tenant and calls the cell's management API.
+cell:
+  name: ci-cell-console
+  region: eu
+  managementUrl: https://manage.eu.example.com
+  controlPlaneIssuer: https://id.example.com
+directory:
+  url: https://directory.example.com
+  clientId: cell-ci-cell-console
+  keyRing: cell-client
+  keys:
+    pemSecret: cell-client-key
+allowedHosts:
+  - manage.eu.example.com
+tenantResolution:
+  strategyCode: DynamicByHost
+database:
+  existingSecret: identity-database
+  runtimeRole: ncode_identity_app
+migrations:
+  database:
+    existingSecret: identity-database-owner
+secretProtection:
+  rootKeyProvider: local
+  local:
+    keySecret: identity-root-key
+  recovery:
+    publicKeyConfigMap: identity-recovery-key
+ingress:
+  enabled: true
+  controller: traefik
+  className: traefik
+  hosts:
+    - host: manage.eu.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+setup:
+  job:
+    enabled: true
+    existingSecret: identity-setup-admin
+  managementConsole:
+    clientId: mgmt-console
+    baseUrl: https://console.eu.example.com
+    jwks: '{"keys":[{"kty":"EC","crv":"P-256","kid":"mgmt-client","x":"f83OJ3D2xF1Bg8vub9tLe1gHMzV76e8Tus9uPHvRVEU","y":"x_FEzRu9m36HLN_tue659LNpXW6pCyStikYjKIWI5a0"}]}'
+managementConsole:
+  enabled: true
+  cellConsole: true
+  host: console.eu.example.com
+  authority: https://manage.eu.example.com
+  keyRings:
+    client:
+      pemSecret: identity-mgmt-client-key
+    dpop:
+      pemSecret: identity-mgmt-dpop-key
+  ingress:
+    enabled: true
+    className: traefik
+    tls:
+      - secretName: console-eu-example-com-tls
+        hosts:
+          - console.eu.example.com

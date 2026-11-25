@@ -1528,6 +1528,9 @@
           "type": "string",
           "pattern": "^(https://.+)?$"
         },
+        "cellConsole": {
+          "type": "boolean"
+        },
         "keyRings": {
           "type": "object",
           "additionalProperties": false,

@@ -348,8 +348,10 @@ console, the step says so and takes a pasted set.
 
 To create the root administrator without a browser, enable `setup.job`. It renders a Job per release revision that runs
 the host image's `setup` command, creates the root administrator from the Secret named in `setup.job.existingSecret`, and
-exits 0 on an instance that is already initialized. Setup runs in the control-plane cell only, so the chart refuses
-`setup.job.enabled` unless `cell.isControlPlane` is `true`. The setup values:
+exits 0 on an instance that is already initialized. Setup runs in the control-plane cell and in a workload cell that
+serves a dynamic strategy, where it creates the cell's first administrator, so the chart refuses `setup.job.enabled`
+unless `cell.isControlPlane` is `true` or `tenantResolution.strategyCode` is `DynamicByHost` or `DynamicByPath`. The
+setup values:
 
 | Value                                    | Meaning                                                                                     |
 |------------------------------------------|---------------------------------------------------------------------------------------------|
@@ -908,6 +910,13 @@ compares the console's DPoP proofs with, and the chart sets `ManagementConsole__
 ([ADR-1437](../../docs/decisions/1437-the-management-console-is-a-confidential-client-whose-own-bff-host-serves-only-the-console.md)).
 The console's authority defaults to `tenantResolution.staticSingle.issuer` under the `StaticSingle` strategy; set
 `managementConsole.authority` for any other strategy.
+
+A workload cell that serves a dynamic strategy has a management tenant of its own and can run its own console. Set
+`managementConsole.cellConsole` to `true` in such a release: the chart sets `ManagementConsole__Cell` to `cell.name` and
+`ManagementConsole__ManagementApiUrl` to `<cell.managementUrl>/api`, and `managementConsole.authority` names the issuer
+of the cell's root tenant, which the console signs in against. The chart refuses `cellConsole` in the control-plane cell,
+without `DynamicByHost` or `DynamicByPath` as `tenantResolution.strategyCode`, and without `cell.managementUrl` and
+`managementConsole.authority`. `ci/cell-console-values.yaml` is a whole release of such a cell.
 
 For more than one replica, set `managementConsole.valkey.existingSecret` to a Secret that holds the console's own
 Valkey connection string under the `connection-string` key, or `managementConsole.valkey.parts.existingSecret` to the
