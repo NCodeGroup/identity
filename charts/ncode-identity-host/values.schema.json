@@ -931,6 +931,9 @@
           "type": "object",
           "additionalProperties": false,
           "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
             "keyId": {
               "type": "string"
             }

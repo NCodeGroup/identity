@@ -28,4 +28,5 @@ recovery:
   recoverSignIn:
     enabled: true
   revokeManagementKey:
+    enabled: true
     keyId: ci-management-key

@@ -405,7 +405,8 @@ release revision, with the credentials of the schema owner and no hook; enable o
 | `recovery.recoverAdmin.emailKey`             | The key of the email address in that Secret (`email`); the Secret may omit it.                |
 | `recovery.recoverAdmin.displayNameKey`       | The key of the display name in that Secret (`displayName`); the Secret may omit it.           |
 | `recovery.recoverSignIn.enabled`             | Runs `recover-sign-in`, which repairs the settings that block every sign-in (`false`).        |
-| `recovery.revokeManagementKey.keyId`         | Runs `revoke-management-key` for this `kid`; empty renders no Job.                            |
+| `recovery.revokeManagementKey.enabled`       | Runs `revoke-management-key` for `keyId` (`false`).                                           |
+| `recovery.revokeManagementKey.keyId`         | The `kid` of the management signing key to revoke. Required when enabled.                     |
 | `recovery.backoffLimit`                      | How often a Job retries (`2`).                                                                |
 | `recovery.activeDeadlineSeconds`             | How long a Job may run, in seconds (`300`).                                                   |
 

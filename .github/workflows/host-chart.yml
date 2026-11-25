@@ -186,6 +186,9 @@ jobs:
           # The setup Job reads the root administrator from a Secret, and a setup token Secret needs the key to read.
           refuse --set setup.job.enabled=true
           refuse --set setup.token.existingSecret=s --set setup.token.key=
+          # The recovery Jobs: recover-admin reads the administrator from a Secret, and the revocation Job needs its key id.
+          refuse --set recovery.recoverAdmin.enabled=true
+          refuse --set recovery.revokeManagementKey.enabled=true
           # Setup runs in the control-plane cell only. The same release renders as the control-plane cell, so the
           # refusal is the rule it names.
           helm template release "$CHART" --values "$base" --values "$CHART/ci/setup-values.yaml" \
@@ -355,6 +358,41 @@ jobs:
           expect "$(helm template release "$CHART" --values "$CHART/ci/rewrap-job-values.yaml" \
             --set database.existingSecret= --set database.parts.existingSecret=identity-db-app \
             --show-only templates/secret-protection-job.yaml)" 'OpenIdDatabase__Host'
+
+      - name: Render the recovery Jobs
+        run: |
+          expect() {
+            local rendered="$1"; shift
+            for expected in "$@"; do
+              if ! grep -q -- "$expected" <<< "$rendered"; then
+                echo "::error::The release lacks: $expected"
+                exit 1
+              fi
+            done
+          }
+          reject() {
+            local rendered="$1"; shift
+            for unexpected in "$@"; do
+              if grep -q -- "$unexpected" <<< "$rendered"; then
+                echo "::error::The release renders what it must not: $unexpected"
+                exit 1
+              fi
+            done
+          }
+          recovery="$CHART/ci/recovery-values.yaml"
+          jobs=$(helm template release "$CHART" --values "$recovery" --show-only templates/recovery-job.yaml)
+          expect "$jobs" '"recover-admin"' '"recover-sign-in"' '"revoke-management-key"' '"ci-management-key"' \
+            'name: Recovery__Admin__UserName' 'name: Recovery__Admin__Password' 'name: identity-recovery-admin'
+          # A key id left in the values renders no Job until the revocation is enabled.
+          reject "$(helm template release "$CHART" --values "$recovery" \
+            --set recovery.revokeManagementKey.enabled=false --show-only templates/recovery-job.yaml)" \
+            'revoke-management-key'
+          # recover-admin needs the Secret that holds the administrator's credentials.
+          if helm template release "$CHART" --values "$recovery" --set recovery.recoverAdmin.existingSecret= \
+            > /dev/null 2>&1; then
+            echo "::error::The chart rendered recover-admin without its Secret"
+            exit 1
+          fi
 
       - name: Take Valkey as a finished connection string or as its parts
         run: |

@@ -9,7 +9,10 @@
 {{- if $recovery.recoverSignIn.enabled }}
 {{- $jobs = append $jobs (dict "name" "recover-sign-in" "args" (list "recover-sign-in") "admin" false) }}
 {{- end }}
-{{- if $recovery.revokeManagementKey.keyId }}
+{{- if $recovery.revokeManagementKey.enabled }}
+{{- if not $recovery.revokeManagementKey.keyId }}
+{{- fail "recovery.revokeManagementKey.keyId must name the management signing key to revoke when recovery.revokeManagementKey.enabled is true." }}
+{{- end }}
 {{- $jobs = append $jobs (dict "name" "revoke-management-key" "args" (list "revoke-management-key" $recovery.revokeManagementKey.keyId) "admin" false) }}
 {{- end }}
 {{- range $index, $item := $jobs }}

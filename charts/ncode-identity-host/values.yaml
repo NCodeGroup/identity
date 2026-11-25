@@ -402,7 +402,8 @@ recovery:
   recoverSignIn:
     enabled: false
   revokeManagementKey:
-    # The kid of the management signing key to revoke in this cell. Empty renders no Job.
+    enabled: false
+    # The kid of the management signing key to revoke in this cell. Required when enabled.
     keyId: ""
   backoffLimit: 2
   activeDeadlineSeconds: 300
