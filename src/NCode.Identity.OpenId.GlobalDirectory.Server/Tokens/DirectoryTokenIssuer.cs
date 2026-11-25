@@ -34,11 +34,6 @@ internal sealed class DirectoryTokenIssuer(
     IOptions<DirectoryServerOptions> options
 )
 {
-    /// <summary>
-    /// The prefix of the client identifier of a cell, which the cell's name follows.
-    /// </summary>
-    internal const string ClientIdPrefix = "cell-";
-
     private const int JtiByteCount = 16;
 
     private static string[] PreferredAlgorithms { get; } =
@@ -73,8 +68,10 @@ internal sealed class DirectoryTokenIssuer(
     /// Gets the client identifier of the cell with the specified name.
     /// </summary>
     /// <param name="cellName">The name of the cell.</param>
-    /// <returns>The client identifier, which is the name prefixed with <see cref="ClientIdPrefix"/>.</returns>
-    internal static string GetClientId(string cellName) => ClientIdPrefix + cellName;
+    /// <returns>The client identifier, which is the name prefixed with
+    /// <see cref="GlobalDirectoryProtocol.CellClientIdPrefix"/>.</returns>
+    internal static string GetClientId(string cellName) =>
+        GlobalDirectoryProtocol.CellClientIdPrefix + cellName;
 
     /// <summary>
     /// Gets the registered signature algorithms that accept only asymmetric keys, excluding <c>none</c>.

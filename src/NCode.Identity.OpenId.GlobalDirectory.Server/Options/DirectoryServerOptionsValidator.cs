@@ -31,6 +31,57 @@ internal sealed class DirectoryServerOptionsValidator(IPublicJwksReader jwksRead
     /// <returns>The key, which starts with the options section.</returns>
     private static string Key(string name) => $"{DirectoryServerOptions.SectionName}:{name}";
 
+    /// <summary>
+    /// Adds a failure when a control-plane label is blank or too long.
+    /// </summary>
+    /// <param name="failures">The failures to add to.</param>
+    /// <param name="property">The name of the control-plane option.</param>
+    /// <param name="value">The value to check.</param>
+    private static void ValidateLabel(List<string> failures, string property, string value)
+    {
+        var key = DirectoryControlPlaneOptions.GetConfigurationKey(property);
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            failures.Add($"{key} is required.");
+        }
+        else if (!CellLabelRules.IsValidLabel(value))
+        {
+            failures.Add(
+                $"{key} must be a cell label: {CellLabelRules.Description}; it is '{value}'."
+            );
+        }
+    }
+
+    /// <summary>
+    /// Adds a failure when an issuer is blank or not an allowed issuer URL.
+    /// </summary>
+    /// <param name="failures">The failures to add to.</param>
+    /// <param name="key">The configuration key to name in a failure.</param>
+    /// <param name="issuer">The issuer to check.</param>
+    private static void ValidateIssuer(List<string> failures, string key, string issuer)
+    {
+        if (string.IsNullOrWhiteSpace(issuer))
+        {
+            failures.Add($"{key} is required.");
+        }
+        else if (!IsAllowedIssuer(issuer))
+        {
+            failures.Add(
+                $"{key} must be an absolute https URL (or http on a loopback host) of at most {DirectoryLimits.MaxIssuerLength} characters with no user information, query or fragment."
+            );
+        }
+    }
+
+    /// <summary>
+    /// Determines whether an issuer is one the directory accepts: at most <see cref="DirectoryLimits.MaxIssuerLength"/>
+    /// characters, and a service URL that <see cref="AbsoluteUri.TryParseServiceUrl"/> accepts.
+    /// </summary>
+    /// <param name="issuer">The configured issuer to check.</param>
+    /// <returns><c>true</c> when the directory accepts the issuer; otherwise, <c>false</c>.</returns>
+    private static bool IsAllowedIssuer(string issuer) =>
+        issuer.Length <= DirectoryLimits.MaxIssuerLength
+        && AbsoluteUri.TryParseServiceUrl(issuer, out _);
+
     private IPublicJwksReader JwksReader { get; } = jwksReader;
 
     /// <inheritdoc />
@@ -93,47 +144,6 @@ internal sealed class DirectoryServerOptionsValidator(IPublicJwksReader jwksRead
     }
 
     /// <summary>
-    /// Adds a failure when a control-plane label is blank or too long.
-    /// </summary>
-    /// <param name="failures">The failures to add to.</param>
-    /// <param name="property">The name of the control-plane option.</param>
-    /// <param name="value">The value to check.</param>
-    private static void ValidateLabel(List<string> failures, string property, string value)
-    {
-        var key = DirectoryControlPlaneOptions.GetConfigurationKey(property);
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            failures.Add($"{key} is required.");
-        }
-        else if (!CellLabelRules.IsValidLabel(value))
-        {
-            failures.Add(
-                $"{key} must be a cell label: {CellLabelRules.Description}; it is '{value}'."
-            );
-        }
-    }
-
-    /// <summary>
-    /// Adds a failure when an issuer is blank or not an allowed issuer URL.
-    /// </summary>
-    /// <param name="failures">The failures to add to.</param>
-    /// <param name="key">The configuration key to name in a failure.</param>
-    /// <param name="issuer">The issuer to check.</param>
-    private static void ValidateIssuer(List<string> failures, string key, string issuer)
-    {
-        if (string.IsNullOrWhiteSpace(issuer))
-        {
-            failures.Add($"{key} is required.");
-        }
-        else if (!IsAllowedIssuer(issuer))
-        {
-            failures.Add(
-                $"{key} must be an absolute https URL (or http on a loopback host) of at most {DirectoryLimits.MaxIssuerLength} characters with no user information, query or fragment."
-            );
-        }
-    }
-
-    /// <summary>
     /// Adds a failure when the control plane's client key set is blank or not a public JSON Web Key Set.
     /// </summary>
     /// <param name="failures">The failures to add to.</param>
@@ -163,14 +173,4 @@ internal sealed class DirectoryServerOptionsValidator(IPublicJwksReader jwksRead
         if (!JwksReader.TryRead(jwks, out _, out var error))
             failures.Add($"{key} must be a public JSON Web Key Set: {error}");
     }
-
-    /// <summary>
-    /// Determines whether an issuer is one the directory accepts: at most <see cref="DirectoryLimits.MaxIssuerLength"/>
-    /// characters, and a service URL that <see cref="AbsoluteUri.TryParseServiceUrl"/> accepts.
-    /// </summary>
-    /// <param name="issuer">The configured issuer to check.</param>
-    /// <returns><c>true</c> when the directory accepts the issuer; otherwise, <c>false</c>.</returns>
-    private static bool IsAllowedIssuer(string issuer) =>
-        issuer.Length <= DirectoryLimits.MaxIssuerLength
-        && AbsoluteUri.TryParseServiceUrl(issuer, out _);
 }

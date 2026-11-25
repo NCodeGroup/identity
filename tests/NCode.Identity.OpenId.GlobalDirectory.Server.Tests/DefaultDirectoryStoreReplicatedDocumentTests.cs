@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using System.Text.Json;
+using NCode.Identity.OpenId.GlobalDirectory.Server.Entities;
 using Xunit;
 
 namespace NCode.Identity.OpenId.GlobalDirectory.Server;
@@ -207,6 +208,62 @@ public sealed class DefaultDirectoryStoreReplicatedDocumentTests : DefaultDirect
         );
 
         Assert.NotNull(stored);
+    }
+
+    [Fact]
+    public async Task ListChangesAsync_WhenAReplicatedChangeLacksItsKey_Throws()
+    {
+        await AddChangeRecordAsync(
+            new DirectoryChangeRecord
+            {
+                Sequence = 1000,
+                DocumentKind = ReplicatedDocumentKinds.TeamAuthority,
+                DocumentKey = null,
+                Revision = 1,
+                DocumentJson = """{"assignments":[],"clients":[]}""",
+            }
+        );
+
+        await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await Teams.ListChangesAsync(0, 100, CancellationToken.None)
+        );
+    }
+
+    [Fact]
+    public async Task ListRevisionsAsync_WhenTheDocumentsSpanPages_ListsEachOnceInKindAndKeyOrder()
+    {
+        (string Kind, string Key)[] documents =
+        [
+            (ReplicatedDocumentKinds.PlatformAuthority, ""),
+            (ReplicatedDocumentKinds.ManagementKeys, ""),
+            (ReplicatedDocumentKinds.TeamAuthority, "team-a"),
+            (ReplicatedDocumentKinds.TeamAuthority, "team-a1"),
+            (ReplicatedDocumentKinds.TeamAuthority, "team-b"),
+        ];
+        foreach (var (kind, key) in documents)
+        {
+            await Replicated.PublishAsync(CreateDocument(kind, key, 1), CancellationToken.None);
+        }
+
+        var pairs = new List<(string Kind, string Key)>();
+        var continuations = new List<string?>();
+        string? after = null;
+        do
+        {
+            var page = await Replicated.ListRevisionsAsync(after, 2, CancellationToken.None);
+            pairs.AddRange(page.Revisions.Select(revision => (revision.Kind, revision.Key)));
+            continuations.Add(page.Continuation);
+            after = page.Continuation;
+        } while (after is not null);
+
+        var expected = documents
+            .OrderBy(pair => pair.Kind, StringComparer.Ordinal)
+            .ThenBy(pair => pair.Key, StringComparer.Ordinal)
+            .ToArray();
+        Assert.Equal(expected, pairs);
+        Assert.Equal(pairs.Count, pairs.Distinct().Count());
+        Assert.All(continuations.SkipLast(1), Assert.NotNull);
+        Assert.Null(continuations[^1]);
     }
 
     [Fact]

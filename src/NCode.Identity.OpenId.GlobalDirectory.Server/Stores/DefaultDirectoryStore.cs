@@ -1851,6 +1851,9 @@ internal sealed class DefaultDirectoryStore(
     /// <exception cref="JsonException">
     /// A stored change is not the schema-versioned envelope of its document.
     /// </exception>
+    /// <exception cref="InvalidOperationException">
+    /// A stored change carries a replicated document without its key or revision.
+    /// </exception>
     async ValueTask<IReadOnlyList<DirectoryChange>> ITeamDirectory.ListChangesAsync(
         long after,
         int limit,
@@ -1881,15 +1884,29 @@ internal sealed class DefaultDirectoryStore(
 
             pageBytes += documentBytes;
 
-            if (record.DocumentKind is { } documentKind)
+            if (record.DocumentKind is not null)
             {
+                if (
+                    record
+                    is not {
+                        DocumentKind: { } documentKind,
+                        DocumentKey: { } documentKey,
+                        Revision: { } revision,
+                    }
+                )
+                {
+                    throw new InvalidOperationException(
+                        $"The change {record.Sequence} carries a replicated document without its key or revision."
+                    );
+                }
+
                 var replicatedChange = new DirectoryChange
                 {
                     Sequence = record.Sequence,
                     Replicated = ToReplicatedDocument(
                         documentKind,
-                        record.DocumentKey ?? "",
-                        record.Revision ?? 0,
+                        documentKey,
+                        revision,
                         record.DocumentJson
                     ),
                 };
@@ -1979,12 +1996,7 @@ internal sealed class DefaultDirectoryStore(
                     );
                 }
 
-                ThrowIfRegionOrKindDiffers(
-                    cell,
-                    descriptor.Name,
-                    descriptor.Region,
-                    descriptor.Kind
-                );
+                ThrowIfRegionOrKindDiffers(cell, descriptor.Region, descriptor.Kind);
 
                 // No two cells report one management URL: a caller's DPoP proof is bound to the URL it names.
                 var normalizedUrl = NormalizeManagementUrl(reportedUrl);
@@ -2065,7 +2077,7 @@ internal sealed class DefaultDirectoryStore(
                         );
                     }
 
-                    ThrowIfRegionOrKindDiffers(cell, name, registration.Region, registration.Kind);
+                    ThrowIfRegionOrKindDiffers(cell, registration.Region, registration.Kind);
 
                     cell.ClientJwksJson = jwksJson;
                 }
@@ -2153,23 +2165,17 @@ internal sealed class DefaultDirectoryStore(
     /// change.
     /// </summary>
     /// <param name="cell">The stored <see cref="CellRecord"/>.</param>
-    /// <param name="name">The name of the cell.</param>
     /// <param name="region">The region that the report or registration names.</param>
     /// <param name="kind">The kind that the report or registration names.</param>
     /// <exception cref="CellDirectoryConflictException">The region or the kind differs from the cell's.</exception>
-    private static void ThrowIfRegionOrKindDiffers(
-        CellRecord cell,
-        string name,
-        string region,
-        string kind
-    )
+    private static void ThrowIfRegionOrKindDiffers(CellRecord cell, string region, string kind)
     {
         var isRegionSame = string.Equals(cell.Region, region, StringComparison.Ordinal);
         var isKindSame = string.Equals(cell.Kind, kind, StringComparison.Ordinal);
         if (!isRegionSame || !isKindSame)
         {
             throw new CellDirectoryConflictException(
-                $"The cell '{name}' is registered in the region '{cell.Region}' as the kind '{cell.Kind}'."
+                $"The cell '{cell.Name}' is registered in the region '{cell.Region}' as the kind '{cell.Kind}'."
             );
         }
     }

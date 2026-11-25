@@ -69,20 +69,6 @@ internal sealed class DirectoryClientAssertionValidator(
             ? element.GetString()
             : null;
 
-    /// <summary>
-    /// Logs why an assertion is refused and creates the result that gives the caller only a fixed description.
-    /// </summary>
-    private DirectoryClientAssertionResult Refuse(
-        string cellName,
-        string reason,
-        string description = InvalidDescription,
-        Exception? exception = null
-    )
-    {
-        Logger.ClientAssertionRefused(cellName, reason, exception);
-        return DirectoryClientAssertionResult.Fail(description);
-    }
-
     private TimeProvider TimeProvider { get; } = timeProvider;
     private ICellClientKeyStore Store { get; } = store;
     private IPublicJwksReader JwksReader { get; } = jwksReader;
@@ -92,6 +78,35 @@ internal sealed class DirectoryClientAssertionValidator(
     private IExpiringKeySet ReplayKeys { get; } = replayKeys;
     private DirectoryServerOptions Options { get; } = options.Value;
     private ILogger<DirectoryClientAssertionValidator> Logger { get; } = logger;
+
+    /// <summary>
+    /// Logs why an assertion is refused and creates the result that gives the caller only a fixed description.
+    /// </summary>
+    private DirectoryClientAssertionResult Refuse(string cellName, string reason) =>
+        Refuse(cellName, reason, null);
+
+    /// <summary>
+    /// Logs why an assertion is refused, with the exception that caused it, and creates the result that gives the
+    /// caller only a fixed description.
+    /// </summary>
+    private DirectoryClientAssertionResult Refuse(
+        string cellName,
+        string reason,
+        Exception? exception
+    )
+    {
+        Logger.ClientAssertionRefused(cellName, reason, exception);
+        return DirectoryClientAssertionResult.Fail(InvalidDescription);
+    }
+
+    /// <summary>
+    /// Logs that the cell is not registered or is retired and creates the result that says so.
+    /// </summary>
+    private DirectoryClientAssertionResult RefuseUnregistered(string cellName)
+    {
+        Logger.ClientAssertionRefused(cellName, "The cell is not registered or is retired.", null);
+        return DirectoryClientAssertionResult.Fail(UnregisteredDescription);
+    }
 
     /// <summary>
     /// Validates a client assertion.
@@ -114,22 +129,18 @@ internal sealed class DirectoryClientAssertionValidator(
             return Refuse(string.Empty, "The assertion is not a well-formed JWT.");
 
         if (
-            !issuer.StartsWith(DirectoryTokenIssuer.ClientIdPrefix, StringComparison.Ordinal)
-            || issuer.Length == DirectoryTokenIssuer.ClientIdPrefix.Length
+            !issuer.StartsWith(GlobalDirectoryProtocol.CellClientIdPrefix, StringComparison.Ordinal)
+            || issuer.Length == GlobalDirectoryProtocol.CellClientIdPrefix.Length
         )
             return Refuse(
                 string.Empty,
                 "The assertion's issuer is not a cell's client identifier."
             );
 
-        var cellName = issuer[DirectoryTokenIssuer.ClientIdPrefix.Length..];
+        var cellName = issuer[GlobalDirectoryProtocol.CellClientIdPrefix.Length..];
         var jwks = await Store.GetCellClientKeysAsync(cellName, cancellationToken);
         if (jwks is not { } jwksElement)
-            return Refuse(
-                cellName,
-                "The cell is not registered or is retired.",
-                UnregisteredDescription
-            );
+            return RefuseUnregistered(cellName);
 
         if (!JwksReader.TryRead(jwksElement, out var keys, out var keyError))
             return Refuse(cellName, $"The cell's registered keys are unusable: {keyError}");
@@ -160,11 +171,7 @@ internal sealed class DirectoryClientAssertionValidator(
 
         var result = await JwtValidator.ValidateAsync(assertion, parameters, cancellationToken);
         if (!result.IsValid)
-            return Refuse(
-                cellName,
-                "The assertion failed validation.",
-                exception: result.Exception
-            );
+            return Refuse(cellName, "The assertion failed validation.", result.Exception);
 
         var payload = result.DecodedJwt.Payload;
         var subject = GetString(payload, JoseClaimNames.Payload.Sub);

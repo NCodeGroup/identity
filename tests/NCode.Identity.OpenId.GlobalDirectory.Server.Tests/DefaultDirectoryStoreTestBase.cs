@@ -150,6 +150,19 @@ public abstract class DefaultDirectoryStoreTestBase : IAsyncLifetime, IDisposabl
         await Cells.ReportAsync(descriptor, cancellationToken);
     }
 
+    /// <summary>
+    /// Writes a change row as given, bypassing the store, to seed a row the store never writes.
+    /// </summary>
+    protected async ValueTask AddChangeRecordAsync(
+        DirectoryChangeRecord record,
+        CancellationToken cancellationToken = default
+    )
+    {
+        await using var dbContext = await DbContextFactory.CreateDbContextAsync(cancellationToken);
+        dbContext.Changes.Add(record);
+        await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
     protected IPlatformDirectory Platform => Store;
 
     protected IReplicatedDocumentDirectory Replicated => Store;
