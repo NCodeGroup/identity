@@ -864,8 +864,8 @@ public sealed class PlatformHarness : IAsyncDisposable
     /// <summary>
     /// Runs the <c>setup</c> command against a cell's services with the root administrator in its <c>Setup:Root</c>
     /// configuration and, when given, the management console's client in <c>Setup:ManagementConsole</c> and the
-    /// automation client in <c>Setup:Automation</c>. The cell
-    /// serves no request first, so a workload cell's management tenant does not exist until setup creates it.
+    /// automation client in <c>Setup:Automation</c>. The cell serves no request first, so a workload cell's management
+    /// tenant does not exist until setup creates it.
     /// </summary>
     /// <param name="cellName">The name of the cell.</param>
     /// <param name="userName">The root administrator's username.</param>

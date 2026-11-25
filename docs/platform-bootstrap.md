@@ -346,9 +346,10 @@ service.
    Job, as [first use of a deployed instance](first-deployed-instance.md) describes. The cell creates its control-plane
    tenant locally without asking the directory, and the setup Job, which runs with the cell's directory client on an
    empty database, creates the root `GlobalAdmin` and registers the platform console's client, and an automation client
-   when `setup.automation` names one. What setup saves goes through the outbox, so it reaches the directory and every
-   workload cell. Its first call to the directory is its token request, signed with the key the anchor pins. The
-   control-plane cell serves only the control-plane tenant.
+   when `setup.automation` names one, which needs `platform.grantTypesEnabled` to list `client_credentials`. What setup
+   saves goes through the outbox, so it reaches the directory and every workload cell. Its first call to the directory
+   is its token request, signed with the key the anchor pins. The control-plane cell serves only the control-plane
+   tenant.
 5. **Register each workload cell.** Provision the cell's directory-client key and print its public JWKS with
    `directory-client-jwks`, as in steps 1 and 2. As a `GlobalAdmin`, through the platform console's Cells page or the
    control-plane cell's management API, send the cell's registration:

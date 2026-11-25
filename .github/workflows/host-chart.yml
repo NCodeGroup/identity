@@ -1534,7 +1534,8 @@ jobs:
       # The cell calls the directory at its Service name and its directory client trusts the private CA that issued the
       # directory's certificate (directory.caCertificates), which it reads from a Secret of its namespace. The chart's
       # own setup Job runs on the empty database with the cell's directory client, so the root administrator and the
-      # automation client, each holding GlobalAdmin, are published through the outbox; nothing else creates them.
+      # automation client, each holding GlobalAdmin, are published through the outbox; nothing else creates them. The
+      # cell's values enable client_credentials, the automation client's only grant.
       - name: Install the control-plane cell
         run: |
           set -euo pipefail
