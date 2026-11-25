@@ -116,6 +116,9 @@ jobs:
           refuse --set tokenLifetime=00:00:59
           refuse --set tokenLifetime=01:00:01
           refuse --set tokenLifetime=1.00:00:00
+          refuse --set tokenLifetime=00:60:00
+          refuse --set tokenLifetime=00:00:60
+          refuse --set tokenLifetime=00:75:00
           # A remote key's id never collides with the key ring's PEM key.
           refuse --set "$key.provider=aws-kms" --set "$key.keyId=arn:aws:kms:us-west-2:111122223333:key/abcd" \
             --set "$key.algorithm=ES256" --set "$key.secretType=ecc" --set "$key.keySizeBits=256" \

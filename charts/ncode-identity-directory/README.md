@@ -100,6 +100,8 @@ Rendering fails, before anything is applied, when:
 - `issuer` or `controlPlane.issuer` is empty, is not an `https` URL (an `http` URL on a loopback host is allowed), or
   has user information, a query or a fragment;
 - `keyRing` is empty;
+- `tokenLifetime` is not a time span between `00:01:00` and `01:00:00`, with hours below 24 and minutes and seconds
+  below 60;
 - `keys` names neither `pemSecret` nor a remote key, or two keys of the ring share an id, compared without case;
 - a remote key's `keyId` is not an AWS KMS key or alias ARN, a Key Vault key version identifier or a Cloud KMS
   crypto key version name, as its `provider` says;
