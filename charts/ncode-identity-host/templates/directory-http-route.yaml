@@ -1,6 +1,0 @@
-{{- if and .Values.directory.enabled .Values.directory.httpRoute.enabled }}
-# The Gateway verifies the directory's pods against the CA ConfigMap that directory.backendTls.caConfigMap names.
-{{ include "identity-host.httpRoute" (dict "root" . "service" (include "identity-host.directory.fullname" .) "labels" (include "identity-host.directory.labels" .) "annotations" .Values.directory.httpRoute.annotations "parentRefs" .Values.directory.httpRoute.parentRefs "hostnames" .Values.directory.allowedHosts "port" .Values.directory.service.port) }}
----
-{{ include "identity-host.backendTls.policy" (dict "root" . "service" (include "identity-host.directory.fullname" .) "labels" (include "identity-host.directory.labels" .)) }}
-{{- end }}

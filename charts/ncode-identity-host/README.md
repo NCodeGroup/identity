@@ -92,7 +92,7 @@ Every merge to `main` and every release tag `v*.*.*` publishes five artifacts to
 
 - `ghcr.io/ncodegroup/ncode-identity-host:<version>`, the host image.
 - `ghcr.io/ncodegroup/ncode-identity-management-console:<version>`, the management console image.
-- `ghcr.io/ncodegroup/ncode-identity-directory:<version>`, the global directory image, which `directory.enabled` runs.
+- `ghcr.io/ncodegroup/ncode-identity-directory:<version>`, the global directory image, which the `ncode-identity-directory` chart runs.
 - `oci://ghcr.io/ncodegroup/charts/ncode-identity-host`, this chart, at version `<version>`.
 - `oci://ghcr.io/ncodegroup/openapi/ncode-identity-host` at version `<version>`, the host's OpenAPI document (`v1.json`), which `oras pull` fetches.
 
@@ -147,7 +147,7 @@ helm install identity charts/ncode-identity-host \
 
 `ci/high-availability-values.yaml` shows a rolling three-replica release with Valkey, an ingress, and a retired local
 root key. `ci/cell-values.yaml` shows a cell that is not the control plane, and `ci/directory-values.yaml` the
-control-plane cell that runs the directory and reaches it as its own machine client.
+control-plane cell that reaches the platform's directory as its own machine client.
 
 ## The cell
 
@@ -173,7 +173,7 @@ it, and the chart renders them as the `Cell` section the host binds:
   `directory.url` is set because the cell asks it for the token it presents to the directory;
 - `tenantResolution.staticSingle.tenantId` and `displayName`, the cell's own tenant under the `StaticSingle` strategy
   (`StaticSingle:TenantId` and `StaticSingle:DisplayName`), the tenant identifier `default` when empty, which the chart
-  writes for the cell and for the directory alike. A cell that is not the control plane must name its tenant, because a
+  writes for the cell. A cell that is not the control plane must name its tenant, because a
   tenant identifier is unique across the platform's cells and the cell reserves and places its tenant in the directory
   when it first creates it.
 
@@ -202,60 +202,11 @@ directory. [Run the cells of a platform](../../docs/platform-bootstrap.md#9-run-
 steps. Only the Deployment carries the directory client's settings and key: the setup and secret-protection Jobs run
 offline commands that never call the directory.
 
-`directory.enabled` (default `false`) runs the directory host from the same release, which suits the release of the
-control-plane cell or a release of its own. It deploys the directory as one replica with a Service and a pre-install
-and pre-upgrade Job that applies its migrations, and requires:
-
-- `directory.issuer`, the issuer of the control-plane cell, whose bearer tokens the directory accepts
-  (`DirectoryServer__Issuer`);
-- `directory.controlPlaneCell`, the name of the control-plane cell, the only cell that writes the platform and the teams
-  (`DirectoryServer__ControlPlaneCell`);
-- `directory.controlPlaneTenantId`, the identifier of the control-plane cell's root tenant, which the directory holds
-  for that cell so no other cell reserves it (`DirectoryServer__ControlPlaneTenantId`). In the control-plane cell's own
-  release under `StaticSingle` the chart takes it from `tenantResolution.staticSingle.tenantId` (`default` when empty);
-  a release of another cell, or under another strategy, whose root-tenant settings the chart does not read, names it;
-- `directory.allowedHosts`, the host names the directory answers to, such as the host of `directory.url`; `*` is
-  refused;
-- `directory.database`, the runtime role's connection to a database of its own, never the cell's, which only the
-  directory's Deployment receives. It takes one of two forms, and never both: `directory.database.existingSecret`, a
-  Secret that holds the finished Npgsql connection string under `directory.database.connectionStringKey` (default
-  `connection-string`), which the Deployment receives as `ConnectionStrings__directory`; or
-  `directory.database.parts.existingSecret`, a Secret that holds the connection's parts, as a Postgres operator writes
-  it, which the Deployment receives as `DirectoryDatabase__Host`, `DirectoryDatabase__Port`, `DirectoryDatabase__Name`,
-  `DirectoryDatabase__Username` and `DirectoryDatabase__Password`, each from the key that `directory.database.parts`
-  names with `hostKey`, `portKey`, `databaseKey`, `usernameKey` and `passwordKey`. The defaults are the keys of a
-  CloudNativePG `<cluster>-app` Secret, an empty `portKey` leaves the port out, and the host, database, user and
-  password keys must name a key. The connection logs in as the runtime role, which owns no table;
-- `directory.database.runtimeRole`, that runtime role's name, lower-case letters, digits and underscores, which the
-  migration Job grants data access to the directory's tables (`DirectoryMigration__RuntimeRole`);
-- `directory.migrations.database`, the connection of the role that owns the directory's schema, which only the migration
-  Job reads: the Job connects as the schema owner and the Deployment as the runtime role. It takes the same two forms,
-  `directory.migrations.database.existingSecret` or `directory.migrations.database.parts.existingSecret`, never both,
-  and the Job receives it under the same names as the Deployment, `ConnectionStrings__directory` or
-  `DirectoryDatabase__*`, with the owner's credentials. An empty `connectionStringKey` or parts key falls back to the
-  same key under `directory.database`, so a Secret of the same shape needs only its name.
-
-The directory serves HTTPS only. Without `directory.backendTls.existingSecret`, the chart issues its certificate as a
-cert-manager `Certificate` from the issuer of `backendTls.certManager`, the chart's private CA by default, for the
-directory Service's DNS names. `directory.backendTls.existingSecret` names a `kubernetes.io/tls` Secret of your own that
-holds `tls.crt`, `tls.key` and `ca.crt`. `directory.ingress` and `directory.httpRoute` route every host of
-`directory.allowedHosts` to the directory as [Routing to the pods](#routing-to-the-pods) describes, and the directory's
-pods honor `backendTls.clientCertificate.required`.
-
-`directory.image.*`, `directory.service`, `directory.migrations.backoffLimit`,
-`directory.migrations.activeDeadlineSeconds`, `directory.migrations.resources`, `directory.resources`, `directory.extraEnv`,
-`directory.extraEnvFrom`, `directory.extraVolumes` and `directory.extraVolumeMounts` tune the directory's Deployment and
-Job. The directory host answers audience `urn:ncode:directory` with scope `directory`.
-
-The directory runs under its own ServiceAccount, without a token mounted, because it never calls the Kubernetes API.
-`directory.serviceAccount` names or creates it: `create` (default `true`) makes it, `name` overrides its name, which is
-the directory's full name, `<release full name>-directory`, when `create` is `true` and `name` is empty, and `default`
-when `create` is `false` and `name` is empty, and `annotations` annotate it. The migration Job runs before the chart's own
-account exists on a first install, so it uses the namespace's default account unless `create` is `false`, when it runs
-under the account `name` names.
+The chart runs no directory. The directory runs from its own chart, `ncode-identity-directory`, as a release of its own,
+which the [directory chart's README](../ncode-identity-directory/README.md) describes.
 
 `backup.location` names where the cell's backups are kept, such as a bucket or a volume snapshot class. When set, the
-pods that own a database, those of the host, the directory and their migration Jobs, carry it as the
+pods that own a database, those of the host and its migration Jobs, carry it as the
 `ncode.io/backup-location` annotation for the backup tool to read; the chart starts no backup itself.
 `telemetry.otlpEndpoint` sets `OTEL_EXPORTER_OTLP_ENDPOINT` on every pod, and every pod carries
 `OTEL_RESOURCE_ATTRIBUTES` with `cell.name` and `cell.region`, so a signal names its cell.
@@ -278,15 +229,6 @@ Rendering fails, before anything is applied, when:
 - `backendTls.caPublisher.enabled` is `true`, the management console is enabled with a certificate of your own in
   `managementConsole.backendTls.existingSecret`, and `managementConsole.backendTls.caConfigMap` is empty, because the
   console's CA ConfigMap would fall back to the one the publisher writes, which holds only the chart's private CA;
-- `directory.ingress.enabled` is `true` and `ingress.controller` is empty;
-- `directory.httpRoute.enabled` is `true` and `directory.httpRoute.parentRefs` is empty, or there is no CA ConfigMap:
-  `directory.backendTls.caConfigMap`, which falls back to `backendTls.caConfigMap`;
-- `backendTls.caPublisher.enabled` is `true`, the directory is enabled with a certificate of your own in
-  `directory.backendTls.existingSecret`, and `directory.backendTls.caConfigMap` is empty, because the directory's CA
-  ConfigMap would fall back to the one the publisher writes, which holds only the chart's private CA;
-- a route of the directory uses the ingress controller's Secret, `directory.backendTls.existingSecret` is set, and
-  neither `backendTls.certManager.issuerRef.name` nor an `ingressSecret` for the directory is set, because the chart
-  cannot know the CA that signed your certificate;
 - neither `database.existingSecret` nor `database.parts.existingSecret` is set; `migrations.enabled` is `true` and
   neither `migrations.database.existingSecret` nor `migrations.database.parts.existingSecret` is set, or
   `database.runtimeRole` is empty; `database.runtimeRole` is set and is not a lower-case Postgres role name; a
@@ -327,17 +269,10 @@ Rendering fails, before anything is applied, when:
 - a value of the cell's directory client (`directory.clientId`, `directory.keyRing`, `directory.keys.pemSecret` or
   `directory.keys.remoteKeys`) is set and `directory.url` is empty, because the chart then renders none of them and the
   cell keeps the local adapters;
-- a `directory.url` or `directory.issuer` is set and is not an absolute `https` URL, or an `http` URL on a loopback
-  host, written with its authority and with no user information, query, fragment or white space; a
-  `cell.controlPlaneIssuer` is not such a URL while the host reads it, which is when `cell.isControlPlane` is `false`
-  or `directory.url` is set; a `cell.managementUrl` is set and is not such an `https` URL;
-- a value that configures the directory host (`directory.issuer`, `directory.controlPlaneCell`,
-  `directory.controlPlaneTenantId`, `directory.allowedHosts`, `directory.database`, `directory.migrations.database`,
-  `directory.backendTls`, `directory.ingress`, `directory.httpRoute`, `directory.serviceAccount`, `directory.image` or
-  `directory.extra*`) is set and `directory.enabled` is `false`, because the chart then runs no directory host;
-- `directory.enabled` is `true` and the control-plane cell's root tenant is unknown: `directory.controlPlaneTenantId` is
-  empty and the release's cell is not `directory.controlPlaneCell` with `cell.isControlPlane`, or
-  `tenantResolution.strategyCode` is not `StaticSingle`;
+- `directory.url` is set and is not an absolute `https` URL, or an `http` URL on a loopback host, written with its
+  authority and with no user information, query, fragment or white space; a `cell.controlPlaneIssuer` is not such a URL
+  while the host reads it, which is when `cell.isControlPlane` is `false` or `directory.url` is set; a
+  `cell.managementUrl` is set and is not such an `https` URL;
 - a key management service is used, as `secretProtection.rootKeyProvider`, in `secretProtection.ownerRootKeys.providers`
   or enabled under `secretProtection.remoteKeyProviders`, and its workload credentials are half set: only one of
   `secretProtection.azureKeyVault.workloadIdentity.tenantId` and `clientId` is set, or
@@ -1081,8 +1016,8 @@ self-signed Issuer, the CA `Certificate` `<release>-ca`, and an Issuer backed by
 `<service>.<namespace>.svc` and `<service>.<namespace>.svc.cluster.local`, plus `backendTls.certManager.dnsNames`.
 
 - `backendTls.certManager.issuerRef` names your own Issuer or ClusterIssuer, so the chart creates no private CA.
-- `backendTls.existingSecret`, `managementConsole.backendTls.existingSecret` and `directory.backendTls.existingSecret`
-  name `kubernetes.io/tls` Secrets you create, so the chart creates no `Certificate` for the component whose Secret you
+- `backendTls.existingSecret` and `managementConsole.backendTls.existingSecret` name `kubernetes.io/tls` Secrets you
+  create, so the chart creates no `Certificate` for the component whose Secret you
   name. The private CA is still created while another component needs a `Certificate` from it. Each Secret must also
   hold `ca.crt`, the CA that signed the certificate: the pods trust it for the ingress controller's certificate.
 
@@ -1098,12 +1033,9 @@ modes needs:
 | Other Ingress   | `ingress.controller: other`                 | Neither. You configure the controller to speak HTTPS to the Service and to verify the pods' certificate. |
 
 The Ingress and the HTTPRoute may both be on. `ingress.annotations`, `managementConsole.ingress.annotations`,
-`directory.ingress.annotations`, `httpRoute.annotations`, `managementConsole.httpRoute.annotations` and
-`directory.httpRoute.annotations` add to the annotations the chart renders. The console's `managementConsole.httpRoute`
-takes `enabled`, `parentRefs` and `annotations`, and its hostname is `managementConsole.host`. The directory's
-`directory.ingress` takes `enabled`, `className`, `annotations` and `tls`, and `directory.httpRoute` takes `enabled`,
-`parentRefs` and `annotations`; both route every host of `directory.allowedHosts`, and `ingress.controller` selects the
-directory's Traefik mode, which renders its own `ServersTransport` and Service annotations. The Gateway API mode needs
+`httpRoute.annotations` and `managementConsole.httpRoute.annotations` add to the annotations the chart renders. The
+console's `managementConsole.httpRoute` takes `enabled`, `parentRefs` and `annotations`, and its hostname is
+`managementConsole.host`. The Gateway API mode needs
 the Gateway API v1.4 or later CRDs and a CA ConfigMap; `ci/gateway-api-values.yaml` shows a release:
 
 ```yaml
@@ -1164,8 +1096,8 @@ private key. The chart issues the Secret when a route uses it: an Ingress with `
 route while `backendTls.clientCertificate.required` is `true`, and no `ingressSecret` of yours names it.
 `backendTls.ingressSecret` names a Secret of your own in the release namespace that holds `ca.crt` and, when
 `backendTls.clientCertificate.required` is `true`, `tls.crt` and `tls.key`; the chart then names it in place of
-`<release>-ingress`. `managementConsole.backendTls.ingressSecret` and `directory.backendTls.ingressSecret` do the same
-for the console and the directory and, when empty, fall back to `backendTls.ingressSecret` and then to
+`<release>-ingress`. `managementConsole.backendTls.ingressSecret` does the same
+for the console and, when empty, fall back to `backendTls.ingressSecret` and then to
 `<release>-ingress`. Rendering fails when a route uses the controller's Secret, its component sets `existingSecret`, and
 neither `backendTls.certManager.issuerRef.name` nor an `ingressSecret` for it is set, because the chart cannot know the
 CA that signed your certificate.
@@ -1191,16 +1123,14 @@ and its Role reads and patches only that ConfigMap and may create ConfigMaps, wh
 kubelet holds its pod until cert-manager has created the Secret, and `helm uninstall` leaves the ConfigMap it wrote. The
 chart refuses the publisher with an issuer of your own in `backendTls.certManager.issuerRef.name` or a server
 certificate of your own in `backendTls.existingSecret`, because it publishes only the chart's private CA.
-`managementConsole.backendTls.caConfigMap` and `directory.backendTls.caConfigMap` name the console's and the directory's
-ConfigMaps and, when empty, fall back to the server's. With the publisher, a console or directory certificate of your
-own in `managementConsole.backendTls.existingSecret` or `directory.backendTls.existingSecret` needs its CA in
-`managementConsole.backendTls.caConfigMap` or `directory.backendTls.caConfigMap`, and the chart refuses the release
-without it.
+`managementConsole.backendTls.caConfigMap` names the console's ConfigMap and, when empty, falls back to the server's.
+With the publisher, a console certificate of your own in `managementConsole.backendTls.existingSecret` needs its CA in
+`managementConsole.backendTls.caConfigMap`, and the chart refuses the release without it.
 
 ### Requiring the ingress controller's certificate
 
-By default the pods accept a connection from any client. `backendTls.clientCertificate.required: true` makes the server,
-the console and the directory require the ingress controller's certificate: a pod answers `403` to every request whose
+By default the pods accept a connection from any client. `backendTls.clientCertificate.required: true` makes the server
+and the console require the ingress controller's certificate: a pod answers `403` to every request whose
 connection carries no certificate that chains to the CA in the serving Secret's `ca.crt`, has the `client auth` usage,
 is valid and has the subject `CN=<backendTls.clientCertificate.commonName>` (`ncode-identity-ingress` by default),
 except `/health/live` and `/health/ready`, which the kubelet sends without one. The chart sets
@@ -1249,10 +1179,9 @@ verifies the pods' certificate and that the Gateway's `spec.tls.backend.clientCe
 client certificate the pods require. A Gateway without `clientCertificateRef` gets `403` outside the health paths
 and `200` on them, and a `BackendTLSPolicy` that holds a foreign CA gets `503`.
 
-The `directory-cluster` job of the `Host chart` workflow installs one release of a control-plane cell with its directory
-client, its setup Job and the directory in a kind cluster behind Traefik. It proves that the chart's certificate and
-`directory.ingress` serve the directory: the cell's discovery document, the cell's key set and the directory's readiness
-answer `200` through the controller.
+The `directory-cluster` job of the `Host chart` workflow installs the `ncode-identity-directory` chart and then one
+release of a control-plane cell with its directory client and its setup Job in a kind cluster behind Traefik. It proves
+that the cell registers with the directory and obtains a token from it.
 
 ## Strict-Transport-Security
 
@@ -1516,7 +1445,7 @@ spec:
 
 - `version: ">=0.0.1-alpha"` selects the newest chart version in the range, prereleases included, which covers every
   `0.0.1-alpha.<n>` that a merge to `main` publishes. The chart's `appVersion` pins every image, so a newer chart
-  version rolls the host, the console and the directory out too. Name one exact version to stop following.
+  version rolls the host and the console out too. Name one exact version to stop following.
 - `timeout` is Helm's wait for each operation, the migration Job included, so it outlasts the Job's
   `migrations.activeDeadlineSeconds` (600 seconds). Raise both for a long migration.
 - `install.remediation` retries a failed install three times, uninstalling between attempts. `upgrade.remediation`
