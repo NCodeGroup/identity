@@ -35,8 +35,7 @@ internal sealed class GlobalAdminHandler(
         IAuthorizationRequirement requirement
     )
     {
-        var issuerKind = context.User.FindFirstValue(ManagementIssuerKinds.ClaimType);
-        if (string.Equals(issuerKind, ManagementIssuerKinds.Cell, StringComparison.Ordinal))
+        if (context.User.IsCellIssued)
         {
             return;
         }

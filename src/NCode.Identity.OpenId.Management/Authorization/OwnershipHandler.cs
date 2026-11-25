@@ -105,12 +105,7 @@ internal sealed class OwnershipHandler(
 
         // A caller of the cell's own management tenant is known to that tenant alone, and the cell stores everything
         // that authorizes it.
-        var issuerKind = context.User.FindFirstValue(ManagementIssuerKinds.ClaimType);
-        var isCellCaller = string.Equals(
-            issuerKind,
-            ManagementIssuerKinds.Cell,
-            StringComparison.Ordinal
-        );
+        var isCellCaller = context.User.IsCellIssued;
 
         string? principalId = null;
         if (isCellCaller)

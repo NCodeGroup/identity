@@ -8,9 +8,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Options;
 using NCode.Identity.Cryptography;
-using NCode.Identity.OpenId.Contexts;
 using NCode.Identity.OpenId.GlobalDirectory;
-using NCode.Identity.OpenId.Management.Authorization;
 using NCode.Identity.OpenId.Management.Contracts;
 using NCode.Identity.OpenId.Management.Contracts.Cells;
 using NCode.Identity.OpenId.Management.Contracts.Tenants;
@@ -78,21 +76,6 @@ internal class CellScopeApiEndpointHandler(
     }
 
     /// <summary>
-    /// Gets the authority node of this cell, addressed from the tenant the request runs under.
-    /// </summary>
-    /// <param name="httpContext">The <see cref="HttpContext"/> for the current request.</param>
-    /// <returns>The cell's <see cref="ResourceNode"/>.</returns>
-    internal virtual ResourceNode GetCellNode(HttpContext httpContext)
-    {
-        var openIdContext = httpContext.GetOpenIdContext();
-        return ResourceNode.For(
-            openIdContext.Tenant.TenantId,
-            ResourceNodeTypes.Cell,
-            CellOptions.Name
-        );
-    }
-
-    /// <summary>
     /// Describes the cell that serves the request.
     /// </summary>
     /// <param name="httpContext">The <see cref="HttpContext"/> for the current request.</param>
@@ -132,7 +115,7 @@ internal class CellScopeApiEndpointHandler(
     {
         var effectiveLimit = NormalizeLimit(limit);
 
-        var cellNode = GetCellNode(httpContext);
+        var cellNode = GetCellNode(httpContext, CellOptions.Name);
         var authorizationFailure = await GetAuthorizationFailureAsync(
             httpContext,
             cellNode,

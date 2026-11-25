@@ -34,19 +34,23 @@ audited; and a caller reads its own assignments, teams and tenants from `GET /ap
 
 ### Routes and contracts
 
-1. **The role lists are `…/owners` on a team, tenant, client and resource server and `…/admins` on a team and tenant.**
-   `GET` reads the list, `POST` grants and `DELETE …/{principalId}` revokes.
+1. **The role lists are `…/owners` on a team, tenant, client and resource server and `…/admins` on a team, a tenant and
+   a cell** (the cell's is `/api/cell/admins`, see ADR-1536). `GET` reads the list, `POST` grants and `DELETE
+   …/{principalId}` revokes.
 2. **The contracts name no role and no owner.** `GET` answers `RoleListResource { items, canChange }`. An item, and the
    answer to a grant, is `RoleHolderResource { assignmentId, principalId, roleName, principal }`, where `principal` is a
-   `PrincipalSummaryResource { principalId, principalType, displayName, userName }`, or null only for an assignment
-   whose principal no longer exists. A grant's body is `AddRoleHolderRequest`, which names exactly one of `principalId`,
-   the one on the resource of the local account or client to grant (`LocalAccountResource`, `ClientResource`), and
-   `userName`. `RoleAssignmentResource`, which names its node, serves the assignments that are read across nodes.
+   `PrincipalSummaryResource { principalId, principalType, displayName, userName }`, or null for an assignment whose
+   principal no longer exists or that the serving cell's directory cannot describe (decision 12). A grant's body is
+   `AddRoleHolderRequest`, which names exactly one of `principalId`, the one on the resource of the local account or
+   client to grant (`LocalAccountResource`, `ClientResource`), and `userName`. `RoleAssignmentResource`, which names its
+   node, serves the assignments that are read across nodes.
 3. **`canChange` says whether the caller's grant or revoke of the role at the node passes every refusal that does not
-   depend on the principal named.** Those refusals are `Update` at the node for owners, `Create` for administrators,
-   and, for a client's owners, a client the host does not manage and custody of a machine client
-   ([ADR-1466](1466-a-client-is-its-own-principal-and-a-machine-client-acts-only-within-its-owning-node.md)). The last-owner
-   rule depends on the principal, so it stays a `409` on the revoke.
+   depend on the principal named.** Those refusals are `Update` at the node for owners, `Create` for the administrators
+   of a team and a tenant, `Update` at the cell's node for a cell's administrators (a `CellAdmin` creates nothing, so
+   its holders manage their own list as team and tenant administrators do with `Create`), and, for a client's owners, a
+   client the host does not manage and custody of a machine client
+   ([ADR-1466](1466-a-client-is-its-own-principal-and-a-machine-client-acts-only-within-its-owning-node.md)). The
+   last-owner rule depends on the principal, so it stays a `409` on the revoke.
 4. **A list route authorizes `Read` at the node before it reads** (see
    [ADR-1424](1424-a-management-route-authorizes-at-the-node-it-names-before-it-reads-through-replaceable-validators.md))
    and answers `404` for a missing resource. It carries no ETag and no continuation token, because the answer is
@@ -98,8 +102,9 @@ audited; and a caller reads its own assignments, teams and tenants from `GET /ap
     connection, then subject) as `<subject> (<issuer>)`, or as `<subject>` when the identity has no issuer, or by its
     principal identifier when it has no identity. The fallback reads only which principals exist
     (`IFederatedPrincipalStore.GetExistingIdsAsync`) and the names of their identities
-    (`IFederatedIdentityStore.GetNamesByPrincipalsAsync`). Only an assignment whose principal no longer exists has
-    `principal: null` on its item.
+    (`IFederatedIdentityStore.GetNamesByPrincipalsAsync`). Only an assignment whose principal no longer exists, or that
+    the serving cell's directory cannot describe (decision 12), has `principal: null` on its item and on the answer to
+    its grant.
 12. **A grant fails closed.** A `userName` resolves through the directory after the flow authorizes and the resource
     exists, and a name or a `principalId` that the control plane does not know answers `400` without echoing it, so a
     mistyped identifier never creates an assignment that no principal holds, and only a caller with grant authority at a

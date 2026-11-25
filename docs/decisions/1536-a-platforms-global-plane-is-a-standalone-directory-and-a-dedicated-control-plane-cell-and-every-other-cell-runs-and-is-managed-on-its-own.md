@@ -275,14 +275,15 @@ tokens with keys and authority replicated through the directory's change feed.**
     `CellAdmin`, and its assignments live in the cell. The cell's management API accepts the tokens of two issuers: the
     control-plane tenant's, authorized as decision 8 describes, and its management tenant's, whose principals are
     authorized only by the assignments stored in that cell. A cell's issuer therefore signs only for authority the cell
-    owns. The cell's management API lists its tenants at `GET /api/cell/tenants`, for a `CellAdmin` at
-    `(cell, <Cell:Name>)` or a `GlobalAdmin`, as `GET /api/tenants` lists with a continuation token; `GET /api/cell`
-    reads the cell, and `GET|POST|DELETE /api/cell/admins` list, grant and remove its `CellAdmin`s. `CellAdmin` is
-    granted only to principals of the management tenant, and its node covers the management tenant itself, so a
-    `CellAdmin` manages that tenant's accounts. `GET /api/me` reports the caller's cell roles
-    (`CallerResource.CellRoles`). `GET /api/me/tenants` stays the caller's explicit assignments, so inherited authority
-    is never confused with it. A cell served by `StaticSingle` serves one customer tenant and has no management tenant: it is managed with
-    the control-plane tenant's tokens and recovered offline (decision 12).
+    owns. The cell's management API lists its tenants at `GET /api/cell/tenants`, for a `CellAdmin` at `(cell,
+    <Cell:Name>)` or a `GlobalAdmin`, as `GET /api/tenants` lists with a continuation token; `GET /api/cell` reads the
+    cell, and `GET|POST|DELETE /api/cell/admins` list, grant and remove its `CellAdmin`s, the grant and revoke
+    authorized with `Update` at `(cell, <name>)`. `CellAdmin` is granted only to principals of the management tenant,
+    and its node covers the management tenant itself, so a `CellAdmin` manages that tenant's accounts. `GET /api/me`
+    reports the caller's cell roles (`CallerResource.CellRoles`). `GET /api/me/tenants` stays the caller's explicit
+    assignments, so inherited authority is never confused with it. A cell served by `StaticSingle` serves one customer
+    tenant and has no management tenant: it is managed with the control-plane tenant's tokens and recovered offline
+    (decision 12).
 11. **The consoles.** The platform console runs from the control-plane cell's release as a client of the control-plane
     tenant. It manages the platform and the teams and lists and manages the tenants of every cell by calling each cell's
     management API with the control-plane tenant's token, as ADR-1437 decision 6 describes, from the cells its

@@ -806,10 +806,7 @@ internal class TenantApiEndpointHandler(
         // before any request, so no other tenant is created in it.
         if (PlatformTopology.HoldsOnlyControlPlaneTenant())
         {
-            return TypedResults.Problem(
-                detail: "The control-plane cell holds only the control-plane tenant.",
-                statusCode: StatusCodes.Status409Conflict
-            );
+            return ControlPlaneCellHoldsOnlyItsTenant();
         }
 
         await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);

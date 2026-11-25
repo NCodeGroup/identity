@@ -11,6 +11,22 @@ namespace NCode.Identity.OpenId.Management.Endpoints;
 
 public class BaseApiEndpointHandlerTests
 {
+    #region ControlPlaneCellHoldsOnlyItsTenant Tests
+
+    [Fact]
+    public void ControlPlaneCellHoldsOnlyItsTenant_ReturnsConflict()
+    {
+        var problem = BaseApiEndpointHandler.ControlPlaneCellHoldsOnlyItsTenant();
+
+        Assert.Equal(StatusCodes.Status409Conflict, problem.StatusCode);
+        Assert.Equal(
+            "The control-plane cell holds only the control-plane tenant.",
+            problem.ProblemDetails.Detail
+        );
+    }
+
+    #endregion
+
     #region LimitErrorsPerSetting Tests
 
     [Fact]

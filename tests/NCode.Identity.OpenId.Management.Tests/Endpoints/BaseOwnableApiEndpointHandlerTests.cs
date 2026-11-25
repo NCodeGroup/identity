@@ -987,7 +987,7 @@ public class BaseOwnableApiEndpointHandlerTests : IDisposable
     }
 
     [Fact]
-    public async Task ProcessAddRoleAssignmentAsync_InAWorkloadCellWhenThePrincipalIsUnknown_GrantsItAsAFederatedUser()
+    public async Task ProcessAddRoleAssignmentAsync_InAWorkloadCellWhenThePrincipalIsUnknown_GrantsItWithoutASummary()
     {
         var authz = Authz(AuthorizationResult.Success());
         var (factory, manager) = StoreManager();
@@ -1044,7 +1044,7 @@ public class BaseOwnableApiEndpointHandlerTests : IDisposable
         var created = Assert.IsType<Created<RoleHolderResource>>(result);
         var roleHolder = Assert.IsType<RoleHolderResource>(created.Value);
         Assert.Equal("cp-principal", roleHolder.PrincipalId);
-        Assert.Equal(PrincipalTypes.FederatedUser, roleHolder.Principal?.PrincipalType);
+        Assert.Null(roleHolder.Principal);
         Assert.Single(captured);
     }
 

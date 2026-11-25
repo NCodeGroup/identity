@@ -353,6 +353,44 @@ public sealed class CellAdminApiEndpointHandlerTests : IDisposable
     }
 
     [Fact]
+    public async Task AddAdminAsync_WhenTheRequestNamesAUserNameOfAnotherTenant_ReturnsConflict()
+    {
+        SetupAuthorization(succeeded: true, []);
+        SetupHasManagementTenant(true);
+        MockPrincipalDirectory
+            .Setup(x =>
+                x.FindAsync(It.IsAny<ControlPlanePrincipalQuery>(), It.IsAny<CancellationToken>())
+            )
+            .ReturnsAsync([])
+            .Verifiable();
+
+        var result = await Handler.AddAdminAsync(
+            CreateHttpContext(),
+            new AddRoleHolderRequest { UserName = "someone" },
+            CancellationToken.None
+        );
+
+        var problem = Assert.IsType<ProblemHttpResult>(result);
+        Assert.Equal(StatusCodes.Status409Conflict, problem.StatusCode);
+    }
+
+    [Fact]
+    public async Task AddAdminAsync_WhenTheRequestNamesBothAnIdentifierAndAUserName_ReturnsBadRequest()
+    {
+        SetupAuthorization(succeeded: true, []);
+        SetupHasManagementTenant(true);
+
+        var result = await Handler.AddAdminAsync(
+            CreateHttpContext(),
+            new AddRoleHolderRequest { PrincipalId = "principal-1", UserName = "someone" },
+            CancellationToken.None
+        );
+
+        var problem = Assert.IsType<ProblemHttpResult>(result);
+        Assert.Equal(StatusCodes.Status400BadRequest, problem.StatusCode);
+    }
+
+    [Fact]
     public async Task AddAdminAsync_WhenForbidden_ReturnsForbiddenWithoutReadingPrincipals()
     {
         SetupAuthorization(succeeded: false, []);

@@ -8,7 +8,6 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Options;
 using NCode.Identity.Cryptography;
-using NCode.Identity.OpenId.Contexts;
 using NCode.Identity.OpenId.GlobalDirectory;
 using NCode.Identity.OpenId.Management.Auditing;
 using NCode.Identity.OpenId.Management.Authorization;
@@ -44,6 +43,8 @@ internal class CellAdminApiEndpointHandler(
     IOptions<CellOptions> cellOptions
 ) : BaseOwnableApiEndpointHandler, IEndpointProvider
 {
+    private const string AdminsPath = "/cell/admins";
+
     private IPlatformTopology PlatformTopology { get; } = platformTopology;
     private CellOptions CellOptions { get; } = cellOptions.Value;
 
@@ -78,7 +79,7 @@ internal class CellAdminApiEndpointHandler(
         }
 
         endpoints
-            .MapGet("/cell/admins", ListAdminsAsync)
+            .MapGet(AdminsPath, ListAdminsAsync)
             .WithTags(OpenIdConstants.EndpointTags.Tenants)
             .AddEndpointFilter<ControlPlaneScopeEndpointFilter>()
             .Produces<RoleListResource>()
@@ -86,7 +87,7 @@ internal class CellAdminApiEndpointHandler(
             .ProducesProblem(StatusCodes.Status403Forbidden)
             .ProducesProblem(StatusCodes.Status404NotFound);
         endpoints
-            .MapPost("/cell/admins", AddAdminAsync)
+            .MapPost(AdminsPath, AddAdminAsync)
             .WithTags(OpenIdConstants.EndpointTags.Tenants)
             .AddEndpointFilter<ControlPlaneScopeEndpointFilter>()
             .Produces<RoleHolderResource>(StatusCodes.Status201Created)
@@ -99,7 +100,7 @@ internal class CellAdminApiEndpointHandler(
             .ProducesProblem(StatusCodes.Status412PreconditionFailed)
             .ProducesProblem(StatusCodes.Status415UnsupportedMediaType);
         endpoints
-            .MapDelete("/cell/admins/{principalId}", RemoveAdminAsync)
+            .MapDelete(AdminsPath + "/{principalId}", RemoveAdminAsync)
             .WithTags(OpenIdConstants.EndpointTags.Tenants)
             .AddEndpointFilter<ControlPlaneScopeEndpointFilter>()
             .Produces(StatusCodes.Status204NoContent)
@@ -215,13 +216,13 @@ internal class CellAdminApiEndpointHandler(
     /// <returns>The <see cref="RoleList"/> of the cell's administrators.</returns>
     private RoleList GetAdminList(HttpContext httpContext)
     {
-        var tenantId = httpContext.GetOpenIdContext().Tenant.TenantId;
+        var cellNode = GetCellNode(httpContext, CellOptions.Name);
         return new RoleList
         {
-            Node = ResourceNode.For(tenantId, ResourceNodeTypes.Cell, CellOptions.Name),
+            Node = cellNode,
             RoleName = BuiltInRoles.CellAdmin,
             Operation = Operations.Update,
-            Path = "/cell/admins",
+            Path = AdminsPath,
             ResourceExistsAsync = (_, _) =>
                 ValueTask.FromResult(PlatformTopology.HasManagementTenant),
         };
@@ -245,29 +246,19 @@ internal class CellAdminApiEndpointHandler(
         CancellationToken cancellationToken
     )
     {
-        var principalId = request.PrincipalId;
-        var userName = request.UserName;
-        ControlPlanePrincipalQuery query;
-        if (principalId is { Length: > 0 } && string.IsNullOrEmpty(userName))
-        {
-            query = new ControlPlanePrincipalQuery { PrincipalIds = [principalId] };
-        }
-        else if (userName is { Length: > 0 } && string.IsNullOrEmpty(principalId))
-        {
-            query = new ControlPlanePrincipalQuery { UserNames = [userName] };
-        }
-        else
+        if (!TryGetRequestedName(request, out var name, out var isUserName))
         {
             return null;
         }
 
+        var query = isUserName
+            ? new ControlPlanePrincipalQuery { UserNames = [name] }
+            : new ControlPlanePrincipalQuery { PrincipalIds = [name] };
         var found = await ControlPlanePrincipalDirectory.FindAsync(query, cancellationToken);
         foreach (var summary in found)
         {
-            var name = query.PrincipalIds.Count > 0 ? summary.PrincipalId : summary.UserName;
-            var requested = query.PrincipalIds.Count > 0 ? principalId : userName;
-            var matches = string.Equals(name, requested, StringComparison.OrdinalIgnoreCase);
-            if (matches)
+            var summaryName = isUserName ? summary.UserName : summary.PrincipalId;
+            if (string.Equals(summaryName, name, StringComparison.OrdinalIgnoreCase))
             {
                 return true;
             }

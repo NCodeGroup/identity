@@ -8,6 +8,7 @@ using NCode.Identity.AspNetCore;
 using NCode.Identity.Jose;
 using NCode.Identity.OpenId.Contexts;
 using NCode.Identity.OpenId.GlobalDirectory;
+using NCode.Identity.OpenId.Management.Authorization;
 using NCode.Identity.OpenId.Management.ControlPlane;
 using NCode.Identity.OpenId.PrincipalResolution;
 using NCode.Mediator;
@@ -105,8 +106,7 @@ internal sealed class ManagementCallerGate(
     )
     {
         // The cell's own management tenant issued the token, so the cell answers from its own clients.
-        var issuerKind = caller.FindFirstValue(ManagementIssuerKinds.ClaimType);
-        if (string.Equals(issuerKind, ManagementIssuerKinds.Cell, StringComparison.Ordinal))
+        if (caller.IsCellIssued)
         {
             var actingClient = await ClientPrincipalResolver.GetActingClientOrDefaultAsync(
                 openIdContext,

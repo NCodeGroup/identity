@@ -195,10 +195,7 @@ internal class TenantImportApiEndpointHandler(
         // written for another one, and the single-use transfer key is not spent.
         if (PlatformTopology.HoldsOnlyControlPlaneTenant())
         {
-            return TypedResults.Problem(
-                detail: "The control-plane cell holds only the control-plane tenant.",
-                statusCode: StatusCodes.Status409Conflict
-            );
+            return ControlPlaneCellHoldsOnlyItsTenant();
         }
 
         // TakeAsync refuses an empty kid, and no transfer key has one.
