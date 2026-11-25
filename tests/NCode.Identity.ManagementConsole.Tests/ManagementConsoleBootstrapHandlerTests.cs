@@ -221,6 +221,32 @@ public class ManagementConsoleBootstrapHandlerTests : BaseTests
         Assert.Empty(document.Cells);
     }
 
+    [Fact]
+    public void Create_WithACell_DescribesACellConsole()
+    {
+        var document = ManagementConsoleBootstrapDocument.Create(
+            new ManagementConsoleOptions { Cell = "eu-1" },
+            CreateBffOptions(),
+            PathString.Empty
+        );
+
+        Assert.Equal("cell", document.Console);
+        Assert.Equal("eu-1", document.Cell);
+    }
+
+    [Fact]
+    public void Create_WithoutACell_DescribesAPlatformConsole()
+    {
+        var document = ManagementConsoleBootstrapDocument.Create(
+            new ManagementConsoleOptions(),
+            CreateBffOptions(),
+            PathString.Empty
+        );
+
+        Assert.Equal("platform", document.Console);
+        Assert.Null(document.Cell);
+    }
+
     #endregion
 
     #region Handle Tests
@@ -275,6 +301,31 @@ public class ManagementConsoleBootstrapHandlerTests : BaseTests
             ["eu-1", "us-2"],
             document.GetProperty("cells").EnumerateArray().Select(static cell => cell.GetString())
         );
+    }
+
+    [Fact]
+    public async Task Handle_WithACell_WritesTheCellConsole()
+    {
+        var handler = CreateHandler(
+            new ManagementConsoleOptions { Cell = "eu-1" },
+            CreateBffOptions()
+        );
+
+        var (_, document) = await HandleAsync(handler, "", CancellationToken.None);
+
+        Assert.Equal("cell", document.GetProperty("console").GetString());
+        Assert.Equal("eu-1", document.GetProperty("cell").GetString());
+    }
+
+    [Fact]
+    public async Task Handle_WithoutACell_WritesThePlatformConsoleAndNoCell()
+    {
+        var handler = CreateHandler(new ManagementConsoleOptions(), CreateBffOptions());
+
+        var (_, document) = await HandleAsync(handler, "", CancellationToken.None);
+
+        Assert.Equal("platform", document.GetProperty("console").GetString());
+        Assert.False(document.TryGetProperty("cell", out _));
     }
 
     [Fact]

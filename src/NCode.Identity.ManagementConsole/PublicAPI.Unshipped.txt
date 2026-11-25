@@ -38,6 +38,8 @@ NCode.Identity.ManagementConsole.Options.ManagementConsoleOptions.Branding.get -
 NCode.Identity.ManagementConsole.Options.ManagementConsoleOptions.Branding.set -> void
 NCode.Identity.ManagementConsole.Options.ManagementConsoleOptions.BundleRootPath.get -> string?
 NCode.Identity.ManagementConsole.Options.ManagementConsoleOptions.BundleRootPath.set -> void
+NCode.Identity.ManagementConsole.Options.ManagementConsoleOptions.Cell.get -> string?
+NCode.Identity.ManagementConsole.Options.ManagementConsoleOptions.Cell.set -> void
 NCode.Identity.ManagementConsole.Options.ManagementConsoleOptions.Cells.get -> System.Collections.Generic.Dictionary<string!, string!>!
 NCode.Identity.ManagementConsole.Options.ManagementConsoleOptions.Cells.set -> void
 NCode.Identity.ManagementConsole.Options.ManagementConsoleOptions.Features.get -> System.Collections.Generic.Dictionary<string!, bool>!
