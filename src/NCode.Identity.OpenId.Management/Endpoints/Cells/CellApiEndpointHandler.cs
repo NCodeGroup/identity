@@ -77,7 +77,8 @@ internal class CellApiEndpointHandler(
             .Produces<CellResource>()
             .ProducesProblem(StatusCodes.Status401Unauthorized)
             .ProducesProblem(StatusCodes.Status403Forbidden)
-            .ProducesProblem(StatusCodes.Status404NotFound);
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status503ServiceUnavailable);
         endpoints
             .MapPut("/cells/{name}", RegisterCellAsync)
             .WithTags(OpenIdConstants.EndpointTags.Platform)
@@ -86,7 +87,9 @@ internal class CellApiEndpointHandler(
             .ProducesValidationProblem()
             .ProducesProblem(StatusCodes.Status401Unauthorized)
             .ProducesProblem(StatusCodes.Status403Forbidden)
-            .ProducesProblem(StatusCodes.Status409Conflict);
+            .ProducesProblem(StatusCodes.Status409Conflict)
+            .ProducesProblem(StatusCodes.Status415UnsupportedMediaType)
+            .ProducesProblem(StatusCodes.Status503ServiceUnavailable);
         endpoints
             .MapDelete("/cells/{name}", RetireCellAsync)
             .WithTags(OpenIdConstants.EndpointTags.Platform)
@@ -94,7 +97,8 @@ internal class CellApiEndpointHandler(
             .Produces(StatusCodes.Status204NoContent)
             .ProducesProblem(StatusCodes.Status401Unauthorized)
             .ProducesProblem(StatusCodes.Status403Forbidden)
-            .ProducesProblem(StatusCodes.Status409Conflict);
+            .ProducesProblem(StatusCodes.Status409Conflict)
+            .ProducesProblem(StatusCodes.Status503ServiceUnavailable);
     }
 
     /// <summary>
