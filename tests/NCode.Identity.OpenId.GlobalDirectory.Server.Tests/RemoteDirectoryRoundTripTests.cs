@@ -41,8 +41,6 @@ public class RemoteDirectoryRoundTripTests : IAsyncLifetime
 
     private WebApplication? App { get; set; }
 
-    private HttpClient? HttpClientOrNull { get; set; }
-
     private ITenantDirectory? TenantsOrNull { get; set; }
 
     private ITeamDirectory? TeamsOrNull { get; set; }
@@ -93,13 +91,12 @@ public class RemoteDirectoryRoundTripTests : IAsyncLifetime
         App = app;
         await ActAsAsync(CellName);
 
-        var httpClient = new HttpClient(app.GetTestServer().CreateHandler());
-        HttpClientOrNull = httpClient;
+        var handler = app.GetTestServer().CreateHandler();
 
         var factoryMock = Mocks.Create<IHttpClientFactory>();
         factoryMock
             .Setup(x => x.CreateClient(DirectoryClientDefaults.HttpClientName))
-            .Returns(httpClient)
+            .Returns(() => new HttpClient(handler, disposeHandler: false))
             .Verifiable(Times.AtLeastOnce);
 
         var tokenSourceMock = Mocks.Create<ICellTokenSource>();
@@ -124,7 +121,6 @@ public class RemoteDirectoryRoundTripTests : IAsyncLifetime
 
     public async Task DisposeAsync()
     {
-        HttpClientOrNull?.Dispose();
         if (App is not null)
             await App.DisposeAsync();
 

@@ -63,6 +63,100 @@ internal sealed class DefaultDirectoryStore(
             nameof(DirectoryControlPlaneOptions.TenantId)
         );
 
+    /// <summary>
+    /// Refuses a report or registration whose region or kind differs from the cell's registered ones, which never
+    /// change.
+    /// </summary>
+    /// <param name="cell">The stored <see cref="CellRecord"/>.</param>
+    /// <param name="region">The region that the report or registration names.</param>
+    /// <param name="kind">The kind that the report or registration names.</param>
+    /// <exception cref="CellDirectoryConflictException">The region or the kind differs from the cell's.</exception>
+    private static void ThrowIfRegionOrKindDiffers(CellRecord cell, string region, string kind)
+    {
+        var isRegionSame = string.Equals(cell.Region, region, StringComparison.Ordinal);
+        var isKindSame = string.Equals(cell.Kind, kind, StringComparison.Ordinal);
+        if (!isRegionSame || !isKindSame)
+        {
+            throw new CellDirectoryConflictException(
+                $"The cell '{cell.Name}' is registered in the region '{cell.Region}' as the kind '{cell.Kind}'."
+            );
+        }
+    }
+
+    /// <summary>
+    /// Normalizes a management URL for comparison: lower-case scheme and host, the default port dropped and no trailing
+    /// slash.
+    /// </summary>
+    /// <param name="url">The management URL to normalize.</param>
+    /// <returns>The normalized form of <paramref name="url"/>.</returns>
+    private static string NormalizeManagementUrl(string url)
+    {
+        // A stored URL that does not parse is its own key, so it never equals a parsed one.
+        if (!AbsoluteUri.TryParseAnyHttpServiceUrl(url, out var uri))
+            return url;
+
+        var origin = uri.GetComponents(UriComponents.SchemeAndServer, UriFormat.UriEscaped);
+        return origin.ToLowerInvariant() + uri.AbsolutePath.TrimEnd('/');
+    }
+
+    /// <summary>
+    /// Retires a team's authority document when the directory holds one with content: its content becomes <c>null</c>
+    /// at the same revision, and the feed keeps only that change for the document. The caller runs in a serializable
+    /// transaction and has saved the counter row that numbers the changes.
+    /// </summary>
+    /// <param name="dbContext">The <see cref="DirectoryDbContext"/> whose transaction the caller holds.</param>
+    /// <param name="normalizedTeamId">The normalized identifier of the team that was retired.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <returns>A <see cref="ValueTask"/> that completes when the retire is tracked by
+    /// <paramref name="dbContext"/>.</returns>
+    private static async ValueTask RetireTeamAuthorityAsync(
+        DirectoryDbContext dbContext,
+        string normalizedTeamId,
+        CancellationToken cancellationToken
+    )
+    {
+        var kind = ReplicatedDocumentKinds.TeamAuthority;
+        var stored = await dbContext.ReplicatedDocuments.SingleOrDefaultAsync(
+            entity => entity.Kind == kind && entity.Key == normalizedTeamId,
+            cancellationToken
+        );
+        if (stored?.DocumentJson is null)
+        {
+            return;
+        }
+
+        var change = new DirectoryChangeRecord
+        {
+            Sequence = await NextSequenceAsync(dbContext, cancellationToken),
+            DocumentKind = kind,
+            DocumentKey = normalizedTeamId,
+            Revision = stored.Revision,
+            DocumentJson = null,
+        };
+
+        await dbContext
+            .Changes.Where(entity =>
+                entity.DocumentKind == kind && entity.DocumentKey == normalizedTeamId
+            )
+            .ExecuteDeleteAsync(cancellationToken);
+        dbContext.Changes.Add(change);
+        stored.DocumentJson = null;
+    }
+
+    /// <summary>
+    /// Parses the stored content of a replicated document.
+    /// </summary>
+    /// <param name="contentJson">The stored content as JSON text, or <c>null</c> for a retired document.</param>
+    /// <returns>The parsed content, or <see langword="null"/> for a retired document.</returns>
+    /// <exception cref="JsonException">The stored content is not JSON.</exception>
+    private static JsonElement? ParseReplicatedContent(string? contentJson)
+    {
+        if (contentJson is null)
+            return null;
+
+        return JsonElement.Parse(contentJson);
+    }
+
     private IDbContextFactory<DirectoryDbContext> DbContextFactory { get; } = dbContextFactory;
 
     private IOptions<DirectoryServerOptions> ServerOptions { get; } = options;
@@ -1900,15 +1994,17 @@ internal sealed class DefaultDirectoryStore(
                     );
                 }
 
+                var replicatedDocument = new ReplicatedDocument
+                {
+                    Kind = documentKind,
+                    Key = documentKey,
+                    Revision = revision,
+                    Content = ParseReplicatedContent(record.DocumentJson),
+                };
                 var replicatedChange = new DirectoryChange
                 {
                     Sequence = record.Sequence,
-                    Replicated = ToReplicatedDocument(
-                        documentKind,
-                        documentKey,
-                        revision,
-                        record.DocumentJson
-                    ),
+                    Replicated = replicatedDocument,
                 };
                 changes.Add(replicatedChange);
                 continue;
@@ -2157,26 +2253,6 @@ internal sealed class DefaultDirectoryStore(
     }
 
     /// <summary>
-    /// Refuses a report or registration whose region or kind differs from the cell's registered ones, which never
-    /// change.
-    /// </summary>
-    /// <param name="cell">The stored <see cref="CellRecord"/>.</param>
-    /// <param name="region">The region that the report or registration names.</param>
-    /// <param name="kind">The kind that the report or registration names.</param>
-    /// <exception cref="CellDirectoryConflictException">The region or the kind differs from the cell's.</exception>
-    private static void ThrowIfRegionOrKindDiffers(CellRecord cell, string region, string kind)
-    {
-        var isRegionSame = string.Equals(cell.Region, region, StringComparison.Ordinal);
-        var isKindSame = string.Equals(cell.Kind, kind, StringComparison.Ordinal);
-        if (!isRegionSame || !isKindSame)
-        {
-            throw new CellDirectoryConflictException(
-                $"The cell '{cell.Name}' is registered in the region '{cell.Region}' as the kind '{cell.Kind}'."
-            );
-        }
-    }
-
-    /// <summary>
     /// Refuses a registration or retirement of the control-plane cell, which the directory holds from its own
     /// configuration.
     /// </summary>
@@ -2220,22 +2296,6 @@ internal sealed class DefaultDirectoryStore(
             .Cells.AsNoTracking()
             .SingleOrDefaultAsync(entity => entity.Name == name, cancellationToken);
         return record is null ? null : ToDescriptor(record);
-    }
-
-    /// <summary>
-    /// Normalizes a management URL for comparison: lower-case scheme and host, the default port dropped and no trailing
-    /// slash.
-    /// </summary>
-    /// <param name="url">The management URL to normalize.</param>
-    /// <returns>The normalized form of <paramref name="url"/>.</returns>
-    private static string NormalizeManagementUrl(string url)
-    {
-        // A stored URL that does not parse is its own key, so it never equals a parsed one.
-        if (!AbsoluteUri.TryParseAnyHttpServiceUrl(url, out var uri))
-            return url;
-
-        var origin = uri.GetComponents(UriComponents.SchemeAndServer, UriFormat.UriEscaped);
-        return origin.ToLowerInvariant() + uri.AbsolutePath.TrimEnd('/');
     }
 
     /// <summary>
@@ -2467,9 +2527,16 @@ internal sealed class DefaultDirectoryStore(
                 entity => entity.Kind == kind && entity.Key == normalizedKey,
                 cancellationToken
             );
-        return stored is null
-            ? null
-            : ToReplicatedDocument(stored.Kind, stored.Key, stored.Revision, stored.DocumentJson);
+        if (stored is null)
+            return null;
+
+        return new ReplicatedDocument
+        {
+            Kind = stored.Kind,
+            Key = stored.Key,
+            Revision = stored.Revision,
+            Content = ParseReplicatedContent(stored.DocumentJson),
+        };
     }
 
     /// <inheritdoc />
@@ -2534,81 +2601,6 @@ internal sealed class DefaultDirectoryStore(
             ? null
             : ReplicatedRevisionPage.CreateContinuation(last.Kind, last.Key);
         return new ReplicatedRevisionPage { Revisions = revisions, Continuation = next };
-    }
-
-    /// <summary>
-    /// Retires a team's authority document when the directory holds one with content: its content becomes <c>null</c>
-    /// at the same revision, and the feed keeps only that change for the document. The caller runs in a serializable
-    /// transaction and has saved the counter row that numbers the changes.
-    /// </summary>
-    /// <param name="dbContext">The <see cref="DirectoryDbContext"/> whose transaction the caller holds.</param>
-    /// <param name="normalizedTeamId">The normalized identifier of the team that was retired.</param>
-    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
-    /// <returns>A <see cref="ValueTask"/> that completes when the retire is tracked by
-    /// <paramref name="dbContext"/>.</returns>
-    private static async ValueTask RetireTeamAuthorityAsync(
-        DirectoryDbContext dbContext,
-        string normalizedTeamId,
-        CancellationToken cancellationToken
-    )
-    {
-        var kind = ReplicatedDocumentKinds.TeamAuthority;
-        var stored = await dbContext.ReplicatedDocuments.SingleOrDefaultAsync(
-            entity => entity.Kind == kind && entity.Key == normalizedTeamId,
-            cancellationToken
-        );
-        if (stored?.DocumentJson is null)
-        {
-            return;
-        }
-
-        var change = new DirectoryChangeRecord
-        {
-            Sequence = await NextSequenceAsync(dbContext, cancellationToken),
-            DocumentKind = kind,
-            DocumentKey = normalizedTeamId,
-            Revision = stored.Revision,
-            DocumentJson = null,
-        };
-
-        await dbContext
-            .Changes.Where(entity =>
-                entity.DocumentKind == kind && entity.DocumentKey == normalizedTeamId
-            )
-            .ExecuteDeleteAsync(cancellationToken);
-        dbContext.Changes.Add(change);
-        stored.DocumentJson = null;
-    }
-
-    /// <summary>
-    /// Builds a replicated document from its stored parts.
-    /// </summary>
-    /// <param name="kind">The kind of the document.</param>
-    /// <param name="key">The key of the document.</param>
-    /// <param name="revision">The revision of the document.</param>
-    /// <param name="contentJson">The stored content as JSON text, or <c>null</c> for a retired document.</param>
-    /// <returns>The <see cref="ReplicatedDocument"/> that the parts describe.</returns>
-    /// <exception cref="JsonException">The stored content is not JSON.</exception>
-    private static ReplicatedDocument ToReplicatedDocument(
-        string kind,
-        string key,
-        long revision,
-        string? contentJson
-    )
-    {
-        JsonElement? content = null;
-        if (contentJson is not null)
-        {
-            content = JsonElement.Parse(contentJson);
-        }
-
-        return new ReplicatedDocument
-        {
-            Kind = kind,
-            Key = key,
-            Revision = revision,
-            Content = content,
-        };
     }
 
     #endregion

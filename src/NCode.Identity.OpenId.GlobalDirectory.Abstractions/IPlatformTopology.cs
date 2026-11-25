@@ -25,8 +25,10 @@ public interface IPlatformTopology
     bool IsControlPlaneCell { get; }
 
     /// <summary>
-    /// Gets a value indicating whether the cell has a management tenant of its own, which it has when it is not the
-    /// control-plane cell of a platform with a directory and serves a dynamic tenant-resolution strategy.
+    /// Gets a value indicating whether the cell has a management tenant of its own, which it has only on a platform
+    /// with a directory, when it is not the control-plane cell and it serves a dynamic tenant-resolution strategy
+    /// (<c>DynamicByHost</c> or <c>DynamicByPath</c>). A platform of one cell has none, because its one cell serves the
+    /// control-plane tenant.
     /// </summary>
     bool HasManagementTenant { get; }
 }

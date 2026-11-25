@@ -91,21 +91,18 @@ internal sealed class DefaultManagementKeyRevoker(
     /// Gets the key identifier of the key that signs after the revocation: the remaining active key's, else the pending
     /// successor's, else the newly generated key's.
     /// </summary>
-    /// <param name="activeKey">The remaining active key, when one exists.</param>
-    /// <param name="successor">The pending successor, when one exists.</param>
+    /// <param name="signingKey">The remaining active key, else the pending successor, when either exists.</param>
     /// <param name="remaining">The tenant's keys that the revocation leaves.</param>
     /// <param name="result">The rollover result that holds any newly generated key.</param>
     /// <returns>The key identifier of the key that signs.</returns>
     private static string GetReplacementKeyId(
-        PersistedSecret? activeKey,
-        PersistedSecret? successor,
+        PersistedSecret? signingKey,
         IReadOnlyList<PersistedSecret> remaining,
         TenantKeyRolloverResult result
     )
     {
-        var existing = activeKey ?? successor;
-        if (existing is not null)
-            return existing.KeyId ?? existing.SecretId;
+        if (signingKey is not null)
+            return signingKey.KeyId ?? signingKey.SecretId;
 
         var remainingIds = remaining
             .Select(secret => secret.SecretId)
@@ -208,7 +205,8 @@ internal sealed class DefaultManagementKeyRevoker(
             cancellationToken
         );
 
-        var replacementKeyId = GetReplacementKeyId(activeKey, successor, remaining, result);
+        var signingKey = activeKey ?? successor;
+        var replacementKeyId = GetReplacementKeyId(signingKey, remaining, result);
 
         var replicatedDocumentStore = storeManager.GetStore<IReplicatedDocumentStore>();
         var revokedKey = new PersistedRevokedManagementKey

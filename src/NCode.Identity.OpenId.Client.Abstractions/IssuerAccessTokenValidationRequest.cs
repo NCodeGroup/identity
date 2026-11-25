@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using JetBrains.Annotations;
+using NCode.Identity.Jose;
 using NCode.Identity.Secrets.Collections;
 
 namespace NCode.Identity.OpenId.Client;
@@ -34,7 +35,8 @@ public sealed class IssuerAccessTokenValidationRequest
     public ISecretKeyCollection? SigningKeys { get; init; }
 
     /// <summary>
-    /// Gets the <c>typ</c> header value the access token must carry. The default is <c>at+jwt</c> (RFC 9068).
+    /// Gets the <c>typ</c> header value the access token must carry. The default is
+    /// <see cref="JoseTokenTypes.AccessTokenJwt"/> (RFC 9068).
     /// </summary>
-    public string TokenType { get; init; } = "at+jwt";
+    public string TokenType { get; init; } = JoseTokenTypes.AccessTokenJwt;
 }

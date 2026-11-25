@@ -26,56 +26,6 @@ internal sealed class LocalManagementTokenValidator(
     private static string[] ManagementAudiences { get; } =
     [OpenIdConstants.SystemResourceServerIdentifiers.Management];
 
-    private IClientPrincipalResolver ClientPrincipalResolver { get; } = clientPrincipalResolver;
-
-    private IPlatformTopology PlatformTopology { get; } = platformTopology;
-
-    /// <inheritdoc />
-    public async ValueTask<ManagementTokenValidation> ValidateAsync(
-        HttpContext httpContext,
-        CancellationToken cancellationToken
-    )
-    {
-        var openIdContext = httpContext.GetOpenIdContextOrDefault();
-        if (
-            openIdContext is null
-            || !TryGetBearerToken(httpContext, out var accessToken, out var isDPoP)
-        )
-            return ManagementTokenValidation.Unauthenticated;
-
-        var requiresDPoP = PlatformTopology.HasDirectory;
-        if (requiresDPoP && !isDPoP)
-            return ManagementTokenValidation.Unauthenticated;
-
-        var command = new AuthenticateAccessTokenCommand(
-            openIdContext,
-            accessToken,
-            ManagementAudiences
-        );
-        var disposition = await openIdContext.Mediator.SendAsync<
-            AuthenticateAccessTokenCommand,
-            AuthenticateAccessTokenDisposition
-        >(command, cancellationToken);
-
-        if (!disposition.IsAuthenticated)
-            return ManagementTokenValidation.Unauthenticated;
-
-        if (requiresDPoP && !HasConfirmationThumbprint(disposition.Principal))
-            return ManagementTokenValidation.Unauthenticated;
-
-        // The call is kept for the answer the request remembers, which the audit recorder reads after the
-        // commit, so a change the request commits, such as a machine client deleting itself, does not alter
-        // the actor its audit records.
-        // See ADR-1466.
-        _ = await ClientPrincipalResolver.GetActingClientOrDefaultAsync(
-            openIdContext,
-            disposition.Principal,
-            cancellationToken
-        );
-
-        return ManagementTokenValidation.Authenticated(disposition.Principal);
-    }
-
     /// <summary>
     /// Determines whether the principal's <c>cnf</c> claim holds a JWK thumbprint.
     /// </summary>
@@ -165,5 +115,55 @@ internal sealed class LocalManagementTokenValidator(
         token = string.Empty;
         isDPoP = false;
         return false;
+    }
+
+    private IClientPrincipalResolver ClientPrincipalResolver { get; } = clientPrincipalResolver;
+
+    private IPlatformTopology PlatformTopology { get; } = platformTopology;
+
+    /// <inheritdoc />
+    public async ValueTask<ManagementTokenValidation> ValidateAsync(
+        HttpContext httpContext,
+        CancellationToken cancellationToken
+    )
+    {
+        var openIdContext = httpContext.GetOpenIdContextOrDefault();
+        if (
+            openIdContext is null
+            || !TryGetBearerToken(httpContext, out var accessToken, out var isDPoP)
+        )
+            return ManagementTokenValidation.Unauthenticated;
+
+        var requiresDPoP = PlatformTopology.HasDirectory;
+        if (requiresDPoP && !isDPoP)
+            return ManagementTokenValidation.Unauthenticated;
+
+        var command = new AuthenticateAccessTokenCommand(
+            openIdContext,
+            accessToken,
+            ManagementAudiences
+        );
+        var disposition = await openIdContext.Mediator.SendAsync<
+            AuthenticateAccessTokenCommand,
+            AuthenticateAccessTokenDisposition
+        >(command, cancellationToken);
+
+        if (!disposition.IsAuthenticated)
+            return ManagementTokenValidation.Unauthenticated;
+
+        if (requiresDPoP && !HasConfirmationThumbprint(disposition.Principal))
+            return ManagementTokenValidation.Unauthenticated;
+
+        // The call is kept for the answer the request remembers, which the audit recorder reads after the
+        // commit, so a change the request commits, such as a machine client deleting itself, does not alter
+        // the actor its audit records.
+        // See ADR-1466.
+        _ = await ClientPrincipalResolver.GetActingClientOrDefaultAsync(
+            openIdContext,
+            disposition.Principal,
+            cancellationToken
+        );
+
+        return ManagementTokenValidation.Authenticated(disposition.Principal);
     }
 }

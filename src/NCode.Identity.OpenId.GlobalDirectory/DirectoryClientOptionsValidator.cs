@@ -46,6 +46,49 @@ internal sealed class DirectoryClientOptionsValidator : IValidateOptions<Directo
         }
     }
 
+    /// <summary>
+    /// Adds the failures of the limits that bound a call to the directory.
+    /// </summary>
+    /// <param name="options">The options to validate.</param>
+    /// <param name="failures">The list that receives each failure.</param>
+    private static void AddHttpFailures(DirectoryClientOptions options, List<string> failures)
+    {
+        if (options.AttemptTimeout < MinTimeout || options.AttemptTimeout > MaxTimeout)
+        {
+            failures.Add(
+                $"{Prefix}:{nameof(DirectoryClientOptions.AttemptTimeout)} '{options.AttemptTimeout}' must be between {MinTimeout} and {MaxTimeout}."
+            );
+        }
+
+        if (options.TotalTimeout < MinTimeout || options.TotalTimeout > MaxTimeout)
+        {
+            failures.Add(
+                $"{Prefix}:{nameof(DirectoryClientOptions.TotalTimeout)} '{options.TotalTimeout}' must be between {MinTimeout} and {MaxTimeout}."
+            );
+        }
+
+        if (options.AttemptTimeout > options.TotalTimeout)
+        {
+            failures.Add(
+                $"{Prefix}:{nameof(DirectoryClientOptions.AttemptTimeout)} '{options.AttemptTimeout}' must not be greater than {Prefix}:{nameof(DirectoryClientOptions.TotalTimeout)} '{options.TotalTimeout}'."
+            );
+        }
+
+        if (options.MaxRetryAttempts < 0 || options.MaxRetryAttempts > MaxRetryAttemptsLimit)
+        {
+            failures.Add(
+                $"{Prefix}:{nameof(DirectoryClientOptions.MaxRetryAttempts)} '{options.MaxRetryAttempts}' must be between 0 and {MaxRetryAttemptsLimit}."
+            );
+        }
+
+        if (options.RetryDelay < TimeSpan.Zero || options.RetryDelay > MaxTimeout)
+        {
+            failures.Add(
+                $"{Prefix}:{nameof(DirectoryClientOptions.RetryDelay)} '{options.RetryDelay}' must be between {TimeSpan.Zero} and {MaxTimeout}."
+            );
+        }
+    }
+
     /// <inheritdoc />
     public ValidateOptionsResult Validate(string? name, DirectoryClientOptions options)
     {
@@ -124,48 +167,5 @@ internal sealed class DirectoryClientOptionsValidator : IValidateOptions<Directo
         return failures.Count == 0
             ? ValidateOptionsResult.Success
             : ValidateOptionsResult.Fail(failures);
-    }
-
-    /// <summary>
-    /// Adds the failures of the limits that bound a call to the directory.
-    /// </summary>
-    /// <param name="options">The options to validate.</param>
-    /// <param name="failures">The list that receives each failure.</param>
-    private static void AddHttpFailures(DirectoryClientOptions options, List<string> failures)
-    {
-        if (options.AttemptTimeout < MinTimeout || options.AttemptTimeout > MaxTimeout)
-        {
-            failures.Add(
-                $"{Prefix}:{nameof(DirectoryClientOptions.AttemptTimeout)} '{options.AttemptTimeout}' must be between {MinTimeout} and {MaxTimeout}."
-            );
-        }
-
-        if (options.TotalTimeout < MinTimeout || options.TotalTimeout > MaxTimeout)
-        {
-            failures.Add(
-                $"{Prefix}:{nameof(DirectoryClientOptions.TotalTimeout)} '{options.TotalTimeout}' must be between {MinTimeout} and {MaxTimeout}."
-            );
-        }
-
-        if (options.AttemptTimeout > options.TotalTimeout)
-        {
-            failures.Add(
-                $"{Prefix}:{nameof(DirectoryClientOptions.AttemptTimeout)} '{options.AttemptTimeout}' must not be greater than {Prefix}:{nameof(DirectoryClientOptions.TotalTimeout)} '{options.TotalTimeout}'."
-            );
-        }
-
-        if (options.MaxRetryAttempts < 0 || options.MaxRetryAttempts > MaxRetryAttemptsLimit)
-        {
-            failures.Add(
-                $"{Prefix}:{nameof(DirectoryClientOptions.MaxRetryAttempts)} '{options.MaxRetryAttempts}' must be between 0 and {MaxRetryAttemptsLimit}."
-            );
-        }
-
-        if (options.RetryDelay < TimeSpan.Zero || options.RetryDelay > MaxTimeout)
-        {
-            failures.Add(
-                $"{Prefix}:{nameof(DirectoryClientOptions.RetryDelay)} '{options.RetryDelay}' must be between {TimeSpan.Zero} and {MaxTimeout}."
-            );
-        }
     }
 }
