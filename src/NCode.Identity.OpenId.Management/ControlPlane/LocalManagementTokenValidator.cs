@@ -23,9 +23,6 @@ internal sealed class LocalManagementTokenValidator(
     IPlatformTopology platformTopology
 ) : IManagementTokenValidator
 {
-    private const string BearerPrefix = "Bearer ";
-    private const string DPoPPrefix = "DPoP ";
-
     private static string[] ManagementAudiences { get; } =
     [OpenIdConstants.SystemResourceServerIdentifiers.Management];
 
@@ -138,17 +135,31 @@ internal sealed class LocalManagementTokenValidator(
         out bool isDPoP
     )
     {
-        var authorization = httpContext.Request.Headers.Authorization.ToString();
-
         // Accept both the Bearer scheme and the DPoP scheme (RFC 9449 §7.1).
-        foreach (var prefix in (ReadOnlySpan<string>)[BearerPrefix, DPoPPrefix])
+        if (
+            ManagementAuthorizationHeader.TryReadToken(
+                httpContext,
+                OpenIdProtocol.TokenTypes.DPoP,
+                out var dpopToken
+            )
+        )
         {
-            if (authorization.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
-            {
-                token = authorization[prefix.Length..].Trim();
-                isDPoP = string.Equals(prefix, DPoPPrefix, StringComparison.Ordinal);
-                return token.Length > 0;
-            }
+            token = dpopToken;
+            isDPoP = true;
+            return true;
+        }
+
+        if (
+            ManagementAuthorizationHeader.TryReadToken(
+                httpContext,
+                OpenIdProtocol.TokenTypes.Bearer,
+                out var bearerToken
+            )
+        )
+        {
+            token = bearerToken;
+            isDPoP = false;
+            return true;
         }
 
         token = string.Empty;

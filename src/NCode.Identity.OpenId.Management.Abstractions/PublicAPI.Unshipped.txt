@@ -1634,3 +1634,5 @@ NCode.Identity.OpenId.Management.ControlPlane.ManagementIssuerKinds
 const NCode.Identity.OpenId.Management.ControlPlane.ManagementIssuerKinds.Cell = "cell" -> string!
 const NCode.Identity.OpenId.Management.ControlPlane.ManagementIssuerKinds.ClaimType = "ncode_management_issuer" -> string!
 const NCode.Identity.OpenId.Management.ControlPlane.ManagementIssuerKinds.ControlPlane = "control-plane" -> string!
+NCode.Identity.OpenId.Management.ControlPlane.ManagementAuthorizationHeader
+static NCode.Identity.OpenId.Management.ControlPlane.ManagementAuthorizationHeader.TryReadToken(Microsoft.AspNetCore.Http.HttpContext! httpContext, string! scheme, out string? token) -> bool

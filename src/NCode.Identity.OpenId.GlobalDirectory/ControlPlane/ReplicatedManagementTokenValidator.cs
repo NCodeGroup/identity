@@ -32,7 +32,6 @@ internal sealed class ReplicatedManagementTokenValidator(
     IOptions<CellOptions> cellOptions
 ) : IManagementTokenValidator
 {
-    private const string DPoPPrefix = "DPoP ";
     private const string AuthenticationType = "ControlPlaneDPoP";
     private const string ConfirmationKeyThumbprint = "jkt";
 
@@ -128,27 +127,6 @@ internal sealed class ReplicatedManagementTokenValidator(
     }
 
     /// <summary>
-    /// Reads the access token from the <c>Authorization</c> header of a request, which must use the DPoP scheme (RFC
-    /// 9449 section 7.1).
-    /// </summary>
-    /// <param name="httpContext">The <see cref="HttpContext"/> of the request.</param>
-    /// <param name="token">The access token, or an empty string when the header carries none.</param>
-    /// <returns><c>true</c> when the header carries a non-empty DPoP token; otherwise, <c>false</c>.</returns>
-    private static bool TryGetToken(HttpContext httpContext, out string token)
-    {
-        var authorization = httpContext.Request.Headers.Authorization.ToString();
-
-        if (authorization.StartsWith(DPoPPrefix, StringComparison.OrdinalIgnoreCase))
-        {
-            token = authorization[DPoPPrefix.Length..].Trim();
-            return token.Length > 0;
-        }
-
-        token = string.Empty;
-        return false;
-    }
-
-    /// <summary>
     /// Reads the <c>kid</c> of the header of a compact JWT.
     /// </summary>
     /// <param name="token">The compact JWT.</param>
@@ -192,8 +170,17 @@ internal sealed class ReplicatedManagementTokenValidator(
     )
     {
         var issuer = CellOptions.ControlPlane.Issuer;
-        if (string.IsNullOrEmpty(issuer) || !TryGetToken(httpContext, out var token))
+        if (
+            string.IsNullOrEmpty(issuer)
+            || !ManagementAuthorizationHeader.TryReadToken(
+                httpContext,
+                OpenIdProtocol.TokenTypes.DPoP,
+                out var token
+            )
+        )
+        {
             return ManagementTokenValidation.Unauthenticated;
+        }
 
         var managementKeys = await Replica.GetManagementKeysAsync(cancellationToken);
         if (!managementKeys.HasKeys)

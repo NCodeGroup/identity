@@ -21,8 +21,6 @@ internal sealed class CellManagementTokenValidator(
     IOptions<CellOptions> cellOptions
 ) : IManagementTokenValidator
 {
-    private static string[] SchemePrefixes { get; } = ["DPoP ", "Bearer "];
-
     /// <summary>
     /// Reads the <c>iss</c> claim of a compact JWT without verifying it.
     /// </summary>
@@ -30,17 +28,23 @@ internal sealed class CellManagementTokenValidator(
     /// <returns>The issuer, or <c>null</c> when the request carries no readable token with an issuer.</returns>
     private static string? PeekIssuer(HttpContext httpContext)
     {
-        var authorization = httpContext.Request.Headers.Authorization.ToString();
-        foreach (var prefix in SchemePrefixes)
+        if (
+            !ManagementAuthorizationHeader.TryReadToken(
+                httpContext,
+                OpenIdProtocol.TokenTypes.DPoP,
+                out var token
+            )
+            && !ManagementAuthorizationHeader.TryReadToken(
+                httpContext,
+                OpenIdProtocol.TokenTypes.Bearer,
+                out token
+            )
+        )
         {
-            if (authorization.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
-            {
-                var token = authorization[prefix.Length..].Trim();
-                return UnverifiedJwt.TryReadIssuer(token, out var issuer) ? issuer : null;
-            }
+            return null;
         }
 
-        return null;
+        return UnverifiedJwt.TryReadIssuer(token, out var issuer) ? issuer : null;
     }
 
     /// <summary>
