@@ -2222,7 +2222,7 @@ public class DirectoryEndpointsTests : IAsyncLifetime
 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
         Assert.Equal(
-            "Only the control-plane cell writes the platform and the teams.",
+            "Only the control-plane cell writes the directory's global state.",
             await ReadProblemDetailAsync(response)
         );
     }

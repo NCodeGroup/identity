@@ -15,6 +15,7 @@ using NCode.Identity.AspNetCore;
 using NCode.Identity.OpenId.GlobalDirectory.Server.Stores;
 using NCode.Identity.OpenId.GlobalDirectory.Server.Tokens;
 using NCode.Identity.OpenId.Tenants;
+using NCode.Identity.Secrets.Persistence;
 
 namespace NCode.Identity.OpenId.GlobalDirectory.Server;
 
@@ -84,6 +85,12 @@ public static class DirectoryEndpoints
     /// Gets the options that serialize a document as the change feed carries it, which measure its size.
     /// </summary>
     private static JsonSerializerOptions WebOptions { get; } = new(JsonSerializerDefaults.Web);
+
+    /// <summary>
+    /// The problem detail that the cell registration route answers with when the key set is not a public JSON Web Key
+    /// Set.
+    /// </summary>
+    private const string JwksRequiredDetail = "The cell's key set is a public JSON Web Key Set.";
 
     /// <summary>
     /// Gets the problem detail that the cell registration route answers with when the kind or the management URL is
@@ -263,8 +270,8 @@ public static class DirectoryEndpoints
     }
 
     /// <summary>
-    /// Maps the cell routes: registering a cell, listing the cells and reading one cell. Each route declares the
-    /// problem documents that it can answer.
+    /// Maps the cell routes: registering a cell's client keys, retiring a cell, a cell's own descriptor report, listing
+    /// the cells and reading one cell. Each route declares the problem documents that it can answer.
     /// </summary>
     /// <param name="group">The <see cref="RouteGroupBuilder"/> of <c>/directory/v1/cells</c>.</param>
     private static void MapCells(RouteGroupBuilder group)
@@ -275,6 +282,17 @@ public static class DirectoryEndpoints
             .ProducesProblem(StatusCodes.Status403Forbidden)
             .ProducesProblem(StatusCodes.Status409Conflict)
             .ProducesProblem(StatusCodes.Status415UnsupportedMediaType);
+        group
+            .MapPut("{name}/registration", RegisterCellClientAsync)
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status403Forbidden)
+            .ProducesProblem(StatusCodes.Status409Conflict)
+            .ProducesProblem(StatusCodes.Status415UnsupportedMediaType);
+        group
+            .MapDelete("{name}", RetireCellAsync)
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status403Forbidden)
+            .ProducesProblem(StatusCodes.Status409Conflict);
         group.MapGet("", ListCellsAsync);
         group.MapGet("{name}", GetCellAsync).ProducesProblem(StatusCodes.Status404NotFound);
     }
@@ -1399,6 +1417,125 @@ public static class DirectoryEndpoints
     }
 
     /// <summary>
+    /// Describes the body of a cell registration: the cell's region and kind and its client key set. The cell's name is
+    /// the route's.
+    /// </summary>
+    internal sealed record CellRegistrationBody
+    {
+        public string? Region { get; init; }
+
+        public string? Kind { get; init; }
+
+        public JsonElement Jwks { get; init; }
+    }
+
+    /// <summary>
+    /// Registers a cell, or replaces the client key set of a registered cell. Only the control-plane cell registers
+    /// cells.
+    /// </summary>
+    /// <param name="name">The cell name from the route.</param>
+    /// <param name="body">The cell's region, kind and client key set.</param>
+    /// <param name="httpContext">The <see cref="HttpContext"/> that carries the authenticated calling cell.</param>
+    /// <param name="options">The <see cref="DirectoryServerOptions"/> that name the control-plane cell.</param>
+    /// <param name="jwksReader">The <see cref="IPublicJwksReader"/> that checks the key set.</param>
+    /// <param name="store">The <see cref="DefaultDirectoryStore"/> that holds the registration.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    /// <returns>
+    /// <c>204 No Content</c> when the cell is registered; <c>400 Bad Request</c> when the name or the region is not a
+    /// <see cref="CellLabelRules"/> label, the kind is blank or longer than the directory stores, or the key set is not
+    /// a public JSON Web Key Set; <c>403 Forbidden</c> when the caller is not the control-plane cell;
+    /// <c>409 Conflict</c> when the directory refuses the registration.
+    /// </returns>
+    private static async ValueTask<IResult> RegisterCellClientAsync(
+        string name,
+        CellRegistrationBody body,
+        HttpContext httpContext,
+        IOptions<DirectoryServerOptions> options,
+        IPublicJwksReader jwksReader,
+        DefaultDirectoryStore store,
+        CancellationToken cancellationToken
+    )
+    {
+        if (ForbidUnlessControlPlane(httpContext, options.Value) is { } forbidden)
+            return forbidden;
+
+        if (!CellLabelRules.IsValidLabel(name) || !CellLabelRules.IsValidLabel(body.Region))
+            return BadRequest(InvalidCellLabelDetail);
+
+        if (IsBlank(body.Kind))
+            return BadRequest("The cell's kind is required.");
+
+        if (IsOverLong(body.Kind, DirectoryLimits.MaxCellKindLength))
+            return BadRequest(CellTooLongDetail);
+
+        if (body.Jwks.ValueKind != JsonValueKind.Object)
+            return BadRequest(JwksRequiredDetail);
+
+        if (!jwksReader.TryRead(body.Jwks, out _, out var error))
+        {
+            var detail = $"{JwksRequiredDetail} {error}";
+            return BadRequest(detail);
+        }
+
+        var registration = new CellRegistration
+        {
+            Name = name,
+            Region = body.Region,
+            Kind = body.Kind,
+            Jwks = body.Jwks,
+        };
+        try
+        {
+            await store.RegisterCellAsync(registration, cancellationToken);
+        }
+        catch (CellDirectoryConflictException exception)
+        {
+            return Conflict(exception.Message);
+        }
+
+        return TypedResults.NoContent();
+    }
+
+    /// <summary>
+    /// Retires a cell, so its name is never reissued. Only the control-plane cell retires cells.
+    /// </summary>
+    /// <param name="name">The cell name from the route.</param>
+    /// <param name="httpContext">The <see cref="HttpContext"/> that carries the authenticated calling cell.</param>
+    /// <param name="options">The <see cref="DirectoryServerOptions"/> that name the control-plane cell.</param>
+    /// <param name="store">The <see cref="DefaultDirectoryStore"/> that holds the registration.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    /// <returns>
+    /// <c>204 No Content</c> when the cell is retired; <c>400 Bad Request</c> when the name is not a
+    /// <see cref="CellLabelRules"/> label; <c>403 Forbidden</c> when the caller is not the control-plane cell;
+    /// <c>409 Conflict</c> when the cell is not registered, holds tenants or is the control-plane cell.
+    /// </returns>
+    private static async ValueTask<IResult> RetireCellAsync(
+        string name,
+        HttpContext httpContext,
+        IOptions<DirectoryServerOptions> options,
+        DefaultDirectoryStore store,
+        CancellationToken cancellationToken
+    )
+    {
+        if (ForbidUnlessControlPlane(httpContext, options.Value) is { } forbidden)
+            return forbidden;
+
+        if (!CellLabelRules.IsValidLabel(name))
+            return BadRequest(InvalidCellLabelDetail);
+
+        try
+        {
+            await store.RetireCellAsync(name, cancellationToken);
+        }
+        catch (CellDirectoryConflictException exception)
+        {
+            return Conflict(exception.Message);
+        }
+
+        return TypedResults.NoContent();
+    }
+
+    /// <summary>
     /// Lists every registered cell.
     /// </summary>
     /// <param name="directory">The <see cref="ICellDirectory"/> that holds the registrations.</param>
@@ -1494,7 +1631,7 @@ public static class DirectoryEndpoints
     ) =>
         DirectoryCaller.IsControlPlane(httpContext.User, options)
             ? null
-            : Forbidden("Only the control-plane cell writes the platform and the teams.");
+            : Forbidden("Only the control-plane cell writes the directory's global state.");
 
     /// <summary>
     /// Refuses a team identifier from a route that is blank or is not a <see cref="TenantIdentifierRules"/> identifier.
