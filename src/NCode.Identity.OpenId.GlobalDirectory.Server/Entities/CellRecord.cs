@@ -29,6 +29,12 @@ public sealed class CellRecord
     public string? ManagementUrl { get; set; }
 
     /// <summary>
+    /// Gets or sets the comparison form of <see cref="ManagementUrl"/>, or <c>null</c> when the cell has no management
+    /// URL. No two cells share one.
+    /// </summary>
+    public string? NormalizedManagementUrl { get; set; }
+
+    /// <summary>
     /// Gets or sets the JSON Web Key Set that holds the public keys the cell's client assertions are verified with, or
     /// <c>null</c> when the cell is not registered.
     /// </summary>

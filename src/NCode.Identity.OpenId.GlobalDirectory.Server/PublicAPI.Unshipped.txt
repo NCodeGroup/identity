@@ -65,6 +65,8 @@ NCode.Identity.OpenId.GlobalDirectory.Server.Entities.CellRecord.ManagementUrl.g
 NCode.Identity.OpenId.GlobalDirectory.Server.Entities.CellRecord.ManagementUrl.set -> void
 NCode.Identity.OpenId.GlobalDirectory.Server.Entities.CellRecord.Name.get -> string!
 NCode.Identity.OpenId.GlobalDirectory.Server.Entities.CellRecord.Name.set -> void
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.CellRecord.NormalizedManagementUrl.get -> string?
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.CellRecord.NormalizedManagementUrl.set -> void
 NCode.Identity.OpenId.GlobalDirectory.Server.Entities.CellRecord.Region.get -> string!
 NCode.Identity.OpenId.GlobalDirectory.Server.Entities.CellRecord.Region.set -> void
 NCode.Identity.OpenId.GlobalDirectory.Server.Entities.DirectoryChangeRecord

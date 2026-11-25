@@ -46,12 +46,20 @@ namespace NCode.Identity.OpenId.GlobalDirectory.Host.Migrations.Directory
                         .HasMaxLength(2000)
                         .HasColumnType("character varying(2000)");
 
+                    b.Property<string>("NormalizedManagementUrl")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
                     b.Property<string>("Region")
                         .IsRequired()
                         .HasMaxLength(31)
                         .HasColumnType("character varying(31)");
 
                     b.HasKey("Name");
+
+                    b.HasIndex("NormalizedManagementUrl")
+                        .IsUnique()
+                        .HasFilter("\"NormalizedManagementUrl\" IS NOT NULL");
 
                     b.ToTable("Cells");
                 });

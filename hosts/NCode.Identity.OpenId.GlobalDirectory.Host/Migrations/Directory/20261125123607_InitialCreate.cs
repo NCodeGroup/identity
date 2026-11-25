@@ -19,6 +19,7 @@ namespace NCode.Identity.OpenId.GlobalDirectory.Host.Migrations.Directory
                     Region = table.Column<string>(type: "character varying(31)", maxLength: 31, nullable: false),
                     Kind = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: false),
                     ManagementUrl = table.Column<string>(type: "character varying(2000)", maxLength: 2000, nullable: true),
+                    NormalizedManagementUrl = table.Column<string>(type: "character varying(2000)", maxLength: 2000, nullable: true),
                     ClientJwksJson = table.Column<string>(type: "text", nullable: true),
                     IsRetired = table.Column<bool>(type: "boolean", nullable: false),
                     IsControlPlane = table.Column<bool>(type: "boolean", nullable: false)
@@ -150,6 +151,13 @@ namespace NCode.Identity.OpenId.GlobalDirectory.Host.Migrations.Directory
                 {
                     table.PrimaryKey("PK_Tenants", x => x.Id);
                 });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Cells_NormalizedManagementUrl",
+                table: "Cells",
+                column: "NormalizedManagementUrl",
+                unique: true,
+                filter: "\"NormalizedManagementUrl\" IS NOT NULL");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Changes_DocumentKind_DocumentKey",

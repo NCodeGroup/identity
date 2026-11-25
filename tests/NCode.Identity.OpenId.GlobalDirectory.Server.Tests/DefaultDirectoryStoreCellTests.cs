@@ -89,6 +89,28 @@ public sealed class DefaultDirectoryStoreCellTests : DefaultDirectoryStoreTestBa
         Assert.Equal(["cell-a", ControlPlaneCell], listedCells.Select(cell => cell.Name));
     }
 
+    [Fact]
+    public async Task ReportAsync_WhenTheManagementUrlDoesNotParse_StillKeysItAndConflictsOnItsRepeat()
+    {
+        await ReportCellAsync(
+            CreateCell("cell-a") with
+            {
+                ManagementUrl = "not a url",
+            },
+            CancellationToken.None
+        );
+
+        await Assert.ThrowsAsync<CellDirectoryConflictException>(async () =>
+            await ReportCellAsync(
+                CreateCell("cell-b") with
+                {
+                    ManagementUrl = "not a url",
+                },
+                CancellationToken.None
+            )
+        );
+    }
+
     #endregion
 
     #region ListAsync Tests

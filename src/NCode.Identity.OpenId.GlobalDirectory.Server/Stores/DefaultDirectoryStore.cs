@@ -2000,20 +2000,14 @@ internal sealed class DefaultDirectoryStore(
 
                 // No two cells report one management URL: a caller's DPoP proof is bound to the URL it names.
                 var normalizedUrl = NormalizeManagementUrl(reportedUrl);
-                var otherCells = await dbContext
+                var conflicting = await dbContext
                     .Cells.AsNoTracking()
-                    .Where(entity => entity.Name != descriptor.Name && entity.ManagementUrl != null)
-                    .Select(entity => new
-                    {
-                        entity.Name,
-                        ManagementUrl = entity.ManagementUrl ?? string.Empty,
-                    })
-                    .ToListAsync(cancellationToken);
-                var conflicting = otherCells.FirstOrDefault(other =>
-                {
-                    var otherUrl = NormalizeManagementUrl(other.ManagementUrl);
-                    return string.Equals(otherUrl, normalizedUrl, StringComparison.Ordinal);
-                });
+                    .Where(entity =>
+                        entity.NormalizedManagementUrl == normalizedUrl
+                        && entity.Name != descriptor.Name
+                    )
+                    .Select(entity => new { entity.Name })
+                    .FirstOrDefaultAsync(cancellationToken);
                 if (conflicting is not null)
                 {
                     throw new CellDirectoryConflictException(
@@ -2023,6 +2017,7 @@ internal sealed class DefaultDirectoryStore(
 
                 // Whether a cell is the control-plane cell is the directory's own fact, never the cell's report.
                 cell.ManagementUrl = reportedUrl;
+                cell.NormalizedManagementUrl = normalizedUrl;
 
                 await dbContext.SaveChangesAsync(cancellationToken);
                 await transaction.CommitAsync(cancellationToken);
@@ -2136,6 +2131,7 @@ internal sealed class DefaultDirectoryStore(
                 cell.IsRetired = true;
                 cell.ClientJwksJson = null;
                 cell.ManagementUrl = null;
+                cell.NormalizedManagementUrl = null;
 
                 await dbContext.SaveChangesAsync(cancellationToken);
                 await transaction.CommitAsync(cancellationToken);

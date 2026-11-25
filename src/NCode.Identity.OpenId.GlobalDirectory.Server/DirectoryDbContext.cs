@@ -78,6 +78,13 @@ public sealed class DirectoryDbContext(DbContextOptions<DirectoryDbContext> opti
             builder
                 .Property(entity => entity.ManagementUrl)
                 .HasMaxLength(DirectoryLimits.MaxManagementUrlLength);
+            builder
+                .Property(entity => entity.NormalizedManagementUrl)
+                .HasMaxLength(DirectoryLimits.MaxManagementUrlLength);
+            builder
+                .HasIndex(entity => entity.NormalizedManagementUrl)
+                .IsUnique()
+                .HasFilter("\"NormalizedManagementUrl\" IS NOT NULL");
         });
 
         modelBuilder.Entity<TenantRecord>(builder =>
