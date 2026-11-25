@@ -21,6 +21,25 @@ namespace NCode.Identity.OpenId.GlobalDirectory;
 [PublicAPI]
 public static class DefaultRegistration
 {
+    // A cell with a management tenant accepts the control plane's tokens and its own tenants' tokens; any other cell
+    // accepts only the control plane's.
+    private static IManagementTokenValidator CreateRemoteManagementTokenValidator(
+        IServiceProvider serviceProvider,
+        object? serviceKey
+    )
+    {
+        var replicated = serviceProvider.GetRequiredService<ReplicatedManagementTokenValidator>();
+        var topology = serviceProvider.GetRequiredService<IPlatformTopology>();
+        if (!topology.HasManagementTenant)
+            return replicated;
+
+        var local = serviceProvider.GetRequiredKeyedService<IManagementTokenValidator>(
+            ControlPlaneServiceKeys.Local
+        );
+        var cellOptions = serviceProvider.GetRequiredService<IOptions<CellOptions>>();
+        return new CellManagementTokenValidator(replicated, local, cellOptions);
+    }
+
     /// <param name="builder">The <see cref="IServiceBuilder{T}"/> returned by <c>AddOpenIdClientLibrary</c>.</param>
     extension(IServiceBuilder<OpenIdClientLibrary> builder)
     {
@@ -127,10 +146,11 @@ public static class DefaultRegistration
             // up. Management chooses between the local and the remote adapter from the cell's options at resolution, so
             // this registration never reads the Cell section: the control-plane cell keeps its local adapters, and
             // every other cell validates management tokens against the control plane's issuer.
-            serviceCollection.TryAddKeyedSingleton<
-                IManagementTokenValidator,
-                ReplicatedManagementTokenValidator
-            >(ControlPlaneServiceKeys.Remote);
+            serviceCollection.TryAddSingleton<ReplicatedManagementTokenValidator>();
+            serviceCollection.TryAddKeyedSingleton<IManagementTokenValidator>(
+                ControlPlaneServiceKeys.Remote,
+                CreateRemoteManagementTokenValidator
+            );
             serviceCollection.TryAddKeyedSingleton<
                 IControlPlaneAuthority,
                 ReplicatedControlPlaneAuthority

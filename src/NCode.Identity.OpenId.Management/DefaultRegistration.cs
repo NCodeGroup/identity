@@ -96,6 +96,11 @@ public static class DefaultRegistration
             // other cell uses the remote adapter that a directory client registers under
             // ControlPlaneServiceKeys.Remote, and falls back to the local adapter without one.
             serviceCollection.TryAddSingleton<LocalManagementTokenValidator>();
+            serviceCollection.TryAddKeyedSingleton<IManagementTokenValidator>(
+                ControlPlaneServiceKeys.Local,
+                (serviceProvider, _) =>
+                    serviceProvider.GetRequiredService<LocalManagementTokenValidator>()
+            );
             serviceCollection.TryAddSingleton<IManagementTokenValidator>(serviceProvider =>
                 ResolveControlPlaneAdapter<
                     IManagementTokenValidator,

@@ -101,6 +101,12 @@ internal sealed class ReplicatedManagementTokenValidator(
             identity.AddClaim(scopeClaim);
         }
 
+        var issuerKindClaim = new Claim(
+            ManagementIssuerKinds.ClaimType,
+            ManagementIssuerKinds.ControlPlane
+        );
+        identity.AddClaim(issuerKindClaim);
+
         return new ClaimsPrincipal(identity);
     }
 
