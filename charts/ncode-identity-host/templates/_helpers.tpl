@@ -401,6 +401,9 @@ applied. Rendered for its side effect only.
 {{- if and .Values.setup.token.existingSecret (not .Values.setup.token.key) }}
 {{- fail "setup.token.key must name the key that holds the setup token in setup.token.existingSecret." }}
 {{- end }}
+{{- if and .Values.directory.url (not .Values.cell.isControlPlane) (not (include "identity-host.dynamicStrategy" .)) }}
+{{- fail "tenantResolution.strategyCode must be DynamicByHost or DynamicByPath when directory.url is set and cell.isControlPlane is false: every workload cell of a platform with a directory has a management tenant of its own and is managed from its own cell console." }}
+{{- end }}
 {{- if and .Values.setup.job.enabled (not .Values.cell.isControlPlane) (not (include "identity-host.dynamicStrategy" .)) }}
 {{- fail "setup.job.enabled requires cell.isControlPlane or a dynamic tenantResolution.strategyCode (DynamicByHost or DynamicByPath): setup runs in the control-plane cell and in a cell that serves a management tenant of its own." }}
 {{- end }}
@@ -981,14 +984,17 @@ same configuration the pods it rewraps keys for read.
 - name: OpenId__Platform__Settings__grant_types_enabled__{{ $index }}
   value: {{ $grant | quote }}
 {{- end }}
+{{- include "identity-host.directoryClientEnv" . }}
 {{- with .Values.extraEnv }}
 {{- toYaml . | nindent 0 }}
 {{- end }}
 {{- end }}
 
 {{/*
-The environment of the cell's directory client, which only the Deployment carries: the setup and secret-protection
-Jobs run the host's offline commands, which never call the directory, so neither holds the client's settings or key.
+The environment of the cell's directory client, which hostEnv carries: the Deployment and every Job that runs one of
+the host's offline commands build the same host, with the cell's real platform topology. A command needs the client
+when it reserves the management tenant of a workload cell through the directory, and its topology decides whether a
+change it saves in the control-plane cell is published through the outbox (ADR-1536, decision 12).
 */}}
 {{- define "identity-host.directoryClientEnv" -}}
 {{- $directory := .Values.directory }}
@@ -1056,13 +1062,14 @@ The volume mounts of the host container, which the Deployment and the host's Job
   mountPath: {{ printf "%s/recovery" $secretProtectionRoot }}
   readOnly: true
 {{- end }}
+{{- include "identity-host.directoryClientVolumeMounts" . }}
 {{- with .Values.extraVolumeMounts }}
 {{- toYaml . | nindent 0 }}
 {{- end }}
 {{- end }}
 
 {{/*
-The volume mounts of the directory client's key and CA certificates, which only the Deployment carries.
+The volume mounts of the directory client's key and CA certificates, which hostVolumeMounts carries.
 */}}
 {{- define "identity-host.directoryClientVolumeMounts" -}}
 {{- if and .Values.directory.url .Values.directory.keys.pemSecret }}
@@ -1104,13 +1111,14 @@ The volumes of the host pod, which the Deployment and the host's Jobs share.
     name: {{ . }}
     defaultMode: 0440
 {{- end }}
+{{- include "identity-host.directoryClientVolumes" . }}
 {{- with .Values.extraVolumes }}
 {{- toYaml . | nindent 0 }}
 {{- end }}
 {{- end }}
 
 {{/*
-The volumes of the directory client's key and CA certificates, which only the Deployment carries.
+The volumes of the directory client's key and CA certificates, which hostVolumes carries.
 */}}
 {{- define "identity-host.directoryClientVolumes" -}}
 {{- if and .Values.directory.url .Values.directory.keys.pemSecret }}

@@ -43,9 +43,10 @@ claim confers management authority except the development bootstrap client's `Gl
    the node `(cell, <Cell:Name>)` when this cell holds the tenant, the cell's management tenant included. The built-in
    roles (`BuiltInRoles`) are `GlobalAdmin`, `TeamAdmin`, `TenantAdmin`, `CellAdmin` and `Owner`. The administrator
    roles manage their node and everything beneath it. `GlobalAdmin`, `TeamAdmin` and `TenantAdmin` are creation roles
-   (`Operations.Create`); `CellAdmin` is a management role that never creates a tenant, though it creates the clients,
-   resource servers and other children of its cell's tenants. `Owner` manages its instance, including its settings,
-   secrets, scopes and owners, and never creates.
+   (`Operations.Create`); `CellAdmin` is a management role that creates the clients, resource servers and other children
+   of its cell's tenants, and creates a tenant only of a team whose `tenant_creation_cells` setting names its cell
+   ([ADR-1536](1536-a-platforms-global-plane-is-a-standalone-directory-and-a-dedicated-control-plane-cell-and-every-other-cell-runs-and-is-managed-on-its-own.md),
+   decision 10). `Owner` manages its instance, including its settings, secrets, scopes and owners, and never creates.
 2. **A tenant administrator.** A `TenantAdmin` assignment at a tenant's node manages the tenant and creates its clients,
    resource servers and other children. It never reaches a team or the platform, even for the control-plane tenant,
    whose identifier those nodes carry only as their address. The administrators of every team above a tenant grant that

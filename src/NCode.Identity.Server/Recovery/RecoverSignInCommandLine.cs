@@ -116,6 +116,9 @@ public sealed class RecoverSignInCommandLine : IHostCommand
             return 2;
         }
 
+        // The command never starts the host, so it loads what the host loads as it starts.
+        await HostCommandPrerequisites.PrepareAsync(services, cancellationToken);
+
         var recoveryService = services.GetRequiredService<ISignInRecoveryService>();
         var result = await recoveryService.RepairAsync(cancellationToken);
 

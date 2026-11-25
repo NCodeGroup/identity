@@ -392,4 +392,37 @@ public sealed class ClientKeyRingLoaderTests : BaseTests, IAsyncLifetime
     }
 
     #endregion
+
+    #region PrepareAsync Tests
+
+    [Fact]
+    public async Task PrepareAsync_BeforeTheHostStarts_LoadsTheKeyRings()
+    {
+        var path = WriteEcPem("prepared.pem");
+        var provider = BuildProvider(path);
+        var loader = provider.GetRequiredService<ClientKeyRingLoader>();
+
+        await loader.PrepareAsync(CancellationToken.None);
+
+        var keyRing = provider.GetRequiredService<ClientKeyRings>().Get(RingName);
+        var key = Assert.Single(keyRing.Collection);
+        Assert.Equal("prepared", key.KeyId);
+    }
+
+    [Fact]
+    public async Task PrepareAsync_ThenStartingAsync_LoadsTheKeyRingsOnce()
+    {
+        var path = WriteEcPem("once.pem");
+        var provider = BuildProvider(path);
+        var loader = provider.GetRequiredService<ClientKeyRingLoader>();
+
+        await loader.PrepareAsync(CancellationToken.None);
+        await loader.StartingAsync(CancellationToken.None);
+        await loader.PrepareAsync(CancellationToken.None);
+
+        var keyRing = provider.GetRequiredService<ClientKeyRings>().Get(RingName);
+        Assert.Single(keyRing.Collection);
+    }
+
+    #endregion
 }

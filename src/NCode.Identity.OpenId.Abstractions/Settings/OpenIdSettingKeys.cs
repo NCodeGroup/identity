@@ -611,6 +611,13 @@ public static class OpenIdSettingKeys
     public static SettingKey<int> MaxTenants => new(OpenIdSettingNames.MaxTenants);
 
     /// <summary>
+    /// Gets the <see cref="SettingKey{TValue}"/> for the 'tenant_creation_cells' setting: the workload cells whose
+    /// administrators may create the team's tenants in their own cell.
+    /// </summary>
+    public static SettingKey<IReadOnlyCollection<string>> TenantCreationCells =>
+        new(OpenIdSettingNames.TenantCreationCells);
+
+    /// <summary>
     /// Gets the <see cref="SettingKey{TValue}"/> for the 'max_teams' setting: the most teams that may sit beneath a
     /// team, at every level.
     /// </summary>

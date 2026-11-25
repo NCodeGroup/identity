@@ -109,6 +109,26 @@ public sealed class DefaultRegistrationTests : BaseTests, IAsyncLifetime
     }
 
     [Fact]
+    public async Task AddOpenIdClientKeyRings_WithAKeyRing_RegistersTheLoaderAsAStartupPrerequisite()
+    {
+        ServiceCollection
+            .NewBuilder<OpenIdClientLibrary>()
+            .AddOpenIdClientKeyRings(CreateSection("alpha"));
+        var provider = BuildProvider();
+
+        var prerequisite = Assert.Single(provider.GetServices<IStartupPrerequisite>());
+        var hostedLoader = provider
+            .GetServices<IHostedService>()
+            .OfType<ClientKeyRingLoader>()
+            .Single();
+        Assert.Same(hostedLoader, prerequisite);
+
+        await prerequisite.PrepareAsync(CancellationToken.None);
+        var alpha = provider.GetRequiredKeyedService<ISecretKeyCollectionProvider>("alpha");
+        Assert.Equal("alpha-key", Assert.Single(alpha.Collection).KeyId);
+    }
+
+    [Fact]
     public void AddOpenIdClientKeyRings_WithAKeyRing_BindsTheSectionPath()
     {
         ServiceCollection

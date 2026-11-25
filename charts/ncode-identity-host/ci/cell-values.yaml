@@ -1,6 +1,8 @@
-# A production release of a cell that is not the control plane: a dedicated cell spanning two cloud regions, which
-# reaches its management API at its own URL, accepts platform and team management tokens from the control-plane cell's
-# issuer, and reaches the platform's directory at its URL.
+# A production release of a workload cell: a dedicated cell spanning two cloud regions, which reaches its management API
+# at its own URL, accepts platform and team management tokens from the control-plane cell's issuer, and reaches the
+# platform's directory at its URL. A workload cell of a platform with a directory serves a dynamic strategy, here
+# DynamicByPath, so its root tenant ci-eu-manage is its management tenant and each customer tenant is served beneath
+# its own path.
 cell:
   name: ci-cell-eu
   region: eu
@@ -19,10 +21,14 @@ directory:
 allowedHosts:
   - id.eu.example.com
 tenantResolution:
-  staticSingle:
-    issuer: https://id.eu.example.com
-    tenantId: ci-eu
-    displayName: CI EU
+  strategyCode: DynamicByPath
+extraEnv:
+  - name: OpenId__TenantResolution__Root__TenantId
+    value: ci-eu-manage
+  - name: OpenId__TenantResolution__Root__Issuer
+    value: https://id.eu.example.com/ci-eu-manage
+  - name: OpenId__TenantResolution__DynamicByPath__IssuerTemplate
+    value: https://id.eu.example.com/{tenantId}
 database:
   existingSecret: identity-database
   runtimeRole: ncode_identity_app

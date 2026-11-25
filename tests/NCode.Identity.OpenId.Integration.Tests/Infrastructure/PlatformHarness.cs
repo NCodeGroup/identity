@@ -17,6 +17,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using NCode.Buffers;
@@ -27,6 +28,8 @@ using NCode.Identity.OpenId.Client;
 using NCode.Identity.OpenId.GlobalDirectory;
 using NCode.Identity.OpenId.GlobalDirectory.Host;
 using NCode.Identity.OpenId.GlobalDirectory.Server;
+using NCode.Identity.OpenId.Persistence.EntityFramework;
+using NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities;
 using NCode.Identity.OpenId.Persistence.Stores;
 using NCode.Identity.OpenId.Persistence.Tenants;
 using NCode.Identity.OpenId.Setup;
@@ -36,26 +39,28 @@ using NCode.Identity.Secrets.Collections;
 using NCode.Identity.Secrets.KeyMaterial;
 using NCode.Identity.Secrets.Keys;
 using NCode.Identity.Secrets.Persistence.DataContracts;
+using NCode.Identity.Server.InstanceSetup;
 using NCode.Identity.Server.Recovery;
 
 namespace NCode.Identity.OpenId.Integration.Tests.Infrastructure;
 
 /// <summary>
-/// Runs a whole platform in one process: the global directory, the control-plane cell, a workload cell that serves one
-/// static tenant (<see cref="CellAName"/>) and a workload cell that resolves tenants by host and has a management
-/// tenant of its own (<see cref="CellBName"/>). Every host is a real host on a <see cref="TestServer"/>, every client
-/// library of every host calls the others through one <see cref="PlatformRoutingHandler"/>, and a host is stopped and
-/// started again by name. Every wait is bounded, so a defect fails a test instead of hanging it.
+/// Runs a whole platform in one process: the global directory, the control-plane cell and two workload cells
+/// (<see cref="CellAName"/> and <see cref="CellBName"/>), each of which resolves tenants by host and has a management
+/// tenant of its own at its origin, as every workload cell of a platform with a directory does. Every host is a real
+/// host on a <see cref="TestServer"/>, every client library of every host calls the others through one
+/// <see cref="PlatformRoutingHandler"/>, and a host is stopped and started again by name. Every wait is bounded, so a
+/// defect fails a test instead of hanging it.
 /// </summary>
 public sealed class PlatformHarness : IAsyncDisposable
 {
     /// <summary>The name of the control-plane cell.</summary>
     public const string ControlPlaneName = "control";
 
-    /// <summary>The name of the workload cell that serves one static tenant.</summary>
+    /// <summary>The name of the first workload cell.</summary>
     public const string CellAName = "alpha";
 
-    /// <summary>The name of the workload cell that resolves tenants by host and has a management tenant.</summary>
+    /// <summary>The name of the second workload cell.</summary>
     public const string CellBName = "beta";
 
     /// <summary>The name of the global directory host.</summary>
@@ -67,7 +72,7 @@ public sealed class PlatformHarness : IAsyncDisposable
     /// <summary>The origin of the control-plane cell, which is also the issuer of its tenant.</summary>
     public const string ControlPlaneUrl = "https://control.platform.test";
 
-    /// <summary>The origin of cell A, which is also the issuer of its tenant.</summary>
+    /// <summary>The origin of cell A, which is also the issuer of its management tenant.</summary>
     public const string CellAUrl = "https://alpha.platform.test";
 
     /// <summary>The origin of cell B, which is also the issuer of its management tenant.</summary>
@@ -76,7 +81,7 @@ public sealed class PlatformHarness : IAsyncDisposable
     /// <summary>The identifier of the control-plane tenant.</summary>
     public const string ControlPlaneTenantId = "control-plane";
 
-    /// <summary>The identifier of the tenant that cell A serves.</summary>
+    /// <summary>The identifier of the management tenant of cell A.</summary>
     public const string CellATenantId = "alpha-root";
 
     /// <summary>The identifier of the management tenant of cell B.</summary>
@@ -857,6 +862,123 @@ public sealed class PlatformHarness : IAsyncDisposable
     }
 
     /// <summary>
+    /// Runs the <c>setup</c> command against a cell's services with the root administrator in its <c>Setup:Root</c>
+    /// configuration and, when given, the management console's client in <c>Setup:ManagementConsole</c>. The cell
+    /// serves no request first, so a workload cell's management tenant does not exist until setup creates it.
+    /// </summary>
+    /// <param name="cellName">The name of the cell.</param>
+    /// <param name="userName">The root administrator's username.</param>
+    /// <param name="password">The root administrator's password.</param>
+    /// <param name="managementConsole">The management console's client, or <see langword="null"/> for none.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    /// <returns>The command's exit code.</returns>
+    public async ValueTask<int> RunSetupCommandAsync(
+        string cellName,
+        string userName,
+        string password,
+        SetupManagementConsoleOptions? managementConsole,
+        CancellationToken cancellationToken
+    )
+    {
+        var command =
+            InstanceSetupCommandLine.Parse([InstanceSetupCommandLine.CommandName])
+            ?? throw new InvalidOperationException("The command line does not parse.");
+        var options = new SetupOptions
+        {
+            Root = new SetupRootOptions
+            {
+                UserName = userName,
+                Password = password,
+                DisplayName = userName,
+            },
+        };
+        if (managementConsole is not null)
+            options.ManagementConsole = managementConsole;
+
+        await using var scope = GetCell(cellName).Services.CreateAsyncScope();
+        var services = new OverridingServiceProvider(
+            scope.ServiceProvider,
+            typeof(IOptions<SetupOptions>),
+            Microsoft.Extensions.Options.Options.Create(options)
+        );
+        return await command.RunAsync(services, cancellationToken);
+    }
+
+    /// <summary>
+    /// Forgets that a replicated document was ever published: removes the control-plane cell's source revision and
+    /// pending outbox rows of the document, the directory's copy and a workload cell's replica of it, as a
+    /// control-plane cell whose rows were written while it did not publish leaves the platform.
+    /// </summary>
+    /// <param name="kind">The kind of the document.</param>
+    /// <param name="key">The key of the document within its kind.</param>
+    /// <param name="cellName">The name of the workload cell whose replica forgets it.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    public async ValueTask ForgetPublicationAsync(
+        string kind,
+        string key,
+        string cellName,
+        CancellationToken cancellationToken
+    )
+    {
+        await using (var scope = ControlPlane.Services.CreateAsyncScope())
+        {
+            var dbContext = scope.ServiceProvider.GetRequiredService<OpenIdDbContext>();
+            var revisionSet = dbContext.Set<ReplicatedSourceRevisionEntity>();
+            var revisions = await revisionSet
+                .Where(entity => entity.Kind == kind && entity.Key == key)
+                .ToListAsync(cancellationToken);
+            revisionSet.RemoveRange(revisions);
+            var outboxSet = dbContext.Set<DirectoryOutboxEntity>();
+            var pending = await outboxSet
+                .Where(entity => entity.Kind == kind && entity.Key == key)
+                .ToListAsync(cancellationToken);
+            outboxSet.RemoveRange(pending);
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+
+        var directory =
+            DirectoryOrNull ?? throw new InvalidOperationException("The platform is not started.");
+        var dbContextFactory = directory.Services.GetRequiredService<
+            IDbContextFactory<DirectoryDbContext>
+        >();
+        await using (
+            var directoryContext = await dbContextFactory.CreateDbContextAsync(cancellationToken)
+        )
+        {
+            var stored = await directoryContext
+                .ReplicatedDocuments.Where(entity => entity.Kind == kind && entity.Key == key)
+                .ToListAsync(cancellationToken);
+            directoryContext.ReplicatedDocuments.RemoveRange(stored);
+            await directoryContext.SaveChangesAsync(cancellationToken);
+        }
+
+        await using (var scope = GetCell(cellName).Services.CreateAsyncScope())
+        {
+            var dbContext = scope.ServiceProvider.GetRequiredService<OpenIdDbContext>();
+            var replicaSet = dbContext.Set<ReplicatedDocumentEntity>();
+            var replicas = await replicaSet
+                .Where(entity => entity.Kind == kind && entity.Key == key)
+                .ToListAsync(cancellationToken);
+            replicaSet.RemoveRange(replicas);
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+    }
+
+    /// <summary>
+    /// Stops and starts the control-plane cell's outbox publisher, as the cell's next start runs it.
+    /// </summary>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    public async ValueTask RestartOutboxPublisherAsync(CancellationToken cancellationToken)
+    {
+        // The publisher is internal to the directory client library, so it is found by its name.
+        var publisher = ControlPlane
+            .Services.GetServices<IHostedService>()
+            .Single(service => service.GetType().Name == "DirectoryOutboxPublisher");
+        await publisher.StopAsync(cancellationToken);
+        await publisher.StartAsync(cancellationToken);
+    }
+
+    /// <summary>
     /// Runs the <c>recover-sign-in</c> command against a cell's services.
     /// </summary>
     /// <param name="cellName">The name of the cell.</param>
@@ -1179,21 +1301,18 @@ public sealed class PlatformHarness : IAsyncDisposable
             );
             settings["BootstrapAdmin:TenantId"] = ControlPlaneTenantId;
         }
-        else if (string.Equals(name, CellAName, StringComparison.Ordinal))
-        {
-            settings["OpenId:TenantResolution:StrategyCode"] = OpenIdConstants
-                .TenantStrategyCodes
-                .StaticSingle;
-            settings["OpenId:TenantResolution:StaticSingle:TenantId"] = CellATenantId;
-            settings["OpenId:TenantResolution:StaticSingle:Issuer"] = url;
-        }
         else
         {
+            // Every workload cell of a platform with a directory serves a dynamic strategy, so its root tenant, served
+            // at the cell's origin, is its management tenant.
             var host = new Uri(url).Host;
+            var rootTenantId = string.Equals(name, CellAName, StringComparison.Ordinal)
+                ? CellATenantId
+                : CellBTenantId;
             settings["OpenId:TenantResolution:StrategyCode"] = OpenIdConstants
                 .TenantStrategyCodes
                 .DynamicByHost;
-            settings["OpenId:TenantResolution:Root:TenantId"] = CellBTenantId;
+            settings["OpenId:TenantResolution:Root:TenantId"] = rootTenantId;
             settings["OpenId:TenantResolution:Root:Issuer"] = url;
             settings["OpenId:TenantResolution:DynamicByHost:IssuerTemplate"] =
                 $"https://{{tenantId}}.{host}";

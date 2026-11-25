@@ -37,10 +37,11 @@ public static class DefaultRegistration
         /// <summary>
         /// Binds the named key rings under the top-level <c>KeyRings</c> section of <paramref name="configuration"/>
         /// strictly, so a key that maps to no option fails when the options are first read, and validates them when the
-        /// host starts. Every key ring is loaded when the host starts, from PEM files and keys that a key management
-        /// service holds, and a keyed <see cref="ISecretKeyCollectionProvider"/>, named after the key ring, returns the
-        /// loaded key ring for every key ring configured when this method is called. A keyed provider resolves once the
-        /// host starts: resolving it earlier, such as from an eager singleton or an options validator, throws an
+        /// host starts. Every key ring is loaded when the host starts, or when an offline command of the host runs its
+        /// <see cref="IStartupPrerequisite"/> services, from PEM files and keys that a key management service holds,
+        /// and a keyed <see cref="ISecretKeyCollectionProvider"/>, named after the key ring, returns the loaded key
+        /// ring for every key ring configured when this method is called. A keyed provider resolves once the host
+        /// starts: resolving it earlier, such as from an eager singleton or an options validator, throws an
         /// <see cref="InvalidOperationException"/> that names the key ring. A configured key ring that a keyed
         /// <see cref="ISecretKeyCollectionProvider"/> already provides when this method is called fails validation when
         /// the host starts, and the provider registered in code stays the one resolved.
@@ -85,8 +86,22 @@ public static class DefaultRegistration
 
             serviceCollection.TryAddSingleton<ClientKeyRings>();
             serviceCollection.TryAddSingleton<ClientRemoteKeyReader>();
-            var keyRingLoader = ServiceDescriptor.Singleton<IHostedService, ClientKeyRingLoader>();
-            serviceCollection.TryAddEnumerable(keyRingLoader);
+            // One loader serves the host's start and the offline commands, which run every startup prerequisite
+            // before their work, so the key rings load once whichever asks first.
+            if (
+                serviceCollection.All(descriptor =>
+                    descriptor.ServiceType != typeof(ClientKeyRingLoader)
+                )
+            )
+            {
+                serviceCollection.AddSingleton<ClientKeyRingLoader>();
+                serviceCollection.AddSingleton<IHostedService>(serviceProvider =>
+                    serviceProvider.GetRequiredService<ClientKeyRingLoader>()
+                );
+                serviceCollection.AddSingleton<IStartupPrerequisite>(serviceProvider =>
+                    serviceProvider.GetRequiredService<ClientKeyRingLoader>()
+                );
+            }
 
             foreach (var name in names)
             {

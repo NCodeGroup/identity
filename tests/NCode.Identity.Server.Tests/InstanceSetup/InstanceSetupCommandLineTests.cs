@@ -10,6 +10,7 @@ using NCode.Identity.OpenId.GlobalDirectory;
 using NCode.Identity.OpenId.Management;
 using NCode.Identity.OpenId.Setup;
 using NCode.Identity.OpenId.Setup.Contracts;
+using NCode.Identity.Registration;
 using NCode.Identity.Server.InstanceSetup;
 using Xunit;
 
@@ -36,7 +37,8 @@ public class InstanceSetupCommandLineTests : BaseTests
         SetupManagementConsoleOptions? managementConsole = null,
         SetupAutomationOptions? automation = null,
         bool isControlPlane = true,
-        bool hasManagementTenant = false
+        bool hasManagementTenant = false,
+        IStartupPrerequisite? prerequisite = null
     )
     {
         var options = new SetupOptions { Root = root ?? new SetupRootOptions() };
@@ -57,6 +59,8 @@ public class InstanceSetupCommandLineTests : BaseTests
         topology.Setup(x => x.IsControlPlaneCell).Returns(isControlPlane);
         topology.Setup(x => x.HasManagementTenant).Returns(hasManagementTenant);
         serviceCollection.AddSingleton(topology.Object);
+        if (prerequisite is not null)
+            serviceCollection.AddSingleton(prerequisite);
 
         return serviceCollection.BuildServiceProvider();
     }
@@ -183,6 +187,67 @@ public class InstanceSetupCommandLineTests : BaseTests
         var exitCode = await Parse("setup").RunAsync(services, CancellationToken.None);
 
         Assert.Equal(0, exitCode);
+    }
+
+    [Fact]
+    public async Task RunAsync_ACellWithAManagementTenant_RunsTheStartupPrerequisitesBeforeSetup()
+    {
+        var order = new List<string>();
+        var prerequisite = CreateStrictMock<IStartupPrerequisite>();
+        prerequisite
+            .Setup(x => x.PrepareAsync(It.IsAny<CancellationToken>()))
+            .Callback(() => order.Add("prepare"))
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable(Times.Once);
+        var setupService = CreateStrictMock<IInstanceSetupService>();
+        setupService
+            .Setup(x => x.IsInitializedAsync(It.IsAny<CancellationToken>()))
+            .Callback(() => order.Add("initialized"))
+            .Returns(new ValueTask<bool>(false))
+            .Verifiable();
+        setupService
+            .Setup(x =>
+                x.SetUpAsync(It.IsAny<InstanceSetupRequest>(), It.IsAny<CancellationToken>())
+            )
+            .Callback(() => order.Add("setup"))
+            .Returns(new ValueTask<InstanceSetupResult>(CreateSuccess()))
+            .Verifiable();
+        using var services = CreateServices(
+            setupService.Object,
+            CreateRoot(),
+            isControlPlane: false,
+            hasManagementTenant: true,
+            prerequisite: prerequisite.Object
+        );
+
+        var exitCode = await Parse("setup").RunAsync(services, CancellationToken.None);
+
+        Assert.Equal(0, exitCode);
+        Assert.Equal(["prepare", "initialized", "setup"], order);
+    }
+
+    [Fact]
+    public async Task RunAsync_AStartupPrerequisiteFails_ReturnsOneWithoutSettingUp()
+    {
+        var prerequisite = CreateStrictMock<IStartupPrerequisite>();
+        prerequisite
+            .Setup(x => x.PrepareAsync(It.IsAny<CancellationToken>()))
+            .Returns(() =>
+                throw new InvalidOperationException("The key ring 'cell-client' cannot be read.")
+            )
+            .Verifiable(Times.Once);
+        var setupService = CreateStrictMock<IInstanceSetupService>();
+        using var services = CreateServices(
+            setupService.Object,
+            CreateRoot(),
+            isControlPlane: false,
+            hasManagementTenant: true,
+            prerequisite: prerequisite.Object
+        );
+
+        var exitCode = await Parse("setup").RunAsync(services, CancellationToken.None);
+
+        Assert.Equal(1, exitCode);
     }
 
     [Fact]

@@ -4,6 +4,7 @@
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using NCode.Identity.OpenId.Client.Options;
+using NCode.Identity.Registration;
 using NCode.Identity.Secrets.Collections;
 using NCode.Identity.Secrets.KeyMaterial;
 using NCode.Identity.Secrets.Keys;
@@ -11,13 +12,14 @@ using NCode.Identity.Secrets.Keys;
 namespace NCode.Identity.OpenId.Client.KeyRings;
 
 /// <summary>
-/// Loads every configured client key ring when the host starts: the keys of its PEM files and the keys that a key
-/// management service holds. A key that cannot be read, or a remote key that cannot be proved, stops the host.
+/// Loads every configured client key ring when the host starts, and before an offline command of the host runs, as an
+/// <see cref="IStartupPrerequisite"/>: the keys of its PEM files and the keys that a key management service holds. A
+/// key that cannot be read, or a remote key that cannot be proved, stops the host or fails the command.
 /// </summary>
 /// <remarks>
 /// <see cref="IHostedLifecycleService.StartingAsync"/> runs after the options are validated and before any hosted
-/// service starts, so the host never serves before its key rings are loaded. A key ring loads once per process: a
-/// rotation takes effect on restart.
+/// service starts, so the host never serves before its key rings are loaded. The key rings load once per process,
+/// whichever of the host's start and a command asks first: a rotation takes effect on restart.
 /// </remarks>
 // See ADR-1439.
 // See ADR-1479.
@@ -28,7 +30,7 @@ internal sealed class ClientKeyRingLoader(
     ISecretKeyCollectionProviderFactory collectionFactory,
     ClientRemoteKeyReader remoteKeyReader,
     ClientKeyRings keyRings
-) : IHostedLifecycleService
+) : IHostedLifecycleService, IStartupPrerequisite, IDisposable
 {
     private IOptions<ClientKeyRingsOptions> Options { get; } = options;
 
@@ -42,8 +44,36 @@ internal sealed class ClientKeyRingLoader(
 
     private ClientKeyRings KeyRings { get; } = keyRings;
 
+    private SemaphoreSlim Gate { get; } = new(1, 1);
+
+    private bool IsLoaded { get; set; }
+
     /// <inheritdoc />
-    public async Task StartingAsync(CancellationToken cancellationToken)
+    public async Task StartingAsync(CancellationToken cancellationToken) =>
+        await PrepareAsync(cancellationToken);
+
+    /// <inheritdoc />
+    public async ValueTask PrepareAsync(CancellationToken cancellationToken)
+    {
+        await Gate.WaitAsync(cancellationToken);
+        try
+        {
+            if (IsLoaded)
+                return;
+
+            await LoadAsync(cancellationToken);
+            IsLoaded = true;
+        }
+        finally
+        {
+            Gate.Release();
+        }
+    }
+
+    /// <inheritdoc />
+    public void Dispose() => Gate.Dispose();
+
+    private async ValueTask LoadAsync(CancellationToken cancellationToken)
     {
         var configured = Options.Value.KeyRings;
         foreach (var name in configured.Keys.Order(StringComparer.Ordinal))

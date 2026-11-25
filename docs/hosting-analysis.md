@@ -291,7 +291,9 @@ and mail live on `ncodeid.com` ([ADR-1495](decisions/1495-the-hosted-platform-ru
 | `auth.ncodeid.net`                              | Root (control-plane) tenant issuer, served by the dedicated control-plane cell — where admins sign in and platform management-API tokens are issued ([ADR-1417](decisions/1417-management-authority-is-a-role-assignment-at-a-node-of-the-platform-team-and-tenant-hierarchy.md)) | `auth.ncodeid.net`            |
 | `{tenant}.auth.{region}.ncodeid.net`            | Workload tenant issuers of one region, resolved by `DynamicByHost` (e.g. `acme.auth.{region}.ncodeid.net`) | `*.auth.{region}.ncodeid.net` |
 | `mtls.ncodeid.net`, `{tenant}.mtls.{region}.ncodeid.net` | RFC 8705 mTLS endpoint aliases — the only hosts where Traefik requests a client certificate. `DynamicByHost` routes each tenant's alias host to it (ADR-1165) | `mtls.…` + `*.mtls.{region}.ncodeid.net` |
-| `manage.ncodeid.net`                            | The management console only; the management API is `/api` on `auth.ncodeid.net` ([ADR-1437](decisions/1437-the-management-console-is-a-confidential-client-whose-own-bff-host-serves-only-the-console.md)) | `manage.ncodeid.net`          |
+| `manage.ncodeid.net`                            | The platform console only, scoped to the control-plane cell; the management API is `/api` on `auth.ncodeid.net` ([ADR-1437](decisions/1437-the-management-console-is-a-confidential-client-whose-own-bff-host-serves-only-the-console.md)) | `manage.ncodeid.net`          |
+| `{cell}-manage.auth.{region}.ncodeid.net`       | A workload cell's management tenant issuer, a tenant host like any other, and the cell's management API at `/api` (`Cell:ManagementUrl`) ([ADR-1536](decisions/1536-a-platforms-global-plane-is-a-standalone-directory-and-a-dedicated-control-plane-cell-and-every-other-cell-runs-and-is-managed-on-its-own.md)) | `*.auth.{region}.ncodeid.net` |
+| `{cell}.manage.ncodeid.net`                     | A workload cell's cell console, which manages that cell alone ([ADR-1536](decisions/1536-a-platforms-global-plane-is-a-standalone-directory-and-a-dedicated-control-plane-cell-and-every-other-cell-runs-and-is-managed-on-its-own.md)) | `*.manage.ncodeid.net`        |
 | `ncodeid.net`, `www.ncodeid.net`                  | Redirect (301) to `https://ncodeid.com`, with the HSTS header                                            | `ncodeid.net` + `www.ncodeid.net` (cert-manager) |
 | `ncodeid.com`, `www.ncodeid.com`, `status.ncodeid.com` | Project site, docs and status page — the brand domain ([ADR-1495](decisions/1495-the-hosted-platform-runs-customer-environments-as-tenants-on-production-under-the-ncodeid-net-platform-domain.md)) | Hosting provider               |
 
@@ -313,7 +315,11 @@ Why this shape:
   certificate per tenant.
 - **`manage` is separate from `auth`:** the management console is a confidential client with a BFF host and origin of
   its own, so it gets its own CORS, rate-limit, and IP-allow-list policy at Traefik, and calls the management API at
-  `/api` on `auth` ([ADR-1437](decisions/1437-the-management-console-is-a-confidential-client-whose-own-bff-host-serves-only-the-console.md)).
+  `/api` on `auth`
+  ([ADR-1437](decisions/1437-the-management-console-is-a-confidential-client-whose-own-bff-host-serves-only-the-console.md)).
+  Each workload cell runs a cell console of its own at `{cell}.manage.ncodeid.net`, which signs in at the cell's
+  management tenant, a tenant named `{cell}-manage` whose host the cell's tenant template derives like any tenant's, and
+  calls only that cell's management API, at `/api` on that host, so a cell is managed while the global plane is down.
 - **Custom domains later** (Auth0 parity): the tenant's issuer is its single origin — it both routes the tenant and
   anchors every published URL ([ADR-1165](decisions/1165-a-tenants-stored-issuer-is-its-single-origin-and-its-mtls-alias-a-routed-second-host.md)) — so a
   custom domain (`login.customer.com`, CNAME'd to the platform) *becomes* the tenant's issuer. Choose it before clients
@@ -404,16 +410,23 @@ anchor.
   a row) and also has a `Cell:Region`, a `Cell:Kind` (`shared`, `dedicated` or `sovereign`), the cloud regions its keys
   may live in and a management URL. Capacity and blast radius are managed by how many tenants a cell hosts and how many
   cells run; a dedicated cell gives compliance isolation. A platform of one cell needs nothing else.
-- **The control-plane cell** is the cell that sets `Cell:IsControlPlane`. On a platform with a directory it is
-  dedicated to the control-plane tenant, the platform's trust anchor, and serves nothing else. It holds the platform and
-  team authority, the platform and team settings, setup and the team root keys, and it serves the platform and team
-  management routes and `auth.ncodeid.net`. Setup runs once per platform, in the control-plane cell
-  ([first use of a deployed instance](first-deployed-instance.md)). It publishes the platform and team authority and its
-  management signing keys to the directory, which carries them in its change feed.
-- **A workload cell** is every other cell. It authenticates and authorizes management requests from the authority and
-  keys it replicated from the feed into its own database, so its management stays available while the directory or the
-  control-plane cell is unreachable, and it calls no other cell. When its tenant-resolution strategy is dynamic, it has a
-  management tenant of its own with a `CellAdmin` role, a cell console and offline recovery.
+- **The control-plane cell** is the cell that sets `Cell:IsControlPlane`. On a platform with a directory it is dedicated
+  to the control-plane tenant, the platform's trust anchor, and holds the platform's global responsibilities only: the
+  platform's administrators, the platform and team authority, the platform and team settings, the teams and their root
+  keys and the cell registry. It never holds a customer's tenant, and its platform console manages exactly those. It
+  serves the platform and team management routes and `auth.ncodeid.net`. Its setup Job runs once per platform, with the
+  cell's directory client ([first use of a deployed instance](first-deployed-instance.md)), and what setup saves goes
+  through the outbox: it publishes the platform and team authority and its management signing keys to the directory,
+  which carries them in its change feed.
+- **A workload cell** is every other cell, a customer cell. It authenticates and authorizes management requests from the
+  authority and keys it replicated from the feed into its own database, so its management stays available while the
+  directory or the control-plane cell is unreachable, and it calls no other cell. It serves a dynamic tenant-resolution
+  strategy, so it has a management tenant of its own, in the platform's own team, with a `CellAdmin` role, a cell
+  console, a setup Job that creates its first `CellAdmin` on an empty database, and offline recovery. Each customer cell
+  is managed from its own cell console: a `CellAdmin` lists the cell's tenants and creates the tenants of every team
+  whose `tenant_creation_cells` setting names the cell, and only that creation, which reserves the tenant in the
+  directory, waits for the directory. The platform console's `managementConsole.cells` is an optional overview, never a
+  requirement.
 - **The directory host** (`NCode.Identity.OpenId.GlobalDirectory.Host`) is a release of its own, the chart
   `ncode-identity-directory`, with its own Postgres database, and runs as one replica. It reserves tenant and team
   identifiers platform-wide, places each tenant in one cell, records the cells and publishes team documents and the

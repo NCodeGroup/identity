@@ -1,0 +1,54 @@
+# A production release of a workload cell for a kind cluster, beside the control-plane cell of kind-directory-values.yaml
+# and the directory it reaches. It serves DynamicByPath, so its root tenant ci-kind-cell-manage is its management tenant,
+# and its setup Job, which runs with the cell's directory client, reserves that tenant through the directory on an empty
+# database and creates the cell's first CellAdmin and its cell console's client. The workflow registers the cell with the
+# control-plane cell first, and creates the runtime and owner database Secrets, the root key Secret, the setup Job's
+# Secret and the directory client's key Secret this release names.
+image:
+  repository: ncode-identity-host
+  tag: kind
+  pullPolicy: Never
+cell:
+  name: ci-kind-cell
+  region: ci
+  managementUrl: https://cell.example.com
+  controlPlaneIssuer: https://id.example.com
+allowedHosts:
+  - cell.example.com
+tenantResolution:
+  strategyCode: DynamicByPath
+extraEnv:
+  - name: OpenId__TenantResolution__Root__TenantId
+    value: ci-kind-cell-manage
+  - name: OpenId__TenantResolution__Root__Issuer
+    value: https://cell.example.com/ci-kind-cell-manage
+  - name: OpenId__TenantResolution__DynamicByPath__IssuerTemplate
+    value: https://cell.example.com/{tenantId}
+database:
+  parts:
+    existingSecret: postgres-runtime
+  runtimeRole: ncode_identity_app
+migrations:
+  database:
+    parts:
+      existingSecret: postgres-app
+secretProtection:
+  rootKeyProvider: local
+  local:
+    keySecret: identity-root-key
+  recovery:
+    disabled: true
+setup:
+  job:
+    enabled: true
+    existingSecret: identity-setup-root
+  managementConsole:
+    clientId: ci-kind-cell-console
+    baseUrl: https://console.cell.example.com
+    jwks: '{"keys":[{"kty":"EC","crv":"P-256","kid":"ci-kind-cell-console","x":"f83OJ3D2xF1Bg8vub9tLe1gHMzV76e8Tus9uPHvRVEU","y":"x_FEzRu9m36HLN_tue659LNpXW6pCyStikYjKIWI5a0"}]}'
+directory:
+  url: https://directory.example.com
+  clientId: cell-ci-kind-cell
+  keyRing: cell-client
+  keys:
+    pemSecret: cell-client-key

@@ -165,7 +165,8 @@ management API at `/api` on the origin of its authority.**
 - A default install's console calls succeed.
 - A platform with several cells needs one `ManagementConsole:Cells` entry per cell, and a cell the console cannot reach
   is marked unavailable in the Tenants page while the others keep listing.
-- A cell with a management tenant administers its own tenants through its cell console while the global plane is down.
+- Every workload cell administers its own tenants through its cell console while the global plane is down, and creates
+  the tenants of every team that grants the cell; the platform console's cell list is an optional overview.
 - Local development runs three processes for the console: the OP (`api`), the console host (`console`) and the `mgmt`
   bundle's build watcher.
 - The OP cannot deliver a back-channel logout to the console host on a developer machine, because its outbound guard

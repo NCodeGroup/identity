@@ -4561,42 +4561,55 @@ Until the first stable release, the [Unreleased] section describes the product a
 - **A workload cell publishes and replicates documents through revisions.** The control-plane cell writes each platform,
   team and management-key document to an outbox in the transaction that changes it, with a revision that only grows, and
   `DirectoryOutboxPublisher` sends the newest pending revision of each document to the directory in revision order,
-  retrying with a capped exponential back-off and republishing every document whose local revision is lower than the
-  directory's when the host starts, so a restored database catches up. A cell applies a replicated document only when
-  its revision is higher than the one it holds. `ncode.identity.directory.outbox.published` counts the documents the
-  directory acknowledged, and `ncode.identity.directory.replica.age` and `ncode.identity.directory.replica.sequence`
-  report how old a cell's replica is and the highest feed sequence it applied, which the cell's readiness check carries
-  as data and never fails on, so a cell serves its last known documents while the directory is unreachable
+  retrying with a capped exponential back-off. When the host starts, it republishes every document whose local revision
+  is lower than the directory's, so a restored database catches up, and every document that the directory does not hold,
+  a document whose rows no outbox row ever published included, so a platform heals at the control-plane cell's next
+  start. A cell applies a replicated document only when its revision is higher than the one it holds.
+  `ncode.identity.directory.outbox.published` counts the documents the directory acknowledged, and
+  `ncode.identity.directory.replica.age` and `ncode.identity.directory.replica.sequence` report how old a cell's replica
+  is and the highest feed sequence it applied, which the cell's readiness check carries as data and never fails on, so a
+  cell serves its last known documents while the directory is unreachable
   ([ADR-1536](docs/decisions/1536-a-platforms-global-plane-is-a-standalone-directory-and-a-dedicated-control-plane-cell-and-every-other-cell-runs-and-is-managed-on-its-own.md),
   [#940](https://github.com/NCodeGroup/identity/issues/940)).
 
-- **A cell with a dynamic strategy has its own management tenant, a `CellAdmin` and a cell console.** A cell whose
-  tenant strategy is `DynamicByHost` or `DynamicByPath` seeds its root tenant as the cell's management tenant, whose
-  principals the cell authorizes only from the assignments stored in it. `CellAdmin`, a built-in role at the resource
-  node `(cell, <Cell:Name>)`, manages every tenant the cell holds, as `TenantAdmin` does one tenant, and never reaches a
-  team or the platform, creates a tenant or grants `TeamAdmin` or `GlobalAdmin`. `GET /api/cell` reads the cell,
-  `GET /api/cell/tenants` lists its tenants with a continuation token, and `GET`, `POST` and `DELETE /api/cell/admins`
-  list, grant and remove its `CellAdmin`s, which only a principal of the management tenant holds. `GET /api/me` reports
-  the caller's cell roles (`cellRoles`). The cell's setup creates its first `CellAdmin` and its cell console's client,
-  and a cell console, which `ManagementConsole:Cell` and the chart's `managementConsole.cellConsole` select, signs in
-  against the management tenant and manages only that cell's tenants, so it keeps working while the global plane is
-  unreachable
+- **Every workload cell has its own management tenant, a `CellAdmin` and a cell console, and creates its customers'
+  tenants.** On a platform with a directory, the control-plane cell holds the platform's global responsibilities only,
+  and every other cell serves `DynamicByHost` or `DynamicByPath`, which the host and the chart require, and seeds its
+  root tenant as the cell's management tenant, in the platform's own team, whose principals the cell authorizes only
+  from the assignments stored in it. `CellAdmin`, a built-in role at the resource node `(cell, <Cell:Name>)`, manages
+  every tenant the cell holds, as `TenantAdmin` does one tenant, and never reaches a team or the platform or grants
+  `TeamAdmin` or `GlobalAdmin`. A team's `tenant_creation_cells` setting names the cells whose `CellAdmin`s create the
+  team's tenants in their own cell, through `POST /api/teams/{teamId}/tenants`, which the cell authorizes from the team
+  document it mirrors, so the creation needs only the cell and the directory. `GET /api/cell` reads the cell,
+  `GET /api/cell/tenants` lists its tenants with a continuation token, `GET /api/cell/teams` lists the teams that grant
+  it, and `GET`, `POST` and `DELETE /api/cell/admins` list, grant and remove its `CellAdmin`s, which only a principal of
+  the management tenant holds. `GET /api/me` reports the caller's cell roles (`cellRoles`), resolving a caller of the
+  management tenant in that tenant. The cell's setup creates its first `CellAdmin` and its cell console's client, and a
+  cell console, which `ManagementConsole:Cell` and the chart's `managementConsole.cellConsole` select, signs in against
+  the management tenant, lists the cell's tenants and creates a tenant of a granting team from its home page, and
+  manages only that cell, so it keeps working while the control-plane cell, the platform console and, for everything
+  but a tenant's creation, the directory are unreachable
   ([ADR-1417](docs/decisions/1417-management-authority-is-a-role-assignment-at-a-node-of-the-platform-team-and-tenant-hierarchy.md),
   [ADR-1536](docs/decisions/1536-a-platforms-global-plane-is-a-standalone-directory-and-a-dedicated-control-plane-cell-and-every-other-cell-runs-and-is-managed-on-its-own.md),
   [#940](https://github.com/NCodeGroup/identity/issues/940),
-  [#945](https://github.com/NCodeGroup/identity/issues/945)).
+  [#945](https://github.com/NCodeGroup/identity/issues/945),
+  [#957](https://github.com/NCodeGroup/identity/issues/957)).
 
-- **Offline commands of the host image recover a cell.** `recover-admin` creates or re-enables the local account named
-  by `Recovery:Admin:*` in the control-plane tenant and grants it `GlobalAdmin`, or in a cell with a management tenant
-  grants it `CellAdmin`, and refuses any other cell. `recover-sign-in` removes the anchor tenant's own values of the
-  settings that can block every sign-in, and the platform's values too in the control-plane cell, then re-enables its
-  default local connection, the management console client and the management resource server, logging and auditing each
-  change. `revoke-management-key` revokes a management key without a signed-in administrator, and
+- **Offline commands of the host image set up and recover a cell with its own topology.** `setup`, `recover-admin`,
+  `recover-sign-in`, `revoke-management-key` and `secret-protection` build the host that the cell's Deployment builds,
+  its directory client included, and run the host's startup prerequisites (`IStartupPrerequisite`), such as loading its
+  key rings, before their work, so the setup Job of a workload cell reserves its management tenant through the directory
+  on an empty database, and what a command saves in the control-plane cell is published through the outbox.
+  `recover-admin` creates or re-enables the local account named by `Recovery:Admin:*` in the control-plane tenant and
+  grants it `GlobalAdmin`, or in a workload cell grants it `CellAdmin`. `recover-sign-in` removes the anchor tenant's
+  own values of the settings that can block every sign-in, and the platform's values too in the control-plane cell, then
+  re-enables its default local connection, the management console client and the management resource server, logging and
+  auditing each change. `revoke-management-key` revokes a management key without a signed-in administrator, and
   `directory-client-jwks` prints the public key set of a cell's directory client, which a global administrator registers
-  with `PUT /api/cells/{name}`. The host chart runs them as a Job
+  with `PUT /api/cells/{name}`. The host chart runs them as Jobs that carry the cell's directory client and its key
   ([ADR-1536](docs/decisions/1536-a-platforms-global-plane-is-a-standalone-directory-and-a-dedicated-control-plane-cell-and-every-other-cell-runs-and-is-managed-on-its-own.md),
-  [#940](https://github.com/NCodeGroup/identity/issues/940),
-  [#945](https://github.com/NCodeGroup/identity/issues/945)).
+  [#940](https://github.com/NCodeGroup/identity/issues/940), [#945](https://github.com/NCodeGroup/identity/issues/945),
+  [#956](https://github.com/NCodeGroup/identity/issues/956)).
 
 - **The platform console lists and registers cells.** Its Cells page lists the cells with whether each answers,
   registers one with its public key set and retires one, and `managementConsole.cells` in the host chart names the cells
@@ -4698,8 +4711,9 @@ Until the first stable release, the [Unreleased] section describes the product a
   cert-manager `Certificate` issues from `backendTls.certManager`'s issuer for the directory Service's DNS names, and
   requires the ingress controller's client certificate when `backendTls.clientCertificate.required` is true. The
   `Directory chart` and `Host chart` workflows lint and render the chart's `ci/` values, and the `Host chart` workflow
-  installs the directory with `ci/kind-values.yaml` and the control-plane cell with its host chart's
-  `ci/kind-directory-values.yaml`, which carries the cell's directory client and setup Job, in kind behind Traefik
+  installs the directory with `ci/kind-values.yaml`, the control-plane cell with its host chart's
+  `ci/kind-directory-values.yaml` and a workload cell with `ci/kind-cell-values.yaml`, each with its directory client
+  and its setup Job on an empty database, in kind behind Traefik
   ([#920](https://github.com/NCodeGroup/identity/issues/920),
   [ADR-1507](docs/decisions/1507-the-host-chart-routes-to-its-https-only-pods-through-gateway-api-a-traefik-ingress-or-the-operators-own-ingress.md),
   [ADR-1536](docs/decisions/1536-a-platforms-global-plane-is-a-standalone-directory-and-a-dedicated-control-plane-cell-and-every-other-cell-runs-and-is-managed-on-its-own.md),

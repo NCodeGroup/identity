@@ -51,9 +51,22 @@ public class TeamSettingDescriptorDataSourceTests : BaseTests
     }
 
     [Fact]
-    public void Collection_WhenEnumerated_YieldsThreeDescriptors()
+    public void Collection_WhenEnumerated_YieldsFourDescriptors()
     {
-        Assert.Equal(3, DataSource.Collection.Count());
+        Assert.Equal(4, DataSource.Collection.Count());
+    }
+
+    [Fact]
+    public void Collection_WhenEnumerated_TenantCreationCellsAppliesToTeamsOnlyIsNotALimitAndIsNotDiscoverable()
+    {
+        var descriptor = Assert.Single(
+            DataSource.Collection,
+            setting => setting.Name == OpenIdSettingNames.TenantCreationCells
+        );
+
+        Assert.Equal([OpenIdSettingScopes.Team], descriptor.AppliesTo.AsEnumerable());
+        Assert.False(descriptor.IsLimit);
+        Assert.False(descriptor.IsDiscoverable);
     }
 
     [Fact]

@@ -768,7 +768,9 @@ internal class TenantApiEndpointHandler(
     }
 
     /// <summary>
-    /// Creates an OpenID tenant under a team.
+    /// Creates an OpenID tenant under a team, in the cell that serves the request. The team's administrators create its
+    /// tenants in any cell, and a cell's <c>CellAdmin</c> creates them in its own cell when the team names the cell in
+    /// its <c>tenant_creation_cells</c> setting.
     /// </summary>
     /// <param name="httpContext">The <see cref="HttpContext"/> for the current request.</param>
     /// <param name="teamId">The identifier of the team that will hold the tenant.</param>
@@ -779,6 +781,7 @@ internal class TenantApiEndpointHandler(
     /// <response code="404">The team does not exist.</response>
     /// <response code="409">A tenant with the identifier already exists, the identifier belonged to a deleted tenant, the issuer or the mutual-TLS endpoint-alias authority conflicts with another tenant's or with one that belonged to another tenant, the team or a team above it holds its maximum number of tenants, or the cell is the control-plane cell of a platform with a directory, which holds only the control-plane tenant.</response>
     /// <response code="503">The global directory cannot be reached; the response carries Retry-After.</response>
+    // See ADR-1536 (decision 10).
     [EndpointName("api/teams/tenants/create")]
     internal virtual async ValueTask<IResult> CreateTenantAsync(
         HttpContext httpContext,
@@ -1140,11 +1143,13 @@ internal class TenantApiEndpointHandler(
         CancellationToken cancellationToken
     )
     {
-        // Previewing a new tenant is part of creating it, which is authority at the team node (ADR-1417).
-        var teamNode = GetTeamNode(httpContext, teamId);
+        // Previewing a new tenant is part of creating it, which is authority at the team node (ADR-1417), held by the
+        // team's administrators and by a cell administrator the team grants the cell to (ADR-1536).
+        var managementTenantId = httpContext.GetOpenIdContext().Tenant.TenantId;
+        var creationNode = TenantCreationNode.For(managementTenantId, teamId);
         var authorizationResult = await AuthorizationService.AuthorizeAsync(
             httpContext.User,
-            teamNode,
+            creationNode,
             Operations.Create
         );
         if (!authorizationResult.Succeeded)

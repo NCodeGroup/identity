@@ -316,10 +316,13 @@ database, and calls no other cell
 ([ADR-1536](decisions/1536-a-platforms-global-plane-is-a-standalone-directory-and-a-dedicated-control-plane-cell-and-every-other-cell-runs-and-is-managed-on-its-own.md),
 [ADR-1411](decisions/1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md),
 [Cells and the global directory](hosting-analysis.md#cells-and-the-global-directory)). A cell is a host, its database,
-its Valkey and its KMS keys, in one region. The steps below follow the order of ADR-1536 decision 12, and no step waits
-on a later one. They are manual because only an operator holds the private keys and the platform authority that
-register a cell. A platform of one cell skips this section: with no `directory.url` the cell uses local adapters and
-needs no other service.
+its Valkey and its KMS keys, in one region. The control-plane cell holds the platform's global responsibilities only:
+the control-plane tenant, the platform's administrators, the teams and the cell registry, which its platform console
+manages; it never holds a customer's tenant. Each customer cell is managed from its own cell console, which keeps
+working while the global plane is down. The steps below follow the order of ADR-1536 decision 12, and no step waits on a
+later one. They are manual because only an operator holds the private keys and the platform authority that register a
+cell. A platform of one cell skips this section: with no `directory.url` the cell uses local adapters and needs no other
+service.
 
 1. **Provision the keys.** Before either release, provision the directory's signing key and the control-plane cell's
    directory-client key, each a PEM key in a Secret or a key that a key management service holds. The directory's key
@@ -341,8 +344,10 @@ needs no other service.
    (`directory.url`, `directory.clientId`, `directory.keyRing` and `directory.keys`, which the host reads as
    `Directory:Url`, `Directory:ClientId`, `Directory:KeyRing` and `KeyRings:{name}`), `cell.managementUrl` and the setup
    Job, as [first use of a deployed instance](first-deployed-instance.md) describes. The cell creates its control-plane
-   tenant locally without asking the directory, and setup creates the root `GlobalAdmin` and registers the platform
-   console's client. Its first call to the directory is its token request, signed with the key the anchor pins. The
+   tenant locally without asking the directory, and the setup Job, which runs with the cell's directory client on an
+   empty database, creates the root `GlobalAdmin` and registers the platform console's client, and an automation client
+   when `setup.automation` names one. What setup saves goes through the outbox, so it reaches the directory and every
+   workload cell. Its first call to the directory is its token request, signed with the key the anchor pins. The
    control-plane cell serves only the control-plane tenant.
 5. **Register each workload cell.** Provision the cell's directory-client key and print its public JWKS with
    `directory-client-jwks`, as in steps 1 and 2. As a `GlobalAdmin`, through the platform console's Cells page or the
@@ -359,29 +364,40 @@ needs no other service.
 6. **Install each workload cell.** Install the host chart with the cell's own `cell.name`, its directory client
    (`directory.url`, `directory.clientId` set to the registered `{name}`, `directory.keyRing` and `directory.keys`),
    `cell.controlPlaneIssuer` set to the control-plane cell's issuer and `cell.managementUrl` set to the origin of the
-   cell's own root tenant's issuer. The host refuses to start when `Cell:ManagementUrl` is empty or its origin is not the
-   root tenant's issuer origin. When the cell's tenant-resolution strategy is dynamic, the cell has a management tenant of
-   its own, and its cell setup Job (`setup.job`) creates the first `CellAdmin` and the cell console's client. Under the
-   `StaticSingle` strategy, give every workload cell its own `tenantResolution.staticSingle.tenantId`: a tenant
-   identifier is unique across the platform's cells, and the cell reserves and places its tenant in the directory when
-   it first creates it.
+   cell's own root tenant's issuer. The host refuses to start when `Cell:ManagementUrl` is empty or its origin is not
+   the root tenant's issuer origin. A workload cell serves a dynamic tenant-resolution strategy (`DynamicByHost` or
+   `DynamicByPath`), so its root tenant is its management tenant; the chart and the host refuse `StaticSingle` in a
+   workload cell. Give every workload cell its own root tenant identifier (`OpenId:TenantResolution:Root:TenantId`): a
+   tenant identifier is unique across the platform's cells. The cell setup Job (`setup.job`) runs with the cell's
+   directory client on an empty database, reserves the management tenant in the directory and places it in the cell, and
+   creates the first `CellAdmin` and the cell console's client (`setup.managementConsole`), in any order with the
+   Deployment. Run the cell console (`managementConsole.cellConsole`) from the cell's own release.
+7. **Let a team's tenants be created in a cell.** A team's administrators, or a `GlobalAdmin`, name the cells whose
+   `CellAdmin`s may create the team's tenants in the team's `tenant_creation_cells` setting, through the platform
+   console or `PATCH /api/teams/{teamId}/settings`. The setting reaches every cell with the team, and the cell console
+   then creates the team's tenants from its home page, through the cell's own management API. The platform's own team,
+   which holds the control-plane tenant and every cell's management tenant, grants no cell.
 
 **Verify:** the directory reports ready and the control-plane cell starts and reports ready. A cell's token request
 signed with its key ring, at the directory's token endpoint, returns a token for the directory. Creating a tenant in a
 cell reserves its identifier in the directory and places it in the cell, and fails with `503` while the directory is
-unreachable; a tenant that is already created keeps serving whether or not the directory is reachable. A team created
-in the control-plane cell reaches the directory, and every other cell mirrors it. A `GlobalAdmin`'s token, bound to a
-DPoP proof, calls the management API of a workload cell, which validates it against the keys it replicated.
+unreachable; a tenant that is already created keeps serving whether or not the directory is reachable. A team created in
+the control-plane cell reaches the directory, and every other cell mirrors it. A `GlobalAdmin`'s token, bound to a DPoP
+proof, calls the management API of a workload cell, which validates it against the keys it replicated, with no reset or
+restart after setup. With the control-plane cell and the platform console stopped, a `CellAdmin` signs in to the cell
+console, lists the cell's tenants and creates a tenant of a team that grants the cell; with the directory stopped too,
+only the creation answers `503`.
 
 ### Break-glass
 
 When the platform's administrators are locked out, or a setting refuses every sign-in, recover offline with the host
-image's commands, each run as a Job with the cell's schema-owner credentials, as `setup` and `secret-protection` are
+image's commands, each run as a Job with the cell's configuration, its directory client included, as `setup` and
+`secret-protection` are
 ([ADR-1512](decisions/1512-an-instance-is-set-up-once-through-a-one-time-setup-token-that-creates-a-root-global-administrator.md)):
 
 - `recover-admin` creates or re-enables a local account in the anchor tenant from `Recovery:Admin:*` (`UserName`,
-  `Password`, `Email`, `DisplayName`, from a Secret) and grants `GlobalAdmin` in the control-plane cell or `CellAdmin` in
-  a cell with a management tenant. It refuses a workload cell without a management tenant.
+  `Password`, `Email`, `DisplayName`, from a Secret) and grants `GlobalAdmin` in the control-plane cell or `CellAdmin`
+  in a workload cell.
 - `recover-sign-in` removes the anchor tenant's own values of the settings that can block every sign-in, and in the
   control-plane cell the platform's values too, and re-enables the tenant's default local connection, the management
   console client and the management resource server. It logs and audits each change. A workload cell's platform values

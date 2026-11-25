@@ -1173,3 +1173,5 @@ NCode.Identity.OpenId.Tenants.Keys.ManagementKeyRevocationResult.IsRevoked.get -
 NCode.Identity.OpenId.Tenants.Keys.ManagementKeyRevocationResult.ReplacementKeyId.get -> string?
 static NCode.Identity.OpenId.Tenants.Keys.ManagementKeyRevocationResult.NotFound.get -> NCode.Identity.OpenId.Tenants.Keys.ManagementKeyRevocationResult!
 static NCode.Identity.OpenId.Tenants.Keys.ManagementKeyRevocationResult.Revoked(string! replacementKeyId) -> NCode.Identity.OpenId.Tenants.Keys.ManagementKeyRevocationResult!
+const NCode.Identity.OpenId.Settings.OpenIdSettingNames.TenantCreationCells = "tenant_creation_cells" -> string!
+static NCode.Identity.OpenId.Settings.OpenIdSettingKeys.TenantCreationCells.get -> NCode.Identity.Settings.SettingKey<System.Collections.Generic.IReadOnlyCollection<string!>!>

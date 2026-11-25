@@ -3,6 +3,7 @@
 
 using Microsoft.Extensions.Primitives;
 using NCode.Collections.Providers;
+using NCode.Identity.OpenId.GlobalDirectory;
 using NCode.Identity.OpenId.Persistence;
 using NCode.Identity.OpenId.Settings;
 using NCode.Identity.Settings;
@@ -10,13 +11,15 @@ using NCode.Identity.Settings;
 namespace NCode.Identity.OpenId.Teams;
 
 /// <summary>
-/// Provides an additive <see cref="SettingDescriptor"/> data source for the team settings: <c>max_tenants</c>, the
-/// most tenants a team may hold; <c>max_teams</c>, the most teams that may sit beneath a team; and
-/// <c>max_team_depth</c>, the deepest level a team is created at. None is advertised in discovery.
+/// Provides an additive <see cref="SettingDescriptor"/> data source for the team settings: <c>max_tenants</c>, the most
+/// tenants a team may hold; <c>tenant_creation_cells</c>, the workload cells whose administrators may create the team's
+/// tenants; <c>max_teams</c>, the most teams that may sit beneath a team; and <c>max_team_depth</c>, the deepest level
+/// a team is created at. None is advertised in discovery.
 /// </summary>
 // See ADR-1411.
 // See ADR-1418.
 // See ADR-1426.
+// See ADR-1536.
 internal class TeamSettingDescriptorDataSource(INullChangeToken nullChangeToken)
     : ICollectionDataSource<SettingDescriptor>
 {
@@ -41,6 +44,23 @@ internal class TeamSettingDescriptorDataSource(INullChangeToken nullChangeToken)
                 IsDiscoverable = false,
                 IsLimit = true,
                 OnMerge = SettingMerge.Min,
+            };
+
+            // tenant_creation_cells: the workload cells whose CellAdmins may create the team's tenants in their own
+            // cell. Unset or empty grants no cell. The team's own administrators set it, so it is not a limit, and a
+            // team beneath it inherits it unless it sets its own (Replace).
+            var cellNameRule = SettingRules.Must<string>(
+                "a cell name: " + CellLabelRules.Description,
+                CellLabelRules.IsValidLabel
+            );
+            yield return new SettingDescriptor<IReadOnlyCollection<string>>
+            {
+                Name = OpenIdSettingNames.TenantCreationCells,
+                AppliesTo = [OpenIdSettingScopes.Team],
+                Rule = SettingRules.Each(cellNameRule),
+
+                IsDiscoverable = false,
+                OnMerge = SettingMerge.Replace,
             };
 
             // max_teams: the most teams that may sit beneath a team, at every level. Unset means unlimited. A limit:

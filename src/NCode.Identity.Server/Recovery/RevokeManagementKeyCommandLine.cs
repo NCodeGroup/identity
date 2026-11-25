@@ -133,6 +133,9 @@ public sealed class RevokeManagementKeyCommandLine : IHostCommand
             return 2;
         }
 
+        // The command never starts the host, so it loads what the host loads as it starts.
+        await HostCommandPrerequisites.PrepareAsync(services, cancellationToken);
+
         var timeProvider = services.GetRequiredService<TimeProvider>();
         var storeManagerFactory = services.GetRequiredService<IStoreManagerFactory>();
         await using var storeManager = await storeManagerFactory.CreateAsync(cancellationToken);

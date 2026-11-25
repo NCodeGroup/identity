@@ -14,11 +14,14 @@ using NCode.Identity.OpenId.GlobalDirectory;
 using NCode.Identity.OpenId.Management.Authorization;
 using NCode.Identity.OpenId.Management.Contracts;
 using NCode.Identity.OpenId.Management.Contracts.Cells;
+using NCode.Identity.OpenId.Management.Contracts.Teams;
 using NCode.Identity.OpenId.Management.Contracts.Tenants;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
+using NCode.Identity.OpenId.Settings;
 using NCode.Identity.OpenId.Tenants;
 using NCode.Identity.Persistence.Stores;
+using NCode.Identity.Settings;
 
 namespace NCode.Identity.OpenId.Management.Endpoints.Cell;
 
@@ -33,6 +36,8 @@ public sealed class CellScopeApiEndpointHandlerTests : IDisposable
     private Mock<IAuthorizationService> MockAuthorizationService { get; }
     private Mock<ICryptoService> MockCryptoService { get; }
     private Mock<IPlatformTopology> MockPlatformTopology { get; }
+    private Mock<IEffectiveSettingsResolver> MockEffectiveSettingsResolver { get; }
+    private Mock<ITeamStore> MockTeamStore { get; }
     private CellScopeApiEndpointHandler Handler { get; }
 
     public CellScopeApiEndpointHandlerTests()
@@ -44,6 +49,8 @@ public sealed class CellScopeApiEndpointHandlerTests : IDisposable
         MockAuthorizationService = MockRepository.Create<IAuthorizationService>();
         MockCryptoService = MockRepository.Create<ICryptoService>();
         MockPlatformTopology = MockRepository.Create<IPlatformTopology>();
+        MockEffectiveSettingsResolver = MockRepository.Create<IEffectiveSettingsResolver>();
+        MockTeamStore = MockRepository.Create<ITeamStore>();
         Handler = CreateHandler(isControlPlane: false);
     }
 
@@ -60,6 +67,7 @@ public sealed class CellScopeApiEndpointHandlerTests : IDisposable
             MockAuthorizationService.Object,
             MockCryptoService.Object,
             MockPlatformTopology.Object,
+            MockEffectiveSettingsResolver.Object,
             Options.Create(
                 new CellOptions
                 {
@@ -68,7 +76,8 @@ public sealed class CellScopeApiEndpointHandlerTests : IDisposable
                     Kind = CellKinds.Dedicated,
                     IsControlPlane = isControlPlane,
                 }
-            )
+            ),
+            Options.Create(new TenantResolutionOptions())
         );
 
     private static DefaultHttpContext CreateHttpContext(bool authenticated)
@@ -293,11 +302,105 @@ public sealed class CellScopeApiEndpointHandlerTests : IDisposable
 
     #endregion
 
+    #region ListCellTeamsAsync Tests
+
+    private static PersistedTeam CreateTeam(string teamId, bool isDisabled = false) =>
+        new PersistedTeamBuilder { TeamId = teamId, IsDisabled = isDisabled }.Build();
+
+    private void SetupTeamSettings(string teamId, params string[] cells)
+    {
+        var mockSettings = MockRepository.Create<IReadOnlySettingCollection>();
+        IReadOnlyCollection<string>? granted = cells;
+        mockSettings
+            .Setup(x => x.TryGetValue(OpenIdSettingKeys.TenantCreationCells, out granted))
+            .Returns(true)
+            .Verifiable();
+        MockEffectiveSettingsResolver
+            .Setup(x => x.ResolveTeamAsync(teamId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(mockSettings.Object)
+            .Verifiable();
+    }
+
+    [Fact]
+    public async Task ListCellTeamsAsync_WhenTheCallerHoldsAuthorityAtTheCell_ListsTheTeamsThatGrantTheCell()
+    {
+        var authorized = new List<ResourceNode>();
+        SetupCellAuthority(holdsAuthorityAtTheCell: true, authorized);
+        MockStoreManagerFactory
+            .Setup(x => x.CreateAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(MockStoreManager.Object)
+            .Verifiable();
+        MockStoreManager.Setup(x => x.GetStore<ITeamStore>()).Returns(MockTeamStore.Object);
+        MockStoreManager.Setup(x => x.DisposeAsync()).Returns(ValueTask.CompletedTask);
+        MockTeamStore
+            .Setup(x =>
+                x.GetPageAsync(
+                    It.Is<PageRequest>(page => page.Cursor == null),
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync(
+                new PagedResult<PersistedTeam>
+                {
+                    Items = [CreateTeam("platform"), CreateTeam("acme"), CreateTeam("globex")],
+                    NextCursor = "next",
+                }
+            )
+            .Verifiable();
+        MockTeamStore
+            .Setup(x =>
+                x.GetPageAsync(
+                    It.Is<PageRequest>(page => page.Cursor == "next"),
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync(
+                new PagedResult<PersistedTeam>
+                {
+                    Items = [CreateTeam("initech", isDisabled: true), CreateTeam("umbrella")],
+                    NextCursor = null,
+                }
+            )
+            .Verifiable();
+        SetupTeamSettings("acme", CellName);
+        SetupTeamSettings("globex", "cell-b");
+        SetupTeamSettings("umbrella", "cell-b", CellName);
+
+        var result = await Handler.ListCellTeamsAsync(
+            CreateHttpContext(authenticated: true),
+            CancellationToken.None
+        );
+
+        var json = Assert.IsType<JsonHttpResult<CollectionResource<TeamResource>>>(result);
+        var collection = Assert.IsType<CollectionResource<TeamResource>>(json.Value);
+        Assert.Equal(["acme", "umbrella"], collection.Items.Select(x => x.TeamId));
+        var node = Assert.Single(authorized);
+        Assert.Equal(ResourceNodeTypes.Cell, node.ResourceType);
+        Assert.Equal(CellName, node.ResourceId);
+    }
+
+    [Fact]
+    public async Task ListCellTeamsAsync_WhenTheCallerAdministersOneTenant_ReturnsForbiddenWithoutReadingTheStore()
+    {
+        SetupCellAuthority(holdsAuthorityAtTheCell: false, []);
+
+        var result = await Handler.ListCellTeamsAsync(
+            CreateHttpContext(authenticated: true),
+            CancellationToken.None
+        );
+
+        var problem = Assert.IsType<ProblemHttpResult>(result);
+        Assert.Equal(StatusCodes.Status403Forbidden, problem.StatusCode);
+    }
+
+    #endregion
+
     #region Map Tests
 
     [Theory]
     [InlineData("GET", "/cell", new[] { 401 })]
     [InlineData("GET", "/cell/tenants", new[] { 400, 401, 403 })]
+    [InlineData("GET", "/cell/teams", new[] { 401, 403 })]
     public async Task Map_Always_DeclaresAndDescribesEveryProblemARouteAnswers(
         string httpMethod,
         string routePattern,
@@ -328,7 +431,7 @@ public sealed class CellScopeApiEndpointHandlerTests : IDisposable
     {
         var routes = MapRoutes(Handler);
 
-        Assert.Equal(["/cell", "/cell/tenants"], routes);
+        Assert.Equal(["/cell", "/cell/teams", "/cell/tenants"], routes);
     }
 
     [Fact]

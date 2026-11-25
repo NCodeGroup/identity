@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import AddIcon from '@mui/icons-material/Add';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -41,6 +41,7 @@ import {
   type ApiError,
   type CellTenantResource,
 } from '@ncodegroup/identity-store';
+import { useDebouncedValue } from '../useDebouncedValue.js';
 
 export type TenantsPageProps = {
   /** The team whose tenants are listed and created. */
@@ -100,15 +101,6 @@ function promotionErrorMessage(error: ApiError): string {
     return [resource.length > 0 ? `${resource}: ${detail}` : detail];
   });
   return lines.length > 0 ? `${message} ${lines.join(' ')}` : message;
-}
-
-function useDebouncedValue<T>(value: T, delayMs: number): T {
-  const [debounced, setDebounced] = useState(value);
-  useEffect(() => {
-    const timer = setTimeout(() => setDebounced(value), delayMs);
-    return () => clearTimeout(timer);
-  }, [value, delayMs]);
-  return debounced;
 }
 
 /**

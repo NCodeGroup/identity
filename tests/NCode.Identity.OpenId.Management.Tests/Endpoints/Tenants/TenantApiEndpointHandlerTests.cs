@@ -5127,7 +5127,7 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
     }
 
     [Fact]
-    public async Task GetTeamTenantAddressAsync_RequestsCreateOnTheTeamNode()
+    public async Task GetTeamTenantAddressAsync_RequestsCreateOnTheTeamNodeNamedAsATenantCreation()
     {
         SetupTeamPreviewStore(CreateTeam(), readsTenant: true);
         SetupNoTenant("acme");
@@ -5168,7 +5168,7 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
         );
 
         Assert.IsType<Ok<TenantAddressResource>>(result);
-        var node = Assert.IsType<ResourceNode>(authorizedResource);
+        var node = Assert.IsType<TenantCreationNode>(authorizedResource);
         Assert.Equal(
             (ControlPlaneTenantId, ResourceNodeTypes.Team, TeamId),
             (node.TenantId, node.ResourceType, node.ResourceId)

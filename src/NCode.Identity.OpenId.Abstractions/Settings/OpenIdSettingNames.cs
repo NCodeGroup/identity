@@ -1231,6 +1231,14 @@ public static class OpenIdSettingNames
     public const string MaxTenants = "max_tenants";
 
     /// <summary>
+    /// Contains the name of the <c>tenant_creation_cells</c> setting: the workload cells, by name, whose
+    /// <c>CellAdmin</c>s may create the team's tenants in their own cell. Unset or empty grants no cell. It applies to
+    /// the team scope and is set by the team's administrators; a team beneath it inherits it unless it sets its own.
+    /// </summary>
+    // See ADR-1536 (decision 10).
+    public const string TenantCreationCells = "tenant_creation_cells";
+
+    /// <summary>
     /// Contains the name of the <c>max_teams</c> setting: the most teams that may sit beneath a team, at every level;
     /// a creation that would exceed it is refused. Unset means unlimited. It is a limit on the team scope: the
     /// administrators above the team set it, and a team can only lower it for the teams beneath it.
