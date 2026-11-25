@@ -132,6 +132,13 @@ internal sealed class ManagementResourceServerSeedHandler(
             scopes = scopes.Concat(rootScopes);
         }
 
+        if (plane == TenantPlane.Workload)
+        {
+            // The cell family, seeded into every workload-plane tenant, so a cell's management tenant carries it.
+            var cellScopes = SettingsScopes(ManagementScopes.Families.Cell, "the cell");
+            scopes = scopes.Concat(cellScopes);
+        }
+
         return scopes
             .GroupBy(scope => scope.Value, StringComparer.Ordinal)
             .Select(byValue => byValue.First())

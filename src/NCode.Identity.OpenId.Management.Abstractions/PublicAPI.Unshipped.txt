@@ -662,6 +662,16 @@ NCode.Identity.OpenId.Management.Contracts.Cells.CellResource.Name.get -> string
 NCode.Identity.OpenId.Management.Contracts.Cells.CellResource.Name.init -> void
 NCode.Identity.OpenId.Management.Contracts.Cells.CellResource.Region.get -> string!
 NCode.Identity.OpenId.Management.Contracts.Cells.CellResource.Region.init -> void
+NCode.Identity.OpenId.Management.Contracts.Cells.CellScopeResource
+NCode.Identity.OpenId.Management.Contracts.Cells.CellScopeResource.CellScopeResource() -> void
+NCode.Identity.OpenId.Management.Contracts.Cells.CellScopeResource.HasManagementTenant.get -> bool
+NCode.Identity.OpenId.Management.Contracts.Cells.CellScopeResource.HasManagementTenant.init -> void
+NCode.Identity.OpenId.Management.Contracts.Cells.CellScopeResource.Kind.get -> string!
+NCode.Identity.OpenId.Management.Contracts.Cells.CellScopeResource.Kind.init -> void
+NCode.Identity.OpenId.Management.Contracts.Cells.CellScopeResource.Name.get -> string!
+NCode.Identity.OpenId.Management.Contracts.Cells.CellScopeResource.Name.init -> void
+NCode.Identity.OpenId.Management.Contracts.Cells.CellScopeResource.Region.get -> string!
+NCode.Identity.OpenId.Management.Contracts.Cells.CellScopeResource.Region.init -> void
 NCode.Identity.OpenId.Management.Contracts.Cells.RegisterCellRequest
 NCode.Identity.OpenId.Management.Contracts.Cells.RegisterCellRequest.Jwks.get -> System.Text.Json.JsonElement
 NCode.Identity.OpenId.Management.Contracts.Cells.RegisterCellRequest.Jwks.init -> void

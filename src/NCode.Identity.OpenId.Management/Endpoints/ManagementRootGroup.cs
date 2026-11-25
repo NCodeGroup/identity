@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.Routing.Patterns;
 using NCode.Identity.AspNetCore;
 using NCode.Identity.OpenId.Management.Endpoints.Caller;
 using NCode.Identity.OpenId.Management.Endpoints.Capabilities;
+using NCode.Identity.OpenId.Management.Endpoints.Cell;
 using NCode.Identity.OpenId.Management.Endpoints.Cells;
 using NCode.Identity.OpenId.Management.Endpoints.Clients;
 using NCode.Identity.OpenId.Management.Endpoints.Platform;
@@ -82,6 +83,7 @@ internal sealed class ManagementRootGroup : IEndpointGroup
         builder.AddCallerEndpoint();
         builder.AddPlatformEndpoint();
         builder.AddEndpoint<CellApiEndpointHandler>();
+        builder.AddEndpoint<CellScopeApiEndpointHandler>();
         builder.AddTeamEndpoint();
         builder.AddMachineClientEndpoint();
         builder.AddTenantEndpoint();
