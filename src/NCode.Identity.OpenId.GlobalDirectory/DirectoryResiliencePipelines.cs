@@ -26,19 +26,16 @@ internal sealed class DirectoryResiliencePipelines(
     DirectoryMetrics metrics
 )
 {
-    private ResiliencePipeline<HttpResponseMessage> Retrying { get; } =
-        Build(options.Value, options.Value.MaxRetryAttempts, timeProvider, metrics);
-
-    private ResiliencePipeline<HttpResponseMessage> Bounded { get; } =
-        Build(options.Value, maxRetryAttempts: 0, timeProvider, metrics);
+    /// <summary>
+    /// The <c>error.type</c> of an attempt that the per-attempt timeout cancelled.
+    /// </summary>
+    private const string TimeoutErrorType = "timeout";
 
     /// <summary>
-    /// Selects the pipeline that bounds <paramref name="request"/>.
+    /// The bounded catch-all <c>error.type</c> that the family's metrics use
+    /// (<c>OpenIdMetricAttributes.OtherValue</c>).
     /// </summary>
-    /// <param name="request">The request that is about to be sent.</param>
-    /// <returns>The pipeline that runs the request.</returns>
-    public ResiliencePipeline<HttpResponseMessage> Select(HttpRequestMessage request) =>
-        IsRetryable(request) ? Retrying : Bounded;
+    private const string OtherErrorType = "_OTHER";
 
     /// <summary>
     /// Determines whether <paramref name="request"/> may be sent again after a failed attempt. A request with a body is
@@ -98,11 +95,11 @@ internal sealed class DirectoryResiliencePipelines(
         return OtherErrorType;
     }
 
-    private const string TimeoutErrorType = "timeout";
-
-    // The bounded catch-all value the family's metrics use (OpenIdMetricAttributes.OtherValue).
-    private const string OtherErrorType = "_OTHER";
-
+    /// <summary>
+    /// Converts a Pascal-case name to snake case, as an <c>error.type</c> names an <see cref="HttpRequestError"/>.
+    /// </summary>
+    /// <param name="name">The Pascal-case name.</param>
+    /// <returns>The name in snake case.</returns>
     private static string ToSnakeCase(string name)
     {
         var builder = new StringBuilder(name.Length + 8);
@@ -125,6 +122,13 @@ internal sealed class DirectoryResiliencePipelines(
         return builder.ToString();
     }
 
+    /// <summary>
+    /// Creates the options of a timeout strategy that counts each timeout under <paramref name="scope"/>.
+    /// </summary>
+    /// <param name="timeout">The time limit.</param>
+    /// <param name="scope">The timeout scope that the timeout counter records.</param>
+    /// <param name="metrics">The <see cref="DirectoryMetrics"/> that count the timeouts.</param>
+    /// <returns>The timeout strategy options.</returns>
     private static TimeoutStrategyOptions CreateTimeout(
         TimeSpan timeout,
         string scope,
@@ -140,6 +144,15 @@ internal sealed class DirectoryResiliencePipelines(
             },
         };
 
+    /// <summary>
+    /// Builds a pipeline of the total timeout and, when <paramref name="maxRetryAttempts"/> is above zero, a jittered
+    /// exponential retry around a per-attempt timeout.
+    /// </summary>
+    /// <param name="options">The <see cref="DirectoryClientOptions"/> that hold the limits.</param>
+    /// <param name="maxRetryAttempts">The number of retries; zero builds a pipeline that sends once.</param>
+    /// <param name="timeProvider">The <see cref="TimeProvider"/> that runs the timeouts and the retry delays.</param>
+    /// <param name="metrics">The <see cref="DirectoryMetrics"/> that count the retries and the timeouts.</param>
+    /// <returns>The pipeline.</returns>
     private static ResiliencePipeline<HttpResponseMessage> Build(
         DirectoryClientOptions options,
         int maxRetryAttempts,
@@ -190,4 +203,18 @@ internal sealed class DirectoryResiliencePipelines(
 
         return builder.Build();
     }
+
+    private ResiliencePipeline<HttpResponseMessage> Retrying { get; } =
+        Build(options.Value, options.Value.MaxRetryAttempts, timeProvider, metrics);
+
+    private ResiliencePipeline<HttpResponseMessage> Bounded { get; } =
+        Build(options.Value, maxRetryAttempts: 0, timeProvider, metrics);
+
+    /// <summary>
+    /// Selects the pipeline that bounds <paramref name="request"/>.
+    /// </summary>
+    /// <param name="request">The request that is about to be sent.</param>
+    /// <returns>The pipeline that runs the request.</returns>
+    public ResiliencePipeline<HttpResponseMessage> Select(HttpRequestMessage request) =>
+        IsRetryable(request) ? Retrying : Bounded;
 }
