@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { PLATFORM_SCOPE, teamScope, tenantScope } from '@ncodegroup/identity-api';
 import {
+  cellRoute,
+  CELL_SURFACES,
   DEFAULT_ROUTE,
   HOME_ROUTE,
   parseRoute,
@@ -293,5 +295,20 @@ describe('routeScope', () => {
 
   it('derives the same tenant scope whatever cell the tenant route names', () => {
     expect(routeScope(tenantRoute('acme', 'settings', 'eu-1'))).toEqual(tenantScope('acme'));
+  });
+});
+
+describe('the cell route', () => {
+  it('formats the cell surfaces under /cell and parses them back', () => {
+    expect(routePath(cellRoute('admins'))).toBe('/cell/admins');
+    for (const surface of CELL_SURFACES) {
+      expect(parseRoute(routePath(cellRoute(surface)))).toEqual(cellRoute(surface));
+    }
+  });
+
+  it('names no route for an unknown cell surface or a longer path', () => {
+    expect(parseRoute('/cell')).toBeNull();
+    expect(parseRoute('/cell/other')).toBeNull();
+    expect(parseRoute('/cell/admins/x')).toBeNull();
   });
 });

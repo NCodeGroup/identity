@@ -24,6 +24,9 @@ import {
 const HomePage = lazy(() =>
   import('./containers/HomePage.js').then((m) => ({ default: m.HomePage })),
 );
+const CellAdminsPage = lazy(() =>
+  import('./containers/CellAdminsPage.js').then((m) => ({ default: m.CellAdminsPage })),
+);
 const TeamsPage = lazy(() =>
   import('./containers/TeamsPage.js').then((m) => ({ default: m.TeamsPage })),
 );
@@ -84,19 +87,25 @@ export function App() {
   const subject =
     user?.name ?? (typeof preferredUsername === 'string' ? preferredUsername : user?.sub);
 
+  // A console that manages one cell shows no platform or team surface and addresses only its own API.
+  const consoleKind = useAppSelector((state) =>
+    state.config.runtime?.kind === 'bff' ? state.config.runtime.console : undefined,
+  );
+  const isCellConsole = consoleKind === 'cell';
+
   const route = useConsoleRoute();
-  const scope = route.kind === 'home' ? undefined : routeScope(route);
+  const scope = route.kind === 'home' || route.kind === 'cell' ? undefined : routeScope(route);
 
   // The caller's access is unknown until all three queries answer; until then the guard and back controls keep their
   // defaults.
   const access = useCallerAccess(isSignedIn);
 
   useEffect(() => {
-    const permitted = permittedRoute(route, access);
+    const permitted = permittedRoute(route, access, consoleKind);
     if (permitted !== route) {
       navigateTo(permitted, { replace: true });
     }
-  }, [route, access]);
+  }, [route, access, consoleKind]);
 
   // A tenant opens in the cell of its row; a tenant without one opens in the control plane.
   const openTenant = (tenantId: string, cell?: string) =>
@@ -130,7 +139,9 @@ export function App() {
   });
 
   const teamBack = teamExit(access, currentTeam?.parentTeamId);
-  const tenantBack = tenantExit(access, tenant?.teamId);
+  const tenantBack = isCellConsole
+    ? { route: HOME_ROUTE, label: 'Home' }
+    : tenantExit(access, tenant?.teamId);
 
   return (
     <AppLayout
@@ -151,6 +162,10 @@ export function App() {
       {route.kind === 'home' ? (
         <Suspense fallback={surfaceFallback}>
           <HomePage onNavigate={navigateTo} />
+        </Suspense>
+      ) : route.kind === 'cell' ? (
+        <Suspense fallback={surfaceFallback}>
+          <CellAdminsPage />
         </Suspense>
       ) : route.kind === 'platform' ? (
         <>

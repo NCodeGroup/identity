@@ -4,7 +4,7 @@ import { Provider } from 'react-redux';
 import { createAppStore } from '@ncodegroup/identity-store';
 import type { BffRuntimeConfig } from '@ncodegroup/identity-config';
 import { HomePage } from './HomePage.js';
-import { platformRoute, teamRoute, tenantRoute } from '../routes.js';
+import { cellRoute, platformRoute, teamRoute, tenantRoute } from '../routes.js';
 
 const runtime: BffRuntimeConfig = {
   kind: 'bff',
@@ -215,5 +215,76 @@ describe('HomePage', () => {
     expect(await screen.findByTestId('data-error')).toHaveTextContent(
       'Failed to load your access.',
     );
+  });
+});
+
+describe('HomePage of a cell console', () => {
+  const cellRuntime: BffRuntimeConfig = { ...runtime, console: 'cell', cell: 'eu-1' };
+
+  function installCellFetch(cellRoles: readonly string[], tenants: readonly unknown[]) {
+    const urls: string[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const request = input as Request;
+        urls.push(request.url);
+        if (request.url.endsWith('/api/me')) {
+          return jsonResponse({
+            principalId: 'principal-1',
+            isPlatformAdministrator: false,
+            assignments: [],
+            cellRoles,
+          });
+        }
+        if (request.url.endsWith('/api/cell')) {
+          return jsonResponse({
+            name: 'eu-1',
+            region: 'eu',
+            kind: 'shared',
+            hasManagementTenant: true,
+          });
+        }
+        if (request.url.includes('/api/cell/tenants')) {
+          return jsonResponse({ items: tenants });
+        }
+        throw new Error(`Unexpected ${request.method} ${request.url}`);
+      }),
+    );
+    return urls;
+  }
+
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("lists the cell's tenants with their team and opens one without a cell", async () => {
+    const urls = installCellFetch(['CellAdmin'], [tenant]);
+
+    const onNavigate = renderPage(vi.fn(), cellRuntime);
+
+    expect(await screen.findByTestId('tenant-team-acme')).toHaveTextContent('support');
+    expect(screen.getByTestId('cell-title')).toHaveTextContent('Cell eu-1');
+    fireEvent.click(screen.getByTestId('tenant-row-acme'));
+    expect(onNavigate).toHaveBeenLastCalledWith(tenantRoute('acme'));
+    expect(urls.some((url) => url.includes('/cells/'))).toBe(false);
+    expect(urls.some((url) => url.endsWith('/api/me/teams'))).toBe(false);
+  });
+
+  it('links to the administrators for a CellAdmin', async () => {
+    installCellFetch(['CellAdmin'], [tenant]);
+
+    const onNavigate = renderPage(vi.fn(), cellRuntime);
+
+    fireEvent.click(await screen.findByTestId('home-open-cell-admins'));
+    expect(onNavigate).toHaveBeenLastCalledWith(cellRoute('admins'));
+  });
+
+  it('shows no administrators link to a caller without a cell role', async () => {
+    installCellFetch([], [tenant]);
+
+    renderPage(vi.fn(), cellRuntime);
+
+    await screen.findByTestId('tenant-row-acme');
+    expect(screen.queryByTestId('home-open-cell-admins')).not.toBeInTheDocument();
   });
 });

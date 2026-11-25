@@ -9,7 +9,7 @@ import {
   toCallerAccess,
   type CallerAccess,
 } from './access.js';
-import { HOME_ROUTE, platformRoute, teamRoute, tenantRoute } from './routes.js';
+import { cellRoute, HOME_ROUTE, platformRoute, teamRoute, tenantRoute } from './routes.js';
 
 const admin: CallerAccess = { isPlatformAdministrator: true, teamIds: [], tenants: [] };
 const member: CallerAccess = { isPlatformAdministrator: false, teamIds: ['acme'], tenants: [] };
@@ -167,5 +167,18 @@ describe('permittedRoute', () => {
 
   it('keeps a team route for any other caller', () => {
     expect(permittedRoute(teamRoute('acme'), member)).toEqual(teamRoute('acme'));
+  });
+});
+
+describe('permittedRoute in a cell console', () => {
+  it('sends a platform or team route home and keeps a cell route', () => {
+    expect(permittedRoute(platformRoute('teams'), undefined, 'cell')).toEqual(HOME_ROUTE);
+    expect(permittedRoute(teamRoute('acme'), undefined, 'cell')).toEqual(HOME_ROUTE);
+    expect(permittedRoute(cellRoute('admins'), undefined, 'cell')).toEqual(cellRoute('admins'));
+  });
+
+  it('sends a cell route home in a console that is not a cell console', () => {
+    expect(permittedRoute(cellRoute('admins'), undefined)).toEqual(HOME_ROUTE);
+    expect(permittedRoute(cellRoute('admins'), undefined, 'platform')).toEqual(HOME_ROUTE);
   });
 });

@@ -1,20 +1,30 @@
 import { useEffect } from 'react';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
+import Chip from '@mui/material/Chip';
+import Table from '@mui/material/Table';
+import TableBody from '@mui/material/TableBody';
+import TableCell from '@mui/material/TableCell';
+import TableHead from '@mui/material/TableHead';
+import TableRow from '@mui/material/TableRow';
 import Typography from '@mui/material/Typography';
 import {
   DataStateBoundary,
+  LoadMoreButton,
   TeamTable,
   TenantTable,
   UnavailableCellsAlert,
 } from '@ncodegroup/identity-ui';
 import {
+  managementApi,
+  pagedItems,
+  useAppSelector,
   useGetCallerQuery,
   useListCallerTeamsQuery,
   useListCallerTenantsQuery,
 } from '@ncodegroup/identity-store';
 import { soleDestination } from '../access.js';
-import { platformRoute, teamRoute, tenantRoute, type ConsoleRoute } from '../routes.js';
+import { cellRoute, platformRoute, teamRoute, tenantRoute, type ConsoleRoute } from '../routes.js';
 import { useCallerAccess } from '../useCallerAccess.js';
 
 export type HomePageProps = {
@@ -22,13 +32,112 @@ export type HomePageProps = {
   readonly onNavigate: (route: ConsoleRoute, options?: { readonly replace?: boolean }) => void;
 };
 
+/** The roles at a cell's node that may list its administrators. */
+const cellAdministratorRoles = ['CellAdmin', 'GlobalAdmin'];
+
+/**
+ * Container: the caller's home. A console that manages one cell shows that cell's tenants; every other console shows
+ * the places the caller holds authority.
+ */
+export function HomePage({ onNavigate }: HomePageProps) {
+  const isCellConsole = useAppSelector(
+    (state) => state.config.runtime?.kind === 'bff' && state.config.runtime.console === 'cell',
+  );
+  return isCellConsole ? (
+    <CellHome onNavigate={onNavigate} />
+  ) : (
+    <AuthorityHome onNavigate={onNavigate} />
+  );
+}
+
+/**
+ * Container: the home of a console that manages one cell. Lists the tenants the cell holds, a page at a time, with the
+ * team of each and a link into the tenant, and links to the cell's administrators for a caller who holds
+ * `CellAdmin` or `GlobalAdmin` at the cell. A tenant opens in the console's own API, which addresses no other cell.
+ */
+function CellHome({ onNavigate }: HomePageProps) {
+  const caller = useGetCallerQuery();
+  const scope = managementApi.endpoints.getCellScope.useQuery();
+  const { data, isLoading, error, hasNextPage, isFetchingNextPage, fetchNextPage } =
+    managementApi.endpoints.listCellTenants.useInfiniteQuery();
+  const tenants = pagedItems(data);
+  const canListAdmins = (caller.data?.cellRoles ?? []).some((role) =>
+    cellAdministratorRoles.includes(role),
+  );
+
+  return (
+    <>
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+        <Typography variant="h5" component="h2" data-testid="cell-title">
+          {scope.data ? `Cell ${scope.data.name}` : 'Cell'}
+        </Typography>
+        {canListAdmins && (
+          <Button
+            variant="outlined"
+            onClick={() => onNavigate(cellRoute('admins'))}
+            data-testid="home-open-cell-admins"
+          >
+            Administrators
+          </Button>
+        )}
+      </Box>
+      <DataStateBoundary
+        isLoading={isLoading}
+        error={error ? 'Failed to load the tenants of this cell.' : undefined}
+        isEmpty={tenants.length === 0}
+        emptyMessage="This cell holds no tenants yet."
+      >
+        <Table size="small" aria-label="Tenants">
+          <TableHead>
+            <TableRow>
+              <TableCell>Display name</TableCell>
+              <TableCell>Tenant</TableCell>
+              <TableCell>Team</TableCell>
+              <TableCell>Status</TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {tenants.map((tenant) => (
+              <TableRow
+                key={tenant.tenantId}
+                hover
+                sx={{ cursor: 'pointer' }}
+                onClick={() => onNavigate(tenantRoute(tenant.tenantId))}
+                data-testid={`tenant-row-${tenant.tenantId}`}
+              >
+                <TableCell>{tenant.displayName}</TableCell>
+                <TableCell>{tenant.tenantId}</TableCell>
+                <TableCell data-testid={`tenant-team-${tenant.tenantId}`}>
+                  {tenant.teamId}
+                </TableCell>
+                <TableCell>
+                  <Chip
+                    size="small"
+                    color={tenant.isDisabled ? 'default' : 'success'}
+                    label={tenant.isDisabled ? 'Disabled' : 'Active'}
+                  />
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </DataStateBoundary>
+      <LoadMoreButton
+        hasMore={hasNextPage}
+        isLoading={isFetchingNextPage}
+        onLoadMore={() => void fetchNextPage()}
+      />
+    </>
+  );
+}
+
 /**
  * Container: the caller's home (ADR-1465). Lists the places the signed-in caller holds authority: the platform for a
  * platform administrator, and the teams and tenants at which it holds a role, and names each cell that did not answer,
  * whose tenants are missing. When exactly one destination exists and every cell answered, it opens it at once,
  * replacing the home entry. Owns no state; the caller's access comes from the store layer.
  */
-export function HomePage({ onNavigate }: HomePageProps) {
+function AuthorityHome({ onNavigate }: HomePageProps) {
   const caller = useGetCallerQuery();
   const teamsQuery = useListCallerTeamsQuery();
   const tenantsQuery = useListCallerTenantsQuery();
