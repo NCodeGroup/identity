@@ -453,9 +453,9 @@ public sealed class CellApiEndpointHandlerTests : IDisposable
 
     [Theory]
     [InlineData("GET", "/cells", new[] { 401 })]
-    [InlineData("GET", "/cells/{name}", new[] { 401, 403, 404 })]
-    [InlineData("PUT", "/cells/{name}", new[] { 400, 401, 403, 409 })]
-    [InlineData("DELETE", "/cells/{name}", new[] { 401, 403, 409 })]
+    [InlineData("GET", "/cells/{name}", new[] { 401, 403, 404, 503 })]
+    [InlineData("PUT", "/cells/{name}", new[] { 400, 401, 403, 409, 415, 503 })]
+    [InlineData("DELETE", "/cells/{name}", new[] { 401, 403, 409, 503 })]
     public async Task Map_Always_DeclaresAndDescribesEveryProblemARouteAnswers(
         string httpMethod,
         string routePattern,

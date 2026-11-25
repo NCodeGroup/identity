@@ -198,6 +198,7 @@ internal class CellApiEndpointHandler(
     /// <response code="200">The registered cell.</response>
     /// <response code="400">The region or kind is blank, or the key set is not a valid public JSON Web Key Set.</response>
     /// <response code="409">The directory refuses the registration; the detail names the reason.</response>
+    /// <response code="415">The request body is not JSON.</response>
     /// <response code="503">The global directory cannot be reached; the response carries Retry-After.</response>
     [EndpointName("api/cells/register")]
     internal virtual async ValueTask<IResult> RegisterCellAsync(
