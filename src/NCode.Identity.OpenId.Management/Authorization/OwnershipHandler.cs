@@ -12,6 +12,7 @@ using NCode.Identity.OpenId.Persistence;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
 using NCode.Identity.OpenId.Persistence.Tenants;
+using NCode.Identity.OpenId.PrincipalResolution;
 using NCode.Identity.Persistence.Stores;
 
 namespace NCode.Identity.OpenId.Management.Authorization;
@@ -30,12 +31,15 @@ namespace NCode.Identity.OpenId.Management.Authorization;
 /// <c>TeamAdmin</c>, <c>TenantAdmin</c> or <c>GlobalAdmin</c> assignment at the node or an ancestor. The platform and
 /// team roles come from <see cref="IControlPlaneAuthority"/>, asked about the caller's <c>sub</c> and <c>client_id</c>
 /// claims and the teams above the node, which also answers the control-plane principal identifier that the cell's
-/// tenant-level and resource-level assignments are matched against.
+/// tenant-level and resource-level assignments are matched against. A caller whose management token the cell's own
+/// management tenant issued never reaches <see cref="IControlPlaneAuthority"/>: its principal is resolved in that
+/// tenant and it is authorized only by the assignments the cell stores, never by a platform or team role.
 /// </summary>
 // See ADR-1411 and ADR-1466.
 internal sealed class OwnershipHandler(
     IStoreManagerFactory storeManagerFactory,
     IControlPlaneAuthority controlPlaneAuthority,
+    IPrincipalResolver principalResolver,
     IHttpContextAccessor httpContextAccessor,
     IAmbientTenantAccessor ambientTenantAccessor,
     IAuthorityChainResolver authorityChainResolver
@@ -48,6 +52,7 @@ internal sealed class OwnershipHandler(
 
     private IStoreManagerFactory StoreManagerFactory { get; } = storeManagerFactory;
     private IControlPlaneAuthority ControlPlaneAuthority { get; } = controlPlaneAuthority;
+    private IPrincipalResolver PrincipalResolver { get; } = principalResolver;
     private IAuthorityChainResolver AuthorityChainResolver { get; } = authorityChainResolver;
 
     // ASP.NET Core authorization handlers are invoked by the framework without the request's OpenIdContext in hand, so
@@ -98,38 +103,59 @@ internal sealed class OwnershipHandler(
 
         await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
 
+        // A caller of the cell's own management tenant is known to that tenant alone, and the cell stores everything
+        // that authorizes it.
+        var issuerKind = context.User.FindFirstValue(ManagementIssuerKinds.ClaimType);
+        var isCellCaller = string.Equals(
+            issuerKind,
+            ManagementIssuerKinds.Cell,
+            StringComparison.Ordinal
+        );
+
         string? principalId = null;
-        var teamIds = await GetTeamIdsAsync(node, storeManager, cancellationToken);
-        foreach (var teamId in teamIds)
+        if (isCellCaller)
         {
-            var authorityRequest = new ControlPlaneAuthorityRequest
-            {
-                Subject = subject,
-                ClientId = clientId,
-                TeamId = teamId,
-            };
-            var authority = await ControlPlaneAuthority.GetAsync(
-                authorityRequest,
+            principalId = await PrincipalResolver.ResolvePrincipalIdOrDefaultAsync(
+                openIdContext,
+                context.User,
+                storeManager,
                 cancellationToken
             );
-
-            if (string.IsNullOrEmpty(authority.PrincipalId))
+        }
+        else
+        {
+            var teamIds = await GetTeamIdsAsync(node, storeManager, cancellationToken);
+            foreach (var teamId in teamIds)
             {
-                continue;
-            }
+                var authorityRequest = new ControlPlaneAuthorityRequest
+                {
+                    Subject = subject,
+                    ClientId = clientId,
+                    TeamId = teamId,
+                };
+                var authority = await ControlPlaneAuthority.GetAsync(
+                    authorityRequest,
+                    cancellationToken
+                );
 
-            principalId ??= authority.PrincipalId;
+                if (string.IsNullOrEmpty(authority.PrincipalId))
+                {
+                    continue;
+                }
 
-            if (
-                authority
-                    .PlatformRoles.Concat(authority.TeamRoles)
-                    .Any(roleName =>
-                        isCreate ? IsCreationRole(roleName) : IsManagementRole(roleName)
-                    )
-            )
-            {
-                context.Succeed(requirement);
-                return;
+                principalId ??= authority.PrincipalId;
+
+                if (
+                    authority
+                        .PlatformRoles.Concat(authority.TeamRoles)
+                        .Any(roleName =>
+                            isCreate ? IsCreationRole(roleName) : IsManagementRole(roleName)
+                        )
+                )
+                {
+                    context.Succeed(requirement);
+                    return;
+                }
             }
         }
 

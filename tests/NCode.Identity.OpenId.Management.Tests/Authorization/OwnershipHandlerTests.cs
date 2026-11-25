@@ -13,6 +13,7 @@ using NCode.Identity.OpenId.Persistence;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
 using NCode.Identity.OpenId.Persistence.Tenants;
+using NCode.Identity.OpenId.PrincipalResolution;
 using NCode.Identity.OpenId.Tenants;
 using NCode.Identity.Persistence.Stores;
 
@@ -122,6 +123,7 @@ public class OwnershipHandlerTests : IDisposable
         var handler = new OwnershipHandler(
             factory.Object,
             authority.Object,
+            MockRepository.Create<IPrincipalResolver>().Object,
             accessor.Object,
             ambient.Object,
             new DefaultAuthorityChainResolver(
@@ -1024,6 +1026,130 @@ public class OwnershipHandlerTests : IDisposable
             [TeamId, "team-owner"],
             asked.Select(request => request.TeamId).OrderBy(teamId => teamId == TeamId ? 0 : 1)
         );
+    }
+
+    // A caller of the cell's own management tenant: the principal is resolved locally and the control plane is never
+    // asked, which the strict mock of IControlPlaneAuthority enforces.
+    private async ValueTask<bool> HandleCellCallerAsync(
+        ISupportTenantId resource,
+        string role,
+        string resourceType,
+        string resourceId,
+        bool forgedPlatformClaim,
+        CancellationToken cancellationToken
+    )
+    {
+        var factory = MockRepository.Create<IStoreManagerFactory>();
+        var authority = MockRepository.Create<IControlPlaneAuthority>();
+        var resolver = MockRepository.Create<IPrincipalResolver>();
+        var accessor = MockRepository.Create<IHttpContextAccessor>();
+        var ambient = MockRepository.Create<IAmbientTenantAccessor>();
+        SetupContext(accessor);
+
+        var scope = MockRepository.Create<IDisposable>();
+        scope.Setup(x => x.Dispose());
+        ambient.Setup(x => x.BeginScope(TenantId)).Returns(scope.Object);
+        var unscoped = MockRepository.Create<IDisposable>();
+        unscoped.Setup(x => x.Dispose());
+        ambient
+            .Setup(x => x.BeginUnscoped(OwnershipHandler.UnscopedReason))
+            .Returns(unscoped.Object);
+
+        var manager = MockRepository.Create<IStoreManager>();
+        factory
+            .Setup(x => x.CreateAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(manager.Object);
+        manager.Setup(x => x.DisposeAsync()).Returns(ValueTask.CompletedTask);
+
+        var tenantStore = MockRepository.Create<ITenantStore>();
+        manager.Setup(x => x.GetStore<ITenantStore>()).Returns(tenantStore.Object);
+        tenantStore
+            .Setup(x => x.GetOrDefaultAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(CreateTenant("team-1"));
+        var teamStore = MockRepository.Create<ITeamStore>();
+        manager.Setup(x => x.GetStore<ITeamStore>()).Returns(teamStore.Object);
+        teamStore
+            .Setup(x => x.GetOrDefaultAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((PersistedTeam?)null);
+
+        var assignmentStore = MockRepository.Create<IRoleAssignmentStore>();
+        manager.Setup(x => x.GetStore<IRoleAssignmentStore>()).Returns(assignmentStore.Object);
+        assignmentStore
+            .Setup(x => x.GetByPrincipalAsync("cell-principal", It.IsAny<CancellationToken>()))
+            .ReturnsAsync([Assignment(role, resourceType, resourceId, "cell-principal")]);
+
+        resolver
+            .Setup(x =>
+                x.ResolvePrincipalIdOrDefaultAsync(
+                    It.IsAny<OpenIdContext>(),
+                    It.IsAny<ClaimsPrincipal>(),
+                    manager.Object,
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync("cell-principal");
+
+        var handler = new OwnershipHandler(
+            factory.Object,
+            authority.Object,
+            resolver.Object,
+            accessor.Object,
+            ambient.Object,
+            new DefaultAuthorityChainResolver(
+                ambient.Object,
+                Options.Create(new CellOptions { Name = "cell-1" })
+            )
+        );
+        List<Claim> claims =
+        [
+            new("sub", Subject),
+            new("client_id", CallerClientId),
+            new(ManagementIssuerKinds.ClaimType, ManagementIssuerKinds.Cell),
+        ];
+        if (forgedPlatformClaim)
+        {
+            claims.Add(new Claim(ClaimTypes.Role, BuiltInRoles.GlobalAdmin));
+        }
+
+        var context = new AuthorizationHandlerContext(
+            [Operations.Update],
+            CreateUser([.. claims]),
+            resource
+        );
+
+        await handler.HandleAsync(context);
+
+        return context.HasSucceeded;
+    }
+
+    [Fact]
+    public async Task HandleRequirementAsync_WhenACellCallerIsCellAdminAtTheCell_Succeeds()
+    {
+        var succeeded = await HandleCellCallerAsync(
+            new TenantEntity(TenantId),
+            BuiltInRoles.CellAdmin,
+            ResourceNodeTypes.Cell,
+            "cell-1",
+            forgedPlatformClaim: false,
+            CancellationToken.None
+        );
+
+        Assert.True(succeeded);
+    }
+
+    [Fact]
+    public async Task HandleRequirementAsync_WhenACellCallerHoldsAPlatformAssignmentAndAForgedRoleClaim_DoesNotSucceed()
+    {
+        var succeeded = await HandleCellCallerAsync(
+            new TenantEntity(TenantId),
+            BuiltInRoles.GlobalAdmin,
+            ResourceNodeTypes.Platform,
+            "platform",
+            forgedPlatformClaim: true,
+            CancellationToken.None
+        );
+
+        Assert.False(succeeded);
     }
 
     #endregion

@@ -8,6 +8,8 @@ using NCode.Identity.AspNetCore;
 using NCode.Identity.OpenId.Contexts;
 using NCode.Identity.OpenId.GlobalDirectory;
 using NCode.Identity.OpenId.Management.ControlPlane;
+using NCode.Identity.OpenId.Persistence.DataContracts;
+using NCode.Identity.OpenId.PrincipalResolution;
 using NCode.Mediator;
 
 namespace NCode.Identity.OpenId.Management.Endpoints;
@@ -26,6 +28,8 @@ public sealed class ManagementCallerGateTests : IDisposable
 
     private Mock<IControlPlaneAuthority> MockControlPlaneAuthority { get; }
 
+    private Mock<IClientPrincipalResolver> MockClientPrincipalResolver { get; }
+
     private DefaultHttpContext HttpContext { get; } = new();
 
     private ManagementCallerGate Gate { get; }
@@ -36,12 +40,14 @@ public sealed class ManagementCallerGateTests : IDisposable
         MockMediator = MockRepository.Create<IMediator>();
         MockTokenValidator = MockRepository.Create<IManagementTokenValidator>();
         MockControlPlaneAuthority = MockRepository.Create<IControlPlaneAuthority>();
+        MockClientPrincipalResolver = MockRepository.Create<IClientPrincipalResolver>();
 
         Gate = new ManagementCallerGate(
             MockContextFactory.Object,
             MockMediator.Object,
             MockTokenValidator.Object,
-            MockControlPlaneAuthority.Object
+            MockControlPlaneAuthority.Object,
+            MockClientPrincipalResolver.Object
         );
     }
 
@@ -108,6 +114,38 @@ public sealed class ManagementCallerGateTests : IDisposable
             .ReturnsAsync(
                 new ControlPlaneAuthority { PrincipalId = "principal-1", IsActingClient = true }
             )
+            .Verifiable();
+
+        var result = await Gate.InvokeAsync(HttpContext, CancellationToken.None);
+
+        Assert.Null(result);
+        Assert.True(HttpContext.Features.Get<ManagementActorFeature>()?.IsActingClient);
+    }
+
+    [Fact]
+    public async Task InvokeAsync_WhenACellCallerIsTheActingClient_AnswersLocallyWithoutAskingTheControlPlane()
+    {
+        var principal = new ClaimsPrincipal(
+            new ClaimsIdentity(
+                [
+                    new Claim("sub", "principal-1"),
+                    new Claim("client_id", "client-1"),
+                    new Claim(ManagementIssuerKinds.ClaimType, ManagementIssuerKinds.Cell),
+                ],
+                "DPoP"
+            )
+        );
+        SetupMaterialization();
+        SetupValidation(ManagementTokenValidation.Authenticated(principal));
+        MockClientPrincipalResolver
+            .Setup(x =>
+                x.GetActingClientOrDefaultAsync(
+                    It.IsAny<OpenIdContext>(),
+                    principal,
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync(new PersistedClientBuilder { ClientId = "client-1" }.Build())
             .Verifiable();
 
         var result = await Gate.InvokeAsync(HttpContext, CancellationToken.None);

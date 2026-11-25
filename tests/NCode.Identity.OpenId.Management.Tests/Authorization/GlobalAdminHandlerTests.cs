@@ -170,6 +170,22 @@ public class GlobalAdminHandlerTests : IDisposable
     }
 
     [Fact]
+    public async Task HandleRequirementAsync_WhenTheCallerIsACellCaller_DoesNotAskTheControlPlane()
+    {
+        var authority = MockRepository.Create<IControlPlaneAuthority>();
+        var user = CreateUser(
+            new Claim("sub", Subject),
+            new Claim("client_id", ClientId),
+            new Claim(ClaimTypes.Role, BuiltInRoles.GlobalAdmin),
+            new Claim(ManagementIssuerKinds.ClaimType, ManagementIssuerKinds.Cell)
+        );
+
+        var succeeded = await HandleAsync(authority.Object, user, RequestAbortedSource.Token);
+
+        Assert.False(succeeded);
+    }
+
+    [Fact]
     public async Task HandleRequirementAsync_WhenTheSubjectClaimIsMissing_DoesNotAskTheControlPlane()
     {
         var authority = MockRepository.Create<IControlPlaneAuthority>();
