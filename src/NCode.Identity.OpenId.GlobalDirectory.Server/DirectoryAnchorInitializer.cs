@@ -37,8 +37,18 @@ internal sealed class DirectoryAnchorInitializer(
 
     private DirectoryAnchorState State { get; } = state;
 
+    /// <summary>
+    /// Normalizes an identifier the way the directory keys it.
+    /// </summary>
+    /// <param name="value">The identifier.</param>
+    /// <returns>The lower-cased identifier.</returns>
     private static string Normalize(string value) => value.ToLowerInvariant();
 
+    /// <summary>
+    /// Gets the configuration key of a control-plane option, for error messages.
+    /// </summary>
+    /// <param name="name">The option's name.</param>
+    /// <returns>The configuration key.</returns>
     private static string ConfigurationKey(string name) =>
         $"{DirectoryServerOptions.SectionName}:{nameof(DirectoryServerOptions.ControlPlane)}:{name}";
 
@@ -74,6 +84,13 @@ internal sealed class DirectoryAnchorInitializer(
     /// <inheritdoc />
     public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
+    /// <summary>
+    /// Ensures the control-plane cell exists and matches the directory's configuration.
+    /// </summary>
+    /// <param name="dbContext">The directory's database context.</param>
+    /// <param name="controlPlane">The control-plane options.</param>
+    /// <param name="cancellationToken">The token that cancels the operation.</param>
+    /// <exception cref="InvalidOperationException">The configured cell is retired.</exception>
     private static async ValueTask EnsureCellAsync(
         DirectoryDbContext dbContext,
         DirectoryControlPlaneOptions controlPlane,
@@ -113,6 +130,12 @@ internal sealed class DirectoryAnchorInitializer(
         cell.IsControlPlane = true;
     }
 
+    /// <summary>
+    /// Ensures the control-plane tenant exists in the control-plane cell and matches the directory's configuration.
+    /// </summary>
+    /// <param name="dbContext">The directory's database context.</param>
+    /// <param name="controlPlane">The control-plane options.</param>
+    /// <param name="cancellationToken">The token that cancels the operation.</param>
     private async ValueTask EnsureTenantAsync(
         DirectoryDbContext dbContext,
         DirectoryControlPlaneOptions controlPlane,

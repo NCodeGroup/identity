@@ -152,7 +152,13 @@ internal sealed class DefaultControlPlaneReplica(
         };
     }
 
-    // The team and every team above it, lower-cased as the directory keys its team authority documents.
+    /// <summary>
+    /// Gets the team and every team above it, lower-cased as the directory keys its team authority documents.
+    /// </summary>
+    /// <param name="storeManager">The store manager that reads the team.</param>
+    /// <param name="teamId">The team at the bottom of the chain.</param>
+    /// <param name="cancellationToken">The token that cancels the operation.</param>
+    /// <returns>The distinct, lower-cased team identifiers.</returns>
     private static async ValueTask<IReadOnlyList<string>> GetTeamChainAsync(
         IStoreManager storeManager,
         string teamId,
@@ -168,6 +174,12 @@ internal sealed class DefaultControlPlaneReplica(
         return [.. chain.Select(id => id.ToLowerInvariant()).Distinct(StringComparer.Ordinal)];
     }
 
+    /// <summary>
+    /// Gets the names of the roles that an authority document assigns to a principal.
+    /// </summary>
+    /// <param name="content">The authority document's content, when the document exists.</param>
+    /// <param name="principalId">The principal whose roles are read.</param>
+    /// <returns>The distinct role names in ordinal order, or an empty array when there are none.</returns>
     private static string[] GetRoleNames(AuthorityDocumentContent? content, string principalId)
     {
         if (content is null)
@@ -185,6 +197,12 @@ internal sealed class DefaultControlPlaneReplica(
         ];
     }
 
+    /// <summary>
+    /// Deserializes the content of a replicated document.
+    /// </summary>
+    /// <typeparam name="T">The content type.</typeparam>
+    /// <param name="document">The replicated document, when it exists.</param>
+    /// <returns>The content, or <see langword="null"/> when the document or its content is absent.</returns>
     private T? Deserialize<T>(PersistedReplicatedDocument? document)
         where T : class
     {
@@ -195,6 +213,12 @@ internal sealed class DefaultControlPlaneReplica(
         return PayloadSerializer.Deserialize<T>(contentElement, JsonOptions);
     }
 
+    /// <summary>
+    /// Converts a replicated management key into the persisted public secret that the management API validates tokens
+    /// against.
+    /// </summary>
+    /// <param name="entry">The replicated management key.</param>
+    /// <returns>The persisted secret.</returns>
     private static PersistedSecret ToPersistedSecret(ManagementKeyEntry entry)
     {
         var activatesWhen = entry.ActivatesWhen ?? DateTimeOffset.UnixEpoch;

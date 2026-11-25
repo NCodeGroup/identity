@@ -122,8 +122,14 @@ internal sealed class DefaultManagementKeyRevoker(
         return ManagementKeyRevocationResult.Revoked(replacementKeyId);
     }
 
-    // A published key of the same use that activates later is already in every cell's replica, so activating it
-    // pauses no management request.
+    /// <summary>
+    /// Finds the published key of the same use that activates soonest after <paramref name="now"/>. Such a key is
+    /// already in every cell's replica, so activating it pauses no management request.
+    /// </summary>
+    /// <param name="remaining">The tenant's keys that the revocation leaves.</param>
+    /// <param name="revoked">The revoked key, whose use the successor shares.</param>
+    /// <param name="now">The current time.</param>
+    /// <returns>The pending successor, or <see langword="null"/> when no remaining key qualifies.</returns>
     private static PersistedSecret? FindPendingSuccessor(
         IReadOnlyList<PersistedSecret> remaining,
         PersistedSecret revoked,
@@ -138,6 +144,14 @@ internal sealed class DefaultManagementKeyRevoker(
             .OrderBy(secret => secret.ActivatesWhen)
             .FirstOrDefault();
 
+    /// <summary>
+    /// Gets the key identifier that replaces the revoked key: the pending successor's, or the newly generated key's
+    /// when there is no successor.
+    /// </summary>
+    /// <param name="successor">The pending successor, when one exists.</param>
+    /// <param name="remaining">The tenant's keys that the revocation leaves.</param>
+    /// <param name="result">The rollover result that holds any newly generated key.</param>
+    /// <returns>The key identifier of the replacement.</returns>
     private static string GetReplacementKeyId(
         PersistedSecret? successor,
         IReadOnlyList<PersistedSecret> remaining,
@@ -154,6 +168,14 @@ internal sealed class DefaultManagementKeyRevoker(
         return generated.KeyId ?? generated.SecretId;
     }
 
+    /// <summary>
+    /// Creates the generation that replaces the revoked key, from the tenant's key provisioning options.
+    /// </summary>
+    /// <param name="tenant">The tenant that owns the key.</param>
+    /// <param name="revoked">The revoked key whose specification the generation follows.</param>
+    /// <param name="now">The current time, at which the generation activates.</param>
+    /// <param name="cancellationToken">The token that cancels the operation.</param>
+    /// <returns>The generation to roll over to.</returns>
     private async ValueTask<TenantKeyGeneration> CreateGenerationAsync(
         PersistedTenant tenant,
         PersistedSecret revoked,
@@ -207,6 +229,13 @@ internal sealed class DefaultManagementKeyRevoker(
         };
     }
 
+    /// <summary>
+    /// Creates the audit event that records a key's revocation as compromised.
+    /// </summary>
+    /// <param name="tenantId">The tenant that owns the key.</param>
+    /// <param name="secret">The revoked key.</param>
+    /// <param name="now">The current time, which is the event's time.</param>
+    /// <returns>The audit event.</returns>
     private static TenantKeyAuditEvent CreateAuditEvent(
         string tenantId,
         PersistedSecret secret,
@@ -232,9 +261,15 @@ internal sealed class DefaultManagementKeyRevoker(
             ExpiresWhen = secret.ExpiresWhen,
         };
 
-    // The change is committed, so the audit events are published and the tenant is announced on their own bounded
-    // tokens, and the announcement follows whatever the publishing did, because every replica must reload the key
-    // set. A revoked remote key is destroyed last, in a finally of its own. See ADR-1351 and ADR-1471.
+    /// <summary>
+    /// Finishes the work that follows the committed change. The audit events are published and the tenant is announced
+    /// on their own bounded tokens, and the announcement follows whatever the publishing did, because every replica
+    /// must reload the key set. A revoked remote key is destroyed last, in a finally of its own.
+    /// </summary>
+    /// <param name="tenantId">The tenant whose key was revoked.</param>
+    /// <param name="auditEvents">The audit events to publish.</param>
+    /// <param name="revoked">The revoked key, whose remote key is destroyed.</param>
+    /// <remarks>See ADR-1351 and ADR-1471.</remarks>
     [SuppressMessage(
         "Design",
         "NCID0003",
@@ -278,6 +313,11 @@ internal sealed class DefaultManagementKeyRevoker(
         }
     }
 
+    /// <summary>
+    /// Publishes each audit event and logs a failure instead of throwing it, because the change is committed.
+    /// </summary>
+    /// <param name="state">The tenant and the audit events to publish.</param>
+    /// <param name="cancellationToken">The token that bounds the publishing.</param>
     private async ValueTask PublishAuditEventsAsync(
         (string TenantId, IReadOnlyList<TenantKeyAuditEvent> AuditEvents) state,
         CancellationToken cancellationToken

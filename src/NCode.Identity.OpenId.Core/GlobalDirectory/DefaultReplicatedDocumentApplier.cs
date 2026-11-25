@@ -82,6 +82,12 @@ internal sealed class DefaultReplicatedDocumentApplier(
         await storeManager.SaveChangesAsync(cancellationToken);
     }
 
+    /// <summary>
+    /// Gets the identifiers of the keys that a management-keys document revokes.
+    /// </summary>
+    /// <param name="kind">The document kind.</param>
+    /// <param name="contentJson">The document's content, when it has any.</param>
+    /// <returns>The revoked key identifiers, or an empty list for any other kind of document.</returns>
     private IReadOnlyList<string> GetRevokedKeyIds(string kind, string? contentJson)
     {
         if (

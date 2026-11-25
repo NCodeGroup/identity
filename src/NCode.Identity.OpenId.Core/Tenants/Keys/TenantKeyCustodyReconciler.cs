@@ -94,6 +94,11 @@ internal sealed class TenantKeyCustodyReconciler(
         }
     }
 
+    /// <summary>
+    /// Runs one reconciliation pass: when this replica wins the window's lease, it holds the key custody of each
+    /// incoming tenant that the directory places in this cell.
+    /// </summary>
+    /// <param name="cancellationToken">The token that cancels the pass.</param>
     private async ValueTask ReconcileCoreAsync(CancellationToken cancellationToken)
     {
         if (!PlatformTopology.HasDirectory)
@@ -147,6 +152,11 @@ internal sealed class TenantKeyCustodyReconciler(
         }
     }
 
+    /// <summary>
+    /// Sets a tenant's key custody to held.
+    /// </summary>
+    /// <param name="tenantId">The tenant whose keys this cell now holds.</param>
+    /// <param name="cancellationToken">The token that cancels the operation.</param>
     private async ValueTask HoldAsync(string tenantId, CancellationToken cancellationToken)
     {
         await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
