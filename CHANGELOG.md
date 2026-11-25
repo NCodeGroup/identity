@@ -4619,7 +4619,7 @@ Until the first stable release, the [Unreleased] section describes the product a
   normalized user name and email itself; grants, consents and sessions end, audit and usage records stay in the
   source, and the tenant keeps its identifier and issuer. A tenant the deployment requires, the root tenant or the
   static strategy's tenant, never moves: the export and the release answer `409` for it, and the directory refuses an
-  offer or a move of the control-plane cell's root tenant (`DirectoryServer:ControlPlaneTenantId`). Only the named
+  offer or a move of the control-plane cell's root tenant (`DirectoryServer:ControlPlane:TenantId`). Only the named
   target cell imports the package, and the directory moves the placement only for the target cell that calls, on that
   unexpired offer and only between cells of one region (any other caller gets `403`), so a tenant for another region is
   created in a cell of that region, an import repeats over the rows an interrupted import left, and the release removes

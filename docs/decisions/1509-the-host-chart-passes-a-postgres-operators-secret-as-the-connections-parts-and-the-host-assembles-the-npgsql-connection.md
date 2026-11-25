@@ -97,14 +97,15 @@ password stays a password whatever characters it holds.**
 
 - No Secret is hand-built for the database: a deployer names the operator's Secret for the owner and a Secret of the
   same shape for the runtime role, and a deployer without an operator keeps the finished-string form in
-  `database.existingSecret` and `migrations.database.existingSecret`, or in `directory.database.existingSecret` and
-  `directory.migrations.database.existingSecret` for the directory.
+  `database.existingSecret` and `migrations.database.existingSecret`, in the host chart and in the
+  `ncode-identity-directory` chart alike.
 - TLS settings the connection needs, such as `SSL Mode`, arrive through `extraEnv`.
 - The `cluster` job of the `Host chart` workflow creates a Secret of the shape an operator writes for the owner and one
   for the runtime role, creates the role in the kind Postgres, and installs the kind release with the parts form, so the
   form is proven against a real database and the migration Job.
-- The `Host chart` workflow refuses a directory that names both forms or a parts Secret with an empty key, and renders
-  the directory's Deployment and Job with each form, so the environment each workload receives is checked.
+- The `Host chart` workflow refuses a configuration that names both forms or a parts Secret with an empty key, and the
+  `Directory chart` workflow does the same for the directory's chart and renders its Deployment and Job with each form,
+  so the environment each workload receives is checked.
 - The Aspire AppHost supplies the owner's finished `ConnectionStrings:openiddb` to the migration worker and the runtime
   role's `OpenIdDatabase` parts to the hosts, so each host assembles its connection with the password quoted.
 
