@@ -298,3 +298,4 @@ NCode.Identity.OpenId.GlobalDirectory.IDirectoryOutbox.RepublishAsync(string! ki
 NCode.Identity.OpenId.GlobalDirectory.IDirectoryOutboxSignal
 NCode.Identity.OpenId.GlobalDirectory.IDirectoryOutboxSignal.Notify() -> void
 NCode.Identity.OpenId.GlobalDirectory.IDirectoryOutboxSignal.WaitAsync(System.TimeSpan timeout, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+static NCode.Identity.OpenId.GlobalDirectory.GlobalDirectoryProtocol.ClientAssertionSigningAlgorithms.get -> System.Collections.Generic.IReadOnlyList<string!>!

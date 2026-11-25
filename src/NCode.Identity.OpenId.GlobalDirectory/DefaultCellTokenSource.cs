@@ -78,12 +78,7 @@ internal sealed class DefaultCellTokenSource : ICellTokenSource
             ],
             TokenEndpointAuthSigningAlgValuesSupported =
             [
-                "PS256",
-                "ES256",
-                "PS384",
-                "ES384",
-                "PS512",
-                "ES512",
+                .. GlobalDirectoryProtocol.ClientAssertionSigningAlgorithms,
             ],
         };
         Registration = new ClientRegistration(

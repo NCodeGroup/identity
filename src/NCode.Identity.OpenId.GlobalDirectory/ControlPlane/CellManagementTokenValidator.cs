@@ -2,11 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using System.Security.Claims;
-using System.Text.Json;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Options;
-using NCode.Identity.Jose;
-using NCode.Identity.Json;
+using NCode.Identity.Jwt;
 using NCode.Identity.OpenId.Management.ControlPlane;
 
 namespace NCode.Identity.OpenId.GlobalDirectory.ControlPlane;
@@ -38,48 +36,11 @@ internal sealed class CellManagementTokenValidator(
             if (authorization.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
             {
                 var token = authorization[prefix.Length..].Trim();
-                return PeekIssuer(token);
+                return UnverifiedJwt.TryReadIssuer(token, out var issuer) ? issuer : null;
             }
         }
 
         return null;
-    }
-
-    private static string? PeekIssuer(string token)
-    {
-        var first = token.IndexOf('.');
-        if (first <= 0)
-            return null;
-
-        var second = token.IndexOf('.', first + 1);
-        if (second <= first + 1)
-            return null;
-
-        try
-        {
-            var encoded = token[(first + 1)..second];
-            var bytes = StrictBase64Url.Decode(encoded);
-            var payload = JsonElement.Parse(bytes);
-            if (
-                payload.ValueKind == JsonValueKind.Object
-                && payload.TryGetProperty(JoseClaimNames.Payload.Iss, out var issuer)
-                && issuer.ValueKind == JsonValueKind.String
-            )
-            {
-                var text = issuer.GetString();
-                return string.IsNullOrEmpty(text) ? null : text;
-            }
-
-            return null;
-        }
-        catch (FormatException)
-        {
-            return null;
-        }
-        catch (JsonException)
-        {
-            return null;
-        }
     }
 
     private static void SetIssuerKind(ClaimsPrincipal principal, string kind)

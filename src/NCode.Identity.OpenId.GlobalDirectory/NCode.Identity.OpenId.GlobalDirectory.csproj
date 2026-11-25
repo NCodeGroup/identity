@@ -9,6 +9,7 @@
     </PropertyGroup>
 
     <ItemGroup>
+        <ProjectReference Include="..\NCode.Identity.Jwt.Abstractions\NCode.Identity.Jwt.Abstractions.csproj" />
         <ProjectReference Include="..\NCode.Identity.OpenId.Abstractions\NCode.Identity.OpenId.Abstractions.csproj" />
         <ProjectReference Include="..\NCode.Identity.OpenId.Client.Abstractions\NCode.Identity.OpenId.Client.Abstractions.csproj" />
         <ProjectReference Include="..\NCode.Identity.OpenId.GlobalDirectory.Abstractions\NCode.Identity.OpenId.GlobalDirectory.Abstractions.csproj" />

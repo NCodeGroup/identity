@@ -7,6 +7,7 @@ using Microsoft.Extensions.Options;
 using NCode.Identity.Jose;
 using NCode.Identity.Jose.Algorithms;
 using NCode.Identity.Json;
+using NCode.Identity.Jwt;
 using NCode.Identity.Jwt.Validation;
 using NCode.Identity.OpenId.GlobalDirectory.Server.Logging;
 using NCode.Identity.OpenId.GlobalDirectory.Server.Stores;
@@ -47,42 +48,6 @@ internal sealed class DirectoryClientAssertionValidator(
     private const string InvalidDescription = "The assertion is invalid.";
     private const string UnregisteredDescription = "The cell is not registered.";
     private const string ReplayKeyPrefix = "directory-assertion:";
-
-    /// <summary>
-    /// Reads the <c>iss</c> claim of a compact JWT without verifying it, to find the keys that verify it.
-    /// </summary>
-    /// <param name="assertion">The compact JWT.</param>
-    /// <param name="issuer">The <c>iss</c> claim when the method returns <c>true</c>; otherwise empty.</param>
-    /// <returns><c>true</c> when the payload is a JSON object with a non-empty string <c>iss</c>.</returns>
-    private static bool TryReadIssuer(string assertion, out string issuer)
-    {
-        issuer = string.Empty;
-        var parts = assertion.Split('.');
-        if (parts.Length != 3)
-            return false;
-
-        try
-        {
-            var payloadBytes = StrictBase64Url.Decode(parts[1]);
-            var payload = JsonElement.Parse(payloadBytes);
-            if (
-                payload.ValueKind == JsonValueKind.Object
-                && payload.TryGetProperty(JoseClaimNames.Payload.Iss, out var element)
-                && element.ValueKind == JsonValueKind.String
-                && element.GetString() is { Length: > 0 } value
-            )
-            {
-                issuer = value;
-                return true;
-            }
-        }
-        catch (Exception exception) when (exception is FormatException or JsonException)
-        {
-            return false;
-        }
-
-        return false;
-    }
 
     /// <summary>
     /// Reads a numeric date claim of a validated payload.
@@ -142,7 +107,10 @@ internal sealed class DirectoryClientAssertionValidator(
     )
     {
         ArgumentException.ThrowIfNullOrEmpty(tokenEndpointUrl);
-        if (string.IsNullOrEmpty(assertion) || !TryReadIssuer(assertion, out var issuer))
+        if (
+            string.IsNullOrEmpty(assertion)
+            || !UnverifiedJwt.TryReadIssuer(assertion, out var issuer)
+        )
             return Refuse(string.Empty, "The assertion is not a well-formed JWT.");
 
         if (
@@ -166,9 +134,13 @@ internal sealed class DirectoryClientAssertionValidator(
         if (!JwksReader.TryRead(jwksElement, out var keys, out var keyError))
             return Refuse(cellName, $"The cell's registered keys are unusable: {keyError}");
 
-        var algorithms = DirectoryTokenIssuer.GetAsymmetricSignatureAlgorithms(
-            AlgorithmCollectionProvider.Collection
-        );
+        var algorithms = DirectoryTokenIssuer
+            .GetAsymmetricSignatureAlgorithms(AlgorithmCollectionProvider.Collection)
+            .Intersect(
+                GlobalDirectoryProtocol.ClientAssertionSigningAlgorithms,
+                StringComparer.Ordinal
+            )
+            .ToList();
         var parameters = new JwtValidationParameters
         {
             ClockSkew = ClockSkew,

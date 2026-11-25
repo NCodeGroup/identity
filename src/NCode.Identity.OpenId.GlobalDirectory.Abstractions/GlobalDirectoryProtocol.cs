@@ -58,4 +58,11 @@ public static class GlobalDirectoryProtocol
     /// reached.
     /// </summary>
     public const int UnavailableRetryAfterSeconds = 5;
+
+    /// <summary>
+    /// Contains the signature algorithms with which a cell signs the client assertion that it presents at the
+    /// directory's token endpoint, which the directory accepts when its algorithm collection holds them.
+    /// </summary>
+    public static IReadOnlyList<string> ClientAssertionSigningAlgorithms { get; } =
+    ["PS256", "ES256", "PS384", "ES384", "PS512", "ES512"];
 }

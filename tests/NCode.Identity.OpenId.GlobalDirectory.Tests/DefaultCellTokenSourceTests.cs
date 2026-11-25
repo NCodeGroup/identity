@@ -106,6 +106,10 @@ public class DefaultCellTokenSourceTests : BaseTests
         );
         Assert.Equal(DirectoryUrl, context.Metadata.Issuer);
         Assert.Equal(TokenEndpoint, context.Metadata.TokenEndpoint);
+        Assert.Equal(
+            GlobalDirectoryProtocol.ClientAssertionSigningAlgorithms,
+            context.Metadata.TokenEndpointAuthSigningAlgValuesSupported
+        );
         Assert.Equal(TokenEndpoint, context.Endpoint);
     }
 
