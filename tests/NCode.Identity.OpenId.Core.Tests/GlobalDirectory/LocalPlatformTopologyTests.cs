@@ -15,7 +15,7 @@ public sealed class LocalPlatformTopologyTests : BaseTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void HasManagementTenant_WhenTheCellServesADynamicStrategy_IsFalse(bool isControlPlane)
+    public void HasManagementTenant_Always_IsFalse(bool isControlPlane)
     {
         var topology = CreateTopology(isControlPlane);
 
@@ -23,7 +23,7 @@ public sealed class LocalPlatformTopologyTests : BaseTests
     }
 
     [Fact]
-    public void HasDirectory_IsFalse()
+    public void HasDirectory_Always_IsFalse()
     {
         var topology = CreateTopology(isControlPlane: false);
 
