@@ -262,6 +262,32 @@ public sealed class CellTenantCreationHandlerTests : IDisposable
     }
 
     [Fact]
+    public async Task HandleAsync_WhenTheTeamDoesNotExist_DoesNotSucceed()
+    {
+        MockPlatformTopology.Setup(x => x.HasManagementTenant).Returns(true).Verifiable();
+        SetupDecision(null, null, null);
+
+        var user = CreateUser(isCellIssued: true);
+
+        var succeeded = await HandleAsync(user, Operations.Create, TeamId, CancellationToken.None);
+
+        Assert.False(succeeded);
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenNoRequestIsBeingAuthorized_DoesNotSucceedWithoutReadingAnything()
+    {
+        MockPlatformTopology.Setup(x => x.HasManagementTenant).Returns(true).Verifiable();
+        MockHttpContextAccessor.Setup(x => x.HttpContext).Returns((HttpContext?)null).Verifiable();
+
+        var user = CreateUser(isCellIssued: true);
+
+        var succeeded = await HandleAsync(user, Operations.Create, TeamId, CancellationToken.None);
+
+        Assert.False(succeeded);
+    }
+
+    [Fact]
     public async Task HandleAsync_WhenTheTeamIsThePlatformsOwn_DoesNotSucceedWithoutReadingIt()
     {
         MockPlatformTopology.Setup(x => x.HasManagementTenant).Returns(true).Verifiable();
