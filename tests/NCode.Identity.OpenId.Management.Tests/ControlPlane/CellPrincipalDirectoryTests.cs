@@ -26,6 +26,16 @@ public sealed class CellPrincipalDirectoryTests : IDisposable
         Directory = new CellPrincipalDirectory(MockTopology.Object, MockLocalDirectory.Object);
     }
 
+    #region DescribesEveryPrincipal Tests
+
+    [Fact]
+    public void DescribesEveryPrincipal_Always_IsFalse()
+    {
+        Assert.False(Directory.DescribesEveryPrincipal);
+    }
+
+    #endregion
+
     #region FindAsync Tests
 
     [Fact]

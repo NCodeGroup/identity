@@ -36,16 +36,16 @@ internal sealed class ManagementUrlStartupCheck(
         }
 
         var managementUrl = cellOptions.Value.ManagementUrl;
-        if (!Uri.TryCreate(managementUrl, UriKind.Absolute, out var managementUri))
+        if (!AbsoluteUri.TryParseAnyHttpServiceUrl(managementUrl, out var managementUri))
         {
             throw new InvalidOperationException(
-                $"{CellOptions.SectionName}:{nameof(CellOptions.ManagementUrl)} must be an absolute URL when the platform has a directory."
+                $"{CellOptions.SectionName}:{nameof(CellOptions.ManagementUrl)} must be an absolute http or https service URL when the platform has a directory."
             );
         }
 
         var rootTenantId = tenantResolver.GetControlPlaneTenantId();
         var issuer = await tenantResolver.GetDefaultIssuerAsync(rootTenantId, cancellationToken);
-        if (!Uri.TryCreate(issuer, UriKind.Absolute, out var issuerUri))
+        if (!AbsoluteUri.TryParseAnyHttpServiceUrl(issuer, out var issuerUri))
         {
             throw new InvalidOperationException(
                 $"The root tenant '{rootTenantId}' has no issuer, so {CellOptions.SectionName}:{nameof(CellOptions.ManagementUrl)} cannot be checked against its origin."

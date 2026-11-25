@@ -103,10 +103,14 @@ public sealed class ManagementUrlStartupCheckTests
         );
     }
 
-    [Fact]
-    public async Task StartAsync_WhenTheManagementUrlIsNotAbsolute_Throws()
+    [Theory]
+    [InlineData("relative")]
+    [InlineData("https://auth.example/api?x=1")]
+    [InlineData("https://auth.example/ api")]
+    [InlineData("https://user@auth.example/api")]
+    public async Task StartAsync_WhenTheManagementUrlIsNotAServiceUrl_Throws(string managementUrl)
     {
-        var check = CreateCheck(true, true, false, "relative", "https://auth.example");
+        var check = CreateCheck(true, true, false, managementUrl, "https://auth.example");
 
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
             check.StartAsync(CancellationToken.None)

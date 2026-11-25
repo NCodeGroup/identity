@@ -242,18 +242,18 @@ internal class CellApiEndpointHandler(
         try
         {
             await CellDirectory.RegisterAsync(registration, cancellationToken);
-            var descriptor = await CellDirectory.GetOrDefaultAsync(name, cancellationToken);
-            var resource = descriptor is null
-                ? new CellResource
-                {
-                    Name = name,
-                    Region = request.Region,
-                    Kind = request.Kind,
-                    IsControlPlane = false,
-                    IsRegistered = true,
-                    IsRetired = false,
-                }
-                : ToCellResource(descriptor);
+
+            // A registration the directory accepts stores exactly these values: it refuses the control-plane cell,
+            // a retired cell and another region or kind.
+            var resource = new CellResource
+            {
+                Name = name,
+                Region = request.Region,
+                Kind = request.Kind,
+                IsControlPlane = false,
+                IsRegistered = true,
+                IsRetired = false,
+            };
             var resourceValues = ToResourceValues(resource);
             await ManagementAuditRecorder.RecordPlatformChangedAsync(
                 httpContext,

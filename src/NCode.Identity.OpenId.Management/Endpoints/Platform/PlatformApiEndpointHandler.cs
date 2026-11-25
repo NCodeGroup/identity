@@ -160,7 +160,8 @@ internal class PlatformApiEndpointHandler(
             .Produces<ManagementKeyRevocationResource>()
             .ProducesProblem(StatusCodes.Status401Unauthorized)
             .ProducesProblem(StatusCodes.Status403Forbidden)
-            .ProducesProblem(StatusCodes.Status404NotFound);
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status412PreconditionFailed);
     }
 
     /// <summary>

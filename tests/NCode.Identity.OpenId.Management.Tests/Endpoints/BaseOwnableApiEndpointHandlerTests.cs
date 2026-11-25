@@ -6,10 +6,8 @@ using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
-using Microsoft.Extensions.DependencyInjection;
 using NCode.Identity.Cryptography;
 using NCode.Identity.Events.Audit;
-using NCode.Identity.OpenId.GlobalDirectory;
 using NCode.Identity.OpenId.Management.Auditing;
 using NCode.Identity.OpenId.Management.Authorization;
 using NCode.Identity.OpenId.Management.Contracts;
@@ -29,20 +27,6 @@ public class BaseOwnableApiEndpointHandlerTests : IDisposable
 
     private static HttpContext CreateHttpContext() =>
         new DefaultHttpContext { User = new ClaimsPrincipal(new ClaimsIdentity("test")) };
-
-    private HttpContext CreateHttpContext(bool hasDirectory, bool isControlPlaneCell)
-    {
-        var topology = MockRepository.Create<IPlatformTopology>();
-        topology.SetupGet(x => x.HasDirectory).Returns(hasDirectory);
-        topology.SetupGet(x => x.IsControlPlaneCell).Returns(isControlPlaneCell);
-        var services = new ServiceCollection();
-        services.AddSingleton(topology.Object);
-        return new DefaultHttpContext
-        {
-            User = new ClaimsPrincipal(new ClaimsIdentity("test")),
-            RequestServices = services.BuildServiceProvider(),
-        };
-    }
 
     private static PersistedRoleAssignment Assignment(
         string principalId,
@@ -959,6 +943,7 @@ public class BaseOwnableApiEndpointHandlerTests : IDisposable
         var authz = Authz(authorized);
         var (factory, _) = StoreManager();
         var directory = MockRepository.Create<IControlPlanePrincipalDirectory>();
+        directory.SetupGet(x => x.DescribesEveryPrincipal).Returns(true);
         directory
             .Setup(x =>
                 x.FindAsync(
@@ -1011,6 +996,7 @@ public class BaseOwnableApiEndpointHandlerTests : IDisposable
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
         var directory = MockRepository.Create<IControlPlanePrincipalDirectory>();
+        directory.SetupGet(x => x.DescribesEveryPrincipal).Returns(false);
         directory
             .Setup(x =>
                 x.FindAsync(It.IsAny<ControlPlanePrincipalQuery>(), It.IsAny<CancellationToken>())
@@ -1045,7 +1031,7 @@ public class BaseOwnableApiEndpointHandlerTests : IDisposable
             recorder.Object,
             directory.Object
         );
-        var httpContext = CreateHttpContext(hasDirectory: true, isControlPlaneCell: false);
+        var httpContext = CreateHttpContext();
         var roleList = CreateRoleList(node, RoleName, Operations.Create, Exists);
         var request = new AddRoleHolderRequest { PrincipalId = "cp-principal" };
         var result = await handler.ProcessAddRoleAssignmentAsync(
@@ -1062,17 +1048,13 @@ public class BaseOwnableApiEndpointHandlerTests : IDisposable
         Assert.Single(captured);
     }
 
-    [Theory]
-    [InlineData(false, false)]
-    [InlineData(true, true)]
-    public async Task ProcessAddRoleAssignmentAsync_OutsideAWorkloadCellWhenThePrincipalIsUnknown_ReturnsBadRequest(
-        bool hasDirectory,
-        bool isControlPlaneCell
-    )
+    [Fact]
+    public async Task ProcessAddRoleAssignmentAsync_WhenTheDirectoryDescribesEveryPrincipalAndThePrincipalIsUnknown_ReturnsBadRequest()
     {
         var authz = Authz(AuthorizationResult.Success());
         var (factory, _) = StoreManager();
         var directory = MockRepository.Create<IControlPlanePrincipalDirectory>();
+        directory.SetupGet(x => x.DescribesEveryPrincipal).Returns(true);
         directory
             .Setup(x =>
                 x.FindAsync(It.IsAny<ControlPlanePrincipalQuery>(), It.IsAny<CancellationToken>())
@@ -1088,7 +1070,7 @@ public class BaseOwnableApiEndpointHandlerTests : IDisposable
             ownership.Object,
             directory: directory.Object
         );
-        var httpContext = CreateHttpContext(hasDirectory, isControlPlaneCell);
+        var httpContext = CreateHttpContext();
         var roleList = CreateRoleList(node, RoleName, Operations.Create, Exists);
         var request = new AddRoleHolderRequest { PrincipalId = "ghost-principal" };
         var result = await handler.ProcessAddRoleAssignmentAsync(
@@ -1127,7 +1109,7 @@ public class BaseOwnableApiEndpointHandlerTests : IDisposable
             ownership.Object,
             directory: directory.Object
         );
-        var httpContext = CreateHttpContext(hasDirectory: true, isControlPlaneCell: false);
+        var httpContext = CreateHttpContext();
         var roleList = CreateRoleList(node, RoleName, Operations.Create, Exists);
         var request = new AddRoleHolderRequest { UserName = "alice" };
         var result = await handler.ProcessAddRoleAssignmentAsync(

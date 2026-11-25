@@ -207,8 +207,12 @@ internal class CellAdminApiEndpointHandler(
         );
     }
 
-    // Describes the administrators of the cell: the role is granted and revoked with 'Update' at the cell's node,
-    // addressed from the tenant the request runs under.
+    /// <summary>
+    /// Describes the administrators of the cell. The role is granted and revoked with <c>Update</c> at the cell's node,
+    /// addressed from the tenant the request runs under.
+    /// </summary>
+    /// <param name="httpContext">The <see cref="HttpContext"/> of the request.</param>
+    /// <returns>The <see cref="RoleList"/> of the cell's administrators.</returns>
     private RoleList GetAdminList(HttpContext httpContext)
     {
         var tenantId = httpContext.GetOpenIdContext().Tenant.TenantId;
@@ -223,7 +227,19 @@ internal class CellAdminApiEndpointHandler(
         };
     }
 
-    // Returns null when the request names no single principal, which the shared grant answers with 400.
+    /// <summary>
+    /// Determines whether the control-plane directory describes the principal the request names.
+    /// </summary>
+    /// <param name="request">The <see cref="AddRoleHolderRequest"/> that names a principal by identifier or by user
+    /// name.</param>
+    /// <param name="cancellationToken">
+    /// The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.
+    /// </param>
+    /// <returns>
+    /// <see langword="true"/> when the directory describes the named principal, <see langword="false"/> when it does
+    /// not, and <see langword="null"/> when the request names no single principal, which the shared grant answers with
+    /// <c>400</c>.
+    /// </returns>
     private async ValueTask<bool?> IsManagementPrincipalAsync(
         AddRoleHolderRequest request,
         CancellationToken cancellationToken

@@ -6,9 +6,7 @@ using System.Diagnostics.CodeAnalysis;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
-using Microsoft.Extensions.DependencyInjection;
 using NCode.Identity.Events.Audit;
-using NCode.Identity.OpenId.GlobalDirectory;
 using NCode.Identity.OpenId.Management.Auditing;
 using NCode.Identity.OpenId.Management.Authorization;
 using NCode.Identity.OpenId.Management.Contracts;
@@ -163,18 +161,6 @@ internal abstract class BaseOwnableApiEndpointHandler : BaseApiEndpointHandler
             RoleName = assignment.RoleName,
             Principal = principal,
         };
-
-    /// <summary>
-    /// Determines whether the cell is a workload cell of a platform with a global directory.
-    /// </summary>
-    /// <param name="httpContext">The <see cref="HttpContext"/> of the request.</param>
-    /// <returns><see langword="true"/> when the platform has a directory and the cell is not the control-plane
-    /// cell.</returns>
-    private static bool IsWorkloadCell(HttpContext httpContext)
-    {
-        var topology = httpContext.RequestServices?.GetService<IPlatformTopology>();
-        return topology is { HasDirectory: true, IsControlPlaneCell: false };
-    }
 
     /// <summary>
     /// Describes principals through the control plane's directory.
@@ -402,9 +388,10 @@ internal abstract class BaseOwnableApiEndpointHandler : BaseApiEndpointHandler
             var described = await DescribeAsync([requestedName], cancellationToken);
             var describedSummary = described.GetValueOrDefault(requestedName);
 
-            // A workload cell holds no control-plane principal names, so an identifier it cannot describe may name a
-            // control-plane principal, which the cell grants without an existence check.
-            if (describedSummary is null && IsWorkloadCell(httpContext))
+            // A directory that does not describe every principal holds no control-plane principal names, so an
+            // identifier it cannot describe may name a control-plane principal, which is granted without an
+            // existence check.
+            if (describedSummary is null && !ControlPlanePrincipalDirectory.DescribesEveryPrincipal)
             {
                 describedSummary = new PrincipalSummaryResource
                 {

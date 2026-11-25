@@ -46,8 +46,12 @@ public static class DefaultRegistration
             ?? serviceProvider.GetRequiredService<TLocal>();
     }
 
-    // Picks the principal directory: the local one on the control-plane cell and on a platform without a directory,
-    // otherwise the one of a workload cell.
+    /// <summary>
+    /// Picks the principal directory: the local one on the control-plane cell and on a platform without a directory,
+    /// otherwise the one of a workload cell.
+    /// </summary>
+    /// <param name="serviceProvider">The <see cref="IServiceProvider"/> that resolves the directories.</param>
+    /// <returns>The <see cref="IControlPlanePrincipalDirectory"/> the cell uses.</returns>
     private static IControlPlanePrincipalDirectory ResolveControlPlanePrincipalDirectory(
         IServiceProvider serviceProvider
     )
@@ -60,6 +64,12 @@ public static class DefaultRegistration
         return serviceProvider.GetRequiredService<CellPrincipalDirectory>();
     }
 
+    /// <summary>
+    /// Creates the principal directory of a workload cell over the cell's local directory.
+    /// </summary>
+    /// <param name="serviceProvider">The <see cref="IServiceProvider"/> that resolves the topology and the local
+    /// directory.</param>
+    /// <returns>The <see cref="CellPrincipalDirectory"/> of the cell.</returns>
     private static CellPrincipalDirectory CreateCellPrincipalDirectory(
         IServiceProvider serviceProvider
     )

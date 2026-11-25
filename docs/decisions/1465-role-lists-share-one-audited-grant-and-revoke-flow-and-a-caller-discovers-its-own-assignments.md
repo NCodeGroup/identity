@@ -103,9 +103,11 @@ audited; and a caller reads its own assignments, teams and tenants from `GET /ap
 12. **A grant fails closed.** A `userName` resolves through the directory after the flow authorizes and the resource
     exists, and a name or a `principalId` that the control plane does not know answers `400` without echoing it, so a
     mistyped identifier never creates an assignment that no principal holds, and only a caller with grant authority at a
-    node can probe a username. A control plane that fails or is unreachable is a
-    `DirectoryUnavailableException`, which the management endpoints answer `503`, for a list and for a grant, and a name
-    is never guessed.
+    node can probe a username. The exception is a directory that does not describe every control-plane principal, as
+    a workload cell's does not (`IControlPlanePrincipalDirectory.DescribesEveryPrincipal`): it grants a `principalId`
+    it cannot describe without an existence check, and a `userName` it cannot resolve still answers `400`. A control
+    plane that fails or is unreachable is a `DirectoryUnavailableException`, which the management endpoints answer
+    `503`, for a list and for a grant, and a name is never guessed.
 
 ### Audit
 

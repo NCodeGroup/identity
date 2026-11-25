@@ -22,6 +22,9 @@ internal sealed class CellPrincipalDirectory(
     private IControlPlanePrincipalDirectory LocalDirectory { get; } = localDirectory;
 
     /// <inheritdoc />
+    public bool DescribesEveryPrincipal => false;
+
+    /// <inheritdoc />
     public ValueTask<IReadOnlyList<PrincipalSummaryResource>> FindAsync(
         ControlPlanePrincipalQuery query,
         CancellationToken cancellationToken

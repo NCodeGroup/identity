@@ -1809,7 +1809,7 @@ public sealed class PlatformApiEndpointHandlerTests : IDisposable
     [InlineData("GET", "/platform/effective-settings", new[] { 401, 403, 404 })]
     [InlineData("GET", "/platform/encryption-keys", new[] { 401, 403, 404 })]
     [InlineData("POST", "/platform/encryption-keys/rekey", new[] { 401, 403, 404, 409, 412 })]
-    [InlineData("POST", "/platform/management-keys/{kid}/revoke", new[] { 401, 403, 404 })]
+    [InlineData("POST", "/platform/management-keys/{kid}/revoke", new[] { 401, 403, 404, 412 })]
     public async Task Map_Always_DeclaresAndDescribesEveryProblemARouteAnswers(
         string httpMethod,
         string routePattern,

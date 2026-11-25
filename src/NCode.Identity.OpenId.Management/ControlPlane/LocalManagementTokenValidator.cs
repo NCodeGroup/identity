@@ -79,6 +79,14 @@ internal sealed class LocalManagementTokenValidator(
         return ManagementTokenValidation.Authenticated(disposition.Principal);
     }
 
+    /// <summary>
+    /// Determines whether the principal's <c>cnf</c> claim holds a JWK thumbprint.
+    /// </summary>
+    /// <param name="principal">The <see cref="ClaimsPrincipal"/> of the access token, if any.</param>
+    /// <returns>
+    /// <see langword="true"/> when the confirmation is a JSON object with a non-empty JWK thumbprint; otherwise,
+    /// <see langword="false"/>.
+    /// </returns>
     private static bool HasConfirmationThumbprint(ClaimsPrincipal? principal)
     {
         var value = principal?.FindFirst(JoseClaimNames.Payload.Cnf)?.Value;
@@ -102,12 +110,28 @@ internal sealed class LocalManagementTokenValidator(
         }
     }
 
+    /// <summary>
+    /// Determines whether a JSON string element holds text.
+    /// </summary>
+    /// <param name="element">The JSON string <see cref="JsonElement"/> to check.</param>
+    /// <returns><see langword="true"/> when the string is not empty; otherwise, <see langword="false"/>.</returns>
     private static bool HasText(JsonElement element)
     {
         var text = element.GetString();
         return !string.IsNullOrEmpty(text);
     }
 
+    /// <summary>
+    /// Reads the access token from the <c>Authorization</c> header, which names the <c>Bearer</c> or the <c>DPoP</c>
+    /// scheme.
+    /// </summary>
+    /// <param name="httpContext">The <see cref="HttpContext"/> of the request.</param>
+    /// <param name="token">When this method returns <see langword="true"/>, the access token.</param>
+    /// <param name="isDPoP">
+    /// <see langword="true"/> when the header names the <c>DPoP</c> scheme; otherwise, <see langword="false"/>.
+    /// </param>
+    /// <returns><see langword="true"/> when the header carries a non-empty token; otherwise,
+    /// <see langword="false"/>.</returns>
     private static bool TryGetBearerToken(
         HttpContext httpContext,
         out string token,

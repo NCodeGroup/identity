@@ -335,14 +335,6 @@ public sealed class CellApiEndpointHandlerTests : IDisposable
             )
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
-        var descriptor = CreateDescriptor("cell-b", "eu-west", CellKinds.Shared) with
-        {
-            IsRegistered = true,
-        };
-        MockCellDirectory
-            .Setup(x => x.GetOrDefaultAsync("cell-b", It.IsAny<CancellationToken>()))
-            .ReturnsAsync(descriptor)
-            .Verifiable();
         var httpContext = CreateHttpContext(authenticated: true);
 
         var result = await Handler.RegisterCellAsync(
