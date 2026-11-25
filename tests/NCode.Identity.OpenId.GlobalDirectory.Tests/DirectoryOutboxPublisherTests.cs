@@ -111,6 +111,44 @@ public class DirectoryOutboxPublisherTests : BaseTests
     }
 
     [Fact]
+    public async Task DrainAsync_WhenADocumentIsSent_RecordsThePublishedCounterWithTheDocumentKind()
+    {
+        var kind = ReplicatedDocumentKinds.PlatformAuthority;
+        var newest = Document(kind, "", 4);
+        var tags = new List<KeyValuePair<string, object?>>();
+        using var listener = new MeterListener();
+        listener.InstrumentPublished = (instrument, meterListener) =>
+        {
+            if (instrument.Name == DirectoryOutboxPublisher.PublishedCounterName)
+                meterListener.EnableMeasurementEvents(instrument);
+        };
+        listener.SetMeasurementEventCallback<long>(
+            (_, _, measurementTags, _) => tags.AddRange(measurementTags.ToArray())
+        );
+        listener.Start();
+        OutboxMock
+            .Setup(x =>
+                x.ListPendingAsync(DirectoryOutboxPublisher.PageSize, It.IsAny<CancellationToken>())
+            )
+            .ReturnsAsync([newest])
+            .Verifiable(Times.Once);
+        DirectoryMock
+            .Setup(x => x.PublishAsync(newest, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(4)
+            .Verifiable(Times.Once);
+        OutboxMock
+            .Setup(x => x.AcknowledgeAsync(kind, "", 4, It.IsAny<CancellationToken>()))
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable(Times.Once);
+
+        await Publisher.DrainAsync(CancellationToken.None);
+
+        var tag = Assert.Single(tags);
+        Assert.Equal("ncode.identity.directory.document.kind", tag.Key);
+        Assert.Equal(kind, tag.Value);
+    }
+
+    [Fact]
     public async Task DrainAsync_WhenTheDirectoryHoldsAHigherRevision_AcknowledgesThroughItAndRepublishesAboveIt()
     {
         var kind = ReplicatedDocumentKinds.TeamAuthority;

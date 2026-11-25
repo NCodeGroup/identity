@@ -159,9 +159,9 @@ Observable gauge, unit `{sequence}`. The sequence of the last change that a cell
 Counter, unit `{document}`. Recorded in the control-plane cell for each replicated document that the directory
 acknowledges from the cell's outbox.
 
-| Attribute   | Values                                 |
-| ----------- | -------------------------------------- |
-| `cell.name` | The `Cell:Name` of the publishing cell |
+| Attribute                                | Values                                                      |
+| ---------------------------------------- | ----------------------------------------------------------- |
+| `ncode.identity.directory.document.kind` | `platform-authority`, `team-authority` or `management-keys` |
 
 ### `ncode.identity.bff.token.refresh.duration`
 
