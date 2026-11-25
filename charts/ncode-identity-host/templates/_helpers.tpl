@@ -337,9 +337,6 @@ applied. Rendered for its side effect only.
 {{- end }}
 {{- include "identity-host.serviceUrlValidate" (dict "path" "directory.url" "value" .Values.directory.url "httpsOnly" false) }}
 {{- include "identity-host.serviceUrlValidate" (dict "path" "cell.managementUrl" "value" .Values.cell.managementUrl "httpsOnly" true) }}
-{{- if and .Values.directory.url (not .Values.cell.controlPlaneIssuer) }}
-{{- fail "cell.controlPlaneIssuer must be the issuer of the control-plane cell when directory.url is set: the cell asks it for the token it presents to the directory." }}
-{{- end }}
 {{- if or (not .Values.cell.isControlPlane) .Values.directory.url }}
 {{- include "identity-host.serviceUrlValidate" (dict "path" "cell.controlPlaneIssuer" "value" .Values.cell.controlPlaneIssuer "httpsOnly" false) }}
 {{- end }}

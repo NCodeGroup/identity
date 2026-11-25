@@ -854,8 +854,8 @@ jobs:
           # White space is refused, a no-break space included.
           refuse --set "directory.url=https://directory.example/a"$'\xc2\xa0'"b"
           refuse --set cell.controlPlaneIssuer=http://id.example.com
-          # A cell that reaches the directory names the control plane's issuer, the control-plane cell included.
-          refuse --set cell.isControlPlane=true --set cell.controlPlaneIssuer=
+          # The control-plane cell needs no control-plane issuer to reach the directory, and one it names is still a URL.
+          helm template release "$CHART" --values "$base" --set cell.isControlPlane=true --set cell.controlPlaneIssuer= > /dev/null
           refuse --set cell.isControlPlane=true --set cell.controlPlaneIssuer=http://id.example.com
           refuse --set directory.clientId=
           refuse --set directory.clientId=cell-other
