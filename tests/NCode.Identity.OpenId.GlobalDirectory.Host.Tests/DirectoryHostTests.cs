@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using NCode.Identity.AspNetCore;
 using Xunit;
 
 namespace NCode.Identity.OpenId.GlobalDirectory.Host.Tests;
@@ -50,6 +51,21 @@ public sealed class DirectoryHostTests
 
         Assert.False(options.AddServerHeader);
         Assert.False(response.Headers.Contains("Server"));
+    }
+
+    #endregion
+
+    #region Readiness Tests
+
+    [Fact]
+    public async Task GetReady_AfterTheAnchorInitializes_ReturnsOk()
+    {
+        await using var factory = new DirectoryHostFactory();
+        using var client = CreateClient(factory);
+
+        using var response = await client.GetAsync(HealthProbeDefaults.ReadinessPath);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
     #endregion
