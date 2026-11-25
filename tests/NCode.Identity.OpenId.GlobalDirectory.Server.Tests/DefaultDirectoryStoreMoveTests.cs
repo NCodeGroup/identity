@@ -204,6 +204,28 @@ public sealed class DefaultDirectoryStoreMoveTests : DefaultDirectoryStoreTestBa
         Assert.Equal(ControlPlaneCell, (await ReadTenantAsync(ControlPlaneTenantId))?.Cell);
     }
 
+    [Fact]
+    public async Task OfferMoveAsync_WhenTheTargetIsTheControlPlaneCell_ConflictsAndRecordsNoOffer()
+    {
+        await RegisterCellAsync(CellName, CellRegion);
+        await RegisterCellAsync(ControlPlaneCell, CellRegion);
+        await ReserveAndPlaceAsync(TenantId, Issuer);
+
+        var result = await Tenants.OfferMoveAsync(
+            TenantId,
+            CellName,
+            ControlPlaneCell,
+            CancellationToken.None
+        );
+
+        Assert.False(result.IsOffered);
+        Assert.Equal(
+            $"The cell '{ControlPlaneCell}' is the control-plane cell, which holds only the control-plane tenant, so it cannot hold the tenant '{TenantId}'.",
+            result.ConflictDetail
+        );
+        Assert.Null(await ReadMoveOfferAsync(TenantId));
+    }
+
     #endregion
 
     #region MoveAsync Tests

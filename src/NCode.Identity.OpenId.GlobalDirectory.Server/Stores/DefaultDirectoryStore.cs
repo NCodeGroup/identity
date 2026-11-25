@@ -711,6 +711,12 @@ internal sealed class DefaultDirectoryStore(
             return MoveOfferResult.Conflict(controlPlaneDetail);
         }
 
+        var dedicatedDetail = GetDedicatedControlPlaneCellDetailOrDefault(tenantId, toCell);
+        if (dedicatedDetail is not null)
+        {
+            return MoveOfferResult.Conflict(dedicatedDetail);
+        }
+
         await using var dbContext = await DbContextFactory.CreateDbContextAsync(cancellationToken);
         var executionStrategy = dbContext.Database.CreateExecutionStrategy();
         return await executionStrategy.ExecuteAsync(

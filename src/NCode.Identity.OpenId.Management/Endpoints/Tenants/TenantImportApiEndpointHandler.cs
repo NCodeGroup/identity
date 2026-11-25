@@ -61,7 +61,8 @@ internal class TenantImportApiEndpointHandler(
     IRemoteKeyProviderCatalog remoteKeyProviderCatalog,
     ITenantDirectory tenantDirectory,
     IManagementAuditRecorder managementAuditRecorder,
-    IOptions<CellOptions> cellOptions
+    IOptions<CellOptions> cellOptions,
+    IPlatformTopology platformTopology
 ) : BaseApiEndpointHandler, IEndpointProvider
 {
     private IStoreManagerFactory StoreManagerFactory { get; } = storeManagerFactory;
@@ -74,6 +75,7 @@ internal class TenantImportApiEndpointHandler(
     private ITenantDirectory TenantDirectory { get; } = tenantDirectory;
     private IManagementAuditRecorder ManagementAuditRecorder { get; } = managementAuditRecorder;
     private CellOptions CellOptions { get; } = cellOptions.Value;
+    private IPlatformTopology PlatformTopology { get; } = platformTopology;
 
     /// <inheritdoc />
     protected override IAuthorizationService AuthorizationService { get; } = authorizationService;
@@ -158,7 +160,7 @@ internal class TenantImportApiEndpointHandler(
     /// </param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
     /// <response code="200">The tenant is imported and placed in this cell, also after a move that the directory did not confirm.</response>
-    /// <response code="409">The directory places the tenant in this cell or in no cell, or refuses the move while it places the tenant in the source cell or in no cell. Nothing the import wrote remains.</response>
+    /// <response code="409">This cell is the control-plane cell of a platform with a directory, which holds only the control-plane tenant, or the directory places the tenant in this cell or in no cell, or refuses the move while it places the tenant in the source cell or in no cell. Nothing the import wrote remains.</response>
     /// <response code="413">The request body is larger than a tenant move admits: 64 MiB plus 64 KiB.</response>
     /// <response code="422">The kid is empty, or the transfer key is unknown, expired or already used; the package is not sealed to a transfer key, does not decrypt with it or is malformed, its format version is not one this cell imports, its region is not this cell's region, it is offered to another cell, or it has a section that this cell does not import; the tenant's root key is refused; or a remote key that the tenant's secrets reference belongs to a provider that this cell does not register or lies outside the location this cell uses.</response>
     /// <response code="503">The global directory is unavailable before the import writes anything, or at a move after which it places the tenant in the source cell or in no cell, and nothing the import wrote remains; or the outcome of the move is unknown, this cell keeps what the import wrote, and the problem's <c>moveOutcome</c> is <c>unknown</c>.</response>
@@ -255,6 +257,16 @@ internal class TenantImportApiEndpointHandler(
         if (contributors.Count != sections.Count)
         {
             return Unprocessable("The package has a section that this cell does not import.");
+        }
+
+        // The control-plane cell of a platform with a directory holds only the control-plane tenant, so nothing is
+        // written for another one.
+        if (PlatformTopology.HoldsOnlyControlPlaneTenant())
+        {
+            return TypedResults.Problem(
+                detail: "The control-plane cell holds only the control-plane tenant.",
+                statusCode: StatusCodes.Status409Conflict
+            );
         }
 
         TenantPlacement? placement;

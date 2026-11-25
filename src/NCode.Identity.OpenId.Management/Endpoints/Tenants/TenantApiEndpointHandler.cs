@@ -804,7 +804,7 @@ internal class TenantApiEndpointHandler(
 
         // The control-plane cell of a platform with a directory is dedicated to the control-plane tenant, which exists
         // before any request, so no other tenant is created in it.
-        if (PlatformTopology.HasDirectory && PlatformTopology.IsControlPlaneCell)
+        if (PlatformTopology.HoldsOnlyControlPlaneTenant())
         {
             return TypedResults.Problem(
                 detail: "The control-plane cell holds only the control-plane tenant.",
@@ -1321,7 +1321,7 @@ internal class TenantApiEndpointHandler(
 
         // A fenced tenant is enabled only after a live read finds the directory placing it in this cell, which makes
         // this cell the holder of its keys again, in the same save (ADR-1536).
-        if (tenant.IsDisabled && !model.IsDisabled && tenant.KeyCustody != TenantKeyCustody.Held)
+        if (tenant.IsDisabled && !model.IsDisabled && !TenantKeyCustody.IsHeld(tenant.KeyCustody))
         {
             TenantPlacement? placement;
             try
@@ -2548,7 +2548,7 @@ internal class TenantApiEndpointHandler(
             return ManagementProblems.ResourceNotFound();
         }
 
-        if (tenant.KeyCustody != TenantKeyCustody.Held)
+        if (!TenantKeyCustody.IsHeld(tenant.KeyCustody))
         {
             return TypedResults.Problem(
                 detail: "The tenant's keys are fenced while it moves.",

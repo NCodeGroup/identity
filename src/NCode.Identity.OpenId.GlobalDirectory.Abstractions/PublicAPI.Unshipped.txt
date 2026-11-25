@@ -308,3 +308,5 @@ NCode.Identity.OpenId.GlobalDirectory.ReplicatedRevisionPage.Revisions.get -> Sy
 NCode.Identity.OpenId.GlobalDirectory.ReplicatedRevisionPage.Revisions.init -> void
 static NCode.Identity.OpenId.GlobalDirectory.ReplicatedRevisionPage.CreateContinuation(string! kind, string! key) -> string!
 static NCode.Identity.OpenId.GlobalDirectory.ReplicatedRevisionPage.TryParseContinuation(string? continuation, out string? kind, out string? key) -> bool
+static NCode.Identity.OpenId.GlobalDirectory.PlatformTopologyExtensions.HoldsOnlyControlPlaneTenant(this NCode.Identity.OpenId.GlobalDirectory.IPlatformTopology! platformTopology) -> bool
+NCode.Identity.OpenId.GlobalDirectory.PlatformTopologyExtensions

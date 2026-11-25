@@ -40,7 +40,7 @@ internal sealed class DefaultTenantKeyCustodyGuard(
             return false;
         }
 
-        if (string.Equals(tenant.KeyCustody, TenantKeyCustody.Held, StringComparison.Ordinal))
+        if (TenantKeyCustody.IsHeld(tenant.KeyCustody))
         {
             return true;
         }

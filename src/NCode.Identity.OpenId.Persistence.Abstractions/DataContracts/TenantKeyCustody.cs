@@ -27,4 +27,13 @@ public static class TenantKeyCustody
     /// The tenant's keys arrive in this cell from another one, and the directory has not yet confirmed the move.
     /// </summary>
     public const string Incoming = "incoming";
+
+    /// <summary>
+    /// Determines whether a custody value is <see cref="Held"/>, which is the only value under which this cell may
+    /// change the tenant's keys.
+    /// </summary>
+    /// <param name="custody">The tenant's key custody.</param>
+    /// <returns><c>true</c> when the cell holds the tenant's keys; otherwise, <c>false</c>.</returns>
+    public static bool IsHeld(string custody) =>
+        string.Equals(custody, Held, StringComparison.Ordinal);
 }

@@ -852,6 +852,7 @@ NCode.Identity.OpenId.Persistence.DataContracts.TenantKeyCustody
 const NCode.Identity.OpenId.Persistence.DataContracts.TenantKeyCustody.Held = "held" -> string!
 const NCode.Identity.OpenId.Persistence.DataContracts.TenantKeyCustody.Incoming = "incoming" -> string!
 const NCode.Identity.OpenId.Persistence.DataContracts.TenantKeyCustody.Outgoing = "outgoing" -> string!
+static NCode.Identity.OpenId.Persistence.DataContracts.TenantKeyCustody.IsHeld(string! custody) -> bool
 NCode.Identity.OpenId.Persistence.Stores.ITenantStore.SetKeyCustodyAsync(string! tenantId, string! custody, string? cell, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<bool>
 NCode.Identity.OpenId.Persistence.Stores.ITenantStore.ListTenantIdsByKeyCustodyAsync(string! custody, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<string!>!>
 const NCode.Identity.OpenId.Persistence.OpenIdResourceTypes.Cell = "cell" -> string!

@@ -66,6 +66,7 @@ public sealed class TenantImportApiEndpointHandlerTests : IDisposable
     private Mock<IRemoteKeyProvider> MockRemoteKeyProvider { get; }
     private Mock<ITenantDirectory> MockTenantDirectory { get; }
     private Mock<IManagementAuditRecorder> MockManagementAuditRecorder { get; }
+    private Mock<IPlatformTopology> MockPlatformTopology { get; }
     private List<string> Calls { get; } = [];
     private List<string> FenceCalls { get; } = [];
     private int PendingFenceSaves { get; set; }
@@ -90,6 +91,9 @@ public sealed class TenantImportApiEndpointHandlerTests : IDisposable
         MockRemoteKeyProvider = MockRepository.Create<IRemoteKeyProvider>();
         MockTenantDirectory = MockRepository.Create<ITenantDirectory>();
         MockManagementAuditRecorder = MockRepository.Create<IManagementAuditRecorder>();
+        MockPlatformTopology = MockRepository.Create<IPlatformTopology>();
+        MockPlatformTopology.Setup(x => x.HasDirectory).Returns(true);
+        MockPlatformTopology.Setup(x => x.IsControlPlaneCell).Returns(false);
 
         // The handler reads each contributor's order once, to run them in order whatever order they are registered in.
         MockCoreContributor.Setup(x => x.Order).Returns(0).Verifiable();
@@ -121,7 +125,8 @@ public sealed class TenantImportApiEndpointHandlerTests : IDisposable
             MockManagementAuditRecorder.Object,
             Microsoft.Extensions.Options.Options.Create(
                 new CellOptions { Name = CellName, Region = Region }
-            )
+            ),
+            MockPlatformTopology.Object
         );
 
     private static HttpContext CreateHttpContext(bool authenticated)
@@ -1056,6 +1061,27 @@ public sealed class TenantImportApiEndpointHandlerTests : IDisposable
 
         var problem = Assert.IsType<ProblemHttpResult>(result);
         Assert.Equal(StatusCodes.Status409Conflict, problem.StatusCode);
+    }
+
+    [Fact]
+    public async Task ImportTenantAsync_WhenTheCellIsTheControlPlaneCell_ReturnsConflictBeforeWritingAnything()
+    {
+        SetupAuthorization(AuthorizationResult.Success());
+        SetupPackage();
+        MockPlatformTopology.Setup(x => x.IsControlPlaneCell).Returns(true);
+
+        var result = await Handler.ImportTenantAsync(
+            CreateHttpContext(authenticated: true),
+            CreateRequest(),
+            CancellationToken.None
+        );
+
+        var problem = Assert.IsType<ProblemHttpResult>(result);
+        Assert.Equal(StatusCodes.Status409Conflict, problem.StatusCode);
+        Assert.Equal(
+            "The control-plane cell holds only the control-plane tenant.",
+            problem.ProblemDetails.Detail
+        );
     }
 
     [Fact]
