@@ -1352,8 +1352,9 @@ public static class DirectoryEndpoints
     /// or longer than the directory stores, the management URL is not an absolute <c>https</c> URL (or an <c>http</c>
     /// URL in local development) without user information, a query or a fragment, the name or the region is not a
     /// <see cref="CellLabelRules"/> label, or the descriptor names a cell other than the route's; <c>403 Forbidden</c>
-    /// when the cell is not the caller or claims to be the control plane without being it; <c>409 Conflict</c> when
-    /// another cell reports the management URL.
+    /// when the cell is not the caller or claims to be the control plane without being it; <c>409 Conflict</c> when the
+    /// cell is not registered or is retired, its region or kind differs from its registration, or another cell reports
+    /// the management URL.
     /// </returns>
     private static async ValueTask<IResult> RegisterCellAsync(
         string name,
@@ -1417,19 +1418,6 @@ public static class DirectoryEndpoints
     }
 
     /// <summary>
-    /// Describes the body of a cell registration: the cell's region and kind and its client key set. The cell's name is
-    /// the route's.
-    /// </summary>
-    internal sealed record CellRegistrationBody
-    {
-        public string? Region { get; init; }
-
-        public string? Kind { get; init; }
-
-        public JsonElement Jwks { get; init; }
-    }
-
-    /// <summary>
     /// Registers a cell, or replaces the client key set of a registered cell. Only the control-plane cell registers
     /// cells.
     /// </summary>
@@ -1438,7 +1426,7 @@ public static class DirectoryEndpoints
     /// <param name="httpContext">The <see cref="HttpContext"/> that carries the authenticated calling cell.</param>
     /// <param name="options">The <see cref="DirectoryServerOptions"/> that name the control-plane cell.</param>
     /// <param name="jwksReader">The <see cref="IPublicJwksReader"/> that checks the key set.</param>
-    /// <param name="store">The <see cref="DefaultDirectoryStore"/> that holds the registration.</param>
+    /// <param name="directory">The <see cref="ICellDirectory"/> that holds the registration.</param>
     /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
     /// <returns>
     /// <c>204 No Content</c> when the cell is registered; <c>400 Bad Request</c> when the name or the region is not a
@@ -1452,7 +1440,7 @@ public static class DirectoryEndpoints
         HttpContext httpContext,
         IOptions<DirectoryServerOptions> options,
         IPublicJwksReader jwksReader,
-        DefaultDirectoryStore store,
+        ICellDirectory directory,
         CancellationToken cancellationToken
     )
     {
@@ -1486,7 +1474,7 @@ public static class DirectoryEndpoints
         };
         try
         {
-            await store.RegisterCellAsync(registration, cancellationToken);
+            await directory.RegisterAsync(registration, cancellationToken);
         }
         catch (CellDirectoryConflictException exception)
         {
@@ -1502,7 +1490,7 @@ public static class DirectoryEndpoints
     /// <param name="name">The cell name from the route.</param>
     /// <param name="httpContext">The <see cref="HttpContext"/> that carries the authenticated calling cell.</param>
     /// <param name="options">The <see cref="DirectoryServerOptions"/> that name the control-plane cell.</param>
-    /// <param name="store">The <see cref="DefaultDirectoryStore"/> that holds the registration.</param>
+    /// <param name="directory">The <see cref="ICellDirectory"/> that holds the registration.</param>
     /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
     /// <returns>
     /// <c>204 No Content</c> when the cell is retired; <c>400 Bad Request</c> when the name is not a
@@ -1513,7 +1501,7 @@ public static class DirectoryEndpoints
         string name,
         HttpContext httpContext,
         IOptions<DirectoryServerOptions> options,
-        DefaultDirectoryStore store,
+        ICellDirectory directory,
         CancellationToken cancellationToken
     )
     {
@@ -1525,7 +1513,7 @@ public static class DirectoryEndpoints
 
         try
         {
-            await store.RetireCellAsync(name, cancellationToken);
+            await directory.RetireAsync(name, cancellationToken);
         }
         catch (CellDirectoryConflictException exception)
         {

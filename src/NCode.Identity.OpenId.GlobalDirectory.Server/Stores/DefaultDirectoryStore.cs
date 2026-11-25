@@ -40,6 +40,7 @@ internal sealed class DefaultDirectoryStore(
         IDirectoryTeamWriter,
         ITeamDirectory,
         ICellDirectory,
+        ICellClientKeyStore,
         IPlatformDirectory,
         IReplicatedDocumentDirectory
 {
@@ -2054,22 +2055,12 @@ internal sealed class DefaultDirectoryStore(
                     );
                 }
 
-                var isRegionSame = string.Equals(
-                    cell.Region,
+                ThrowIfRegionOrKindDiffers(
+                    cell,
+                    descriptor.Name,
                     descriptor.Region,
-                    StringComparison.Ordinal
+                    descriptor.Kind
                 );
-                var isKindSame = string.Equals(
-                    cell.Kind,
-                    descriptor.Kind,
-                    StringComparison.Ordinal
-                );
-                if (!isRegionSame || !isKindSame)
-                {
-                    throw new CellDirectoryConflictException(
-                        $"The cell '{descriptor.Name}' is registered in the region '{cell.Region}' as the kind '{cell.Kind}'."
-                    );
-                }
 
                 // No two cells report one management URL: a caller's DPoP proof is bound to the URL it names.
                 var normalizedUrl = NormalizeManagementUrl(reportedUrl);
@@ -2105,27 +2096,8 @@ internal sealed class DefaultDirectoryStore(
     }
 
     /// <inheritdoc />
-    ValueTask ICellDirectory.RegisterAsync(
-        CellRegistration registration,
-        CancellationToken cancellationToken
-    ) => RegisterCellAsync(registration, cancellationToken);
-
     /// <inheritdoc />
-    ValueTask ICellDirectory.RetireAsync(string name, CancellationToken cancellationToken) =>
-        RetireCellAsync(name, cancellationToken);
-
-    /// <summary>
-    /// Registers a cell, or replaces the key set of a registered cell, in a serializable transaction. The cell's name,
-    /// region and kind are the registration's, and a registered cell's region and kind never change.
-    /// </summary>
-    /// <param name="registration">The <see cref="CellRegistration"/> of the cell.</param>
-    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
-    /// <returns>A <see cref="ValueTask"/> that completes when the registration is stored.</returns>
-    /// <exception cref="CellDirectoryConflictException">
-    /// The name is the control-plane cell's or a retired cell's, or the cell is registered in another region or as
-    /// another kind.
-    /// </exception>
-    public async ValueTask RegisterCellAsync(
+    async ValueTask ICellDirectory.RegisterAsync(
         CellRegistration registration,
         CancellationToken cancellationToken
     )
@@ -2170,22 +2142,7 @@ internal sealed class DefaultDirectoryStore(
                         );
                     }
 
-                    var isRegionSame = string.Equals(
-                        cell.Region,
-                        registration.Region,
-                        StringComparison.Ordinal
-                    );
-                    var isKindSame = string.Equals(
-                        cell.Kind,
-                        registration.Kind,
-                        StringComparison.Ordinal
-                    );
-                    if (!isRegionSame || !isKindSame)
-                    {
-                        throw new CellDirectoryConflictException(
-                            $"The cell '{name}' is registered in the region '{cell.Region}' as the kind '{cell.Kind}'."
-                        );
-                    }
+                    ThrowIfRegionOrKindDiffers(cell, name, registration.Region, registration.Kind);
 
                     cell.ClientJwksJson = jwksJson;
                 }
@@ -2197,17 +2154,8 @@ internal sealed class DefaultDirectoryStore(
         );
     }
 
-    /// <summary>
-    /// Retires a registered cell in a serializable transaction. The cell keeps its name, which is never reissued, and
-    /// holds no key set and no management URL afterward. A cell that is already retired stays as it is.
-    /// </summary>
-    /// <param name="name">The name of the cell.</param>
-    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
-    /// <returns>A <see cref="ValueTask"/> that completes when the cell is retired.</returns>
-    /// <exception cref="CellDirectoryConflictException">
-    /// The name is the control-plane cell's, no cell is registered under it, or a tenant is placed in the cell.
-    /// </exception>
-    public async ValueTask RetireCellAsync(string name, CancellationToken cancellationToken)
+    /// <inheritdoc />
+    async ValueTask ICellDirectory.RetireAsync(string name, CancellationToken cancellationToken)
     {
         ThrowIfControlPlaneCell(name, "retired");
 
@@ -2261,14 +2209,8 @@ internal sealed class DefaultDirectoryStore(
         );
     }
 
-    /// <summary>
-    /// Gets the key set that a registered cell's client assertions are verified with.
-    /// </summary>
-    /// <param name="name">The name of the cell.</param>
-    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
-    /// <returns>The JSON Web Key Set of the cell, or <c>null</c> when no unretired cell is registered under the
-    /// name.</returns>
-    public async ValueTask<JsonElement?> GetCellClientKeysAsync(
+    /// <inheritdoc />
+    async ValueTask<JsonElement?> ICellClientKeyStore.GetCellClientKeysAsync(
         string name,
         CancellationToken cancellationToken
     )
@@ -2281,6 +2223,32 @@ internal sealed class DefaultDirectoryStore(
             .Select(entity => entity.ClientJwksJson)
             .SingleOrDefaultAsync(cancellationToken);
         return jwksJson is null ? null : JsonElement.Parse(jwksJson);
+    }
+
+    /// <summary>
+    /// Refuses a report or registration whose region or kind differs from the cell's registered ones, which never
+    /// change.
+    /// </summary>
+    /// <param name="cell">The stored <see cref="CellRecord"/>.</param>
+    /// <param name="name">The name of the cell.</param>
+    /// <param name="region">The region that the report or registration names.</param>
+    /// <param name="kind">The kind that the report or registration names.</param>
+    /// <exception cref="CellDirectoryConflictException">The region or the kind differs from the cell's.</exception>
+    private static void ThrowIfRegionOrKindDiffers(
+        CellRecord cell,
+        string name,
+        string region,
+        string kind
+    )
+    {
+        var isRegionSame = string.Equals(cell.Region, region, StringComparison.Ordinal);
+        var isKindSame = string.Equals(cell.Kind, kind, StringComparison.Ordinal);
+        if (!isRegionSame || !isKindSame)
+        {
+            throw new CellDirectoryConflictException(
+                $"The cell '{name}' is registered in the region '{cell.Region}' as the kind '{cell.Kind}'."
+            );
+        }
     }
 
     /// <summary>
@@ -2337,8 +2305,9 @@ internal sealed class DefaultDirectoryStore(
     /// <returns>The normalized form of <paramref name="url"/>.</returns>
     private static string NormalizeManagementUrl(string url)
     {
-        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri))
-            return url.TrimEnd('/').ToLowerInvariant();
+        // A stored URL that does not parse is its own key, so it never equals a parsed one.
+        if (!AbsoluteUri.TryParseAnyHttpServiceUrl(url, out var uri))
+            return url;
 
         var origin = uri.GetComponents(UriComponents.SchemeAndServer, UriFormat.UriEscaped);
         return origin.ToLowerInvariant() + uri.AbsolutePath.TrimEnd('/');

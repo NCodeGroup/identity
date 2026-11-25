@@ -36,9 +36,9 @@ public sealed class DefaultDirectoryStoreCellRegistryTests : DefaultDirectorySto
     [Fact]
     public async Task RegisterCellAsync_WhenTheCellIsNew_StoresTheKeysAndListsTheCellWithoutAManagementUrl()
     {
-        await CellRegistry.RegisterCellAsync(CreateRegistration("cell-a"), CancellationToken.None);
+        await CellRegistry.RegisterAsync(CreateRegistration("cell-a"), CancellationToken.None);
 
-        var keys = await CellRegistry.GetCellClientKeysAsync("cell-a", CancellationToken.None);
+        var keys = await CellClientKeys.GetCellClientKeysAsync("cell-a", CancellationToken.None);
         Assert.NotNull(keys);
         Assert.Equal("one", keys.Value.GetProperty("keys")[0].GetProperty("kid").GetString());
         var listed = await Cells.GetOrDefaultAsync("cell-a", CancellationToken.None);
@@ -51,14 +51,14 @@ public sealed class DefaultDirectoryStoreCellRegistryTests : DefaultDirectorySto
     [Fact]
     public async Task RegisterCellAsync_WhenTheCellIsRegisteredAgain_ReplacesTheKeys()
     {
-        await CellRegistry.RegisterCellAsync(CreateRegistration("cell-a"), CancellationToken.None);
+        await CellRegistry.RegisterAsync(CreateRegistration("cell-a"), CancellationToken.None);
 
-        await CellRegistry.RegisterCellAsync(
+        await CellRegistry.RegisterAsync(
             CreateRegistration("cell-a", jwks: """{"keys":[{"kid":"two"}]}"""),
             CancellationToken.None
         );
 
-        var keys = await CellRegistry.GetCellClientKeysAsync("cell-a", CancellationToken.None);
+        var keys = await CellClientKeys.GetCellClientKeysAsync("cell-a", CancellationToken.None);
         Assert.NotNull(keys);
         Assert.Equal("two", keys.Value.GetProperty("keys")[0].GetProperty("kid").GetString());
     }
@@ -68,7 +68,7 @@ public sealed class DefaultDirectoryStoreCellRegistryTests : DefaultDirectorySto
     {
         await ReportCellAsync(CreateDescriptor("cell-a"), CancellationToken.None);
 
-        await CellRegistry.RegisterCellAsync(
+        await CellRegistry.RegisterAsync(
             CreateRegistration("cell-a", jwks: """{"keys":[]}"""),
             CancellationToken.None
         );
@@ -84,10 +84,10 @@ public sealed class DefaultDirectoryStoreCellRegistryTests : DefaultDirectorySto
         string kind
     )
     {
-        await CellRegistry.RegisterCellAsync(CreateRegistration("cell-a"), CancellationToken.None);
+        await CellRegistry.RegisterAsync(CreateRegistration("cell-a"), CancellationToken.None);
 
         await Assert.ThrowsAsync<CellDirectoryConflictException>(async () =>
-            await CellRegistry.RegisterCellAsync(
+            await CellRegistry.RegisterAsync(
                 CreateRegistration("cell-a", region, kind),
                 CancellationToken.None
             )
@@ -98,7 +98,7 @@ public sealed class DefaultDirectoryStoreCellRegistryTests : DefaultDirectorySto
     public async Task RegisterCellAsync_WhenTheNameIsTheControlPlaneCell_Throws()
     {
         await Assert.ThrowsAsync<CellDirectoryConflictException>(async () =>
-            await CellRegistry.RegisterCellAsync(
+            await CellRegistry.RegisterAsync(
                 CreateRegistration(ControlPlaneCell),
                 CancellationToken.None
             )
@@ -108,14 +108,11 @@ public sealed class DefaultDirectoryStoreCellRegistryTests : DefaultDirectorySto
     [Fact]
     public async Task RegisterCellAsync_WhenTheCellIsRetired_Throws()
     {
-        await CellRegistry.RegisterCellAsync(CreateRegistration("cell-a"), CancellationToken.None);
-        await CellRegistry.RetireCellAsync("cell-a", CancellationToken.None);
+        await CellRegistry.RegisterAsync(CreateRegistration("cell-a"), CancellationToken.None);
+        await CellRegistry.RetireAsync("cell-a", CancellationToken.None);
 
         await Assert.ThrowsAsync<CellDirectoryConflictException>(async () =>
-            await CellRegistry.RegisterCellAsync(
-                CreateRegistration("cell-a"),
-                CancellationToken.None
-            )
+            await CellRegistry.RegisterAsync(CreateRegistration("cell-a"), CancellationToken.None)
         );
     }
 
@@ -128,9 +125,9 @@ public sealed class DefaultDirectoryStoreCellRegistryTests : DefaultDirectorySto
     {
         await ReportCellAsync(CreateDescriptor("cell-a"), CancellationToken.None);
 
-        await CellRegistry.RetireCellAsync("cell-a", CancellationToken.None);
+        await CellRegistry.RetireAsync("cell-a", CancellationToken.None);
 
-        Assert.Null(await CellRegistry.GetCellClientKeysAsync("cell-a", CancellationToken.None));
+        Assert.Null(await CellClientKeys.GetCellClientKeysAsync("cell-a", CancellationToken.None));
         var retired = await Cells.GetOrDefaultAsync("cell-a", CancellationToken.None);
         Assert.NotNull(retired);
         Assert.True(retired.IsRetired);
@@ -141,12 +138,12 @@ public sealed class DefaultDirectoryStoreCellRegistryTests : DefaultDirectorySto
     [Fact]
     public async Task RetireCellAsync_WhenTheCellIsRetiredAlready_Accepts()
     {
-        await CellRegistry.RegisterCellAsync(CreateRegistration("cell-a"), CancellationToken.None);
-        await CellRegistry.RetireCellAsync("cell-a", CancellationToken.None);
+        await CellRegistry.RegisterAsync(CreateRegistration("cell-a"), CancellationToken.None);
+        await CellRegistry.RetireAsync("cell-a", CancellationToken.None);
 
-        await CellRegistry.RetireCellAsync("cell-a", CancellationToken.None);
+        await CellRegistry.RetireAsync("cell-a", CancellationToken.None);
 
-        Assert.Null(await CellRegistry.GetCellClientKeysAsync("cell-a", CancellationToken.None));
+        Assert.Null(await CellClientKeys.GetCellClientKeysAsync("cell-a", CancellationToken.None));
     }
 
     [Fact]
@@ -156,10 +153,12 @@ public sealed class DefaultDirectoryStoreCellRegistryTests : DefaultDirectorySto
         await ReserveAndPlaceAsync(TenantId, Issuer);
 
         await Assert.ThrowsAsync<CellDirectoryConflictException>(async () =>
-            await CellRegistry.RetireCellAsync(CellName, CancellationToken.None)
+            await CellRegistry.RetireAsync(CellName, CancellationToken.None)
         );
 
-        Assert.NotNull(await CellRegistry.GetCellClientKeysAsync(CellName, CancellationToken.None));
+        Assert.NotNull(
+            await CellClientKeys.GetCellClientKeysAsync(CellName, CancellationToken.None)
+        );
     }
 
     [Fact]
@@ -172,16 +171,16 @@ public sealed class DefaultDirectoryStoreCellRegistryTests : DefaultDirectorySto
             CancellationToken.None
         );
 
-        await CellRegistry.RetireCellAsync(CellName, CancellationToken.None);
+        await CellRegistry.RetireAsync(CellName, CancellationToken.None);
 
-        Assert.Null(await CellRegistry.GetCellClientKeysAsync(CellName, CancellationToken.None));
+        Assert.Null(await CellClientKeys.GetCellClientKeysAsync(CellName, CancellationToken.None));
     }
 
     [Fact]
     public async Task RetireCellAsync_WhenTheCellIsUnknown_Throws()
     {
         await Assert.ThrowsAsync<CellDirectoryConflictException>(async () =>
-            await CellRegistry.RetireCellAsync("unknown", CancellationToken.None)
+            await CellRegistry.RetireAsync("unknown", CancellationToken.None)
         );
     }
 
@@ -189,7 +188,7 @@ public sealed class DefaultDirectoryStoreCellRegistryTests : DefaultDirectorySto
     public async Task RetireCellAsync_WhenTheNameIsTheControlPlaneCell_Throws()
     {
         await Assert.ThrowsAsync<CellDirectoryConflictException>(async () =>
-            await CellRegistry.RetireCellAsync(ControlPlaneCell, CancellationToken.None)
+            await CellRegistry.RetireAsync(ControlPlaneCell, CancellationToken.None)
         );
     }
 
@@ -210,7 +209,7 @@ public sealed class DefaultDirectoryStoreCellRegistryTests : DefaultDirectorySto
     [Fact]
     public async Task ReportAsync_WhenTheCellIsRegistered_StoresTheDescriptor()
     {
-        await CellRegistry.RegisterCellAsync(CreateRegistration("cell-a"), CancellationToken.None);
+        await CellRegistry.RegisterAsync(CreateRegistration("cell-a"), CancellationToken.None);
         var descriptor = CreateDescriptor("cell-a");
 
         await Cells.ReportAsync(descriptor, CancellationToken.None);
@@ -227,7 +226,7 @@ public sealed class DefaultDirectoryStoreCellRegistryTests : DefaultDirectorySto
     [Fact]
     public async Task ReportAsync_WhenTheCellReportsItselfAsTheControlPlane_KeepsTheStoredFlag()
     {
-        await CellRegistry.RegisterCellAsync(CreateRegistration("cell-a"), CancellationToken.None);
+        await CellRegistry.RegisterAsync(CreateRegistration("cell-a"), CancellationToken.None);
 
         await Cells.ReportAsync(
             CreateDescriptor("cell-a") with
@@ -250,7 +249,7 @@ public sealed class DefaultDirectoryStoreCellRegistryTests : DefaultDirectorySto
         string kind
     )
     {
-        await CellRegistry.RegisterCellAsync(CreateRegistration("cell-a"), CancellationToken.None);
+        await CellRegistry.RegisterAsync(CreateRegistration("cell-a"), CancellationToken.None);
 
         await Assert.ThrowsAsync<CellDirectoryConflictException>(async () =>
             await Cells.ReportAsync(
@@ -266,8 +265,8 @@ public sealed class DefaultDirectoryStoreCellRegistryTests : DefaultDirectorySto
     [Fact]
     public async Task ReportAsync_WhenTheCellIsRetired_Throws()
     {
-        await CellRegistry.RegisterCellAsync(CreateRegistration("cell-a"), CancellationToken.None);
-        await CellRegistry.RetireCellAsync("cell-a", CancellationToken.None);
+        await CellRegistry.RegisterAsync(CreateRegistration("cell-a"), CancellationToken.None);
+        await CellRegistry.RetireAsync("cell-a", CancellationToken.None);
 
         await Assert.ThrowsAsync<CellDirectoryConflictException>(async () =>
             await Cells.ReportAsync(CreateDescriptor("cell-a"), CancellationToken.None)
@@ -281,7 +280,7 @@ public sealed class DefaultDirectoryStoreCellRegistryTests : DefaultDirectorySto
     [Fact]
     public async Task GetCellClientKeysAsync_WhenTheCellIsUnknown_ReturnsNull()
     {
-        var keys = await CellRegistry.GetCellClientKeysAsync("unknown", CancellationToken.None);
+        var keys = await CellClientKeys.GetCellClientKeysAsync("unknown", CancellationToken.None);
 
         Assert.Null(keys);
     }

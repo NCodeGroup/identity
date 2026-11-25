@@ -78,7 +78,7 @@ public sealed class DirectoryTokenIssuerTests : DefaultDirectoryStoreTestBase, I
         EmptyRingIssuer = CreateIssuer(emptyRing, options);
         Validator = new DirectoryClientAssertionValidator(
             System.TimeProvider.System,
-            CellRegistry,
+            CellClientKeys,
             JwksReader,
             ServiceProvider.GetRequiredService<IAlgorithmCollectionProvider>(),
             ServiceProvider.GetRequiredService<NCode.Identity.Jwt.Validation.IJwtValidator>(),
@@ -125,7 +125,7 @@ public sealed class DirectoryTokenIssuerTests : DefaultDirectoryStoreTestBase, I
             Kind = CellKinds.Shared,
             Jwks = JsonElement.Parse("""{"keys":[]}"""),
         };
-        await CellRegistry.RegisterCellAsync(registration, cancellationToken);
+        await CellRegistry.RegisterAsync(registration, cancellationToken);
         JwksReader.Keys = [CellKey];
     }
 
@@ -316,7 +316,7 @@ public sealed class DirectoryTokenIssuerTests : DefaultDirectoryStoreTestBase, I
     public async Task ValidateAssertionAsync_WhenTheCellIsRetired_IsRefused()
     {
         await RegisterCellAsync();
-        await CellRegistry.RetireCellAsync("cell-a", CancellationToken.None);
+        await CellRegistry.RetireAsync("cell-a", CancellationToken.None);
         var assertion = await CreateAssertionAsync();
 
         var result = await ValidateAsync(assertion);

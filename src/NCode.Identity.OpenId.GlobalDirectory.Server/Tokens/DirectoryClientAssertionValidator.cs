@@ -26,7 +26,7 @@ namespace NCode.Identity.OpenId.GlobalDirectory.Server.Tokens;
 // See ADR-1536.
 internal sealed class DirectoryClientAssertionValidator(
     TimeProvider timeProvider,
-    DefaultDirectoryStore store,
+    ICellClientKeyStore store,
     IPublicJwksReader jwksReader,
     IAlgorithmCollectionProvider algorithmCollectionProvider,
     IJwtValidator jwtValidator,
@@ -84,7 +84,7 @@ internal sealed class DirectoryClientAssertionValidator(
     }
 
     private TimeProvider TimeProvider { get; } = timeProvider;
-    private DefaultDirectoryStore Store { get; } = store;
+    private ICellClientKeyStore Store { get; } = store;
     private IPublicJwksReader JwksReader { get; } = jwksReader;
     private IAlgorithmCollectionProvider AlgorithmCollectionProvider { get; } =
         algorithmCollectionProvider;

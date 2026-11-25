@@ -96,7 +96,9 @@ public abstract class DefaultDirectoryStoreTestBase : IDisposable
 
     protected ICellDirectory Cells => Store;
 
-    internal DefaultDirectoryStore CellRegistry => Store;
+    internal ICellDirectory CellRegistry => Store;
+
+    internal ICellClientKeyStore CellClientKeys => Store;
 
     /// <summary>
     /// Registers a cell with an empty key set and has it report its descriptor, as a cell of the platform does.
@@ -134,7 +136,7 @@ public abstract class DefaultDirectoryStoreTestBase : IDisposable
             Kind = descriptor.Kind,
             Jwks = JsonElement.Parse("""{"keys":[]}"""),
         };
-        await Store.RegisterCellAsync(registration, cancellationToken);
+        await CellRegistry.RegisterAsync(registration, cancellationToken);
         await Cells.ReportAsync(descriptor, cancellationToken);
     }
 

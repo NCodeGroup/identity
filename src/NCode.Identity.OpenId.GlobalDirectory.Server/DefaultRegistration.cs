@@ -99,6 +99,9 @@ public static class DefaultRegistration
             serviceCollection.TryAddSingleton<ICellDirectory>(serviceProvider =>
                 serviceProvider.GetRequiredService<DefaultDirectoryStore>()
             );
+            serviceCollection.TryAddSingleton<ICellClientKeyStore>(serviceProvider =>
+                serviceProvider.GetRequiredService<DefaultDirectoryStore>()
+            );
             serviceCollection.TryAddSingleton<IPlatformDirectory>(serviceProvider =>
                 serviceProvider.GetRequiredService<DefaultDirectoryStore>()
             );
