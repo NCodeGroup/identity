@@ -123,7 +123,7 @@ public abstract class DefaultDirectoryStoreTestBase : IDisposable
                 }
             );
             await dbContext.SaveChangesAsync(cancellationToken);
-            await Cells.RegisterAsync(descriptor, cancellationToken);
+            await Cells.ReportAsync(descriptor, cancellationToken);
             return;
         }
 
@@ -135,7 +135,7 @@ public abstract class DefaultDirectoryStoreTestBase : IDisposable
             Jwks = JsonElement.Parse("""{"keys":[]}"""),
         };
         await Store.RegisterCellAsync(registration, cancellationToken);
-        await Cells.RegisterAsync(descriptor, cancellationToken);
+        await Cells.ReportAsync(descriptor, cancellationToken);
     }
 
     protected IPlatformDirectory Platform => Store;

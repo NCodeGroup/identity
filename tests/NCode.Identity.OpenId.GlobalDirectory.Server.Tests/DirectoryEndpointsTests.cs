@@ -1333,14 +1333,8 @@ public class DirectoryEndpointsTests : IAsyncLifetime
             await dbContext.SaveChangesAsync(cancellationToken);
         }
 
-        await cells.RegisterAsync(CreateCell("a"), cancellationToken);
-        await cells.RegisterAsync(
-            CreateCell("b") with
-            {
-                Region = targetRegion,
-            },
-            cancellationToken
-        );
+        await cells.ReportAsync(CreateCell("a"), cancellationToken);
+        await cells.ReportAsync(CreateCell("b") with { Region = targetRegion }, cancellationToken);
         await tenants.ReserveAsync(
             new TenantReservation
             {

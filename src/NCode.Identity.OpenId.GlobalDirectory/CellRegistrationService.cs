@@ -85,7 +85,7 @@ internal sealed class CellRegistrationService(
         {
             try
             {
-                await CellDirectory.RegisterAsync(descriptor, cancellationToken);
+                await CellDirectory.ReportAsync(descriptor, cancellationToken);
                 return;
             }
             catch (DirectoryUnavailableException exception)

@@ -192,32 +192,38 @@ public sealed class DefaultDirectoryStoreCellRegistryTests : DefaultDirectorySto
     #region Descriptor Report Tests
 
     [Fact]
-    public async Task RegisterAsync_WhenTheCellIsNotRegistered_Throws()
+    public async Task ReportAsync_WhenTheCellIsNotRegistered_Throws()
     {
         await Assert.ThrowsAsync<CellDirectoryConflictException>(async () =>
-            await Cells.RegisterAsync(CreateDescriptor("cell-a"), CancellationToken.None)
+            await Cells.ReportAsync(CreateDescriptor("cell-a"), CancellationToken.None)
         );
 
         Assert.Null(await Cells.GetOrDefaultAsync("cell-a", CancellationToken.None));
     }
 
     [Fact]
-    public async Task RegisterAsync_WhenTheCellIsRegistered_StoresTheDescriptor()
+    public async Task ReportAsync_WhenTheCellIsRegistered_StoresTheDescriptor()
     {
         await CellRegistry.RegisterCellAsync(CreateRegistration("cell-a"), CancellationToken.None);
         var descriptor = CreateDescriptor("cell-a");
 
-        await Cells.RegisterAsync(descriptor, CancellationToken.None);
+        await Cells.ReportAsync(descriptor, CancellationToken.None);
 
-        Assert.Equal(descriptor, await Cells.GetOrDefaultAsync("cell-a", CancellationToken.None));
+        Assert.Equal(
+            descriptor with
+            {
+                IsRegistered = true,
+            },
+            await Cells.GetOrDefaultAsync("cell-a", CancellationToken.None)
+        );
     }
 
     [Fact]
-    public async Task RegisterAsync_WhenTheCellReportsItselfAsTheControlPlane_KeepsTheStoredFlag()
+    public async Task ReportAsync_WhenTheCellReportsItselfAsTheControlPlane_KeepsTheStoredFlag()
     {
         await CellRegistry.RegisterCellAsync(CreateRegistration("cell-a"), CancellationToken.None);
 
-        await Cells.RegisterAsync(
+        await Cells.ReportAsync(
             CreateDescriptor("cell-a") with
             {
                 IsControlPlane = true,
@@ -233,7 +239,7 @@ public sealed class DefaultDirectoryStoreCellRegistryTests : DefaultDirectorySto
     [Theory]
     [InlineData("region-b", CellKinds.Shared)]
     [InlineData("region-a", CellKinds.Dedicated)]
-    public async Task RegisterAsync_WhenTheRegionOrKindDiffersFromTheRegistration_Throws(
+    public async Task ReportAsync_WhenTheRegionOrKindDiffersFromTheRegistration_Throws(
         string region,
         string kind
     )
@@ -241,7 +247,7 @@ public sealed class DefaultDirectoryStoreCellRegistryTests : DefaultDirectorySto
         await CellRegistry.RegisterCellAsync(CreateRegistration("cell-a"), CancellationToken.None);
 
         await Assert.ThrowsAsync<CellDirectoryConflictException>(async () =>
-            await Cells.RegisterAsync(
+            await Cells.ReportAsync(
                 CreateDescriptor("cell-a", region) with
                 {
                     Kind = kind,
@@ -252,13 +258,13 @@ public sealed class DefaultDirectoryStoreCellRegistryTests : DefaultDirectorySto
     }
 
     [Fact]
-    public async Task RegisterAsync_WhenTheCellIsRetired_Throws()
+    public async Task ReportAsync_WhenTheCellIsRetired_Throws()
     {
         await CellRegistry.RegisterCellAsync(CreateRegistration("cell-a"), CancellationToken.None);
         await CellRegistry.RetireCellAsync("cell-a", CancellationToken.None);
 
         await Assert.ThrowsAsync<CellDirectoryConflictException>(async () =>
-            await Cells.RegisterAsync(CreateDescriptor("cell-a"), CancellationToken.None)
+            await Cells.ReportAsync(CreateDescriptor("cell-a"), CancellationToken.None)
         );
     }
 

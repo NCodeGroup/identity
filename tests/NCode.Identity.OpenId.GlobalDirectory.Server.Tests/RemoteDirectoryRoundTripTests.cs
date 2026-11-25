@@ -190,7 +190,7 @@ public class RemoteDirectoryRoundTripTests : IAsyncLifetime
             await dbContext.SaveChangesAsync(cancellationToken);
         }
 
-        await Cells.RegisterAsync(descriptor, cancellationToken);
+        await Cells.ReportAsync(descriptor, cancellationToken);
     }
 
     private static string SettingsWithLimit(int maxTenants) =>
@@ -692,7 +692,7 @@ public class RemoteDirectoryRoundTripTests : IAsyncLifetime
     #region Cell Tests
 
     [Fact]
-    public async Task RegisterAsync_WhenTheCallerIsTheCell_RegistersItAndListsIt()
+    public async Task ReportAsync_WhenTheCallerIsTheCell_RegistersItAndListsIt()
     {
         Assert.Null(await Cells.GetOrDefaultAsync(CellName, CancellationToken.None));
 

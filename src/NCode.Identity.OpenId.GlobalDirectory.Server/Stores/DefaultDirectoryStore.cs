@@ -1972,7 +1972,7 @@ internal sealed class DefaultDirectoryStore(
     #region ICellDirectory
 
     /// <inheritdoc />
-    async ValueTask ICellDirectory.RegisterAsync(
+    async ValueTask ICellDirectory.ReportAsync(
         CellDescriptor descriptor,
         CancellationToken cancellationToken
     )
@@ -2059,6 +2059,16 @@ internal sealed class DefaultDirectoryStore(
             cancellationToken
         );
     }
+
+    /// <inheritdoc />
+    ValueTask ICellDirectory.RegisterAsync(
+        CellRegistration registration,
+        CancellationToken cancellationToken
+    ) => RegisterCellAsync(registration, cancellationToken);
+
+    /// <inheritdoc />
+    ValueTask ICellDirectory.RetireAsync(string name, CancellationToken cancellationToken) =>
+        RetireCellAsync(name, cancellationToken);
 
     /// <summary>
     /// Registers a cell, or replaces the key set of a registered cell, in a serializable transaction. The cell's name,
@@ -2307,6 +2317,8 @@ internal sealed class DefaultDirectoryStore(
             Kind = record.Kind,
             ManagementUrl = record.ManagementUrl ?? string.Empty,
             IsControlPlane = record.IsControlPlane,
+            IsRegistered = record.ClientJwksJson is not null,
+            IsRetired = record.IsRetired,
         };
 
     #endregion

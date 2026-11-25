@@ -13,6 +13,10 @@ NCode.Identity.OpenId.GlobalDirectory.CellDirectoryConflictException.CellDirecto
 NCode.Identity.OpenId.GlobalDirectory.CellDescriptor
 NCode.Identity.OpenId.GlobalDirectory.CellDescriptor.IsControlPlane.get -> bool
 NCode.Identity.OpenId.GlobalDirectory.CellDescriptor.IsControlPlane.init -> void
+NCode.Identity.OpenId.GlobalDirectory.CellDescriptor.IsRegistered.get -> bool
+NCode.Identity.OpenId.GlobalDirectory.CellDescriptor.IsRegistered.init -> void
+NCode.Identity.OpenId.GlobalDirectory.CellDescriptor.IsRetired.get -> bool
+NCode.Identity.OpenId.GlobalDirectory.CellDescriptor.IsRetired.init -> void
 NCode.Identity.OpenId.GlobalDirectory.CellDescriptor.Kind.get -> string!
 NCode.Identity.OpenId.GlobalDirectory.CellDescriptor.Kind.init -> void
 NCode.Identity.OpenId.GlobalDirectory.CellDescriptor.ManagementUrl.get -> string!
@@ -67,7 +71,9 @@ NCode.Identity.OpenId.GlobalDirectory.GlobalDirectoryProtocol
 NCode.Identity.OpenId.GlobalDirectory.ICellDirectory
 NCode.Identity.OpenId.GlobalDirectory.ICellDirectory.GetOrDefaultAsync(string! name, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.GlobalDirectory.CellDescriptor?>
 NCode.Identity.OpenId.GlobalDirectory.ICellDirectory.ListAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<NCode.Identity.OpenId.GlobalDirectory.CellDescriptor!>!>
-NCode.Identity.OpenId.GlobalDirectory.ICellDirectory.RegisterAsync(NCode.Identity.OpenId.GlobalDirectory.CellDescriptor! descriptor, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+NCode.Identity.OpenId.GlobalDirectory.ICellDirectory.RegisterAsync(NCode.Identity.OpenId.GlobalDirectory.CellRegistration! registration, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+NCode.Identity.OpenId.GlobalDirectory.ICellDirectory.ReportAsync(NCode.Identity.OpenId.GlobalDirectory.CellDescriptor! descriptor, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+NCode.Identity.OpenId.GlobalDirectory.ICellDirectory.RetireAsync(string! name, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 NCode.Identity.OpenId.GlobalDirectory.IDirectoryFeedCheckpoint
 NCode.Identity.OpenId.GlobalDirectory.IDirectoryFeedCheckpoint.GetAppliedSequenceAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<long>
 NCode.Identity.OpenId.GlobalDirectory.IDirectoryFeedCheckpoint.RecordAppliedSequenceAsync(long sequence, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask

@@ -1406,7 +1406,7 @@ public static class DirectoryEndpoints
 
         try
         {
-            await directory.RegisterAsync(descriptor, cancellationToken);
+            await directory.ReportAsync(descriptor, cancellationToken);
         }
         catch (CellDirectoryConflictException exception)
         {

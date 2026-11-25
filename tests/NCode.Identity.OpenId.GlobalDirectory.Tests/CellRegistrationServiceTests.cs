@@ -64,7 +64,7 @@ public class CellRegistrationServiceTests : BaseTests
     public async Task StartAsync_WhenTheDirectoryAccepts_RegistersTheCellOnceWithTheDescriptorFromTheOptions()
     {
         CellDirectoryMock
-            .Setup(x => x.RegisterAsync(ExpectedDescriptor, It.IsAny<CancellationToken>()))
+            .Setup(x => x.ReportAsync(ExpectedDescriptor, It.IsAny<CancellationToken>()))
             .Returns(ValueTask.CompletedTask)
             .Verifiable(Times.Once);
 
@@ -78,7 +78,7 @@ public class CellRegistrationServiceTests : BaseTests
     {
         var calls = 0;
         CellDirectoryMock
-            .Setup(x => x.RegisterAsync(ExpectedDescriptor, It.IsAny<CancellationToken>()))
+            .Setup(x => x.ReportAsync(ExpectedDescriptor, It.IsAny<CancellationToken>()))
             .Returns(() =>
                 Interlocked.Increment(ref calls) == 1
                     ? throw new DirectoryUnavailableException("The directory is unavailable.")
@@ -108,7 +108,7 @@ public class CellRegistrationServiceTests : BaseTests
             TaskCreationOptions.RunContinuationsAsynchronously
         );
         CellDirectoryMock
-            .Setup(x => x.RegisterAsync(ExpectedDescriptor, It.IsAny<CancellationToken>()))
+            .Setup(x => x.ReportAsync(ExpectedDescriptor, It.IsAny<CancellationToken>()))
             .Returns(() =>
             {
                 attempted.TrySetResult();
@@ -127,7 +127,7 @@ public class CellRegistrationServiceTests : BaseTests
     public async Task StartAsync_WhenTheDirectoryFailsOtherwise_PropagatesTheException()
     {
         CellDirectoryMock
-            .Setup(x => x.RegisterAsync(ExpectedDescriptor, It.IsAny<CancellationToken>()))
+            .Setup(x => x.ReportAsync(ExpectedDescriptor, It.IsAny<CancellationToken>()))
             .Returns(() => throw new InvalidOperationException("The cell is misconfigured."))
             .Verifiable(Times.Once);
 
