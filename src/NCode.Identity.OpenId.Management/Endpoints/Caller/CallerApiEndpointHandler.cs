@@ -134,7 +134,7 @@ internal class CallerApiEndpointHandler(
         CancellationToken cancellationToken
     )
     {
-        var (principalId, assignments) = await GetAssignmentsAsync(
+        var (principalId, isGlobalAdmin, assignments) = await GetAssignmentsAsync(
             caller,
             storeManager,
             cancellationToken
@@ -156,6 +156,7 @@ internal class CallerApiEndpointHandler(
             PrincipalId = principalId,
             IsPlatformAdministrator = authorizationResult.Succeeded,
             Assignments = assignments.Select(ToRoleAssignmentResource).ToList(),
+            CellRoles = GetCellRoles(isGlobalAdmin, assignments),
         };
         return TypedResults.Json(resource);
     }
@@ -240,7 +241,7 @@ internal class CallerApiEndpointHandler(
             httpContext,
             async (_, caller, storeManager, ct) =>
             {
-                var (_, assignments) = await GetAssignmentsAsync(caller, storeManager, ct);
+                var (_, _, assignments) = await GetAssignmentsAsync(caller, storeManager, ct);
                 var resourceIds = GetResourceIds(assignments, nodeType).ToList();
                 var items = await readAndMapAsync(storeManager, resourceIds, ct);
                 var collection = new CollectionResource<TResource>
@@ -301,6 +302,7 @@ internal class CallerApiEndpointHandler(
     /// principal identifier, or <see langword="null"/> when it resolves to none, and its role assignments.</returns>
     private async ValueTask<(
         string? PrincipalId,
+        bool IsGlobalAdmin,
         IReadOnlyList<PersistedRoleAssignment> Assignments
     )> GetAssignmentsAsync(
         ClaimsPrincipal user,
@@ -312,7 +314,7 @@ internal class CallerApiEndpointHandler(
         var clientId = user.FindFirstValue(JoseClaimNames.Payload.ClientId);
         if (string.IsNullOrEmpty(subject) || string.IsNullOrEmpty(clientId))
         {
-            return (null, []);
+            return (null, false, []);
         }
 
         var authorityRequest = new ControlPlaneAuthorityRequest
@@ -325,7 +327,7 @@ internal class CallerApiEndpointHandler(
         var principalId = authority.PrincipalId;
         if (string.IsNullOrEmpty(principalId))
         {
-            return (null, []);
+            return (null, false, []);
         }
 
         IReadOnlyList<PersistedRoleAssignment> assignments;
@@ -338,7 +340,39 @@ internal class CallerApiEndpointHandler(
             assignments = await store.GetByPrincipalAsync(principalId, cancellationToken);
         }
 
-        return (principalId, assignments);
+        return (principalId, authority.IsGlobalAdmin, assignments);
+    }
+
+    /// <summary>
+    /// Gets the roles the caller holds at the cell's node, which is empty outside a workload cell: the roles of the
+    /// caller's assignments at the node, and <c>GlobalAdmin</c> when the authority says the caller holds it.
+    /// </summary>
+    /// <param name="isGlobalAdmin">Whether the authority says the caller is a global administrator.</param>
+    /// <param name="assignments">The role assignments held by the caller's principal.</param>
+    /// <returns>The distinct role names, ordered ordinally.</returns>
+    private List<string> GetCellRoles(
+        bool isGlobalAdmin,
+        IReadOnlyList<PersistedRoleAssignment> assignments
+    )
+    {
+        if (CellOptions.IsControlPlane)
+            return [];
+
+        var roles = assignments
+            .Where(assignment =>
+                string.Equals(
+                    assignment.ResourceType,
+                    ResourceNodeTypes.Cell,
+                    StringComparison.Ordinal
+                )
+                && string.Equals(assignment.ResourceId, CellOptions.Name, StringComparison.Ordinal)
+            )
+            .Select(assignment => assignment.RoleName)
+            .ToHashSet(StringComparer.Ordinal);
+        if (isGlobalAdmin)
+            roles.Add(BuiltInRoles.GlobalAdmin);
+
+        return [.. roles.Order(StringComparer.Ordinal)];
     }
 
     /// <summary>

@@ -644,6 +644,8 @@ NCode.Identity.OpenId.Management.Contracts.Caller.CallerResource
 NCode.Identity.OpenId.Management.Contracts.Caller.CallerResource.Assignments.get -> System.Collections.Generic.IReadOnlyList<NCode.Identity.OpenId.Management.Contracts.RoleAssignmentResource!>!
 NCode.Identity.OpenId.Management.Contracts.Caller.CallerResource.Assignments.init -> void
 NCode.Identity.OpenId.Management.Contracts.Caller.CallerResource.CallerResource() -> void
+NCode.Identity.OpenId.Management.Contracts.Caller.CallerResource.CellRoles.get -> System.Collections.Generic.IReadOnlyList<string!>!
+NCode.Identity.OpenId.Management.Contracts.Caller.CallerResource.CellRoles.init -> void
 NCode.Identity.OpenId.Management.Contracts.Caller.CallerResource.IsPlatformAdministrator.get -> bool
 NCode.Identity.OpenId.Management.Contracts.Caller.CallerResource.IsPlatformAdministrator.init -> void
 NCode.Identity.OpenId.Management.Contracts.Caller.CallerResource.PrincipalId.get -> string?
