@@ -482,7 +482,9 @@ the deployment provides:
   with no two hyphens in a row. The name tags the keys the cell creates in a key management service and prefixes its
   Valkey keys. The control-plane cell also sets `Cell__IsControlPlane=true`, and every other cell sets
   `Cell__ControlPlane__Issuer` to the control-plane cell's issuer. A cell on a platform with a directory also sets
-  `Cell__ManagementUrl`, whose origin is the origin of its root tenant's issuer, and `Directory__Url`
+  `Cell__ManagementUrl`, whose origin is the origin of its root tenant's issuer, and `Directory__Url`.
+  `Cell__KeyCustodyReconcileInterval` (default `00:15:00`, from `00:00:00.001` to `49.17:02:47.294`) sets the time
+  between two passes that hold the keys of an incoming tenant that the directory places in the cell
   ([ADR-1411](../../docs/decisions/1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md)).
 
 More than one replica needs Valkey to share single-use state: set `ConnectionStrings__valkey`, or the parts

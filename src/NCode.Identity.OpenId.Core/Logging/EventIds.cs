@@ -163,4 +163,9 @@ internal static class EventIds
     /// Identifies the warning that the tenant key custody reconciliation pass failed.
     /// </summary>
     public const int TenantKeyCustodyPassFailed = Base + 56;
+
+    /// <summary>
+    /// Identifies the warning that the tenant key custody reconciliation pass could not handle one tenant.
+    /// </summary>
+    public const int TenantKeyCustodyTenantFailed = Base + 57;
 }

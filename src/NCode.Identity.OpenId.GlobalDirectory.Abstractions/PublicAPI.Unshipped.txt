@@ -34,6 +34,8 @@ NCode.Identity.OpenId.GlobalDirectory.CellOptions.ControlPlane.get -> NCode.Iden
 NCode.Identity.OpenId.GlobalDirectory.CellOptions.ControlPlane.set -> void
 NCode.Identity.OpenId.GlobalDirectory.CellOptions.IsControlPlane.get -> bool
 NCode.Identity.OpenId.GlobalDirectory.CellOptions.IsControlPlane.set -> void
+NCode.Identity.OpenId.GlobalDirectory.CellOptions.KeyCustodyReconcileInterval.get -> System.TimeSpan
+NCode.Identity.OpenId.GlobalDirectory.CellOptions.KeyCustodyReconcileInterval.set -> void
 NCode.Identity.OpenId.GlobalDirectory.CellOptions.Kind.get -> string!
 NCode.Identity.OpenId.GlobalDirectory.CellOptions.Kind.set -> void
 NCode.Identity.OpenId.GlobalDirectory.CellOptions.ManagementUrl.get -> string!

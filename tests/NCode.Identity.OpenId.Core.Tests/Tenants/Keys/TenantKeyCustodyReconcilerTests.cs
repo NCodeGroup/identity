@@ -170,6 +170,79 @@ public sealed class TenantKeyCustodyReconcilerTests : BaseTests
     }
 
     [Fact]
+    public async Task ReconcileAsync_WhenOneTenantFails_HoldsTheNextTenant()
+    {
+        MockTopology.SetupGet(x => x.HasDirectory).Returns(true);
+        SetupLease(true);
+        SetupIncoming("t1", "t2");
+        MockTenantDirectory
+            .Setup(x => x.GetPlacementOrDefaultAsync("t1", It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("store error"));
+        SetupPlacement("t2", CellName);
+        MockTenantStore
+            .Setup(x =>
+                x.SetKeyCustodyAsync(
+                    "t2",
+                    TenantKeyCustody.Held,
+                    null,
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync(true);
+        MockStoreManager
+            .Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()))
+            .Returns(ValueTask.CompletedTask);
+
+        await Reconciler.ReconcileAsync(CancellationToken.None);
+
+        MockTenantStore.Verify(
+            x =>
+                x.SetKeyCustodyAsync(
+                    "t2",
+                    TenantKeyCustody.Held,
+                    null,
+                    It.IsAny<CancellationToken>()
+                ),
+            Times.Once
+        );
+    }
+
+    [Fact]
+    public async Task ReconcileAsync_WithAConfiguredInterval_LeasesTheWindowOfThatLength()
+    {
+        var reconciler = new TenantKeyCustodyReconciler(
+            MockTopology.Object,
+            MockTenantDirectory.Object,
+            MockStoreManagerFactory.Object,
+            MockAmbientTenantAccessor.Object,
+            MockExpiringKeySet.Object,
+            Options.Create(
+                new CellOptions
+                {
+                    Name = CellName,
+                    KeyCustodyReconcileInterval = TimeSpan.FromHours(1),
+                }
+            ),
+            TimeProvider,
+            Logger
+        );
+        MockTopology.SetupGet(x => x.HasDirectory).Returns(true);
+        MockExpiringKeySet
+            .Setup(x =>
+                x.TryAddAsync(
+                    It.IsAny<string>(),
+                    new DateTimeOffset(2030, 1, 1, 1, 0, 0, TimeSpan.Zero),
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync(false);
+
+        await reconciler.ReconcileAsync(CancellationToken.None);
+
+        MockExpiringKeySet.VerifyAll();
+    }
+
+    [Fact]
     public async Task ReconcileAsync_WhenAnotherReplicaHoldsTheLease_DoesNothing()
     {
         MockTopology.SetupGet(x => x.HasDirectory).Returns(true);

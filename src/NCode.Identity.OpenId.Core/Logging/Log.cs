@@ -570,4 +570,18 @@ internal static partial class Log
         this ILogger logger,
         Exception exception
     );
+
+    /// <summary>
+    /// Logs that the tenant key custody reconciliation pass could not handle one tenant and left it for the next pass.
+    /// </summary>
+    [LoggerMessage(
+        EventId = EventIds.TenantKeyCustodyTenantFailed,
+        Level = LogLevel.Warning,
+        Message = "The tenant key custody reconciliation pass could not handle the tenant '{TenantId}'; it is left for the next pass"
+    )]
+    internal static partial void TenantKeyCustodyTenantFailed(
+        this ILogger logger,
+        string tenantId,
+        Exception exception
+    );
 }

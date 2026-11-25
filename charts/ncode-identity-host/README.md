@@ -168,6 +168,9 @@ it, and the chart renders them as the `Cell` section the host binds:
   (`Cell__ManagementUrl`) and required when `directory.url` is set, because the cell registers it with the directory;
 - `cell.isControlPlane` (default `false`), whether the cell is the control-plane cell, which serves platform and team
   management and setup (`Cell__IsControlPlane`);
+- `cell.keyCustodyReconcileInterval` (default `00:15:00`), the time between two passes that set the key custody of an
+  incoming tenant to held once the directory places it in the cell, from `00:00:00.001` to `49.17:02:47.294`
+  (`Cell__KeyCustodyReconcileInterval`);
 - `cell.controlPlaneIssuer`, the issuer of the control-plane cell (`Cell__ControlPlane__Issuer`), required when
   `cell.isControlPlane` is `false` because the cell accepts platform and team management tokens issued under it, and
   when `directory.url` is set because the cell checks the issuer against its replicated keys;

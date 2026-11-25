@@ -16,11 +16,11 @@ namespace NCode.Identity.OpenId.Tenants.Keys;
 
 /// <summary>
 /// Sets the key custody of an incoming tenant to held once the global directory places the tenant in this cell. The
-/// service does nothing on a platform without a directory. Every <see cref="Interval"/> one replica runs a pass, under
-/// a lease on the shared-state port keyed by the window: it lists the tenants whose custody is
-/// <see cref="TenantKeyCustody.Incoming"/>, reads each one's placement, and sets the custody of each tenant that the
-/// directory places in this cell to <see cref="TenantKeyCustody.Held"/>. A directory that cannot be reached skips the
-/// pass, and a tenant that cannot be handled is logged and left for the next pass.
+/// service does nothing on a platform without a directory. Every <see cref="CellOptions.KeyCustodyReconcileInterval"/>
+/// one replica runs a pass, under a lease on the shared-state port keyed by the window: it lists the tenants whose
+/// custody is <see cref="TenantKeyCustody.Incoming"/>, reads each one's placement, and sets the custody of each tenant
+/// that the directory places in this cell to <see cref="TenantKeyCustody.Held"/>. A directory that cannot be reached
+/// skips the pass, and a tenant that cannot be handled is logged and left for the next pass.
 /// </summary>
 // See ADR-1536.
 internal sealed class TenantKeyCustodyReconciler(
@@ -39,17 +39,13 @@ internal sealed class TenantKeyCustodyReconciler(
     /// </summary>
     internal const string LeasePurpose = "tenant-key-custody-reconciler";
 
-    /// <summary>
-    /// Gets the time between two passes.
-    /// </summary>
-    internal static TimeSpan Interval { get; } = TimeSpan.FromMinutes(15);
-
     private IPlatformTopology PlatformTopology { get; } = platformTopology;
     private ITenantDirectory TenantDirectory { get; } = tenantDirectory;
     private IStoreManagerFactory StoreManagerFactory { get; } = storeManagerFactory;
     private IAmbientTenantAccessor AmbientTenantAccessor { get; } = ambientTenantAccessor;
     private IExpiringKeySet ExpiringKeySet { get; } = expiringKeySet;
     private IOptions<CellOptions> CellOptionsAccessor { get; } = cellOptions;
+    private TimeSpan Interval => CellOptionsAccessor.Value.KeyCustodyReconcileInterval;
     private TimeProvider TimeProvider { get; } = timeProvider;
     private ILogger<TenantKeyCustodyReconciler> Logger { get; } = logger;
 
@@ -129,14 +125,25 @@ internal sealed class TenantKeyCustodyReconciler(
         var cellName = CellOptionsAccessor.Value.Name;
         foreach (var tenantId in tenantIds)
         {
-            var placement = await TenantDirectory.GetPlacementOrDefaultAsync(
-                tenantId,
-                cancellationToken
-            );
-            if (placement is null || placement.Cell != cellName)
-                continue;
+            try
+            {
+                var placement = await TenantDirectory.GetPlacementOrDefaultAsync(
+                    tenantId,
+                    cancellationToken
+                );
+                if (placement is null || placement.Cell != cellName)
+                    continue;
 
-            await HoldAsync(tenantId, cancellationToken);
+                await HoldAsync(tenantId, cancellationToken);
+            }
+            catch (DirectoryUnavailableException)
+            {
+                throw;
+            }
+            catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
+            {
+                Logger.TenantKeyCustodyTenantFailed(tenantId, exception);
+            }
         }
     }
 

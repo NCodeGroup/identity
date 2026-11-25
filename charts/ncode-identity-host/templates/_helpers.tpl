@@ -863,6 +863,8 @@ same configuration the pods it rewraps keys for read.
 {{- end }}
 - name: Cell__IsControlPlane
   value: {{ .Values.cell.isControlPlane | quote }}
+- name: Cell__KeyCustodyReconcileInterval
+  value: {{ .Values.cell.keyCustodyReconcileInterval | quote }}
 {{- with .Values.cell.controlPlaneIssuer }}
 - name: Cell__ControlPlane__Issuer
   value: {{ . | quote }}

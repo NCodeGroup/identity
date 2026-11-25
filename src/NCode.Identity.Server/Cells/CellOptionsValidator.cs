@@ -5,14 +5,16 @@ using Microsoft.Extensions.Options;
 using NCode.Identity.AspNetCore;
 using NCode.Identity.OpenId;
 using NCode.Identity.OpenId.GlobalDirectory;
+using NCode.Identity.Time;
 
 namespace NCode.Identity.Server.Cells;
 
 /// <summary>
 /// Validates <see cref="CellOptions"/>: a cell names itself and its region with lowercase labels, names its kind,
-/// points a cell that is not the control plane at the control plane's issuer, and reaches its management API over
-/// <c>https</c>, or over <c>http</c> in local development. A refused label's failure names the key, the value and the
-/// rule; a refused URL's failure names the key and the rule, never the URL, because it may carry a password.
+/// points a cell that is not the control plane at the control plane's issuer, reaches its management API over
+/// <c>https</c>, or over <c>http</c> in local development, and runs its key custody reconciliation at a period a timer
+/// accepts. A refused label's failure names the key, the value and the rule; a refused URL's failure names the key and
+/// the rule, never the URL, because it may carry a password.
 /// </summary>
 /// <param name="localDevelopmentMode">
 /// The mode that decides whether a management URL may use <c>http</c>.
@@ -58,6 +60,13 @@ internal sealed class CellOptionsValidator(LocalDevelopmentMode localDevelopment
         }
 
         ValidateManagementUrl(options.ManagementUrl, failures);
+
+        if (!TimerPeriod.IsValid(options.KeyCustodyReconcileInterval))
+        {
+            failures.Add(
+                $"{Prefix}:{nameof(options.KeyCustodyReconcileInterval)} must be between {TimerPeriod.MinValue} and {TimerPeriod.MaxValue}, the periods a timer accepts; it is {options.KeyCustodyReconcileInterval}."
+            );
+        }
 
         return failures.Count == 0
             ? ValidateOptionsResult.Success

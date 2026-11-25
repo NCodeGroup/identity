@@ -46,6 +46,9 @@ cell:
   # The issuer of the control-plane cell. Required when isControlPlane is false: the cell accepts platform and team
   # management tokens it issues, verified against the keys the directory replicates. An `https` URL, or an `http` URL on a loopback host, with no user information, query or fragment.
   controlPlaneIssuer: ""
+  # The time between two passes that set the key custody of an incoming tenant to held once the directory places the
+  # tenant in this cell, a .NET TimeSpan from 00:00:00.001 to 49.17:02:47.294 (Cell:KeyCustodyReconcileInterval).
+  keyCustodyReconcileInterval: "00:15:00"
 
 # The cell's backup (ncode.io/backup-location). The chart starts no backup itself.
 backup:
