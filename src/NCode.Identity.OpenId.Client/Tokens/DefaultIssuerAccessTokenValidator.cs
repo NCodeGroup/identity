@@ -35,26 +35,6 @@ internal class DefaultIssuerAccessTokenValidator(
     private IJwtValidator JwtValidator { get; } = jwtValidator;
 
     /// <inheritdoc />
-    public ValueTask<IssuerAccessTokenResult> ValidateAsync(
-        string issuer,
-        string audience,
-        string token,
-        CancellationToken cancellationToken
-    )
-    {
-        ArgumentException.ThrowIfNullOrEmpty(issuer);
-        ArgumentException.ThrowIfNullOrEmpty(audience);
-
-        var request = new IssuerAccessTokenValidationRequest
-        {
-            Issuer = issuer,
-            Audience = audience,
-            Token = token,
-        };
-        return ValidateAsync(request, cancellationToken);
-    }
-
-    /// <inheritdoc />
     public async ValueTask<IssuerAccessTokenResult> ValidateAsync(
         IssuerAccessTokenValidationRequest request,
         CancellationToken cancellationToken

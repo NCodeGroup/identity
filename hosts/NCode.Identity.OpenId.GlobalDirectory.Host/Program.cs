@@ -81,8 +81,7 @@ secretsLibrary.AddAwsKmsRemoteKeyProviderIfConfigured(configuration);
 secretsLibrary.AddAzureKeyVaultRemoteKeyProviderIfConfigured(configuration);
 secretsLibrary.AddGoogleCloudKmsRemoteKeyProviderIfConfigured(configuration);
 var clientLibrary = secretsLibrary.AddJoseLibrary().AddJwtLibrary().AddOpenIdClientLibrary();
-var keyRingsSection = configuration.GetSection(OpenIdClientDefaults.KeyRingsSectionName);
-clientLibrary.AddOpenIdClientKeyRings(keyRingsSection);
+clientLibrary.AddOpenIdClientKeyRings(configuration);
 clientLibrary.AddOpenIdDirectoryServer(configuration);
 
 // The directory's own Postgres database, and the readiness check that holds the replica out of rotation while it cannot

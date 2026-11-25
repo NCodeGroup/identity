@@ -35,27 +35,29 @@ public static class DefaultRegistration
     extension(IServiceBuilder<OpenIdClientLibrary> builder)
     {
         /// <summary>
-        /// Binds the named key rings under <paramref name="section"/> strictly, so a key that maps to no option fails
-        /// when the options are first read, and validates them when the host starts. Every key ring is loaded when the
-        /// host starts, from PEM files and keys that a key management service holds, and a keyed
-        /// <see cref="ISecretKeyCollectionProvider"/>, named after the key ring, returns the loaded key ring for every
-        /// key ring configured when this method is called. A keyed provider resolves once the host starts: resolving it
-        /// earlier, such as from an eager singleton or an options validator, throws an
+        /// Binds the named key rings under the top-level <c>KeyRings</c> section of <paramref name="configuration"/>
+        /// strictly, so a key that maps to no option fails when the options are first read, and validates them when the
+        /// host starts. Every key ring is loaded when the host starts, from PEM files and keys that a key management
+        /// service holds, and a keyed <see cref="ISecretKeyCollectionProvider"/>, named after the key ring, returns the
+        /// loaded key ring for every key ring configured when this method is called. A keyed provider resolves once the
+        /// host starts: resolving it earlier, such as from an eager singleton or an options validator, throws an
         /// <see cref="InvalidOperationException"/> that names the key ring. A configured key ring that a keyed
         /// <see cref="ISecretKeyCollectionProvider"/> already provides when this method is called fails validation when
         /// the host starts, and the provider registered in code stays the one resolved.
         /// </summary>
-        /// <param name="section">The configuration section whose children are the key rings, by name.</param>
+        /// <param name="configuration">The configuration whose top-level <c>KeyRings</c> section has the key rings, by
+        /// name, as its children.</param>
         /// <returns>The <see cref="IServiceBuilder{T}"/> so that additional calls can be chained.</returns>
         // See ADR-1439.
         // See ADR-1479.
         public IServiceBuilder<OpenIdClientLibrary> AddOpenIdClientKeyRings(
-            IConfigurationSection section
+            IConfiguration configuration
         )
         {
             ArgumentNullException.ThrowIfNull(builder);
-            ArgumentNullException.ThrowIfNull(section);
+            ArgumentNullException.ThrowIfNull(configuration);
 
+            var section = configuration.GetSection(OpenIdClientDefaults.KeyRingsSectionName);
             var serviceCollection = builder.ServiceCollection;
             var names = section.GetChildren().Select(child => child.Key).ToList();
 

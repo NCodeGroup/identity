@@ -25,7 +25,7 @@ namespace NCode.Identity.Server.Recovery;
 /// </remarks>
 // See ADR-1536.
 [PublicAPI]
-public sealed class RecoverAdminCommandLine
+public sealed class RecoverAdminCommandLine : IHostCommand
 {
     /// <summary>
     /// The first argument that selects this command.
@@ -68,17 +68,6 @@ public sealed class RecoverAdminCommandLine
                 Error =
                     $"The {CommandName} command takes no arguments; '{args[1]}' is not recognized.",
             };
-    }
-
-    /// <summary>
-    /// Gets the arguments that the host builds with: none when they select this command, because a command-line
-    /// configuration provider would read its arguments as configuration, and the arguments otherwise.
-    /// </summary>
-    /// <param name="args">The command-line arguments of the host.</param>
-    /// <returns>The arguments for the host builder.</returns>
-    public static string[] GetHostArguments(string[] args)
-    {
-        return HostCommandLine.GetHostArguments(args, CommandName);
     }
 
     /// <summary>

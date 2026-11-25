@@ -61,24 +61,6 @@ public class RecoverSignInCommandLineTests : BaseTests
 
     #endregion
 
-    #region GetHostArguments Tests
-
-    [Fact]
-    public void GetHostArguments_TheCommand_ReturnsNoArguments()
-    {
-        Assert.Empty(RecoverSignInCommandLine.GetHostArguments(["recover-sign-in"]));
-    }
-
-    [Fact]
-    public void GetHostArguments_OtherArguments_ReturnsThem()
-    {
-        string[] args = ["--urls", "http://localhost"];
-
-        Assert.Equal(args, RecoverSignInCommandLine.GetHostArguments(args));
-    }
-
-    #endregion
-
     #region RunAsync Tests
 
     [Fact]

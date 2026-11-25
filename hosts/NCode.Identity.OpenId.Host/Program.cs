@@ -19,9 +19,7 @@ using NCode.Identity.Secrets.AwsKms;
 using NCode.Identity.Secrets.AzureKeyVault;
 using NCode.Identity.Secrets.GoogleCloudKms;
 using NCode.Identity.Server;
-using NCode.Identity.Server.InstanceSetup;
 using NCode.Identity.Server.Recovery;
-using NCode.Identity.Server.SecretProtection;
 using NCode.Identity.SharedState.Valkey;
 
 // COMPOSITION-ONLY HOST: this file is a flat list of turnkey Add*/Use*/Map* calls. Reusable or
@@ -31,12 +29,13 @@ using NCode.Identity.SharedState.Valkey;
 // See csharp-production.instructions.md §4. The offline commands' dispatch below is the one exception: only the entry
 // point can return an exit code.
 
-// OFFLINE COMMANDS: 'secret-protection rewrap|rewrap-recovery' rewraps the master keys (ADR-1408), and 'setup' creates
-// the root administrator of an uninitialized instance from the 'Setup:Root' configuration (ADR-1512), and
-// 'revoke-management-key <kid>' refuses a management key in a workload cell, and 'recover-admin' creates or restores
-// the control-plane cell's administrator from the 'Recovery:Admin' configuration, and 'recover-sign-in' repairs a sign-in
-// that a setting blocks, each exiting without serving, for a one-off Job that runs this image. The host is built without a
-// command's arguments, which a command-line configuration provider would read as configuration.
+// OFFLINE COMMANDS: HostCommands.Select picks the one command the first argument names, and the host is built with
+// the arguments it returns, none for a command, whose own arguments a command-line configuration provider would read as
+// configuration. 'secret-protection rewrap|rewrap-recovery' rewraps the master keys (ADR-1408), 'setup' creates the root
+// administrator of an uninitialized instance from the 'Setup:Root' configuration (ADR-1512), 'revoke-management-key
+// <kid>' refuses a management key in a workload cell, 'recover-admin' creates or restores the control-plane cell's
+// administrator from the 'Recovery:Admin' configuration and 'recover-sign-in' repairs a sign-in that a setting blocks,
+// each exiting without serving, for a one-off Job that runs this image.
 // 'directory-client-jwks [--key-ring <name>]' writes a key ring's public JWK Set to standard output (ADR-1536); it needs
 // only a key ring, so it runs in a host of its own, before the deployment's settings exist, and is dispatched first.
 if (DirectoryClientJwksCommandLine.Parse(args) is not null)
@@ -54,25 +53,8 @@ if (DirectoryClientJwksCommandLine.Parse(args) is not null)
     );
 }
 
-var secretProtectionCommand = SecretProtectionCommandLine.Parse(args);
-var instanceSetupCommand = InstanceSetupCommandLine.Parse(args);
-var revokeManagementKeyCommand = RevokeManagementKeyCommandLine.Parse(args);
-var recoverAdminCommand = RecoverAdminCommandLine.Parse(args);
-var recoverSignInCommand = RecoverSignInCommandLine.Parse(args);
-var secretProtectionHostArguments = SecretProtectionCommandLine.GetHostArguments(args);
-var instanceSetupHostArguments = InstanceSetupCommandLine.GetHostArguments(
-    secretProtectionHostArguments
-);
-var revokeManagementKeyHostArguments = RevokeManagementKeyCommandLine.GetHostArguments(
-    instanceSetupHostArguments
-);
-var recoverAdminHostArguments = RecoverAdminCommandLine.GetHostArguments(
-    revokeManagementKeyHostArguments
-);
-var recoverSignInHostArguments = RecoverSignInCommandLine.GetHostArguments(
-    recoverAdminHostArguments
-);
-var builder = WebApplication.CreateBuilder(recoverSignInHostArguments);
+var hostCommand = HostCommands.Select(args);
+var builder = WebApplication.CreateBuilder(hostCommand.HostArguments);
 
 var configuration = builder.Configuration;
 var hostEnvironment = builder.Environment;
@@ -232,36 +214,12 @@ serviceCollection.AddHostDatabase(configuration);
 var app = builder.Build();
 
 // A command runs against the built services, never starts the hosted services or binds a port, disposes the services
-// when it ends, and returns its exit code. These are the only branches this file keeps, because only the entry point
+// when it ends, and returns its exit code. This is the only branch this file keeps, because only the entry point
 // can return an exit code.
-if (secretProtectionCommand is not null)
+if (hostCommand.Command is { } command)
 {
     await using (app)
-        return await secretProtectionCommand.RunAsync(app.Services, CancellationToken.None);
-}
-
-if (instanceSetupCommand is not null)
-{
-    await using (app)
-        return await instanceSetupCommand.RunAsync(app.Services, CancellationToken.None);
-}
-
-if (revokeManagementKeyCommand is not null)
-{
-    await using (app)
-        return await revokeManagementKeyCommand.RunAsync(app.Services, CancellationToken.None);
-}
-
-if (recoverAdminCommand is not null)
-{
-    await using (app)
-        return await recoverAdminCommand.RunAsync(app.Services, CancellationToken.None);
-}
-
-if (recoverSignInCommand is not null)
-{
-    await using (app)
-        return await recoverSignInCommand.RunAsync(app.Services, CancellationToken.None);
+        return await command.RunAsync(app.Services, CancellationToken.None);
 }
 
 // MUST be the first middleware, before even the forwarded headers: it refuses a request whose connection does not carry

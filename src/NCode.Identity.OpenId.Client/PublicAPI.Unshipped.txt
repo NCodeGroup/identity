@@ -7,7 +7,7 @@ NCode.Identity.OpenId.Client.DefaultRegistration.extension(NCode.Identity.Regist
 NCode.Identity.OpenId.Client.DefaultRegistration.extension(NCode.Identity.Registration.IServiceBuilder<NCode.Identity.Jwt.JwtLibrary>!).AddOpenIdClientLibrary() -> NCode.Identity.Registration.IServiceBuilder<NCode.Identity.OpenId.Client.OpenIdClientLibrary>!
 NCode.Identity.OpenId.Client.KeyRings.DefaultRegistration
 NCode.Identity.OpenId.Client.KeyRings.DefaultRegistration.extension(NCode.Identity.Registration.IServiceBuilder<NCode.Identity.OpenId.Client.OpenIdClientLibrary>!)
-NCode.Identity.OpenId.Client.KeyRings.DefaultRegistration.extension(NCode.Identity.Registration.IServiceBuilder<NCode.Identity.OpenId.Client.OpenIdClientLibrary>!).AddOpenIdClientKeyRings(Microsoft.Extensions.Configuration.IConfigurationSection! section) -> NCode.Identity.Registration.IServiceBuilder<NCode.Identity.OpenId.Client.OpenIdClientLibrary>!
+NCode.Identity.OpenId.Client.KeyRings.DefaultRegistration.extension(NCode.Identity.Registration.IServiceBuilder<NCode.Identity.OpenId.Client.OpenIdClientLibrary>!).AddOpenIdClientKeyRings(Microsoft.Extensions.Configuration.IConfiguration! configuration) -> NCode.Identity.Registration.IServiceBuilder<NCode.Identity.OpenId.Client.OpenIdClientLibrary>!
 NCode.Identity.OpenId.Client.Metrics.OpenIdClientMetrics
 const NCode.Identity.OpenId.Client.Metrics.OpenIdClientMetrics.MeterName = "NCode.Identity.OpenId.Client" -> string!
 NCode.Identity.OpenId.Client.Options.ClientKeyRingOptions

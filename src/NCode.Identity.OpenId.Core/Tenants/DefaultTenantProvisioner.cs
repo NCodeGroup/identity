@@ -140,11 +140,12 @@ internal sealed class DefaultTenantProvisioner(
             mtlsEndpointAliasAuthority
         );
 
-        // The control-plane cell creates its root tenant without the directory, which accepts only the tokens that
-        // tenant issues, and a tenant no strategy serves has no address on the platform, so it holds nothing in the
-        // directory: its identifier, such as a workload cell's root tenant `root`, can be the one the directory holds
-        // for the control-plane cell's root tenant. Every other tenant a strategy serves is reserved, placed and
-        // inserted through the directory, as the management API creates a tenant (ADR-1160, ADR-1411).
+        // The control-plane cell creates its control-plane tenant, the trust anchor, without the directory, because the
+        // directory pins that tenant from its own configuration, and a tenant no strategy serves has no address on the
+        // platform, so it holds nothing in the directory: its identifier, such as a workload cell's root tenant `root`,
+        // can be the one the directory holds for the control-plane cell's root tenant. Every other tenant a strategy
+        // serves is reserved, placed and inserted through the directory, as the management API creates a tenant
+        // (ADR-1160, ADR-1411, ADR-1536).
         var isTrustAnchor = RootTenantRules.IsTrustAnchor(CellOptions, TenantResolver, tenantId);
         if (isTrustAnchor || persistedTenant.Issuer is null)
         {

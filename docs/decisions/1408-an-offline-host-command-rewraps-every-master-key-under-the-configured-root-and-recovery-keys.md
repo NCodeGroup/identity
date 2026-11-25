@@ -40,8 +40,8 @@ serving.
    process cannot reach it.
 5. **The verb is `SecretProtectionCommandLine`.** `secret-protection rewrap` and `secret-protection rewrap-recovery`
    accept `--recovery-private-key <file>`, `--owner <type:id>` and `--dry-run`, which unwraps and verifies every key and
-   writes nothing. The host parses the arguments with `SecretProtectionCommandLine.Parse` and builds without them
-   (`GetHostArguments`), so the command-line configuration provider never reads the verb.
+   writes nothing. The host selects it with `HostCommands.Select` and builds without its arguments, so the
+   command-line configuration provider never reads the verb.
 6. **Exit codes.** The command validates the host's options, then exits `0` on success, `1` on a failed key, an explicit
    owner with no master keys or an invalid configuration, and `2` on a usage error, which it logs with the usage.
 7. **The chart runs it as a Job.** `secretProtection.rewrapJob` renders a plain Job, not a hook, named for the release

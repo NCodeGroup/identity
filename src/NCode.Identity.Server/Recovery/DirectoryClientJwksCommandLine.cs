@@ -150,10 +150,7 @@ public sealed class DirectoryClientJwksCommandLine
             .AddJoseLibrary()
             .AddJwtLibrary()
             .AddOpenIdClientLibrary();
-        var keyRingsSection = builder.Configuration.GetSection(
-            OpenIdClientDefaults.KeyRingsSectionName
-        );
-        clientLibrary.AddOpenIdClientKeyRings(keyRingsSection);
+        clientLibrary.AddOpenIdClientKeyRings(builder.Configuration);
 
         // Starting the host loads the key rings, which the protocol client's hosted service reads from their sources.
         using var host = builder.Build();

@@ -103,30 +103,6 @@ public class InstanceSetupCommandLineTests : BaseTests
 
     #endregion
 
-    #region GetHostArguments Tests
-
-    [Fact]
-    public void GetHostArguments_TheCommand_ReturnsNoArguments()
-    {
-        Assert.Empty(InstanceSetupCommandLine.GetHostArguments(["setup", "extra"]));
-    }
-
-    [Fact]
-    public void GetHostArguments_OtherArguments_ReturnsThem()
-    {
-        string[] args = ["--urls", "http://localhost"];
-
-        Assert.Equal(args, InstanceSetupCommandLine.GetHostArguments(args));
-    }
-
-    [Fact]
-    public void GetHostArguments_NoArguments_ReturnsNone()
-    {
-        Assert.Empty(InstanceSetupCommandLine.GetHostArguments([]));
-    }
-
-    #endregion
-
     #region Usage Tests
 
     [Fact]

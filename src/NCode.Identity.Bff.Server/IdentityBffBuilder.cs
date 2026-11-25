@@ -72,8 +72,7 @@ internal sealed class IdentityBffBuilder : ServiceBuilder<IdentityBff>, IIdentit
         OpenIdClientLibraryBuilder = JwtLibraryBuilder.AddOpenIdClientLibrary();
 
         // Key rings are the protocol client's, so they live in the host's top-level KeyRings section (ADR-1439).
-        var keyRingsSection = configuration.GetSection(OpenIdClientDefaults.KeyRingsSectionName);
-        OpenIdClientLibraryBuilder.AddOpenIdClientKeyRings(keyRingsSection);
+        OpenIdClientLibraryBuilder.AddOpenIdClientKeyRings(configuration);
 
         BffLibraryBuilder = OpenIdClientLibraryBuilder
             .AddBffLibrary(EventsLibraryBuilder)

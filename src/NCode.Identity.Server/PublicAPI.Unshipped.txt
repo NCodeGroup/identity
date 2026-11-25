@@ -221,14 +221,12 @@ NCode.Identity.Server.SecretProtection.SecretProtectionCommandLine.Owner.get -> 
 NCode.Identity.Server.SecretProtection.SecretProtectionCommandLine.RecoveryPrivateKeyPath.get -> string?
 NCode.Identity.Server.SecretProtection.SecretProtectionCommandLine.RunAsync(System.IServiceProvider! services, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<int>
 NCode.Identity.Server.SecretProtection.SecretProtectionCommandLine.Verb.get -> string!
-static NCode.Identity.Server.SecretProtection.SecretProtectionCommandLine.GetHostArguments(string![]! args) -> string![]!
 static NCode.Identity.Server.SecretProtection.SecretProtectionCommandLine.Parse(System.Collections.Generic.IReadOnlyList<string!>! args) -> NCode.Identity.Server.SecretProtection.SecretProtectionCommandLine?
 static NCode.Identity.Server.SecretProtection.SecretProtectionCommandLine.Usage.get -> string!
 const NCode.Identity.Server.InstanceSetup.InstanceSetupCommandLine.CommandName = "setup" -> string!
 NCode.Identity.Server.InstanceSetup.InstanceSetupCommandLine
 NCode.Identity.Server.InstanceSetup.InstanceSetupCommandLine.Error.get -> string?
 NCode.Identity.Server.InstanceSetup.InstanceSetupCommandLine.RunAsync(System.IServiceProvider! services, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<int>
-static NCode.Identity.Server.InstanceSetup.InstanceSetupCommandLine.GetHostArguments(string![]! args) -> string![]!
 static NCode.Identity.Server.InstanceSetup.InstanceSetupCommandLine.Parse(System.Collections.Generic.IReadOnlyList<string!>! args) -> NCode.Identity.Server.InstanceSetup.InstanceSetupCommandLine?
 static NCode.Identity.Server.InstanceSetup.InstanceSetupCommandLine.Usage.get -> string!
 const NCode.Identity.Server.Recovery.RevokeManagementKeyCommandLine.CommandName = "revoke-management-key" -> string!
@@ -236,21 +234,18 @@ NCode.Identity.Server.Recovery.RevokeManagementKeyCommandLine
 NCode.Identity.Server.Recovery.RevokeManagementKeyCommandLine.Error.get -> string?
 NCode.Identity.Server.Recovery.RevokeManagementKeyCommandLine.KeyId.get -> string?
 NCode.Identity.Server.Recovery.RevokeManagementKeyCommandLine.RunAsync(System.IServiceProvider! services, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<int>
-static NCode.Identity.Server.Recovery.RevokeManagementKeyCommandLine.GetHostArguments(string![]! args) -> string![]!
 static NCode.Identity.Server.Recovery.RevokeManagementKeyCommandLine.Parse(System.Collections.Generic.IReadOnlyList<string!>! args) -> NCode.Identity.Server.Recovery.RevokeManagementKeyCommandLine?
 static NCode.Identity.Server.Recovery.RevokeManagementKeyCommandLine.Usage.get -> string!
 const NCode.Identity.Server.Recovery.RecoverAdminCommandLine.CommandName = "recover-admin" -> string!
 NCode.Identity.Server.Recovery.RecoverAdminCommandLine
 NCode.Identity.Server.Recovery.RecoverAdminCommandLine.Error.get -> string?
 NCode.Identity.Server.Recovery.RecoverAdminCommandLine.RunAsync(System.IServiceProvider! services, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<int>
-static NCode.Identity.Server.Recovery.RecoverAdminCommandLine.GetHostArguments(string![]! args) -> string![]!
 static NCode.Identity.Server.Recovery.RecoverAdminCommandLine.Parse(System.Collections.Generic.IReadOnlyList<string!>! args) -> NCode.Identity.Server.Recovery.RecoverAdminCommandLine?
 static NCode.Identity.Server.Recovery.RecoverAdminCommandLine.Usage.get -> string!
 const NCode.Identity.Server.Recovery.RecoverSignInCommandLine.CommandName = "recover-sign-in" -> string!
 NCode.Identity.Server.Recovery.RecoverSignInCommandLine
 NCode.Identity.Server.Recovery.RecoverSignInCommandLine.Error.get -> string?
 NCode.Identity.Server.Recovery.RecoverSignInCommandLine.RunAsync(System.IServiceProvider! services, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<int>
-static NCode.Identity.Server.Recovery.RecoverSignInCommandLine.GetHostArguments(string![]! args) -> string![]!
 static NCode.Identity.Server.Recovery.RecoverSignInCommandLine.Parse(System.Collections.Generic.IReadOnlyList<string!>! args) -> NCode.Identity.Server.Recovery.RecoverSignInCommandLine?
 static NCode.Identity.Server.Recovery.RecoverSignInCommandLine.Usage.get -> string!
 const NCode.Identity.Server.Recovery.DirectoryClientJwksCommandLine.CommandName = "directory-client-jwks" -> string!
@@ -262,3 +257,13 @@ NCode.Identity.Server.Recovery.DirectoryClientJwksCommandLine.RunAsync(System.IS
 static NCode.Identity.Server.Recovery.DirectoryClientJwksCommandLine.Parse(System.Collections.Generic.IReadOnlyList<string!>! args) -> NCode.Identity.Server.Recovery.DirectoryClientJwksCommandLine?
 static NCode.Identity.Server.Recovery.DirectoryClientJwksCommandLine.RunStandaloneAsync(string![]! args, System.IO.TextWriter! output, System.Action<NCode.Identity.Registration.IServiceBuilder<NCode.Identity.Secrets.SecretsLibrary>!, Microsoft.Extensions.Configuration.IConfiguration!>? configureSecrets, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<int>
 static NCode.Identity.Server.Recovery.DirectoryClientJwksCommandLine.Usage.get -> string!
+NCode.Identity.Server.IHostCommand
+NCode.Identity.Server.IHostCommand.RunAsync(System.IServiceProvider! services, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<int>
+NCode.Identity.Server.HostCommands
+NCode.Identity.Server.HostCommandSelection
+NCode.Identity.Server.HostCommandSelection.Command.get -> NCode.Identity.Server.IHostCommand?
+NCode.Identity.Server.HostCommandSelection.Command.init -> void
+NCode.Identity.Server.HostCommandSelection.HostArguments.get -> string![]!
+NCode.Identity.Server.HostCommandSelection.HostArguments.init -> void
+NCode.Identity.Server.HostCommandSelection.HostCommandSelection(NCode.Identity.Server.IHostCommand? Command, string![]! HostArguments) -> void
+static NCode.Identity.Server.HostCommands.Select(string![]! args) -> NCode.Identity.Server.HostCommandSelection!

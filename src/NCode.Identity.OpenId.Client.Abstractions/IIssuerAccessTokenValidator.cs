@@ -19,23 +19,9 @@ namespace NCode.Identity.OpenId.Client;
 public interface IIssuerAccessTokenValidator
 {
     /// <summary>
-    /// Validates an access token that the specified issuer issued for the specified audience.
-    /// </summary>
-    /// <param name="issuer">The issuer identifier of the provider that issued the access token.</param>
-    /// <param name="audience">The audience the access token must name.</param>
-    /// <param name="token">The compact JWT access token.</param>
-    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to observe.</param>
-    ValueTask<IssuerAccessTokenResult> ValidateAsync(
-        string issuer,
-        string audience,
-        string token,
-        CancellationToken cancellationToken
-    );
-
-    /// <summary>
-    /// Validates an access token as the request describes it. When
-    /// <see cref="IssuerAccessTokenValidationRequest.SigningKeys"/> is set, the validator never reads the issuer's
-    /// discovery document or key set and resolves the signing key from those keys by <c>kid</c>.
+    /// Validates an access token that the request's issuer issued for the request's audience, which the token must
+    /// name. When <see cref="IssuerAccessTokenValidationRequest.SigningKeys"/> is set, the validator never reads the
+    /// issuer's discovery document or key set and resolves the signing key from those keys by <c>kid</c>.
     /// </summary>
     /// <param name="request">The access token to validate.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to observe.</param>

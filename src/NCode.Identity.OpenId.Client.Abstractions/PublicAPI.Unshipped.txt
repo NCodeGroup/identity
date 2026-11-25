@@ -103,7 +103,6 @@ NCode.Identity.OpenId.Client.IDPoPProofFactory.RecordNonce(System.Uri! requestUr
 NCode.Identity.OpenId.Client.IIdTokenValidator
 NCode.Identity.OpenId.Client.IIdTokenValidator.ValidateAsync(NCode.Identity.OpenId.Client.ClientRegistration! registration, NCode.Identity.OpenId.Client.IdTokenValidationRequest! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.Client.IdTokenValidationResult!>
 NCode.Identity.OpenId.Client.IIssuerAccessTokenValidator
-NCode.Identity.OpenId.Client.IIssuerAccessTokenValidator.ValidateAsync(string! issuer, string! audience, string! token, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.Client.IssuerAccessTokenResult!>
 NCode.Identity.OpenId.Client.IIssuerAccessTokenValidator.ValidateAsync(NCode.Identity.OpenId.Client.IssuerAccessTokenValidationRequest! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.Client.IssuerAccessTokenResult!>
 NCode.Identity.OpenId.Client.IssuerAccessTokenValidationRequest
 NCode.Identity.OpenId.Client.IssuerAccessTokenValidationRequest.Audience.get -> string!

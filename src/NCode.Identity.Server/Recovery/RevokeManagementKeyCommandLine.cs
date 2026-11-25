@@ -25,7 +25,7 @@ namespace NCode.Identity.Server.Recovery;
 /// </remarks>
 // See ADR-1536.
 [PublicAPI]
-public sealed class RevokeManagementKeyCommandLine
+public sealed class RevokeManagementKeyCommandLine : IHostCommand
 {
     /// <summary>
     /// The first argument that selects this command.
@@ -79,17 +79,6 @@ public sealed class RevokeManagementKeyCommandLine
                     $"The {CommandName} command takes one argument; '{args[2]}' is not recognized.",
             }
             : new RevokeManagementKeyCommandLine { KeyId = args[1] };
-    }
-
-    /// <summary>
-    /// Gets the arguments that the host builds with: none when they select this command, because a command-line
-    /// configuration provider would read its arguments as configuration, and the arguments otherwise.
-    /// </summary>
-    /// <param name="args">The command-line arguments of the host.</param>
-    /// <returns>The arguments for the host builder.</returns>
-    public static string[] GetHostArguments(string[] args)
-    {
-        return HostCommandLine.GetHostArguments(args, CommandName);
     }
 
     /// <summary>

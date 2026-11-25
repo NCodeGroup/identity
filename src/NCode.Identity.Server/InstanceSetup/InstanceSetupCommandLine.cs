@@ -28,7 +28,7 @@ namespace NCode.Identity.Server.InstanceSetup;
 /// </remarks>
 // See ADR-1512.
 [PublicAPI]
-public sealed class InstanceSetupCommandLine
+public sealed class InstanceSetupCommandLine : IHostCommand
 {
     /// <summary>
     /// The first argument that selects this command.
@@ -76,17 +76,6 @@ public sealed class InstanceSetupCommandLine
                 Error =
                     $"The {CommandName} command takes no arguments; '{args[1]}' is not recognized.",
             };
-    }
-
-    /// <summary>
-    /// Gets the arguments that the host builds with: none when they select this command, because a command-line
-    /// configuration provider would read its arguments as configuration, and the arguments otherwise.
-    /// </summary>
-    /// <param name="args">The command-line arguments of the host.</param>
-    /// <returns>The arguments for the host builder.</returns>
-    public static string[] GetHostArguments(string[] args)
-    {
-        return HostCommandLine.GetHostArguments(args, CommandName);
     }
 
     /// <summary>

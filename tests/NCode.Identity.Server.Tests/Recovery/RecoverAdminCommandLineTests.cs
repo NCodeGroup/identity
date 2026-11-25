@@ -73,24 +73,6 @@ public class RecoverAdminCommandLineTests : BaseTests
 
     #endregion
 
-    #region GetHostArguments Tests
-
-    [Fact]
-    public void GetHostArguments_TheCommand_ReturnsNoArguments()
-    {
-        Assert.Empty(RecoverAdminCommandLine.GetHostArguments(["recover-admin"]));
-    }
-
-    [Fact]
-    public void GetHostArguments_OtherArguments_ReturnsThem()
-    {
-        string[] args = ["--urls", "http://localhost"];
-
-        Assert.Equal(args, RecoverAdminCommandLine.GetHostArguments(args));
-    }
-
-    #endregion
-
     #region RunAsync Tests
 
     [Fact]

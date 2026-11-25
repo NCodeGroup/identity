@@ -79,26 +79,6 @@ public class RevokeManagementKeyCommandLineTests : BaseTests
 
     #endregion
 
-    #region GetHostArguments Tests
-
-    [Fact]
-    public void GetHostArguments_TheCommand_ReturnsNoArguments()
-    {
-        Assert.Empty(
-            RevokeManagementKeyCommandLine.GetHostArguments(["revoke-management-key", KeyId])
-        );
-    }
-
-    [Fact]
-    public void GetHostArguments_OtherArguments_ReturnsThem()
-    {
-        string[] args = ["--urls", "http://localhost"];
-
-        Assert.Equal(args, RevokeManagementKeyCommandLine.GetHostArguments(args));
-    }
-
-    #endregion
-
     #region RunAsync Tests
 
     [Fact]

@@ -134,6 +134,18 @@ public class DefaultIssuerAccessTokenValidatorTests : BaseTests, IAsyncLifetime
             cancellationToken
         );
 
+    private static IssuerAccessTokenValidationRequest CreateRequest(
+        string issuer,
+        string audience,
+        string token
+    ) =>
+        new()
+        {
+            Issuer = issuer,
+            Audience = audience,
+            Token = token,
+        };
+
     #region ValidateAsync Tests
 
     [Fact]
@@ -142,7 +154,10 @@ public class DefaultIssuerAccessTokenValidatorTests : BaseTests, IAsyncLifetime
         var validator = CreateValidator(CreateMetadataMock(), CreateKeySetMock());
         var token = await CreateValidAccessTokenAsync(CancellationToken.None);
 
-        var result = await validator.ValidateAsync(Issuer, Audience, token, CancellationToken.None);
+        var result = await validator.ValidateAsync(
+            CreateRequest(Issuer, Audience, token),
+            CancellationToken.None
+        );
 
         Assert.True(result.IsValid, result.FailureReason);
         Assert.False(result.IsUnavailable);
@@ -165,7 +180,10 @@ public class DefaultIssuerAccessTokenValidatorTests : BaseTests, IAsyncLifetime
             CancellationToken.None
         );
 
-        var result = await validator.ValidateAsync(Issuer, Audience, token, CancellationToken.None);
+        var result = await validator.ValidateAsync(
+            CreateRequest(Issuer, Audience, token),
+            CancellationToken.None
+        );
 
         Assert.False(result.IsValid);
         Assert.False(result.IsUnavailable);
@@ -185,7 +203,10 @@ public class DefaultIssuerAccessTokenValidatorTests : BaseTests, IAsyncLifetime
             CancellationToken.None
         );
 
-        var result = await validator.ValidateAsync(Issuer, Audience, token, CancellationToken.None);
+        var result = await validator.ValidateAsync(
+            CreateRequest(Issuer, Audience, token),
+            CancellationToken.None
+        );
 
         Assert.False(result.IsValid);
         Assert.Equal(TokenValidationFailureCodes.InvalidIssuer, result.FailureCode);
@@ -197,7 +218,10 @@ public class DefaultIssuerAccessTokenValidatorTests : BaseTests, IAsyncLifetime
         var validator = CreateValidator(CreateMetadataMock("https://evil.example.test"));
         var token = await CreateValidAccessTokenAsync(CancellationToken.None);
 
-        var result = await validator.ValidateAsync(Issuer, Audience, token, CancellationToken.None);
+        var result = await validator.ValidateAsync(
+            CreateRequest(Issuer, Audience, token),
+            CancellationToken.None
+        );
 
         Assert.False(result.IsValid);
         Assert.False(result.IsUnavailable);
@@ -217,7 +241,10 @@ public class DefaultIssuerAccessTokenValidatorTests : BaseTests, IAsyncLifetime
             CancellationToken.None
         );
 
-        var result = await validator.ValidateAsync(Issuer, Audience, token, CancellationToken.None);
+        var result = await validator.ValidateAsync(
+            CreateRequest(Issuer, Audience, token),
+            CancellationToken.None
+        );
 
         Assert.False(result.IsValid);
         Assert.Equal(TokenValidationFailureCodes.Expired, result.FailureCode);
@@ -236,7 +263,10 @@ public class DefaultIssuerAccessTokenValidatorTests : BaseTests, IAsyncLifetime
             CancellationToken.None
         );
 
-        var result = await validator.ValidateAsync(Issuer, Audience, token, CancellationToken.None);
+        var result = await validator.ValidateAsync(
+            CreateRequest(Issuer, Audience, token),
+            CancellationToken.None
+        );
 
         Assert.False(result.IsValid);
         Assert.Equal(TokenValidationFailureCodes.InvalidTokenType, result.FailureCode);
@@ -255,7 +285,10 @@ public class DefaultIssuerAccessTokenValidatorTests : BaseTests, IAsyncLifetime
             CancellationToken.None
         );
 
-        var result = await validator.ValidateAsync(Issuer, Audience, token, CancellationToken.None);
+        var result = await validator.ValidateAsync(
+            CreateRequest(Issuer, Audience, token),
+            CancellationToken.None
+        );
 
         Assert.False(result.IsValid);
         Assert.False(result.IsUnavailable);
@@ -268,9 +301,7 @@ public class DefaultIssuerAccessTokenValidatorTests : BaseTests, IAsyncLifetime
         var validator = CreateValidator(CreateStrictMock<IProviderMetadataResolver>());
 
         var result = await validator.ValidateAsync(
-            Issuer,
-            Audience,
-            string.Empty,
+            CreateRequest(Issuer, Audience, string.Empty),
             CancellationToken.None
         );
 
@@ -289,7 +320,10 @@ public class DefaultIssuerAccessTokenValidatorTests : BaseTests, IAsyncLifetime
         var validator = CreateValidator(mockMetadata);
         var token = await CreateValidAccessTokenAsync(CancellationToken.None);
 
-        var result = await validator.ValidateAsync(Issuer, Audience, token, CancellationToken.None);
+        var result = await validator.ValidateAsync(
+            CreateRequest(Issuer, Audience, token),
+            CancellationToken.None
+        );
 
         Assert.False(result.IsValid);
         Assert.True(result.IsUnavailable);
@@ -307,7 +341,10 @@ public class DefaultIssuerAccessTokenValidatorTests : BaseTests, IAsyncLifetime
         var validator = CreateValidator(CreateMetadataMock(), mockKeySet);
         var token = await CreateValidAccessTokenAsync(CancellationToken.None);
 
-        var result = await validator.ValidateAsync(Issuer, Audience, token, CancellationToken.None);
+        var result = await validator.ValidateAsync(
+            CreateRequest(Issuer, Audience, token),
+            CancellationToken.None
+        );
 
         Assert.False(result.IsValid);
         Assert.True(result.IsUnavailable);
@@ -326,7 +363,10 @@ public class DefaultIssuerAccessTokenValidatorTests : BaseTests, IAsyncLifetime
         var token = await CreateValidAccessTokenAsync(CancellationToken.None);
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(async () =>
-            await validator.ValidateAsync(Issuer, Audience, token, CancellationToken.None)
+            await validator.ValidateAsync(
+                CreateRequest(Issuer, Audience, token),
+                CancellationToken.None
+            )
         );
     }
 
@@ -336,7 +376,23 @@ public class DefaultIssuerAccessTokenValidatorTests : BaseTests, IAsyncLifetime
         var validator = CreateValidator(CreateStrictMock<IProviderMetadataResolver>());
 
         await Assert.ThrowsAsync<ArgumentException>(async () =>
-            await validator.ValidateAsync(string.Empty, Audience, "token", CancellationToken.None)
+            await validator.ValidateAsync(
+                CreateRequest(string.Empty, Audience, "token"),
+                CancellationToken.None
+            )
+        );
+    }
+
+    [Fact]
+    public async Task ValidateAsync_WhenAudienceIsEmpty_ThrowsArgumentException()
+    {
+        var validator = CreateValidator(CreateStrictMock<IProviderMetadataResolver>());
+
+        await Assert.ThrowsAsync<ArgumentException>(async () =>
+            await validator.ValidateAsync(
+                CreateRequest(Issuer, string.Empty, "token"),
+                CancellationToken.None
+            )
         );
     }
 

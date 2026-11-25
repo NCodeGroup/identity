@@ -131,36 +131,6 @@ public class SecretProtectionCommandLineTests : BaseTests
 
     #endregion
 
-    #region GetHostArguments Tests
-
-    [Fact]
-    public void GetHostArguments_TheCommand_ReturnsNoArguments()
-    {
-        Assert.Empty(
-            SecretProtectionCommandLine.GetHostArguments([
-                "secret-protection",
-                "rewrap",
-                "--dry-run",
-            ])
-        );
-    }
-
-    [Fact]
-    public void GetHostArguments_OtherArguments_ReturnsThem()
-    {
-        string[] args = ["--urls", "http://localhost"];
-
-        Assert.Equal(args, SecretProtectionCommandLine.GetHostArguments(args));
-    }
-
-    [Fact]
-    public void GetHostArguments_NoArguments_ReturnsNone()
-    {
-        Assert.Empty(SecretProtectionCommandLine.GetHostArguments([]));
-    }
-
-    #endregion
-
     #region Usage Tests
 
     [Fact]
