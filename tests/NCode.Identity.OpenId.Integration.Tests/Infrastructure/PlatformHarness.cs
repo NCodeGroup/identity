@@ -489,6 +489,74 @@ public sealed class PlatformHarness : IAsyncDisposable
     }
 
     /// <summary>
+    /// Creates a platform administrator in the control-plane tenant, who holds <c>GlobalAdmin</c>, as the
+    /// <c>recover-admin</c> command does.
+    /// </summary>
+    /// <param name="userName">The administrator's username.</param>
+    /// <param name="password">The administrator's password.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    public async ValueTask RecoverGlobalAdministratorAsync(
+        string userName,
+        string password,
+        CancellationToken cancellationToken
+    )
+    {
+        await EnsureTenantPersistedAsync(ControlPlaneName, cancellationToken);
+
+        await using var scope = ControlPlane.Services.CreateAsyncScope();
+        var result = await scope
+            .ServiceProvider.GetRequiredService<IAdministratorRecoveryService>()
+            .RecoverAsync(
+                new RecoveryAdminOptions { UserName = userName, Password = password },
+                cancellationToken
+            );
+        if (result.Error is { } error)
+        {
+            throw new InvalidOperationException(
+                $"Recovering the platform administrator answered {error.StatusCode}: {error.Detail}"
+            );
+        }
+    }
+
+    /// <summary>
+    /// Disables a local account of a tenant of a cell directly in the cell's database.
+    /// </summary>
+    /// <param name="cellName">The name of the cell.</param>
+    /// <param name="tenantId">The identifier of the tenant that the cell serves.</param>
+    /// <param name="userName">The account's username.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    public async ValueTask DisableLocalAccountAsync(
+        string cellName,
+        string tenantId,
+        string userName,
+        CancellationToken cancellationToken
+    )
+    {
+        using var scope = new TenantServiceScope(GetCell(cellName).Services, tenantId);
+        var serviceProvider = scope.ServiceProvider;
+        var storeManagerFactory = serviceProvider.GetRequiredService<IStoreManagerFactory>();
+        await using var storeManager = await storeManagerFactory.CreateAsync(cancellationToken);
+        var connection = await HostApplicationFactory.GetLocalConnectionAsync(
+            storeManager,
+            cancellationToken
+        );
+        var store = HostApplicationFactory.GetLocalAccountStore(
+            serviceProvider,
+            storeManager,
+            connection
+        );
+        var account =
+            await store.GetByUserNameOrDefaultAsync(
+                connection.ConnectionId,
+                userName,
+                cancellationToken
+            ) ?? throw new InvalidOperationException($"The account '{userName}' does not exist.");
+        account.IsEnabled = false;
+        await store.UpdateAsync(account, cancellationToken);
+        await storeManager.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <summary>
     /// Registers a client in a tenant of a cell through the management API, for the authorization code flow with a
     /// shared secret, so a user of the tenant can get a management token.
     /// </summary>
@@ -1067,6 +1135,56 @@ public sealed class PlatformHarness : IAsyncDisposable
                 request.Content = JsonContent.Create(body);
 
             return await client.SendAsync(request, cancellationToken);
+        }
+
+        /// <summary>
+        /// Sends a <c>GET</c> request with the token and a proof that names another URL than the request's, as a
+        /// token and proof that were meant for one cell reach another.
+        /// </summary>
+        /// <param name="proofUrl">The absolute URL that the proof names as its target.</param>
+        /// <param name="requestUrl">The absolute URL that the request is sent to.</param>
+        /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+        /// <returns>The status code of the answer.</returns>
+        public async ValueTask<HttpStatusCode> GetWithProofForAsync(
+            string proofUrl,
+            string requestUrl,
+            CancellationToken cancellationToken
+        )
+        {
+            var proof = await proofFactory.CreateResourceProofAsync(
+                registration,
+                Thumbprint,
+                HttpMethod.Get,
+                new Uri(proofUrl, UriKind.Absolute),
+                AccessToken,
+                cancellationToken
+            );
+
+            using var request = new HttpRequestMessage(HttpMethod.Get, requestUrl);
+            request.Headers.Authorization = new AuthenticationHeaderValue(
+                OpenIdProtocol.TokenTypes.DPoP,
+                AccessToken
+            );
+            request.Headers.Add(OpenIdProtocol.DPoP.HeaderName, proof);
+            using var response = await client.SendAsync(request, cancellationToken);
+            return response.StatusCode;
+        }
+
+        /// <summary>
+        /// Sends a <c>GET</c> request that presents the token under the <c>Bearer</c> scheme, without a proof.
+        /// </summary>
+        /// <param name="url">The absolute URL of the request.</param>
+        /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+        /// <returns>The status code of the answer.</returns>
+        public async ValueTask<HttpStatusCode> GetAsBearerAsync(
+            string url,
+            CancellationToken cancellationToken
+        )
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Get, url);
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", AccessToken);
+            using var response = await client.SendAsync(request, cancellationToken);
+            return response.StatusCode;
         }
 
         /// <summary>
