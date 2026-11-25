@@ -580,6 +580,23 @@ Refuses a directory the host would refuse, before anything is applied. Rendered 
 {{- if not (regexMatch "^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$" .Values.controlPlane.tenantId) }}
 {{- fail "controlPlane.tenantId must be 1 to 63 lowercase letters, digits or hyphens that start and end with a letter or digit." }}
 {{- end }}
+{{- /* tokenLifetime is a .NET TimeSpan [d.]hh:mm[:ss[.f]]; the server accepts 00:01:00 to 01:00:00. */}}
+{{- $lifetime := .Values.tokenLifetime }}
+{{- $days := 0 }}
+{{- if regexMatch "^[0-9]+[.]" $lifetime }}
+{{- $days = atoi (regexFind "^[0-9]+" $lifetime) }}
+{{- $lifetime = regexReplaceAll "^[0-9]+[.]" $lifetime "" }}
+{{- end }}
+{{- $fraction := regexFind "[.][0-9]+$" $lifetime }}
+{{- $lifetime = regexReplaceAll "[.][0-9]+$" $lifetime "" }}
+{{- $fields := splitList ":" $lifetime }}
+{{- $lifetimeSeconds := add (mul $days 86400) (mul (atoi (index $fields 0)) 3600) (mul (atoi (index $fields 1)) 60) }}
+{{- if gt (len $fields) 2 }}
+{{- $lifetimeSeconds = add $lifetimeSeconds (atoi (index $fields 2)) }}
+{{- end }}
+{{- if or (lt $lifetimeSeconds 60) (gt $lifetimeSeconds 3600) (and (eq $lifetimeSeconds 3600) (regexMatch "[1-9]" $fraction)) }}
+{{- fail (printf "tokenLifetime must be between 00:01:00 and 01:00:00: %s is outside the range the directory accepts." .Values.tokenLifetime) }}
+{{- end }}
 {{- $keys := .Values.keys }}
 {{- if and (not $keys.pemSecret) (not $keys.remoteKeys) }}
 {{- fail (printf "keys must name pemSecret or list a remote key: the directory's key ring %s needs at least one key." .Values.keyRing) }}
