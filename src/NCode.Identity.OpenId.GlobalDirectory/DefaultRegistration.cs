@@ -21,8 +21,14 @@ namespace NCode.Identity.OpenId.GlobalDirectory;
 [PublicAPI]
 public static class DefaultRegistration
 {
-    // A cell with a management tenant accepts the control plane's tokens and its own tenants' tokens; any other cell
-    // accepts only the control plane's.
+    /// <summary>
+    /// Creates the validator of management tokens for a cell other than the control plane's. A cell with a management
+    /// tenant accepts the control plane's tokens and its own tenants' tokens; any other cell accepts only the control
+    /// plane's.
+    /// </summary>
+    /// <param name="serviceProvider">The <see cref="IServiceProvider"/> that resolves the validators.</param>
+    /// <param name="serviceKey">The key that the validator is registered under.</param>
+    /// <returns>The <see cref="IManagementTokenValidator"/> that the cell uses.</returns>
     private static IManagementTokenValidator CreateRemoteManagementTokenValidator(
         IServiceProvider serviceProvider,
         object? serviceKey

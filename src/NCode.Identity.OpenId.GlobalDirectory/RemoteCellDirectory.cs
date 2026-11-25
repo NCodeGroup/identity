@@ -46,7 +46,7 @@ internal sealed class RemoteCellDirectory(DirectoryHttpClient client) : ICellDir
         ArgumentNullException.ThrowIfNull(registration);
 
         var segment = DirectoryHttpClient.Segment(registration.Name);
-        var body = new RegistrationBody
+        var body = new CellRegistrationRequestBody
         {
             Region = registration.Region,
             Kind = registration.Kind,
@@ -132,17 +132,5 @@ internal sealed class RemoteCellDirectory(DirectoryHttpClient client) : ICellDir
 
         var detail = response.ReadProblemDetail(fallback);
         throw new CellDirectoryConflictException(detail);
-    }
-
-    /// <summary>
-    /// Describes the body of a cell registration, which names the cell by its route.
-    /// </summary>
-    private sealed record RegistrationBody
-    {
-        public required string Region { get; init; }
-
-        public required string Kind { get; init; }
-
-        public required System.Text.Json.JsonElement Jwks { get; init; }
     }
 }

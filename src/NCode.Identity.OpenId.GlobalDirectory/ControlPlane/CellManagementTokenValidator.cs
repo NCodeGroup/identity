@@ -43,6 +43,11 @@ internal sealed class CellManagementTokenValidator(
         return null;
     }
 
+    /// <summary>
+    /// Records which kind of issuer signed the token on the authenticated identity of the principal.
+    /// </summary>
+    /// <param name="principal">The <see cref="ClaimsPrincipal"/> that the validation produced.</param>
+    /// <param name="kind">The kind of the issuer.</param>
     private static void SetIssuerKind(ClaimsPrincipal principal, string kind)
     {
         var identity = principal.Identities.FirstOrDefault(x => x.IsAuthenticated);

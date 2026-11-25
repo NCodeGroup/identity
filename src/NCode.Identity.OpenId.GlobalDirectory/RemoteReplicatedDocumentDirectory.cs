@@ -35,7 +35,7 @@ internal sealed class RemoteReplicatedDocumentDirectory(DirectoryHttpClient clie
         var response = await Client.SendAsync(HttpMethod.Put, path, document, cancellationToken);
 
         response.EnsureSuccess("publish a replicated document");
-        var stored = response.Read<StoredRevision>();
+        var stored = response.Read<StoredRevisionBody>();
         return stored.Revision;
     }
 
@@ -76,6 +76,13 @@ internal sealed class RemoteReplicatedDocumentDirectory(DirectoryHttpClient clie
         return response.Read<ReplicatedRevisionPage>();
     }
 
+    /// <summary>
+    /// Gets the path under <c>directory/v1/</c> that serves the replicated document of a kind and key.
+    /// </summary>
+    /// <param name="kind">The kind of the replicated document.</param>
+    /// <param name="key">The key of the document, which only a team authority needs.</param>
+    /// <returns>The relative path of the document.</returns>
+    /// <exception cref="ArgumentException">The kind is not a replicated document.</exception>
     private static string GetPath(string kind, string key)
     {
         ArgumentException.ThrowIfNullOrEmpty(kind);
@@ -96,7 +103,4 @@ internal sealed class RemoteReplicatedDocumentDirectory(DirectoryHttpClient clie
         var segment = DirectoryHttpClient.Segment(key);
         return $"{TeamsPrefix}{segment}{TeamAuthoritySuffix}";
     }
-
-    // The body of a successful publish.
-    private sealed record StoredRevision(long Revision);
 }

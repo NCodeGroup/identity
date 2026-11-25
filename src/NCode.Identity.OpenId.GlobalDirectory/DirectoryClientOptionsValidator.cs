@@ -110,6 +110,11 @@ internal sealed class DirectoryClientOptionsValidator : IValidateOptions<Directo
             : ValidateOptionsResult.Fail(failures);
     }
 
+    /// <summary>
+    /// Checks that the file at the given path holds at least one usable CA certificate.
+    /// </summary>
+    /// <param name="path">The path of the CA certificate file.</param>
+    /// <returns>A description of why the file is unusable, or <see langword="null"/> for a usable file.</returns>
     private static string? DescribeCaCertificatesFailure(string path)
     {
         if (!File.Exists(path))

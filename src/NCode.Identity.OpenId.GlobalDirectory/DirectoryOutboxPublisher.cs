@@ -48,6 +48,17 @@ internal sealed class DirectoryOutboxPublisher : BackgroundService
     private ILogger<DirectoryOutboxPublisher> Logger { get; }
     private Counter<long> Published { get; }
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="DirectoryOutboxPublisher"/> class.
+    /// </summary>
+    /// <param name="topology">The <see cref="IPlatformTopology"/> that says whether the cell publishes.</param>
+    /// <param name="outbox">The <see cref="IDirectoryOutbox"/> that holds the pending documents.</param>
+    /// <param name="signal">The <see cref="IDirectoryOutboxSignal"/> that wakes the publisher.</param>
+    /// <param name="directory">The <see cref="IReplicatedDocumentDirectory"/> that receives the documents.</param>
+    /// <param name="options">The <see cref="DirectoryClientOptions"/> of the directory client.</param>
+    /// <param name="timeProvider">The <see cref="TimeProvider"/> that supplies the current time.</param>
+    /// <param name="meterFactory">The <see cref="IMeterFactory"/> that creates the publisher's meter.</param>
+    /// <param name="logger">The <see cref="ILogger{TCategoryName}"/> of the publisher.</param>
     public DirectoryOutboxPublisher(
         IPlatformTopology topology,
         IDirectoryOutbox outbox,

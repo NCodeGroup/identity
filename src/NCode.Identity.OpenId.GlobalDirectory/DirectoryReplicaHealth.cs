@@ -55,6 +55,12 @@ internal sealed class DirectoryReplicaHealth : IHealthCheck
     private long _lastPassTicks;
     private long _appliedSequence;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="DirectoryReplicaHealth"/> class.
+    /// </summary>
+    /// <param name="timeProvider">The <see cref="TimeProvider"/> that supplies the current time.</param>
+    /// <param name="meterFactory">The <see cref="IMeterFactory"/> that creates the replica's meter.</param>
+    /// <param name="cellOptions">The <see cref="CellOptions"/> that name the cell.</param>
     public DirectoryReplicaHealth(
         TimeProvider timeProvider,
         IMeterFactory meterFactory,
@@ -125,18 +131,30 @@ internal sealed class DirectoryReplicaHealth : IHealthCheck
         return Task.FromResult(result);
     }
 
+    /// <summary>
+    /// Observes the seconds since the last completed feed pass.
+    /// </summary>
+    /// <returns>The measurement, tagged with the cell's name.</returns>
     private Measurement<double> ObserveAge()
     {
         var tag = CellTag();
         return new Measurement<double>(AgeSeconds, tag);
     }
 
+    /// <summary>
+    /// Observes the sequence of the last applied document.
+    /// </summary>
+    /// <returns>The measurement, tagged with the cell's name.</returns>
     private Measurement<long> ObserveSequence()
     {
         var tag = CellTag();
         return new Measurement<long>(Sequence, tag);
     }
 
+    /// <summary>
+    /// Creates the metric tag that names the cell.
+    /// </summary>
+    /// <returns>The tag that carries the cell's name.</returns>
     private KeyValuePair<string, object?> CellTag() =>
         new(CellNameAttribute, CellOptionsAccessor.Value.Name);
 }

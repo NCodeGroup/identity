@@ -24,8 +24,18 @@ namespace NCode.Identity.OpenId.GlobalDirectory.Server.Options;
 internal sealed class DirectoryServerOptionsValidator(IPublicJwksReader jwksReader)
     : IValidateOptions<DirectoryServerOptions>
 {
+    /// <summary>
+    /// Builds the configuration key of a top-level option.
+    /// </summary>
+    /// <param name="name">The name of the option.</param>
+    /// <returns>The key, which starts with the options section.</returns>
     private static string Key(string name) => $"{DirectoryServerOptions.SectionName}:{name}";
 
+    /// <summary>
+    /// Builds the configuration key of an option of the control plane.
+    /// </summary>
+    /// <param name="name">The name of the control-plane option.</param>
+    /// <returns>The key, which starts with the control-plane section.</returns>
     private static string ControlPlaneKey(string name) =>
         $"{DirectoryServerOptions.SectionName}:{nameof(DirectoryServerOptions.ControlPlane)}:{name}";
 
@@ -86,6 +96,12 @@ internal sealed class DirectoryServerOptionsValidator(IPublicJwksReader jwksRead
             : ValidateOptionsResult.Success;
     }
 
+    /// <summary>
+    /// Adds a failure when a control-plane label is blank or too long.
+    /// </summary>
+    /// <param name="failures">The failures to add to.</param>
+    /// <param name="property">The name of the control-plane option.</param>
+    /// <param name="value">The value to check.</param>
     private static void ValidateLabel(List<string> failures, string property, string value)
     {
         var key = ControlPlaneKey(property);
@@ -101,6 +117,12 @@ internal sealed class DirectoryServerOptionsValidator(IPublicJwksReader jwksRead
         }
     }
 
+    /// <summary>
+    /// Adds a failure when an issuer is blank or not an allowed issuer URL.
+    /// </summary>
+    /// <param name="failures">The failures to add to.</param>
+    /// <param name="key">The configuration key to name in a failure.</param>
+    /// <param name="issuer">The issuer to check.</param>
     private static void ValidateIssuer(List<string> failures, string key, string issuer)
     {
         if (string.IsNullOrWhiteSpace(issuer))
@@ -115,6 +137,11 @@ internal sealed class DirectoryServerOptionsValidator(IPublicJwksReader jwksRead
         }
     }
 
+    /// <summary>
+    /// Adds a failure when the control plane's client key set is blank or not a public JSON Web Key Set.
+    /// </summary>
+    /// <param name="failures">The failures to add to.</param>
+    /// <param name="clientJwks">The key set to check.</param>
     private void ValidateClientJwks(List<string> failures, string clientJwks)
     {
         var key = ControlPlaneKey(nameof(DirectoryControlPlaneOptions.ClientJwks));
