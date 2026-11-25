@@ -43,7 +43,8 @@ public sealed class ClientStoreTenantScopingTests : IDisposable
         DbContext = new OpenIdDbContext(
             options,
             AmbientTenantAccessor,
-            [new CoreModelContributor()]
+            [new CoreModelContributor()],
+            []
         );
         var keyGenerator = Provider.GetRequiredService<ISurrogateKeyGenerator>();
         TenantStore = new TenantStore(

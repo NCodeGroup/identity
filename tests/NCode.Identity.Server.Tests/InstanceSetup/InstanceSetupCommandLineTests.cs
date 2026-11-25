@@ -35,7 +35,8 @@ public class InstanceSetupCommandLineTests : BaseTests
         CapturingLoggerProvider? loggerProvider = null,
         SetupManagementConsoleOptions? managementConsole = null,
         SetupAutomationOptions? automation = null,
-        bool isControlPlane = true
+        bool isControlPlane = true,
+        bool hasManagementTenant = false
     )
     {
         var options = new SetupOptions { Root = root ?? new SetupRootOptions() };
@@ -52,9 +53,10 @@ public class InstanceSetupCommandLineTests : BaseTests
         });
         serviceCollection.AddSingleton(setupService);
         serviceCollection.AddSingleton(Options.Create(options));
-        serviceCollection.AddSingleton(
-            Options.Create(new CellOptions { IsControlPlane = isControlPlane })
-        );
+        var topology = new Mock<IPlatformTopology>();
+        topology.Setup(x => x.IsControlPlaneCell).Returns(isControlPlane);
+        topology.Setup(x => x.HasManagementTenant).Returns(hasManagementTenant);
+        serviceCollection.AddSingleton(topology.Object);
 
         return serviceCollection.BuildServiceProvider();
     }
@@ -101,30 +103,6 @@ public class InstanceSetupCommandLineTests : BaseTests
 
     #endregion
 
-    #region GetHostArguments Tests
-
-    [Fact]
-    public void GetHostArguments_TheCommand_ReturnsNoArguments()
-    {
-        Assert.Empty(InstanceSetupCommandLine.GetHostArguments(["setup", "extra"]));
-    }
-
-    [Fact]
-    public void GetHostArguments_OtherArguments_ReturnsThem()
-    {
-        string[] args = ["--urls", "http://localhost"];
-
-        Assert.Equal(args, InstanceSetupCommandLine.GetHostArguments(args));
-    }
-
-    [Fact]
-    public void GetHostArguments_NoArguments_ReturnsNone()
-    {
-        Assert.Empty(InstanceSetupCommandLine.GetHostArguments([]));
-    }
-
-    #endregion
-
     #region Usage Tests
 
     [Fact]
@@ -161,7 +139,7 @@ public class InstanceSetupCommandLineTests : BaseTests
     }
 
     [Fact]
-    public async Task RunAsync_TheCellIsNotTheControlPlane_ReturnsTwoWithoutTouchingTheInstance()
+    public async Task RunAsync_TheCellIsNeitherTheControlPlaneNorHasAManagementTenant_ReturnsTwoWithoutTouchingTheInstance()
     {
         var loggerProvider = new CapturingLoggerProvider();
         var setupService = CreateStrictMock<IInstanceSetupService>();
@@ -177,8 +155,34 @@ public class InstanceSetupCommandLineTests : BaseTests
         Assert.Equal(2, exitCode);
         Assert.Contains(
             loggerProvider.Messages,
-            message => message.Contains("control-plane cell", StringComparison.Ordinal)
+            message => message.Contains("management tenant", StringComparison.Ordinal)
         );
+    }
+
+    [Fact]
+    public async Task RunAsync_ACellWithAManagementTenant_CreatesTheFirstAdministrator()
+    {
+        var setupService = CreateStrictMock<IInstanceSetupService>();
+        setupService
+            .Setup(x => x.IsInitializedAsync(It.IsAny<CancellationToken>()))
+            .Returns(new ValueTask<bool>(false))
+            .Verifiable();
+        setupService
+            .Setup(x =>
+                x.SetUpAsync(It.IsAny<InstanceSetupRequest>(), It.IsAny<CancellationToken>())
+            )
+            .Returns(new ValueTask<InstanceSetupResult>(CreateSuccess()))
+            .Verifiable();
+        using var services = CreateServices(
+            setupService.Object,
+            CreateRoot(),
+            isControlPlane: false,
+            hasManagementTenant: true
+        );
+
+        var exitCode = await Parse("setup").RunAsync(services, CancellationToken.None);
+
+        Assert.Equal(0, exitCode);
     }
 
     [Fact]

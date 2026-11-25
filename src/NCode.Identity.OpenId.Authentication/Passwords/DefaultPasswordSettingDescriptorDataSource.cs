@@ -38,6 +38,7 @@ internal class DefaultPasswordSettingDescriptorDataSource(INullChangeToken nullC
             yield return new SettingDescriptor<int>
             {
                 Name = OpenIdSettingNames.PasswordMinLength,
+                IsSignInCritical = true,
                 AppliesTo = TenantsAndConnections,
                 Rule = SettingRules.Between(8, 64),
                 Default = 15,
@@ -51,6 +52,7 @@ internal class DefaultPasswordSettingDescriptorDataSource(INullChangeToken nullC
             yield return new SettingDescriptor<int>
             {
                 Name = OpenIdSettingNames.PasswordMaxLength,
+                IsSignInCritical = true,
                 AppliesTo = TenantsAndConnections,
                 Rule = SettingRules.Between(64, 4096),
                 Default = 128,
@@ -64,6 +66,7 @@ internal class DefaultPasswordSettingDescriptorDataSource(INullChangeToken nullC
             yield return new SettingDescriptor<int>
             {
                 Name = OpenIdSettingNames.PasswordFailedAttemptsLimit,
+                IsSignInCritical = true,
                 AppliesTo = TenantsAndConnections,
                 Rule = SettingRules.Between(1, 100),
                 Default = 10,
@@ -78,6 +81,7 @@ internal class DefaultPasswordSettingDescriptorDataSource(INullChangeToken nullC
             yield return new SettingDescriptor<TimeSpan>
             {
                 Name = OpenIdSettingNames.PasswordFailedAttemptsWindow,
+                IsSignInCritical = true,
                 AppliesTo = TenantsAndConnections,
                 Rule = SettingRules.Between(windowMinimum, windowMaximum),
                 Default = TimeSpan.FromMinutes(15),

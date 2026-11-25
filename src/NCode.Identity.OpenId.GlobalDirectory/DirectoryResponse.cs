@@ -3,21 +3,29 @@
 
 using System.Net;
 using System.Text.Json;
+using NCode.Buffers;
 
 namespace NCode.Identity.OpenId.GlobalDirectory;
 
 /// <summary>
 /// Holds the status and the body of an answer of the directory service that is not a failure of the service. A failure
 /// of the service never becomes a <see cref="DirectoryResponse"/>: it is a <see cref="DirectoryUnavailableException"/>.
+/// The response owns its body's buffer, so the caller disposes it.
 /// </summary>
-internal sealed class DirectoryResponse(HttpStatusCode statusCode, byte[] body)
+internal sealed class DirectoryResponse(
+    HttpStatusCode statusCode,
+    ContiguousBufferWriter<byte> body
+) : IDisposable
 {
     /// <summary>
     /// Gets the HTTP status of the answer: a success, <c>404</c> or <c>409</c>.
     /// </summary>
     public HttpStatusCode StatusCode { get; } = statusCode;
 
-    private byte[] Body { get; } = body;
+    private ContiguousBufferWriter<byte> Body { get; } = body;
+
+    /// <inheritdoc />
+    public void Dispose() => Body.Dispose();
 
     /// <summary>
     /// Gets a value indicating whether the status is a <c>2xx</c> success.
@@ -59,7 +67,7 @@ internal sealed class DirectoryResponse(HttpStatusCode statusCode, byte[] body)
     {
         try
         {
-            return JsonSerializer.Deserialize<T>(Body, DirectoryJson.Options)
+            return JsonSerializer.Deserialize<T>(Body.WrittenSpan, DirectoryJson.Options)
                 ?? throw new DirectoryUnavailableException(
                     "The directory answered with an empty body."
                 );
@@ -82,7 +90,10 @@ internal sealed class DirectoryResponse(HttpStatusCode statusCode, byte[] body)
     {
         try
         {
-            var problem = JsonSerializer.Deserialize<JsonElement>(Body, DirectoryJson.Options);
+            var problem = JsonSerializer.Deserialize<JsonElement>(
+                Body.WrittenSpan,
+                DirectoryJson.Options
+            );
             if (
                 problem.ValueKind == JsonValueKind.Object
                 && problem.TryGetProperty("detail", out var detail)

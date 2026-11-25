@@ -6,6 +6,7 @@ import { useAppSelector, useGetTeamQuery, useGetTenantQuery } from '@ncodegroup/
 import { AppLayout } from './components/AppLayout.js';
 import { permittedRoute, teamExit, tenantExit } from './access.js';
 import { useCallerAccess } from './useCallerAccess.js';
+import { useConsoleKind, useIsCellConsole } from './consoleKind.js';
 import { TenantCellProvider } from './tenantCell.js';
 import { announceSessionEnded, submitLogout } from './session.js';
 import { useConsoleRoute, navigateTo } from './navigation.js';
@@ -24,6 +25,9 @@ import {
 const HomePage = lazy(() =>
   import('./containers/HomePage.js').then((m) => ({ default: m.HomePage })),
 );
+const CellAdminsPage = lazy(() =>
+  import('./containers/CellAdminsPage.js').then((m) => ({ default: m.CellAdminsPage })),
+);
 const TeamsPage = lazy(() =>
   import('./containers/TeamsPage.js').then((m) => ({ default: m.TeamsPage })),
 );
@@ -39,6 +43,9 @@ const PlatformEncryptionKeysPage = lazy(() =>
   import('./containers/PlatformEncryptionKeysPage.js').then((m) => ({
     default: m.PlatformEncryptionKeysPage,
   })),
+);
+const CellsPage = lazy(() =>
+  import('./containers/CellsPage.js').then((m) => ({ default: m.CellsPage })),
 );
 const MachineClientsPage = lazy(() =>
   import('./containers/MachineClientsPage.js').then((m) => ({ default: m.MachineClientsPage })),
@@ -84,19 +91,23 @@ export function App() {
   const subject =
     user?.name ?? (typeof preferredUsername === 'string' ? preferredUsername : user?.sub);
 
+  // A console that manages one cell shows no platform or team surface and addresses only its own API.
+  const consoleKind = useConsoleKind();
+  const isCellConsole = useIsCellConsole();
+
   const route = useConsoleRoute();
-  const scope = route.kind === 'home' ? undefined : routeScope(route);
+  const scope = route.kind === 'home' || route.kind === 'cell' ? undefined : routeScope(route);
 
   // The caller's access is unknown until all three queries answer; until then the guard and back controls keep their
   // defaults.
   const access = useCallerAccess(isSignedIn);
 
   useEffect(() => {
-    const permitted = permittedRoute(route, access);
+    const permitted = permittedRoute(route, access, consoleKind);
     if (permitted !== route) {
       navigateTo(permitted, { replace: true });
     }
-  }, [route, access]);
+  }, [route, access, consoleKind]);
 
   // A tenant opens in the cell of its row; a tenant without one opens in the control plane.
   const openTenant = (tenantId: string, cell?: string) =>
@@ -130,7 +141,9 @@ export function App() {
   });
 
   const teamBack = teamExit(access, currentTeam?.parentTeamId);
-  const tenantBack = tenantExit(access, tenant?.teamId);
+  const tenantBack = isCellConsole
+    ? { route: HOME_ROUTE, label: 'Home' }
+    : tenantExit(access, tenant?.teamId);
 
   return (
     <AppLayout
@@ -152,6 +165,10 @@ export function App() {
         <Suspense fallback={surfaceFallback}>
           <HomePage onNavigate={navigateTo} />
         </Suspense>
+      ) : route.kind === 'cell' ? (
+        <Suspense fallback={surfaceFallback}>
+          <CellAdminsPage />
+        </Suspense>
       ) : route.kind === 'platform' ? (
         <>
           <Tabs
@@ -168,6 +185,9 @@ export function App() {
               label="Encryption keys"
               data-testid="platform-tab-encryption-keys"
             />
+            {access?.isPlatformAdministrator !== false && (
+              <Tab value="cells" label="Cells" data-testid="platform-tab-cells" />
+            )}
           </Tabs>
           <Suspense fallback={surfaceFallback}>
             {route.surface === 'teams' ? (
@@ -178,6 +198,8 @@ export function App() {
               <UsersPage owner={{ kind: 'platform' }} />
             ) : route.surface === 'settings' ? (
               <PlatformSettingsPage />
+            ) : route.surface === 'cells' ? (
+              <CellsPage />
             ) : (
               <PlatformEncryptionKeysPage />
             )}

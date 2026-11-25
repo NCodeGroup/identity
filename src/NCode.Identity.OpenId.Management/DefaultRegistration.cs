@@ -5,6 +5,7 @@ using JetBrains.Annotations;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using NCode.Identity.OpenId.GlobalDirectory;
 using NCode.Identity.OpenId.Management.Auditing;
@@ -43,6 +44,39 @@ public static class DefaultRegistration
 
         return serviceProvider.GetKeyedService<TService>(ControlPlaneServiceKeys.Remote)
             ?? serviceProvider.GetRequiredService<TLocal>();
+    }
+
+    /// <summary>
+    /// Picks the principal directory: the local one on the control-plane cell and on a platform without a directory,
+    /// otherwise the one of a workload cell.
+    /// </summary>
+    /// <param name="serviceProvider">The <see cref="IServiceProvider"/> that resolves the directories.</param>
+    /// <returns>The <see cref="IControlPlanePrincipalDirectory"/> the cell uses.</returns>
+    private static IControlPlanePrincipalDirectory ResolveControlPlanePrincipalDirectory(
+        IServiceProvider serviceProvider
+    )
+    {
+        var cell = serviceProvider.GetRequiredService<IOptions<CellOptions>>().Value;
+        var topology = serviceProvider.GetRequiredService<IPlatformTopology>();
+        if (cell.IsControlPlane || !topology.HasDirectory)
+            return serviceProvider.GetRequiredService<LocalControlPlanePrincipalDirectory>();
+
+        return serviceProvider.GetRequiredService<CellPrincipalDirectory>();
+    }
+
+    /// <summary>
+    /// Creates the principal directory of a workload cell over the cell's local directory.
+    /// </summary>
+    /// <param name="serviceProvider">The <see cref="IServiceProvider"/> that resolves the topology and the local
+    /// directory.</param>
+    /// <returns>The <see cref="CellPrincipalDirectory"/> of the cell.</returns>
+    private static CellPrincipalDirectory CreateCellPrincipalDirectory(
+        IServiceProvider serviceProvider
+    )
+    {
+        var topology = serviceProvider.GetRequiredService<IPlatformTopology>();
+        var local = serviceProvider.GetRequiredService<LocalControlPlanePrincipalDirectory>();
+        return new CellPrincipalDirectory(topology, local);
     }
 
     /// <param name="builder">The <see cref="OpenIdCoreLibrary"/> builder this library extends.</param>
@@ -95,6 +129,11 @@ public static class DefaultRegistration
             // other cell uses the remote adapter that a directory client registers under
             // ControlPlaneServiceKeys.Remote, and falls back to the local adapter without one.
             serviceCollection.TryAddSingleton<LocalManagementTokenValidator>();
+            serviceCollection.TryAddKeyedSingleton<IManagementTokenValidator>(
+                ControlPlaneServiceKeys.Local,
+                (serviceProvider, _) =>
+                    serviceProvider.GetRequiredService<LocalManagementTokenValidator>()
+            );
             serviceCollection.TryAddSingleton<IManagementTokenValidator>(serviceProvider =>
                 ResolveControlPlaneAdapter<
                     IManagementTokenValidator,
@@ -113,11 +152,12 @@ public static class DefaultRegistration
 
             // Describes the control-plane principals a query names, on the same terms.
             serviceCollection.TryAddSingleton<LocalControlPlanePrincipalDirectory>();
+            // A workload cell on a platform with a directory names only the principals of its own management tenant.
+            serviceCollection.TryAddSingleton(serviceProvider =>
+                CreateCellPrincipalDirectory(serviceProvider)
+            );
             serviceCollection.TryAddSingleton<IControlPlanePrincipalDirectory>(serviceProvider =>
-                ResolveControlPlaneAdapter<
-                    IControlPlanePrincipalDirectory,
-                    LocalControlPlanePrincipalDirectory
-                >(serviceProvider)
+                ResolveControlPlanePrincipalDirectory(serviceProvider)
             );
             var principalDescriberDescriptor = ServiceDescriptor.Singleton<
                 IPrincipalDescriber,
@@ -170,20 +210,17 @@ public static class DefaultRegistration
             >();
             serviceCollection.TryAddEnumerable(managementSeedDescriptor);
 
-            var controlPlaneSeedDescriptor = ServiceDescriptor.Singleton<
-                ICommandHandler<SeedTenantCommand>,
-                ControlPlaneResourceServerSeedHandler
+            // Refuses a management URL whose origin is not the root tenant's issuer origin on a platform with a
+            // directory.
+            var managementUrlCheckDescriptor = ServiceDescriptor.Singleton<
+                IHostedService,
+                ManagementUrlStartupCheck
             >();
-            serviceCollection.TryAddEnumerable(controlPlaneSeedDescriptor);
+            serviceCollection.TryAddEnumerable(managementUrlCheckDescriptor);
 
             // The root group declares its own endpoints and child groups (ADR-1086); registering it wires the whole
             // /api tree.
             builder.AddEndpointGroup<ManagementRootGroup>();
-
-            // Serves the control-plane authority to the other cells, beside the /api tree and only in the
-            // control-plane cell.
-            builder.AddEndpointProvider<ControlPlaneAuthorityEndpointProvider>();
-            builder.AddEndpointProvider<ControlPlanePrincipalsEndpointProvider>();
 
             return builder.NewBuilder<OpenIdManagementLibrary>();
         }

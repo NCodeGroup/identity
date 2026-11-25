@@ -6,9 +6,14 @@ using NCode.Identity.AspNetCore.OpenTelemetry;
 using NCode.Identity.Jose;
 using NCode.Identity.Jwt;
 using NCode.Identity.OpenId.Client;
+using NCode.Identity.OpenId.Client.KeyRings;
 using NCode.Identity.OpenId.GlobalDirectory.Host;
 using NCode.Identity.OpenId.GlobalDirectory.Server;
 using NCode.Identity.Secrets;
+using NCode.Identity.Secrets.AwsKms;
+using NCode.Identity.Secrets.AzureKeyVault;
+using NCode.Identity.Secrets.GoogleCloudKms;
+using NCode.Identity.Secrets.Persistence;
 using NCode.Identity.SharedState;
 
 // COMPOSITION-ONLY HOST: this file is a flat list of turnkey Add*/Use*/Map* calls. Reusable startup logic does NOT
@@ -61,17 +66,23 @@ builder.WebHost.ConfigureKestrel(kestrel =>
     )
 );
 
-// The directory validates a cell's bearer token against the control-plane issuer's discovery document and signing
-// keys, which the OpenID client library resolves. The in-process key set is correct for one replica. The directory
-// server registers its store, its endpoints' services and the 'DirectoryServer' options, which must name the issuer,
-// on the client library's builder.
+// The directory issues the cells' tokens itself: a cell authenticates at the token endpoint with a signed client
+// assertion that the anchor's registered keys verify, and the directory signs the token with the key ring that
+// 'DirectoryServer:KeyRing' names from the top-level 'KeyRings' section. It validates its own tokens on every request
+// through the client library's issuer access token validator. The directory stores no secrets, so it composes the key
+// formats alone, and the key management service adapters can hold the key ring's key. The in-process key set is
+// correct for one replica: it holds the single-use assertion identifiers. The directory server registers its store,
+// its endpoints' services and the 'DirectoryServer' options, which must name the issuer and the anchor, on the client
+// library's builder.
 serviceCollection.AddSharedStateServices().AddInProcessExpiringKeySet();
-serviceCollection
-    .AddSecretsLibrary()
-    .AddJoseLibrary()
-    .AddJwtLibrary()
-    .AddOpenIdClientLibrary()
-    .AddOpenIdDirectoryServer(configuration);
+var secretsLibrary = serviceCollection.AddSecretsLibrary();
+secretsLibrary.AddSecretKeyFormats();
+secretsLibrary.AddAwsKmsRemoteKeyProviderIfConfigured(configuration);
+secretsLibrary.AddAzureKeyVaultRemoteKeyProviderIfConfigured(configuration);
+secretsLibrary.AddGoogleCloudKmsRemoteKeyProviderIfConfigured(configuration);
+var clientLibrary = secretsLibrary.AddJoseLibrary().AddJwtLibrary().AddOpenIdClientLibrary();
+clientLibrary.AddOpenIdClientKeyRings(configuration);
+clientLibrary.AddOpenIdDirectoryServer(configuration);
 
 // The directory's own Postgres database, and the readiness check that holds the replica out of rotation while it cannot
 // reach the database it serves every request from. Each workload is given its own role's credentials for the one

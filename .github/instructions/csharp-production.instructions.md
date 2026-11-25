@@ -1413,6 +1413,7 @@ MethodImplOptions.AggressiveOptimization)]`, manual unrolling of tiny fixed-coun
     | `34000`–`34999` | `NCode.Identity.Mail.Mime`                          |
     | `35000`–`35999` | `NCode.Identity.Mail.AmazonSes`                     |
     | `36000`–`36999` | `NCode.Identity.OpenId.GlobalDirectory.Host`        |
+    | `37000`–`37999` | `NCode.Identity.OpenId.GlobalDirectory.Server`      |
 
 ### Metrics
 

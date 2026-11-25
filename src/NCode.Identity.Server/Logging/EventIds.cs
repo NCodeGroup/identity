@@ -41,13 +41,118 @@ internal static class EventIds
     public const int InstanceSetupCommandRootPasswordMissing = Base + 25;
 
     /// <summary>
-    /// Identifies the error that the setup command ran on a cell that is not the control plane; setup belongs to the
-    /// control-plane cell.
+    /// Identifies the error that the setup command ran on a cell that is neither the control plane nor a cell with a
+    /// management tenant.
     /// </summary>
-    public const int InstanceSetupCommandNotOnTheControlPlane = Base + 26;
+    public const int InstanceSetupCommandNotInAnAnchorCell = Base + 26;
 
     /// <summary>
     /// Identifies the error that the setup command failed with an exception, so the instance is not set up.
     /// </summary>
     public const int InstanceSetupCommandFailed = Base + 27;
+
+    /// <summary>
+    /// Identifies the error that the revoke-management-key command line is invalid.
+    /// </summary>
+    public const int RevokeManagementKeyCommandUsageInvalid = Base + 28;
+
+    /// <summary>
+    /// Identifies the error that the revoke-management-key command ran on the control-plane cell.
+    /// </summary>
+    public const int RevokeManagementKeyCommandOnTheControlPlane = Base + 29;
+
+    /// <summary>
+    /// Identifies the information that the revoke-management-key command recorded a key as revoked.
+    /// </summary>
+    public const int RevokeManagementKeyCommandRevoked = Base + 30;
+
+    /// <summary>
+    /// Identifies the error that the revoke-management-key command failed with an exception.
+    /// </summary>
+    public const int RevokeManagementKeyCommandFailed = Base + 31;
+
+    /// <summary>
+    /// Identifies the error that the recover-admin command line is invalid.
+    /// </summary>
+    public const int RecoverAdminCommandUsageInvalid = Base + 32;
+
+    /// <summary>
+    /// Identifies the error that the recover-admin command ran in a cell with no anchor tenant.
+    /// </summary>
+    public const int RecoverAdminCommandNotInAnAnchorCell = Base + 33;
+
+    /// <summary>
+    /// Identifies the error that the recover-admin command has no administrator username.
+    /// </summary>
+    public const int RecoverAdminCommandUserNameMissing = Base + 34;
+
+    /// <summary>
+    /// Identifies the error that the recover-admin command has no administrator password.
+    /// </summary>
+    public const int RecoverAdminCommandPasswordMissing = Base + 35;
+
+    /// <summary>
+    /// Identifies the error that the recover-admin command was refused.
+    /// </summary>
+    public const int RecoverAdminCommandRefused = Base + 36;
+
+    /// <summary>
+    /// Identifies the information that the recover-admin command recovered the administrator.
+    /// </summary>
+    public const int RecoverAdminCommandRecovered = Base + 37;
+
+    /// <summary>
+    /// Identifies the error that the recover-admin command failed with an exception.
+    /// </summary>
+    public const int RecoverAdminCommandFailed = Base + 38;
+
+    /// <summary>
+    /// Identifies the error that the recover-sign-in command line is invalid.
+    /// </summary>
+    public const int RecoverSignInCommandUsageInvalid = Base + 39;
+
+    /// <summary>
+    /// Identifies the error that the recover-sign-in command ran in a workload cell without a management tenant.
+    /// </summary>
+    public const int RecoverSignInCommandNoManagementTenant = Base + 40;
+
+    /// <summary>
+    /// Identifies the information that the recover-sign-in command made one change.
+    /// </summary>
+    public const int RecoverSignInCommandChanged = Base + 41;
+
+    /// <summary>
+    /// Identifies the information that the recover-sign-in command repaired the sign-in.
+    /// </summary>
+    public const int RecoverSignInCommandRepaired = Base + 42;
+
+    /// <summary>
+    /// Identifies the error that the recover-sign-in command failed with an exception.
+    /// </summary>
+    public const int RecoverSignInCommandFailed = Base + 43;
+
+    /// <summary>
+    /// Identifies the error that the directory-client-jwks command line is invalid.
+    /// </summary>
+    public const int DirectoryClientJwksCommandUsageInvalid = Base + 44;
+
+    /// <summary>
+    /// Identifies the error that the directory-client-jwks command was given no key ring.
+    /// </summary>
+    public const int DirectoryClientJwksCommandNoKeyRing = Base + 45;
+
+    /// <summary>
+    /// Identifies the error that the directory-client-jwks command was given an unknown key ring.
+    /// </summary>
+    public const int DirectoryClientJwksCommandUnknownKeyRing = Base + 46;
+
+    /// <summary>
+    /// Identifies the information that the directory-client-jwks command wrote the key set.
+    /// </summary>
+    public const int DirectoryClientJwksCommandWritten = Base + 47;
+
+    /// <summary>
+    /// Identifies the error that the directory-client-jwks command failed with an exception.
+    /// </summary>
+    public const int DirectoryClientJwksCommandFailed = Base + 48;
 }

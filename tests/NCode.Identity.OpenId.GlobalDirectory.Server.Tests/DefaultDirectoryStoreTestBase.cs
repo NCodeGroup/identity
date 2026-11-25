@@ -19,7 +19,7 @@ namespace NCode.Identity.OpenId.GlobalDirectory.Server;
 /// Provides a <see cref="DefaultDirectoryStore"/> over an in-memory Sqlite database, and the helpers that the store's
 /// tests share.
 /// </summary>
-public abstract class DefaultDirectoryStoreTestBase : IDisposable
+public abstract class DefaultDirectoryStoreTestBase : IAsyncLifetime, IDisposable
 {
     protected const string CellName = "cell-a";
     protected const string CellRegion = "region-a";
@@ -32,13 +32,22 @@ public abstract class DefaultDirectoryStoreTestBase : IDisposable
     protected const string ControlPlaneTenantId = "root";
     protected const string ControlPlaneIssuer = "https://op.example/root";
 
-    private static DirectoryServerOptions CreateOptions(string controlPlaneTenantId) =>
-        new()
-        {
-            Issuer = ControlPlaneIssuer,
-            ControlPlaneCell = ControlPlaneCell,
-            ControlPlaneTenantId = controlPlaneTenantId,
-        };
+    private static Microsoft.Extensions.Options.IOptions<DirectoryServerOptions> CreateOptions() =>
+        Microsoft.Extensions.Options.Options.Create(
+            new DirectoryServerOptions
+            {
+                Issuer = "https://directory.example",
+                ControlPlane = new DirectoryControlPlaneOptions
+                {
+                    Cell = ControlPlaneCell,
+                    Region = CellRegion,
+                    Kind = CellKinds.Shared,
+                    TenantId = ControlPlaneTenantId,
+                    Issuer = ControlPlaneIssuer,
+                    ClientJwks = """{"keys":[]}""",
+                },
+            }
+        );
 
     private SqliteConnection Connection { get; }
     private ServiceProvider Provider { get; }
@@ -67,20 +76,39 @@ public abstract class DefaultDirectoryStoreTestBase : IDisposable
             dbContext.Database.EnsureCreated();
         }
 
-        Store = CreateStore(ControlPlaneTenantId);
-    }
-
-    private DefaultDirectoryStore CreateStore(string controlPlaneTenantId) =>
-        new(
+        Store = new DefaultDirectoryStore(
             DbContextFactory,
-            Microsoft.Extensions.Options.Options.Create(CreateOptions(controlPlaneTenantId)),
+            CreateOptions(),
             Provider.GetRequiredService<IPersistedPayloadSerializer>(),
             Provider.GetRequiredService<ISurrogateKeyGenerator>(),
             TimeProvider
         );
+    }
 
-    protected ITenantDirectory CreateTenantDirectory(string controlPlaneTenantId) =>
-        CreateStore(controlPlaneTenantId);
+    /// <summary>
+    /// Writes the platform's trust anchor, the control-plane cell and its root tenant, as the directory does when it
+    /// starts, before each test runs.
+    /// </summary>
+    public virtual async Task InitializeAsync()
+    {
+        var initializer = new DirectoryAnchorInitializer(
+            DbContextFactory,
+            CreateOptions(),
+            Provider.GetRequiredService<ISurrogateKeyGenerator>(),
+            TimeProvider,
+            new DirectoryAnchorState()
+        );
+        await initializer.StartAsync(CancellationToken.None);
+    }
+
+    /// <inheritdoc />
+    public async Task DisposeAsync() => await DisposeAsyncCore();
+
+    /// <summary>
+    /// Releases what a derived test class holds that needs an asynchronous disposal.
+    /// </summary>
+    /// <returns>A <see cref="ValueTask"/> that completes when the resources are released.</returns>
+    protected virtual ValueTask DisposeAsyncCore() => ValueTask.CompletedTask;
 
     protected ITenantDirectory Tenants => Store;
 
@@ -92,7 +120,52 @@ public abstract class DefaultDirectoryStoreTestBase : IDisposable
 
     protected ICellDirectory Cells => Store;
 
+    internal ICellDirectory CellRegistry => Store;
+
+    internal ICellClientKeyStore CellClientKeys => Store;
+
+    /// <summary>
+    /// Registers a cell with an empty key set and has it report its descriptor, as a cell of the platform does.
+    /// </summary>
+    protected async ValueTask ReportCellAsync(
+        CellDescriptor descriptor,
+        CancellationToken cancellationToken = default
+    )
+    {
+        if (descriptor.Name == ControlPlaneCell)
+        {
+            // The directory holds the control-plane cell's registration from its configuration.
+            await Cells.ReportAsync(descriptor, cancellationToken);
+            return;
+        }
+
+        var registration = new CellRegistration
+        {
+            Name = descriptor.Name,
+            Region = descriptor.Region,
+            Kind = descriptor.Kind,
+            Jwks = JsonElement.Parse("""{"keys":[]}"""),
+        };
+        await CellRegistry.RegisterAsync(registration, cancellationToken);
+        await Cells.ReportAsync(descriptor, cancellationToken);
+    }
+
+    /// <summary>
+    /// Writes a change row as given, bypassing the store, to seed a row the store never writes.
+    /// </summary>
+    protected async ValueTask AddChangeRecordAsync(
+        DirectoryChangeRecord record,
+        CancellationToken cancellationToken = default
+    )
+    {
+        await using var dbContext = await DbContextFactory.CreateDbContextAsync(cancellationToken);
+        dbContext.Changes.Add(record);
+        await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
     protected IPlatformDirectory Platform => Store;
+
+    protected IReplicatedDocumentDirectory Replicated => Store;
 
     public void Dispose()
     {

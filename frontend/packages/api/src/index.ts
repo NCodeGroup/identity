@@ -5,6 +5,8 @@ export type {
   AlgorithmKeyTypeCapability,
   CallerResource,
   CellResource,
+  CellScopeResource,
+  RegisterCellRequest,
   ClientResource,
   CollectionResource,
   ConnectionResource,

@@ -13,9 +13,9 @@
 # the certificate, and the chosen route verifies it (ADR-1504, ADR-1507). The pods can require the ingress controller's
 # client certificate, and the chart's ingress certificate and its Secret are checked. The cluster job installs the
 # server and the management console in kind behind Traefik and behind an Envoy Gateway, which implements the Gateway's
-# backend client certificate (ADR-1506, ADR-1507). The directory-cluster job installs a control-plane cell that runs the
-# global directory and reaches it as its own machine client, in one release with its setup Job, in kind behind Traefik
-# (issues #918 and #920).
+# backend client certificate (ADR-1506, ADR-1507). The directory-cluster job installs a control-plane cell that reaches
+# the global directory, which the directory chart runs, as its own machine client, with its setup Job, in kind behind
+# Traefik (issues #918 and #920).
 # The chart serves no API reference unless its values enable it (ADR-1481).
 # The README's GitOps example, the Flux manifests under examples/flux/, must agree with ci/gitops-values.yaml, the chart
 # and the README, and validate against the CRD schemas of the pinned Flux release (issue #784).
@@ -141,6 +141,50 @@ jobs:
           refuse --set 'secretProtection.ownerRootKeys.providers={nope}'
           refuse --set secretProtection.remoteKeyProviders.awsKms.enabled=true --set secretProtection.remoteKeyProviders.awsKms.region=Not_A_Region
           refuse --set secretProtection.remoteKeyProviders.awsKms.enabled=true --set secretProtection.remoteKeyProviders.awsKms.pendingWindowInDays=6
+          # A platform console lists cells, named as cells are and reached over https; a cell console lists none.
+          refuse --set managementConsole.cells.Not_A_Cell=https://manage.example.com/api
+          refuse --set managementConsole.cells.eu--1=https://manage.example.com/api
+          refuse --set managementConsole.cells.eu-1=http://manage.example.com/api
+          cell_console="$CHART/ci/cell-console-values.yaml"
+          helm template release "$CHART" --values "$cell_console" > /dev/null
+          if helm template release "$CHART" --values "$cell_console" \
+            --set managementConsole.cells.eu-1=https://manage.example.com/api > /dev/null 2>&1; then
+            echo "::error::The chart rendered a cell console with managementConsole.cells."
+            exit 1
+          fi
+          # Each cell console rule refuses on its own: the message names the rule, so a case never passes on another.
+          refuse_cell_console() {
+            expected="$1"
+            shift
+            if output=$(helm template release "$CHART" --values "$cell_console" "$@" 2>&1 > /dev/null); then
+              echo "::error::The chart rendered a cell console it must refuse: $*"
+              exit 1
+            fi
+            if [[ "$output" != *"$expected"* ]]; then
+              echo "::error::The chart refused a cell console for another reason: $output"
+              exit 1
+            fi
+          }
+          # The control-plane cell's console is the platform console.
+          refuse_cell_console "the control-plane cell's console is the platform console" --set cell.isControlPlane=true
+          # A cell console needs a dynamic strategy: a static cell has no management tenant to sign in against.
+          refuse_cell_console "requires a dynamic tenantResolution.strategyCode" \
+            --set tenantResolution.strategyCode=StaticSingle \
+            --set tenantResolution.staticSingle.issuer=https://manage.eu.example.com \
+            --set tenantResolution.staticSingle.tenantId=ci-eu --set setup.job.enabled=false
+          # A cell console calls the cell's management API, so the cell names its management URL; the console needs
+          # directory.url, so the directory rule refuses first.
+          refuse_cell_console "cell.managementUrl must be the URL of the cell's management API" --set cell.managementUrl=
+          # A cell console signs in against the cell's root tenant, so it names the authority.
+          refuse_cell_console "managementConsole.authority must be" --set managementConsole.authority=
+          # The directory's CA certificates come from a Secret or a ConfigMap, one key, and need the directory's URL.
+          refuse --set directory.caCertificates.existingSecret=directory-ca
+          refuse --values "$CHART/ci/directory-values.yaml" --set directory.caCertificates.existingConfigMap=directory-ca
+          refuse --values "$CHART/ci/directory-values.yaml" --set directory.caCertificates.key=
+          # The ConfigMap form is accepted.
+          helm template release "$CHART" --values "$base" --values "$CHART/ci/directory-values.yaml" \
+            --set directory.caCertificates.existingSecret= \
+            --set directory.caCertificates.existingConfigMap=directory-ca > /dev/null
           # A cell names itself and its region with lowercase labels, and a cell that is not the control plane names the
           # control plane's issuer.
           refuse --set cell.name=
@@ -175,8 +219,11 @@ jobs:
           # The setup Job reads the root administrator from a Secret, and a setup token Secret needs the key to read.
           refuse --set setup.job.enabled=true
           refuse --set setup.token.existingSecret=s --set setup.token.key=
-          # Setup runs in the control-plane cell only. The same release renders as the control-plane cell, so the
-          # refusal is the rule it names.
+          # The recovery Jobs: recover-admin reads the administrator from a Secret, and the revocation Job needs its key id.
+          refuse --set recovery.recoverAdmin.enabled=true
+          refuse --set recovery.revokeManagementKey.enabled=true
+          # Setup runs in the control-plane cell and in a cell that serves a dynamic strategy; a static workload cell is
+          # refused. The same release renders as the control-plane cell, so the refusal is the rule it names.
           helm template release "$CHART" --values "$base" --values "$CHART/ci/setup-values.yaml" \
             --values "$CHART/ci/cell-values.yaml" > /dev/null
           refuse --values "$CHART/ci/setup-values.yaml" --values "$CHART/ci/cell-values.yaml" \
@@ -199,20 +246,6 @@ jobs:
           refuse --set directory.keyRing=cell-client
           refuse --set directory.keys.pemSecret=cell-client-key
           refuse --set directory.keys.remoteKeys.cell-client.provider=aws-kms
-          # The directory server's values need directory.enabled: without it the chart runs no directory host.
-          refuse --set directory.issuer=https://control-plane.example
-          refuse --set directory.controlPlaneCell=control
-          refuse --set directory.backendTls.existingSecret=directory-tls
-          refuse --set directory.ingress.enabled=true
-          refuse --set directory.httpRoute.enabled=true
-          refuse --set 'directory.allowedHosts={directory.example.com}'
-          refuse --set directory.database.runtimeRole=ncode_directory_app
-          refuse --set directory.database.existingSecret=directory-database
-          refuse --set directory.migrations.database.existingSecret=directory-database-owner
-          refuse --set directory.database.parts.existingSecret=directory-app
-          refuse --set directory.migrations.database.parts.existingSecret=directory-owner
-          refuse --set directory.image.tag=1.0.0
-          refuse --set directory.serviceAccount.name=directory-sa
           # A cell's management URL is https.
           refuse --set cell.managementUrl=http://manage.example.com
           # The chart cannot know the CA behind a serving Secret of the operator's, so the controller's Secret is required.
@@ -358,6 +391,41 @@ jobs:
           expect "$(helm template release "$CHART" --values "$CHART/ci/rewrap-job-values.yaml" \
             --set database.existingSecret= --set database.parts.existingSecret=identity-db-app \
             --show-only templates/secret-protection-job.yaml)" 'OpenIdDatabase__Host'
+
+      - name: Render the recovery Jobs
+        run: |
+          expect() {
+            local rendered="$1"; shift
+            for expected in "$@"; do
+              if ! grep -q -- "$expected" <<< "$rendered"; then
+                echo "::error::The release lacks: $expected"
+                exit 1
+              fi
+            done
+          }
+          reject() {
+            local rendered="$1"; shift
+            for unexpected in "$@"; do
+              if grep -q -- "$unexpected" <<< "$rendered"; then
+                echo "::error::The release renders what it must not: $unexpected"
+                exit 1
+              fi
+            done
+          }
+          recovery="$CHART/ci/recovery-values.yaml"
+          jobs=$(helm template release "$CHART" --values "$recovery" --show-only templates/recovery-job.yaml)
+          expect "$jobs" '"recover-admin"' '"recover-sign-in"' '"revoke-management-key"' '"ci-management-key"' \
+            'name: Recovery__Admin__UserName' 'name: Recovery__Admin__Password' 'name: identity-recovery-admin'
+          # A key id left in the values renders no Job until the revocation is enabled.
+          reject "$(helm template release "$CHART" --values "$recovery" \
+            --set recovery.revokeManagementKey.enabled=false --show-only templates/recovery-job.yaml)" \
+            'revoke-management-key'
+          # recover-admin needs the Secret that holds the administrator's credentials.
+          if helm template release "$CHART" --values "$recovery" --set recovery.recoverAdmin.existingSecret= \
+            > /dev/null 2>&1; then
+            echo "::error::The chart rendered recover-admin without its Secret"
+            exit 1
+          fi
 
       - name: Take Valkey as a finished connection string or as its parts
         run: |
@@ -533,7 +601,7 @@ jobs:
           expect "$kms" 'name: AWS_ROLE_ARN'
           reject "$kms" 'Mail__'
 
-      - name: Give the migration Job the host's extra settings, and the Job and the directory Service valid names
+      - name: Give the migration Job the host's extra settings and a valid name
         run: |
           base="$CHART/ci/single-replica-values.yaml"
           job=$(helm template release "$CHART" --values "$base" --show-only templates/migration-job.yaml \
@@ -552,15 +620,6 @@ jobs:
             --show-only templates/migration-job.yaml | awk '/^  name:/ { print $2; exit }')
           if [ "${#name}" -gt 63 ]; then
             echo "::error::The migration Job name '$name' is longer than 63 characters."
-            exit 1
-          fi
-          # A Service's name is a DNS-1035 label of at most 63 characters. The 52-character release name puts a letter,
-          # not a hyphen, at the 54th character of the full name, so a full name one character too long would show.
-          name=$(helm template a-fifty-two-character-release-name-for-the-directory "$CHART" \
-            --values "$CHART/ci/directory-values.yaml" --show-only templates/directory-service.yaml \
-            | awk '/^  name:/ { print $2; exit }')
-          if [ -z "$name" ] || [ "${#name}" -gt 63 ]; then
-            echo "::error::The directory Service name '$name' is longer than 63 characters."
             exit 1
           fi
 
@@ -866,8 +925,8 @@ jobs:
           # White space is refused, a no-break space included.
           refuse --set "directory.url=https://directory.example/a"$'\xc2\xa0'"b"
           refuse --set cell.controlPlaneIssuer=http://id.example.com
-          # A cell that reaches the directory names the control plane's issuer, the control-plane cell included.
-          refuse --set cell.isControlPlane=true --set cell.controlPlaneIssuer=
+          # The control-plane cell needs no control-plane issuer to reach the directory, and one it names is still a URL.
+          helm template release "$CHART" --values "$base" --set cell.isControlPlane=true --set cell.controlPlaneIssuer= > /dev/null
           refuse --set cell.isControlPlane=true --set cell.controlPlaneIssuer=http://id.example.com
           refuse --set directory.clientId=
           refuse --set directory.clientId=cell-other
@@ -889,171 +948,6 @@ jobs:
           # A remote key under the key ring's id, while the PEM Secret holds a key of that id.
           refuse --set "$key.provider=aws-kms" --set "$key.keyId=arn:aws:kms:us-west-2:111122223333:key/abcd" \
             --set "$key.algorithm=ES256" --set "$key.secretType=ecc" --set "$key.keySizeBits=256"
-
-      - name: Refuse an unsafe directory
-        run: |
-          base="$CHART/ci/directory-values.yaml"
-          refuse() {
-            if helm template release "$CHART" --values "$base" "$@" > /dev/null 2>&1; then
-              echo "::error::The chart rendered a directory it must refuse: $*"
-              exit 1
-            fi
-          }
-          # The base values render, so each refusal below is the rule it names.
-          helm template release "$CHART" --values "$base" > /dev/null
-          # A loopback http issuer, on any 127.x.x.x address, renders, as the directory host accepts it.
-          helm template release "$CHART" --values "$base" --set directory.issuer=http://localhost:8080 > /dev/null
-          helm template release "$CHART" --values "$base" --set directory.issuer=http://127.0.0.2:8080 > /dev/null
-          refuse --set-json 'directory.allowedHosts=[]'
-          refuse --set 'directory.allowedHosts={*}'
-          refuse --set 'directory.allowedHosts={*.example.com}'
-          refuse --set directory.issuer=
-          # The issuer is https, or http on a loopback host, with no user information, query or fragment.
-          refuse --set directory.issuer=https://user@id.example.com
-          refuse --set directory.issuer=http://id.example.com
-          refuse --set directory.controlPlaneCell=
-          # The directory holds the control-plane cell's root tenant, which a release of another cell, or a release under
-          # a strategy other than StaticSingle, whose root tenant the chart does not read, leaves unnamed.
-          refuse --set directory.controlPlaneCell=other-cell
-          refuse --set directory.controlPlaneTenantId=Root
-          refuse --set tenantResolution.strategyCode=DynamicByPath
-          refuse --set tenantResolution.strategyCode=DynamicByPath \
-            --set-json 'extraEnv=[{"name":"OpenId__TenantResolution__Root__TenantId","value":"control"}]'
-          refuse --set directory.database.existingSecret=
-          # A directory connection is one form: a connection string or the parts of an operator's Secret (ADR-1509).
-          refuse --set directory.database.parts.existingSecret=directory-app
-          refuse --set directory.database.connectionStringKey=
-          refuse --set directory.database.existingSecret= --set directory.database.parts.existingSecret=directory-app --set directory.database.parts.passwordKey=
-          refuse --set directory.database.runtimeRole=
-          refuse --set directory.database.runtimeRole=Bad-Role
-          # The schema owner's connection is required, and an empty key of it falls back to the runtime role's.
-          refuse --set directory.migrations.database.existingSecret=
-          # A connection is one form for the owner too.
-          refuse --set directory.migrations.database.parts.existingSecret=directory-owner
-          # The directory's routes follow the host's rules (ADR-1507): an Ingress needs the controller named, an HTTPRoute
-          # needs a parent Gateway, and an operator's certificate has no known CA to verify against.
-          refuse --set directory.ingress.enabled=true
-          refuse --set directory.httpRoute.enabled=true
-          refuse --set directory.httpRoute.enabled=true --set-json 'directory.httpRoute.parentRefs=[{"name":"gw"}]'
-          refuse --set ingress.controller=traefik --set directory.ingress.enabled=true
-          helm template release "$CHART" --values "$base" --set ingress.controller=traefik \
-            --set directory.ingress.enabled=true --set directory.backendTls.ingressSecret=directory-ingress > /dev/null
-          # The CA publisher writes only the chart's private CA, so the chart refuses it with a directory certificate of
-          # the operator's whose CA no directory ConfigMap names, and renders the directory's BackendTLSPolicy against
-          # the ConfigMap that names it.
-          refuse --set backendTls.caPublisher.enabled=true
-          directory_ca=$(helm template release "$CHART" --values "$base" --set backendTls.caPublisher.enabled=true \
-            --set directory.backendTls.caConfigMap=directory-ca --set directory.httpRoute.enabled=true \
-            --set-json 'directory.httpRoute.parentRefs=[{"name":"gw"}]' --show-only templates/directory-http-route.yaml)
-          if ! grep -q -- 'name: directory-ca' <<< "$directory_ca"; then
-            echo "::error::The directory's BackendTLSPolicy does not verify against directory.backendTls.caConfigMap."
-            exit 1
-          fi
-
-      - name: Run the directory's migration Job under the operator's ServiceAccount
-        run: |
-          # The hook runs before the chart's own account exists on a first install, so it names the account only when the
-          # operator brings one.
-          if ! helm template release "$CHART" --values "$CHART/ci/directory-values.yaml" \
-            --set directory.serviceAccount.create=false --set directory.serviceAccount.name=directory-sa \
-            --show-only templates/directory-migration-job.yaml | grep -q 'serviceAccountName: directory-sa'; then
-            echo "::error::The directory's migration Job does not name the operator's ServiceAccount."
-            exit 1
-          fi
-
-      - name: Render the directory
-        run: |
-          base="$CHART/ci/directory-values.yaml"
-          render() {
-            helm template release "$CHART" --values "$base" --show-only "$@"
-          }
-          expect() {
-            local rendered="$1"; shift
-            for expected in "$@"; do
-              if ! grep -q -- "$expected" <<< "$rendered"; then
-                echo "::error::The release lacks: $expected"
-                exit 1
-              fi
-            done
-          }
-          reject() {
-            local rendered="$1"; shift
-            for unexpected in "$@"; do
-              if grep -q -- "$unexpected" <<< "$rendered"; then
-                echo "::error::The release renders what it must not: $unexpected"
-                exit 1
-              fi
-            done
-          }
-          deployment="$(render templates/directory-deployment.yaml)"
-          expect "$deployment" 'type: Recreate' 'DirectoryServer__Issuer' 'DirectoryServer__ControlPlaneCell' \
-            'DirectoryServer__ControlPlaneTenantId' \
-            'name: ConnectionStrings__directory$' 'name: directory-database$' 'secretName: directory-tls' \
-            'automountServiceAccountToken: false'
-          # The directory holds the control-plane cell's root tenant, which that cell's release names.
-          tenant() { render templates/directory-deployment.yaml "$@" | grep -A1 'name: DirectoryServer__ControlPlaneTenantId'; }
-          expect "$(tenant)" 'value: "default"'
-          expect "$(tenant --set tenantResolution.staticSingle.tenantId=acme)" 'value: "acme"'
-          # The cell serves the tenant the directory holds: the chart writes one identifier for both.
-          served() { render templates/deployment.yaml "$@" | grep -A1 'name: OpenId__TenantResolution__StaticSingle__TenantId'; }
-          expect "$(served)" 'value: "default"'
-          expect "$(served --set tenantResolution.staticSingle.tenantId=acme)" 'value: "acme"'
-          expect "$(tenant --set tenantResolution.strategyCode=DynamicByPath --set directory.controlPlaneTenantId=control)" \
-            'value: "control"'
-          expect "$(tenant --set directory.controlPlaneCell=other-cell --set directory.controlPlaneTenantId=cp-root)" \
-            'value: "cp-root"'
-          # The Deployment carries the runtime role's connection and never the owner's, and not the role's name.
-          reject "$deployment" 'directory-database-owner' 'DirectoryMigration__RuntimeRole'
-          job="$(render templates/directory-migration-job.yaml \
-            --set-json 'directory.extraEnv=[{"name":"PGSSLMODE","value":"verify-full"}]')"
-          expect "$job" '- migrate' 'name: ConnectionStrings__directory$' 'name: directory-database-owner' \
-            'DirectoryMigration__RuntimeRole' 'helm.sh/hook: pre-install,pre-upgrade' 'name: ASPNETCORE_ENVIRONMENT' \
-            'name: OTEL_RESOURCE_ATTRIBUTES' 'name: PGSSLMODE'
-          # The migration Job carries the owner's connection, never the runtime role's, and no server setting.
-          reject "$job" 'name: directory-database$' 'name: AllowedHosts' 'name: DirectoryServer__'
-          # A parts Secret reaches each pod as one variable per part, the runtime role's Secret the Deployment and the
-          # owner's the Job, and no connection string is passed.
-          parts=(--set directory.database.existingSecret= --set directory.database.parts.existingSecret=directory-app \
-            --set directory.migrations.database.existingSecret= \
-            --set directory.migrations.database.parts.existingSecret=directory-owner)
-          partsDeployment="$(render templates/directory-deployment.yaml "${parts[@]}")"
-          expect "$partsDeployment" 'name: DirectoryDatabase__Host' 'name: DirectoryDatabase__Password' \
-            'name: directory-app$'
-          reject "$partsDeployment" 'ConnectionStrings__directory' 'directory-owner'
-          partsJob="$(render templates/directory-migration-job.yaml "${parts[@]}")"
-          expect "$partsJob" 'name: DirectoryDatabase__Host' 'name: DirectoryDatabase__Password' \
-            'name: directory-owner$' 'DirectoryMigration__RuntimeRole'
-          reject "$partsJob" 'ConnectionStrings__directory' 'directory-app'
-          # Both directory pods carry the backup location when it is set, and neither carries one when it is not.
-          reject "$deployment" 'ncode.io/backup-location'
-          reject "$job" 'ncode.io/backup-location'
-          for template in templates/directory-deployment.yaml templates/directory-migration-job.yaml; do
-            expect "$(render "$template" --set backup.location=s3://ci-backups)" \
-              '^        ncode.io/backup-location: "s3://ci-backups"$'
-          done
-          service="$(render templates/directory-service.yaml)"
-          expect "$service" 'kind: Service' 'appProtocol: https' 'targetPort: https'
-          # Without the operator's Secret the chart issues the directory's certificate for the Service's DNS names.
-          issued=(--set directory.backendTls.existingSecret=)
-          certificate="$(render templates/directory-backend-tls.yaml "${issued[@]}")"
-          expect "$certificate" 'kind: Certificate' 'secretName: release-ncode-identity-host-directory-tls' \
-            'release-ncode-identity-host-directory.default.svc'
-          # Behind Traefik the directory's Ingress, its ServersTransport and its Service's annotations verify the pods.
-          traefik=(--set ingress.controller=traefik --set directory.ingress.enabled=true \
-            --set directory.ingress.className=traefik "${issued[@]}")
-          expect "$(render templates/directory-ingress.yaml "${traefik[@]}")" 'kind: Ingress' 'host: "directory.example.com"' \
-            'name: https'
-          expect "$(render templates/directory-servers-transport.yaml "${traefik[@]}")" 'kind: ServersTransport' \
-            'serverName: "release-ncode-identity-host-directory.default.svc"' 'secret: release-ncode-identity-host-ingress'
-          expect "$(render templates/directory-service.yaml "${traefik[@]}")" 'service.serversscheme: https' \
-            'default-release-ncode-identity-host-directory@kubernetescrd'
-          # Behind a Gateway the directory's HTTPRoute and its BackendTLSPolicy verify the pods.
-          gateway=(--set directory.httpRoute.enabled=true --set-json 'directory.httpRoute.parentRefs=[{"name":"gw"}]' \
-            --set backendTls.caConfigMap=identity-ca "${issued[@]}")
-          expect "$(render templates/directory-http-route.yaml "${gateway[@]}")" 'kind: HTTPRoute' '- directory.example.com' \
-            'kind: BackendTLSPolicy' 'name: identity-ca'
-          # Without a controller the Service carries no ServersTransport.
-          reject "$service" 'serverstransport'
 
       - name: Hold the management console's keys in a key management service
         run: |
@@ -1462,19 +1356,21 @@ jobs:
           kubectl -n traefik logs --all-containers --tail=200 -l app.kubernetes.io/name=traefik || true
           kubectl -n envoy-gateway-system logs --all-containers --tail=200 -l app.kubernetes.io/name=envoy || true
 
-  # The control-plane cell that runs the global directory and reaches it as its own machine client must serve from its
-  # first release: the cell creates, judges and keys its control-plane tenant without asking the directory, which
-  # accepts only that tenant's tokens. This job installs that cell with the directory and its setup Job in one release
-  # in a kind cluster, behind Traefik, which routes the directory's host through the directory's ServersTransport
-  # (issues #918 and #920). The cell and the directory each get a Postgres of their own.
+  # A platform's global plane is two releases: the directory, from its own chart with its own Postgres and signing key,
+  # and the control-plane cell, from the host chart, which reaches the directory as its own machine client. This job
+  # installs both in a kind cluster, behind Traefik, in that order (issues #918, #920 and #940). The directory comes
+  # first and pins the cell's public client key, which the host image's directory-client-jwks command prints from the
+  # key the cell mounts. The cell's readiness proves that its token request and its report to the directory succeeded.
   directory-cluster:
-    name: Install a control-plane cell and its directory in kind behind Traefik
+    name: Install the directory and a control-plane cell in kind behind Traefik
     runs-on: ubuntu-latest
     timeout-minutes: 45
 
     env:
       CHART: charts/ncode-identity-host
+      DIRECTORY_CHART: charts/ncode-identity-directory
       NAMESPACE: identity
+      DIRECTORY_NAMESPACE: directory
 
     steps:
       - name: Checkout
@@ -1532,68 +1428,103 @@ jobs:
           helm install traefik traefik --repo https://traefik.github.io/charts --version 42.3.1 \
             --namespace traefik --create-namespace --set service.spec.type=ClusterIP --wait --timeout 5m
 
-      # The cell's database runs in the release's namespace and the directory's in the namespace directory-db, each from
-      # ci/kind-postgres.yaml, which reads a 'postgres-app' and a 'postgres-runtime' Secret of its own namespace. The
-      # release reads each database from two Secrets shaped like a Postgres operator's `<cluster>-app` Secret: the
-      # runtime role the pods connect as and the schema owner the migration Job connects as, `postgres-runtime` and
-      # `postgres-app` for the cell and `directory-postgres-runtime` and `directory-postgres-app` for the directory,
-      # which name the directory's database by its Service in directory-db. The root key, the setup Job's root
-      # administrator and the cell's directory client key come from Secrets of their own; all are generated here and
-      # never stored.
-      - name: Create the databases and the release's Secrets
+      # Each release has a namespace and a Postgres of its own, from ci/kind-postgres.yaml, which reads a
+      # 'postgres-app' (the schema owner, the superuser the image creates) and a 'postgres-runtime' Secret of its
+      # namespace, shaped like a Postgres operator's `<cluster>-app` Secret. The directory's signing key, the cell's
+      # directory-client key, the root key and the setup Job's root administrator come from Secrets of their own; all
+      # are generated here and never stored.
+      - name: Create the databases and the releases' Secrets
         run: |
           set -euo pipefail
           kubectl create namespace "$NAMESPACE"
-          kubectl create namespace directory-db
-          password=$(openssl rand -hex 16)
-          runtime_password=$(openssl rand -hex 16)
-          directory_password=$(openssl rand -hex 16)
-          directory_runtime_password=$(openssl rand -hex 16)
-          kubectl -n "$NAMESPACE" create secret generic postgres-app \
-            --from-literal=host=postgres --from-literal=port=5432 --from-literal=dbname=openiddb \
-            --from-literal=user=postgres --from-literal=password="$password"
-          kubectl -n "$NAMESPACE" create secret generic postgres-runtime \
-            --from-literal=host=postgres --from-literal=port=5432 --from-literal=dbname=openiddb \
-            --from-literal=user=ncode_identity_app --from-literal=password="$runtime_password"
-          kubectl -n directory-db create secret generic postgres-app \
-            --from-literal=host=postgres --from-literal=port=5432 --from-literal=dbname=directorydb \
-            --from-literal=user=postgres --from-literal=password="$directory_password"
-          kubectl -n directory-db create secret generic postgres-runtime \
-            --from-literal=host=postgres --from-literal=port=5432 --from-literal=dbname=directorydb \
-            --from-literal=user=ncode_identity_app --from-literal=password="$directory_runtime_password"
-          kubectl -n "$NAMESPACE" create secret generic directory-postgres-app \
-            --from-literal=host=postgres.directory-db --from-literal=port=5432 --from-literal=dbname=directorydb \
-            --from-literal=user=postgres --from-literal=password="$directory_password"
-          kubectl -n "$NAMESPACE" create secret generic directory-postgres-runtime \
-            --from-literal=host=postgres.directory-db --from-literal=port=5432 --from-literal=dbname=directorydb \
-            --from-literal=user=ncode_identity_app --from-literal=password="$directory_runtime_password"
+          kubectl create namespace "$DIRECTORY_NAMESPACE"
+          for namespace in "$NAMESPACE" "$DIRECTORY_NAMESPACE"; do
+            if [ "$namespace" = "$NAMESPACE" ]; then database=openiddb; else database=directorydb; fi
+            kubectl -n "$namespace" create secret generic postgres-app \
+              --from-literal=host=postgres --from-literal=port=5432 --from-literal=dbname="$database" \
+              --from-literal=user=postgres --from-literal=password="$(openssl rand -hex 16)"
+            kubectl -n "$namespace" create secret generic postgres-runtime \
+              --from-literal=host=postgres --from-literal=port=5432 --from-literal=dbname="$database" \
+              --from-literal=user=ncode_identity_app --from-literal=password="$(openssl rand -hex 16)"
+            kubectl -n "$namespace" apply -f "$CHART/ci/kind-postgres.yaml"
+          done
           kubectl -n "$NAMESPACE" create secret generic identity-root-key \
             --from-literal=key="$(head -c 32 /dev/urandom | basenc --base64url -w0 | tr -d '=')"
           kubectl -n "$NAMESPACE" create secret generic identity-setup-root \
             --from-literal=userName=root --from-literal=password="$(openssl rand -hex 16)"
-          openssl genpkey -algorithm EC -pkeyopt ec_paramgen_curve:P-256 -out "$RUNNER_TEMP/cell-client.pem"
+          mkdir -p "$RUNNER_TEMP/keys"
+          openssl genpkey -algorithm EC -pkeyopt ec_paramgen_curve:P-256 -out "$RUNNER_TEMP/keys/directory.pem"
+          openssl genpkey -algorithm EC -pkeyopt ec_paramgen_curve:P-256 -out "$RUNNER_TEMP/keys/cell-client.pem"
+          kubectl -n "$DIRECTORY_NAMESPACE" create secret generic directory-key \
+            --from-file=directory.pem="$RUNNER_TEMP/keys/directory.pem"
           kubectl -n "$NAMESPACE" create secret generic cell-client-key \
-            --from-file=cell-client.pem="$RUNNER_TEMP/cell-client.pem"
-          kubectl -n "$NAMESPACE" apply -f "$CHART/ci/kind-postgres.yaml"
-          kubectl -n directory-db apply -f "$CHART/ci/kind-postgres.yaml"
+            --from-file=cell-client.pem="$RUNNER_TEMP/keys/cell-client.pem"
           kubectl -n "$NAMESPACE" rollout status deployment/postgres --timeout=3m
-          kubectl -n directory-db rollout status deployment/postgres --timeout=3m
+          kubectl -n "$DIRECTORY_NAMESPACE" rollout status deployment/postgres --timeout=3m
 
-      # The pre-install migration Jobs of the cell and of the directory and the pods' readiness probes over HTTPS prove
-      # that both serve HTTPS. The setup Job is part of the release, so the release waits for it too; the wait for its
-      # completion names it.
-      - name: Install the chart
+      # The directory pins the control-plane cell's public client key, which the host image prints from the key ring
+      # that the cell's directory client uses, with the key's Secret mounted into a one-off container.
+      - name: Print the cell's directory-client key set
         run: |
           set -euo pipefail
-          helm install release "$CHART" --namespace "$NAMESPACE" --values "$CHART/ci/kind-directory-values.yaml" \
+          chmod 755 "$RUNNER_TEMP/keys"
+          chmod 644 "$RUNNER_TEMP/keys/cell-client.pem"
+          docker run --rm \
+            --volume "$RUNNER_TEMP/keys:/keys:ro" \
+            --env KeyRings__cell-client__PemFiles__0=/keys/cell-client.pem \
+            ncode-identity-host:kind directory-client-jwks --key-ring cell-client > "$RUNNER_TEMP/client-jwks.json"
+          test -s "$RUNNER_TEMP/client-jwks.json"
+          python3 -c 'import json,sys; assert json.load(open(sys.argv[1]))["keys"]' "$RUNNER_TEMP/client-jwks.json"
+
+      # The directory's pre-install migration Job and its pod's readiness probes over HTTPS prove that it serves HTTPS.
+      # Its Service is the directory's name inside the cluster, so the cell reaches it there and Traefik reaches it
+      # behind directory.example.com. Its issuer is the URL the cell calls, because the cell builds the directory's token
+      # endpoint from its own Directory:Url and the directory accepts an assertion whose audience is that endpoint or its
+      # issuer. The directory's Postgres has the runtime role that kind-postgres.yaml creates.
+      - name: Install the directory
+        run: |
+          set -euo pipefail
+          helm install directory "$DIRECTORY_CHART" --namespace "$DIRECTORY_NAMESPACE" \
+            --values "$DIRECTORY_CHART/ci/kind-values.yaml" \
+            --set fullnameOverride=directory \
+            --set "issuer=https://directory.$DIRECTORY_NAMESPACE.svc.cluster.local" \
+            --set "allowedHosts={directory.example.com,directory.$DIRECTORY_NAMESPACE.svc.cluster.local}" \
+            --set database.runtimeRole=ncode_identity_app \
+            --set-file controlPlane.clientJwks="$RUNNER_TEMP/client-jwks.json" \
             --wait --timeout 10m
+
+      # The cell calls the directory at its Service name and its directory client trusts the private CA that issued the
+      # directory's certificate (directory.caCertificates), which it reads from a Secret of its namespace.
+      - name: Install the control-plane cell
+        run: |
+          set -euo pipefail
+          kubectl -n "$DIRECTORY_NAMESPACE" get secret directory-tls --output jsonpath='{.data.ca\.crt}' \
+            | base64 --decode > "$RUNNER_TEMP/directory-ca.crt"
+          test -s "$RUNNER_TEMP/directory-ca.crt"
+          kubectl -n "$NAMESPACE" create secret generic directory-ca --from-file=ca.crt="$RUNNER_TEMP/directory-ca.crt"
+          cat > "$RUNNER_TEMP/cell-trust-values.yaml" <<EOF
+          directory:
+            url: https://directory.$DIRECTORY_NAMESPACE.svc.cluster.local
+            caCertificates:
+              existingSecret: directory-ca
+          EOF
+          helm install release "$CHART" --namespace "$NAMESPACE" --values "$CHART/ci/kind-directory-values.yaml" \
+            --values "$RUNNER_TEMP/cell-trust-values.yaml" --wait --timeout 10m
           kubectl -n "$NAMESPACE" wait --for=condition=complete job -l app.kubernetes.io/component=setup --timeout=5m
+
+      # The cell's startup requests a token from the directory and reports its descriptor, so a ready cell proves
+      # both succeeded.
+      - name: The control-plane cell is ready
+        run: |
+          set -euo pipefail
+          kubectl -n "$NAMESPACE" wait --for=condition=ready pod -l app.kubernetes.io/component=server --timeout=5m
+          kubectl -n "$DIRECTORY_NAMESPACE" wait --for=condition=ready pod -l app.kubernetes.io/component=directory --timeout=5m
 
       # route <namespace/service> <host> <path> sends one request with the Host header through a port-forward to the
       # Service's port 80 and prints the HTTP status code, or 000 when the request fails. expect_route <expected>
       # <namespace/service> <host> <path> <description> requires the expected status code within 12 attempts five
-      # seconds apart. The cell serves its discovery document and key set, which its control-plane tenant issues without
-      # the directory, and the directory is ready behind its own host.
+      # seconds apart. The cell serves its discovery document and key set, which its control-plane tenant issues, and
+      # the directory is ready behind its own host.
       - name: Serve the cell and the directory through Traefik
         run: |
           set -euo pipefail
@@ -1652,9 +1583,10 @@ jobs:
           kubectl get ingress -A || true
           kubectl get serverstransports.traefik.io -A || true
           kubectl -n "$NAMESPACE" describe pods || true
+          kubectl -n "$DIRECTORY_NAMESPACE" describe pods || true
           kubectl -n "$NAMESPACE" logs -l app.kubernetes.io/component=server --tail=200 || true
-          kubectl -n "$NAMESPACE" logs -l app.kubernetes.io/component=directory --tail=200 || true
           kubectl -n "$NAMESPACE" logs --all-containers --tail=200 -l app.kubernetes.io/component=setup || true
           kubectl -n "$NAMESPACE" logs --all-containers --tail=200 -l app.kubernetes.io/component=migrations || true
-          kubectl -n "$NAMESPACE" logs --all-containers --tail=200 -l app.kubernetes.io/component=directory-migrations || true
+          kubectl -n "$DIRECTORY_NAMESPACE" logs -l app.kubernetes.io/component=directory --tail=200 || true
+          kubectl -n "$DIRECTORY_NAMESPACE" logs --all-containers --tail=200 -l app.kubernetes.io/component=directory-migrations || true
           kubectl -n traefik logs --all-containers --tail=200 -l app.kubernetes.io/name=traefik || true

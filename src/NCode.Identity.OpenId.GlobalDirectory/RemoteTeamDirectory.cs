@@ -27,7 +27,7 @@ internal sealed class RemoteTeamDirectory(DirectoryHttpClient client) : ITeamDir
         ArgumentException.ThrowIfNullOrEmpty(teamId);
 
         var segment = DirectoryHttpClient.Segment(teamId);
-        var response = await Client.SendAsync(
+        using var response = await Client.SendAsync(
             HttpMethod.Post,
             $"{Prefix}{segment}/reserve",
             body: null,
@@ -50,7 +50,7 @@ internal sealed class RemoteTeamDirectory(DirectoryHttpClient client) : ITeamDir
         ArgumentNullException.ThrowIfNull(document);
 
         var segment = DirectoryHttpClient.Segment(document.TeamId);
-        var response = await Client.SendAsync(
+        using var response = await Client.SendAsync(
             HttpMethod.Put,
             $"{Prefix}{segment}/document",
             document,
@@ -66,7 +66,7 @@ internal sealed class RemoteTeamDirectory(DirectoryHttpClient client) : ITeamDir
         ArgumentException.ThrowIfNullOrEmpty(teamId);
 
         var segment = DirectoryHttpClient.Segment(teamId);
-        var response = await Client.SendAsync(
+        using var response = await Client.SendAsync(
             HttpMethod.Post,
             $"{Prefix}{segment}/release",
             body: null,
@@ -82,7 +82,7 @@ internal sealed class RemoteTeamDirectory(DirectoryHttpClient client) : ITeamDir
         ArgumentException.ThrowIfNullOrEmpty(teamId);
 
         var segment = DirectoryHttpClient.Segment(teamId);
-        var response = await Client.SendAsync(
+        using var response = await Client.SendAsync(
             HttpMethod.Post,
             $"{Prefix}{segment}/retire",
             body: null,
@@ -101,7 +101,7 @@ internal sealed class RemoteTeamDirectory(DirectoryHttpClient client) : ITeamDir
         ArgumentException.ThrowIfNullOrEmpty(teamId);
 
         var segment = DirectoryHttpClient.Segment(teamId);
-        var response = await Client.SendAsync(
+        using var response = await Client.SendAsync(
             HttpMethod.Get,
             $"{Prefix}{segment}/retired",
             body: null,
@@ -124,7 +124,7 @@ internal sealed class RemoteTeamDirectory(DirectoryHttpClient client) : ITeamDir
         ArgumentException.ThrowIfNullOrEmpty(teamId);
 
         var segment = DirectoryHttpClient.Segment(teamId);
-        var response = await Client.SendAsync(
+        using var response = await Client.SendAsync(
             HttpMethod.Get,
             $"{Prefix}{segment}/document",
             body: null,
@@ -146,7 +146,12 @@ internal sealed class RemoteTeamDirectory(DirectoryHttpClient client) : ITeamDir
     )
     {
         var path = FormattableString.Invariant($"{Prefix}changes?after={after}&limit={limit}");
-        var response = await Client.SendAsync(HttpMethod.Get, path, body: null, cancellationToken);
+        using var response = await Client.SendAsync(
+            HttpMethod.Get,
+            path,
+            body: null,
+            cancellationToken
+        );
 
         response.EnsureSuccess("list the team changes");
         return response.Read<List<DirectoryChange>>();

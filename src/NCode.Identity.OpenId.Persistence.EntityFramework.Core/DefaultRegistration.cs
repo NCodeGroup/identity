@@ -47,6 +47,19 @@ public static class DefaultRegistration
             >();
             serviceCollection.TryAddEnumerable(modelContributor);
 
+            // The outbox interceptor runs in every save of the context and does nothing unless the policy says the
+            // cell publishes. TryAdd lets the directory client's policy and notifier win.
+            var outboxInterceptor = ServiceDescriptor.Singleton<
+                IOpenIdSaveChangesInterceptor,
+                ReplicatedDocumentOutboxInterceptor
+            >();
+            serviceCollection.TryAddEnumerable(outboxInterceptor);
+            serviceCollection.TryAddSingleton<IDirectoryOutboxPolicy, NoOpDirectoryOutboxPolicy>();
+            serviceCollection.TryAddSingleton<
+                IDirectoryOutboxNotifier,
+                NoOpDirectoryOutboxNotifier
+            >();
+
             // The team store and the local team directory write and read the root keys of each team row through the
             // one serializer of the payloads stored at rest. TryAdd keeps a serializer registered first.
             serviceCollection.AddPersistedPayloadSerializer();
@@ -61,6 +74,12 @@ public static class DefaultRegistration
                 IDirectoryFeedCheckpointStore,
                 DirectoryFeedCheckpointStore
             >();
+            serviceCollection.AddStore<
+                TDbContext,
+                IReplicatedDocumentStore,
+                ReplicatedDocumentStore
+            >();
+            serviceCollection.AddStore<TDbContext, IDirectoryOutboxStore, DirectoryOutboxStore>();
             serviceCollection.AddStore<TDbContext, ITenantStore, TenantStore>();
             serviceCollection.AddStore<TDbContext, ITeamStore, TeamStore>();
             serviceCollection.AddStore<TDbContext, IClientStore, ClientStore>();

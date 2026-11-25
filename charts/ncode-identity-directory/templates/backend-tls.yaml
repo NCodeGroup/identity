@@ -1,0 +1,57 @@
+{{- $fullname := include "identity-directory.fullname" . }}
+{{- $labels := include "identity-directory.labels" . }}
+{{- $ingressNeeded := include "identity-directory.backendTls.ingressCertificateNeeded" . }}
+{{- if and (not .Values.backendTls.certManager.issuerRef.name) (or (not .Values.backendTls.existingSecret) $ingressNeeded) }}
+# The release's private CA: a self-signed Issuer signs the CA Certificate, and the CA Issuer built from it signs the
+# pods' certificate, which the ingress controller verifies against the CA.
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: {{ $fullname }}-selfsigned
+  labels:
+    {{- $labels | nindent 4 }}
+spec:
+  selfSigned: {}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ $fullname }}-ca
+  labels:
+    {{- $labels | nindent 4 }}
+spec:
+  isCA: true
+  commonName: ncode-identity-ca
+  secretName: {{ $fullname }}-ca
+  duration: 87600h
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+    encoding: PKCS8
+  issuerRef:
+    name: {{ $fullname }}-selfsigned
+    kind: Issuer
+    group: cert-manager.io
+---
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: {{ $fullname }}-ca
+  labels:
+    {{- $labels | nindent 4 }}
+spec:
+  ca:
+    secretName: {{ $fullname }}-ca
+{{- if or (not .Values.backendTls.existingSecret) $ingressNeeded }}
+---
+{{- end }}
+{{- end }}
+{{- if not .Values.backendTls.existingSecret }}
+{{ include "identity-directory.backendTls.certificate" . }}
+{{- if $ingressNeeded }}
+---
+{{- end }}
+{{- end }}
+{{- if $ingressNeeded }}
+{{ include "identity-directory.backendTls.ingressCertificate" . }}
+{{- end }}

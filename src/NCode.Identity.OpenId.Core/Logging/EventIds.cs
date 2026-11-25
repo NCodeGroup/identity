@@ -131,20 +131,47 @@ internal static class EventIds
     public const int DirectoryTeamParentNotMirrored = Base + 50;
 
     /// <summary>
-    /// Identifies the informational message that a tenant's keys stay unchanged in this cell because the global
-    /// directory places the tenant in another cell.
+    /// Identifies the informational message that a tenant's keys stay unchanged in this cell because the tenant's key
+    /// custody is fenced by a move to or from another cell.
     /// </summary>
-    public const int TenantKeysPlacedElsewhere = Base + 51;
+    public const int TenantKeysFenced = Base + 51;
 
     /// <summary>
-    /// Identifies the warning that a tenant's keys stay unchanged in this cell because the global directory cannot be
-    /// read to learn where the tenant is placed.
+    /// Identifies the warning that a tenant's keys stay unchanged in this cell because the cell does not hold the
+    /// tenant.
     /// </summary>
-    public const int TenantKeysPlacementUnknown = Base + 52;
+    public const int TenantKeysNotHeld = Base + 52;
 
     /// <summary>
     /// Identifies the warning that releasing the global directory's reservation of a tenant whose creation failed did
     /// not complete, so the identifier stays reserved for this cell.
     /// </summary>
     public const int TenantCreationReleaseFailed = Base + 53;
+
+    /// <summary>
+    /// Identifies the informational message that the directory places a tenant in this cell, so its incoming key
+    /// custody is held.
+    /// </summary>
+    public const int TenantKeyCustodyHeld = Base + 54;
+
+    /// <summary>
+    /// Identifies the warning that the tenant key custody reconciliation pass could not reach the global directory.
+    /// </summary>
+    public const int TenantKeyCustodyDirectoryUnavailable = Base + 55;
+
+    /// <summary>
+    /// Identifies the warning that the tenant key custody reconciliation pass failed.
+    /// </summary>
+    public const int TenantKeyCustodyPassFailed = Base + 56;
+
+    /// <summary>
+    /// Identifies the warning that the tenant key custody reconciliation pass could not handle one tenant.
+    /// </summary>
+    public const int TenantKeyCustodyTenantFailed = Base + 57;
+
+    /// <summary>
+    /// Identifies the informational message that a tenant's keys stay unchanged in this cell because the tenant's key
+    /// custody is fenced and names no other cell.
+    /// </summary>
+    public const int TenantKeysFencedWithoutCell = Base + 58;
 }

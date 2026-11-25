@@ -1,0 +1,36 @@
+{{- if .Values.ingress.enabled }}
+# Every path of every host in allowedHosts reaches the directory, which the cells and the control plane call
+# for the global directory of tenants, teams and cells.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "identity-directory.fullname" . }}
+  labels:
+    {{- include "identity-directory.labels" . | nindent 4 }}
+  {{- $annotations := deepCopy .Values.ingress.annotations }}
+  {{- with $annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- with .Values.ingress.className }}
+  ingressClassName: {{ . }}
+  {{- end }}
+  {{- with .Values.ingress.tls }}
+  tls:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  rules:
+    {{- range .Values.allowedHosts }}
+    - host: {{ . | quote }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "identity-directory.fullname" $ }}
+                port:
+                  name: https
+    {{- end }}
+{{- end }}

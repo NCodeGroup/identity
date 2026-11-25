@@ -42,8 +42,7 @@ tenant is created there instead.**
    (`ITenantResolver.IsRequiredTenant`: the root tenant, which under the static strategy is its tenant), which never
    leaves its cell, because it is part of its cell's deployment, which creates it on demand. The control-plane cell's
    root tenant is also the tenant the directory places in that cell from its own configuration
-   (`DirectoryServer:ControlPlaneTenantId`) and whose tokens are the only ones it accepts, and that cell creates, judges
-   and keys it without the directory, so the directory refuses to offer or move it as well.
+   (`DirectoryServer:ControlPlane:TenantId`), and that cell creates, judges and keys it without the directory, so the directory refuses to offer or move it as well.
 2. **The target publishes a transfer key.** `ITenantTransferKeyService` makes an EC P-256 key with a random `kid`, `use`
    `enc` and `alg` `ECDH-ES+A256KW`, keeps its private half protected by Data Protection in the shared expiring value
    set for one hour, and returns the public JWK. `POST api/tenant-imports/transfer-keys` serves it. Taking the key
@@ -93,6 +92,16 @@ tenant is created there instead.**
      which the directory never offers, answers `409`; when the directory places the tenant in another cell, the `409`
      names that cell in the problem's `placedCell`, so the caller releases the source's copy instead of exporting it
      again. An import of a package that names another cell answers `422`.
+   - **Key custody is fenced locally on each side.** The source sets the tenant's `KeyCustody` to `outgoing`, naming the
+     target in `KeyCustodyCell`, before it asks the directory for the offer, and clears it when the offer is refused.
+     The target inserts the tenant `incoming`, naming the source, and sets `held` once the directory confirms the move.
+     While a tenant is fenced, its cell neither rolls over its keys nor deletes its secrets, and never reads the
+     directory to decide that
+     ([ADR-1536](1536-a-platforms-global-plane-is-a-standalone-directory-and-a-dedicated-control-plane-cell-and-every-other-cell-runs-and-is-managed-on-its-own.md)).
+     Enabling a fenced tenant needs a live read that finds it placed in this cell, which sets `held`: the read answers
+     `503` when the directory cannot be reached and `409` when the tenant is placed elsewhere.
+     `TenantKeyCustodyReconciler` runs every 15 minutes and sets `held` for an `incoming` tenant that the directory
+     places in the cell, which finishes an import whose confirmation was lost.
    - The import calls `ITenantDirectory.MoveAsync` for the tenant from the source cell to the target cell. The directory
      refuses the control-plane cell's root tenant and, in one serializable transaction, requires the placement to name
      the source cell, both cells to be registered in the same region and the source cell's unexpired move offer to the
@@ -177,7 +186,7 @@ tenant in the cell it moved to once the move completes.
 - A failure after the import and before the release leaves the tenant in both cells with the directory naming the
   target. The release at the source finishes it, and nothing serves the source's copy, because the tenant stays
   disabled there. Neither the source's key rollover nor its seed changes the copy's keys while the directory places the
-  tenant in the target, because `ITenantKeyPlacementGuard` refuses the change.
+  tenant in the target, because the tenant's key custody fence is `outgoing` or `incoming` there and refuses the change.
 - A tenant moves only while its package is at most 64 MiB, its local accounts included, and a proxy in front of the
   target cell admits a request body of 64 MiB plus 64 KiB. A larger tenant cannot move.
 - An import whose move the directory does not confirm can end with the target holding the tenant while the directory

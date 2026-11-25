@@ -1,6 +1,8 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using System.Security.Cryptography;
+using System.Security.Cryptography.X509Certificates;
 using Microsoft.Extensions.Options;
 using NCode.Identity.Time;
 
@@ -14,7 +16,78 @@ namespace NCode.Identity.OpenId.GlobalDirectory;
 // See ADR-1285 (the endpoint rule) and ADR-1137 (configuration is validated at startup).
 internal sealed class DirectoryClientOptionsValidator : IValidateOptions<DirectoryClientOptions>
 {
+    private const int MaxRetryAttemptsLimit = 10;
+
     private static string Prefix => DirectoryClientOptions.SectionName;
+
+    private static TimeSpan MinTimeout { get; } = TimeSpan.FromMilliseconds(10);
+
+    private static TimeSpan MaxTimeout { get; } = TimeSpan.FromMinutes(5);
+
+    /// <summary>
+    /// Checks that the file at the given path holds at least one usable CA certificate.
+    /// </summary>
+    /// <param name="path">The path of the CA certificate file.</param>
+    /// <returns>A description of why the file is unusable, or <see langword="null"/> for a usable file.</returns>
+    private static string? DescribeCaCertificatesFailure(string path)
+    {
+        if (!File.Exists(path))
+            return "must name an existing file";
+
+        try
+        {
+            var authorities = new X509Certificate2Collection();
+            authorities.ImportFromPemFile(path);
+            return authorities.Count == 0 ? "must hold at least one PEM certificate" : null;
+        }
+        catch (Exception exception) when (exception is CryptographicException or IOException)
+        {
+            return "must be a readable PEM file of certificates";
+        }
+    }
+
+    /// <summary>
+    /// Adds the failures of the limits that bound a call to the directory.
+    /// </summary>
+    /// <param name="options">The options to validate.</param>
+    /// <param name="failures">The list that receives each failure.</param>
+    private static void AddHttpFailures(DirectoryClientOptions options, List<string> failures)
+    {
+        if (options.AttemptTimeout < MinTimeout || options.AttemptTimeout > MaxTimeout)
+        {
+            failures.Add(
+                $"{Prefix}:{nameof(DirectoryClientOptions.AttemptTimeout)} '{options.AttemptTimeout}' must be between {MinTimeout} and {MaxTimeout}."
+            );
+        }
+
+        if (options.TotalTimeout < MinTimeout || options.TotalTimeout > MaxTimeout)
+        {
+            failures.Add(
+                $"{Prefix}:{nameof(DirectoryClientOptions.TotalTimeout)} '{options.TotalTimeout}' must be between {MinTimeout} and {MaxTimeout}."
+            );
+        }
+
+        if (options.AttemptTimeout > options.TotalTimeout)
+        {
+            failures.Add(
+                $"{Prefix}:{nameof(DirectoryClientOptions.AttemptTimeout)} '{options.AttemptTimeout}' must not be greater than {Prefix}:{nameof(DirectoryClientOptions.TotalTimeout)} '{options.TotalTimeout}'."
+            );
+        }
+
+        if (options.MaxRetryAttempts < 0 || options.MaxRetryAttempts > MaxRetryAttemptsLimit)
+        {
+            failures.Add(
+                $"{Prefix}:{nameof(DirectoryClientOptions.MaxRetryAttempts)} '{options.MaxRetryAttempts}' must be between 0 and {MaxRetryAttemptsLimit}."
+            );
+        }
+
+        if (options.RetryDelay < TimeSpan.Zero || options.RetryDelay > MaxTimeout)
+        {
+            failures.Add(
+                $"{Prefix}:{nameof(DirectoryClientOptions.RetryDelay)} '{options.RetryDelay}' must be between {TimeSpan.Zero} and {MaxTimeout}."
+            );
+        }
+    }
 
     /// <inheritdoc />
     public ValidateOptionsResult Validate(string? name, DirectoryClientOptions options)
@@ -59,6 +132,15 @@ internal sealed class DirectoryClientOptionsValidator : IValidateOptions<Directo
             );
         }
 
+        if (!string.IsNullOrEmpty(options.CaCertificatesPath))
+        {
+            var failure = DescribeCaCertificatesFailure(options.CaCertificatesPath);
+            if (failure is not null)
+                failures.Add(
+                    $"{Prefix}:{nameof(DirectoryClientOptions.CaCertificatesPath)} '{options.CaCertificatesPath}' {failure}."
+                );
+        }
+
         if (!TimerPeriod.IsValid(options.PollInterval))
         {
             failures.Add(
@@ -66,19 +148,14 @@ internal sealed class DirectoryClientOptionsValidator : IValidateOptions<Directo
             );
         }
 
-        if (!TimerPeriod.IsValid(options.TokenRequestTimeout))
+        if (!TimerPeriod.IsValid(options.PublishInterval))
         {
             failures.Add(
-                $"{Prefix}:{nameof(DirectoryClientOptions.TokenRequestTimeout)} '{options.TokenRequestTimeout}' must be a time span from {TimerPeriod.MinValue} to {TimerPeriod.MaxValue}."
+                $"{Prefix}:{nameof(DirectoryClientOptions.PublishInterval)} '{options.PublishInterval}' must be a time span from {TimerPeriod.MinValue} to {TimerPeriod.MaxValue}."
             );
         }
 
-        if (!TimerPeriod.IsValid(options.RequestTimeout))
-        {
-            failures.Add(
-                $"{Prefix}:{nameof(DirectoryClientOptions.RequestTimeout)} '{options.RequestTimeout}' must be a time span from {TimerPeriod.MinValue} to {TimerPeriod.MaxValue}."
-            );
-        }
+        AddHttpFailures(options, failures);
 
         if (!TimerPeriod.IsValid(options.TokenFailureCacheDuration))
         {

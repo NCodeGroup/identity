@@ -1,0 +1,116 @@
+{{- $recovery := .Values.recovery }}
+{{- $jobs := list }}
+{{- if $recovery.recoverAdmin.enabled }}
+{{- if not $recovery.recoverAdmin.existingSecret }}
+{{- fail "recovery.recoverAdmin.existingSecret must name the Secret holding the administrator's credentials when recovery.recoverAdmin.enabled is true." }}
+{{- end }}
+{{- $jobs = append $jobs (dict "name" "recover-admin" "args" (list "recover-admin") "admin" true) }}
+{{- end }}
+{{- if $recovery.recoverSignIn.enabled }}
+{{- $jobs = append $jobs (dict "name" "recover-sign-in" "args" (list "recover-sign-in") "admin" false) }}
+{{- end }}
+{{- if $recovery.revokeManagementKey.enabled }}
+{{- if not $recovery.revokeManagementKey.keyId }}
+{{- fail "recovery.revokeManagementKey.keyId must name the management signing key to revoke when recovery.revokeManagementKey.enabled is true." }}
+{{- end }}
+{{- $jobs = append $jobs (dict "name" "revoke-management-key" "args" (list "revoke-management-key" $recovery.revokeManagementKey.keyId) "admin" false) }}
+{{- end }}
+{{- range $index, $item := $jobs }}
+{{- include "identity-host.validate" $ }}
+---
+# Runs the host image's {{ $item.name }} command once for this release revision, offline, with the runtime role's
+# connection (database), as the host does, and no hook. Disable it once it has completed.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ printf "%s-%s-%d" (include "identity-host.fullname" $ | trunc 36 | trimSuffix "-") $item.name (int $.Release.Revision) }}
+  labels:
+    {{- include "identity-host.commonLabels" $ | nindent 4 }}
+    app.kubernetes.io/component: {{ $item.name }}
+spec:
+  backoffLimit: {{ $recovery.backoffLimit }}
+  activeDeadlineSeconds: {{ $recovery.activeDeadlineSeconds }}
+  template:
+    metadata:
+      labels:
+        {{- include "identity-host.commonLabels" $ | nindent 8 }}
+        app.kubernetes.io/component: {{ $item.name }}
+        {{- with $.Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with $.Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      restartPolicy: Never
+      # The Job runs as the host does, so a root key provider that trusts the service account (a web identity) works.
+      serviceAccountName: {{ include "identity-host.serviceAccountName" $ }}
+      {{- include "identity-host.processNamespace" $ | nindent 6 }}
+      # The host never calls the Kubernetes API.
+      automountServiceAccountToken: false
+      {{- with include "identity-host.imagePullSecrets" $ }}
+      {{- . | trim | nindent 6 }}
+      {{- end }}
+      {{- with $.Values.priorityClassName }}
+      priorityClassName: {{ . }}
+      {{- end }}
+      securityContext:
+        {{- include "identity-host.podSecurityContext" $ | nindent 8 }}
+      containers:
+        - name: {{ $item.name }}
+          image: {{ include "identity-host.image" $ | quote }}
+          imagePullPolicy: {{ $.Values.image.pullPolicy }}
+          securityContext:
+            {{- include "identity-host.containerSecurityContext" $ | nindent 12 }}
+          # The image's entry point starts the host; these arguments select the recovery command instead.
+          args:
+            {{- range $item.args }}
+            - {{ . | quote }}
+            {{- end }}
+          env:
+            {{- include "identity-host.hostEnv" $ | trim | nindent 12 }}
+            {{- if $item.admin }}
+            {{- with $recovery.recoverAdmin }}
+            - name: Recovery__Admin__UserName
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .existingSecret }}
+                  key: {{ .userNameKey | quote }}
+            # The email address is optional: the Secret may omit its key.
+            - name: Recovery__Admin__Email
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .existingSecret }}
+                  key: {{ .emailKey | quote }}
+                  optional: true
+            # The display name is optional: the Secret may omit its key.
+            - name: Recovery__Admin__DisplayName
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .existingSecret }}
+                  key: {{ .displayNameKey | quote }}
+                  optional: true
+            - name: Recovery__Admin__Password
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .existingSecret }}
+                  key: {{ .passwordKey | quote }}
+            {{- end }}
+            {{- end }}
+          {{- with $.Values.extraEnvFrom }}
+          envFrom:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with $.Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            {{- include "identity-host.hostVolumeMounts" $ | trim | nindent 12 }}
+      volumes:
+        {{- include "identity-host.hostVolumes" $ | trim | nindent 8 }}
+      {{- with include "identity-host.scheduling" $ }}
+      {{- . | trim | nindent 6 }}
+      {{- end }}
+{{- end }}

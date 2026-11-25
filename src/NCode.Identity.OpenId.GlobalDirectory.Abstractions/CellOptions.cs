@@ -58,4 +58,11 @@ public sealed class CellOptions
     /// to a cell that is not the control plane or that sets <c>Directory:Url</c>.
     /// </summary>
     public ControlPlaneOptions ControlPlane { get; set; } = new();
+
+    /// <summary>
+    /// Gets or sets the time between two passes that set the key custody of an incoming tenant to held once the
+    /// directory places the tenant in this cell. It is also the length of the window whose lease one replica takes per
+    /// pass, and the time a timer accepts: 1 millisecond to 4,294,967,294 milliseconds. The default is 15 minutes.
+    /// </summary>
+    public TimeSpan KeyCustodyReconcileInterval { get; set; } = TimeSpan.FromMinutes(15);
 }

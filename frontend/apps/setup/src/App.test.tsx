@@ -25,7 +25,7 @@ vi.mock('./setupToken.js', () => ({ takeSetupFragment: vi.fn() }));
 
 const READY: GetStatusResult = {
   kind: 'ok',
-  status: { tokenSource: 'generated', minimumPasswordLength: 15 },
+  status: { tokenSource: 'generated', minimumPasswordLength: 15, administratorRole: 'GlobalAdmin' },
 };
 
 function renderApp() {

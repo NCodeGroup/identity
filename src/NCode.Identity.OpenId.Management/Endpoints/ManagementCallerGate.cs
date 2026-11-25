@@ -8,7 +8,9 @@ using NCode.Identity.AspNetCore;
 using NCode.Identity.Jose;
 using NCode.Identity.OpenId.Contexts;
 using NCode.Identity.OpenId.GlobalDirectory;
+using NCode.Identity.OpenId.Management.Authorization;
 using NCode.Identity.OpenId.Management.ControlPlane;
+using NCode.Identity.OpenId.PrincipalResolution;
 using NCode.Mediator;
 
 namespace NCode.Identity.OpenId.Management.Endpoints;
@@ -27,20 +29,23 @@ namespace NCode.Identity.OpenId.Management.Endpoints;
 /// the route's tenant only scopes the data. For an authenticated caller the gate also asks
 /// <see cref="IControlPlaneAuthority"/>, once, whether the caller is a client acting for itself and keeps the answer on
 /// <see cref="ManagementActorFeature"/>; an unavailable control plane there keeps "not acting client" and does not fail
-/// the request. A request refused here costs no more than its headers.
+/// the request. A caller of the cell's own management tenant is judged by the cell's local client resolution instead,
+/// which never asks the control plane. A request refused here costs no more than its headers.
 /// </summary>
 // See ADR-1520, ADR-1044, ADR-1191 and ADR-1466.
 internal sealed class ManagementCallerGate(
     IOpenIdContextFactory openIdContextFactory,
     IMediator mediator,
     IManagementTokenValidator tokenValidator,
-    IControlPlaneAuthority controlPlaneAuthority
+    IControlPlaneAuthority controlPlaneAuthority,
+    IClientPrincipalResolver clientPrincipalResolver
 ) : IEndpointGate
 {
     private IOpenIdContextFactory OpenIdContextFactory { get; } = openIdContextFactory;
     private IMediator Mediator { get; } = mediator;
     private IManagementTokenValidator TokenValidator { get; } = tokenValidator;
     private IControlPlaneAuthority ControlPlaneAuthority { get; } = controlPlaneAuthority;
+    private IClientPrincipalResolver ClientPrincipalResolver { get; } = clientPrincipalResolver;
 
     /// <inheritdoc />
     public async ValueTask<IResult?> InvokeAsync(
@@ -48,10 +53,11 @@ internal sealed class ManagementCallerGate(
         CancellationToken cancellationToken
     )
     {
+        OpenIdContext openIdContext;
         try
         {
             // The factory publishes the context on the request (an IOpenIdContextFeature) for endpoints to retrieve.
-            await OpenIdContextFactory.CreateForControlPlaneAsync(
+            openIdContext = await OpenIdContextFactory.CreateForControlPlaneAsync(
                 httpContext,
                 Mediator,
                 cancellationToken
@@ -82,7 +88,7 @@ internal sealed class ManagementCallerGate(
         var callerFeature = new DefaultManagementCallerFeature(caller);
         httpContext.Features.Set<IManagementCallerFeature>(callerFeature);
 
-        var isActingClient = await IsActingClientAsync(caller, cancellationToken);
+        var isActingClient = await IsActingClientAsync(openIdContext, caller, cancellationToken);
         var actorFeature = new ManagementActorFeature(isActingClient);
         httpContext.Features.Set(actorFeature);
 
@@ -94,10 +100,23 @@ internal sealed class ManagementCallerGate(
     // control plane is unavailable the caller is not an acting client, and the authorization handlers answer their own
     // 503.
     private async ValueTask<bool> IsActingClientAsync(
+        OpenIdContext openIdContext,
         ClaimsPrincipal caller,
         CancellationToken cancellationToken
     )
     {
+        // The cell's own management tenant issued the token, so the cell answers from its own clients.
+        if (caller.IsCellIssued)
+        {
+            var actingClient = await ClientPrincipalResolver.GetActingClientOrDefaultAsync(
+                openIdContext,
+                caller,
+                cancellationToken
+            );
+
+            return actingClient is not null;
+        }
+
         var subject = caller.FindFirstValue(JoseClaimNames.Payload.Sub);
         var clientId = caller.FindFirstValue(JoseClaimNames.Payload.ClientId);
         if (string.IsNullOrEmpty(subject) || string.IsNullOrEmpty(clientId))

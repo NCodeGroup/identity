@@ -51,4 +51,9 @@ public static class ResourceChangeTypes
     /// The resource's rows were released from the cell that held it, after it moved to another cell.
     /// </summary>
     public const string Released = "released";
+
+    /// <summary>
+    /// The resource's key was revoked and a successor signs in its place.
+    /// </summary>
+    public const string KeyRevoked = "key.revoked";
 }

@@ -13,6 +13,8 @@ using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Http.Metadata;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using NCode.Identity.Cryptography;
 using NCode.Identity.Jose;
 using NCode.Identity.Jose.Algorithms;
@@ -23,6 +25,7 @@ using NCode.Identity.OpenId.Management.Auditing;
 using NCode.Identity.OpenId.Management.Authorization;
 using NCode.Identity.OpenId.Management.Contracts;
 using NCode.Identity.OpenId.Management.Contracts.Tenants;
+using NCode.Identity.OpenId.Management.Logging;
 using NCode.Identity.OpenId.Management.Transfers;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
@@ -66,7 +69,11 @@ public sealed class TenantImportApiEndpointHandlerTests : IDisposable
     private Mock<IRemoteKeyProvider> MockRemoteKeyProvider { get; }
     private Mock<ITenantDirectory> MockTenantDirectory { get; }
     private Mock<IManagementAuditRecorder> MockManagementAuditRecorder { get; }
+    private Mock<IPlatformTopology> MockPlatformTopology { get; }
     private List<string> Calls { get; } = [];
+    private List<string> FenceCalls { get; } = [];
+    private int PendingFenceSaves { get; set; }
+    private bool HeldWriteFails { get; set; }
     private TenantImportApiEndpointHandler Handler { get; }
 
     public TenantImportApiEndpointHandlerTests()
@@ -88,6 +95,9 @@ public sealed class TenantImportApiEndpointHandlerTests : IDisposable
         MockRemoteKeyProvider = MockRepository.Create<IRemoteKeyProvider>();
         MockTenantDirectory = MockRepository.Create<ITenantDirectory>();
         MockManagementAuditRecorder = MockRepository.Create<IManagementAuditRecorder>();
+        MockPlatformTopology = MockRepository.Create<IPlatformTopology>();
+        MockPlatformTopology.Setup(x => x.HasDirectory).Returns(true);
+        MockPlatformTopology.Setup(x => x.IsControlPlaneCell).Returns(false);
 
         // The handler reads each contributor's order once, to run them in order whatever order they are registered in.
         MockCoreContributor.Setup(x => x.Order).Returns(0).Verifiable();
@@ -105,7 +115,10 @@ public sealed class TenantImportApiEndpointHandlerTests : IDisposable
 
     #region Helpers
 
-    private TenantImportApiEndpointHandler CreateHandler(IJoseSerializer joseSerializer) =>
+    private TenantImportApiEndpointHandler CreateHandler(
+        IJoseSerializer joseSerializer,
+        ILogger<TenantImportApiEndpointHandler>? logger = null
+    ) =>
         new(
             MockStoreManagerFactory.Object,
             MockAuthorizationService.Object,
@@ -119,7 +132,10 @@ public sealed class TenantImportApiEndpointHandlerTests : IDisposable
             MockManagementAuditRecorder.Object,
             Microsoft.Extensions.Options.Options.Create(
                 new CellOptions { Name = CellName, Region = Region }
-            )
+            ),
+            MockPlatformTopology.Object,
+            TimeProvider.System,
+            logger ?? NullLogger<TenantImportApiEndpointHandler>.Instance
         );
 
     private static HttpContext CreateHttpContext(bool authenticated)
@@ -353,6 +369,44 @@ public sealed class TenantImportApiEndpointHandlerTests : IDisposable
                 ++reads == 1 && !tenantExistsBefore ? (PersistedTenant?)null : CreateTenant()
             )
             .Verifiable(Times.Exactly(readImportedTenant ? 2 : 1));
+
+        // Each change of the key-custody fence is saved in a unit of work of its own, which Calls does not record.
+        MockTenantStore
+            .Setup(x =>
+                x.SetKeyCustodyAsync(
+                    TenantId,
+                    It.IsAny<string>(),
+                    It.IsAny<string?>(),
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .Returns(
+                (string _, string custody, string? cell, CancellationToken _) =>
+                {
+                    FenceCalls.Add($"{custody}:{cell}");
+                    if (custody == TenantKeyCustody.Held && HeldWriteFails)
+                    {
+                        throw new InvalidOperationException("The held write failed.");
+                    }
+
+                    PendingFenceSaves++;
+                    return new ValueTask<bool>(true);
+                }
+            );
+
+        MockStoreManager
+            .Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()))
+            .Returns(() =>
+            {
+                if (PendingFenceSaves > 0)
+                {
+                    PendingFenceSaves--;
+                    return ValueTask.CompletedTask;
+                }
+
+                Calls.Add("save");
+                return ValueTask.CompletedTask;
+            });
     }
 
     private static TenantPlacement CreatePlacement(string cell) =>
@@ -570,15 +624,6 @@ public sealed class TenantImportApiEndpointHandlerTests : IDisposable
                 return new ValueTask<bool>(true);
             })
             .Verifiable();
-
-        MockStoreManager
-            .Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()))
-            .Returns(() =>
-            {
-                Calls.Add("save");
-                return ValueTask.CompletedTask;
-            })
-            .Verifiable();
     }
 
     #endregion
@@ -626,6 +671,57 @@ public sealed class TenantImportApiEndpointHandlerTests : IDisposable
             ["import-core", "import-accounts", "import-master-keys", $"retag-{CellName}", "move"],
             Calls
         );
+        Assert.Equal([$"incoming:{SourceCell}", "held:"], FenceCalls);
+    }
+
+    [Fact]
+    public async Task ImportTenantAsync_WhenTheHeldWriteThrows_StillAnswersOkAndAudits()
+    {
+        HeldWriteFails = true;
+        SetupAuthorization(AuthorizationResult.Success());
+        SetupPackage();
+        SetupStore(readImportedTenant: true);
+        SetupPlacement();
+        SetupContributorImports();
+        SetupMasterKeyImport();
+        SetupProvider();
+        SetupRetag(CellName);
+        SetupMove(MoveResult.Moved());
+        MockManagementAuditRecorder
+            .Setup(x =>
+                x.RecordTenantChangedAsync(
+                    It.IsAny<HttpContext>(),
+                    TeamId,
+                    TenantId,
+                    "imported",
+                    It.IsAny<JsonElement?>()
+                )
+            )
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable();
+        var mockLogger = MockRepository.Create<ILogger<TenantImportApiEndpointHandler>>();
+        mockLogger.Setup(x => x.IsEnabled(LogLevel.Warning)).Returns(true).Verifiable();
+        mockLogger
+            .Setup(x =>
+                x.Log(
+                    LogLevel.Warning,
+                    It.Is<EventId>(id => id.Id == EventIds.TenantKeyCustodyHeldFailed),
+                    It.IsAny<It.IsAnyType>(),
+                    It.IsAny<InvalidOperationException>(),
+                    (Func<It.IsAnyType, Exception?, string>)It.IsAny<object>()
+                )
+            )
+            .Verifiable();
+        var handler = CreateHandler(MockJoseSerializer.Object, mockLogger.Object);
+
+        var result = await handler.ImportTenantAsync(
+            CreateHttpContext(authenticated: true),
+            CreateRequest(),
+            CancellationToken.None
+        );
+
+        Assert.IsType<Ok<TenantImportResource>>(result);
+        Assert.Equal([$"incoming:{SourceCell}", "held:"], FenceCalls);
     }
 
     [Fact]
@@ -1029,6 +1125,26 @@ public sealed class TenantImportApiEndpointHandlerTests : IDisposable
 
         var problem = Assert.IsType<ProblemHttpResult>(result);
         Assert.Equal(StatusCodes.Status409Conflict, problem.StatusCode);
+    }
+
+    [Fact]
+    public async Task ImportTenantAsync_WhenTheCellIsTheControlPlaneCell_ReturnsConflictBeforeWritingAnything()
+    {
+        SetupAuthorization(AuthorizationResult.Success());
+        MockPlatformTopology.Setup(x => x.IsControlPlaneCell).Returns(true);
+
+        var result = await Handler.ImportTenantAsync(
+            CreateHttpContext(authenticated: true),
+            CreateRequest(),
+            CancellationToken.None
+        );
+
+        var problem = Assert.IsType<ProblemHttpResult>(result);
+        Assert.Equal(StatusCodes.Status409Conflict, problem.StatusCode);
+        Assert.Equal(
+            "The control-plane cell holds only the control-plane tenant.",
+            problem.ProblemDetails.Detail
+        );
     }
 
     [Fact]

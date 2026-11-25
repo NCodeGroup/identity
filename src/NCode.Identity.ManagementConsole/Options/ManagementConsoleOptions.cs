@@ -27,6 +27,14 @@ public sealed class ManagementConsoleOptions
     public Dictionary<string, string> Cells { get; set; } = new(StringComparer.Ordinal);
 
     /// <summary>
+    /// Gets or sets the name of the cell that this console manages, which has the form
+    /// <see cref="NCode.Identity.OpenId.GlobalDirectory.CellLabelRules"/> describes. A console with a cell is a cell
+    /// console that serves only that cell, and it has no <see cref="Cells"/>. The configuration key is
+    /// <c>ManagementConsole:Cell</c>.
+    /// </summary>
+    public string? Cell { get; set; }
+
+    /// <summary>
     /// Gets or sets the directory of the built <c>apps/mgmt</c> bundle, relative to the content root or absolute. The
     /// configuration key is <c>ManagementConsole:BundleRootPath</c>.
     /// </summary>

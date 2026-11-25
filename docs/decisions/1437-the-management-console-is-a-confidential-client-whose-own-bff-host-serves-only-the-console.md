@@ -77,19 +77,27 @@ management API at `/api` on the origin of its authority.**
    uses `/api` on the origin of the control-plane tenant's issuer, which the server's Ingress serves. On the hosted
    platform ([ADR-1495](1495-the-hosted-platform-runs-customer-environments-as-tenants-on-production-under-the-ncodeid-net-platform-domain.md))
    the management API is at `auth.<apex>/api`, and `manage.<apex>` serves only the console.
-6. **The console reaches every cell.** A platform runs several cells
-   ([ADR-1411](1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md)),
-   and one console manages them all.
+6. **The platform console reaches every cell, and a cell console reaches its own.** A platform runs several cells
+   ([ADR-1411](1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md),
+   [ADR-1536](1536-a-platforms-global-plane-is-a-standalone-directory-and-a-dedicated-control-plane-cell-and-every-other-cell-runs-and-is-managed-on-its-own.md)).
+   The platform console is an aggregator over `ManagementConsole:Cells`, and no cell's management depends on it. A cell
+   console, selected by `ManagementConsole:Cell`, is a client of its cell's management tenant: it calls only that cell,
+   and it keeps working when the global plane is unreachable.
    - `/management/api/*` is forwarded to the control-plane cell, which serves platform, team, caller and machine-client
      management, and `/management/cells/{cell}/api/*` is forwarded to the management URL of the named cell, which
      serves that cell's tenants. The cell forwarders are siblings of `/management/api`, never children of it, because
      the BFF maps a path to one remote API. Both forwards carry the same `user` token requirement, frontend and
-     antiforgery check, and the cell validates the token against the control plane
+     antiforgery check, and the cell validates the token against the control-plane keys it replicates
      ([ADR-1191](1191-a-management-request-is-authenticated-by-the-control-plane-tenant-and-scoped-by-its-routes-tenant.md)).
+   - A cell console sets `ManagementConsole:Cell` to the name of its cell and lists no `ManagementConsole:Cells`. It is
+     the confidential client of the cell's management tenant, forwards `/management/api/*` to that cell's management
+     API with the management tenant's token, and shows only the cell's tenants. Its bootstrap document carries
+     `"console": "cell"` and `"cell": "<name>"`, and its frontend hides the platform and team surfaces. Both consoles
+     send every management call under DPoP.
    - `ManagementConsole:Cells` maps each cell name, 1 to 31 characters of lowercase letters, digits and single hyphens,
      starting with a letter and ending with a letter or digit, with no two hyphens in a row, to its management URL. Each
      URL passes the same check as `ManagementApiUrl`, and the console maps one forwarder per entry at start. The
-     bootstrap document lists the cell names.
+     bootstrap document lists the cell names and says `"console": "platform"`.
    - The control plane's `GET api/cells` supplies each cell's region and kind for display. It never returns a
      management URL: the console's own configuration holds those.
    - The Tenants page queries every cell, merges the lists and shows each tenant's cell and region. A cell that does not
@@ -141,8 +149,9 @@ management API at `/api` on the origin of its authority.**
   override can only make every DPoP-bound call fail.
 - **A separate host that serves only the console.** Chosen: origin and process isolation, one authentication model for
   the management API, and a console that stands where any third party's BFF stands.
-- **One console per cell.** Rejected: an operator would sign in to each cell and could not see a team's tenants
-  together, and the team and platform views live in the control plane alone.
+- **One console per cell only.** Rejected: an operator would sign in to each cell and could not see a team's tenants
+  together, and the team and platform views live in the control plane alone. The platform console keeps that view, and
+  a cell console is a cell's own slice beside it.
 - **The browser calls each cell directly.** Rejected: the console's tokens never reach the browser, so the console's
   BFF forwards every call.
 
@@ -156,6 +165,7 @@ management API at `/api` on the origin of its authority.**
 - A default install's console calls succeed.
 - A platform with several cells needs one `ManagementConsole:Cells` entry per cell, and a cell the console cannot reach
   is marked unavailable in the Tenants page while the others keep listing.
+- A cell with a management tenant administers its own tenants through its cell console while the global plane is down.
 - Local development runs three processes for the console: the OP (`api`), the console host (`console`) and the `mgmt`
   bundle's build watcher.
 - The OP cannot deliver a back-channel logout to the console host on a developer machine, because its outbound guard
@@ -170,6 +180,7 @@ management API at `/api` on the origin of its authority.**
 - [ADR-1365](1365-no-url-the-server-publishes-or-compares-takes-its-origin-from-the-requests-host.md)
 - [ADR-1458](1458-the-host-chart-deploys-the-server-and-an-opt-in-management-console-and-refuses-unsafe-releases.md)
 - [ADR-1411](1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md)
+- [ADR-1536](1536-a-platforms-global-plane-is-a-standalone-directory-and-a-dedicated-control-plane-cell-and-every-other-cell-runs-and-is-managed-on-its-own.md)
 - [ADR-1425](1425-a-team-promotes-one-tenants-configuration-to-another-and-environment-bound-values-stay.md)
 - `src/NCode.Identity.ManagementConsole/` and `hosts/NCode.Identity.ManagementConsole.Host/`
 - `charts/ncode-identity-host`, `.github/workflows/host-chart.yml`

@@ -13,7 +13,11 @@ describe('mountSetup', () => {
   beforeEach(() => {
     vi.mocked(getStatus).mockResolvedValue({
       kind: 'ok',
-      status: { tokenSource: 'configured', minimumPasswordLength: 15 },
+      status: {
+        tokenSource: 'configured',
+        minimumPasswordLength: 15,
+        administratorRole: 'GlobalAdmin',
+      },
     });
     container = document.createElement('div');
     document.body.append(container);

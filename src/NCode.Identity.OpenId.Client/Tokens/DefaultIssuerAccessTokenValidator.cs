@@ -1,7 +1,6 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
-using NCode.Identity.Jose;
 using NCode.Identity.Jose.Algorithms;
 using NCode.Identity.Jwt.Validation;
 
@@ -37,12 +36,15 @@ internal class DefaultIssuerAccessTokenValidator(
 
     /// <inheritdoc />
     public async ValueTask<IssuerAccessTokenResult> ValidateAsync(
-        string issuer,
-        string audience,
-        string token,
+        IssuerAccessTokenValidationRequest request,
         CancellationToken cancellationToken
     )
     {
+        ArgumentNullException.ThrowIfNull(request);
+        var issuer = request.Issuer;
+        var audience = request.Audience;
+        var token = request.Token;
+        var signingKeys = request.SigningKeys;
         ArgumentException.ThrowIfNullOrEmpty(issuer);
         ArgumentException.ThrowIfNullOrEmpty(audience);
 
@@ -51,12 +53,15 @@ internal class DefaultIssuerAccessTokenValidator(
 
         try
         {
-            var metadata = await MetadataResolver.GetMetadataAsync(issuer, cancellationToken);
-            if (!string.Equals(metadata.Issuer, issuer, StringComparison.Ordinal))
-                return Fail(
-                    TokenValidationFailureCodes.InvalidIssuer,
-                    "The issuer of the discovery document is not the expected issuer."
-                );
+            if (signingKeys is null)
+            {
+                var metadata = await MetadataResolver.GetMetadataAsync(issuer, cancellationToken);
+                if (!string.Equals(metadata.Issuer, issuer, StringComparison.Ordinal))
+                    return Fail(
+                        TokenValidationFailureCodes.InvalidIssuer,
+                        "The issuer of the discovery document is not the expected issuer."
+                    );
+            }
 
             var algorithms = ProviderSignaturePolicy.GetPermittedAlgorithms(
                 AlgorithmCollectionProvider.Collection,
@@ -77,9 +82,11 @@ internal class DefaultIssuerAccessTokenValidator(
                 ValidContentEncryptionAlgorithms = [],
                 ValidCompressionAlgorithms = [],
                 ResolveValidationKeysAsync = (jose, _, _, ct) =>
-                    ProviderSignaturePolicy.ResolveKeysAsync(KeySetResolver, issuer, jose, ct),
+                    signingKeys is null
+                        ? ProviderSignaturePolicy.ResolveKeysAsync(KeySetResolver, issuer, jose, ct)
+                        : ProviderSignaturePolicy.ResolveGivenKeysAsync(signingKeys, jose, ct),
             }
-                .ValidateTokenType(JoseTokenTypes.AccessTokenJwt)
+                .ValidateTokenType(request.TokenType)
                 .ValidateIssuer(issuer)
                 .ValidateAudience(audience)
                 .ValidateTokenLifeTime();

@@ -50,7 +50,7 @@ internal abstract class BaseOwnableApiEndpointHandler : BaseApiEndpointHandler
     /// <c>true</c> when exactly one of the principal identifier and the username is non-empty; otherwise, <c>false</c>.
     /// </returns>
     // See ADR-1465.
-    private static bool TryGetRequestedName(
+    private protected static bool TryGetRequestedName(
         AddRoleHolderRequest request,
         [NotNullWhen(true)] out string? name,
         out bool isUserName
@@ -352,7 +352,8 @@ internal abstract class BaseOwnableApiEndpointHandler : BaseApiEndpointHandler
             return ManagementProblems.ResourceNotFound();
         }
 
-        PrincipalSummaryResource summary;
+        PrincipalSummaryResource? summary;
+        string principalId;
         if (isUserName)
         {
             var userNameQuery = new ControlPlanePrincipalQuery { UserNames = [requestedName] };
@@ -381,23 +382,35 @@ internal abstract class BaseOwnableApiEndpointHandler : BaseApiEndpointHandler
             }
 
             summary = userNameMatch;
+            principalId = userNameMatch.PrincipalId;
         }
         else
         {
             var described = await DescribeAsync([requestedName], cancellationToken);
             var describedSummary = described.GetValueOrDefault(requestedName);
-            if (describedSummary is null)
+
+            // A directory that does not describe every principal holds no control-plane principal names, so an
+            // identifier it cannot describe may name a control-plane principal, which is granted without an
+            // existence check and answered without a summary, as the list answers it.
+            if (describedSummary is null && !ControlPlanePrincipalDirectory.DescribesEveryPrincipal)
+            {
+                summary = null;
+                principalId = requestedName;
+            }
+            else if (describedSummary is null)
             {
                 return TypedResults.Problem(
                     detail: "No principal of the control plane has the identifier.",
                     statusCode: StatusCodes.Status400BadRequest
                 );
             }
-
-            summary = describedSummary;
+            else
+            {
+                summary = describedSummary;
+                principalId = describedSummary.PrincipalId;
+            }
         }
 
-        var principalId = summary.PrincipalId;
         var grant = await ResourceOwnershipService.AddAssignmentAsync(
             storeManager,
             node.TenantId,

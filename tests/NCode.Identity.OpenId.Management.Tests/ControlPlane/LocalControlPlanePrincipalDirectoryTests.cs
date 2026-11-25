@@ -158,6 +158,18 @@ public sealed class LocalControlPlanePrincipalDirectoryTests : IDisposable
         return identities;
     }
 
+    #region DescribesEveryPrincipal Tests
+
+    [Fact]
+    public void DescribesEveryPrincipal_Always_IsTrue()
+    {
+        var directory = CreateDirectory();
+
+        Assert.True(directory.DescribesEveryPrincipal);
+    }
+
+    #endregion
+
     #region FindAsync Tests
 
     [Fact]

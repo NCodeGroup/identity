@@ -29,7 +29,7 @@ namespace NCode.Identity.Server.SecretProtection;
 /// </remarks>
 // See ADR-1408.
 [PublicAPI]
-public sealed class SecretProtectionCommandLine
+public sealed class SecretProtectionCommandLine : IHostCommand
 {
     /// <summary>
     /// The first argument that selects this command.
@@ -193,17 +193,6 @@ public sealed class SecretProtectionCommandLine
             Owner = owner,
             DryRun = dryRun,
         };
-    }
-
-    /// <summary>
-    /// Gets the arguments that the host builds with: none when they select this command, because a command-line
-    /// configuration provider would read the verb and its options as configuration, and the arguments otherwise.
-    /// </summary>
-    /// <param name="args">The command-line arguments of the host.</param>
-    /// <returns>The arguments for the host builder.</returns>
-    public static string[] GetHostArguments(string[] args)
-    {
-        return HostCommandLine.GetHostArguments(args, CommandName);
     }
 
     /// <summary>

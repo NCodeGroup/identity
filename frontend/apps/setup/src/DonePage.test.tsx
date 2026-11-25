@@ -21,10 +21,14 @@ const FULL_ROOT: CreatedRoot = {
   apiReferenceUrl: 'https://id.example.test/scalar/v1',
 };
 
-function renderPage(root: CreatedRoot, tokenSource: SetupTokenSource = 'configured') {
+function renderPage(
+  root: CreatedRoot,
+  tokenSource: SetupTokenSource = 'configured',
+  administratorRole = 'GlobalAdmin',
+) {
   return render(
     <AppThemeProvider>
-      <DonePage root={root} tokenSource={tokenSource} />
+      <DonePage root={root} administratorRole={administratorRole} tokenSource={tokenSource} />
     </AppThemeProvider>,
   );
 }
@@ -36,6 +40,13 @@ function remaining(): (string | null)[] {
 }
 
 describe('DonePage', () => {
+  it('names the cell administrator when the role is CellAdmin', () => {
+    renderPage(ROOT, 'configured', 'CellAdmin');
+
+    expect(screen.getByText(/^The cell administrator/)).toBeInTheDocument();
+    expect(remaining()[0]).toBe('Sign in to the management console as the cell administrator.');
+  });
+
   afterEach(() => {
     vi.unstubAllGlobals();
   });

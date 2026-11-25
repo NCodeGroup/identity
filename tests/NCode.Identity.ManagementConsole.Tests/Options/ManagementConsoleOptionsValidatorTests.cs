@@ -253,6 +253,55 @@ public class ManagementConsoleOptionsValidatorTests : BaseTests
 
     #endregion
 
+    #region Cell Tests
+
+    [Fact]
+    public void Validate_WhenTheCellIsACellLabel_Succeeds()
+    {
+        var options = CreateValidOptions();
+        options.Cell = "eu-1";
+
+        var result = CreateValidator().Validate(null, options);
+
+        Assert.True(result.Succeeded);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("Eu1")]
+    [InlineData("eu_1")]
+    public void Validate_WhenTheCellIsNotACellLabel_Fails(string cell)
+    {
+        var options = CreateValidOptions();
+        options.Cell = cell;
+
+        var result = CreateValidator().Validate(null, options);
+
+        Assert.True(result.Failed);
+        Assert.Contains(
+            $"ManagementConsole:Cell must be a cell name",
+            Assert.Single(result.Failures ?? [])
+        );
+    }
+
+    [Fact]
+    public void Validate_WhenCellAndCellsAreBothSet_Fails()
+    {
+        var options = CreateValidOptions();
+        options.Cell = "eu-1";
+        options.Cells["eu-1"] = "https://eu-1.example.com/api";
+
+        var result = CreateValidator().Validate(null, options);
+
+        Assert.True(result.Failed);
+        Assert.Contains(
+            "ManagementConsole:Cells must be empty when ManagementConsole:Cell names the cell.",
+            result.Failures ?? []
+        );
+    }
+
+    #endregion
+
     #region Cells Tests
 
     [Fact]

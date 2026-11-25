@@ -61,7 +61,10 @@ public sealed class DefaultTenantProvisionerTests : IDisposable
         Provisioner = CreateProvisioner(new CellOptions { Name = ThisCell, IsControlPlane = true });
     }
 
-    private DefaultTenantProvisioner CreateProvisioner(CellOptions cellOptions) =>
+    private DefaultTenantProvisioner CreateProvisioner(
+        CellOptions cellOptions,
+        IPlatformTopology? platformTopology = null
+    ) =>
         new(
             MockStoreManagerFactory.Object,
             MockAmbientTenantAccessor.Object,
@@ -73,6 +76,7 @@ public sealed class DefaultTenantProvisionerTests : IDisposable
                 }
             ),
             Options.Create(cellOptions),
+            platformTopology ?? Mock.Of<IPlatformTopology>(),
             MockMediator.Object,
             MockTeamProvisioner.Object,
             MockTenantPlacer.Object,
@@ -586,6 +590,42 @@ public sealed class DefaultTenantProvisionerTests : IDisposable
         Assert.Equal(["place", "add"], calls);
         Assert.NotNull(added);
         Assert.Same(added, result);
+    }
+
+    [Fact]
+    public async Task EnsureCreatedAsync_WhenTheCellIsTheDedicatedControlPlaneCellAndTheTenantIsNotItsRootTenant_ThrowsNotFoundWithoutWriting()
+    {
+        var provisioner = CreateProvisioner(
+            new CellOptions { Name = ThisCell, IsControlPlane = true },
+            new PlatformTopologyStub { HasDirectory = true, IsControlPlaneCell = true }
+        );
+        SetupTeam();
+        SetupControlPlaneTenantId();
+        SetupStoreManager();
+        SetupGetTenant(WorkloadTenantId, (PersistedTenant?)null);
+
+        await Assert.ThrowsAsync<HttpResultException>(async () =>
+            await provisioner.EnsureCreatedAsync(
+                TeamId,
+                WorkloadTenantId,
+                "Acme",
+                CancellationToken.None
+            )
+        );
+
+        MockTenantStore.Verify(
+            x => x.AddAsync(It.IsAny<PersistedTenant>(), It.IsAny<CancellationToken>()),
+            Times.Never()
+        );
+    }
+
+    private sealed class PlatformTopologyStub : IPlatformTopology
+    {
+        public bool HasDirectory { get; init; }
+
+        public bool IsControlPlaneCell { get; init; }
+
+        public bool HasManagementTenant { get; init; }
     }
 
     [Fact]

@@ -52,10 +52,9 @@ password stays a password whatever characters it holds.**
    renders each part as an `OpenIdDatabase__*` environment variable from a `secretKeyRef`, and a finished string as
    `ConnectionStrings__openiddb`. The keys of `database.parts` default to CloudNativePG's (`host`, `port`, `dbname`,
    `user`, `password`), so a CloudNativePG cluster needs only the Secret's name. The keys of `migrations.database.parts`
-   fall back to those of `database.parts`. `directory.database` and `directory.migrations.database` have the same
-   shape and render as `DirectoryDatabase__*` or `ConnectionStrings__directory`: the keys of `directory.database.parts`
-   default to CloudNativePG's, and the keys of `directory.migrations.database` fall back to those of
-   `directory.database`.
+   fall back to those of `database.parts`. The directory chart's `database` and `migrations.database` have the same
+   shape and render as `DirectoryDatabase__*` or `ConnectionStrings__directory`: the keys of `database.parts` default to
+   CloudNativePG's, and the keys of `migrations.database` fall back to those of `database`.
 3. **Each workload gets one connection with its own role's credentials.** The OP's `database` is the connection of the
    runtime role, which the pods read, and `migrations.database` is the connection of the schema owner, which only the
    migration Job reads. The pods and the Job both read `ConnectionStrings:openiddb` or the `OpenIdDatabase` parts, each
@@ -63,19 +62,17 @@ password stays a password whatever characters it holds.**
    so `database.runtimeRole` names the role and feeds `HostDatabase__RuntimeRole` (`HostDatabase:RuntimeRole`) in the
    Job. `database` is always required, `migrations.database` is required while `migrations.enabled` is true, and the
    Job never reads `database`. The migration worker applies row-level security under the owner, and the host connects
-   as the runtime role, which does not bypass it. The directory has the same two credentials: `directory.database` is
-   the connection of the runtime role, which the Deployment reads, and `directory.migrations.database` is the
-   connection of the schema owner, which only the `migrate` Job reads, each as `ConnectionStrings:directory` or the
-   `DirectoryDatabase` parts. `directory.database.runtimeRole` names the role and feeds
-   `DirectoryMigration__RuntimeRole` (`DirectoryMigration:RuntimeRole`) in the Job. Both directory connections are
-   required while `directory.enabled` is true, because the Job always runs, and the Job never receives the runtime
-   role's connection.
+   as the runtime role, which does not bypass it. The directory chart has the same two credentials: its `database` is
+   the connection of the runtime role, which the Deployment reads, and its `migrations.database` is the connection of
+   the schema owner, which only the `migrate` Job reads, each as `ConnectionStrings:directory` or the
+   `DirectoryDatabase` parts. Its `database.runtimeRole` names the role and feeds `DirectoryMigration__RuntimeRole`
+   (`DirectoryMigration:RuntimeRole`) in the Job. Both directory connections are always required, because the Job
+   always runs, and the Job never receives the runtime role's connection.
 4. **The chart refuses an unusable release.** For `database`, and for `migrations.database` while migrations are
    enabled, it refuses both `existingSecret` and `parts.existingSecret`, a connection that names neither form, and a
    parts Secret whose host, database, user name or password key is empty. It refuses an empty `database.runtimeRole`
-   while migrations are enabled, and one that is not a lower-case Postgres role name. For `directory.database` and
-   `directory.migrations.database` it refuses the same while `directory.enabled` is true, and an empty or malformed
-   `directory.database.runtimeRole`. The migration Job and the server may use different forms.
+   while migrations are enabled, and one that is not a lower-case Postgres role name. The directory chart refuses the same for `database` and
+   `migrations.database`, and an empty or malformed `database.runtimeRole`. The migration Job and the server may use different forms.
 5. **A rotation reaches the pods at the next pod start.** A `secretKeyRef` environment variable is read when a
    container starts, so a password the operator rotates reaches the pods when they restart.
 
@@ -100,14 +97,15 @@ password stays a password whatever characters it holds.**
 
 - No Secret is hand-built for the database: a deployer names the operator's Secret for the owner and a Secret of the
   same shape for the runtime role, and a deployer without an operator keeps the finished-string form in
-  `database.existingSecret` and `migrations.database.existingSecret`, or in `directory.database.existingSecret` and
-  `directory.migrations.database.existingSecret` for the directory.
+  `database.existingSecret` and `migrations.database.existingSecret`, in the host chart and in the
+  `ncode-identity-directory` chart alike.
 - TLS settings the connection needs, such as `SSL Mode`, arrive through `extraEnv`.
 - The `cluster` job of the `Host chart` workflow creates a Secret of the shape an operator writes for the owner and one
   for the runtime role, creates the role in the kind Postgres, and installs the kind release with the parts form, so the
   form is proven against a real database and the migration Job.
-- The `Host chart` workflow refuses a directory that names both forms or a parts Secret with an empty key, and renders
-  the directory's Deployment and Job with each form, so the environment each workload receives is checked.
+- The `Host chart` workflow refuses a configuration that names both forms or a parts Secret with an empty key, and the
+  `Directory chart` workflow does the same for the directory's chart and renders its Deployment and Job with each form,
+  so the environment each workload receives is checked.
 - The Aspire AppHost supplies the owner's finished `ConnectionStrings:openiddb` to the migration worker and the runtime
   role's `OpenIdDatabase` parts to the hosts, so each host assembles its connection with the password quoted.
 

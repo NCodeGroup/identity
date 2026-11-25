@@ -195,13 +195,12 @@ public sealed class TeamRootKeyApiEndpointHandlerTests : IDisposable
             .Verifiable();
     }
 
-    private void SetupCells()
+    private void SetupCells(params CellDescriptor[] descriptors)
     {
         IReadOnlyList<CellDescriptor> cells =
-        [
-            CreateCell("cell-a", OwnRegion),
-            CreateCell("cell-b", OtherRegion),
-        ];
+            descriptors.Length > 0
+                ? descriptors
+                : [CreateCell("cell-a", OwnRegion), CreateCell("cell-b", OtherRegion)];
         MockCellDirectory
             .Setup(x => x.ListAsync(It.IsAny<CancellationToken>()))
             .Returns(new ValueTask<IReadOnlyList<CellDescriptor>>(cells))
@@ -613,6 +612,95 @@ public sealed class TeamRootKeyApiEndpointHandlerTests : IDisposable
         var problem = Assert.IsType<ValidationProblem>(result);
         Assert.Equal(StatusCodes.Status400BadRequest, problem.StatusCode);
         Assert.Contains("region", problem.ProblemDetails.Errors.Keys);
+    }
+
+    [Fact]
+    public async Task SetRootKeyAsync_WhenTheRegionsOnlyCellIsRetired_ReturnsAValidationProblemNamingTheRegion()
+    {
+        SetupAuthorization(Operations.Update);
+        SetupStore(CreateTeam());
+        SetupCanBringRootKey();
+        SetupValidRequest();
+        SetupCells(
+            CreateCell("cell-a", OwnRegion),
+            CreateCell("cell-c", "ap-south") with
+            {
+                IsRetired = true,
+            }
+        );
+
+        var result = await Handler.SetRootKeyAsync(
+            CreateHttpContext(),
+            TeamId,
+            "ap-south",
+            CreateRequest(),
+            CancellationToken.None
+        );
+
+        var problem = Assert.IsType<ValidationProblem>(result);
+        Assert.Equal(StatusCodes.Status400BadRequest, problem.StatusCode);
+        Assert.Contains("region", problem.ProblemDetails.Errors.Keys);
+    }
+
+    [Fact]
+    public async Task SetRootKeyAsync_WhenTheRegionsOnlyCellHasNoManagementUrl_ReturnsAValidationProblemNamingTheRegion()
+    {
+        SetupAuthorization(Operations.Update);
+        SetupStore(CreateTeam());
+        SetupCanBringRootKey();
+        SetupValidRequest();
+        SetupCells(
+            CreateCell("cell-a", OwnRegion),
+            CreateCell("cell-c", "ap-south") with
+            {
+                ManagementUrl = null,
+            }
+        );
+
+        var result = await Handler.SetRootKeyAsync(
+            CreateHttpContext(),
+            TeamId,
+            "ap-south",
+            CreateRequest(),
+            CancellationToken.None
+        );
+
+        var problem = Assert.IsType<ValidationProblem>(result);
+        Assert.Equal(StatusCodes.Status400BadRequest, problem.StatusCode);
+        Assert.Contains("region", problem.ProblemDetails.Errors.Keys);
+    }
+
+    [Fact]
+    public async Task SetRootKeyAsync_WhenTheRegionHasARetiredAndALiveCell_WritesAndPublishesTheKey()
+    {
+        SetupAuthorization(Operations.Update);
+        var team = CreateTeam();
+        SetupStore(team);
+        SetupCanBringRootKey();
+        SetupValidRequest();
+        SetupCells(
+            CreateCell("cell-a", OwnRegion),
+            CreateCell("cell-b", OtherRegion) with
+            {
+                IsRetired = true,
+            },
+            CreateCell("cell-d", OtherRegion)
+        );
+        TeamDocument? published = null;
+        SetupWritePublishAuditAndAnnounce(document => published = document);
+
+        var result = await Handler.SetRootKeyAsync(
+            CreateHttpContext(),
+            TeamId,
+            OtherRegion,
+            CreateRequest(),
+            CancellationToken.None
+        );
+
+        var ok = Assert.IsType<Ok<TeamRootKeyResource>>(result);
+        Assert.Equal(OtherRegion, ok.Value?.Region);
+        Assert.NotNull(published);
+        Assert.Equal(RootKeyReference, published.RootKeys[OtherRegion].KeyReference);
     }
 
     [Fact]

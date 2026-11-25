@@ -415,6 +415,7 @@ NCode.Identity.OpenId.Management.ControlPlane.ControlPlaneAuthorityRequest.Subje
 NCode.Identity.OpenId.Management.ControlPlane.ControlPlaneAuthorityRequest.TeamId.get -> string?
 NCode.Identity.OpenId.Management.ControlPlane.ControlPlaneAuthorityRequest.TeamId.init -> void
 NCode.Identity.OpenId.Management.ControlPlane.ControlPlaneServiceKeys
+const NCode.Identity.OpenId.Management.ControlPlane.ControlPlaneServiceKeys.Local = "local" -> string!
 const NCode.Identity.OpenId.Management.ControlPlane.ControlPlaneServiceKeys.Remote = "remote" -> string!
 NCode.Identity.OpenId.Management.ControlPlane.IControlPlaneAuthority
 NCode.Identity.OpenId.Management.ControlPlane.IControlPlaneAuthority.GetAsync(NCode.Identity.OpenId.Management.ControlPlane.ControlPlaneAuthorityRequest! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.Management.ControlPlane.ControlPlaneAuthority!>
@@ -643,6 +644,8 @@ NCode.Identity.OpenId.Management.Contracts.Caller.CallerResource
 NCode.Identity.OpenId.Management.Contracts.Caller.CallerResource.Assignments.get -> System.Collections.Generic.IReadOnlyList<NCode.Identity.OpenId.Management.Contracts.RoleAssignmentResource!>!
 NCode.Identity.OpenId.Management.Contracts.Caller.CallerResource.Assignments.init -> void
 NCode.Identity.OpenId.Management.Contracts.Caller.CallerResource.CallerResource() -> void
+NCode.Identity.OpenId.Management.Contracts.Caller.CallerResource.CellRoles.get -> System.Collections.Generic.IReadOnlyList<string!>!
+NCode.Identity.OpenId.Management.Contracts.Caller.CallerResource.CellRoles.init -> void
 NCode.Identity.OpenId.Management.Contracts.Caller.CallerResource.IsPlatformAdministrator.get -> bool
 NCode.Identity.OpenId.Management.Contracts.Caller.CallerResource.IsPlatformAdministrator.init -> void
 NCode.Identity.OpenId.Management.Contracts.Caller.CallerResource.PrincipalId.get -> string?
@@ -651,12 +654,34 @@ NCode.Identity.OpenId.Management.Contracts.Cells.CellResource
 NCode.Identity.OpenId.Management.Contracts.Cells.CellResource.CellResource() -> void
 NCode.Identity.OpenId.Management.Contracts.Cells.CellResource.IsControlPlane.get -> bool
 NCode.Identity.OpenId.Management.Contracts.Cells.CellResource.IsControlPlane.init -> void
+NCode.Identity.OpenId.Management.Contracts.Cells.CellResource.IsRegistered.get -> bool
+NCode.Identity.OpenId.Management.Contracts.Cells.CellResource.IsRegistered.init -> void
+NCode.Identity.OpenId.Management.Contracts.Cells.CellResource.IsRetired.get -> bool
+NCode.Identity.OpenId.Management.Contracts.Cells.CellResource.IsRetired.init -> void
 NCode.Identity.OpenId.Management.Contracts.Cells.CellResource.Kind.get -> string!
 NCode.Identity.OpenId.Management.Contracts.Cells.CellResource.Kind.init -> void
 NCode.Identity.OpenId.Management.Contracts.Cells.CellResource.Name.get -> string!
 NCode.Identity.OpenId.Management.Contracts.Cells.CellResource.Name.init -> void
 NCode.Identity.OpenId.Management.Contracts.Cells.CellResource.Region.get -> string!
 NCode.Identity.OpenId.Management.Contracts.Cells.CellResource.Region.init -> void
+NCode.Identity.OpenId.Management.Contracts.Cells.CellScopeResource
+NCode.Identity.OpenId.Management.Contracts.Cells.CellScopeResource.CellScopeResource() -> void
+NCode.Identity.OpenId.Management.Contracts.Cells.CellScopeResource.HasManagementTenant.get -> bool
+NCode.Identity.OpenId.Management.Contracts.Cells.CellScopeResource.HasManagementTenant.init -> void
+NCode.Identity.OpenId.Management.Contracts.Cells.CellScopeResource.Kind.get -> string!
+NCode.Identity.OpenId.Management.Contracts.Cells.CellScopeResource.Kind.init -> void
+NCode.Identity.OpenId.Management.Contracts.Cells.CellScopeResource.Name.get -> string!
+NCode.Identity.OpenId.Management.Contracts.Cells.CellScopeResource.Name.init -> void
+NCode.Identity.OpenId.Management.Contracts.Cells.CellScopeResource.Region.get -> string!
+NCode.Identity.OpenId.Management.Contracts.Cells.CellScopeResource.Region.init -> void
+NCode.Identity.OpenId.Management.Contracts.Cells.RegisterCellRequest
+NCode.Identity.OpenId.Management.Contracts.Cells.RegisterCellRequest.Jwks.get -> System.Text.Json.JsonElement
+NCode.Identity.OpenId.Management.Contracts.Cells.RegisterCellRequest.Jwks.init -> void
+NCode.Identity.OpenId.Management.Contracts.Cells.RegisterCellRequest.Kind.get -> string!
+NCode.Identity.OpenId.Management.Contracts.Cells.RegisterCellRequest.Kind.init -> void
+NCode.Identity.OpenId.Management.Contracts.Cells.RegisterCellRequest.RegisterCellRequest() -> void
+NCode.Identity.OpenId.Management.Contracts.Cells.RegisterCellRequest.Region.get -> string!
+NCode.Identity.OpenId.Management.Contracts.Cells.RegisterCellRequest.Region.init -> void
 NCode.Identity.OpenId.Management.Contracts.ManagementProblemMembers
 NCode.Identity.OpenId.Management.Contracts.PrincipalSummaryResource
 NCode.Identity.OpenId.Management.Contracts.PrincipalSummaryResource.DisplayName.get -> string!
@@ -1590,6 +1615,7 @@ NCode.Identity.OpenId.Management.ControlPlane.ControlPlanePrincipalQuery.Princip
 NCode.Identity.OpenId.Management.ControlPlane.ControlPlanePrincipalQuery.UserNames.get -> System.Collections.Generic.IReadOnlyList<string!>!
 NCode.Identity.OpenId.Management.ControlPlane.ControlPlanePrincipalQuery.UserNames.init -> void
 NCode.Identity.OpenId.Management.ControlPlane.IControlPlanePrincipalDirectory
+NCode.Identity.OpenId.Management.ControlPlane.IControlPlanePrincipalDirectory.DescribesEveryPrincipal.get -> bool
 NCode.Identity.OpenId.Management.ControlPlane.IControlPlanePrincipalDirectory.FindAsync(NCode.Identity.OpenId.Management.ControlPlane.ControlPlanePrincipalQuery! query, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<NCode.Identity.OpenId.Management.Contracts.PrincipalSummaryResource!>!>
 NCode.Identity.OpenId.Management.Principals.IPrincipalDescriber
 NCode.Identity.OpenId.Management.Principals.IPrincipalDescriber.FindAsync(NCode.Identity.Persistence.Stores.IStoreManager! storeManager, NCode.Identity.OpenId.Management.ControlPlane.ControlPlanePrincipalQuery! query, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<NCode.Identity.OpenId.Management.Contracts.PrincipalSummaryResource!>!>
@@ -1597,3 +1623,16 @@ NCode.Identity.OpenId.Management.Principals.PrincipalTypes
 const NCode.Identity.OpenId.Management.Principals.PrincipalTypes.Client = "client" -> string!
 const NCode.Identity.OpenId.Management.Principals.PrincipalTypes.FederatedUser = "federated_user" -> string!
 const NCode.Identity.OpenId.Management.Principals.PrincipalTypes.LocalAccount = "local_account" -> string!
+NCode.Identity.OpenId.Management.Contracts.Platform.ManagementKeyRevocationResource
+NCode.Identity.OpenId.Management.Contracts.Platform.ManagementKeyRevocationResource.ManagementKeyRevocationResource() -> void
+NCode.Identity.OpenId.Management.Contracts.Platform.ManagementKeyRevocationResource.ReplacementKeyId.get -> string!
+NCode.Identity.OpenId.Management.Contracts.Platform.ManagementKeyRevocationResource.ReplacementKeyId.init -> void
+NCode.Identity.OpenId.Management.Contracts.Platform.ManagementKeyRevocationResource.RevokedKeyId.get -> string!
+NCode.Identity.OpenId.Management.Contracts.Platform.ManagementKeyRevocationResource.RevokedKeyId.init -> void
+const NCode.Identity.OpenId.Management.BuiltInRoles.CellAdmin = "CellAdmin" -> string!
+NCode.Identity.OpenId.Management.ControlPlane.ManagementIssuerKinds
+const NCode.Identity.OpenId.Management.ControlPlane.ManagementIssuerKinds.Cell = "cell" -> string!
+const NCode.Identity.OpenId.Management.ControlPlane.ManagementIssuerKinds.ClaimType = "ncode_management_issuer" -> string!
+const NCode.Identity.OpenId.Management.ControlPlane.ManagementIssuerKinds.ControlPlane = "control-plane" -> string!
+NCode.Identity.OpenId.Management.ControlPlane.ManagementAuthorizationHeader
+static NCode.Identity.OpenId.Management.ControlPlane.ManagementAuthorizationHeader.TryReadToken(Microsoft.AspNetCore.Http.HttpContext! httpContext, string! scheme, out string? token) -> bool

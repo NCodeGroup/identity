@@ -3,11 +3,14 @@ import Button from '@mui/material/Button';
 import Link from '@mui/material/Link';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
+import { administratorTitle } from './administratorTitle.js';
 import type { CreatedRoot, SetupTokenSource } from './setupApi.js';
 
 export type DonePageProps = {
-  /** The root administrator and the addresses the instance reported when it created them. */
+  /** The administrator and the addresses the instance reported when it created them. */
   readonly root: CreatedRoot;
+  /** The role of the administrator the setup created: `CellAdmin` or `GlobalAdmin`. */
+  readonly administratorRole: string;
   /** The origin of the setup token, which decides what remains to clean up. */
   readonly tokenSource: SetupTokenSource;
 };
@@ -31,9 +34,10 @@ export const FIRST_INSTANCE_DOCS_URL =
   'https://github.com/NCodeGroup/identity/blob/main/docs/first-deployed-instance.md';
 
 /**
- * The last page of the setup wizard: it confirms the root administrator and lists the configuration that remains.
+ * The last page of the setup wizard: it confirms the administrator and lists the configuration that remains.
  */
-export function DonePage({ root, tokenSource }: DonePageProps) {
+export function DonePage({ root, administratorRole, tokenSource }: DonePageProps) {
+  const title = administratorTitle(administratorRole);
   const { displayName, userName, tenantId, managementConsoleClientId } = root;
   const [copiedLabel, setCopiedLabel] = useState<string | undefined>(undefined);
 
@@ -60,8 +64,7 @@ export function DonePage({ root, tokenSource }: DonePageProps) {
       </Stack>
 
       <Typography>
-        The root administrator <strong>{userName}</strong> exists in the tenant{' '}
-        <strong>{tenantId}</strong>.
+        The {title} <strong>{userName}</strong> exists in the tenant <strong>{tenantId}</strong>.
       </Typography>
 
       {managementConsoleClientId ? (
@@ -113,7 +116,7 @@ export function DonePage({ root, tokenSource }: DonePageProps) {
         What remains
       </Typography>
       <Stack component="ol" aria-label="What remains" spacing={1} sx={{ m: 0, pl: 3 }}>
-        <li>Sign in to the management console as the root administrator.</li>
+        <li>Sign in to the management console as the {title}.</li>
         {managementConsoleClientId ? null : <li>Register the management console client.</li>}
         <li>Configure the tenants and their grants.</li>
         {tokenSource === 'configured' ? <li>Remove the setup token Secret.</li> : null}

@@ -7,17 +7,16 @@ using System.Net.Mime;
 using System.Text.Json;
 using Microsoft.Extensions.Options;
 using NCode.Buffers;
-using NCode.Identity.OpenId.Client;
 
 namespace NCode.Identity.OpenId.GlobalDirectory;
 
 /// <summary>
-/// Sends the requests of the remote adapters to the directory service and to the control plane with a bearer token,
-/// over the protocol client's HTTP client, which bounds every call with a total and a per-attempt timeout and retries
-/// only safe requests. Each call, its response body read included, is bounded by
-/// <see cref="DirectoryClientOptions.RequestTimeout"/>. It fails closed: a transport failure, a timeout, a <c>5xx</c>
-/// answer, an oversized body, a token that cannot be obtained or any status other than a success, <c>404</c> or
-/// <c>409</c> is a <see cref="DirectoryUnavailableException"/>.
+/// Sends the requests of the remote adapters to the directory service with a bearer token, over the directory's own
+/// HTTP client, which trusts only <see cref="DirectoryClientOptions.CaCertificatesPath"/> when it is set. Each call,
+/// its response body read included, is bounded by <see cref="DirectoryClientOptions.TotalTimeout"/>, and a read that
+/// may be repeated is retried by the client's resilience pipeline. It fails closed: a transport failure, a timeout, a
+/// <c>5xx</c> answer, an oversized body, a token that cannot be obtained or any status other than a success, <c>404</c>
+/// or <c>409</c> is a <see cref="DirectoryUnavailableException"/>.
 /// </summary>
 // See ADR-1285 and ADR-1385 (the client's pipeline runs on Polly.Core alone).
 internal sealed class DirectoryHttpClient(
@@ -26,15 +25,13 @@ internal sealed class DirectoryHttpClient(
     IOptions<DirectoryClientOptions> options
 )
 {
-    private const int ReadChunkBytes = 4096;
-
     private IHttpClientFactory HttpClientFactory { get; } = httpClientFactory;
 
     private ICellTokenSource TokenSource { get; } = tokenSource;
 
     private Uri BaseUri { get; } = CreateBaseUri(options.Value.Url);
 
-    private TimeSpan RequestTimeout { get; } = options.Value.RequestTimeout;
+    private TimeSpan TotalTimeout { get; } = options.Value.TotalTimeout;
 
     /// <summary>
     /// Escapes a value for use as one segment of a directory path.
@@ -62,20 +59,12 @@ internal sealed class DirectoryHttpClient(
     )
     {
         var uri = new Uri(BaseUri, DirectoryClientDefaults.ApiPrefix + path);
-        var cellRequest = new CellApiRequest(
-            method,
-            uri,
-            GlobalDirectoryProtocol.DirectoryAudience,
-            GlobalDirectoryProtocol.DirectoryScope
-        )
-        {
-            Body = body,
-        };
+        var cellRequest = new CellApiRequest(method, uri) { Body = body };
         return SendAsync(cellRequest, cancellationToken);
     }
 
     /// <summary>
-    /// Sends a request to the directory service or to the control plane.
+    /// Sends a request to the directory service.
     /// </summary>
     /// <param name="cellRequest">The call to make.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
@@ -92,11 +81,7 @@ internal sealed class DirectoryHttpClient(
 
         var method = cellRequest.Method;
         var uri = cellRequest.Uri;
-        var accessToken = await TokenSource.GetAccessTokenAsync(
-            cellRequest.Audience,
-            cellRequest.Scope,
-            cancellationToken
-        );
+        var accessToken = await TokenSource.GetAccessTokenAsync(cancellationToken);
 
         using var request = new HttpRequestMessage(method, uri);
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
@@ -118,11 +103,15 @@ internal sealed class DirectoryHttpClient(
         using var timeoutSource = CancellationTokenSource.CreateLinkedTokenSource(
             cancellationToken
         );
-        timeoutSource.CancelAfter(RequestTimeout);
+        // The pipeline's total timeout ends at the response headers; this one also bounds the body that follows, as the
+        // protocol client's does.
+        timeoutSource.CancelAfter(TotalTimeout);
 
         try
         {
-            var client = HttpClientFactory.CreateClient(OpenIdClientDefaults.HttpClientName);
+            using var client = HttpClientFactory.CreateClient(
+                DirectoryClientDefaults.HttpClientName
+            );
             using var response = await client.SendAsync(
                 request,
                 HttpCompletionOption.ResponseHeadersRead,
@@ -135,12 +124,28 @@ internal sealed class DirectoryHttpClient(
                     $"{uri} answered {(int)status} to {method}."
                 );
 
-            var bytes = await ReadBodyAsync(response.Content, uri, timeoutSource.Token);
-            var result = new DirectoryResponse(status, bytes);
-            if (!result.IsSuccess && !result.IsNotFound && !result.IsConflict)
-                throw new DirectoryUnavailableException(
-                    $"{uri} answered {(int)status} to {method}."
+            var endpoint = uri.AbsoluteUri;
+            var responseBody = BufferFactory.CreateContiguousBufferWriter(isSensitive: false);
+            var result = new DirectoryResponse(status, responseBody);
+            try
+            {
+                await DirectoryResponseReader.ReadAsync(
+                    response.Content,
+                    responseBody,
+                    DirectoryClientDefaults.MaxResponseBytes,
+                    endpoint,
+                    timeoutSource.Token
                 );
+                if (!result.IsSuccess && !result.IsNotFound && !result.IsConflict)
+                    throw new DirectoryUnavailableException(
+                        $"{uri} answered {(int)status} to {method}."
+                    );
+            }
+            catch
+            {
+                result.Dispose();
+                throw;
+            }
 
             return result;
         }
@@ -177,44 +182,5 @@ internal sealed class DirectoryHttpClient(
 
         var endsWithSlash = url.EndsWith('/');
         return new Uri(endsWithSlash ? url : url + '/', UriKind.Absolute);
-    }
-
-    /// <summary>
-    /// Reads the body of a response, up to the largest body that the client accepts.
-    /// </summary>
-    /// <param name="content">The <see cref="HttpContent"/> of the response.</param>
-    /// <param name="uri">The URI that answered, which names the endpoint in an error.</param>
-    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
-    /// <returns>The bytes of the body.</returns>
-    /// <exception cref="DirectoryUnavailableException">
-    /// The body is larger than the largest body that the client accepts.
-    /// </exception>
-    private static async ValueTask<byte[]> ReadBodyAsync(
-        HttpContent content,
-        Uri uri,
-        CancellationToken cancellationToken
-    )
-    {
-        if (content.Headers.ContentLength > DirectoryClientDefaults.MaxResponseBytes)
-            throw new DirectoryUnavailableException(
-                $"{uri} answered with a body larger than {DirectoryClientDefaults.MaxResponseBytes} bytes."
-            );
-
-        await using var stream = await content.ReadAsStreamAsync(cancellationToken);
-        using var buffer = BufferFactory.CreatePooledStream(isSensitive: false);
-        var chunk = new byte[ReadChunkBytes];
-        while (true)
-        {
-            var read = await stream.ReadAsync(chunk, cancellationToken);
-            if (read == 0)
-                return buffer.WrittenSpan.ToArray();
-
-            if (buffer.Length + read > DirectoryClientDefaults.MaxResponseBytes)
-                throw new DirectoryUnavailableException(
-                    $"{uri} answered with a body larger than {DirectoryClientDefaults.MaxResponseBytes} bytes."
-                );
-
-            buffer.Write(chunk, 0, read);
-        }
     }
 }

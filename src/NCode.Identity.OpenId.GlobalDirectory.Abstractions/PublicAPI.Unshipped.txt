@@ -3,19 +3,23 @@ const NCode.Identity.OpenId.GlobalDirectory.CellKinds.Shared = "shared" -> strin
 const NCode.Identity.OpenId.GlobalDirectory.CellKinds.Sovereign = "sovereign" -> string!
 const NCode.Identity.OpenId.GlobalDirectory.CellOptions.SectionName = "Cell" -> string!
 const NCode.Identity.OpenId.GlobalDirectory.GlobalDirectoryProtocol.CellClientIdPrefix = "cell-" -> string!
-const NCode.Identity.OpenId.GlobalDirectory.GlobalDirectoryProtocol.ControlPlaneAudience = "urn:ncode:control-plane" -> string!
-const NCode.Identity.OpenId.GlobalDirectory.GlobalDirectoryProtocol.ControlPlaneAuthorityPath = "/control-plane/v1/authority" -> string!
-const NCode.Identity.OpenId.GlobalDirectory.GlobalDirectoryProtocol.ControlPlanePrincipalsPath = "/control-plane/v1/principals" -> string!
-const NCode.Identity.OpenId.GlobalDirectory.GlobalDirectoryProtocol.ControlPlaneScope = "control-plane" -> string!
 const NCode.Identity.OpenId.GlobalDirectory.GlobalDirectoryProtocol.DirectoryAudience = "urn:ncode:directory" -> string!
 const NCode.Identity.OpenId.GlobalDirectory.GlobalDirectoryProtocol.DirectoryScope = "directory" -> string!
 const NCode.Identity.OpenId.GlobalDirectory.GlobalDirectoryProtocol.UnavailableRetryAfterSeconds = 5 -> int
+NCode.Identity.OpenId.GlobalDirectory.CellDirectoryConflictException
+NCode.Identity.OpenId.GlobalDirectory.CellDirectoryConflictException.CellDirectoryConflictException() -> void
+NCode.Identity.OpenId.GlobalDirectory.CellDirectoryConflictException.CellDirectoryConflictException(string! message) -> void
+NCode.Identity.OpenId.GlobalDirectory.CellDirectoryConflictException.CellDirectoryConflictException(string! message, System.Exception! innerException) -> void
 NCode.Identity.OpenId.GlobalDirectory.CellDescriptor
 NCode.Identity.OpenId.GlobalDirectory.CellDescriptor.IsControlPlane.get -> bool
 NCode.Identity.OpenId.GlobalDirectory.CellDescriptor.IsControlPlane.init -> void
+NCode.Identity.OpenId.GlobalDirectory.CellDescriptor.IsRegistered.get -> bool
+NCode.Identity.OpenId.GlobalDirectory.CellDescriptor.IsRegistered.init -> void
+NCode.Identity.OpenId.GlobalDirectory.CellDescriptor.IsRetired.get -> bool
+NCode.Identity.OpenId.GlobalDirectory.CellDescriptor.IsRetired.init -> void
 NCode.Identity.OpenId.GlobalDirectory.CellDescriptor.Kind.get -> string!
 NCode.Identity.OpenId.GlobalDirectory.CellDescriptor.Kind.init -> void
-NCode.Identity.OpenId.GlobalDirectory.CellDescriptor.ManagementUrl.get -> string!
+NCode.Identity.OpenId.GlobalDirectory.CellDescriptor.ManagementUrl.get -> string?
 NCode.Identity.OpenId.GlobalDirectory.CellDescriptor.ManagementUrl.init -> void
 NCode.Identity.OpenId.GlobalDirectory.CellDescriptor.Name.get -> string!
 NCode.Identity.OpenId.GlobalDirectory.CellDescriptor.Name.init -> void
@@ -30,6 +34,8 @@ NCode.Identity.OpenId.GlobalDirectory.CellOptions.ControlPlane.get -> NCode.Iden
 NCode.Identity.OpenId.GlobalDirectory.CellOptions.ControlPlane.set -> void
 NCode.Identity.OpenId.GlobalDirectory.CellOptions.IsControlPlane.get -> bool
 NCode.Identity.OpenId.GlobalDirectory.CellOptions.IsControlPlane.set -> void
+NCode.Identity.OpenId.GlobalDirectory.CellOptions.KeyCustodyReconcileInterval.get -> System.TimeSpan
+NCode.Identity.OpenId.GlobalDirectory.CellOptions.KeyCustodyReconcileInterval.set -> void
 NCode.Identity.OpenId.GlobalDirectory.CellOptions.Kind.get -> string!
 NCode.Identity.OpenId.GlobalDirectory.CellOptions.Kind.set -> void
 NCode.Identity.OpenId.GlobalDirectory.CellOptions.ManagementUrl.get -> string!
@@ -38,6 +44,15 @@ NCode.Identity.OpenId.GlobalDirectory.CellOptions.Name.get -> string!
 NCode.Identity.OpenId.GlobalDirectory.CellOptions.Name.set -> void
 NCode.Identity.OpenId.GlobalDirectory.CellOptions.Region.get -> string!
 NCode.Identity.OpenId.GlobalDirectory.CellOptions.Region.set -> void
+NCode.Identity.OpenId.GlobalDirectory.CellRegistration
+NCode.Identity.OpenId.GlobalDirectory.CellRegistration.Jwks.get -> System.Text.Json.JsonElement
+NCode.Identity.OpenId.GlobalDirectory.CellRegistration.Jwks.init -> void
+NCode.Identity.OpenId.GlobalDirectory.CellRegistration.Kind.get -> string!
+NCode.Identity.OpenId.GlobalDirectory.CellRegistration.Kind.init -> void
+NCode.Identity.OpenId.GlobalDirectory.CellRegistration.Name.get -> string!
+NCode.Identity.OpenId.GlobalDirectory.CellRegistration.Name.init -> void
+NCode.Identity.OpenId.GlobalDirectory.CellRegistration.Region.get -> string!
+NCode.Identity.OpenId.GlobalDirectory.CellRegistration.Region.init -> void
 NCode.Identity.OpenId.GlobalDirectory.ControlPlaneOptions
 NCode.Identity.OpenId.GlobalDirectory.ControlPlaneOptions.ControlPlaneOptions() -> void
 NCode.Identity.OpenId.GlobalDirectory.ControlPlaneOptions.Issuer.get -> string?
@@ -51,6 +66,9 @@ NCode.Identity.OpenId.GlobalDirectory.DirectoryChange.Sequence.get -> long
 NCode.Identity.OpenId.GlobalDirectory.DirectoryChange.Sequence.init -> void
 NCode.Identity.OpenId.GlobalDirectory.DirectoryChange.TeamId.get -> string?
 NCode.Identity.OpenId.GlobalDirectory.DirectoryChange.TeamId.init -> void
+NCode.Identity.OpenId.GlobalDirectory.DirectoryClientNotRegisteredException
+NCode.Identity.OpenId.GlobalDirectory.DirectoryClientNotRegisteredException.DirectoryClientNotRegisteredException(string! message) -> void
+NCode.Identity.OpenId.GlobalDirectory.DirectoryClientNotRegisteredException.DirectoryClientNotRegisteredException(string! message, System.Exception! innerException) -> void
 NCode.Identity.OpenId.GlobalDirectory.DirectoryUnavailableException
 NCode.Identity.OpenId.GlobalDirectory.DirectoryUnavailableException.DirectoryUnavailableException(string! message) -> void
 NCode.Identity.OpenId.GlobalDirectory.DirectoryUnavailableException.DirectoryUnavailableException(string! message, System.Exception! innerException) -> void
@@ -58,7 +76,9 @@ NCode.Identity.OpenId.GlobalDirectory.GlobalDirectoryProtocol
 NCode.Identity.OpenId.GlobalDirectory.ICellDirectory
 NCode.Identity.OpenId.GlobalDirectory.ICellDirectory.GetOrDefaultAsync(string! name, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.GlobalDirectory.CellDescriptor?>
 NCode.Identity.OpenId.GlobalDirectory.ICellDirectory.ListAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<NCode.Identity.OpenId.GlobalDirectory.CellDescriptor!>!>
-NCode.Identity.OpenId.GlobalDirectory.ICellDirectory.RegisterAsync(NCode.Identity.OpenId.GlobalDirectory.CellDescriptor! descriptor, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+NCode.Identity.OpenId.GlobalDirectory.ICellDirectory.RegisterAsync(NCode.Identity.OpenId.GlobalDirectory.CellRegistration! registration, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+NCode.Identity.OpenId.GlobalDirectory.ICellDirectory.ReportAsync(NCode.Identity.OpenId.GlobalDirectory.CellDescriptor! descriptor, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+NCode.Identity.OpenId.GlobalDirectory.ICellDirectory.RetireAsync(string! name, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 NCode.Identity.OpenId.GlobalDirectory.IDirectoryFeedCheckpoint
 NCode.Identity.OpenId.GlobalDirectory.IDirectoryFeedCheckpoint.GetAppliedSequenceAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<long>
 NCode.Identity.OpenId.GlobalDirectory.IDirectoryFeedCheckpoint.RecordAppliedSequenceAsync(long sequence, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
@@ -187,3 +207,111 @@ NCode.Identity.OpenId.GlobalDirectory.CellLabelRules
 const NCode.Identity.OpenId.GlobalDirectory.CellLabelRules.MaxLabelLength = 31 -> int
 static NCode.Identity.OpenId.GlobalDirectory.CellLabelRules.IsValidLabel(string? label) -> bool
 static NCode.Identity.OpenId.GlobalDirectory.CellLabelRules.Description.get -> string!
+NCode.Identity.OpenId.GlobalDirectory.IPlatformTopology
+NCode.Identity.OpenId.GlobalDirectory.IPlatformTopology.HasDirectory.get -> bool
+NCode.Identity.OpenId.GlobalDirectory.IPlatformTopology.HasManagementTenant.get -> bool
+NCode.Identity.OpenId.GlobalDirectory.IPlatformTopology.IsControlPlaneCell.get -> bool
+NCode.Identity.OpenId.GlobalDirectory.ReplicatedDocument
+NCode.Identity.OpenId.GlobalDirectory.ReplicatedDocument.Content.get -> System.Text.Json.JsonElement?
+NCode.Identity.OpenId.GlobalDirectory.ReplicatedDocument.Content.init -> void
+NCode.Identity.OpenId.GlobalDirectory.ReplicatedDocument.Key.get -> string!
+NCode.Identity.OpenId.GlobalDirectory.ReplicatedDocument.Key.init -> void
+NCode.Identity.OpenId.GlobalDirectory.ReplicatedDocument.Kind.get -> string!
+NCode.Identity.OpenId.GlobalDirectory.ReplicatedDocument.Kind.init -> void
+NCode.Identity.OpenId.GlobalDirectory.ReplicatedDocument.Revision.get -> long
+NCode.Identity.OpenId.GlobalDirectory.ReplicatedDocument.Revision.init -> void
+NCode.Identity.OpenId.GlobalDirectory.ReplicatedDocumentKinds
+const NCode.Identity.OpenId.GlobalDirectory.ReplicatedDocumentKinds.ManagementKeys = "management-keys" -> string!
+const NCode.Identity.OpenId.GlobalDirectory.ReplicatedDocumentKinds.PlatformAuthority = "platform-authority" -> string!
+const NCode.Identity.OpenId.GlobalDirectory.ReplicatedDocumentKinds.TeamAuthority = "team-authority" -> string!
+NCode.Identity.OpenId.GlobalDirectory.PlatformAuthorityDocumentContent
+NCode.Identity.OpenId.GlobalDirectory.PlatformAuthorityDocumentContent.Assignments.get -> System.Collections.Generic.IReadOnlyList<NCode.Identity.OpenId.GlobalDirectory.AuthorityAssignment!>!
+NCode.Identity.OpenId.GlobalDirectory.PlatformAuthorityDocumentContent.Assignments.init -> void
+NCode.Identity.OpenId.GlobalDirectory.PlatformAuthorityDocumentContent.Clients.get -> System.Collections.Generic.IReadOnlyList<NCode.Identity.OpenId.GlobalDirectory.AuthorityClient!>!
+NCode.Identity.OpenId.GlobalDirectory.PlatformAuthorityDocumentContent.Clients.init -> void
+NCode.Identity.OpenId.GlobalDirectory.TeamAuthorityDocumentContent
+NCode.Identity.OpenId.GlobalDirectory.TeamAuthorityDocumentContent.Assignments.get -> System.Collections.Generic.IReadOnlyList<NCode.Identity.OpenId.GlobalDirectory.AuthorityAssignment!>!
+NCode.Identity.OpenId.GlobalDirectory.TeamAuthorityDocumentContent.Assignments.init -> void
+NCode.Identity.OpenId.GlobalDirectory.AuthorityAssignment
+NCode.Identity.OpenId.GlobalDirectory.AuthorityAssignment.PrincipalId.get -> string!
+NCode.Identity.OpenId.GlobalDirectory.AuthorityAssignment.PrincipalId.init -> void
+NCode.Identity.OpenId.GlobalDirectory.AuthorityAssignment.RoleName.get -> string!
+NCode.Identity.OpenId.GlobalDirectory.AuthorityAssignment.RoleName.init -> void
+NCode.Identity.OpenId.GlobalDirectory.AuthorityClient
+NCode.Identity.OpenId.GlobalDirectory.AuthorityClient.ClientId.get -> string!
+NCode.Identity.OpenId.GlobalDirectory.AuthorityClient.ClientId.init -> void
+NCode.Identity.OpenId.GlobalDirectory.AuthorityClient.PrincipalId.get -> string!
+NCode.Identity.OpenId.GlobalDirectory.AuthorityClient.PrincipalId.init -> void
+NCode.Identity.OpenId.GlobalDirectory.ManagementKeysDocumentContent
+NCode.Identity.OpenId.GlobalDirectory.ManagementKeysDocumentContent.Keys.get -> System.Collections.Generic.IReadOnlyList<NCode.Identity.OpenId.GlobalDirectory.ManagementKeyEntry!>!
+NCode.Identity.OpenId.GlobalDirectory.ManagementKeysDocumentContent.Keys.init -> void
+NCode.Identity.OpenId.GlobalDirectory.ManagementKeysDocumentContent.RevokedKeyIds.get -> System.Collections.Generic.IReadOnlyList<string!>!
+NCode.Identity.OpenId.GlobalDirectory.ManagementKeysDocumentContent.RevokedKeyIds.init -> void
+NCode.Identity.OpenId.GlobalDirectory.ManagementKeyEntry
+NCode.Identity.OpenId.GlobalDirectory.ManagementKeyEntry.ActivatesWhen.get -> System.DateTimeOffset
+NCode.Identity.OpenId.GlobalDirectory.ManagementKeyEntry.ActivatesWhen.init -> void
+NCode.Identity.OpenId.GlobalDirectory.ManagementKeyEntry.Algorithm.get -> string!
+NCode.Identity.OpenId.GlobalDirectory.ManagementKeyEntry.Algorithm.init -> void
+NCode.Identity.OpenId.GlobalDirectory.ManagementKeyEntry.ExpiresWhen.get -> System.DateTimeOffset
+NCode.Identity.OpenId.GlobalDirectory.ManagementKeyEntry.ExpiresWhen.init -> void
+NCode.Identity.OpenId.GlobalDirectory.ManagementKeyEntry.KeyId.get -> string!
+NCode.Identity.OpenId.GlobalDirectory.ManagementKeyEntry.KeyId.init -> void
+NCode.Identity.OpenId.GlobalDirectory.ManagementKeyEntry.KeySizeBits.get -> int
+NCode.Identity.OpenId.GlobalDirectory.ManagementKeyEntry.KeySizeBits.init -> void
+NCode.Identity.OpenId.GlobalDirectory.ManagementKeyEntry.PublicKey.get -> string!
+NCode.Identity.OpenId.GlobalDirectory.ManagementKeyEntry.PublicKey.init -> void
+NCode.Identity.OpenId.GlobalDirectory.ManagementKeyEntry.RetiresWhen.get -> System.DateTimeOffset
+NCode.Identity.OpenId.GlobalDirectory.ManagementKeyEntry.RetiresWhen.init -> void
+NCode.Identity.OpenId.GlobalDirectory.ManagementKeyEntry.SecretType.get -> string!
+NCode.Identity.OpenId.GlobalDirectory.ManagementKeyEntry.SecretType.init -> void
+NCode.Identity.OpenId.GlobalDirectory.ManagementKeyEntry.Use.get -> string!
+NCode.Identity.OpenId.GlobalDirectory.ManagementKeyEntry.Use.init -> void
+NCode.Identity.OpenId.GlobalDirectory.IReplicatedDocumentDirectory
+NCode.Identity.OpenId.GlobalDirectory.IReplicatedDocumentDirectory.GetOrDefaultAsync(string! kind, string! key, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.GlobalDirectory.ReplicatedDocument?>
+NCode.Identity.OpenId.GlobalDirectory.IReplicatedDocumentDirectory.ListRevisionsAsync(string? continuation, int limit, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.GlobalDirectory.ReplicatedRevisionPage!>
+NCode.Identity.OpenId.GlobalDirectory.IReplicatedDocumentDirectory.PublishAsync(NCode.Identity.OpenId.GlobalDirectory.ReplicatedDocument! document, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<long>
+NCode.Identity.OpenId.GlobalDirectory.IReplicatedDocumentApplier
+NCode.Identity.OpenId.GlobalDirectory.IReplicatedDocumentApplier.ApplyAsync(NCode.Identity.OpenId.GlobalDirectory.ReplicatedDocument! document, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+NCode.Identity.OpenId.GlobalDirectory.DirectoryChange.Replicated.get -> NCode.Identity.OpenId.GlobalDirectory.ReplicatedDocument?
+NCode.Identity.OpenId.GlobalDirectory.DirectoryChange.Replicated.init -> void
+const NCode.Identity.OpenId.GlobalDirectory.GlobalDirectoryProtocol.ManagementKeysPath = "/directory/v1/platform/management-keys" -> string!
+const NCode.Identity.OpenId.GlobalDirectory.GlobalDirectoryProtocol.PlatformAuthorityPath = "/directory/v1/platform/authority" -> string!
+const NCode.Identity.OpenId.GlobalDirectory.GlobalDirectoryProtocol.ReplicatedRevisionsPath = "/directory/v1/replicated-revisions" -> string!
+const NCode.Identity.OpenId.GlobalDirectory.GlobalDirectoryProtocol.TeamAuthorityPathFormat = "/directory/v1/teams/{0}/authority" -> string!
+NCode.Identity.OpenId.GlobalDirectory.IControlPlaneReplica
+NCode.Identity.OpenId.GlobalDirectory.IControlPlaneReplica.GetAuthorityAsync(string! principalId, string? teamId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.GlobalDirectory.ReplicatedAuthority!>
+NCode.Identity.OpenId.GlobalDirectory.IControlPlaneReplica.GetManagementKeysAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.GlobalDirectory.ReplicatedManagementKeys!>
+NCode.Identity.OpenId.GlobalDirectory.ReplicatedAuthority
+NCode.Identity.OpenId.GlobalDirectory.ReplicatedAuthority.ClientId.get -> string?
+NCode.Identity.OpenId.GlobalDirectory.ReplicatedAuthority.ClientId.init -> void
+NCode.Identity.OpenId.GlobalDirectory.ReplicatedAuthority.PlatformRoles.get -> System.Collections.Generic.IReadOnlyList<string!>!
+NCode.Identity.OpenId.GlobalDirectory.ReplicatedAuthority.PlatformRoles.init -> void
+NCode.Identity.OpenId.GlobalDirectory.ReplicatedAuthority.TeamRoles.get -> System.Collections.Generic.IReadOnlyList<string!>!
+NCode.Identity.OpenId.GlobalDirectory.ReplicatedAuthority.TeamRoles.init -> void
+NCode.Identity.OpenId.GlobalDirectory.ReplicatedManagementKeys
+NCode.Identity.OpenId.GlobalDirectory.ReplicatedManagementKeys.HasKeys.get -> bool
+NCode.Identity.OpenId.GlobalDirectory.ReplicatedManagementKeys.HasKeys.init -> void
+NCode.Identity.OpenId.GlobalDirectory.ReplicatedManagementKeys.Keys.get -> System.Collections.Generic.IReadOnlyCollection<NCode.Identity.Secrets.Keys.SecretKey!>!
+NCode.Identity.OpenId.GlobalDirectory.ReplicatedManagementKeys.Keys.init -> void
+NCode.Identity.OpenId.GlobalDirectory.ReplicatedManagementKeys.RevokedKeyIds.get -> System.Collections.Generic.IReadOnlySet<string!>!
+NCode.Identity.OpenId.GlobalDirectory.ReplicatedManagementKeys.RevokedKeyIds.init -> void
+NCode.Identity.OpenId.GlobalDirectory.IDirectoryOutbox
+NCode.Identity.OpenId.GlobalDirectory.IDirectoryOutbox.AcknowledgeAsync(string! kind, string! key, long revision, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+NCode.Identity.OpenId.GlobalDirectory.IDirectoryOutbox.ListLocalRevisionsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<NCode.Identity.OpenId.GlobalDirectory.ReplicatedDocument!>!>
+NCode.Identity.OpenId.GlobalDirectory.IDirectoryOutbox.ListPendingAsync(int limit, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<NCode.Identity.OpenId.GlobalDirectory.ReplicatedDocument!>!>
+NCode.Identity.OpenId.GlobalDirectory.IDirectoryOutbox.RepublishAsync(string! kind, string! key, long atRevision, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+NCode.Identity.OpenId.GlobalDirectory.IDirectoryOutboxSignal
+NCode.Identity.OpenId.GlobalDirectory.IDirectoryOutboxSignal.Notify() -> void
+NCode.Identity.OpenId.GlobalDirectory.IDirectoryOutboxSignal.WaitAsync(System.TimeSpan timeout, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+static NCode.Identity.OpenId.GlobalDirectory.GlobalDirectoryProtocol.ClientAssertionSigningAlgorithms.get -> System.Collections.Generic.IReadOnlyList<string!>!
+NCode.Identity.OpenId.GlobalDirectory.ReplicatedRevisionPage
+NCode.Identity.OpenId.GlobalDirectory.ReplicatedRevisionPage.Continuation.get -> string?
+NCode.Identity.OpenId.GlobalDirectory.ReplicatedRevisionPage.Continuation.init -> void
+NCode.Identity.OpenId.GlobalDirectory.ReplicatedRevisionPage.Revisions.get -> System.Collections.Generic.IReadOnlyList<NCode.Identity.OpenId.GlobalDirectory.ReplicatedDocument!>!
+NCode.Identity.OpenId.GlobalDirectory.ReplicatedRevisionPage.Revisions.init -> void
+static NCode.Identity.OpenId.GlobalDirectory.PlatformTopologyExtensions.HoldsOnlyControlPlaneTenant(this NCode.Identity.OpenId.GlobalDirectory.IPlatformTopology! platformTopology) -> bool
+NCode.Identity.OpenId.GlobalDirectory.PlatformTopologyExtensions
+const NCode.Identity.OpenId.GlobalDirectory.CellKindRules.MaxKindLength = 32 -> int
+NCode.Identity.OpenId.GlobalDirectory.CellKindRules
+static NCode.Identity.OpenId.GlobalDirectory.CellKindRules.Description.get -> string!
+static NCode.Identity.OpenId.GlobalDirectory.CellKindRules.IsValidKind(string? kind) -> bool

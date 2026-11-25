@@ -140,9 +140,9 @@ the committed change in place. A tenant the pass changed is announced, so every 
 as they are.
 
 A cell changes only the keys of a tenant it holds. Before the seed or the pass applies a plan that changes keys,
-`ITenantKeyPlacementGuard` asks the global directory where the tenant is placed. A tenant placed in another cell, or one
-whose placement cannot be read, keeps its keys, so a cell that still holds a moved tenant's copy never destroys a remote
-key the target cell uses. A plan that changes nothing reads no placement.
+`ITenantKeyCustodyGuard` reads the tenant's key-custody fence from the cell's own database. A tenant whose keys are
+leaving or arriving in a move, or one the cell does not hold, keeps its keys, so a cell never destroys a remote key the
+other cell uses, and the guard never reads the global directory. A plan that changes nothing reads no fence.
 
 > [!TIP]
 > [ADR-1404](../decisions/1404-a-tenants-provisioned-keys-roll-over-ahead-of-retirement-and-expire-after-a-grace.md),

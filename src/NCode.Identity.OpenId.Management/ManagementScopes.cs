@@ -41,6 +41,7 @@ internal static class ManagementScopes
         internal const string ClientGrants = "client_grants";
         internal const string Grants = "grants";
         internal const string LocalAccounts = "local_accounts";
+        internal const string Cell = "cell";
     }
 
     /// <summary>

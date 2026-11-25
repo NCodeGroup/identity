@@ -409,13 +409,35 @@ public sealed class TenantTransferApiEndpointHandlerTests : IDisposable
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
 
-    private void SetupOffer(MoveOfferResult result) =>
+    // The export fences the tenant before the offer and saves each change of the fence.
+    private void SetupFence() =>
+        MockTenantStore
+            .Setup(x =>
+                x.SetKeyCustodyAsync(
+                    TenantId,
+                    It.IsAny<string>(),
+                    It.IsAny<string?>(),
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync(true);
+
+    private void SetupFenceSaves() =>
+        MockStoreManager
+            .Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()))
+            .Returns(ValueTask.CompletedTask);
+
+    private void SetupOffer(MoveOfferResult result)
+    {
+        SetupFence();
+        SetupFenceSaves();
         MockTenantDirectory
             .Setup(x =>
                 x.OfferMoveAsync(TenantId, CellName, TargetCell, It.IsAny<CancellationToken>())
             )
             .ReturnsAsync(result)
             .Verifiable();
+    }
 
     private void SetupPlacement(string? cell) =>
         MockTenantDirectory
@@ -715,6 +737,8 @@ public sealed class TenantTransferApiEndpointHandlerTests : IDisposable
         SetupImportAccepted();
         SetupRecipientKey();
         SetupStore(CreateTenant(isDisabled: true));
+        SetupFence();
+        SetupFenceSaves();
         MockTenantDirectory
             .Setup(x =>
                 x.OfferMoveAsync(TenantId, CellName, TargetCell, It.IsAny<CancellationToken>())

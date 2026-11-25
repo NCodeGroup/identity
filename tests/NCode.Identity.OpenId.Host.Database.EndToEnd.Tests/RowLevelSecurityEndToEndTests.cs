@@ -196,7 +196,8 @@ public sealed class RowLevelSecurityEndToEndTests(PostgresFixture fixture)
         return new OpenIdDbContext(
             optionsBuilder.Options,
             accessor,
-            fixture.ServiceProvider.GetServices<IOpenIdModelContributor>()
+            fixture.ServiceProvider.GetServices<IOpenIdModelContributor>(),
+            []
         );
     }
 
@@ -245,8 +246,8 @@ public sealed class RowLevelSecurityEndToEndTests(PostgresFixture fixture)
 
             INSERT INTO "Tenants" (
                 "Id", "TenantId", "NormalizedTenantId", "ConcurrencyToken", "SettingsConcurrencyToken",
-                "SecretsConcurrencyToken", "IsDisabled", "DisplayName", "SettingsJson", "TeamId")
-            VALUES (@tenantRowId, @name, @name, 'c', 'c', 'c', false, @name, '{}', @teamRowId);
+                "SecretsConcurrencyToken", "IsDisabled", "DisplayName", "SettingsJson", "TeamId", "KeyCustody")
+            VALUES (@tenantRowId, @name, @name, 'c', 'c', 'c', false, @name, '{}', @teamRowId, 'held');
 
             INSERT INTO "ResourceServers" (
                 "Id", "TenantId", "NormalizedTenantId", "ResourceServerId", "NormalizedResourceServerId",

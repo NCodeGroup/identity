@@ -16,12 +16,15 @@ import {
   type FetchKeySetResult,
   type ManagementConsoleRegistration,
 } from './setupApi.js';
+import { administratorTitle } from './administratorTitle.js';
 
 export type ConsoleClientStepProps = {
   /** The setup token the operator entered. */
   readonly token: string;
-  /** The root administrator's account the previous step collected. */
+  /** The administrator's account the previous step collected. */
   readonly account: RootAccount;
+  /** The role of the administrator the setup creates: `CellAdmin` or `GlobalAdmin`. */
+  readonly administratorRole: string;
   /**
    * The console the deployment or the page's URL fragment names. When it has a URL, the step opens with the
    * registration checked, the fields filled and the console's key set fetched.
@@ -29,7 +32,7 @@ export type ConsoleClientStepProps = {
   readonly consoleHint?: ConsoleHint;
   /** Loads the management console's public key set from the console at the given base URL. */
   readonly loadKeySet: (baseUrl: string, signal?: AbortSignal) => Promise<FetchKeySetResult>;
-  /** Called with the root administrator once the instance created it. */
+  /** Called with the administrator once the instance created it. */
   readonly onCreated: (root: CreatedRoot) => void;
   /** Called when the instance refuses the setup token. */
   readonly onTokenRejected: () => void;
@@ -38,9 +41,7 @@ export type ConsoleClientStepProps = {
 };
 
 const DEFAULT_CLIENT_ID = 'mgmt-console';
-const NOT_CREATED = 'The root administrator was not created.';
 const RATE_LIMITED = 'Too many attempts. Wait a minute, then try again.';
-const FAILED = 'The instance could not create the root administrator. Try again.';
 const URL_NOT_HTTPS = 'The console URL must start with https://.';
 const JWKS_INVALID =
   'Paste the console’s public JWK Set: a JSON object with a non-empty keys array.';
@@ -71,17 +72,19 @@ function parsePublicJwks(text: string): JwksParse {
 
 /**
  * The third step of the setup wizard: it optionally registers the management console's client in the same setup, then
- * creates the root administrator with the setup token.
+ * creates the administrator with the setup token.
  */
 export function ConsoleClientStep({
   token,
   account,
+  administratorRole,
   consoleHint,
   loadKeySet,
   onCreated,
   onTokenRejected,
   onNotFound,
 }: ConsoleClientStepProps) {
+  const title = administratorTitle(administratorRole);
   const [hintedUrl] = useState(consoleHint?.baseUrl);
   const [register, setRegister] = useState(Boolean(consoleHint?.baseUrl));
   const [clientId, setClientId] = useState(consoleHint?.clientId ?? DEFAULT_CLIENT_ID);
@@ -195,13 +198,13 @@ export function ConsoleClientStep({
         onNotFound();
         return;
       case 'invalid':
-        setError(result.problem.detail ?? result.problem.title ?? NOT_CREATED);
+        setError(result.problem.detail ?? result.problem.title ?? `The ${title} was not created.`);
         break;
       case 'rateLimited':
         setError(RATE_LIMITED);
         break;
       case 'failed':
-        setError(FAILED);
+        setError(`The instance could not create the ${title}. Try again.`);
         break;
     }
     setSubmitting(false);
@@ -299,7 +302,7 @@ export function ConsoleClientStep({
       ) : null}
 
       <Button type="submit" variant="contained" disabled={submitting} fullWidth>
-        Create the root administrator
+        Create the {title}
       </Button>
     </Stack>
   );

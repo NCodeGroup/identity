@@ -37,6 +37,7 @@ internal sealed class DefaultTenantProvisioner(
     ITenantResolver tenantResolver,
     IOptions<TenantResolutionOptions> optionsAccessor,
     IOptions<CellOptions> cellOptionsAccessor,
+    IPlatformTopology platformTopology,
     IMediator mediator,
     ITeamProvisioner teamProvisioner,
     ITenantPlacer tenantPlacer,
@@ -55,6 +56,7 @@ internal sealed class DefaultTenantProvisioner(
     /// Gets the options of the cell that the host runs.
     /// </summary>
     private CellOptions CellOptions { get; } = cellOptionsAccessor.Value;
+    private IPlatformTopology PlatformTopology { get; } = platformTopology;
     private IMediator Mediator { get; } = mediator;
     private ITeamProvisioner TeamProvisioner { get; } = teamProvisioner;
 
@@ -96,6 +98,16 @@ internal sealed class DefaultTenantProvisioner(
         if (existing is not null)
             return existing;
 
+        // The control-plane cell of a platform with a directory is dedicated to its control-plane tenant, so the
+        // provisioner refuses every other tenant as not found.
+        if (
+            PlatformTopology.HoldsOnlyControlPlaneTenant()
+            && !RootTenantRules.IsTrustAnchor(CellOptions, TenantResolver, tenantId)
+        )
+        {
+            throw TenantErrors.NotFound(tenantId);
+        }
+
         // A tenant created on demand is written like any other: at the address its strategy derives for it, judged by
         // the rules every tenant write applies (ADR-1160, ADR-1165).
         var issuer = await TenantResolver.GetDefaultIssuerAsync(tenantId, cancellationToken);
@@ -128,17 +140,14 @@ internal sealed class DefaultTenantProvisioner(
             mtlsEndpointAliasAuthority
         );
 
-        // The control-plane cell creates its root tenant without the directory, which accepts only the tokens that
-        // tenant issues, and a tenant no strategy serves has no address on the platform, so it holds nothing in the
-        // directory: its identifier, such as a workload cell's root tenant `root`, can be the one the directory holds
-        // for the control-plane cell's root tenant. Every other tenant a strategy serves is reserved, placed and
-        // inserted through the directory, as the management API creates a tenant (ADR-1160, ADR-1411).
-        var isDirectoryTokenIssuer = RootTenantRules.IsDirectoryTokenIssuer(
-            CellOptions,
-            TenantResolver,
-            tenantId
-        );
-        if (isDirectoryTokenIssuer || persistedTenant.Issuer is null)
+        // The control-plane cell creates its control-plane tenant, the trust anchor, without the directory, because the
+        // directory pins that tenant from its own configuration, and a tenant no strategy serves has no address on the
+        // platform, so it holds nothing in the directory: its identifier, such as a workload cell's root tenant `root`,
+        // can be the one the directory holds for the control-plane cell's root tenant. Every other tenant a strategy
+        // serves is reserved, placed and inserted through the directory, as the management API creates a tenant
+        // (ADR-1160, ADR-1411, ADR-1536).
+        var isTrustAnchor = RootTenantRules.IsTrustAnchor(CellOptions, TenantResolver, tenantId);
+        if (isTrustAnchor || persistedTenant.Issuer is null)
         {
             var concurrent = await InsertOrFindConcurrentAsync(
                 persistedTenant,

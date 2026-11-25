@@ -40,6 +40,11 @@ public abstract class SettingDescriptor
     public bool IsDiscoverable { get; init; }
 
     /// <summary>
+    /// Gets a value indicating whether a value of the setting can refuse every sign-in, so sign-in recovery resets it.
+    /// </summary>
+    public bool IsSignInCritical { get; init; }
+
+    /// <summary>
     /// Gets a value indicating whether the setting is a limit: a bound set on a scope from above. A limit's value in a
     /// scope's settings document is set by the authority over the entity above the one the document belongs to, so the
     /// administrators of an entity never raise or remove the limits set on it. A limit merges with a meet

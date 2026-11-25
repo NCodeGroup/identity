@@ -778,3 +778,51 @@ NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.ConnectionEntity
 NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.ConnectionEntity.Tenant.init -> void
 NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.ConnectionEntity.TenantId.get -> System.Guid
 NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.ConnectionEntity.TenantId.init -> void
+NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.ReplicatedDocumentEntity
+NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.ReplicatedDocumentEntity.ConcurrencyToken.get -> string!
+NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.ReplicatedDocumentEntity.ConcurrencyToken.set -> void
+NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.ReplicatedDocumentEntity.ContentJson.get -> string?
+NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.ReplicatedDocumentEntity.ContentJson.set -> void
+NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.ReplicatedDocumentEntity.Key.get -> string!
+NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.ReplicatedDocumentEntity.Key.init -> void
+NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.ReplicatedDocumentEntity.Kind.get -> string!
+NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.ReplicatedDocumentEntity.Kind.init -> void
+NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.ReplicatedDocumentEntity.ReplicatedDocumentEntity() -> void
+NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.ReplicatedDocumentEntity.Revision.get -> long
+NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.ReplicatedDocumentEntity.Revision.set -> void
+NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.RevokedManagementKeyEntity
+NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.RevokedManagementKeyEntity.KeyId.get -> string!
+NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.RevokedManagementKeyEntity.KeyId.init -> void
+NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.RevokedManagementKeyEntity.RevokedManagementKeyEntity() -> void
+NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.RevokedManagementKeyEntity.RevokedWhen.get -> System.DateTimeOffset
+NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.RevokedManagementKeyEntity.RevokedWhen.init -> void
+NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.RevokedManagementKeyEntity.Source.get -> string!
+NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.RevokedManagementKeyEntity.Source.init -> void
+NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.DirectoryOutboxEntity
+NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.DirectoryOutboxEntity.DirectoryOutboxEntity() -> void
+NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.DirectoryOutboxEntity.ContentJson.get -> string?
+NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.DirectoryOutboxEntity.ContentJson.init -> void
+NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.DirectoryOutboxEntity.CreatedWhen.get -> System.DateTimeOffset
+NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.DirectoryOutboxEntity.CreatedWhen.init -> void
+NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.DirectoryOutboxEntity.Key.get -> string!
+NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.DirectoryOutboxEntity.Key.init -> void
+NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.DirectoryOutboxEntity.Kind.get -> string!
+NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.DirectoryOutboxEntity.Kind.init -> void
+NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.DirectoryOutboxEntity.Revision.get -> long
+NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.DirectoryOutboxEntity.Revision.init -> void
+NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.DirectoryOutboxEntity.Sequence.get -> long
+NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.DirectoryOutboxEntity.Sequence.init -> void
+NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.ReplicatedSourceRevisionEntity
+NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.ReplicatedSourceRevisionEntity.ReplicatedSourceRevisionEntity() -> void
+NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.ReplicatedSourceRevisionEntity.ConcurrencyToken.get -> string!
+NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.ReplicatedSourceRevisionEntity.ConcurrencyToken.set -> void
+NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.ReplicatedSourceRevisionEntity.Key.get -> string!
+NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.ReplicatedSourceRevisionEntity.Key.init -> void
+NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.ReplicatedSourceRevisionEntity.Kind.get -> string!
+NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.ReplicatedSourceRevisionEntity.Kind.init -> void
+NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.ReplicatedSourceRevisionEntity.Revision.get -> long
+NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.ReplicatedSourceRevisionEntity.Revision.set -> void
+NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.TenantEntity.KeyCustody.get -> string!
+NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.TenantEntity.KeyCustody.set -> void
+NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.TenantEntity.KeyCustodyCell.get -> string?
+NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.TenantEntity.KeyCustodyCell.set -> void

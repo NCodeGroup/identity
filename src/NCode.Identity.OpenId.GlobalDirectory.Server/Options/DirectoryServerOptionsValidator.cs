@@ -1,89 +1,98 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using System.Text.Json;
 using Microsoft.Extensions.Options;
 using NCode.Identity.OpenId.Tenants;
+using NCode.Identity.Secrets.Persistence;
 
 namespace NCode.Identity.OpenId.GlobalDirectory.Server.Options;
 
 /// <summary>
-/// Validates <see cref="DirectoryServerOptions"/>: the directory names the issuer of the control-plane cell, and the
-/// issuer is an absolute <c>https</c> URL (or an <c>http</c> URL on a loopback host) of at most
-/// <see cref="DirectoryLimits.MaxIssuerLength"/> characters with no user information, query or fragment, because the
-/// directory calls the issuer's discovery endpoint to validate a bearer token. The directory also names the
-/// control-plane cell, which alone writes the platform and team documents, by a cell name of the form
-/// <see cref="CellLabelRules"/> describes. It also names that cell's root tenant by an identifier that
-/// <see cref="TenantIdentifierRules.IsValidTenantId"/> accepts, which the directory holds for that cell. Every failure
-/// is reported at once; a refused cell name or tenant identifier is named in its message, because neither carries a
-/// secret, and no message repeats a configured issuer, which could carry a credential.
+/// Validates <see cref="DirectoryServerOptions"/>: the directory names its own issuer, its token key ring and the
+/// platform's trust anchor, and each issuer is an absolute <c>https</c> URL (or an <c>http</c> URL on a loopback host)
+/// of at most <see cref="DirectoryLimits.MaxIssuerLength"/> characters with no user information, query or fragment. The
+/// token lifetime lies between <see cref="DirectoryServerOptions.MinTokenLifetime"/> and
+/// <see cref="DirectoryServerOptions.MaxTokenLifetime"/>. The anchor names the control-plane cell, which alone writes
+/// the platform and team documents, by a cell name of the form <see cref="CellLabelRules"/> describes, with a region
+/// and a kind of the same form, and that cell's root tenant by an identifier that
+/// <see cref="TenantIdentifierRules.IsValidTenantId"/> accepts. Its client key set must be a public JSON Web Key Set
+/// that <see cref="IPublicJwksReader"/> reads. Every failure is reported at once; a refused token lifetime, cell name,
+/// region, kind or tenant identifier is named in its message, because none carries a secret, and no message repeats a
+/// configured issuer, which could carry a credential.
 /// </summary>
-internal sealed class DirectoryServerOptionsValidator : IValidateOptions<DirectoryServerOptions>
+internal sealed class DirectoryServerOptionsValidator(IPublicJwksReader jwksReader)
+    : IValidateOptions<DirectoryServerOptions>
 {
     /// <summary>
-    /// Gets the configuration key of <see cref="DirectoryServerOptions.Issuer"/>, which the messages that refuse it
-    /// name.
+    /// Builds the configuration key of a top-level option.
     /// </summary>
-    private static string IssuerKey =>
-        $"{DirectoryServerOptions.SectionName}:{nameof(DirectoryServerOptions.Issuer)}";
+    /// <param name="name">The name of the option.</param>
+    /// <returns>The key, which starts with the options section.</returns>
+    private static string Key(string name) => $"{DirectoryServerOptions.SectionName}:{name}";
 
     /// <summary>
-    /// Gets the configuration key of <see cref="DirectoryServerOptions.ControlPlaneCell"/>, which the messages that
-    /// refuse it name.
+    /// Adds a failure when a control-plane label is blank or is not a cell label that <see cref="CellLabelRules"/>
+    /// accepts.
     /// </summary>
-    private static string ControlPlaneCellKey =>
-        $"{DirectoryServerOptions.SectionName}:{nameof(DirectoryServerOptions.ControlPlaneCell)}";
-
-    /// <summary>
-    /// Gets the configuration key of <see cref="DirectoryServerOptions.ControlPlaneTenantId"/>, which the messages that
-    /// refuse it name.
-    /// </summary>
-    private static string ControlPlaneTenantIdKey =>
-        $"{DirectoryServerOptions.SectionName}:{nameof(DirectoryServerOptions.ControlPlaneTenantId)}";
-
-    /// <inheritdoc />
-    public ValidateOptionsResult Validate(string? name, DirectoryServerOptions options)
+    /// <param name="failures">The failures to add to.</param>
+    /// <param name="property">The name of the control-plane option.</param>
+    /// <param name="value">The value to check.</param>
+    private static void ValidateLabel(List<string> failures, string property, string value)
     {
-        List<string> failures = [];
+        var key = DirectoryControlPlaneOptions.GetConfigurationKey(property);
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            failures.Add($"{key} is required.");
+        }
+        else if (!CellLabelRules.IsValidLabel(value))
+        {
+            failures.Add(
+                $"{key} must be a cell label: {CellLabelRules.Description}; it is '{value}'."
+            );
+        }
+    }
 
-        var issuer = options.Issuer;
+    /// <summary>
+    /// Adds a failure when the control-plane cell's kind is blank or not a valid cell kind.
+    /// </summary>
+    /// <param name="failures">The failures to add to.</param>
+    /// <param name="value">The kind to check.</param>
+    private static void ValidateKind(List<string> failures, string value)
+    {
+        var key = DirectoryControlPlaneOptions.GetConfigurationKey(
+            nameof(DirectoryControlPlaneOptions.Kind)
+        );
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            failures.Add($"{key} is required.");
+        }
+        else if (!CellKindRules.IsValidKind(value))
+        {
+            failures.Add(
+                $"{key} must be a cell kind: {CellKindRules.Description}; it is '{value}'."
+            );
+        }
+    }
+
+    /// <summary>
+    /// Adds a failure when an issuer is blank or not an allowed issuer URL.
+    /// </summary>
+    /// <param name="failures">The failures to add to.</param>
+    /// <param name="key">The configuration key to name in a failure.</param>
+    /// <param name="issuer">The issuer to check.</param>
+    private static void ValidateIssuer(List<string> failures, string key, string issuer)
+    {
         if (string.IsNullOrWhiteSpace(issuer))
         {
-            failures.Add($"{IssuerKey} is required.");
+            failures.Add($"{key} is required.");
         }
         else if (!IsAllowedIssuer(issuer))
         {
             failures.Add(
-                $"{IssuerKey} must be an absolute https URL (or http on a loopback host) of at most {DirectoryLimits.MaxIssuerLength} characters with no user information, query or fragment."
+                $"{key} must be an absolute https URL (or http on a loopback host) of at most {DirectoryLimits.MaxIssuerLength} characters with no user information, query or fragment."
             );
         }
-
-        var controlPlaneCell = options.ControlPlaneCell;
-        if (string.IsNullOrWhiteSpace(controlPlaneCell))
-        {
-            failures.Add($"{ControlPlaneCellKey} is required.");
-        }
-        else if (!CellLabelRules.IsValidLabel(controlPlaneCell))
-        {
-            failures.Add(
-                $"{ControlPlaneCellKey} must be a cell name: {CellLabelRules.Description}; it is '{controlPlaneCell}'."
-            );
-        }
-
-        var controlPlaneTenantId = options.ControlPlaneTenantId;
-        if (string.IsNullOrWhiteSpace(controlPlaneTenantId))
-        {
-            failures.Add($"{ControlPlaneTenantIdKey} is required.");
-        }
-        else if (!TenantIdentifierRules.IsValidTenantId(controlPlaneTenantId))
-        {
-            failures.Add(
-                $"{ControlPlaneTenantIdKey} must be a tenant identifier: 1 to {TenantIdentifierRules.MaxTenantIdLength} lowercase letters, digits or hyphens that start and end with a letter or digit; it is '{controlPlaneTenantId}'."
-            );
-        }
-
-        return failures.Count > 0
-            ? ValidateOptionsResult.Fail(failures)
-            : ValidateOptionsResult.Success;
     }
 
     /// <summary>
@@ -95,4 +104,96 @@ internal sealed class DirectoryServerOptionsValidator : IValidateOptions<Directo
     private static bool IsAllowedIssuer(string issuer) =>
         issuer.Length <= DirectoryLimits.MaxIssuerLength
         && AbsoluteUri.TryParseServiceUrl(issuer, out _);
+
+    private IPublicJwksReader JwksReader { get; } = jwksReader;
+
+    /// <inheritdoc />
+    public ValidateOptionsResult Validate(string? name, DirectoryServerOptions options)
+    {
+        List<string> failures = [];
+
+        var issuerKey = Key(nameof(DirectoryServerOptions.Issuer));
+        ValidateIssuer(failures, issuerKey, options.Issuer);
+
+        if (string.IsNullOrWhiteSpace(options.KeyRing))
+        {
+            var keyRingKey = Key(nameof(DirectoryServerOptions.KeyRing));
+            failures.Add($"{keyRingKey} is required.");
+        }
+
+        var lifetime = options.TokenLifetime;
+        if (
+            lifetime < DirectoryServerOptions.MinTokenLifetime
+            || lifetime > DirectoryServerOptions.MaxTokenLifetime
+        )
+        {
+            var lifetimeKey = Key(nameof(DirectoryServerOptions.TokenLifetime));
+            failures.Add(
+                $"{lifetimeKey} must be between {DirectoryServerOptions.MinTokenLifetime} and {DirectoryServerOptions.MaxTokenLifetime}; it is {lifetime}."
+            );
+        }
+
+        var controlPlane = options.ControlPlane;
+
+        ValidateLabel(failures, nameof(DirectoryControlPlaneOptions.Cell), controlPlane.Cell);
+        ValidateLabel(failures, nameof(DirectoryControlPlaneOptions.Region), controlPlane.Region);
+        ValidateKind(failures, controlPlane.Kind);
+
+        var tenantIdKey = DirectoryControlPlaneOptions.GetConfigurationKey(
+            nameof(DirectoryControlPlaneOptions.TenantId)
+        );
+        var tenantId = controlPlane.TenantId;
+        if (string.IsNullOrWhiteSpace(tenantId))
+        {
+            failures.Add($"{tenantIdKey} is required.");
+        }
+        else if (!TenantIdentifierRules.IsValidTenantId(tenantId))
+        {
+            failures.Add(
+                $"{tenantIdKey} must be a tenant identifier: 1 to {TenantIdentifierRules.MaxTenantIdLength} lowercase letters, digits or hyphens that start and end with a letter or digit; it is '{tenantId}'."
+            );
+        }
+
+        var anchorIssuerKey = DirectoryControlPlaneOptions.GetConfigurationKey(
+            nameof(DirectoryControlPlaneOptions.Issuer)
+        );
+        ValidateIssuer(failures, anchorIssuerKey, controlPlane.Issuer);
+
+        ValidateClientJwks(failures, controlPlane.ClientJwks);
+
+        return failures.Count > 0
+            ? ValidateOptionsResult.Fail(failures)
+            : ValidateOptionsResult.Success;
+    }
+
+    /// <summary>
+    /// Adds a failure when the control plane's client key set is blank or not a public JSON Web Key Set.
+    /// </summary>
+    /// <param name="failures">The failures to add to.</param>
+    /// <param name="clientJwks">The key set to check.</param>
+    private void ValidateClientJwks(List<string> failures, string clientJwks)
+    {
+        var key = DirectoryControlPlaneOptions.GetConfigurationKey(
+            nameof(DirectoryControlPlaneOptions.ClientJwks)
+        );
+        if (string.IsNullOrWhiteSpace(clientJwks))
+        {
+            failures.Add($"{key} is required.");
+            return;
+        }
+
+        JsonElement jwks;
+        try
+        {
+            jwks = JsonElement.Parse(clientJwks);
+        }
+        catch (JsonException)
+        {
+            failures.Add($"{key} must be JSON.");
+            return;
+        }
+
+        if (!JwksReader.TryRead(jwks, out _, out var error))
+            failures.Add($"{key} must be a public JSON Web Key Set: {error}");
+    }
 }

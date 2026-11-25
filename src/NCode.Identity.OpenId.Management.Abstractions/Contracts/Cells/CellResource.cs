@@ -32,4 +32,15 @@ public sealed class CellResource
     /// Gets a value indicating whether the cell is the control-plane cell.
     /// </summary>
     public required bool IsControlPlane { get; init; }
+
+    /// <summary>
+    /// Gets a value indicating whether the control-plane cell registered the cell, so it can authenticate to the
+    /// directory.
+    /// </summary>
+    public required bool IsRegistered { get; init; }
+
+    /// <summary>
+    /// Gets a value indicating whether the cell is retired. A retired cell's name is never reissued.
+    /// </summary>
+    public required bool IsRetired { get; init; }
 }

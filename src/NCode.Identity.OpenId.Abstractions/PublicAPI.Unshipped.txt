@@ -1166,3 +1166,10 @@ NCode.Identity.OpenId.Connections.ResolvedConnection.Settings.get -> NCode.Ident
 NCode.Identity.OpenId.Connections.ResolvedConnection.Settings.init -> void
 NCode.Identity.OpenId.Connections.ResolvedConnection.Strategy.get -> NCode.Identity.OpenId.Connections.IConnectionStrategy!
 NCode.Identity.OpenId.Connections.ResolvedConnection.Strategy.init -> void
+NCode.Identity.OpenId.Tenants.Keys.IManagementKeyRevoker
+NCode.Identity.OpenId.Tenants.Keys.IManagementKeyRevoker.RevokeAsync(string! keyId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.Tenants.Keys.ManagementKeyRevocationResult!>
+NCode.Identity.OpenId.Tenants.Keys.ManagementKeyRevocationResult
+NCode.Identity.OpenId.Tenants.Keys.ManagementKeyRevocationResult.IsRevoked.get -> bool
+NCode.Identity.OpenId.Tenants.Keys.ManagementKeyRevocationResult.ReplacementKeyId.get -> string?
+static NCode.Identity.OpenId.Tenants.Keys.ManagementKeyRevocationResult.NotFound.get -> NCode.Identity.OpenId.Tenants.Keys.ManagementKeyRevocationResult!
+static NCode.Identity.OpenId.Tenants.Keys.ManagementKeyRevocationResult.Revoked(string! replacementKeyId) -> NCode.Identity.OpenId.Tenants.Keys.ManagementKeyRevocationResult!

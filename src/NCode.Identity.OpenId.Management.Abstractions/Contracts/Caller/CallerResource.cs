@@ -27,4 +27,10 @@ public sealed class CallerResource
     /// Gets the role assignments held by the caller's principal.
     /// </summary>
     public required IReadOnlyList<RoleAssignmentResource> Assignments { get; init; }
+
+    /// <summary>
+    /// Gets the roles the caller holds at the node of the cell that serves the request, including <c>GlobalAdmin</c>
+    /// when the platform authority grants it. It is empty outside a workload cell.
+    /// </summary>
+    public required IReadOnlyList<string> CellRoles { get; init; }
 }

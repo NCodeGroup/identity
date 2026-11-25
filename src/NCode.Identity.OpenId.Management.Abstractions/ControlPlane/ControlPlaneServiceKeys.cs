@@ -18,4 +18,11 @@ public static class ControlPlaneServiceKeys
     /// registered, and the control-plane cell never does.
     /// </summary>
     public const string Remote = "remote";
+
+    /// <summary>
+    /// The key of the local <see cref="IManagementTokenValidator"/>, which validates the management tokens of the
+    /// tenants that the cell itself holds, for a remote validator that routes a token between the control plane's
+    /// issuer and the cell's own tenants.
+    /// </summary>
+    public const string Local = "local";
 }

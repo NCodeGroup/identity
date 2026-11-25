@@ -1,0 +1,10 @@
+{{ include "identity-directory.fullname" . }} answers to {{ join ", " .Values.allowedHosts }} through the
+{{ include "identity-directory.fullname" . }} Service on port {{ .Values.service.port }}.
+
+The pod serves HTTPS on port 8443 with the certificate in the {{ include "identity-directory.backendTls.secretName" . }} Secret{{ if not .Values.backendTls.existingSecret }}, which cert-manager issues{{ end }}.
+
+The {{ include "identity-directory.migrationsJobName" . }} Job applied the directory's database migrations before the rollout.
+
+The directory issues tokens as {{ .Values.issuer }} and signs them with the {{ .Values.keyRing }} key ring. It accepts the
+control-plane cell {{ .Values.controlPlane.cell }} as the only writer of the platform and the teams. It runs one replica:
+it keeps its single-use state in process, so an update replaces the pod with downtime.

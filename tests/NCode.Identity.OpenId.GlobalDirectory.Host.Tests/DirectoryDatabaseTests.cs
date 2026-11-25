@@ -17,7 +17,7 @@ public sealed class DirectoryDatabaseTests
     private const string Username = "directory-user";
     private const string Password = "pa55-w0rd";
     private const string RuntimeRoleKey = "DirectoryMigration:RuntimeRole";
-    private const string InitialCreate = "20261119054838_InitialCreate";
+    private const string InitialCreate = "20261125123607_InitialCreate";
     private const string UnknownInitialCreate = "20261001000000_InitialCreate";
 
     private static IConfiguration CreateConfiguration(params (string Key, string? Value)[] pairs) =>

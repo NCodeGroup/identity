@@ -1,9 +1,10 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using System.Net;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Time.Testing;
-using Moq;
+using NCode.Buffers;
 using NCode.Identity.OpenId.Client;
 using Xunit;
 
@@ -11,13 +12,10 @@ namespace NCode.Identity.OpenId.GlobalDirectory.Tests;
 
 public class DefaultCellTokenSourceTests : BaseTests
 {
-    private const string Issuer = "https://control-plane.example.test";
+    private const string DirectoryUrl = "https://directory.example.test";
+    private const string TokenEndpoint = "https://directory.example.test/directory/v1/token";
     private const string ClientId = "cell-a";
     private const string KeyRing = "cell-a-ring";
-    private const string DirectoryAudience = "urn:ncode:directory";
-    private const string DirectoryScope = "directory";
-    private const string ControlPlaneAudience = "urn:ncode:control-plane";
-    private const string ControlPlaneScope = "control-plane";
 
     private static TimeSpan RequestTimeout { get; } = TimeSpan.FromSeconds(10);
 
@@ -29,298 +27,167 @@ public class DefaultCellTokenSourceTests : BaseTests
     private FakeTimeProvider TimeProvider { get; } =
         new(new DateTimeOffset(2030, 1, 1, 0, 0, 0, TimeSpan.Zero));
 
-    private Mock<ITokenClient> TokenClientMock { get; }
+    private StubHandler Handler { get; } = new();
+
+    private FakeAuthenticator Authenticator { get; } = new();
 
     private DefaultCellTokenSource TokenSource { get; }
 
     public DefaultCellTokenSourceTests()
     {
-        TokenClientMock = CreateStrictMock<ITokenClient>();
+        var factoryMock = CreateStrictMock<IHttpClientFactory>();
+        factoryMock
+            .Setup(x => x.CreateClient(DirectoryClientDefaults.HttpClientName))
+            .Returns(() => new HttpClient(Handler, disposeHandler: false));
+
         TokenSource = new DefaultCellTokenSource(
-            TokenClientMock.Object,
+            factoryMock.Object,
+            [Authenticator],
             Options.Create(
                 new DirectoryClientOptions
                 {
+                    Url = DirectoryUrl,
                     ClientId = ClientId,
                     KeyRing = KeyRing,
-                    TokenRequestTimeout = RequestTimeout,
+                    TotalTimeout = RequestTimeout,
                     TokenFailureCacheDuration = FailureCacheDuration,
                 }
-            ),
-            Options.Create(
-                new CellOptions { ControlPlane = new ControlPlaneOptions { Issuer = Issuer } }
             ),
             TimeProvider
         );
     }
 
-    private static TokenResult CreateSuccess(string accessToken, int? expiresIn) =>
-        new(
-            new TokenResponse
-            {
-                AccessToken = accessToken,
-                TokenType = "Bearer",
-                ExpiresIn = expiresIn,
-            }
-        );
+    private static HttpResponseMessage CreateSuccess(string accessToken, int? expiresIn)
+    {
+        var expiresInText = expiresIn is null ? string.Empty : $",\"expires_in\":{expiresIn}";
+        var json =
+            $"{{\"access_token\":\"{accessToken}\",\"token_type\":\"Bearer\"{expiresInText}}}";
+        return Json(HttpStatusCode.OK, json);
+    }
+
+    private static HttpResponseMessage Json(HttpStatusCode status, string json) =>
+        new(status) { Content = new StringContent(json, SecureEncoding.UTF8, "application/json") };
 
     #region GetAccessTokenAsync Tests
 
     [Fact]
-    public async Task GetAccessTokenAsync_WhenCalled_RequestsTheGivenAudienceAndScope()
+    public async Task GetAccessTokenAsync_WhenCalled_PostsTheClientCredentialsGrantToTheDirectoryTokenEndpoint()
     {
-        ClientRegistration? registration = null;
-        TokenRequest? request = null;
-        TokenClientMock
-            .Setup(x =>
-                x.RequestTokenAsync(
-                    It.IsAny<ClientRegistration>(),
-                    It.IsAny<TokenRequest>(),
-                    It.IsAny<CancellationToken>()
-                )
-            )
-            .Returns(
-                (ClientRegistration r, TokenRequest t, CancellationToken _) =>
-                {
-                    registration = r;
-                    request = t;
-                    return new ValueTask<TokenResult>(CreateSuccess("token-1", 300));
-                }
-            )
-            .Verifiable(Times.Once);
+        Handler.Respond = (_, _) => Task.FromResult(CreateSuccess("token-1", 300));
 
-        var token = await TokenSource.GetAccessTokenAsync(
-            DirectoryAudience,
-            DirectoryScope,
-            CancellationToken.None
-        );
+        var token = await TokenSource.GetAccessTokenAsync(CancellationToken.None);
 
         Assert.Equal("token-1", token);
-        Assert.NotNull(request);
-        Assert.IsType<ClientCredentialsTokenRequest>(request);
-        Assert.Equal([DirectoryAudience], request.Resources);
-        Assert.Equal(DirectoryScope, request.Scope);
-        Assert.NotNull(registration);
-        Assert.Equal(Issuer, registration.Authority);
-        Assert.Equal(ClientId, registration.ClientId);
-        Assert.Equal(KeyRing, registration.KeyRing);
+        var request = Assert.Single(Handler.Requests);
+        Assert.Equal(HttpMethod.Post, request.Method);
+        Assert.Equal(TokenEndpoint, request.Uri);
+        Assert.Contains(
+            new KeyValuePair<string, string>(
+                OpenIdProtocol.Parameters.GrantType,
+                OpenIdProtocol.GrantTypes.ClientCredentials
+            ),
+            request.Form
+        );
+        Assert.Contains(
+            new KeyValuePair<string, string>(
+                OpenIdProtocol.Parameters.ClientAssertion,
+                "assertion"
+            ),
+            request.Form
+        );
+
+        var context = Assert.Single(Authenticator.Contexts);
+        Assert.Equal(ClientId, context.Registration.ClientId);
+        Assert.Equal(KeyRing, context.Registration.KeyRing);
+        Assert.Equal(DirectoryUrl, context.Registration.Authority);
         Assert.Equal(
             OpenIdProtocol.ClientAuthenticationMethods.PrivateKeyJwt,
-            registration.AuthenticationMethod
+            context.Registration.AuthenticationMethod
         );
+        Assert.Equal(DirectoryUrl, context.Metadata.Issuer);
+        Assert.Equal(TokenEndpoint, context.Metadata.TokenEndpoint);
+        Assert.Equal(
+            GlobalDirectoryProtocol.ClientAssertionSigningAlgorithms,
+            context.Metadata.TokenEndpointAuthSigningAlgValuesSupported
+        );
+        Assert.Equal(TokenEndpoint, context.Endpoint);
     }
 
     [Fact]
     public async Task GetAccessTokenAsync_WhenTheTokenIsStillFresh_ReusesTheToken()
     {
-        TokenClientMock
-            .Setup(x =>
-                x.RequestTokenAsync(
-                    It.IsAny<ClientRegistration>(),
-                    It.IsAny<TokenRequest>(),
-                    It.IsAny<CancellationToken>()
-                )
-            )
-            .Returns(new ValueTask<TokenResult>(CreateSuccess("token-1", 300)))
-            .Verifiable(Times.Once);
+        Handler.Respond = (_, _) => Task.FromResult(CreateSuccess("token-1", 300));
 
-        var first = await TokenSource.GetAccessTokenAsync(
-            DirectoryAudience,
-            DirectoryScope,
-            CancellationToken.None
-        );
+        var first = await TokenSource.GetAccessTokenAsync(CancellationToken.None);
         TimeProvider.Advance(TimeSpan.FromSeconds(200));
-        var second = await TokenSource.GetAccessTokenAsync(
-            DirectoryAudience,
-            DirectoryScope,
-            CancellationToken.None
-        );
+        var second = await TokenSource.GetAccessTokenAsync(CancellationToken.None);
 
         Assert.Equal("token-1", first);
         Assert.Equal("token-1", second);
+        Assert.Single(Handler.Requests);
     }
 
     [Fact]
     public async Task GetAccessTokenAsync_WhenTheTokenIsNearExpiry_RequestsANewToken()
     {
         var requests = 0;
-        TokenClientMock
-            .Setup(x =>
-                x.RequestTokenAsync(
-                    It.IsAny<ClientRegistration>(),
-                    It.IsAny<TokenRequest>(),
-                    It.IsAny<CancellationToken>()
-                )
-            )
-            .Returns(() => new ValueTask<TokenResult>(CreateSuccess($"token-{++requests}", 300)))
-            .Verifiable(Times.Exactly(2));
+        Handler.Respond = (_, _) =>
+            Task.FromResult(CreateSuccess($"token-{Interlocked.Increment(ref requests)}", 300));
 
-        var first = await TokenSource.GetAccessTokenAsync(
-            DirectoryAudience,
-            DirectoryScope,
-            CancellationToken.None
-        );
+        var first = await TokenSource.GetAccessTokenAsync(CancellationToken.None);
         TimeProvider.Advance(TimeSpan.FromSeconds(280));
-        var second = await TokenSource.GetAccessTokenAsync(
-            DirectoryAudience,
-            DirectoryScope,
-            CancellationToken.None
-        );
+        var second = await TokenSource.GetAccessTokenAsync(CancellationToken.None);
 
         Assert.Equal("token-1", first);
         Assert.Equal("token-2", second);
+        Assert.Equal(2, Handler.Requests.Count);
     }
 
     [Fact]
-    public async Task GetAccessTokenAsync_WhenTwoAudiencesAreAsked_RequestsAndCachesEachToken()
+    public async Task GetAccessTokenAsync_WhenTheDirectoryAnswersInvalidClient_ThrowsClientNotRegistered()
     {
-        var requests = new List<TokenRequest>();
-        TokenClientMock
-            .Setup(x =>
-                x.RequestTokenAsync(
-                    It.IsAny<ClientRegistration>(),
-                    It.IsAny<TokenRequest>(),
-                    It.IsAny<CancellationToken>()
-                )
-            )
-            .Returns(
-                (ClientRegistration _, TokenRequest t, CancellationToken _) =>
-                {
-                    requests.Add(t);
-                    return new ValueTask<TokenResult>(
-                        CreateSuccess($"token-{requests.Count}", 300)
-                    );
-                }
-            )
-            .Verifiable(Times.Exactly(2));
+        Handler.Respond = (_, _) =>
+            Task.FromResult(Json(HttpStatusCode.Unauthorized, "{\"error\":\"invalid_client\"}"));
 
-        var directory = await TokenSource.GetAccessTokenAsync(
-            DirectoryAudience,
-            DirectoryScope,
-            CancellationToken.None
+        await Assert.ThrowsAsync<DirectoryClientNotRegisteredException>(async () =>
+            await TokenSource.GetAccessTokenAsync(CancellationToken.None)
         );
-        var controlPlane = await TokenSource.GetAccessTokenAsync(
-            ControlPlaneAudience,
-            ControlPlaneScope,
-            CancellationToken.None
-        );
-        var directoryAgain = await TokenSource.GetAccessTokenAsync(
-            DirectoryAudience,
-            DirectoryScope,
-            CancellationToken.None
-        );
-        var controlPlaneAgain = await TokenSource.GetAccessTokenAsync(
-            ControlPlaneAudience,
-            ControlPlaneScope,
-            CancellationToken.None
-        );
-
-        Assert.Equal("token-1", directory);
-        Assert.Equal("token-2", controlPlane);
-        Assert.Equal(directory, directoryAgain);
-        Assert.Equal(controlPlane, controlPlaneAgain);
-        Assert.Equal(2, requests.Count);
-        Assert.Equal([DirectoryAudience], requests[0].Resources);
-        Assert.Equal(DirectoryScope, requests[0].Scope);
-        Assert.Equal([ControlPlaneAudience], requests[1].Resources);
-        Assert.Equal(ControlPlaneScope, requests[1].Scope);
     }
 
     [Fact]
-    public async Task GetAccessTokenAsync_WhileAnotherAudienceIsRequested_ReturnsTheCachedToken()
+    public async Task GetAccessTokenAsync_WhenTheDirectoryRefusesOtherwise_ThrowsDirectoryUnavailable()
     {
-        var pending = new TaskCompletionSource<TokenResult>(
-            TaskCreationOptions.RunContinuationsAsynchronously
-        );
-        TokenClientMock
-            .Setup(x =>
-                x.RequestTokenAsync(
-                    It.IsAny<ClientRegistration>(),
-                    It.Is<TokenRequest>(r => r.Scope == ControlPlaneScope),
-                    It.IsAny<CancellationToken>()
-                )
-            )
-            .Returns(new ValueTask<TokenResult>(CreateSuccess("control-plane-token", 300)))
-            .Verifiable(Times.Once);
-        TokenClientMock
-            .Setup(x =>
-                x.RequestTokenAsync(
-                    It.IsAny<ClientRegistration>(),
-                    It.Is<TokenRequest>(r => r.Scope == DirectoryScope),
-                    It.IsAny<CancellationToken>()
-                )
-            )
-            .Returns(new ValueTask<TokenResult>(pending.Task))
-            .Verifiable(Times.Once);
-
-        var cached = await TokenSource.GetAccessTokenAsync(
-            ControlPlaneAudience,
-            ControlPlaneScope,
-            CancellationToken.None
-        );
-        var directoryTask = TokenSource
-            .GetAccessTokenAsync(DirectoryAudience, DirectoryScope, CancellationToken.None)
-            .AsTask();
-
-        var controlPlaneTask = TokenSource
-            .GetAccessTokenAsync(ControlPlaneAudience, ControlPlaneScope, CancellationToken.None)
-            .AsTask();
-
-        Assert.True(controlPlaneTask.IsCompletedSuccessfully);
-        Assert.False(directoryTask.IsCompleted);
-        Assert.Equal(cached, await controlPlaneTask);
-
-        pending.SetResult(CreateSuccess("directory-token", 300));
-        Assert.Equal("directory-token", await directoryTask);
-    }
-
-    [Fact]
-    public async Task GetAccessTokenAsync_WhenTheControlPlaneRefusesTheRequest_ThrowsDirectoryUnavailable()
-    {
-        var error = new TokenResult(new ProtocolError("invalid_client", 401));
-        TokenClientMock
-            .Setup(x =>
-                x.RequestTokenAsync(
-                    It.IsAny<ClientRegistration>(),
-                    It.IsAny<TokenRequest>(),
-                    It.IsAny<CancellationToken>()
-                )
-            )
-            .Returns(new ValueTask<TokenResult>(error))
-            .Verifiable(Times.Once);
+        Handler.Respond = (_, _) =>
+            Task.FromResult(Json(HttpStatusCode.BadRequest, "{\"error\":\"invalid_request\"}"));
 
         var exception = await Assert.ThrowsAsync<DirectoryUnavailableException>(async () =>
-            await TokenSource.GetAccessTokenAsync(
-                ControlPlaneAudience,
-                ControlPlaneScope,
-                CancellationToken.None
-            )
+            await TokenSource.GetAccessTokenAsync(CancellationToken.None)
         );
 
-        Assert.Contains(ControlPlaneAudience, exception.Message);
+        Assert.IsNotType<DirectoryClientNotRegisteredException>(exception);
+        Assert.Contains("invalid_request", exception.Message);
+    }
+
+    [Fact]
+    public async Task GetAccessTokenAsync_WhenTheEndpointCannotBeReached_ThrowsDirectoryUnavailable()
+    {
+        Handler.Respond = (_, _) => throw new HttpRequestException("connection refused");
+
+        await Assert.ThrowsAsync<DirectoryUnavailableException>(async () =>
+            await TokenSource.GetAccessTokenAsync(CancellationToken.None)
+        );
     }
 
     [Fact]
     public async Task GetAccessTokenAsync_WhenTheResponseHasNoAccessToken_ThrowsDirectoryUnavailable()
     {
-        var response = new TokenResult(new TokenResponse { TokenType = "Bearer", ExpiresIn = 300 });
-        TokenClientMock
-            .Setup(x =>
-                x.RequestTokenAsync(
-                    It.IsAny<ClientRegistration>(),
-                    It.IsAny<TokenRequest>(),
-                    It.IsAny<CancellationToken>()
-                )
-            )
-            .Returns(new ValueTask<TokenResult>(response))
-            .Verifiable(Times.Once);
+        Handler.Respond = (_, _) =>
+            Task.FromResult(
+                Json(HttpStatusCode.OK, "{\"token_type\":\"Bearer\",\"expires_in\":300}")
+            );
 
         await Assert.ThrowsAsync<DirectoryUnavailableException>(async () =>
-            await TokenSource.GetAccessTokenAsync(
-                DirectoryAudience,
-                DirectoryScope,
-                CancellationToken.None
-            )
+            await TokenSource.GetAccessTokenAsync(CancellationToken.None)
         );
     }
 
@@ -332,65 +199,35 @@ public class DefaultCellTokenSourceTests : BaseTests
         int? expiresIn
     )
     {
-        TokenClientMock
-            .Setup(x =>
-                x.RequestTokenAsync(
-                    It.IsAny<ClientRegistration>(),
-                    It.IsAny<TokenRequest>(),
-                    It.IsAny<CancellationToken>()
-                )
-            )
-            .Returns(new ValueTask<TokenResult>(CreateSuccess("token-1", expiresIn)))
-            .Verifiable(Times.Once);
+        Handler.Respond = (_, _) => Task.FromResult(CreateSuccess("token-1", expiresIn));
 
         var exception = await Assert.ThrowsAsync<DirectoryUnavailableException>(async () =>
-            await TokenSource.GetAccessTokenAsync(
-                DirectoryAudience,
-                DirectoryScope,
-                CancellationToken.None
-            )
+            await TokenSource.GetAccessTokenAsync(CancellationToken.None)
         );
 
-        Assert.Contains(DirectoryAudience, exception.Message);
         Assert.Contains(OpenIdProtocol.Parameters.ExpiresIn, exception.Message);
     }
 
     [Fact]
     public async Task GetAccessTokenAsync_WhenTheFirstCallerCancels_TheSharedRequestCompletesForTheOthers()
     {
-        var pending = new TaskCompletionSource<TokenResult>(
+        var pending = new TaskCompletionSource<HttpResponseMessage>(
             TaskCreationOptions.RunContinuationsAsynchronously
         );
         var requestTokens = new List<CancellationToken>();
-        TokenClientMock
-            .Setup(x =>
-                x.RequestTokenAsync(
-                    It.IsAny<ClientRegistration>(),
-                    It.IsAny<TokenRequest>(),
-                    It.IsAny<CancellationToken>()
-                )
-            )
-            .Returns(
-                (ClientRegistration _, TokenRequest _, CancellationToken token) =>
-                {
-                    requestTokens.Add(token);
-                    return new ValueTask<TokenResult>(pending.Task.WaitAsync(token));
-                }
-            )
-            .Verifiable(Times.Once);
+        Handler.Respond = (_, token) =>
+        {
+            requestTokens.Add(token);
+            return pending.Task.WaitAsync(token);
+        };
         using var firstCaller = new CancellationTokenSource();
 
-        var first = TokenSource
-            .GetAccessTokenAsync(DirectoryAudience, DirectoryScope, firstCaller.Token)
-            .AsTask();
-        var second = TokenSource
-            .GetAccessTokenAsync(DirectoryAudience, DirectoryScope, CancellationToken.None)
-            .AsTask();
+        var first = TokenSource.GetAccessTokenAsync(firstCaller.Token).AsTask();
+        var second = TokenSource.GetAccessTokenAsync(CancellationToken.None).AsTask();
         await firstCaller.CancelAsync();
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => first.WaitAsync(HangGuard));
         var requestToken = Assert.Single(requestTokens);
-        Assert.NotEqual(firstCaller.Token, requestToken);
         Assert.False(requestToken.IsCancellationRequested);
         Assert.False(second.IsCompleted);
 
@@ -401,112 +238,60 @@ public class DefaultCellTokenSourceTests : BaseTests
     [Fact]
     public async Task GetAccessTokenAsync_WhenTheRequestOutlastsItsTimeLimit_ThrowsDirectoryUnavailable()
     {
-        var pending = new TaskCompletionSource<TokenResult>(
+        var pending = new TaskCompletionSource<HttpResponseMessage>(
             TaskCreationOptions.RunContinuationsAsynchronously
         );
-        TokenClientMock
-            .Setup(x =>
-                x.RequestTokenAsync(
-                    It.IsAny<ClientRegistration>(),
-                    It.IsAny<TokenRequest>(),
-                    It.IsAny<CancellationToken>()
-                )
-            )
-            .Returns(
-                (ClientRegistration _, TokenRequest _, CancellationToken token) =>
-                {
-                    token.Register(() => pending.TrySetCanceled(token));
-                    return new ValueTask<TokenResult>(pending.Task);
-                }
-            )
-            .Verifiable(Times.Once);
+        Handler.Respond = (_, token) =>
+        {
+            token.Register(() => pending.TrySetCanceled(token));
+            return pending.Task;
+        };
 
-        var call = TokenSource
-            .GetAccessTokenAsync(DirectoryAudience, DirectoryScope, CancellationToken.None)
-            .AsTask();
+        var call = TokenSource.GetAccessTokenAsync(CancellationToken.None).AsTask();
         TimeProvider.Advance(RequestTimeout);
 
-        var exception = await Assert.ThrowsAsync<DirectoryUnavailableException>(() =>
-            call.WaitAsync(HangGuard)
-        );
-        Assert.Contains(DirectoryAudience, exception.Message);
+        await Assert.ThrowsAsync<DirectoryUnavailableException>(() => call.WaitAsync(HangGuard));
         await Assert.ThrowsAsync<DirectoryUnavailableException>(async () =>
-            await TokenSource.GetAccessTokenAsync(
-                DirectoryAudience,
-                DirectoryScope,
-                CancellationToken.None
-            )
+            await TokenSource.GetAccessTokenAsync(CancellationToken.None)
         );
     }
 
     [Fact]
     public async Task GetAccessTokenAsync_WithinTheFailureWindow_ThrowsWithoutRequesting()
     {
-        var error = new TokenResult(new ProtocolError("invalid_client", 401));
-        TokenClientMock
-            .Setup(x =>
-                x.RequestTokenAsync(
-                    It.IsAny<ClientRegistration>(),
-                    It.IsAny<TokenRequest>(),
-                    It.IsAny<CancellationToken>()
-                )
-            )
-            .Returns(new ValueTask<TokenResult>(error))
-            .Verifiable(Times.Once);
+        Handler.Respond = (_, _) =>
+            Task.FromResult(Json(HttpStatusCode.Unauthorized, "{\"error\":\"invalid_client\"}"));
 
-        await Assert.ThrowsAsync<DirectoryUnavailableException>(async () =>
-            await TokenSource.GetAccessTokenAsync(
-                DirectoryAudience,
-                DirectoryScope,
-                CancellationToken.None
-            )
+        await Assert.ThrowsAsync<DirectoryClientNotRegisteredException>(async () =>
+            await TokenSource.GetAccessTokenAsync(CancellationToken.None)
         );
         TimeProvider.Advance(FailureCacheDuration - TimeSpan.FromMilliseconds(1));
 
         var exception = await Assert.ThrowsAsync<DirectoryUnavailableException>(async () =>
-            await TokenSource.GetAccessTokenAsync(
-                DirectoryAudience,
-                DirectoryScope,
-                CancellationToken.None
-            )
+            await TokenSource.GetAccessTokenAsync(CancellationToken.None)
         );
 
         Assert.Contains("failed moments ago", exception.Message);
-        Assert.Contains(DirectoryAudience, exception.Message);
+        Assert.Single(Handler.Requests);
     }
 
     [Fact]
     public async Task GetAccessTokenAsync_AfterTheFailureWindow_RequestsAgain()
     {
-        var error = new TokenResult(new ProtocolError("invalid_client", 401));
         var requests = 0;
-        TokenClientMock
-            .Setup(x =>
-                x.RequestTokenAsync(
-                    It.IsAny<ClientRegistration>(),
-                    It.IsAny<TokenRequest>(),
-                    It.IsAny<CancellationToken>()
-                )
-            )
-            .Returns(() =>
-                new ValueTask<TokenResult>(++requests == 1 ? error : CreateSuccess("token-2", 300))
-            )
-            .Verifiable(Times.Exactly(2));
+        Handler.Respond = (_, _) =>
+            Task.FromResult(
+                Interlocked.Increment(ref requests) == 1
+                    ? Json(HttpStatusCode.Unauthorized, "{\"error\":\"invalid_client\"}")
+                    : CreateSuccess("token-2", 300)
+            );
 
-        await Assert.ThrowsAsync<DirectoryUnavailableException>(async () =>
-            await TokenSource.GetAccessTokenAsync(
-                DirectoryAudience,
-                DirectoryScope,
-                CancellationToken.None
-            )
+        await Assert.ThrowsAsync<DirectoryClientNotRegisteredException>(async () =>
+            await TokenSource.GetAccessTokenAsync(CancellationToken.None)
         );
         TimeProvider.Advance(FailureCacheDuration);
 
-        var token = await TokenSource.GetAccessTokenAsync(
-            DirectoryAudience,
-            DirectoryScope,
-            CancellationToken.None
-        );
+        var token = await TokenSource.GetAccessTokenAsync(CancellationToken.None);
 
         Assert.Equal("token-2", token);
     }
@@ -518,13 +303,77 @@ public class DefaultCellTokenSourceTests : BaseTests
         await cancellation.CancelAsync();
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(async () =>
-            await TokenSource.GetAccessTokenAsync(
-                DirectoryAudience,
-                DirectoryScope,
-                cancellation.Token
-            )
+            await TokenSource.GetAccessTokenAsync(cancellation.Token)
         );
+
+        Assert.Empty(Handler.Requests);
     }
 
     #endregion
+
+    private sealed record RecordedRequest(
+        HttpMethod Method,
+        string Uri,
+        List<KeyValuePair<string, string>> Form
+    );
+
+    private sealed class StubHandler : HttpMessageHandler
+    {
+        public List<RecordedRequest> Requests { get; } = [];
+
+        public Func<
+            HttpRequestMessage,
+            CancellationToken,
+            Task<HttpResponseMessage>
+        > Respond { get; set; } =
+            (_, _) => throw new InvalidOperationException("No response is set up.");
+
+        protected override async Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken
+        )
+        {
+            var form = new List<KeyValuePair<string, string>>();
+            if (request.Content is { } content)
+            {
+                var text = await content.ReadAsStringAsync(cancellationToken);
+                foreach (var pair in text.Split('&', StringSplitOptions.RemoveEmptyEntries))
+                {
+                    var parts = pair.Split('=', 2);
+                    var key = Uri.UnescapeDataString(parts[0]);
+                    var value = parts.Length > 1 ? Uri.UnescapeDataString(parts[1]) : string.Empty;
+                    form.Add(new KeyValuePair<string, string>(key, value));
+                }
+            }
+
+            Requests.Add(
+                new RecordedRequest(request.Method, request.RequestUri!.AbsoluteUri, form)
+            );
+            return await Respond(request, cancellationToken);
+        }
+    }
+
+    private sealed class FakeAuthenticator : IClientAuthenticator
+    {
+        public List<ClientAuthenticationContext> Contexts { get; } = [];
+
+        public string MethodName => OpenIdProtocol.ClientAuthenticationMethods.PrivateKeyJwt;
+
+        public bool UsesMutualTls => false;
+
+        public ValueTask AuthenticateAsync(
+            ClientAuthenticationContext context,
+            CancellationToken cancellationToken
+        )
+        {
+            Contexts.Add(context);
+            context.Parameters.Add(
+                new KeyValuePair<string, string>(
+                    OpenIdProtocol.Parameters.ClientAssertion,
+                    "assertion"
+                )
+            );
+            return ValueTask.CompletedTask;
+        }
+    }
 }

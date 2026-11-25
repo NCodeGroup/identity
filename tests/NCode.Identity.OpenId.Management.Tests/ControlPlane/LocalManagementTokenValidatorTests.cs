@@ -5,6 +5,7 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
 using NCode.Identity.OpenId.Authentication.Tokens.Commands;
 using NCode.Identity.OpenId.Contexts;
+using NCode.Identity.OpenId.GlobalDirectory;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.PrincipalResolution;
 using NCode.Mediator;
@@ -25,6 +26,8 @@ public sealed class LocalManagementTokenValidatorTests : IDisposable
 
     private DefaultHttpContext HttpContext { get; } = new();
 
+    private Mock<IPlatformTopology> MockTopology { get; }
+
     private LocalManagementTokenValidator Validator { get; }
 
     public LocalManagementTokenValidatorTests()
@@ -33,8 +36,14 @@ public sealed class LocalManagementTokenValidatorTests : IDisposable
         MockMediator = MockRepository.Create<IMediator>();
         MockContext = MockRepository.Create<OpenIdContext>();
 
-        Validator = new LocalManagementTokenValidator(MockClientPrincipalResolver.Object);
+        MockTopology = MockRepository.Create<IPlatformTopology>();
+        MockTopology.Setup(x => x.HasDirectory).Returns(false);
+
+        Validator = CreateValidator();
     }
+
+    private LocalManagementTokenValidator CreateValidator() =>
+        new(MockClientPrincipalResolver.Object, MockTopology.Object);
 
     private void SetupOpenIdContext()
     {
@@ -144,6 +153,64 @@ public sealed class LocalManagementTokenValidatorTests : IDisposable
         var validation = await Validator.ValidateAsync(HttpContext, CancellationToken.None);
 
         Assert.Same(ManagementTokenValidation.Unauthenticated, validation);
+    }
+
+    [Theory]
+    [InlineData("Bearer access-token", null)]
+    [InlineData("DPoP access-token", null)]
+    [InlineData("DPoP access-token", "{}")]
+    [InlineData("DPoP access-token", "not-json")]
+    public async Task ValidateAsync_WhenThePlatformHasADirectory_RefusesAnUnboundOrBearerToken(
+        string authorization,
+        string? confirmation
+    )
+    {
+        MockTopology.Setup(x => x.HasDirectory).Returns(true);
+        SetupOpenIdContext();
+        HttpContext.Request.Headers.Authorization = authorization;
+        var identity = new ClaimsIdentity("DPoP");
+        if (confirmation is not null)
+            identity.AddClaim(new Claim("cnf", confirmation));
+        if (authorization.StartsWith("DPoP", StringComparison.Ordinal))
+        {
+            var disposition = new AuthenticateAccessTokenDisposition(new ClaimsPrincipal(identity));
+            SetupAuthentication(disposition);
+        }
+
+        var validator = CreateValidator();
+        var validation = await validator.ValidateAsync(HttpContext, CancellationToken.None);
+
+        Assert.Same(ManagementTokenValidation.Unauthenticated, validation);
+    }
+
+    [Fact]
+    public async Task ValidateAsync_WhenThePlatformHasADirectory_AcceptsADPoPBoundToken()
+    {
+        MockTopology.Setup(x => x.HasDirectory).Returns(true);
+        SetupOpenIdContext();
+        HttpContext.Request.Headers.Authorization = "DPoP access-token";
+        var identity = new ClaimsIdentity("DPoP");
+        identity.AddClaim(new Claim("cnf", """{"jkt":"thumbprint"}"""));
+        var principal = new ClaimsPrincipal(identity);
+        SetupAuthentication(new AuthenticateAccessTokenDisposition(principal));
+
+        var noClient = new ValueTask<PersistedClient?>((PersistedClient?)null);
+        MockClientPrincipalResolver
+            .Setup(x =>
+                x.GetActingClientOrDefaultAsync(
+                    It.IsAny<OpenIdContext>(),
+                    principal,
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .Returns(noClient)
+            .Verifiable();
+
+        var validator = CreateValidator();
+        var validation = await validator.ValidateAsync(HttpContext, CancellationToken.None);
+
+        Assert.True(validation.IsAuthenticated);
+        Assert.Same(principal, validation.Principal);
     }
 
     #endregion

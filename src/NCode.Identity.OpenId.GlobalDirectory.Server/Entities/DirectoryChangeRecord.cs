@@ -4,8 +4,8 @@
 namespace NCode.Identity.OpenId.GlobalDirectory.Server.Entities;
 
 /// <summary>
-/// Represents an entity framework data contract for one change that the cells mirror: a team publish, a team retire or
-/// a platform publish. The <see cref="Sequence"/> orders the changes.
+/// Represents an entity framework data contract for one change that the cells mirror: a team publish, a team retire, a
+/// platform publish or a replicated document. The <see cref="Sequence"/> orders the changes.
 /// </summary>
 public sealed class DirectoryChangeRecord
 {
@@ -29,4 +29,23 @@ public sealed class DirectoryChangeRecord
     /// </remarks>
     // See ADR-1411.
     public string? DocumentJson { get; set; }
+
+    /// <summary>
+    /// Gets or sets the kind of the replicated document that the change carries, or <c>null</c> for a team or platform
+    /// change.
+    /// </summary>
+    public string? DocumentKind { get; set; }
+
+    /// <summary>
+    /// Gets or sets the key of the replicated document that the change carries, or <c>null</c> for a team or platform
+    /// change.
+    /// </summary>
+    public string? DocumentKey { get; set; }
+
+    /// <summary>
+    /// Gets or sets the revision of the replicated document that the change carries, or <c>null</c> for a team or
+    /// platform change. For a replicated change, <see cref="DocumentJson"/> is the publishing cell's envelope, relayed
+    /// as is.
+    /// </summary>
+    public long? Revision { get; set; }
 }

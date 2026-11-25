@@ -104,10 +104,10 @@ returned committed row, so the tenant's system resource servers exist before its
 
 The root tenant is the control-plane tenant the selected strategy names through
 `ITenantStrategy.GetControlPlaneTenantId` and `GetControlPlaneTenantDisplayName`. The control-plane cell seeds it in the
-root plane, so it holds the management resource server's control-plane families, `urn:ncode:directory` and
-`urn:ncode:control-plane`. Every other cell seeds its root tenant in the workload plane: that cell validates management
-tokens against the control-plane cell and maps no platform or team route, and its root tenant serves as the context of
-its management requests and the tenant of its platform events. Under the host and path strategies
+root plane, so it holds the management resource server's control-plane families. Every other cell seeds its root tenant
+in the workload plane: that cell validates management tokens against the authority and keys it replicates from the
+control-plane cell and maps no platform or team route, and its root tenant serves as the context of its management
+requests and the tenant of its platform events. Under the host and path strategies
 `TenantResolution:Root` names it: `TenantId`, default `root`, `DisplayName`, default `Root Tenant`, `Issuer` and
 `MtlsEndpointAliasAuthority`. Under the static strategy its own tenant is the root tenant, and the host refuses those
 four settings at startup. `Root:TeamId` and `Root:TeamDisplayName` name the platform's team under every strategy.
@@ -123,8 +123,6 @@ on their next seed:
 - `OpenIdIdentityResourceServerSeedHandler` seeds the OpenID identity resource server.
 - `ManagementResourceServerSeedHandler` seeds the management resource server, with the control-plane families only
   when `Plane == Root`.
-- `ControlPlaneResourceServerSeedHandler` seeds `urn:ncode:directory` and `urn:ncode:control-plane` when
-  `Plane == Root`.
 - `TenantKeySeedHandler` provisions the tenant's keys
   ([ADR-1169](1169-every-tenant-is-provisioned-with-a-persisted-key-for-each-configured-algorithm-it-uses.md)).
 - `BootstrapAdminSeedHandler` seeds the development bootstrap client.

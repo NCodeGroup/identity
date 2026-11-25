@@ -11,7 +11,7 @@ public sealed class DefaultDirectoryStoreTenantTests : DefaultDirectoryStoreTest
 {
     private async ValueTask RegisterCellAsync(CancellationToken cancellationToken = default)
     {
-        await Cells.RegisterAsync(
+        await ReportCellAsync(
             new CellDescriptor
             {
                 Name = CellName,
@@ -128,6 +128,46 @@ public sealed class DefaultDirectoryStoreTenantTests : DefaultDirectoryStoreTest
         );
         Assert.Null(await Tenants.GetPlacementOrDefaultAsync(TenantId, CancellationToken.None));
         Assert.True(await Tenants.IsTenantIdRetiredAsync(TenantId, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task PlaceAsync_WhenTheCellIsTheControlPlaneCellAndTheTenantIsNotItsRootTenant_Conflicts()
+    {
+        Assert.True((await ReserveAsync(TenantId, Issuer)).IsReserved);
+
+        var result = await PlaceTenantAsync(TenantId, Issuer, ControlPlaneCell);
+
+        Assert.False(result.IsReserved);
+        Assert.Contains("holds only the control-plane tenant", result.ConflictDetail);
+        var record = await ReadTenantAsync(TenantId);
+        Assert.NotNull(record);
+        Assert.Equal(TenantRecord.StateReserved, record.State);
+    }
+
+    [Fact]
+    public async Task MoveAsync_WhenTheTargetIsTheControlPlaneCellAndTheTenantIsNotItsRootTenant_Conflicts()
+    {
+        await RegisterCellAsync();
+        await ReportCellAsync(
+            new CellDescriptor
+            {
+                Name = ControlPlaneCell,
+                Region = CellRegion,
+                Kind = CellKinds.Shared,
+                ManagementUrl = "https://control.example/",
+            }
+        );
+        await ReserveAndPlaceAsync(TenantId, Issuer);
+
+        var result = await Tenants.MoveAsync(
+            TenantId,
+            CellName,
+            ControlPlaneCell,
+            CancellationToken.None
+        );
+
+        Assert.False(result.IsMoved);
+        Assert.Contains("holds only the control-plane tenant", result.ConflictDetail);
     }
 
     [Fact]

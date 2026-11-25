@@ -141,3 +141,5 @@ override NCode.Identity.OpenId.Tenants.Keys.TenantKeyAuditEvent.Resources.get ->
 static NCode.Identity.OpenId.Tenants.Keys.TenantKeyAuditEventNames.For(string! change) -> string!
 const NCode.Identity.OpenId.SecretProtection.MasterKeyBroadcast.ChannelName = "master-key-changed" -> string!
 NCode.Identity.OpenId.SecretProtection.MasterKeyBroadcast
+const NCode.Identity.OpenId.Tenants.Keys.TenantKeyChangeReasons.Compromised = "compromised" -> string!
+const NCode.Identity.OpenId.Tenants.Keys.TenantKeyChanges.Revoked = "revoked" -> string!

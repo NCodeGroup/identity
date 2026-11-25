@@ -12,6 +12,7 @@ using Moq;
 using NCode.Identity.Json;
 using NCode.Identity.OpenId.Client;
 using NCode.Identity.Registration;
+using NCode.Identity.Secrets.Persistence;
 using Xunit;
 
 namespace NCode.Identity.OpenId.GlobalDirectory.Server;
@@ -36,6 +37,10 @@ public sealed class DirectoryServerRegistrationTests
             options.UseSqlite(connection)
         );
         builder.Services.AddSingleton(validatorMock.Object);
+        builder.Services.AddSingleton<
+            IPublicJwksReader,
+            DirectoryServerTestOptions.AcceptingPublicJwksReader
+        >();
         new ServiceBuilder<OpenIdClientLibrary>(builder.Services).AddOpenIdDirectoryServer(
             builder.Configuration
         );
@@ -79,8 +84,8 @@ public sealed class DirectoryServerRegistrationTests
         );
 
         Assert.Contains("DirectoryServer:Issuer", exception.Message);
-        Assert.Contains("DirectoryServer:ControlPlaneCell", exception.Message);
-        Assert.Contains("DirectoryServer:ControlPlaneTenantId", exception.Message);
+        Assert.Contains("DirectoryServer:ControlPlane:Cell", exception.Message);
+        Assert.Contains("DirectoryServer:ControlPlane:TenantId", exception.Message);
     }
 
     [Fact]
@@ -90,14 +95,16 @@ public sealed class DirectoryServerRegistrationTests
         connection.Open();
         await using var app = CreateApp(
             connection,
-            new Dictionary<string, string?>
-            {
-                ["DirectoryServer:Issuer"] = ServerIssuer,
-                ["DirectoryServer:ControlPlaneCell"] = ControlPlaneCell,
-                ["DirectoryServer:ControlPlaneTenantId"] = ControlPlaneTenantId,
-                ["AllowedHosts"] = "localhost",
-            }
+            DirectoryServerTestOptions.Create(ControlPlaneCell, ControlPlaneTenantId, ServerIssuer)
         );
+
+        var dbContextFactory = app.Services.GetRequiredService<
+            IDbContextFactory<DirectoryDbContext>
+        >();
+        await using (var dbContext = await dbContextFactory.CreateDbContextAsync())
+        {
+            await dbContext.Database.EnsureCreatedAsync();
+        }
 
         await app.StartAsync();
         await app.StopAsync();

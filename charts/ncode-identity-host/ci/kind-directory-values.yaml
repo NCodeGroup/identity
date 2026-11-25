@@ -1,9 +1,8 @@
-# A production release of the control-plane cell for a kind cluster that runs the global directory and reaches it as its
-# own machine client cell-ci-kind, installed in one release with its setup Job. The host and directory images are built
-# from the repository and loaded into the cluster's nodes, so they are never pulled. Traefik routes id.example.com to
-# the cell and directory.example.com to the directory through the release's ServersTransports. The workflow creates the
-# runtime and owner database Secrets of the cell and of the directory, the root key Secret, the setup Job's Secret and
-# the directory client's key Secret this release names.
+# A production release of the control-plane cell for a kind cluster that reaches the global directory, installed from
+# its own chart, as its own machine client cell-ci-kind, with its setup Job. The host image is built from the repository
+# and loaded into the cluster's nodes, so it is never pulled. Traefik routes id.example.com to the cell. The workflow
+# creates the runtime and owner database Secrets, the root key Secret, the setup Job's Secret and the directory client's
+# key Secret this release names.
 image:
   repository: ncode-identity-host
   tag: kind
@@ -52,23 +51,3 @@ directory:
   keyRing: cell-client
   keys:
     pemSecret: cell-client-key
-  enabled: true
-  issuer: https://id.example.com
-  controlPlaneCell: ci-kind
-  allowedHosts:
-    - directory.example.com
-  image:
-    repository: ncode-identity-directory
-    tag: kind
-    pullPolicy: Never
-  database:
-    runtimeRole: ncode_identity_app
-    parts:
-      existingSecret: directory-postgres-runtime
-  migrations:
-    database:
-      parts:
-        existingSecret: directory-postgres-app
-  ingress:
-    enabled: true
-    className: traefik

@@ -10,8 +10,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Moq;
-using NCode.Identity.OpenId.Client;
-using NCode.Identity.Registration;
+using NCode.Identity.OpenId.GlobalDirectory.Server.Entities;
+using NCode.Identity.Secrets.Persistence;
 using Xunit;
 
 namespace NCode.Identity.OpenId.GlobalDirectory.Server;
@@ -24,7 +24,6 @@ public class RemoteDirectoryRoundTripTests : IAsyncLifetime
 {
     private const string ServerIssuer = "https://control-plane.example";
     private const string Audience = GlobalDirectoryProtocol.DirectoryAudience;
-    private const string AccessToken = "directory-access-token";
     private const string CellName = "a";
     private const string OtherCellName = "b";
     private const string ControlPlaneTenantId = "root";
@@ -36,13 +35,11 @@ public class RemoteDirectoryRoundTripTests : IAsyncLifetime
 
     private MockRepository Mocks { get; } = new(MockBehavior.Strict);
 
-    private Mock<IIssuerAccessTokenValidator> ValidatorMock { get; }
+    private string AccessToken { get; set; } = string.Empty;
 
     private SqliteConnection Connection { get; } = new("DataSource=:memory:");
 
     private WebApplication? App { get; set; }
-
-    private HttpClient? HttpClientOrNull { get; set; }
 
     private ITenantDirectory? TenantsOrNull { get; set; }
 
@@ -60,35 +57,24 @@ public class RemoteDirectoryRoundTripTests : IAsyncLifetime
 
     private ICellDirectory Cells => CellsOrNull ?? throw new InvalidOperationException();
 
-    public RemoteDirectoryRoundTripTests()
-    {
-        ValidatorMock = Mocks.Create<IIssuerAccessTokenValidator>();
-    }
-
     public async Task InitializeAsync()
     {
         Connection.Open();
 
-        ActAs(CellName);
-
         var builder = WebApplication.CreateBuilder();
         builder.WebHost.UseTestServer();
         builder.Configuration.AddInMemoryCollection(
-            new Dictionary<string, string?>
-            {
-                ["DirectoryServer:Issuer"] = ServerIssuer,
-                ["DirectoryServer:ControlPlaneCell"] = CellName,
-                ["DirectoryServer:ControlPlaneTenantId"] = ControlPlaneTenantId,
-                ["AllowedHosts"] = "localhost",
-            }
+            DirectoryServerTestOptions.Create(CellName, ControlPlaneTenantId, ServerIssuer)
         );
         builder.Services.AddDbContextFactory<DirectoryDbContext>(options =>
             options.UseSqlite(Connection)
         );
-        builder.Services.AddSingleton(ValidatorMock.Object);
-        new ServiceBuilder<OpenIdClientLibrary>(builder.Services).AddOpenIdDirectoryServer(
-            builder.Configuration
-        );
+        var libraries = DirectoryServerTestOptions.AddDirectoryTokenServices(builder.Services);
+        builder.Services.AddSingleton<
+            IPublicJwksReader,
+            DirectoryServerTestOptions.AcceptingPublicJwksReader
+        >();
+        libraries.AddOpenIdDirectoryServer(builder.Configuration);
 
         var app = builder.Build();
         app.MapDirectory();
@@ -103,26 +89,20 @@ public class RemoteDirectoryRoundTripTests : IAsyncLifetime
 
         await app.StartAsync();
         App = app;
+        await ActAsAsync(CellName);
 
-        var httpClient = new HttpClient(app.GetTestServer().CreateHandler());
-        HttpClientOrNull = httpClient;
+        var handler = app.GetTestServer().CreateHandler();
 
         var factoryMock = Mocks.Create<IHttpClientFactory>();
         factoryMock
-            .Setup(x => x.CreateClient(OpenIdClientDefaults.HttpClientName))
-            .Returns(httpClient)
+            .Setup(x => x.CreateClient(DirectoryClientDefaults.HttpClientName))
+            .Returns(() => new HttpClient(handler, disposeHandler: false))
             .Verifiable(Times.AtLeastOnce);
 
         var tokenSourceMock = Mocks.Create<ICellTokenSource>();
         tokenSourceMock
-            .Setup(x =>
-                x.GetAccessTokenAsync(
-                    GlobalDirectoryProtocol.DirectoryAudience,
-                    GlobalDirectoryProtocol.DirectoryScope,
-                    It.IsAny<CancellationToken>()
-                )
-            )
-            .Returns(new ValueTask<string>(AccessToken))
+            .Setup(x => x.GetAccessTokenAsync(It.IsAny<CancellationToken>()))
+            .Returns(() => new ValueTask<string>(AccessToken))
             .Verifiable(Times.AtLeastOnce);
 
         var client = new DirectoryHttpClient(
@@ -141,7 +121,6 @@ public class RemoteDirectoryRoundTripTests : IAsyncLifetime
 
     public async Task DisposeAsync()
     {
-        HttpClientOrNull?.Dispose();
         if (App is not null)
             await App.DisposeAsync();
 
@@ -152,25 +131,55 @@ public class RemoteDirectoryRoundTripTests : IAsyncLifetime
     /// <summary>
     /// Makes the access token that the remote adapters send authenticate as the machine client of a cell.
     /// </summary>
-    private void ActAs(string cellName) =>
-        ValidatorMock
-            .Setup(x =>
-                x.ValidateAsync(ServerIssuer, Audience, AccessToken, It.IsAny<CancellationToken>())
-            )
-            .ReturnsAsync(
-                CreateValidResult(
-                    GlobalDirectoryProtocol.CellClientIdPrefix + cellName,
-                    GlobalDirectoryProtocol.DirectoryScope
-                )
-            )
-            .Verifiable(Times.AtLeastOnce);
-
-    private static IssuerAccessTokenResult CreateValidResult(string clientId, string scope)
+    private async ValueTask ActAsAsync(
+        string cellName,
+        CancellationToken cancellationToken = default
+    )
     {
-        var payload = JsonElement.Parse(
-            JsonSerializer.Serialize(new { client_id = clientId, scope })
+        var services = (App ?? throw new InvalidOperationException()).Services;
+        AccessToken = await DirectoryServerTestOptions.CreateTokenAsync(
+            services,
+            GlobalDirectoryProtocol.CellClientIdPrefix + cellName,
+            cancellationToken: cancellationToken
         );
-        return new IssuerAccessTokenResult(payload, ServerIssuer);
+    }
+
+    /// <summary>
+    /// Stores the registration of the cell that a descriptor describes, as the control-plane cell's initializer or its
+    /// registration route does, then has the cell report the descriptor through the remote adapter.
+    /// </summary>
+    private async ValueTask ReportCellAsync(
+        CellDescriptor descriptor,
+        CancellationToken cancellationToken = default
+    )
+    {
+        var services = (App ?? throw new InvalidOperationException()).Services;
+        var dbContextFactory = services.GetRequiredService<IDbContextFactory<DirectoryDbContext>>();
+        await using (var dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken))
+        {
+            // The initializer already wrote the control-plane cell's record; its region and kind are the descriptor's.
+            var record = await dbContext.Cells.SingleOrDefaultAsync(
+                entity => entity.Name == descriptor.Name,
+                cancellationToken
+            );
+            if (record is null)
+            {
+                record = new CellRecord
+                {
+                    Name = descriptor.Name,
+                    Region = descriptor.Region,
+                    Kind = descriptor.Kind,
+                    ClientJwksJson = """{"keys":[]}""",
+                };
+                dbContext.Cells.Add(record);
+            }
+
+            record.Region = descriptor.Region;
+            record.Kind = descriptor.Kind;
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+
+        await Cells.ReportAsync(descriptor, cancellationToken);
     }
 
     private static string SettingsWithLimit(int maxTenants) =>
@@ -237,7 +246,7 @@ public class RemoteDirectoryRoundTripTests : IAsyncLifetime
             ).IsReserved
         );
 
-        ActAs(OtherCellName);
+        await ActAsAsync(OtherCellName);
         var result = await Tenants.ReserveAsync(
             CreateReservation(TenantId, OtherTenantIssuer, OtherCellName),
             CancellationToken.None
@@ -262,7 +271,7 @@ public class RemoteDirectoryRoundTripTests : IAsyncLifetime
             ).IsReserved
         );
 
-        ActAs(OtherCellName);
+        await ActAsAsync(OtherCellName);
         var result = await Tenants.ReserveAsync(
             CreateReservation(OtherTenantId, TenantIssuer, OtherCellName),
             CancellationToken.None
@@ -278,27 +287,29 @@ public class RemoteDirectoryRoundTripTests : IAsyncLifetime
     [Fact]
     public async Task PlaceAsync_WhenTheTenantHasNoIssuer_AnswersAPlacementWithoutAnIssuer()
     {
-        await Cells.RegisterAsync(
+        // The control-plane cell holds only its root tenant, so a workload cell holds this one.
+        await ActAsAsync(OtherCellName);
+        await ReportCellAsync(
             new CellDescriptor
             {
-                Name = CellName,
+                Name = OtherCellName,
                 Region = Region,
                 Kind = CellKinds.Shared,
-                ManagementUrl = "https://a.example/",
+                ManagementUrl = "https://b.example/",
             },
             CancellationToken.None
         );
         Assert.True(
             (
                 await Tenants.ReserveAsync(
-                    CreateReservation(TenantId, issuer: null),
+                    CreateReservation(TenantId, issuer: null, OtherCellName),
                     CancellationToken.None
                 )
             ).IsReserved
         );
 
         var placeResult = await Tenants.PlaceAsync(
-            new TenantPlacementRequest { TenantId = TenantId, Cell = CellName },
+            new TenantPlacementRequest { TenantId = TenantId, Cell = OtherCellName },
             CancellationToken.None
         );
 
@@ -307,27 +318,29 @@ public class RemoteDirectoryRoundTripTests : IAsyncLifetime
         Assert.NotNull(placement);
         Assert.Equal(TenantId, placement.TenantId);
         Assert.Null(placement.Issuer);
-        Assert.Equal(CellName, placement.Cell);
+        Assert.Equal(OtherCellName, placement.Cell);
         Assert.Equal(Region, placement.Region);
     }
 
     [Fact]
     public async Task PlaceAsync_WhenTheTenantIsReserved_AnswersThePlacement()
     {
-        await Cells.RegisterAsync(
+        // The control-plane cell holds only its root tenant, so a workload cell holds this one.
+        await ActAsAsync(OtherCellName);
+        await ReportCellAsync(
             new CellDescriptor
             {
-                Name = CellName,
+                Name = OtherCellName,
                 Region = Region,
                 Kind = CellKinds.Shared,
-                ManagementUrl = "https://a.example/",
+                ManagementUrl = "https://b.example/",
             },
             CancellationToken.None
         );
         Assert.True(
             (
                 await Tenants.ReserveAsync(
-                    CreateReservation(TenantId, TenantIssuer),
+                    CreateReservation(TenantId, TenantIssuer, OtherCellName),
                     CancellationToken.None
                 )
             ).IsReserved
@@ -339,7 +352,7 @@ public class RemoteDirectoryRoundTripTests : IAsyncLifetime
             {
                 TenantId = TenantId,
                 Issuer = TenantIssuer,
-                Cell = CellName,
+                Cell = OtherCellName,
             },
             CancellationToken.None
         );
@@ -349,7 +362,7 @@ public class RemoteDirectoryRoundTripTests : IAsyncLifetime
         Assert.NotNull(placement);
         Assert.Equal(TenantId, placement.TenantId);
         Assert.Equal(TenantIssuer, placement.Issuer);
-        Assert.Equal(CellName, placement.Cell);
+        Assert.Equal(OtherCellName, placement.Cell);
         Assert.Equal(Region, placement.Region);
     }
 
@@ -367,7 +380,7 @@ public class RemoteDirectoryRoundTripTests : IAsyncLifetime
 
         await Tenants.ReleaseAsync(TenantId, CancellationToken.None);
 
-        ActAs(OtherCellName);
+        await ActAsAsync(OtherCellName);
         var result = await Tenants.ReserveAsync(
             CreateReservation(TenantId, TenantIssuer, OtherCellName),
             CancellationToken.None
@@ -672,11 +685,13 @@ public class RemoteDirectoryRoundTripTests : IAsyncLifetime
     #region Cell Tests
 
     [Fact]
-    public async Task RegisterAsync_WhenTheCallerIsTheCell_RegistersItAndListsIt()
+    public async Task ReportAsync_WhenTheCallerIsTheCell_RegistersItAndListsIt()
     {
-        Assert.Null(await Cells.GetOrDefaultAsync(CellName, CancellationToken.None));
+        var unreported = await Cells.GetOrDefaultAsync(CellName, CancellationToken.None);
+        Assert.NotNull(unreported);
+        Assert.Null(unreported.ManagementUrl);
 
-        await Cells.RegisterAsync(
+        await ReportCellAsync(
             new CellDescriptor
             {
                 Name = CellName,
@@ -692,8 +707,11 @@ public class RemoteDirectoryRoundTripTests : IAsyncLifetime
         Assert.Equal(Region, cell.Region);
         Assert.Equal(CellKinds.Dedicated, cell.Kind);
         Assert.Equal("https://a.example/", cell.ManagementUrl);
-        var listed = Assert.Single(await Cells.ListAsync(CancellationToken.None));
-        Assert.Equal(CellName, listed.Name);
+        var listed = Assert.Single(
+            await Cells.ListAsync(CancellationToken.None),
+            candidate => candidate.Name == CellName
+        );
+        Assert.Equal("https://a.example/", listed.ManagementUrl);
     }
 
     #endregion

@@ -38,7 +38,8 @@ public sealed class BaseStoreLocalLookupTests : IDisposable
         DbContext = new OpenIdDbContext(
             options,
             AmbientTenantAccessor,
-            [new CoreModelContributor()]
+            [new CoreModelContributor()],
+            []
         );
         Store = new ClientStore(
             Mock.Of<IStoreProvider>(),

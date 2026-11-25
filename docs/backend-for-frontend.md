@@ -1081,17 +1081,17 @@ app.MapFallbackToFile("index.html");                    // the SPA itself, same 
 ```
 
 A BFF reads the key rings its frontends name from PEM files, from keys that a key management service (KMS) holds, or
-from both. The key rings are the protocol client's: `AddIdentityBff` points `AddOpenIdClientKeyRings` at the host's
-top-level `KeyRings` section, so `KeyRings:{name}` configures the key ring `{name}` and registers a keyed
-`ISecretKeyCollectionProvider` under that name, which a frontend's `ClientAuthentication:KeyRing` or `DPoP:KeyRing`
-refers to. `PemFiles` lists the files of the ring. Each file holds one EC or RSA private key (PKCS#8, SEC1 or PKCS#1),
-read through sensitive buffers, and a key's `kid` is its file name without the extension. A key ring's name and each
-key's `kid` are letters and digits in groups separated by single `.`, `_` or `-`, at most 64 characters, and two `kid`s
-of one ring compare without case. A relative path resolves against the content root. `RemoteKeys:{kid}` names a key that
-a KMS holds, with `Provider` (the remote key provider's name, such as `aws-kms`, `azure-key-vault` or
-`google-cloud-kms`), `KeyId` (the KMS's identifier for the key), `Algorithm` (the JOSE `alg`), `SecretType` (`rsa` or
-`ecc`), `KeySizeBits` and `Curve` (for an elliptic-curve key). The host registers the provider on the secrets library's
-builder, as the sketch shows for AWS KMS.
+from both. The key rings are the protocol client's: `AddIdentityBff` passes the host's configuration to
+`AddOpenIdClientKeyRings`, which binds its top-level `KeyRings` section, so `KeyRings:{name}` configures the key ring
+`{name}` and registers a keyed `ISecretKeyCollectionProvider` under that name, which a frontend's
+`ClientAuthentication:KeyRing` or `DPoP:KeyRing` refers to. `PemFiles` lists the files of the ring. Each file holds one
+EC or RSA private key (PKCS#8, SEC1 or PKCS#1), read through sensitive buffers, and a key's `kid` is its file name
+without the extension. A key ring's name and each key's `kid` are letters and digits in groups separated by single `.`,
+`_` or `-`, at most 64 characters, and two `kid`s of one ring compare without case. A relative path resolves against the
+content root. `RemoteKeys:{kid}` names a key that a KMS holds, with `Provider` (the remote key provider's name, such as
+`aws-kms`, `azure-key-vault` or `google-cloud-kms`), `KeyId` (the KMS's identifier for the key), `Algorithm` (the JOSE
+`alg`), `SecretType` (`rsa` or `ecc`), `KeySizeBits` and `Curve` (for an elliptic-curve key). The host registers the
+provider on the secrets library's builder, as the sketch shows for AWS KMS.
 
 The remote key provider's row for the algorithm decides whether a remote key signs (client assertions and DPoP proofs)
 or decrypts (encrypted ID tokens and UserInfo responses), so one ring holds a signing key and a decryption key side by
@@ -1308,6 +1308,15 @@ client `mgmt-console` of the control-plane tenant
 - The console's origin serves only the console. The console host reaches the management API at `/api` on its
   authority's origin, the URL the OP compares a DPoP proof's `htu` with, and machine callers call it there too
   ([ADR-1437](decisions/1437-the-management-console-is-a-confidential-client-whose-own-bff-host-serves-only-the-console.md)).
+
+**Platform console and cell console.** A console host is one of two kinds. The platform console is the client of the
+control-plane tenant and an aggregator: it forwards to the management API of every cell that `ManagementConsole:Cells`
+names, and its bootstrap document says `"console": "platform"`. A cell console sets `ManagementConsole:Cell` to the
+name of one cell and is the client of that cell's management tenant. It calls only that cell, its bootstrap document
+says `"console": "cell"` and `"cell": "<name>"`, and its frontend hides the platform and team surfaces and lists the
+cell's tenants on its home page. Both consoles forward the user's DPoP-bound management token, and a platform with a
+directory refuses a management token sent under `Bearer`
+([ADR-1536](decisions/1536-a-platforms-global-plane-is-a-standalone-directory-and-a-dedicated-control-plane-cell-and-every-other-cell-runs-and-is-managed-on-its-own.md)).
 
 `AddManagementConsole(configuration)` composes `AddIdentityBff` and binds the `ManagementConsole` section strictly, and
 `MapManagementConsole()` maps the console's endpoints. The host's `Program.cs` adds only the transport layer every host

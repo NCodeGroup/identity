@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using NCode.Buffers;
 using NCode.Identity.AspNetCore;
@@ -22,8 +23,11 @@ using NCode.Identity.OpenId.GlobalDirectory;
 using NCode.Identity.OpenId.Management.Auditing;
 using NCode.Identity.OpenId.Management.Contracts;
 using NCode.Identity.OpenId.Management.Contracts.Tenants;
+using NCode.Identity.OpenId.Management.Logging;
 using NCode.Identity.OpenId.Management.Transfers;
+using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
+using NCode.Identity.Persistence;
 using NCode.Identity.Persistence.Stores;
 using NCode.Identity.Registration.AspNetCore;
 using NCode.Identity.Secrets.Keys;
@@ -60,7 +64,10 @@ internal class TenantImportApiEndpointHandler(
     IRemoteKeyProviderCatalog remoteKeyProviderCatalog,
     ITenantDirectory tenantDirectory,
     IManagementAuditRecorder managementAuditRecorder,
-    IOptions<CellOptions> cellOptions
+    IOptions<CellOptions> cellOptions,
+    IPlatformTopology platformTopology,
+    TimeProvider timeProvider,
+    ILogger<TenantImportApiEndpointHandler> logger
 ) : BaseApiEndpointHandler, IEndpointProvider
 {
     private IStoreManagerFactory StoreManagerFactory { get; } = storeManagerFactory;
@@ -73,6 +80,9 @@ internal class TenantImportApiEndpointHandler(
     private ITenantDirectory TenantDirectory { get; } = tenantDirectory;
     private IManagementAuditRecorder ManagementAuditRecorder { get; } = managementAuditRecorder;
     private CellOptions CellOptions { get; } = cellOptions.Value;
+    private IPlatformTopology PlatformTopology { get; } = platformTopology;
+    private TimeProvider TimeProvider { get; } = timeProvider;
+    private ILogger<TenantImportApiEndpointHandler> Logger { get; } = logger;
 
     /// <inheritdoc />
     protected override IAuthorizationService AuthorizationService { get; } = authorizationService;
@@ -157,7 +167,7 @@ internal class TenantImportApiEndpointHandler(
     /// </param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
     /// <response code="200">The tenant is imported and placed in this cell, also after a move that the directory did not confirm.</response>
-    /// <response code="409">The directory places the tenant in this cell or in no cell, or refuses the move while it places the tenant in the source cell or in no cell. Nothing the import wrote remains.</response>
+    /// <response code="409">This cell is the control-plane cell of a platform with a directory, which holds only the control-plane tenant, or the directory places the tenant in this cell or in no cell, or refuses the move while it places the tenant in the source cell or in no cell. Nothing the import wrote remains.</response>
     /// <response code="413">The request body is larger than a tenant move admits: 64 MiB plus 64 KiB.</response>
     /// <response code="422">The kid is empty, or the transfer key is unknown, expired or already used; the package is not sealed to a transfer key, does not decrypt with it or is malformed, its format version is not one this cell imports, its region is not this cell's region, it is offered to another cell, or it has a section that this cell does not import; the tenant's root key is refused; or a remote key that the tenant's secrets reference belongs to a provider that this cell does not register or lies outside the location this cell uses.</response>
     /// <response code="503">The global directory is unavailable before the import writes anything, or at a move after which it places the tenant in the source cell or in no cell, and nothing the import wrote remains; or the outcome of the move is unknown, this cell keeps what the import wrote, and the problem's <c>moveOutcome</c> is <c>unknown</c>.</response>
@@ -179,6 +189,13 @@ internal class TenantImportApiEndpointHandler(
         if (authorizationFailure is not null)
         {
             return authorizationFailure;
+        }
+
+        // The control-plane cell of a platform with a directory holds only the control-plane tenant, so nothing is
+        // written for another one, and the single-use transfer key is not spent.
+        if (PlatformTopology.HoldsOnlyControlPlaneTenant())
+        {
+            return ControlPlaneCellHoldsOnlyItsTenant();
         }
 
         // TakeAsync refuses an empty kid, and no transfer key has one.
@@ -314,6 +331,7 @@ internal class TenantImportApiEndpointHandler(
         {
             failure = await ImportAndRetagAsync(
                 tenantId,
+                sourceCell,
                 masterKeys,
                 privateKey,
                 contributors,
@@ -359,6 +377,28 @@ internal class TenantImportApiEndpointHandler(
             return moveFailure;
         }
 
+        // The directory places the tenant in this cell, so this cell holds its keys, whatever the request's
+        // cancellation. A failure of the write is logged and does not fail the import that the directory committed: the
+        // reconciler sets the tenant held when the directory places it here.
+        try
+        {
+            await PostCommitWork.RunAsync(
+                TimeProvider,
+                static (state, token) =>
+                    state.Handler.SetKeyCustodyAsync(
+                        state.TenantId,
+                        TenantKeyCustody.Held,
+                        cell: null,
+                        token
+                    ),
+                (Handler: this, TenantId: tenantId)
+            );
+        }
+        catch (Exception exception)
+        {
+            Logger.TenantKeyCustodyHeldFailed(tenantId, exception);
+        }
+
         // The directory places the tenant in this cell whatever the request's cancellation, so the import is read and
         // audited to the end.
         await using (
@@ -389,11 +429,23 @@ internal class TenantImportApiEndpointHandler(
         return TypedResults.Ok(resource);
     }
 
-    // Imports each section in order, then the master keys, and retags the remote keys that the imported secrets
-    // reference to this cell. A failure that the caller should answer is returned; nothing is returned when the tenant
-    // is imported and its keys are retagged.
+    /// <summary>
+    /// Imports each section in order, then the master keys, retags the remote keys that the imported secrets reference
+    /// to this cell, and fences the tenant incoming from the source cell until the directory confirms the move.
+    /// </summary>
+    /// <param name="tenantId">The identifier of the tenant being imported.</param>
+    /// <param name="sourceCell">The name of the cell that the tenant leaves, which the incoming fence names.</param>
+    /// <param name="masterKeys">The package's master keys, sealed to the transfer key.</param>
+    /// <param name="privateKey">The transfer key that opens the master keys.</param>
+    /// <param name="contributors">The contributors whose sections the package carries, in order.</param>
+    /// <param name="sections">The package's sections by contributor name.</param>
+    /// <param name="retagged">The remote keys retagged so far, which the caller undoes on a failure.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <returns>The failure that the caller should answer, or <see langword="null"/> when the tenant is
+    /// imported.</returns>
     private async ValueTask<IResult?> ImportAndRetagAsync(
         string tenantId,
+        string sourceCell,
         string masterKeys,
         SecretKey privateKey,
         List<ITenantTransferContributor> contributors,
@@ -458,7 +510,36 @@ internal class TenantImportApiEndpointHandler(
             retagged.Add((provider, keyId));
         }
 
+        // The tenant is fenced against the source cell until the directory confirms the move.
+        await SetKeyCustodyAsync(
+            tenantId,
+            TenantKeyCustody.Incoming,
+            sourceCell,
+            cancellationToken
+        );
+
         return null;
+    }
+
+    /// <summary>
+    /// Sets the tenant's key-custody fence in a unit of work of its own.
+    /// </summary>
+    /// <param name="tenantId">The identifier of the tenant.</param>
+    /// <param name="custody">The key custody to set, a <see cref="TenantKeyCustody"/> value.</param>
+    /// <param name="cell">The name of the other cell the fence names, or <see langword="null"/> for none.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    private async ValueTask SetKeyCustodyAsync(
+        string tenantId,
+        string custody,
+        string? cell,
+        CancellationToken cancellationToken
+    )
+    {
+        await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
+        await storeManager
+            .GetStore<ITenantStore>()
+            .SetKeyCustodyAsync(tenantId, custody, cell, cancellationToken);
+        await storeManager.SaveChangesAsync(cancellationToken);
     }
 
     // Moves the tenant's placement to this cell. The directory can commit a move that it does not confirm, such as one

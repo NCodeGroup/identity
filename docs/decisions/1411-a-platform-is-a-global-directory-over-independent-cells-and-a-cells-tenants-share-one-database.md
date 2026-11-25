@@ -56,8 +56,9 @@ customer's tenants and spans cells, and a tenant lives in exactly one cell.**
    serving.
 2. **The global directory reserves, places and publishes, and holds no personal data.** It reserves tenant and team
    identifiers platform-wide and retires them when their owners are deleted, places each tenant in one cell, records the
-   cells, and publishes team documents (name, settings and per-region root-key references). It holds identifiers,
-   placements, cells and team documents, and nothing about a person. Creating a tenant reserves its identifier and, when
+   cells, and publishes the documents that every cell replicates: team documents (name, settings and per-region root-key
+   references), the platform document, the platform and team authority documents and the control-plane tenant's
+   management keys. It holds identifiers, placements, cells and those documents, and nothing about a person. Creating a tenant reserves its identifier and, when
    it has one, its issuer, in its team or, for a tenant of the platform's own team, in no team (decision 11), places the
    tenant in its cell and then inserts it, so a tenant's row never exists unplaced, and a placement whose row is not yet
    written serves nothing, because serving never calls the directory. A placement that does not take effect releases the
@@ -70,14 +71,13 @@ customer's tenants and spans cells, and a tenant lives in exactly one cell.**
    control plane when `TenantResolution:Root:Issuer` gives it one, is reserved, placed and inserted the same way when
    the cell first creates it, and the cell does not create it while the directory refuses it or cannot be reached; a
    tenant a cell creates on demand without an issuer has no address on the platform and is created in its cell alone.
-   The directory holds the control-plane cell's root tenant from its own configuration:
-   `DirectoryServer:ControlPlaneTenantId` names it, and before every reservation and every issuer change the directory
-   ensures its record, placed in the control-plane cell under `DirectoryServer:Issuer` and in no team, in a transaction
-   that commits first, so no other cell reserves its identifier or its issuer and the control-plane cell changes that
-   tenant's issuer through the directory as for any tenant. The directory refuses an offer or a move of that tenant
-   (`409`), because it places it in the control-plane cell from its own configuration and accepts only the tokens it
-   issues, so it never leaves that cell. A configuration that names an identifier another cell holds, or an issuer
-   another tenant holds, fails the write. Creating a team reserves its identifier, inserts the team and then publishes
+   The directory holds the control-plane tenant from its own configuration: `DirectoryServer:ControlPlane:TenantId` and
+   `DirectoryServer:ControlPlane:Issuer` name it, and the directory's `DirectoryAnchorInitializer` writes its record,
+   placed in the control-plane cell and in no team, in a transaction that commits before the directory serves any
+   request, so no other cell reserves its identifier or its issuer. The directory refuses an offer or a move of that
+   tenant (`409`), because it places it in the control-plane cell from its own configuration, so it never leaves that
+   cell. A configuration that names an identifier another cell holds, or an issuer another tenant holds, fails the
+   start. Creating a team reserves its identifier, inserts the team and then publishes
    its document, and a failure after the insert removes the inserted team and then releases the reservation. The
    directory authorizes a tenant write against the stored record in the transaction that writes it: a cell writes the
    tenants it holds, and the control-plane cell writes any tenant. A tenant with no record is retired only by the
@@ -90,32 +90,48 @@ customer's tenants and spans cells, and a tenant lives in exactly one cell.**
    registered with the directory.
 3. **One cell runs on its own.** The directory is three ports (tenants, teams, cells). A local adapter over the cell's
    own retired-identifier tables is the default and needs no extra service, so a single deployment is a platform of one
-   cell. A remote adapter, selected by `Directory:Url`, calls the directory service over HTTP with a client-credentials
-   token and fails closed. The directory accepts the cells' unbound bearer tokens only and answers `401` to a token that
-   carries a `cnf` claim, because it checks no proof of possession. A cell that sets `Directory:Url` refuses to start
-   unless `Directory:ClientId` is `cell-` followed by `Cell:Name` and `Cell:ManagementUrl` is set, because the directory
-   knows a cell by that machine client and the cell registers its management URL with the directory.
-4. **The control plane lives in one control-plane cell.** The platform and team authority, platform and team settings,
-   setup and the team root keys are held by the cell that sets `Cell:IsControlPlane`. Every other cell reaches the
-   control plane through remote adapters that validate management tokens against its issuer and ask its authority
-   endpoint who a caller is and its principals endpoint (`POST /control-plane/v1/principals`,
-   [ADR-1465](1465-role-lists-share-one-audited-grant-and-revoke-flow-and-a-caller-discovers-its-own-assignments.md))
-   for the names of the principals that hold roles, and they fail closed. A tenant's own role assignments stay in the
-   tenant's cell. Setup runs once per platform, in the control-plane cell only. A host's published configuration names
-   no cell, so a host that is not given `Cell:Name` and `Cell:Region` refuses to start, and only a host given
+   cell. A remote adapter, selected by `Directory:Url`, calls the directory service over HTTP with a token that the
+   directory itself issues and fails closed. The directory is a release of its own, from its own chart, with its own
+   database, and it issues the cells' tokens: a registered cell authenticates to its token endpoint with
+   `private_key_jwt` as the machine client `cell-<name>` and receives a five-minute token that only the directory
+   accepts, so no cell's availability decides whether another cell can reach the directory
+   ([ADR-1536](1536-a-platforms-global-plane-is-a-standalone-directory-and-a-dedicated-control-plane-cell-and-every-other-cell-runs-and-is-managed-on-its-own.md),
+   decisions 2 and 3). The directory accepts those unbound bearer tokens only and answers `401` to a token that carries a
+   `cnf` claim, because it checks no proof of possession. A cell that sets `Directory:Url` refuses to start unless
+   `Directory:ClientId` is `cell-` followed by `Cell:Name` and `Cell:ManagementUrl` is set, because the directory knows a
+   cell by that machine client and the cell reports its management URL to the directory. A global administrator
+   registers each cell, with its region, kind and the public keys of its machine client, through the control-plane
+   cell's management API, and the directory refuses a cell it has no record of.
+4. **The control plane lives in one control-plane cell, which is the platform's trust anchor.** The platform and team
+   authority, platform and team settings, setup and the team root keys are held by the cell that sets
+   `Cell:IsControlPlane`. On a platform with a directory that cell is dedicated: it holds the control-plane tenant and
+   no other tenant, and the directory refuses to place another tenant in it. The directory pins the control-plane cell
+   and its tenant in `DirectoryServer:ControlPlane:*` (cell, region, kind, tenant, issuer and the public keys of the
+   cell's machine client), and only the control-plane cell writes global state. No other cell calls the control-plane
+   cell: it publishes the platform and team authority and the management keys of the control-plane tenant to the
+   directory through a transactional outbox, the change feed carries them to every cell, and each cell validates
+   management tokens and authorizes their callers from the replicas in its own database, so a cell answers management
+   requests while the control-plane cell and the directory are down. A cell that holds no replica yet answers `503`. The
+   principals that hold roles are named by their identifiers in a cell that holds no control-plane user names
+   ([ADR-1465](1465-role-lists-share-one-audited-grant-and-revoke-flow-and-a-caller-discovers-its-own-assignments.md)).
+   A tenant's own role assignments stay in the tenant's cell. Setup runs once per platform, in the control-plane cell,
+   and once per workload cell that has a management tenant of its own. A host's published configuration names no cell,
+   so a host that is not given `Cell:Name` and `Cell:Region` refuses to start, and only a host given
    `Cell:IsControlPlane` serves the control plane. The control-plane cell's control-plane tenant never waits on the
    directory: the cell creates it without reserving or placing it, which the directory holds from its own configuration
-   (decision 2), judges its address and changes its keys without asking the directory, which accepts only the tokens
-   that tenant issues, so a control-plane cell serves from a release that carries its directory client from the first.
-   Only the control-plane cell seeds its root tenant in the root plane; every other cell seeds its root tenant in the
-   workload plane.
+   (decision 2), and judges its address and changes its keys without asking the directory, so a control-plane cell
+   serves from a release that carries its directory client from the first. Only the control-plane cell seeds its root
+   tenant in the root plane; every other cell seeds its root tenant in the workload plane.
 5. **A team spans cells.** The control-plane cell owns teams and publishes each team document to the directory. Every
    other cell mirrors team documents into its team rows from the directory's change feed and evicts the caches the
-   change touches, so the settings cascade resolves the same way in every cell. A tenant never moves between teams. The
+   change touches, so the settings cascade resolves the same way in every cell. The feed also carries the platform
+   document and the authority and management-key documents of decision 4, each applied into the cell's own tables only
+   when its revision is higher than the one the cell holds. A tenant never moves between teams. The
    directory numbers its changes from a counter row that each change-writing transaction increments, so the writers
    serialize on the row, the commit order equals the sequence order, and a reader that has seen a sequence never misses
-   a smaller one. The feed holds each team's and the platform's latest change, each carrying the whole document or the
-   retire, so it stays bounded by the number of teams, and a cell reading from the start reads every current document.
+   a smaller one. The feed holds each team's, the platform's and each replicated document's latest change, each carrying
+   the whole document or the retire, so it stays bounded by the number of teams, and a cell reading from the start reads
+   every current document.
    A cell keeps the highest feed sequence it applied in its `DirectoryFeedCheckpoint` row and reads after it, so a
    retirement that leaves no row behind is not listed again. A change that loses a concurrency race is applied again, up
    to three attempts, and a retirement records its sequence on the disabled team row, so a retirement the directory
@@ -180,7 +196,9 @@ customer's tenants and spans cells, and a tenant lives in exactly one cell.**
     tenant.
 15. **Tenant routes.** Tenants are created and listed under `/api/teams/{teamId}/tenants`. The control-plane cell's root
     tenant holds the `platform_settings`, `platform_encryption_keys`, `teams`, `team_settings` and `tenants` scope
-    families, and team and platform management routes are mapped only in the control-plane cell.
+    families, and team, platform and cell-registry management routes (`/api/platform`, `/api/teams`, `/api/cells`) are
+    mapped only in the control-plane cell. A workload cell serves the tenants it holds under their own routes and
+    answers management requests from its replicas of decision 4.
 16. **Lifecycle.** A team's lifecycle (create, disable, restore, delete) is authority at the node above it, which is the
     platform for a top-level team. Platform authority or `GlobalAdmin` lists teams and tenants across teams. A disabled
     team's tenants answer `404` on the protocol surface and on the management routes that act through a tenant's runtime
@@ -197,8 +215,9 @@ customer's tenants and spans cells, and a tenant lives in exactly one cell.**
     it opens on the caller's `/home`
     ([ADR-1465](1465-role-lists-share-one-audited-grant-and-revoke-flow-and-a-caller-discovers-its-own-assignments.md)).
 19. **The words.** "Platform" is the directory and its cells together; the platform environments of ADR-1495
-    (`production`, `lab`, `ci`) are where a platform runs. "Cell" is the deployment, "directory" is the global registry,
-    and "team" is the grouping. "Organization" stays free for the in-tenant B2B feature.
+    (`production`, `lab`, `ci`) are where a platform runs. "Cell" is the deployment, "control-plane cell" is the
+    dedicated cell of the control-plane tenant, "workload cell" is every other cell, "directory" is the global registry
+    and a release of its own, and "team" is the grouping. "Organization" stays free for the in-tenant B2B feature.
 
 ## Options considered
 
@@ -240,7 +259,8 @@ customer's tenants and spans cells, and a tenant lives in exactly one cell.**
 - Capacity and blast radius are managed by how many tenants a cell hosts and how many cells run. An operator who needs
   compliance isolation runs a dedicated cell.
 - The directory is a dependency of tenant and team creation and deletion, and of the change feed that delivers team
-  documents. Serving never depends on it, and an unreachable directory blocks creation with `503`.
+  documents, authority and management keys. Serving never depends on it, and an unreachable directory blocks creation
+  with `503`.
 - Each publish of a team lists every published team beneath it again, so every other cell rewrites those teams' rows and
   evicts their caches once more; a team tree changes rarely, and the feed stays bounded by the number of teams.
 - The directory stores each team and platform document, and the document that each change carries, as the family's
@@ -260,8 +280,10 @@ customer's tenants and spans cells, and a tenant lives in exactly one cell.**
   [ADR-1134](1134-the-platform-and-the-host-follow-written-cloud-native-operating-principles.md). Serving never calls
   the directory (its point 13), so while it restarts only creating, deleting and moving tenants and teams answer `503`.
   A second replica needs the Valkey shared-state adapter first.
-- Every cell outside the control plane depends on the control-plane cell for management authority and for team
-  documents, and fails closed when it is unreachable.
+- No cell calls another cell at run time. A workload cell authenticates and authorizes management requests from the
+  authority and keys it replicated into its own database, so an outage of the control-plane cell or the directory
+  leaves its management available; a change to authority reaches it within the publish latency plus one feed poll
+  ([ADR-1536](1536-a-platforms-global-plane-is-a-standalone-directory-and-a-dedicated-control-plane-cell-and-every-other-cell-runs-and-is-managed-on-its-own.md)).
 - A path that reads across tenants must say so with an unscoped scope and a reason. An unscoped path that forgets one
   returns nothing instead of leaking rows, and a missing `// Cross-tenant:` comment fails the build.
 - The runtime role cannot migrate or bypass row-level security, so the migration and runtime credentials are two
@@ -299,6 +321,8 @@ customer's tenants and spans cells, and a tenant lives in exactly one cell.**
 - [ADR-1235](1235-stored-secrets-and-grant-payloads-are-protected-by-a-key-hierarchy-under-an-external-root-key.md) — the key hierarchy
 - [ADR-1247](1247-the-platform-master-key-protects-the-data-protection-ring-and-an-unreadable-key-stops-the-host.md) —
   the platform master key
+- [ADR-1536](1536-a-platforms-global-plane-is-a-standalone-directory-and-a-dedicated-control-plane-cell-and-every-other-cell-runs-and-is-managed-on-its-own.md)
+  — the standalone directory, the dedicated control-plane cell and self-managed cells
 - [ADR-1255](1255-the-management-consoles-url-is-its-navigation-state-and-every-scopes-surface-has-its-own-address.md) — console addresses
 - [ADR-1395](1395-grant-payloads-have-one-versioned-serializer-and-a-stored-record-missing-written-members-fails-closed.md)
   — the schema-versioned envelope of stored payloads

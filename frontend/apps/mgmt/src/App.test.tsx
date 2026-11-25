@@ -856,6 +856,118 @@ describe('App (routing)', () => {
   });
 });
 
+describe('App (cells)', () => {
+  const cellRuntime: BffRuntimeConfig = { ...runtime, console: 'cell', cell: 'eu-1' };
+
+  beforeEach(() => {
+    vi.restoreAllMocks();
+    window.history.replaceState(null, '', '/');
+  });
+
+  function renderWith(config: BffRuntimeConfig) {
+    const store = createAppStore({
+      config: { runtime: config },
+      session: { status: 'signed-in', user: adminUser },
+    });
+    return render(
+      <Provider store={store}>
+        <App />
+      </Provider>,
+    );
+  }
+
+  function stubCellConsoleApi() {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: RequestInfo | URL) => {
+        const url = (input as Request).url;
+        if (url.endsWith('/api/me/tenants')) {
+          return jsonResponse({ items: [acmeTenant, acmeDevTenant] });
+        }
+        if (url.endsWith('/api/me')) {
+          return jsonResponse({
+            principalId: 'admin-principal',
+            isPlatformAdministrator: false,
+            assignments: [],
+            cellRoles: ['CellAdmin'],
+          });
+        }
+        if (url.endsWith('/api/cell/admins')) {
+          return jsonResponse({ items: [], canChange: false });
+        }
+        if (url.endsWith('/api/tenants/acme/clients')) {
+          return jsonResponse({ items: [] });
+        }
+        if (url.includes('/api/tenants/acme') && !url.includes('/api/tenants/acme/')) {
+          return jsonResponse(acmeTenant);
+        }
+        throw new Error(`Unexpected fetch: ${url}`);
+      }),
+    );
+  }
+
+  it("opens a cell console's administrators from a deep link", async () => {
+    stubCellConsoleApi();
+    window.history.replaceState(null, '', '/cell/admins');
+
+    renderWith(cellRuntime);
+
+    expect(await screen.findByTestId('CellAdmin-read-only')).toBeInTheDocument();
+    expect(window.location.pathname).toBe('/cell/admins');
+  });
+
+  it('exits a tenant of a cell console to the home', async () => {
+    stubCellConsoleApi();
+    window.history.replaceState(null, '', '/tenants/acme/clients');
+
+    renderWith(cellRuntime);
+
+    expect(await screen.findByText('No clients in this tenant yet.')).toBeInTheDocument();
+    expect(screen.getByTestId('exit-scope')).toHaveTextContent('Home');
+  });
+
+  it('opens the cells of the platform from a deep link', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: RequestInfo | URL) => {
+        const url = (input as Request).url;
+        if (url.endsWith('/api/cells')) {
+          return jsonResponse([]);
+        }
+        const directory = directoryResponse(url);
+        if (directory) {
+          return directory;
+        }
+        throw new Error(`Unexpected fetch: ${url}`);
+      }),
+    );
+    window.history.replaceState(null, '', '/cells');
+
+    renderApp();
+
+    expect(await screen.findByText('No cells exist yet.')).toBeInTheDocument();
+    expect(screen.getByTestId('platform-tab-cells')).toBeInTheDocument();
+  });
+
+  it('sends a platform console away from a cell route', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: RequestInfo | URL) => {
+        const directory = directoryResponse((input as Request).url);
+        if (directory) {
+          return directory;
+        }
+        throw new Error(`Unexpected fetch: ${(input as Request).url}`);
+      }),
+    );
+    window.history.replaceState(null, '', '/cell/admins');
+
+    renderApp();
+
+    await waitFor(() => expect(window.location.pathname).not.toBe('/cell/admins'));
+  });
+});
+
 describe('App (caller access)', () => {
   beforeEach(() => {
     vi.restoreAllMocks();

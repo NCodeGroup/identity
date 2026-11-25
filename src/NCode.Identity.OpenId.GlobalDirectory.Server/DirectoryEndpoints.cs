@@ -10,30 +10,55 @@ using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Options;
+using NCode.Buffers;
 using NCode.Identity.AspNetCore;
 using NCode.Identity.OpenId.GlobalDirectory.Server.Stores;
+using NCode.Identity.OpenId.GlobalDirectory.Server.Tokens;
 using NCode.Identity.OpenId.Tenants;
+using NCode.Identity.Secrets.Persistence;
 
 namespace NCode.Identity.OpenId.GlobalDirectory.Server;
 
 /// <summary>
-/// Maps the global directory API under <c>/directory/v1/</c>: the tenant, retired-issuer, team, platform and cell
-/// routes that the remote adapters of <c>NCode.Identity.OpenId.GlobalDirectory</c> call. Every route requires a bearer
-/// access token for the audience <see cref="GlobalDirectoryProtocol.DirectoryAudience"/> with the scope
-/// <see cref="GlobalDirectoryProtocol.DirectoryScope"/>, checked before the route runs, its bodies are confidential so
-/// HTTP logging never writes them, and every failure, a lookup that finds nothing included, is an RFC 9457 problem
-/// document: a missing resource is a <c>404 Not Found</c> problem, never an empty body. Every write is bound to the
-/// calling cell: the platform and team writes need the control-plane cell
-/// (<see cref="DirectoryServerOptions.ControlPlaneCell"/>), and a tenant write needs the cell that holds the tenant.
+/// Maps the global directory API under <c>/directory/v1/</c>: the token endpoint and the tenant, retired-issuer, team,
+/// platform and cell routes that the remote adapters of <c>NCode.Identity.OpenId.GlobalDirectory</c> call. The token
+/// endpoint authenticates a cell with its <c>private_key_jwt</c> client assertion and issues the directory's own access
+/// token. Every other route requires a bearer access token that the directory issued, for the audience
+/// <see cref="GlobalDirectoryProtocol.DirectoryAudience"/> with the scope
+/// <see cref="GlobalDirectoryProtocol.DirectoryScope"/>, checked before the route runs. Every route waits for the
+/// platform's trust anchor and its bodies are confidential, so HTTP logging never writes them. The token endpoint
+/// answers a failure with an RFC 6749 section 5.2 error document, and every other route answers it, a lookup that finds
+/// nothing included, with an RFC 9457 problem document: a missing resource is a <c>404 Not Found</c> problem, never an
+/// empty body. Every write is bound to the calling cell: the platform and team writes need the control-plane cell
+/// (<see cref="DirectoryControlPlaneOptions.Cell"/>), and a tenant write needs the cell that holds the tenant.
 /// </summary>
 // See ADR-1411. DirectoryAuthenticationGate checks the token before the route binds its body.
 [PublicAPI]
 public static class DirectoryEndpoints
 {
     private const string RoutePrefix = "directory/v1";
+    private const string TokenRoute = "token";
 
+    /// <summary>
+    /// The page size of the team change feed when the caller names none.
+    /// </summary>
     private const int DefaultChangesLimit = 100;
+
+    /// <summary>
+    /// The largest page size of the team change feed.
+    /// </summary>
     private const int MaxChangesLimit = 1000;
+
+    /// <summary>
+    /// The page size of the replicated revisions listing when the caller names none. The control-plane cell reads the
+    /// whole set when it starts, so it defaults to the maximum.
+    /// </summary>
+    private const int DefaultRevisionsLimit = 1000;
+
+    /// <summary>
+    /// The largest page size of the replicated revisions listing.
+    /// </summary>
+    private const int MaxRevisionsLimit = 1000;
 
     private const string TenantWriteForbiddenDetail =
         "Only the cell that holds a tenant, or the control-plane cell, writes it.";
@@ -81,12 +106,22 @@ public static class DirectoryEndpoints
     private static JsonSerializerOptions WebOptions { get; } = new(JsonSerializerDefaults.Web);
 
     /// <summary>
-    /// Gets the problem detail that the cell registration route answers with when the kind or the management URL is
-    /// longer than the directory stores.
+    /// The problem detail that the cell registration route answers with when the key set is not a public JSON Web Key
+    /// Set.
     /// </summary>
-    private static string CellTooLongDetail =>
-        $"A cell's kind is at most {DirectoryLimits.MaxCellKindLength} characters and its management URL at most "
-        + $"{DirectoryLimits.MaxManagementUrlLength}.";
+    private const string JwksRequiredDetail = "The cell's key set is a public JSON Web Key Set.";
+
+    /// <summary>
+    /// Gets the problem detail that the cell routes answer with when the kind is not a valid cell kind.
+    /// </summary>
+    private static string InvalidCellKindDetail => $"A cell's kind is {CellKindRules.Description}.";
+
+    /// <summary>
+    /// Gets the problem detail that the cell registration route answers with when the management URL is longer than the
+    /// directory stores.
+    /// </summary>
+    private static string ManagementUrlTooLongDetail =>
+        $"A cell's management URL is at most {DirectoryLimits.MaxManagementUrlLength} characters.";
 
     private static string InvalidCellLabelDetail =>
         $"A cell and its region are each {CellLabelRules.Description}.";
@@ -208,6 +243,16 @@ public static class DirectoryEndpoints
             .MapGet("{teamId}/document", GetTeamDocumentAsync)
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status404NotFound);
+        group
+            .MapPut("{teamId}/authority", PublishTeamAuthorityAsync)
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status403Forbidden)
+            .ProducesProblem(StatusCodes.Status413PayloadTooLarge)
+            .ProducesProblem(StatusCodes.Status415UnsupportedMediaType);
+        group
+            .MapGet("{teamId}/authority", GetTeamAuthorityAsync)
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status404NotFound);
         group.MapGet("changes", ListChangesAsync).ProducesProblem(StatusCodes.Status400BadRequest);
     }
 
@@ -227,11 +272,29 @@ public static class DirectoryEndpoints
         group
             .MapGet("document", GetPlatformDocumentAsync)
             .ProducesProblem(StatusCodes.Status404NotFound);
+        group
+            .MapPut("authority", PublishPlatformAuthorityAsync)
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status403Forbidden)
+            .ProducesProblem(StatusCodes.Status413PayloadTooLarge)
+            .ProducesProblem(StatusCodes.Status415UnsupportedMediaType);
+        group
+            .MapGet("authority", GetPlatformAuthorityAsync)
+            .ProducesProblem(StatusCodes.Status404NotFound);
+        group
+            .MapPut("management-keys", PublishManagementKeysAsync)
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status403Forbidden)
+            .ProducesProblem(StatusCodes.Status413PayloadTooLarge)
+            .ProducesProblem(StatusCodes.Status415UnsupportedMediaType);
+        group
+            .MapGet("management-keys", GetManagementKeysAsync)
+            .ProducesProblem(StatusCodes.Status404NotFound);
     }
 
     /// <summary>
-    /// Maps the cell routes: registering a cell, listing the cells and reading one cell. Each route declares the
-    /// problem documents that it can answer.
+    /// Maps the cell routes: registering a cell's client keys, retiring a cell, a cell's own descriptor report, listing
+    /// the cells and reading one cell. Each route declares the problem documents that it can answer.
     /// </summary>
     /// <param name="group">The <see cref="RouteGroupBuilder"/> of <c>/directory/v1/cells</c>.</param>
     private static void MapCells(RouteGroupBuilder group)
@@ -240,10 +303,143 @@ public static class DirectoryEndpoints
             .MapPut("{name}", RegisterCellAsync)
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status403Forbidden)
+            .ProducesProblem(StatusCodes.Status409Conflict)
             .ProducesProblem(StatusCodes.Status415UnsupportedMediaType);
+        group
+            .MapPut("{name}/registration", RegisterCellClientAsync)
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status403Forbidden)
+            .ProducesProblem(StatusCodes.Status409Conflict)
+            .ProducesProblem(StatusCodes.Status415UnsupportedMediaType);
+        group
+            .MapDelete("{name}", RetireCellAsync)
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status403Forbidden)
+            .ProducesProblem(StatusCodes.Status409Conflict);
         group.MapGet("", ListCellsAsync);
         group.MapGet("{name}", GetCellAsync).ProducesProblem(StatusCodes.Status404NotFound);
     }
+
+    #region Token
+
+    /// <summary>
+    /// Authenticates a cell by its <c>private_key_jwt</c> client assertion (RFC 7523) and issues the directory's access
+    /// token for it. The route is outside the authentication gate, because the token is what it issues.
+    /// </summary>
+    /// <param name="httpContext">The <see cref="HttpContext"/> that carries the form request.</param>
+    /// <param name="assertionValidator">The <see cref="DirectoryClientAssertionValidator"/> that checks the
+    /// assertion.</param>
+    /// <param name="tokenIssuer">The <see cref="DirectoryTokenIssuer"/> that issues the access token.</param>
+    /// <param name="options">The <see cref="DirectoryServerOptions"/> that name the directory's issuer and token
+    /// lifetime.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    /// <returns>
+    /// <c>200 OK</c> with the access token, its type and its lifetime in seconds; <c>400 Bad Request</c> with the RFC
+    /// 6749 error <c>invalid_request</c> when the request is not a form or lacks or repeats a parameter, or
+    /// <c>unsupported_grant_type</c> when the grant type is not <c>client_credentials</c>; or <c>401 Unauthorized</c>
+    /// with the error <c>invalid_client</c> when the assertion is refused. Every answer carries
+    /// <c>Cache-Control: no-store</c>.
+    /// </returns>
+    private static async ValueTask<IResult> TokenAsync(
+        HttpContext httpContext,
+        DirectoryClientAssertionValidator assertionValidator,
+        DirectoryTokenIssuer tokenIssuer,
+        IOptions<DirectoryServerOptions> options,
+        CancellationToken cancellationToken
+    )
+    {
+        httpContext.Response.SetNoStore();
+
+        var form = await httpContext.Request.TryReadFormAsync(cancellationToken);
+        if (form is null)
+            return TokenError(
+                StatusCodes.Status400BadRequest,
+                OpenIdProtocol.ErrorCodes.InvalidRequest,
+                "The request is a form."
+            );
+
+        var grantType = form[OpenIdProtocol.Parameters.GrantType];
+        if (grantType.Count != 1 || string.IsNullOrEmpty(grantType[0]))
+            return TokenError(
+                StatusCodes.Status400BadRequest,
+                OpenIdProtocol.ErrorCodes.InvalidRequest,
+                "The request has one grant_type."
+            );
+
+        if (
+            !string.Equals(
+                grantType[0],
+                OpenIdProtocol.GrantTypes.ClientCredentials,
+                StringComparison.Ordinal
+            )
+        )
+            return TokenError(
+                StatusCodes.Status400BadRequest,
+                OpenIdProtocol.ErrorCodes.UnsupportedGrantType,
+                "The grant type is client_credentials."
+            );
+
+        var assertionType = form[OpenIdProtocol.Parameters.ClientAssertionType];
+        var assertion = form[OpenIdProtocol.Parameters.ClientAssertion];
+        var isAssertion =
+            assertionType.Count == 1
+            && string.Equals(
+                assertionType[0],
+                OpenIdProtocol.ClientAssertionTypes.JwtBearer,
+                StringComparison.Ordinal
+            )
+            && assertion.Count == 1
+            && !string.IsNullOrEmpty(assertion[0]);
+        if (!isAssertion)
+            return TokenError(
+                StatusCodes.Status400BadRequest,
+                OpenIdProtocol.ErrorCodes.InvalidRequest,
+                "The request has one JWT bearer client_assertion."
+            );
+
+        var issuer = options.Value.Issuer.TrimEnd('/');
+        var tokenEndpointUrl = $"{issuer}/{RoutePrefix}/{TokenRoute}";
+        var assertionValue = assertion[0] ?? string.Empty;
+        var result = await assertionValidator.ValidateAsync(
+            assertionValue,
+            tokenEndpointUrl,
+            cancellationToken
+        );
+        if (!result.IsValid)
+            return TokenError(
+                StatusCodes.Status401Unauthorized,
+                OpenIdProtocol.ErrorCodes.InvalidClient,
+                result.FailureReason
+            );
+
+        var accessToken = await tokenIssuer.IssueAsync(result.CellName, cancellationToken);
+        var response = new Dictionary<string, object>
+        {
+            [OpenIdProtocol.Parameters.AccessToken] = accessToken,
+            [OpenIdProtocol.Parameters.TokenType] = OpenIdProtocol.TokenTypes.Bearer,
+            [OpenIdProtocol.Parameters.ExpiresIn] = (long)options.Value.TokenLifetime.TotalSeconds,
+        };
+        return TypedResults.Json(response);
+    }
+
+    /// <summary>
+    /// Builds the RFC 6749 section 5.2 error document of the token endpoint.
+    /// </summary>
+    /// <param name="statusCode">The HTTP status code.</param>
+    /// <param name="error">The error code.</param>
+    /// <param name="description">The explanation for the caller.</param>
+    /// <returns>The <see cref="IResult"/> that writes the error document.</returns>
+    private static IResult TokenError(int statusCode, string error, string description)
+    {
+        var body = new Dictionary<string, string>
+        {
+            [OpenIdProtocol.Parameters.ErrorCode] = error,
+            [OpenIdProtocol.Parameters.ErrorDescription] = description,
+        };
+        return TypedResults.Json(body, statusCode: statusCode);
+    }
+
+    #endregion
 
     #region Tenants
 
@@ -908,6 +1104,261 @@ public static class DirectoryEndpoints
 
     #endregion
 
+    #region Replicated documents
+
+    /// <summary>
+    /// Publishes the platform's authority document. Only the control-plane cell publishes it.
+    /// </summary>
+    /// <param name="document">The <see cref="ReplicatedDocument"/> to publish.</param>
+    /// <param name="httpContext">The <see cref="HttpContext"/> that carries the authenticated calling cell.</param>
+    /// <param name="options">The <see cref="DirectoryServerOptions"/> that name the control-plane cell.</param>
+    /// <param name="directory">The <see cref="IReplicatedDocumentDirectory"/> that holds the document.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    /// <returns>See <see cref="PublishReplicatedAsync"/>.</returns>
+    private static async ValueTask<IResult> PublishPlatformAuthorityAsync(
+        ReplicatedDocument document,
+        HttpContext httpContext,
+        IOptions<DirectoryServerOptions> options,
+        IReplicatedDocumentDirectory directory,
+        CancellationToken cancellationToken
+    )
+    {
+        if (ForbidUnlessControlPlane(httpContext, options.Value) is { } forbidden)
+            return forbidden;
+
+        return await PublishReplicatedAsync(
+            ReplicatedDocumentKinds.PlatformAuthority,
+            string.Empty,
+            document,
+            directory,
+            cancellationToken
+        );
+    }
+
+    /// <summary>
+    /// Publishes the management keys document. Only the control-plane cell publishes it.
+    /// </summary>
+    /// <param name="document">The <see cref="ReplicatedDocument"/> to publish.</param>
+    /// <param name="httpContext">The <see cref="HttpContext"/> that carries the authenticated calling cell.</param>
+    /// <param name="options">The <see cref="DirectoryServerOptions"/> that name the control-plane cell.</param>
+    /// <param name="directory">The <see cref="IReplicatedDocumentDirectory"/> that holds the document.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    /// <returns>See <see cref="PublishReplicatedAsync"/>.</returns>
+    private static async ValueTask<IResult> PublishManagementKeysAsync(
+        ReplicatedDocument document,
+        HttpContext httpContext,
+        IOptions<DirectoryServerOptions> options,
+        IReplicatedDocumentDirectory directory,
+        CancellationToken cancellationToken
+    )
+    {
+        if (ForbidUnlessControlPlane(httpContext, options.Value) is { } forbidden)
+            return forbidden;
+
+        return await PublishReplicatedAsync(
+            ReplicatedDocumentKinds.ManagementKeys,
+            string.Empty,
+            document,
+            directory,
+            cancellationToken
+        );
+    }
+
+    /// <summary>
+    /// Publishes a team's authority document. Only the control-plane cell publishes it.
+    /// </summary>
+    /// <param name="teamId">The team identifier from the route.</param>
+    /// <param name="document">The <see cref="ReplicatedDocument"/> to publish.</param>
+    /// <param name="httpContext">The <see cref="HttpContext"/> that carries the authenticated calling cell.</param>
+    /// <param name="options">The <see cref="DirectoryServerOptions"/> that name the control-plane cell.</param>
+    /// <param name="directory">The <see cref="IReplicatedDocumentDirectory"/> that holds the document.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    /// <returns>See <see cref="PublishReplicatedAsync"/>; <c>400 Bad Request</c> also when the team is not
+    /// valid.</returns>
+    private static async ValueTask<IResult> PublishTeamAuthorityAsync(
+        string teamId,
+        ReplicatedDocument document,
+        HttpContext httpContext,
+        IOptions<DirectoryServerOptions> options,
+        IReplicatedDocumentDirectory directory,
+        CancellationToken cancellationToken
+    )
+    {
+        if (ForbidUnlessControlPlane(httpContext, options.Value) is { } forbidden)
+            return forbidden;
+
+        if (ValidateTeamId(teamId) is { } invalid)
+            return invalid;
+
+        return await PublishReplicatedAsync(
+            ReplicatedDocumentKinds.TeamAuthority,
+            teamId,
+            document,
+            directory,
+            cancellationToken
+        );
+    }
+
+    /// <summary>
+    /// Publishes a replicated document of the kind and key that its route names.
+    /// </summary>
+    /// <param name="kind">The kind that the route names.</param>
+    /// <param name="key">The key that the route names.</param>
+    /// <param name="document">The <see cref="ReplicatedDocument"/> to publish.</param>
+    /// <param name="directory">The <see cref="IReplicatedDocumentDirectory"/> that holds the document.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    /// <returns>
+    /// <c>200 OK</c> with the stored revision, which is the document's when it was higher and the stored one otherwise;
+    /// <c>400 Bad Request</c> when the document's kind or key is not the route's; or <c>413 Payload Too Large</c> when
+    /// its content is longer than <see cref="DirectoryLimits.MaxDocumentBytes"/> bytes.
+    /// </returns>
+    private static async ValueTask<IResult> PublishReplicatedAsync(
+        string kind,
+        string key,
+        ReplicatedDocument document,
+        IReplicatedDocumentDirectory directory,
+        CancellationToken cancellationToken
+    )
+    {
+        var isRoute =
+            string.Equals(document.Kind, kind, StringComparison.Ordinal)
+            && string.Equals(document.Key, key, StringComparison.OrdinalIgnoreCase);
+        if (!isRoute)
+            return BadRequest("The kind and the key of the document are those of the route.");
+
+        var contentJson = document.Content?.GetRawText();
+        var size = contentJson is null ? 0 : SecureEncoding.UTF8.GetByteCount(contentJson);
+        if (size > DirectoryLimits.MaxDocumentBytes)
+        {
+            return PayloadTooLarge(
+                $"The document is {size} bytes, and a published document is at most {DirectoryLimits.MaxDocumentBytes} bytes."
+            );
+        }
+
+        var revision = await directory.PublishAsync(document, cancellationToken);
+        var response = new { revision };
+        return TypedResults.Ok(response);
+    }
+
+    /// <summary>
+    /// Reads the platform's authority document.
+    /// </summary>
+    /// <param name="directory">The <see cref="IReplicatedDocumentDirectory"/> that holds the document.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    /// <returns><c>200 OK</c> with the document, or a <c>404 Not Found</c> problem when none is published.</returns>
+    private static ValueTask<IResult> GetPlatformAuthorityAsync(
+        IReplicatedDocumentDirectory directory,
+        CancellationToken cancellationToken
+    ) =>
+        GetReplicatedAsync(
+            ReplicatedDocumentKinds.PlatformAuthority,
+            string.Empty,
+            directory,
+            cancellationToken
+        );
+
+    /// <summary>
+    /// Reads the management keys document.
+    /// </summary>
+    /// <param name="directory">The <see cref="IReplicatedDocumentDirectory"/> that holds the document.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    /// <returns><c>200 OK</c> with the document, or a <c>404 Not Found</c> problem when none is published.</returns>
+    private static ValueTask<IResult> GetManagementKeysAsync(
+        IReplicatedDocumentDirectory directory,
+        CancellationToken cancellationToken
+    ) =>
+        GetReplicatedAsync(
+            ReplicatedDocumentKinds.ManagementKeys,
+            string.Empty,
+            directory,
+            cancellationToken
+        );
+
+    /// <summary>
+    /// Reads a team's authority document.
+    /// </summary>
+    /// <param name="teamId">The team identifier from the route.</param>
+    /// <param name="directory">The <see cref="IReplicatedDocumentDirectory"/> that holds the document.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    /// <returns>
+    /// <c>200 OK</c> with the document; <c>400 Bad Request</c> when the team is not valid; or a <c>404 Not Found</c>
+    /// problem when none is published.
+    /// </returns>
+    private static async ValueTask<IResult> GetTeamAuthorityAsync(
+        string teamId,
+        IReplicatedDocumentDirectory directory,
+        CancellationToken cancellationToken
+    )
+    {
+        if (ValidateTeamId(teamId) is { } invalid)
+            return invalid;
+
+        return await GetReplicatedAsync(
+            ReplicatedDocumentKinds.TeamAuthority,
+            teamId,
+            directory,
+            cancellationToken
+        );
+    }
+
+    /// <summary>
+    /// Reads a replicated document.
+    /// </summary>
+    /// <param name="kind">The kind of the document.</param>
+    /// <param name="key">The key of the document.</param>
+    /// <param name="directory">The <see cref="IReplicatedDocumentDirectory"/> that holds the document.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    /// <returns><c>200 OK</c> with the document, or a <c>404 Not Found</c> problem when none is published.</returns>
+    private static async ValueTask<IResult> GetReplicatedAsync(
+        string kind,
+        string key,
+        IReplicatedDocumentDirectory directory,
+        CancellationToken cancellationToken
+    )
+    {
+        var document = await directory.GetOrDefaultAsync(kind, key, cancellationToken);
+        return document is null
+            ? NotFound($"The directory holds no '{kind}' document.")
+            : TypedResults.Ok(document);
+    }
+
+    /// <summary>
+    /// Lists a page of the revisions of the replicated documents, ordered by kind and then by key, which the
+    /// control-plane cell reads when it starts. The page size is clamped to a range of one to the maximum page size, so
+    /// an out-of-range query value is bounded and never rejected.
+    /// </summary>
+    /// <param name="httpContext">The <see cref="HttpContext"/> that carries the authenticated calling cell.</param>
+    /// <param name="options">The <see cref="DirectoryServerOptions"/> that name the control-plane cell.</param>
+    /// <param name="directory">The <see cref="IReplicatedDocumentDirectory"/> that holds the documents.</param>
+    /// <param name="after">The continuation of the previous page, or <c>null</c> for the first page.</param>
+    /// <param name="limit">The requested page size.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    /// <returns>
+    /// <c>200 OK</c> with a page of documents, whose content is <c>null</c>; <c>400 Bad Request</c> when the
+    /// continuation is not valid; or <c>403 Forbidden</c> when the caller is not the control-plane cell.
+    /// </returns>
+    private static async ValueTask<IResult> ListReplicatedRevisionsAsync(
+        HttpContext httpContext,
+        IOptions<DirectoryServerOptions> options,
+        IReplicatedDocumentDirectory directory,
+        [FromQuery] string? after,
+        [FromQuery] int? limit,
+        CancellationToken cancellationToken
+    )
+    {
+        if (ForbidUnlessControlPlane(httpContext, options.Value) is { } forbidden)
+            return forbidden;
+
+        if (after is not null && !ReplicatedRevisionContinuation.TryParse(after, out _, out _))
+            return BadRequest("The continuation is not valid.");
+
+        var boundedLimit = Math.Clamp(limit ?? DefaultRevisionsLimit, 1, MaxRevisionsLimit);
+        var page = await directory.ListRevisionsAsync(after, boundedLimit, cancellationToken);
+        return TypedResults.Ok(page);
+    }
+
+    #endregion
+
     #region Cells
 
     /// <summary>
@@ -924,11 +1375,13 @@ public static class DirectoryEndpoints
     /// <param name="directory">The <see cref="ICellDirectory"/> that holds the registration.</param>
     /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
     /// <returns>
-    /// <c>200 OK</c> when the cell is registered; <c>400 Bad Request</c> when the kind or the management URL is blank
-    /// or longer than the directory stores, the management URL is not an absolute <c>https</c> URL (or an <c>http</c>
-    /// URL in local development) without user information, a query or a fragment, the name or the region is not a
-    /// <see cref="CellLabelRules"/> label, or the descriptor names a cell other than the route's; <c>403 Forbidden</c>
-    /// when the cell is not the caller or claims to be the control plane without being it.
+    /// <c>200 OK</c> when the cell is registered; <c>400 Bad Request</c> when the kind is blank or not a valid cell
+    /// kind, the management URL is blank or longer than the directory stores, the management URL is not an absolute
+    /// <c>https</c> URL (or an <c>http</c> URL in local development) without user information, a query or a fragment,
+    /// the name or the region is not a <see cref="CellLabelRules"/> label, or the descriptor names a cell other than
+    /// the route's; <c>403 Forbidden</c> when the cell is not the caller or claims to be the control plane without
+    /// being it; <c>409 Conflict</c> when the cell is not registered or is retired, its region or kind differs from its
+    /// registration, or another cell reports the management URL.
     /// </returns>
     private static async ValueTask<IResult> RegisterCellAsync(
         string name,
@@ -943,11 +1396,11 @@ public static class DirectoryEndpoints
         if (IsBlank(descriptor.Kind) || IsBlank(descriptor.ManagementUrl))
             return BadRequest("The cell's kind and its management URL are required.");
 
-        if (
-            IsOverLong(descriptor.Kind, DirectoryLimits.MaxCellKindLength)
-            || IsOverLong(descriptor.ManagementUrl, DirectoryLimits.MaxManagementUrlLength)
-        )
-            return BadRequest(CellTooLongDetail);
+        if (!CellKindRules.IsValidKind(descriptor.Kind))
+            return BadRequest(InvalidCellKindDetail);
+
+        if (IsOverLong(descriptor.ManagementUrl, DirectoryLimits.MaxManagementUrlLength))
+            return BadRequest(ManagementUrlTooLongDetail);
 
         var isManagementUrl = localDevelopmentMode.Enabled
             ? AbsoluteUri.TryParseAnyHttpServiceUrl(descriptor.ManagementUrl, out _)
@@ -973,14 +1426,107 @@ public static class DirectoryEndpoints
         // Only the control-plane cell registers itself as the control plane.
         if (
             descriptor.IsControlPlane
-            && !string.Equals(name, options.Value.ControlPlaneCell, StringComparison.Ordinal)
+            && !string.Equals(name, options.Value.ControlPlane.Cell, StringComparison.Ordinal)
         )
         {
             return Forbidden("Only the control-plane cell registers itself as the control plane.");
         }
 
-        await directory.RegisterAsync(descriptor, cancellationToken);
+        await directory.ReportAsync(descriptor, cancellationToken);
+
         return TypedResults.Ok();
+    }
+
+    /// <summary>
+    /// Registers a cell, or replaces the client key set of a registered cell. Only the control-plane cell registers
+    /// cells.
+    /// </summary>
+    /// <param name="name">The cell name from the route.</param>
+    /// <param name="body">The cell's region, kind and client key set.</param>
+    /// <param name="httpContext">The <see cref="HttpContext"/> that carries the authenticated calling cell.</param>
+    /// <param name="options">The <see cref="DirectoryServerOptions"/> that name the control-plane cell.</param>
+    /// <param name="jwksReader">The <see cref="IPublicJwksReader"/> that checks the key set.</param>
+    /// <param name="directory">The <see cref="ICellDirectory"/> that holds the registration.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    /// <returns>
+    /// <c>204 No Content</c> when the cell is registered; <c>400 Bad Request</c> when the name or the region is not a
+    /// <see cref="CellLabelRules"/> label, the kind is blank or not a valid cell kind, or the key set is not a public
+    /// JSON Web Key Set; <c>403 Forbidden</c> when the caller is not the control-plane cell; <c>409 Conflict</c> when
+    /// the directory refuses the registration.
+    /// </returns>
+    private static async ValueTask<IResult> RegisterCellClientAsync(
+        string name,
+        CellRegistrationBody body,
+        HttpContext httpContext,
+        IOptions<DirectoryServerOptions> options,
+        IPublicJwksReader jwksReader,
+        ICellDirectory directory,
+        CancellationToken cancellationToken
+    )
+    {
+        if (ForbidUnlessControlPlane(httpContext, options.Value) is { } forbidden)
+            return forbidden;
+
+        if (!CellLabelRules.IsValidLabel(name) || !CellLabelRules.IsValidLabel(body.Region))
+            return BadRequest(InvalidCellLabelDetail);
+
+        if (IsBlank(body.Kind))
+            return BadRequest("The cell's kind is required.");
+
+        if (!CellKindRules.IsValidKind(body.Kind))
+            return BadRequest(InvalidCellKindDetail);
+
+        if (body.Jwks.ValueKind != JsonValueKind.Object)
+            return BadRequest(JwksRequiredDetail);
+
+        if (!jwksReader.TryRead(body.Jwks, out _, out var error))
+        {
+            var detail = $"{JwksRequiredDetail} {error}";
+            return BadRequest(detail);
+        }
+
+        var registration = new CellRegistration
+        {
+            Name = name,
+            Region = body.Region,
+            Kind = body.Kind,
+            Jwks = body.Jwks,
+        };
+        await directory.RegisterAsync(registration, cancellationToken);
+
+        return TypedResults.NoContent();
+    }
+
+    /// <summary>
+    /// Retires a cell, so its name is never reissued. Only the control-plane cell retires cells.
+    /// </summary>
+    /// <param name="name">The cell name from the route.</param>
+    /// <param name="httpContext">The <see cref="HttpContext"/> that carries the authenticated calling cell.</param>
+    /// <param name="options">The <see cref="DirectoryServerOptions"/> that name the control-plane cell.</param>
+    /// <param name="directory">The <see cref="ICellDirectory"/> that holds the registration.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    /// <returns>
+    /// <c>204 No Content</c> when the cell is retired; <c>400 Bad Request</c> when the name is not a
+    /// <see cref="CellLabelRules"/> label; <c>403 Forbidden</c> when the caller is not the control-plane cell;
+    /// <c>409 Conflict</c> when the cell is not registered, holds tenants or is the control-plane cell.
+    /// </returns>
+    private static async ValueTask<IResult> RetireCellAsync(
+        string name,
+        HttpContext httpContext,
+        IOptions<DirectoryServerOptions> options,
+        ICellDirectory directory,
+        CancellationToken cancellationToken
+    )
+    {
+        if (ForbidUnlessControlPlane(httpContext, options.Value) is { } forbidden)
+            return forbidden;
+
+        if (!CellLabelRules.IsValidLabel(name))
+            return BadRequest(InvalidCellLabelDetail);
+
+        await directory.RetireAsync(name, cancellationToken);
+
+        return TypedResults.NoContent();
     }
 
     /// <summary>
@@ -1079,7 +1625,7 @@ public static class DirectoryEndpoints
     ) =>
         DirectoryCaller.IsControlPlane(httpContext.User, options)
             ? null
-            : Forbidden("Only the control-plane cell writes the platform and the teams.");
+            : Forbidden("Only the control-plane cell writes the directory's global state.");
 
     /// <summary>
     /// Refuses a team identifier from a route that is blank or is not a <see cref="TenantIdentifierRules"/> identifier.
@@ -1180,11 +1726,23 @@ public static class DirectoryEndpoints
     /// </summary>
     /// <param name="detail">The explanation for the caller.</param>
     /// <returns>The <see cref="ProblemHttpResult"/> that writes the problem document.</returns>
-    private static ProblemHttpResult Conflict(string? detail) =>
+    internal static ProblemHttpResult Conflict(string? detail) =>
         TypedResults.Problem(
             title: "Conflict",
             detail: detail,
             statusCode: StatusCodes.Status409Conflict
+        );
+
+    /// <summary>
+    /// Builds a <c>413 Payload Too Large</c> problem document.
+    /// </summary>
+    /// <param name="detail">The explanation for the caller.</param>
+    /// <returns>The <see cref="ProblemHttpResult"/> that writes the problem document.</returns>
+    private static ProblemHttpResult PayloadTooLarge(string detail) =>
+        TypedResults.Problem(
+            title: "Payload Too Large",
+            detail: detail,
+            statusCode: StatusCodes.Status413PayloadTooLarge
         );
 
     /// <summary>
@@ -1242,10 +1800,24 @@ public static class DirectoryEndpoints
         {
             ArgumentNullException.ThrowIfNull(endpoints);
 
-            var group = endpoints
+            var root = endpoints
                 .MapGroup(RoutePrefix)
+                .AddEndpointGate<RouteGroupBuilder, DirectoryAnchorGate>()
+                .WithConfidentialBodies();
+
+            // The token endpoint is outside the authentication gate: its client assertion is its authentication.
+            var tokenRequestSizeLimit = new RequestSizeLimitAttribute(
+                DirectoryLimits.MaxTokenRequestBytes
+            );
+            root.MapPost(TokenRoute, TokenAsync)
+                .WithMetadata(tokenRequestSizeLimit)
+                .Produces(StatusCodes.Status200OK)
+                .Produces(StatusCodes.Status400BadRequest)
+                .Produces(StatusCodes.Status401Unauthorized)
+                .Produces(StatusCodes.Status503ServiceUnavailable);
+
+            var group = root.MapGroup(string.Empty)
                 .AddEndpointGate<RouteGroupBuilder, DirectoryAuthenticationGate>()
-                .WithConfidentialBodies()
                 .ProducesProblem(StatusCodes.Status401Unauthorized)
                 .ProducesProblem(StatusCodes.Status503ServiceUnavailable);
 
@@ -1255,11 +1827,17 @@ public static class DirectoryEndpoints
                 .MapGet("retired-issuers", GetRetiredIssuerAsync)
                 .ProducesProblem(StatusCodes.Status400BadRequest)
                 .ProducesProblem(StatusCodes.Status404NotFound);
+            group
+                .MapGet("replicated-revisions", ListReplicatedRevisionsAsync)
+                .ProducesProblem(StatusCodes.Status400BadRequest)
+                .ProducesProblem(StatusCodes.Status403Forbidden);
             var teamsGroup = group.MapGroup("teams");
             MapTeams(teamsGroup);
             var platformGroup = group.MapGroup("platform");
             MapPlatform(platformGroup);
-            var cellsGroup = group.MapGroup("cells");
+            var cellsGroup = group
+                .MapGroup("cells")
+                .AddEndpointFilter<CellDirectoryConflictEndpointFilter>();
             MapCells(cellsGroup);
 
             return group;

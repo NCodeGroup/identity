@@ -44,6 +44,49 @@ public sealed class CellOptionsValidatorTests
         Assert.True(result.Succeeded);
     }
 
+    [Fact]
+    public void Validate_WhenTheKeyCustodyReconcileIntervalIsDefault_Succeeds()
+    {
+        var options = CreateOptions();
+
+        Assert.Equal(TimeSpan.FromMinutes(15), options.KeyCustodyReconcileInterval);
+        Assert.True(CreateValidator().Validate(name: null, options).Succeeded);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    [InlineData(4_294_967_295L)]
+    public void Validate_WhenTheKeyCustodyReconcileIntervalIsNotATimerPeriod_Fails(
+        long milliseconds
+    )
+    {
+        var options = CreateOptions();
+        options.KeyCustodyReconcileInterval = TimeSpan.FromMilliseconds(milliseconds);
+
+        var result = CreateValidator().Validate(name: null, options);
+
+        Assert.True(result.Failed);
+        Assert.Contains(
+            "Cell:KeyCustodyReconcileInterval",
+            result.FailureMessage,
+            StringComparison.Ordinal
+        );
+    }
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(4_294_967_294L)]
+    public void Validate_WhenTheKeyCustodyReconcileIntervalIsATimerPeriodBound_Succeeds(
+        long milliseconds
+    )
+    {
+        var options = CreateOptions();
+        options.KeyCustodyReconcileInterval = TimeSpan.FromMilliseconds(milliseconds);
+
+        Assert.True(CreateValidator().Validate(name: null, options).Succeeded);
+    }
+
     [Theory]
     [InlineData("")]
     [InlineData("EU")]
@@ -136,6 +179,19 @@ public sealed class CellOptionsValidatorTests
         var result = CreateValidator().Validate(name: null, options);
 
         Assert.True(result.Succeeded);
+    }
+
+    [Fact]
+    public void Validate_WhenTheKindIsTooLong_FailsNamingTheKey()
+    {
+        var options = CreateOptions();
+        options.Kind = new string('k', CellKindRules.MaxKindLength + 1);
+
+        var result = CreateValidator().Validate(name: null, options);
+
+        Assert.True(result.Failed);
+        Assert.Contains("Cell:Kind", result.FailureMessage, StringComparison.Ordinal);
+        Assert.Contains(CellKindRules.Description, result.FailureMessage, StringComparison.Ordinal);
     }
 
     [Theory]

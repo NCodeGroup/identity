@@ -31,6 +31,7 @@ public sealed class CallerApiEndpointHandlerTests : IDisposable
     private const string PrincipalId = "principal-1";
     private const string Subject = "subject-1";
     private const string ClientId = "client-1";
+    private const string CellName = "cell-1";
 
     private MockRepository MockRepository { get; }
     private Mock<IStoreManagerFactory> MockStoreManagerFactory { get; }
@@ -65,7 +66,7 @@ public sealed class CallerApiEndpointHandlerTests : IDisposable
             MockAuthorizationService.Object,
             MockControlPlaneAuthority.Object,
             MockAmbientTenantAccessor.Object,
-            Options.Create(new CellOptions { IsControlPlane = isControlPlane })
+            Options.Create(new CellOptions { IsControlPlane = isControlPlane, Name = CellName })
         );
 
     private static HttpContext CreateHttpContext(bool withClientId = true)
@@ -111,7 +112,7 @@ public sealed class CallerApiEndpointHandlerTests : IDisposable
         MockStoreManager.Setup(x => x.DisposeAsync()).Returns(ValueTask.CompletedTask).Verifiable();
     }
 
-    private void SetupPrincipal(string? principalId) =>
+    private void SetupPrincipal(string? principalId, bool isGlobalAdmin = false) =>
         MockControlPlaneAuthority
             .Setup(x =>
                 x.GetAsync(
@@ -126,7 +127,11 @@ public sealed class CallerApiEndpointHandlerTests : IDisposable
             .ReturnsAsync(
                 principalId is null
                     ? ControlPlaneAuthority.None
-                    : new ControlPlaneAuthority { PrincipalId = principalId }
+                    : new ControlPlaneAuthority
+                    {
+                        PrincipalId = principalId,
+                        IsGlobalAdmin = isGlobalAdmin,
+                    }
             )
             .Verifiable();
 
@@ -315,6 +320,77 @@ public sealed class CallerApiEndpointHandlerTests : IDisposable
         Assert.Null(caller.PrincipalId);
         Assert.False(caller.IsPlatformAdministrator);
         Assert.Empty(caller.Assignments);
+    }
+
+    private async ValueTask<CallerResource> GetCallerResourceAsync(
+        CallerApiEndpointHandler handler,
+        bool isGlobalAdmin,
+        PersistedRoleAssignment[] assignments,
+        CancellationToken cancellationToken
+    )
+    {
+        SetupScopeAndStoreManager();
+        SetupPrincipal(PrincipalId, isGlobalAdmin);
+        SetupAssignments(assignments);
+        MockAuthorizationService
+            .Setup(x =>
+                x.AuthorizeAsync(
+                    It.IsAny<ClaimsPrincipal>(),
+                    It.IsAny<object?>(),
+                    It.IsAny<IEnumerable<IAuthorizationRequirement>>()
+                )
+            )
+            .ReturnsAsync(AuthorizationResult.Failed())
+            .Verifiable();
+
+        var result = await handler.GetCallerAsync(CreateHttpContext(), cancellationToken);
+
+        var json = Assert.IsType<JsonHttpResult<CallerResource>>(result);
+        return Assert.IsType<CallerResource>(json.Value);
+    }
+
+    [Fact]
+    public async Task GetCallerAsync_InAWorkloadCell_ReportsTheRolesHeldAtTheCellNode()
+    {
+        var caller = await GetCallerResourceAsync(
+            CreateHandler(isControlPlane: false),
+            isGlobalAdmin: false,
+            [
+                CreateAssignment("assignment-1", "CellAdmin", ResourceNodeTypes.Cell, CellName),
+                CreateAssignment("assignment-2", "CellAuditor", ResourceNodeTypes.Cell, CellName),
+                CreateAssignment("assignment-3", "CellAdmin", ResourceNodeTypes.Cell, "other-cell"),
+                CreateAssignment("assignment-4", "TenantAdmin", ResourceNodeTypes.Tenant, CellName),
+            ],
+            CancellationToken.None
+        );
+
+        Assert.Equal(["CellAdmin", "CellAuditor"], caller.CellRoles);
+    }
+
+    [Fact]
+    public async Task GetCallerAsync_InAWorkloadCellForAGlobalAdministrator_IncludesGlobalAdmin()
+    {
+        var caller = await GetCallerResourceAsync(
+            CreateHandler(isControlPlane: false),
+            isGlobalAdmin: true,
+            [CreateAssignment("assignment-1", "CellAdmin", ResourceNodeTypes.Cell, CellName)],
+            CancellationToken.None
+        );
+
+        Assert.Equal(["CellAdmin", "GlobalAdmin"], caller.CellRoles);
+    }
+
+    [Fact]
+    public async Task GetCallerAsync_InTheControlPlaneCell_ReportsNoCellRoles()
+    {
+        var caller = await GetCallerResourceAsync(
+            CreateHandler(isControlPlane: true),
+            isGlobalAdmin: true,
+            [CreateAssignment("assignment-1", "CellAdmin", ResourceNodeTypes.Cell, CellName)],
+            CancellationToken.None
+        );
+
+        Assert.Empty(caller.CellRoles);
     }
 
     #endregion

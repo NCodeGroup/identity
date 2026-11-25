@@ -24,6 +24,7 @@ function renderStep(
     password: 'a long passphrase!',
   },
   consoleHint?: ConsoleHint,
+  administratorRole = 'GlobalAdmin',
 ) {
   const onCreated = vi.fn();
   const onTokenRejected = vi.fn();
@@ -33,6 +34,7 @@ function renderStep(
       <ConsoleClientStep
         token="the-token"
         account={account}
+        administratorRole={administratorRole}
         {...(consoleHint ? { consoleHint } : {})}
         loadKeySet={loadKeySet}
         onCreated={onCreated}
@@ -466,6 +468,17 @@ describe('ConsoleClientStep', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent(
       'The root administrator was not created.',
+    );
+  });
+
+  it('names the cell administrator when the role is CellAdmin', async () => {
+    vi.mocked(createRoot).mockResolvedValue({ kind: 'invalid', problem: {} });
+    renderStep(undefined, undefined, 'CellAdmin');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Create the cell administrator' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'The cell administrator was not created.',
     );
   });
 

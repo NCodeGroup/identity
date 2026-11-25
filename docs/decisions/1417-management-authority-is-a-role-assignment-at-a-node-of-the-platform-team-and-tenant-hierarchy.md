@@ -14,8 +14,11 @@ beneath a tenant its clients, resource servers and grants.
 
 A platform runs as independent cells under a global directory, and the platform and the teams are held by the
 control-plane cell while a tenant lives in one other cell or in that one. A tenant's cell must decide who may act on its
-tenant, including a caller whose platform or team assignment sits in another cell, and a cell that cannot reach the
-control plane must not guess.
+tenant, including a caller whose platform or team assignment sits in the control-plane cell, and it must decide from its
+own data, whatever the state of the control-plane cell or the directory
+([ADR-1536](1536-a-platforms-global-plane-is-a-standalone-directory-and-a-dedicated-control-plane-cell-and-every-other-cell-runs-and-is-managed-on-its-own.md)).
+A cell that serves its tenants through a dynamic strategy also has administrators of its own, who manage every tenant of
+that cell and nothing beyond it.
 
 Two sources of authority could coexist: a role assignment at a node, inherited down that hierarchy, and a role claim in
 the caller's token matched against the tenant a node carries. The management API authenticates every caller against the
@@ -36,10 +39,13 @@ claim confers management authority except the development bootstrap client's `Gl
 
 1. **The hierarchy and the roles.** An assignment at a node holds at the node and at everything beneath it: the chain
    runs from the platform node through every team above a tenant to the tenant, and on to a client, resource server or
-   grant node (`ResourceNodeTypes`). The built-in roles (`BuiltInRoles`) are `GlobalAdmin`, `TeamAdmin`, `TenantAdmin`
-   and `Owner`. The three administrator roles manage their node and everything beneath it and are creation roles
-   (`Operations.Create`). `Owner` manages its instance, including its settings, secrets, scopes and owners, and never
-   creates.
+   grant node (`ResourceNodeTypes`). The node type `cell` sits beside the team chain: a tenant node's ancestors include
+   the node `(cell, <Cell:Name>)` when this cell holds the tenant, the cell's management tenant included. The built-in
+   roles (`BuiltInRoles`) are `GlobalAdmin`, `TeamAdmin`, `TenantAdmin`, `CellAdmin` and `Owner`. The administrator
+   roles manage their node and everything beneath it. `GlobalAdmin`, `TeamAdmin` and `TenantAdmin` are creation roles
+   (`Operations.Create`); `CellAdmin` is a management role that never creates a tenant, though it creates the clients,
+   resource servers and other children of its cell's tenants. `Owner` manages its instance, including its settings,
+   secrets, scopes and owners, and never creates.
 2. **A tenant administrator.** A `TenantAdmin` assignment at a tenant's node manages the tenant and creates its clients,
    resource servers and other children. It never reaches a team or the platform, even for the control-plane tenant,
    whose identifier those nodes carry only as their address. The administrators of every team above a tenant grant that
@@ -56,15 +62,21 @@ claim confers management authority except the development bootstrap client's `Gl
    when one of its assignments of an authorizing role sits at the node or at an ancestor that `IAuthorityChainResolver`
    derives from the resource. No parent pointers are stored. Platform, team and tenant nodes match on type and identifier
    across tenants; any other node matches only an assignment of the node's tenant.
-5. **Platform and team authority is read through `IControlPlaneAuthority`.** The port answers a caller's role names at
-   the platform and team nodes and whether it is a global administrator (`IsGlobalAdmin`). Its local adapter, in the
-   control-plane cell, reads the platform and team assignments from `IRoleAssignmentStore`. Its remote adapter, in every
-   other cell, calls the control-plane cell's `POST /control-plane/v1/authority` with a client-credentials token for
-   audience `urn:ncode:control-plane`, and fails closed: an unreachable or failing control plane answers `503`, and
-   authority is never allowed on a failure. A tenant's own assignments are read from the tenant's cell, and the two
-   sources together answer the chain that `IAuthorityChainResolver` derives. The other cells also ask the control plane
-   for the names of principals through `POST /control-plane/v1/principals`
-   ([ADR-1465](1465-role-lists-share-one-audited-grant-and-revoke-flow-and-a-caller-discovers-its-own-assignments.md)).
+5. **Platform and team authority is read through `IControlPlaneAuthority`, and every cell holds it as a replicated
+   document.** The port answers a caller's role names at the platform and team nodes and whether it is a global
+   administrator (`IsGlobalAdmin`). Its local adapter, in the control-plane cell, reads the platform and team
+   assignments from `IRoleAssignmentStore`. The control-plane cell publishes them as the `platform-authority` document
+   and one `team-authority` document per team, which the directory's change feed carries to every other cell, and the
+   remote adapter, `ReplicatedControlPlaneAuthority`, answers from the replicas each cell applied into its own database,
+   with the team chain from the teams it mirrors. A cell never calls another cell to authorize a request. A tenant's own
+   assignments are read from the tenant's cell, and the two sources together answer the chain that
+   `IAuthorityChainResolver` derives. A cell that has applied no authority document holds no platform or team
+   assignment, so it grants none through them, and it never allows on a failure. A principal of a cell's management
+   tenant is authorized only by the assignments stored in the cell and never asks `IControlPlaneAuthority`. A workload
+   cell names only the principals of its own management tenant, and lists and grants a role holder of the control-plane
+   tenant by identifier
+   ([ADR-1465](1465-role-lists-share-one-audited-grant-and-revoke-flow-and-a-caller-discovers-its-own-assignments.md),
+   [ADR-1536](1536-a-platforms-global-plane-is-a-standalone-directory-and-a-dedicated-control-plane-cell-and-every-other-cell-runs-and-is-managed-on-its-own.md)).
 6. **No claim authority.** The one role claim that confers management authority is the development bootstrap client's
    `GlobalAdmin` stamp
    ([ADR-1044](1044-the-management-api-authenticates-its-own-access-tokens-and-a-configured-client-bootstraps-the-first-globaladmin.md)).
@@ -102,19 +114,25 @@ claim confers management authority except the development bootstrap client's `Gl
   control-plane cell's root tenant alone holds are seeded into it alone. Rejected.
 - **A role assignment at a node, with the management scopes on one resource server.** One grantable, listable authority
   source, inherited down the chain. Chosen.
-- **Replicate platform and team assignments into every cell.** A cell would answer from a copy that lags the control
-  plane, and a revoked administrator would keep authority until the copy catches up. Rejected.
-- **Answer from a cache when the control plane is unreachable.** A cell would allow what it last saw, so an outage
-  would turn a revocation into a grant. Rejected: the remote adapter fails closed.
-- **Platform and team assignments in the control-plane cell, read through `IControlPlaneAuthority` (chosen).** One
-  authority per platform, one answer per decision, and a tenant's own assignments stay beside the tenant.
+- **Ask the control-plane cell for authority on every decision.** A cell would stop managing its tenants whenever the
+  control-plane cell is down, and every decision would cost a cross-cell call. Rejected.
+- **A staleness cutoff on the replicated authority.** A cell would refuse management during a directory outage, which
+  turns an outage into a denial. Rejected: a cell authorizes from what it last applied, and the emergency revocation of
+  an administrator is the disabling of its account, which ends its access within the management token's lifetime.
+- **Platform and team assignments authored in the control-plane cell, replicated whole into every cell and read through
+  `IControlPlaneAuthority` (chosen).** One author per platform, one answer per decision from the cell's own data, and a
+  tenant's own assignments stay beside the tenant.
 
 ## Consequences
 
 - Every management authority except the development bootstrap client's stamp is an assignment that the `admins` and `owners` endpoints list,
   grant and revoke.
-- Platform and team authority is revoked once, in the control-plane cell, and every cell sees the revocation on its next
-  decision. A cell that cannot reach the control plane answers `503` for decisions that need it and never allows.
+- Platform and team authority is revoked once, in the control-plane cell, and every cell sees the revocation within the
+  publish latency plus one feed poll. Replicated authority is statically stable: a cell that cannot reach the directory
+  or the control-plane cell keeps authorizing from what it last applied, and the emergency revocation of an
+  administrator is disabling its account, which ends its access in every cell within the management token's lifetime.
+- `CellAdmin` at a cell's node manages that cell's tenants as `TenantAdmin` does one tenant, never reaches a team or the
+  platform, and is granted only to principals of the cell's management tenant.
 - `TeamAdmin` and `TenantAdmin` confer the same operations where they are assigned, one tier apart.
 - A team's administrators grant a tenant's administrators, and a tenant's owners cannot.
 - The control-plane tenant's administrators never hold platform or team authority through the tenant they authenticate

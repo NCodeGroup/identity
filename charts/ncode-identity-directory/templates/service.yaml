@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "identity-directory.fullname" . }}
+  labels:
+    {{- include "identity-directory.labels" . | nindent 4 }}
+  {{- if and .Values.ingress.enabled (eq .Values.ingress.controller "traefik") }}
+  annotations:
+    {{- include "identity-directory.backendTls.traefikServiceAnnotations" . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ .Values.service.type }}
+  ports:
+    - name: https
+      port: {{ .Values.service.port }}
+      targetPort: https
+      protocol: TCP
+      appProtocol: https
+  selector:
+    {{- include "identity-directory.selectorLabels" . | nindent 4 }}

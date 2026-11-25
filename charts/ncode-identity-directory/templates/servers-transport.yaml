@@ -1,0 +1,19 @@
+{{- if and .Values.ingress.enabled (eq .Values.ingress.controller "traefik") }}
+{{- $secret := include "identity-directory.backendTls.verificationSecretName" . }}
+# Traefik verifies the directory pods' certificate against the ca.crt of the ingress controller's Secret, under the
+# Service's DNS name, and presents that Secret's certificate when the pods require it.
+apiVersion: traefik.io/v1alpha1
+kind: ServersTransport
+metadata:
+  name: {{ include "identity-directory.fullname" . }}
+  labels:
+    {{- include "identity-directory.labels" . | nindent 4 }}
+spec:
+  serverName: {{ include "identity-directory.backendTls.serverName" . | quote }}
+  rootCAs:
+    - secret: {{ $secret }}
+{{- if .Values.backendTls.clientCertificate.required }}
+  certificatesSecrets:
+    - {{ $secret }}
+{{- end }}
+{{- end }}

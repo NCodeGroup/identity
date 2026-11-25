@@ -5,6 +5,7 @@ using JetBrains.Annotations;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using NCode.Identity.OpenId.Client;
@@ -20,6 +21,31 @@ namespace NCode.Identity.OpenId.GlobalDirectory;
 [PublicAPI]
 public static class DefaultRegistration
 {
+    /// <summary>
+    /// Creates the validator of management tokens for a cell other than the control plane's. A cell with a management
+    /// tenant accepts the control plane's tokens and its own tenants' tokens; any other cell accepts only the control
+    /// plane's.
+    /// </summary>
+    /// <param name="serviceProvider">The <see cref="IServiceProvider"/> that resolves the validators.</param>
+    /// <param name="serviceKey">The key that the validator is registered under.</param>
+    /// <returns>The <see cref="IManagementTokenValidator"/> that the cell uses.</returns>
+    private static IManagementTokenValidator CreateRemoteManagementTokenValidator(
+        IServiceProvider serviceProvider,
+        object? serviceKey
+    )
+    {
+        var replicated = serviceProvider.GetRequiredService<ReplicatedManagementTokenValidator>();
+        var topology = serviceProvider.GetRequiredService<IPlatformTopology>();
+        if (!topology.HasManagementTenant)
+            return replicated;
+
+        var local = serviceProvider.GetRequiredKeyedService<IManagementTokenValidator>(
+            ControlPlaneServiceKeys.Local
+        );
+        var cellOptions = serviceProvider.GetRequiredService<IOptions<CellOptions>>();
+        return new CellManagementTokenValidator(replicated, local, cellOptions);
+    }
+
     /// <param name="builder">The <see cref="IServiceBuilder{T}"/> returned by <c>AddOpenIdClientLibrary</c>.</param>
     extension(IServiceBuilder<OpenIdClientLibrary> builder)
     {
@@ -28,23 +54,25 @@ public static class DefaultRegistration
         /// <see cref="IPlatformDirectory"/> and <see cref="ICellDirectory"/> when the <c>Directory:Url</c> setting is
         /// set, and registers nothing otherwise, so a cell that runs on its own keeps the local adapters. The
         /// <c>Directory</c> section binds <see cref="DirectoryClientOptions"/> strictly and is validated when the host
-        /// starts. Each adapter calls the <c>directory/v1</c> API with a client-credentials token for the audience
-        /// <c>urn:ncode:directory</c>, which the OpenID client library requests as the cell's machine client from the
-        /// issuer named by <c>Cell:ControlPlane:Issuer</c>, over the client library's bounded HTTP client. A start
-        /// check also refuses a <c>Cell:ControlPlane:Issuer</c> that is not an allowed endpoint. A call that cannot
-        /// reach the directory throws <see cref="DirectoryUnavailableException"/>. The same registration adds a hosted
-        /// service that registers the cell with the directory when the host starts, retrying while the directory is
-        /// unavailable, and a hosted service that follows the directory's change feed: every
-        /// <see cref="DirectoryClientOptions.PollInterval"/> one replica of a cell that is not the control plane
-        /// mirrors the published team and platform documents into the cell. A cell that is not the control plane
-        /// (<see cref="CellOptions.IsControlPlane"/> is <c>false</c>) uses the <see cref="IManagementTokenValidator"/>
-        /// that validates management tokens against <c>Cell:ControlPlane:Issuer</c> and the
-        /// <see cref="IControlPlaneAuthority"/> that asks the control-plane cell's <c>control-plane/v1/authority</c>
-        /// endpoint for the roles of a caller, with a token for the audience <c>urn:ncode:control-plane</c> from the
-        /// same <see cref="ICellTokenSource"/>. This registration adds both as keyed singletons under
-        /// <see cref="ControlPlaneServiceKeys.Remote"/> on every cell and reads no <c>Cell</c> setting; the management
-        /// library resolves them for a cell that is not the control plane and resolves its local adapters for the
-        /// control-plane cell.
+        /// starts. Each adapter calls the <c>directory/v1</c> API with a client-credentials token that the directory's
+        /// own token endpoint issues to the cell's machine client, over the directory's own HTTP client, which trusts
+        /// only <c>Directory:CaCertificatesPath</c> when it is set. A start check also refuses a client identifier
+        /// other than <c>cell-</c> followed by the cell's name, a key ring the client library lacks, a blank management
+        /// URL and, for a cell that is not the control plane, a <c>Cell:ControlPlane:Issuer</c> that is not an allowed
+        /// endpoint. A call that cannot reach the directory throws <see cref="DirectoryUnavailableException"/>. The
+        /// same registration adds a hosted service that registers the cell with the directory when the host starts,
+        /// retrying while the directory is unavailable, and a hosted service that follows the directory's change feed:
+        /// every <see cref="DirectoryClientOptions.PollInterval"/> one replica of a cell that is not the control plane
+        /// mirrors the published team and platform documents into the cell, and a hosted service of the control-plane
+        /// cell publishes its outbox of replicated documents to the directory every
+        /// <see cref="DirectoryClientOptions.PublishInterval"/> and when a commit wakes it. A cell that is not the
+        /// control plane (<see cref="CellOptions.IsControlPlane"/> is <c>false</c>) uses the
+        /// <see cref="IManagementTokenValidator"/> that validates management tokens against the management keys that
+        /// its replica holds and the <see cref="IControlPlaneAuthority"/> that answers the roles of a caller from the
+        /// platform and team authority documents that its replica holds. This registration adds both as keyed
+        /// singletons under <see cref="ControlPlaneServiceKeys.Remote"/> on every cell and reads no <c>Cell</c>
+        /// setting; the management library resolves them for a cell that is not the control plane and resolves its
+        /// local adapters for the control-plane cell.
         /// </summary>
         /// <param name="configuration">The <see cref="IConfiguration"/> holding the <c>Directory</c> section.</param>
         /// <returns>The same <see cref="IServiceBuilder{T}"/> so that calls can be chained.</returns>
@@ -78,6 +106,24 @@ public static class DefaultRegistration
             serviceCollection.TryAddSingleton(TimeProvider.System);
             serviceCollection.TryAddSingleton<ICellTokenSource, DefaultCellTokenSource>();
             serviceCollection.TryAddSingleton<DirectoryHttpClient>();
+            serviceCollection.TryAddSingleton<DirectoryMetrics>();
+            serviceCollection.TryAddSingleton<DirectoryResiliencePipelines>();
+            serviceCollection.TryAddTransient<DirectoryResilienceHandler>();
+
+            // The directory has an HTTP client of its own so that its private certificate authorities never replace the
+            // process's trust store. Every call is bounded by the resilience handler's pipeline and the options' total
+            // timeout, so the client's own timeout is off.
+            serviceCollection
+                .AddHttpClient(DirectoryClientDefaults.HttpClientName)
+                .ConfigureHttpClient(static client => client.Timeout = Timeout.InfiniteTimeSpan)
+                .AddHttpMessageHandler<DirectoryResilienceHandler>()
+                .ConfigurePrimaryHttpMessageHandler(static provider =>
+                {
+                    var clientOptions = provider.GetRequiredService<
+                        IOptions<DirectoryClientOptions>
+                    >();
+                    return DirectoryClientDefaults.CreateHandler(clientOptions.Value);
+                });
 
             // The local adapters are registered with TryAdd, so Replace makes the remote adapters win whichever
             // registration runs first.
@@ -95,22 +141,29 @@ public static class DefaultRegistration
             serviceCollection.Replace(platformDirectory);
             var cellDirectory = ServiceDescriptor.Singleton<ICellDirectory, RemoteCellDirectory>();
             serviceCollection.Replace(cellDirectory);
+            var replicatedDirectory = ServiceDescriptor.Singleton<
+                IReplicatedDocumentDirectory,
+                RemoteReplicatedDocumentDirectory
+            >();
+            serviceCollection.Replace(replicatedDirectory);
+            var platformTopology = ServiceDescriptor.Singleton<
+                IPlatformTopology,
+                DirectoryPlatformTopology
+            >();
+            serviceCollection.Replace(platformTopology);
 
             // Every cell registers the remote management adapters under the key that Management's registration looks
             // up. Management chooses between the local and the remote adapter from the cell's options at resolution, so
             // this registration never reads the Cell section: the control-plane cell keeps its local adapters, and
-            // every other cell validates management tokens against the control plane's issuer.
-            serviceCollection.TryAddKeyedSingleton<
-                IManagementTokenValidator,
-                RemoteManagementTokenValidator
-            >(ControlPlaneServiceKeys.Remote);
+            // every other cell validates management tokens against the management keys its replica holds.
+            serviceCollection.TryAddSingleton<ReplicatedManagementTokenValidator>();
+            serviceCollection.TryAddKeyedSingleton<IManagementTokenValidator>(
+                ControlPlaneServiceKeys.Remote,
+                CreateRemoteManagementTokenValidator
+            );
             serviceCollection.TryAddKeyedSingleton<
                 IControlPlaneAuthority,
-                RemoteControlPlaneAuthority
-            >(ControlPlaneServiceKeys.Remote);
-            serviceCollection.TryAddKeyedSingleton<
-                IControlPlanePrincipalDirectory,
-                RemoteControlPlanePrincipalDirectory
+                ReplicatedControlPlaneAuthority
             >(ControlPlaneServiceKeys.Remote);
 
             // The start check refuses an unusable control-plane issuer before the cell registers with the directory.
@@ -131,6 +184,22 @@ public static class DefaultRegistration
                 DirectoryChangeFeedService
             >();
             serviceCollection.TryAddEnumerable(changeFeedService);
+            var outboxPublisher = ServiceDescriptor.Singleton<
+                IHostedService,
+                DirectoryOutboxPublisher
+            >();
+            serviceCollection.TryAddEnumerable(outboxPublisher);
+
+            // The replica's age is a gauge and a readiness check that never fails, so an operator sees a stale replica
+            // while the cell keeps serving its last known documents.
+            serviceCollection.TryAddSingleton<DirectoryReplicaHealth>();
+            var replicaCheck = new HealthCheckRegistration(
+                DirectoryReplicaHealth.HealthCheckName,
+                static provider => provider.GetRequiredService<DirectoryReplicaHealth>(),
+                failureStatus: null,
+                tags: [HealthCheckTags.Readiness]
+            );
+            serviceCollection.AddHealthChecks().Add(replicaCheck);
 
             return builder;
         }

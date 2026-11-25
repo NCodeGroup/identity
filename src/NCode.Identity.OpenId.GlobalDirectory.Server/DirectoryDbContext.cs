@@ -50,7 +50,12 @@ public sealed class DirectoryDbContext(DbContextOptions<DirectoryDbContext> opti
     public DbSet<RetiredIssuerRecord> RetiredIssuers => Set<RetiredIssuerRecord>();
 
     /// <summary>
-    /// Gets the change sequence over team publishes, team retires and platform publishes.
+    /// Gets the latest revision of every replicated document.
+    /// </summary>
+    public DbSet<ReplicatedDocumentRecord> ReplicatedDocuments => Set<ReplicatedDocumentRecord>();
+
+    /// <summary>
+    /// Gets the change sequence over team publishes, team retires, platform publishes and replicated documents.
     /// </summary>
     public DbSet<DirectoryChangeRecord> Changes => Set<DirectoryChangeRecord>();
 
@@ -73,6 +78,13 @@ public sealed class DirectoryDbContext(DbContextOptions<DirectoryDbContext> opti
             builder
                 .Property(entity => entity.ManagementUrl)
                 .HasMaxLength(DirectoryLimits.MaxManagementUrlLength);
+            builder
+                .Property(entity => entity.NormalizedManagementUrl)
+                .HasMaxLength(DirectoryLimits.MaxManagementUrlLength);
+            builder
+                .HasIndex(entity => entity.NormalizedManagementUrl)
+                .IsUnique()
+                .HasFilter("\"NormalizedManagementUrl\" IS NOT NULL");
         });
 
         modelBuilder.Entity<TenantRecord>(builder =>
@@ -148,6 +160,17 @@ public sealed class DirectoryDbContext(DbContextOptions<DirectoryDbContext> opti
                 .HasMaxLength(DirectoryLimits.MaxIdentifierLength);
         });
 
+        modelBuilder.Entity<ReplicatedDocumentRecord>(builder =>
+        {
+            builder.HasKey(entity => new { entity.Kind, entity.Key });
+            builder
+                .Property(entity => entity.Kind)
+                .HasMaxLength(DirectoryLimits.MaxDocumentKindLength);
+            builder
+                .Property(entity => entity.Key)
+                .HasMaxLength(DirectoryLimits.MaxIdentifierLength);
+        });
+
         modelBuilder.Entity<DirectoryChangeRecord>(builder =>
         {
             builder.HasKey(entity => entity.Sequence);
@@ -155,6 +178,13 @@ public sealed class DirectoryDbContext(DbContextOptions<DirectoryDbContext> opti
             builder
                 .Property(entity => entity.TeamId)
                 .HasMaxLength(DirectoryLimits.MaxIdentifierLength);
+            builder
+                .Property(entity => entity.DocumentKind)
+                .HasMaxLength(DirectoryLimits.MaxDocumentKindLength);
+            builder
+                .Property(entity => entity.DocumentKey)
+                .HasMaxLength(DirectoryLimits.MaxIdentifierLength);
+            builder.HasIndex(entity => new { entity.DocumentKind, entity.DocumentKey });
         });
 
         modelBuilder.Entity<DirectorySequenceRecord>(builder =>

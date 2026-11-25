@@ -5,12 +5,14 @@ using JetBrains.Annotations;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using NCode.Identity.AspNetCore;
 using NCode.Identity.Json;
 using NCode.Identity.OpenId.Client;
 using NCode.Identity.OpenId.GlobalDirectory.Server.Options;
 using NCode.Identity.OpenId.GlobalDirectory.Server.Stores;
+using NCode.Identity.OpenId.GlobalDirectory.Server.Tokens;
 using NCode.Identity.Persistence;
 using NCode.Identity.Registration;
 
@@ -27,14 +29,16 @@ public static class DefaultRegistration
     {
         /// <summary>
         /// Registers the directory server's store as the <see cref="ITenantDirectory"/>, <see cref="ITeamDirectory"/>,
-        /// <see cref="ICellDirectory"/> and <see cref="IPlatformDirectory"/> that <see cref="DirectoryEndpoints"/>
-        /// serves, and binds <see cref="DirectoryServerOptions"/> strictly from the <c>DirectoryServer</c> section,
-        /// which must name the issuer, the control-plane cell and that cell's root tenant and is validated when the
-        /// host starts. The host registers the <see cref="Microsoft.EntityFrameworkCore.IDbContextFactory{TContext}"/>
-        /// of <see cref="DirectoryDbContext"/> and the OpenID client library, whose <c>IIssuerAccessTokenValidator</c>
-        /// validates the bearer tokens. The host's <c>AllowedHosts</c> is validated when the host starts: it must list
-        /// the deployment's host names and not be empty or contain <c>*</c>, unless <c>LocalDevelopment:Enabled</c> is
-        /// true.
+        /// <see cref="ICellDirectory"/>, <see cref="IPlatformDirectory"/> and
+        /// <see cref="IReplicatedDocumentDirectory"/> that <see cref="DirectoryEndpoints"/> serves, and binds
+        /// <see cref="DirectoryServerOptions"/> strictly from the <c>DirectoryServer</c> section, which must name the
+        /// issuer, the control-plane cell and that cell's root tenant and is validated when the host starts. The host
+        /// registers the <see cref="Microsoft.EntityFrameworkCore.IDbContextFactory{TContext}"/> of
+        /// <see cref="DirectoryDbContext"/>, the OpenID client library, whose <c>IIssuerAccessTokenValidator</c> and
+        /// key rings the directory's own tokens use, the JWT library, an <c>IExpiringKeySet</c> and an
+        /// <c>IPublicJwksReader</c>. The directory issues and validates the bearer tokens itself. The host's
+        /// <c>AllowedHosts</c> is validated when the host starts: it must list the deployment's host names and not be
+        /// empty or contain <c>*</c>, unless <c>LocalDevelopment:Enabled</c> is true.
         /// </summary>
         /// <param name="configuration">
         /// The <see cref="IConfiguration"/> holding the <c>DirectoryServer</c> section.
@@ -63,9 +67,23 @@ public static class DefaultRegistration
             serviceCollection.TryAddEnumerable(optionsValidator);
 
             serviceCollection.TryAddSingleton(TimeProvider.System);
+            serviceCollection.TryAddSingleton<DirectoryAnchorState>();
+            var anchorInitializer = ServiceDescriptor.Singleton<
+                IHostedService,
+                DirectoryAnchorInitializer
+            >();
+            serviceCollection.TryAddEnumerable(anchorInitializer);
+            serviceCollection
+                .AddHealthChecks()
+                .AddCheck<DirectoryAnchorHealthCheck>(
+                    DirectoryAnchorHealthCheck.Name,
+                    tags: [HealthCheckTags.Readiness]
+                );
             serviceCollection.AddPersistedPayloadSerializer();
             serviceCollection.AddSurrogateKeyGenerator();
             serviceCollection.TryAddSingleton<DefaultDirectoryStore>();
+            serviceCollection.TryAddSingleton<DirectoryTokenIssuer>();
+            serviceCollection.TryAddSingleton<DirectoryClientAssertionValidator>();
             serviceCollection.TryAddSingleton<ITenantDirectory>(serviceProvider =>
                 serviceProvider.GetRequiredService<DefaultDirectoryStore>()
             );
@@ -81,7 +99,13 @@ public static class DefaultRegistration
             serviceCollection.TryAddSingleton<ICellDirectory>(serviceProvider =>
                 serviceProvider.GetRequiredService<DefaultDirectoryStore>()
             );
+            serviceCollection.TryAddSingleton<ICellClientKeyStore>(serviceProvider =>
+                serviceProvider.GetRequiredService<DefaultDirectoryStore>()
+            );
             serviceCollection.TryAddSingleton<IPlatformDirectory>(serviceProvider =>
+                serviceProvider.GetRequiredService<DefaultDirectoryStore>()
+            );
+            serviceCollection.TryAddSingleton<IReplicatedDocumentDirectory>(serviceProvider =>
                 serviceProvider.GetRequiredService<DefaultDirectoryStore>()
             );
 

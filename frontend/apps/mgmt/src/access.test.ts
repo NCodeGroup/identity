@@ -9,7 +9,8 @@ import {
   toCallerAccess,
   type CallerAccess,
 } from './access.js';
-import { HOME_ROUTE, platformRoute, teamRoute, tenantRoute } from './routes.js';
+import { CELL_CONSOLE_KIND } from './consoleKind.js';
+import { cellRoute, HOME_ROUTE, platformRoute, teamRoute, tenantRoute } from './routes.js';
 
 const admin: CallerAccess = { isPlatformAdministrator: true, teamIds: [], tenants: [] };
 const member: CallerAccess = { isPlatformAdministrator: false, teamIds: ['acme'], tenants: [] };
@@ -20,6 +21,7 @@ describe('toCallerAccess', () => {
       principalId: 'p1',
       isPlatformAdministrator: false,
       assignments: [],
+      cellRoles: [],
     };
     const teams = [{ teamId: 'acme' }, { teamId: 'beta' }] as TeamResource[];
     const tenants = [{ tenantId: 'web' }, { tenantId: 'api', cell: 'eu' }] as CellTenantResource[];
@@ -36,6 +38,7 @@ describe('toCallerAccess', () => {
       principalId: null,
       isPlatformAdministrator: true,
       assignments: [],
+      cellRoles: [],
     };
 
     expect(toCallerAccess(caller, [], []).isPlatformAdministrator).toBe(true);
@@ -165,5 +168,22 @@ describe('permittedRoute', () => {
 
   it('keeps a team route for any other caller', () => {
     expect(permittedRoute(teamRoute('acme'), member)).toEqual(teamRoute('acme'));
+  });
+});
+
+describe('permittedRoute in a cell console', () => {
+  it('sends a platform or team route home and keeps a cell route', () => {
+    expect(permittedRoute(platformRoute('teams'), undefined, CELL_CONSOLE_KIND)).toEqual(
+      HOME_ROUTE,
+    );
+    expect(permittedRoute(teamRoute('acme'), undefined, CELL_CONSOLE_KIND)).toEqual(HOME_ROUTE);
+    expect(permittedRoute(cellRoute('admins'), undefined, CELL_CONSOLE_KIND)).toEqual(
+      cellRoute('admins'),
+    );
+  });
+
+  it('sends a cell route home in a console that is not a cell console', () => {
+    expect(permittedRoute(cellRoute('admins'), undefined)).toEqual(HOME_ROUTE);
+    expect(permittedRoute(cellRoute('admins'), undefined, 'platform')).toEqual(HOME_ROUTE);
   });
 });

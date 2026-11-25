@@ -24,15 +24,16 @@ the only package that references the OpenTelemetry SDK. It adds:
 
 ## Meters
 
-| Meter                                  | Package                                | Public name constant                    |
-| -------------------------------------- | -------------------------------------- | --------------------------------------- |
-| `NCode.Identity.OpenId.Authentication` | `NCode.Identity.OpenId.Authentication` | `OpenIdAuthenticationMetrics.MeterName` |
-| `NCode.Identity.Events`                | `NCode.Identity.Events`                | `EventMetrics.MeterName`                |
-| `NCode.Identity.SharedState.Valkey`    | `NCode.Identity.SharedState.Valkey`    | `ValkeyMetrics.MeterName`               |
-| `NCode.Identity.Mail`                  | `NCode.Identity.Mail`                  | `MailMetrics.MeterName`                 |
-| `NCode.Identity.Bff`                   | `NCode.Identity.Bff`                   | `BffTelemetry.MeterName`                |
-| `NCode.Identity.OpenId.Client`         | `NCode.Identity.OpenId.Client`         | `OpenIdClientMetrics.MeterName`         |
-| `NCode.Buffers`                        | `NCode.Buffers`                        | `BufferMetrics.MeterName`               |
+| Meter                                   | Package                                 | Public name constant                    |
+| --------------------------------------- | --------------------------------------- | --------------------------------------- |
+| `NCode.Identity.OpenId.Authentication`  | `NCode.Identity.OpenId.Authentication`  | `OpenIdAuthenticationMetrics.MeterName` |
+| `NCode.Identity.Events`                 | `NCode.Identity.Events`                 | `EventMetrics.MeterName`                |
+| `NCode.Identity.SharedState.Valkey`     | `NCode.Identity.SharedState.Valkey`     | `ValkeyMetrics.MeterName`               |
+| `NCode.Identity.Mail`                   | `NCode.Identity.Mail`                   | `MailMetrics.MeterName`                 |
+| `NCode.Identity.Bff`                    | `NCode.Identity.Bff`                    | `BffTelemetry.MeterName`                |
+| `NCode.Identity.OpenId.GlobalDirectory` | `NCode.Identity.OpenId.GlobalDirectory` | `GlobalDirectoryMetrics.MeterName`      |
+| `NCode.Identity.OpenId.Client`          | `NCode.Identity.OpenId.Client`          | `OpenIdClientMetrics.MeterName`         |
+| `NCode.Buffers`                         | `NCode.Buffers`                         | `BufferMetrics.MeterName`               |
 
 ## Protocol requests: `http.server.request.duration`
 
@@ -136,6 +137,53 @@ Counter, unit `{message}`, meter `NCode.Identity.Mail`. Recorded once for each d
 | Attribute                    | Values                                                  |
 | ---------------------------- | ------------------------------------------------------- |
 | `ncode.identity.mail.result` | `delivered`, `failed` (the transport raised an error)   |
+
+### `ncode.identity.directory.replica.age`
+
+Observable gauge, unit `s`, meter `NCode.Identity.OpenId.GlobalDirectory`. The seconds since a cell last applied a
+page of the directory's change feed, so a cell whose replica falls behind shows a growing value.
+
+| Attribute   | Values                                |
+| ----------- | ------------------------------------- |
+| `cell.name` | The `Cell:Name` of the reporting cell |
+
+### `ncode.identity.directory.replica.sequence`
+
+Observable gauge, unit `{sequence}`, meter `NCode.Identity.OpenId.GlobalDirectory`. The sequence of the last change
+that a cell applied from the directory's change feed.
+
+| Attribute   | Values                                |
+| ----------- | ------------------------------------- |
+| `cell.name` | The `Cell:Name` of the reporting cell |
+
+### `ncode.identity.directory.outbox.published`
+
+Counter, unit `{document}`, meter `NCode.Identity.OpenId.GlobalDirectory`. Recorded in the control-plane cell for each
+replicated document that the directory acknowledges from the cell's outbox.
+
+| Attribute                                | Values                                                      |
+| ---------------------------------------- | ----------------------------------------------------------- |
+| `ncode.identity.directory.document.kind` | `platform-authority`, `team-authority` or `management-keys` |
+
+### `ncode.identity.directory.client.retries`
+
+Counter, unit `{retry}`, meter `NCode.Identity.OpenId.GlobalDirectory`. Recorded each time the directory client sends a
+call to the directory again after a transient failure. Only a GET or HEAD without a body is ever retried, so a token
+request and a write are sent once
+([ADR-1385](decisions/1385-no-shipping-package-replaces-its-consumers-logging-generator-or-carries-microsoft-extensions-http-resilience.md)).
+
+| Attribute    | Values                                                                                                                                                                                                                    |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `error.type` | The failure that is retried: the response's status code (`408`, `429` or a `5xx` code), `timeout` when the per-attempt timeout cancelled the attempt, or the `HttpRequestError` in snake case, such as `connection_error` |
+
+### `ncode.identity.directory.client.timeouts`
+
+Counter, unit `{timeout}`, meter `NCode.Identity.OpenId.GlobalDirectory`. Recorded each time the directory client
+cancels an attempt or a whole call because a timeout passed. A call the caller cancels records nothing.
+
+| Attribute                                       | Values                                                   |
+| ----------------------------------------------- | -------------------------------------------------------- |
+| `ncode.identity.directory.client.timeout_scope` | `attempt` (`AttemptTimeout`) or `total` (`TotalTimeout`) |
 
 ### `ncode.identity.bff.token.refresh.duration`
 

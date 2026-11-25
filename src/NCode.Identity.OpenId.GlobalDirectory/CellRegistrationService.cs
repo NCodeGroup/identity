@@ -85,14 +85,17 @@ internal sealed class CellRegistrationService(
         {
             try
             {
-                await CellDirectory.RegisterAsync(descriptor, cancellationToken);
+                await CellDirectory.ReportAsync(descriptor, cancellationToken);
                 return;
             }
             catch (DirectoryUnavailableException exception)
             {
                 var jitter = Random.Shared.NextDouble();
                 var delay = GetDelay(attempt, jitter);
-                Logger.CellRegistrationFailed(exception, attempt, delay);
+                if (exception is DirectoryClientNotRegisteredException)
+                    Logger.CellNotRegisteredYet(exception, attempt, delay);
+                else
+                    Logger.CellRegistrationFailed(exception, attempt, delay);
                 await Task.Delay(delay, TimeProvider, cancellationToken);
             }
         }

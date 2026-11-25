@@ -943,6 +943,7 @@ public class BaseOwnableApiEndpointHandlerTests : IDisposable
         var authz = Authz(authorized);
         var (factory, _) = StoreManager();
         var directory = MockRepository.Create<IControlPlanePrincipalDirectory>();
+        directory.SetupGet(x => x.DescribesEveryPrincipal).Returns(true);
         directory
             .Setup(x =>
                 x.FindAsync(
@@ -983,6 +984,147 @@ public class BaseOwnableApiEndpointHandlerTests : IDisposable
             problem.ProblemDetails.Detail
         );
         Assert.DoesNotContain("ghost-principal", problem.ProblemDetails.Detail);
+    }
+
+    [Fact]
+    public async Task ProcessAddRoleAssignmentAsync_InAWorkloadCellWhenThePrincipalIsUnknown_GrantsItWithoutASummary()
+    {
+        var authz = Authz(AuthorizationResult.Success());
+        var (factory, manager) = StoreManager();
+        manager
+            .Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()))
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable();
+        var directory = MockRepository.Create<IControlPlanePrincipalDirectory>();
+        directory.SetupGet(x => x.DescribesEveryPrincipal).Returns(false);
+        directory
+            .Setup(x =>
+                x.FindAsync(It.IsAny<ControlPlanePrincipalQuery>(), It.IsAny<CancellationToken>())
+            )
+            .ReturnsAsync([])
+            .Verifiable();
+        var assignment = Assignment("cp-principal", RoleName, "a2");
+        var grant = new RoleAssignmentGrant { Assignment = assignment, IsAdded = true };
+        var ownership = MockRepository.Create<IResourceOwnershipService>();
+        ownership
+            .Setup(x =>
+                x.AddAssignmentAsync(
+                    manager.Object,
+                    TenantId,
+                    ResourceNodeTypes.Client,
+                    ResourceId,
+                    "cp-principal",
+                    RoleName,
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync(grant)
+            .Verifiable();
+        var captured = new List<RoleAssignmentChangedAuditEvent>();
+        var recorder = Recorder(captured);
+        var node = ResourceNode.For(TenantId, ResourceNodeTypes.Client, ResourceId);
+
+        var handler = CreateHandler(
+            authz.Object,
+            factory.Object,
+            ownership.Object,
+            recorder.Object,
+            directory.Object
+        );
+        var httpContext = CreateHttpContext();
+        var roleList = CreateRoleList(node, RoleName, Operations.Create, Exists);
+        var request = new AddRoleHolderRequest { PrincipalId = "cp-principal" };
+        var result = await handler.ProcessAddRoleAssignmentAsync(
+            httpContext,
+            roleList,
+            request,
+            CancellationToken.None
+        );
+
+        var created = Assert.IsType<Created<RoleHolderResource>>(result);
+        var roleHolder = Assert.IsType<RoleHolderResource>(created.Value);
+        Assert.Equal("cp-principal", roleHolder.PrincipalId);
+        Assert.Null(roleHolder.Principal);
+        Assert.Single(captured);
+    }
+
+    [Fact]
+    public async Task ProcessAddRoleAssignmentAsync_WhenTheDirectoryDescribesEveryPrincipalAndThePrincipalIsUnknown_ReturnsBadRequest()
+    {
+        var authz = Authz(AuthorizationResult.Success());
+        var (factory, _) = StoreManager();
+        var directory = MockRepository.Create<IControlPlanePrincipalDirectory>();
+        directory.SetupGet(x => x.DescribesEveryPrincipal).Returns(true);
+        directory
+            .Setup(x =>
+                x.FindAsync(It.IsAny<ControlPlanePrincipalQuery>(), It.IsAny<CancellationToken>())
+            )
+            .ReturnsAsync([])
+            .Verifiable();
+        var ownership = MockRepository.Create<IResourceOwnershipService>();
+        var node = ResourceNode.For(TenantId, ResourceNodeTypes.Client, ResourceId);
+
+        var handler = CreateHandler(
+            authz.Object,
+            factory.Object,
+            ownership.Object,
+            directory: directory.Object
+        );
+        var httpContext = CreateHttpContext();
+        var roleList = CreateRoleList(node, RoleName, Operations.Create, Exists);
+        var request = new AddRoleHolderRequest { PrincipalId = "ghost-principal" };
+        var result = await handler.ProcessAddRoleAssignmentAsync(
+            httpContext,
+            roleList,
+            request,
+            CancellationToken.None
+        );
+
+        var problem = Assert.IsType<ProblemHttpResult>(result);
+        Assert.Equal(StatusCodes.Status400BadRequest, problem.StatusCode);
+        Assert.Equal(
+            "No principal of the control plane has the identifier.",
+            problem.ProblemDetails.Detail
+        );
+    }
+
+    [Fact]
+    public async Task ProcessAddRoleAssignmentAsync_InAWorkloadCellWhenNoPrincipalHasTheUserName_ReturnsBadRequest()
+    {
+        var authz = Authz(AuthorizationResult.Success());
+        var (factory, _) = StoreManager();
+        var directory = MockRepository.Create<IControlPlanePrincipalDirectory>();
+        directory
+            .Setup(x =>
+                x.FindAsync(It.IsAny<ControlPlanePrincipalQuery>(), It.IsAny<CancellationToken>())
+            )
+            .ReturnsAsync([])
+            .Verifiable();
+        var ownership = MockRepository.Create<IResourceOwnershipService>();
+        var node = ResourceNode.For(TenantId, ResourceNodeTypes.Client, ResourceId);
+
+        var handler = CreateHandler(
+            authz.Object,
+            factory.Object,
+            ownership.Object,
+            directory: directory.Object
+        );
+        var httpContext = CreateHttpContext();
+        var roleList = CreateRoleList(node, RoleName, Operations.Create, Exists);
+        var request = new AddRoleHolderRequest { UserName = "alice" };
+        var result = await handler.ProcessAddRoleAssignmentAsync(
+            httpContext,
+            roleList,
+            request,
+            CancellationToken.None
+        );
+
+        var problem = Assert.IsType<ProblemHttpResult>(result);
+        Assert.Equal(StatusCodes.Status400BadRequest, problem.StatusCode);
+        Assert.Equal(
+            "No principal of the control plane has the user name.",
+            problem.ProblemDetails.Detail
+        );
     }
 
     [Fact]

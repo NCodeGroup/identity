@@ -86,6 +86,22 @@ public static class DefaultRegistration
             serviceCollection.TryAddSingleton<ISetupTokenService, DefaultSetupTokenService>();
             serviceCollection.TryAddSingleton<IInstanceSetupService, DefaultInstanceSetupService>();
 
+            // The 'recover-admin' command reads the administrator it restores from the 'Recovery' section, bound
+            // strictly and checked as the host starts like the setup options.
+            var recoverySection = configuration.GetSection(RecoveryOptions.SectionName);
+            serviceCollection
+                .AddOptions<RecoveryOptions>()
+                .Configure(options => recoverySection.BindStrictly(options))
+                .ValidateOnStart();
+            serviceCollection.TryAddSingleton<
+                IAdministratorRecoveryService,
+                DefaultAdministratorRecoveryService
+            >();
+            serviceCollection.TryAddSingleton<
+                ISignInRecoveryService,
+                DefaultSignInRecoveryService
+            >();
+
             var hostedServiceDescriptor = ServiceDescriptor.Singleton<
                 IHostedService,
                 InstanceSetupHostedService

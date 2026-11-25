@@ -7,9 +7,9 @@ namespace NCode.Identity.OpenId.Client.Options;
 
 /// <summary>
 /// Configures one key of a client key ring that a key management service holds. Bound from the
-/// <c>{section}:{name}:RemoteKeys:{kid}</c> configuration section, where <c>{section}</c> is the section passed to
-/// <c>AddOpenIdClientKeyRings</c> and <c>{kid}</c> is the key's id. The remote key provider's row for the key decides
-/// whether it signs or decrypts.
+/// <c>KeyRings:{name}:RemoteKeys:{kid}</c> configuration section of the configuration passed to
+/// <c>AddOpenIdClientKeyRings</c>, where <c>{name}</c> is the key ring's name and <c>{kid}</c> is the key's id. The
+/// remote key provider's row for the key decides whether it signs or decrypts.
 /// </summary>
 // See ADR-1479.
 [PublicAPI]

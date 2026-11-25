@@ -21,14 +21,14 @@ public sealed class LocalCellDirectoryTests
 
     private static LocalCellDirectory CreateDirectory() => new(Options.Create(CreateOptions()));
 
-    #region RegisterAsync Tests
+    #region ReportAsync Tests
 
     [Fact]
-    public async Task RegisterAsync_WhenCalledWithAnotherCell_ListsOnlyThisCell()
+    public async Task ReportAsync_WhenCalledWithAnotherCell_ListsOnlyThisCell()
     {
         var directory = CreateDirectory();
 
-        await directory.RegisterAsync(
+        await directory.ReportAsync(
             new CellDescriptor
             {
                 Name = "cell-b",

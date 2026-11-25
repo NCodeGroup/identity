@@ -356,7 +356,7 @@ The records are grouped by area; within an area they are in number order.
 | [1533](./1533-an-end-user-verifies-an-email-address-resets-a-password-and-signs-in-with-a-second-factor-through-one-time-email-codes.md) | An end user verifies an email address, resets a password and signs in with a second factor through one-time email codes | Accepted |
 | [1534](./1534-a-tenants-audit-records-stream-to-its-endpoints-read-forward-from-the-audit-store-and-signed-as-standard-webhooks.md) | A tenant's audit records stream to its endpoints, read forward from the audit store and signed as Standard Webhooks | Accepted |
 | [1535](./1535-a-tenant-signs-users-in-through-named-connections-and-a-local-account-belongs-to-one.md) | A tenant signs users in through named connections, and a local account belongs to one | Accepted |
-| [1536](./1536-a-platforms-global-plane-is-a-standalone-directory-and-a-dedicated-control-plane-cell-and-every-other-cell-runs-and-is-managed-on-its-own.md) | A platform's global plane is a standalone directory and a dedicated control-plane cell, and every other cell runs and is managed on its own | Proposed |
+| [1536](./1536-a-platforms-global-plane-is-a-standalone-directory-and-a-dedicated-control-plane-cell-and-every-other-cell-runs-and-is-managed-on-its-own.md) | A platform's global plane is a standalone directory and a dedicated control-plane cell, and every other cell runs and is managed on its own | Accepted |
 
 ### Frontend, BFF and browser security
 

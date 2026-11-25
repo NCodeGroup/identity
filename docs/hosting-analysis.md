@@ -288,7 +288,7 @@ and mail live on `ncodeid.com` ([ADR-1495](decisions/1495-the-hosted-platform-ru
 
 | Hostname                                        | Serves                                                                                                   | Certificate                    |
 | ----------------------------------------------- | -------------------------------------------------------------------------------------------------------- | ------------------------------ |
-| `auth.ncodeid.net`                              | Root (control-plane) tenant issuer — where admins sign in and management-API tokens are issued ([ADR-1417](decisions/1417-management-authority-is-a-role-assignment-at-a-node-of-the-platform-team-and-tenant-hierarchy.md)) | `auth.ncodeid.net`            |
+| `auth.ncodeid.net`                              | Root (control-plane) tenant issuer, served by the dedicated control-plane cell — where admins sign in and platform management-API tokens are issued ([ADR-1417](decisions/1417-management-authority-is-a-role-assignment-at-a-node-of-the-platform-team-and-tenant-hierarchy.md)) | `auth.ncodeid.net`            |
 | `{tenant}.auth.{region}.ncodeid.net`            | Workload tenant issuers of one region, resolved by `DynamicByHost` (e.g. `acme.auth.{region}.ncodeid.net`) | `*.auth.{region}.ncodeid.net` |
 | `mtls.ncodeid.net`, `{tenant}.mtls.{region}.ncodeid.net` | RFC 8705 mTLS endpoint aliases — the only hosts where Traefik requests a client certificate. `DynamicByHost` routes each tenant's alias host to it (ADR-1165) | `mtls.…` + `*.mtls.{region}.ncodeid.net` |
 | `manage.ncodeid.net`                            | The management console only; the management API is `/api` on `auth.ncodeid.net` ([ADR-1437](decisions/1437-the-management-console-is-a-confidential-client-whose-own-bff-host-serves-only-the-console.md)) | `manage.ncodeid.net`          |
@@ -304,7 +304,7 @@ Why this shape:
   `dev`, …), so there is no reserved-name list to maintain, and each function in each region gets one wildcard
   certificate. `{region}` is the region of the cell that hosts the tenant, so the hostname names where the tenant's
   data lives and resolves to a cell of that region. The root issuer and the control plane sit at `auth.ncodeid.net`, in
-  the control-plane cell, and carry no region label. A tenant of a dedicated cell, or a tenant that changes cell within
+  the dedicated control-plane cell, and carry no region label. A tenant of a dedicated cell, or a tenant that changes cell within
   its region ([ADR-1411](decisions/1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md)),
   keeps its issuer through an explicit DNS record for its hostname
   ([#755](https://github.com/NCodeGroup/identity/issues/755)); custom domains are a separate decision
@@ -390,8 +390,12 @@ packages are named under it, product first (`@ncodegroup/identity-*`); they are 
 
 ### Cells and the global directory
 
-Decided in [ADR-1411](decisions/1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md).
-A platform is a global directory over independent cells.
+Decided in [ADR-1411](decisions/1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md)
+and
+[ADR-1536](decisions/1536-a-platforms-global-plane-is-a-standalone-directory-and-a-dedicated-control-plane-cell-and-every-other-cell-runs-and-is-managed-on-its-own.md).
+A platform is a global directory over independent cells, and a platform of more than one cell has a global plane of two
+isolated parts: the directory, a release of its own, and the control-plane cell, dedicated to the platform's trust
+anchor.
 
 - **A cell** is one identity host, its one Postgres database, its Valkey and its KMS keys, in one region. A cell's
   tenants share that database and are separated by fail-closed scoping, and a tenant lives in exactly one cell, so its
@@ -400,19 +404,23 @@ A platform is a global directory over independent cells.
   a row) and also has a `Cell:Region`, a `Cell:Kind` (`shared`, `dedicated` or `sovereign`), the cloud regions its keys
   may live in and a management URL. Capacity and blast radius are managed by how many tenants a cell hosts and how many
   cells run; a dedicated cell gives compliance isolation. A platform of one cell needs nothing else.
-- **The control-plane cell** is the cell that sets `Cell:IsControlPlane`. It holds the platform and team authority, the
-  platform and team settings, setup and the team root keys, and it serves the platform and team management routes and
-  `auth.ncodeid.net`. Setup runs once per platform, in the control-plane cell only
-  ([first use of a deployed instance](first-deployed-instance.md)). Every other cell sets `Cell:ControlPlane:Issuer` to
-  the control-plane cell's issuer, validates management tokens against it and fails closed when it is unreachable.
-- **The directory host** (`NCode.Identity.OpenId.GlobalDirectory.Host`) reserves tenant and team identifiers
-  platform-wide, places each tenant in one cell, records the cells and publishes team documents. It holds no personal
-  data, has its own Postgres database and runs as one replica. A cell that sets `Directory:Url` reaches it with a
-  client-credentials token under its machine client `cell-{name}`, which it requests from the issuer
-  `Cell:ControlPlane:Issuer` names, so every such cell sets that issuer, the control-plane cell included; a cell without
-  `Directory:Url` uses local adapters. Serving a tenant never calls the directory, and creating a tenant fails with
-  `503` when the directory is unreachable. [Running cells](platform-bootstrap.md#9-run-the-cells-of-a-platform) sets
-  this up.
+- **The control-plane cell** is the cell that sets `Cell:IsControlPlane`. On a platform with a directory it is
+  dedicated to the control-plane tenant, the platform's trust anchor, and serves nothing else. It holds the platform and
+  team authority, the platform and team settings, setup and the team root keys, and it serves the platform and team
+  management routes and `auth.ncodeid.net`. Setup runs once per platform, in the control-plane cell
+  ([first use of a deployed instance](first-deployed-instance.md)). It publishes the platform and team authority and its
+  management signing keys to the directory, which carries them in its change feed.
+- **A workload cell** is every other cell. It authenticates and authorizes management requests from the authority and
+  keys it replicated from the feed into its own database, so its management stays available while the directory or the
+  control-plane cell is unreachable, and it calls no other cell. When its tenant-resolution strategy is dynamic, it has a
+  management tenant of its own with a `CellAdmin` role, a cell console and offline recovery.
+- **The directory host** (`NCode.Identity.OpenId.GlobalDirectory.Host`) is a release of its own, the chart
+  `ncode-identity-directory`, with its own Postgres database, and runs as one replica. It reserves tenant and team
+  identifiers platform-wide, places each tenant in one cell, records the cells and publishes team documents and the
+  replicated authority and key documents. It holds no personal data and issues the cells' tokens itself, to each cell
+  that proves a key its registration holds. A cell that sets `Directory:Url` reaches it; a cell without `Directory:Url`
+  uses local adapters. Serving a tenant never calls the directory, and creating a tenant fails with `503` when the
+  directory is unreachable. [Running cells](platform-bootstrap.md#9-run-the-cells-of-a-platform) sets this up.
 - **Two database roles.** The host connects as a runtime role that cannot bypass the row-level security on tenant-bound
   tables, and the migrations connect as the schema owner. The two are separate secrets and the chart has no fallback
   from one to the other (`database.*`, `database.runtimeRole`, `migrations.database.*`).
@@ -421,15 +429,15 @@ A platform is a global directory over independent cells.
   The [tenant move runbook](tenant-move.md) lists the stages, what moves and the DNS record of the tenant's hostname.
 - **Valkey is shared by prefix.** Every Valkey key a cell writes starts with `ncode-identity:{cell}:`, so cells that
   share one Valkey keep to their own keys.
-- **The chart** deploys one cell per release. `cell.name`, `cell.region`, `cell.kind`, `cell.cloudRegions`,
-  `cell.managementUrl`, `cell.isControlPlane` and `cell.controlPlaneIssuer` render as the `Cell__*` settings.
-  `directory.url`, `directory.clientId`, `directory.keyRing` and `directory.keys.*` give the cell its directory client.
-  `directory.enabled` deploys the directory host as well, with `directory.issuer`, `directory.controlPlaneCell`,
-  `directory.controlPlaneTenantId` (derived in the control-plane cell's own `StaticSingle` release), its own database
-  Secret and a migration Job. `backup.location` annotates the pods of the host, the directory and their migration Jobs
-  with `ncode.io/backup-location`, and `telemetry.otlpEndpoint` sets the OTLP endpoint, with `cell.name` and
-  `cell.region` as resource attributes on every pod, so a signal names its cell. The
-  [chart README](../charts/ncode-identity-host/README.md#the-cell) lists every value.
+- **The charts.** The host chart deploys one cell per release. `cell.name`, `cell.region`, `cell.kind`,
+  `cell.cloudRegions`, `cell.managementUrl` and `cell.isControlPlane` render as the `Cell__*` settings.
+  `directory.url`, `directory.clientId`, `directory.keyRing` and `directory.keys.*` give the cell its directory client,
+  and `recovery.*` renders the break-glass commands as Jobs. The chart `ncode-identity-directory` deploys the directory
+  with its `keyRing` and `keys`, the `controlPlane.*` values that pin the anchor, its own database Secret and a
+  migration Job. `backup.location` annotates the pods of each release and their migration Jobs with
+  `ncode.io/backup-location`, and `telemetry.otlpEndpoint` sets the OTLP endpoint, with `cell.name` and `cell.region`
+  as resource attributes on every pod, so a signal names its cell. The
+  [host chart README](../charts/ncode-identity-host/README.md#the-cell) lists every value.
 
 ## 3. Compute sizing
 

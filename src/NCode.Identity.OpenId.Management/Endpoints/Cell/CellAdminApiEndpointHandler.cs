@@ -1,0 +1,269 @@
+// Copyright © NCode Group
+// SPDX-License-Identifier: Apache-2.0
+
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.Options;
+using NCode.Identity.Cryptography;
+using NCode.Identity.OpenId.GlobalDirectory;
+using NCode.Identity.OpenId.Management.Auditing;
+using NCode.Identity.OpenId.Management.Authorization;
+using NCode.Identity.OpenId.Management.Contracts;
+using NCode.Identity.OpenId.Management.ControlPlane;
+using NCode.Identity.Persistence.Stores;
+using NCode.Identity.Registration.AspNetCore;
+
+namespace NCode.Identity.OpenId.Management.Endpoints.Cell;
+
+/*
+
+GET api/cell/admins (workload cells)
+POST api/cell/admins (workload cells)
+DELETE api/cell/admins/{principalId} (workload cells)
+
+*/
+
+/// <summary>
+/// Provides the API endpoints that manage the administrators of the cell: the principals of the cell's management
+/// tenant that hold the <c>CellAdmin</c> role at the cell's node. They are mapped on every cell other than the
+/// control-plane cell, and answer <c>404</c> in a cell without a management tenant. A grant or revoke is authorized
+/// with the update operation at the cell's node.
+/// </summary>
+internal class CellAdminApiEndpointHandler(
+    IStoreManagerFactory storeManagerFactory,
+    IAuthorizationService authorizationService,
+    ICryptoService cryptoService,
+    IResourceOwnershipService resourceOwnershipService,
+    IControlPlanePrincipalDirectory controlPlanePrincipalDirectory,
+    IManagementAuditRecorder managementAuditRecorder,
+    IPlatformTopology platformTopology,
+    IOptions<CellOptions> cellOptions
+) : BaseOwnableApiEndpointHandler, IEndpointProvider
+{
+    private const string AdminsPath = "/cell/admins";
+
+    private IPlatformTopology PlatformTopology { get; } = platformTopology;
+    private CellOptions CellOptions { get; } = cellOptions.Value;
+
+    /// <inheritdoc />
+    protected override IStoreManagerFactory StoreManagerFactory { get; } = storeManagerFactory;
+
+    /// <inheritdoc />
+    protected override IAuthorizationService AuthorizationService { get; } = authorizationService;
+
+    /// <inheritdoc />
+    protected override ICryptoService CryptoService { get; } = cryptoService;
+
+    /// <inheritdoc />
+    protected override IResourceOwnershipService ResourceOwnershipService { get; } =
+        resourceOwnershipService;
+
+    /// <inheritdoc />
+    protected override IControlPlanePrincipalDirectory ControlPlanePrincipalDirectory { get; } =
+        controlPlanePrincipalDirectory;
+
+    /// <inheritdoc />
+    protected override IManagementAuditRecorder ManagementAuditRecorder { get; } =
+        managementAuditRecorder;
+
+    /// <inheritdoc />
+    public void Map(IEndpointRouteBuilder endpoints)
+    {
+        // The control-plane cell has no cell administrators, so only the other cells map these routes.
+        if (CellOptions.IsControlPlane)
+        {
+            return;
+        }
+
+        endpoints
+            .MapGet(AdminsPath, ListAdminsAsync)
+            .WithTags(OpenIdConstants.EndpointTags.Tenants)
+            .AddEndpointFilter<ControlPlaneScopeEndpointFilter>()
+            .Produces<RoleListResource>()
+            .ProducesProblem(StatusCodes.Status401Unauthorized)
+            .ProducesProblem(StatusCodes.Status403Forbidden)
+            .ProducesProblem(StatusCodes.Status404NotFound);
+        endpoints
+            .MapPost(AdminsPath, AddAdminAsync)
+            .WithTags(OpenIdConstants.EndpointTags.Tenants)
+            .AddEndpointFilter<ControlPlaneScopeEndpointFilter>()
+            .Produces<RoleHolderResource>(StatusCodes.Status201Created)
+            .Produces<RoleHolderResource>(StatusCodes.Status200OK)
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status401Unauthorized)
+            .ProducesProblem(StatusCodes.Status403Forbidden)
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status409Conflict)
+            .ProducesProblem(StatusCodes.Status412PreconditionFailed)
+            .ProducesProblem(StatusCodes.Status415UnsupportedMediaType);
+        endpoints
+            .MapDelete(AdminsPath + "/{principalId}", RemoveAdminAsync)
+            .WithTags(OpenIdConstants.EndpointTags.Tenants)
+            .AddEndpointFilter<ControlPlaneScopeEndpointFilter>()
+            .Produces(StatusCodes.Status204NoContent)
+            .ProducesProblem(StatusCodes.Status401Unauthorized)
+            .ProducesProblem(StatusCodes.Status403Forbidden)
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status412PreconditionFailed);
+    }
+
+    /// <summary>
+    /// Lists the administrators of the cell and whether the caller may grant and revoke the role.
+    /// </summary>
+    /// <param name="httpContext">The <see cref="HttpContext"/> for the current request.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <response code="200">The cell's administrators and whether the caller may change them.</response>
+    /// <response code="404">The cell has no management tenant.</response>
+    [EndpointName("api/cell/admins/list")]
+    internal virtual async ValueTask<IResult> ListAdminsAsync(
+        HttpContext httpContext,
+        CancellationToken cancellationToken
+    )
+    {
+        var roleList = GetAdminList(httpContext);
+        return await ProcessListRoleAssignmentsAsync(
+            httpContext,
+            roleList,
+            (_, token) =>
+                HoldsAuthorityAsync(httpContext, roleList.Node, roleList.Operation, token),
+            cancellationToken
+        );
+    }
+
+    /// <summary>
+    /// Adds an administrator to the cell. The principal must be a principal of the cell's management tenant.
+    /// </summary>
+    /// <param name="httpContext">The <see cref="HttpContext"/> for the current request.</param>
+    /// <param name="request">The request that names the principal.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <response code="201">The administrator was added.</response>
+    /// <response code="200">The principal already administers the cell.</response>
+    /// <response code="400">The request names no principal, or both an identifier and a username.</response>
+    /// <response code="404">The cell has no management tenant.</response>
+    /// <response code="409">The principal is not a principal of the cell's management tenant.</response>
+    [EndpointName("api/cell/admins/add")]
+    internal virtual async ValueTask<IResult> AddAdminAsync(
+        HttpContext httpContext,
+        [FromBody] AddRoleHolderRequest request,
+        CancellationToken cancellationToken
+    )
+    {
+        var roleList = GetAdminList(httpContext);
+
+        // A caller without authority gets the shared forbidden answer before the cell says anything about its
+        // principals.
+        var holdsAuthority = await HoldsAuthorityAsync(
+            httpContext,
+            roleList.Node,
+            roleList.Operation,
+            cancellationToken
+        );
+        if (holdsAuthority && PlatformTopology.HasManagementTenant)
+        {
+            var isManagementPrincipal = await IsManagementPrincipalAsync(
+                request,
+                cancellationToken
+            );
+            if (isManagementPrincipal is false)
+            {
+                return TypedResults.Problem(
+                    detail: "A cell administrator is a principal of the cell's management tenant.",
+                    statusCode: StatusCodes.Status409Conflict
+                );
+            }
+        }
+
+        return await ProcessAddRoleAssignmentAsync(
+            httpContext,
+            roleList,
+            request,
+            cancellationToken
+        );
+    }
+
+    /// <summary>
+    /// Removes an administrator from the cell.
+    /// </summary>
+    /// <param name="httpContext">The <see cref="HttpContext"/> for the current request.</param>
+    /// <param name="principalId">The identifier of the principal to remove.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <response code="204">The administrator was removed.</response>
+    /// <response code="404">The principal is not an administrator of the cell.</response>
+    [EndpointName("api/cell/admins/remove")]
+    internal virtual async ValueTask<IResult> RemoveAdminAsync(
+        HttpContext httpContext,
+        [FromRoute] string principalId,
+        CancellationToken cancellationToken
+    )
+    {
+        var roleList = GetAdminList(httpContext);
+        return await ProcessRemoveRoleAssignmentAsync(
+            httpContext,
+            roleList,
+            principalId,
+            cancellationToken
+        );
+    }
+
+    /// <summary>
+    /// Describes the administrators of the cell. The role is granted and revoked with <c>Update</c> at the cell's node,
+    /// addressed from the tenant the request runs under.
+    /// </summary>
+    /// <param name="httpContext">The <see cref="HttpContext"/> of the request.</param>
+    /// <returns>The <see cref="RoleList"/> of the cell's administrators.</returns>
+    private RoleList GetAdminList(HttpContext httpContext)
+    {
+        var cellNode = GetCellNode(httpContext, CellOptions.Name);
+        return new RoleList
+        {
+            Node = cellNode,
+            RoleName = BuiltInRoles.CellAdmin,
+            Operation = Operations.Update,
+            Path = AdminsPath,
+            ResourceExistsAsync = (_, _) =>
+                ValueTask.FromResult(PlatformTopology.HasManagementTenant),
+        };
+    }
+
+    /// <summary>
+    /// Determines whether the control-plane directory describes the principal the request names.
+    /// </summary>
+    /// <param name="request">The <see cref="AddRoleHolderRequest"/> that names a principal by identifier or by user
+    /// name.</param>
+    /// <param name="cancellationToken">
+    /// The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.
+    /// </param>
+    /// <returns>
+    /// <see langword="true"/> when the directory describes the named principal, <see langword="false"/> when it does
+    /// not, and <see langword="null"/> when the request names no single principal, which the shared grant answers with
+    /// <c>400</c>.
+    /// </returns>
+    private async ValueTask<bool?> IsManagementPrincipalAsync(
+        AddRoleHolderRequest request,
+        CancellationToken cancellationToken
+    )
+    {
+        if (!TryGetRequestedName(request, out var name, out var isUserName))
+        {
+            return null;
+        }
+
+        var query = isUserName
+            ? new ControlPlanePrincipalQuery { UserNames = [name] }
+            : new ControlPlanePrincipalQuery { PrincipalIds = [name] };
+        var found = await ControlPlanePrincipalDirectory.FindAsync(query, cancellationToken);
+        foreach (var summary in found)
+        {
+            var summaryName = isUserName ? summary.UserName : summary.PrincipalId;
+            if (string.Equals(summaryName, name, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+}

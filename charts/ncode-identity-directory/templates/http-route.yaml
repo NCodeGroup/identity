@@ -1,0 +1,6 @@
+{{- if .Values.httpRoute.enabled }}
+# The Gateway verifies the directory's pods against the CA ConfigMap that backendTls.caConfigMap names.
+{{ include "identity-directory.httpRoute" . }}
+---
+{{ include "identity-directory.backendTls.policy" . }}
+{{- end }}

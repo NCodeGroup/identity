@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using Microsoft.Extensions.Options;
+using Moq;
+using NCode.Identity.OpenId.Client;
 using Xunit;
 
 namespace NCode.Identity.OpenId.GlobalDirectory.Tests;
@@ -12,19 +14,79 @@ public class DirectoryClientStartupCheckTests : BaseTests
         string? directoryUrl,
         string? issuer,
         string? clientId = "cell-eu-1",
-        string managementUrl = "https://manage.eu-1.example"
-    ) =>
-        new(
+        string managementUrl = "https://manage.eu-1.example",
+        bool isControlPlane = false,
+        string? keyRing = "cell-client",
+        bool hasKeyRing = true
+    )
+    {
+        var keyRingProvider = new Mock<IClientKeyRingProvider>();
+        keyRingProvider.Setup(x => x.HasKeyRing(It.IsAny<string>())).Returns(hasKeyRing);
+        return new(
             Options.Create(
                 new CellOptions
                 {
                     Name = "eu-1",
                     ManagementUrl = managementUrl,
+                    IsControlPlane = isControlPlane,
                     ControlPlane = new ControlPlaneOptions { Issuer = issuer },
                 }
             ),
-            Options.Create(new DirectoryClientOptions { Url = directoryUrl, ClientId = clientId })
+            Options.Create(
+                new DirectoryClientOptions
+                {
+                    Url = directoryUrl,
+                    ClientId = clientId,
+                    KeyRing = keyRing,
+                }
+            ),
+            keyRingProvider.Object
         );
+    }
+
+    [Fact]
+    public async Task StartingAsync_DirectoryUrlAndUnknownKeyRing_ThrowsNamingTheSetting()
+    {
+        var check = CreateCheck(
+            "https://directory.example",
+            "https://issuer.example",
+            hasKeyRing: false
+        );
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            check.StartingAsync(CancellationToken.None)
+        );
+
+        Assert.Contains("Directory:KeyRing", exception.Message);
+    }
+
+    [Fact]
+    public async Task StartingAsync_DirectoryUrlAndSeveralMisconfigurations_ThrowsOneExceptionNamingEachSetting()
+    {
+        var check = CreateCheck(
+            "https://directory.example",
+            "https://issuer.example",
+            clientId: "cell-other",
+            managementUrl: " ",
+            hasKeyRing: false
+        );
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            check.StartingAsync(CancellationToken.None)
+        );
+
+        Assert.Contains("Directory:ClientId", exception.Message);
+        Assert.Contains("Directory:KeyRing", exception.Message);
+        Assert.Contains("Cell:ManagementUrl", exception.Message);
+    }
+
+    [Fact]
+    public async Task StartingAsync_ControlPlaneCellWithoutIssuer_Completes()
+    {
+        var check = CreateCheck("https://directory.example", null, isControlPlane: true);
+
+        await check.StartingAsync(CancellationToken.None);
+    }
 
     #region StartingAsync Tests
 

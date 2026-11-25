@@ -224,6 +224,7 @@ internal class DefaultSettingDescriptorDataSource(
             yield return new SettingDescriptor<bool>
             {
                 Name = OpenIdSettingNames.AccessTokenSenderConstraintRequired,
+                IsSignInCritical = true,
                 AppliesTo = ClientsAndResourceServers,
                 Default = false,
 
@@ -321,6 +322,7 @@ internal class DefaultSettingDescriptorDataSource(
             yield return new SettingDescriptor<IReadOnlyCollection<string>>
             {
                 Name = OpenIdSettingNames.AllowedConnections,
+                IsSignInCritical = true,
                 AppliesTo = Clients,
                 Rule = SettingRules.Each(connectionNameRule),
 
@@ -333,6 +335,7 @@ internal class DefaultSettingDescriptorDataSource(
             yield return new SettingDescriptor<string>
             {
                 Name = OpenIdSettingNames.DefaultConnection,
+                IsSignInCritical = true,
                 AppliesTo = TenantsAndClients,
                 Rule = connectionNameRule,
                 Default = ConnectionDefaults.Name,
@@ -677,6 +680,7 @@ internal class DefaultSettingDescriptorDataSource(
             yield return new SettingDescriptor<IReadOnlyCollection<string>>
             {
                 Name = OpenIdSettingNames.GrantTypesEnabled,
+                IsSignInCritical = true,
                 AppliesTo = PlatformOnly,
                 Rule = SettingRules.Each(grantTypesEnabledItemRule),
 
@@ -1530,10 +1534,12 @@ internal class DefaultSettingDescriptorDataSource(
 
             // require_dpop_bound_access_tokens: whether the client must present a valid DPoP proof at the token
             // endpoint (RFC 9449), default false. Floor (Or): once a parent requires it, a child cannot un-require it.
+            // Scopes: a resource server's requirement applies to every token request that targets it, at issuance.
             yield return new SettingDescriptor<bool>
             {
                 Name = OpenIdSettingNames.RequireDPoPBoundAccessTokens,
-                AppliesTo = Clients,
+                IsSignInCritical = true,
+                AppliesTo = ClientsAndResourceServers,
                 Default = false,
 
                 IsDiscoverable = IsNonStdDiscoverable,

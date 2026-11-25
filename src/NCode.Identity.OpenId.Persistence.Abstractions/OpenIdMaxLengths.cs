@@ -143,6 +143,11 @@ public static class OpenIdMaxLengths
     public const int CellName = 32;
 
     /// <summary>
+    /// Gets the max length of a tenant's key-custody value, one of the <c>TenantKeyCustody</c> values.
+    /// </summary>
+    public const int KeyCustody = 16;
+
+    /// <summary>
     /// Gets the max length of the description of an audit stream's last failed delivery.
     /// </summary>
     // See ADR-1534.

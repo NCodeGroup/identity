@@ -58,6 +58,20 @@ public sealed class PersistedTenant : BasePersistedTenantResource
     public required bool IsDisabled { get; set; }
 
     /// <summary>
+    /// Gets or sets which side of a key-custody fence the tenant is on: one of the <see cref="TenantKeyCustody"/>
+    /// values. A tenant this cell holds keys for is <see cref="TenantKeyCustody.Held"/>.
+    /// </summary>
+    [MaxLength(OpenIdMaxLengths.KeyCustody)]
+    public string KeyCustody { get; set; } = TenantKeyCustody.Held;
+
+    /// <summary>
+    /// Gets or sets the name of the other cell of a move while the tenant is <see cref="TenantKeyCustody.Outgoing"/> or
+    /// <see cref="TenantKeyCustody.Incoming"/>; otherwise <c>null</c>.
+    /// </summary>
+    [MaxLength(OpenIdMaxLengths.CellName)]
+    public string? KeyCustodyCell { get; set; }
+
+    /// <summary>
     /// Gets or sets the display name for the tenant.
     /// </summary>
     public required string DisplayName { get; set; }

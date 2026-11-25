@@ -180,6 +180,9 @@ internal sealed class LocalControlPlanePrincipalDirectory(
     private ImmutableArray<IPrincipalDescriber> Describers { get; } = [.. principalDescribers];
 
     /// <inheritdoc />
+    public bool DescribesEveryPrincipal => true;
+
+    /// <inheritdoc />
     public async ValueTask<IReadOnlyList<PrincipalSummaryResource>> FindAsync(
         ControlPlanePrincipalQuery query,
         CancellationToken cancellationToken

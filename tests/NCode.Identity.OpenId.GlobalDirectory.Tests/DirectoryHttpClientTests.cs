@@ -4,7 +4,6 @@
 using System.Net;
 using Microsoft.Extensions.Options;
 using Moq;
-using NCode.Identity.OpenId.Client;
 using Xunit;
 
 namespace NCode.Identity.OpenId.GlobalDirectory.Tests;
@@ -108,13 +107,7 @@ public class DirectoryHttpClientTests : RemoteDirectoryTestBase
         var expected = new DirectoryUnavailableException("No token.");
         var tokenSourceMock = CreateStrictMock<ICellTokenSource>();
         tokenSourceMock
-            .Setup(x =>
-                x.GetAccessTokenAsync(
-                    GlobalDirectoryProtocol.DirectoryAudience,
-                    GlobalDirectoryProtocol.DirectoryScope,
-                    It.IsAny<CancellationToken>()
-                )
-            )
+            .Setup(x => x.GetAccessTokenAsync(It.IsAny<CancellationToken>()))
             .Throws(expected)
             .Verifiable(Times.Once);
         var client = new DirectoryHttpClient(
@@ -136,7 +129,7 @@ public class DirectoryHttpClientTests : RemoteDirectoryTestBase
     }
 
     [Fact]
-    public async Task SendAsync_WhenTheBodyStallsPastTheRequestTimeout_ThrowsDirectoryUnavailable()
+    public async Task SendAsync_WhenTheBodyStallsPastTheTotalTimeout_ThrowsDirectoryUnavailable()
     {
         var handler = new StubHttpMessageHandler(
             (_, _) =>
@@ -146,18 +139,12 @@ public class DirectoryHttpClientTests : RemoteDirectoryTestBase
         );
         var factoryMock = CreateStrictMock<IHttpClientFactory>();
         factoryMock
-            .Setup(x => x.CreateClient(OpenIdClientDefaults.HttpClientName))
+            .Setup(x => x.CreateClient(DirectoryClientDefaults.HttpClientName))
             .Returns(new HttpClient(handler))
             .Verifiable(Times.Once);
         var tokenSourceMock = CreateStrictMock<ICellTokenSource>();
         tokenSourceMock
-            .Setup(x =>
-                x.GetAccessTokenAsync(
-                    GlobalDirectoryProtocol.DirectoryAudience,
-                    GlobalDirectoryProtocol.DirectoryScope,
-                    It.IsAny<CancellationToken>()
-                )
-            )
+            .Setup(x => x.GetAccessTokenAsync(It.IsAny<CancellationToken>()))
             .Returns(new ValueTask<string>(AccessToken))
             .Verifiable(Times.Once);
         var client = new DirectoryHttpClient(
@@ -167,7 +154,8 @@ public class DirectoryHttpClientTests : RemoteDirectoryTestBase
                 new DirectoryClientOptions
                 {
                     Url = BaseUrl,
-                    RequestTimeout = TimeSpan.FromMilliseconds(100),
+                    AttemptTimeout = TimeSpan.FromMilliseconds(50),
+                    TotalTimeout = TimeSpan.FromMilliseconds(100),
                 }
             )
         );

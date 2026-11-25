@@ -34,19 +34,23 @@ audited; and a caller reads its own assignments, teams and tenants from `GET /ap
 
 ### Routes and contracts
 
-1. **The role lists are `…/owners` on a team, tenant, client and resource server and `…/admins` on a team and tenant.**
-   `GET` reads the list, `POST` grants and `DELETE …/{principalId}` revokes.
+1. **The role lists are `…/owners` on a team, tenant, client and resource server and `…/admins` on a team, a tenant
+   and a cell** (the cell's is `/api/cell/admins`, see ADR-1536). `GET` reads the list, `POST` grants and `DELETE
+   …/{principalId}` revokes.
 2. **The contracts name no role and no owner.** `GET` answers `RoleListResource { items, canChange }`. An item, and the
    answer to a grant, is `RoleHolderResource { assignmentId, principalId, roleName, principal }`, where `principal` is a
-   `PrincipalSummaryResource { principalId, principalType, displayName, userName }`, or null only for an assignment
-   whose principal no longer exists. A grant's body is `AddRoleHolderRequest`, which names exactly one of `principalId`,
-   the one on the resource of the local account or client to grant (`LocalAccountResource`, `ClientResource`), and
-   `userName`. `RoleAssignmentResource`, which names its node, serves the assignments that are read across nodes.
+   `PrincipalSummaryResource { principalId, principalType, displayName, userName }`, or null for an assignment whose
+   principal no longer exists or that the serving cell's directory cannot describe (decision 12). A grant's body is
+   `AddRoleHolderRequest`, which names exactly one of `principalId`, the one on the resource of the local account or
+   client to grant (`LocalAccountResource`, `ClientResource`), and `userName`. `RoleAssignmentResource`, which names its
+   node, serves the assignments that are read across nodes.
 3. **`canChange` says whether the caller's grant or revoke of the role at the node passes every refusal that does not
-   depend on the principal named.** Those refusals are `Update` at the node for owners, `Create` for administrators,
-   and, for a client's owners, a client the host does not manage and custody of a machine client
-   ([ADR-1466](1466-a-client-is-its-own-principal-and-a-machine-client-acts-only-within-its-owning-node.md)). The last-owner
-   rule depends on the principal, so it stays a `409` on the revoke.
+   depend on the principal named.** Those refusals are `Update` at the node for owners, `Create` for the administrators
+   of a team and a tenant, `Update` at the cell's node for a cell's administrators (a `CellAdmin` creates nothing, so
+   its holders manage their own list as team and tenant administrators do with `Create`), and, for a client's owners, a
+   client the host does not manage and custody of a machine client
+   ([ADR-1466](1466-a-client-is-its-own-principal-and-a-machine-client-acts-only-within-its-owning-node.md)). The
+   last-owner rule depends on the principal, so it stays a `409` on the revoke.
 4. **A list route authorizes `Read` at the node before it reads** (see
    [ADR-1424](1424-a-management-route-authorizes-at-the-node-it-names-before-it-reads-through-replaceable-validators.md))
    and answers `404` for a missing resource. It carries no ETag and no continuation token, because the answer is
@@ -72,18 +76,15 @@ audited; and a caller reads its own assignments, teams and tenants from `GET /ap
 
 ### The holders' names
 
-9. **Names are read through the control plane.** The port `IControlPlanePrincipalDirectory` answers a
-   `ControlPlanePrincipalQuery` of principal ids and user names with `PrincipalSummaryResource` items. Its local
-   adapter, in the control-plane cell, describes the principals from the control-plane tenant's own tables. Its remote
-   adapter, in every other cell, posts the query to the control-plane cell and sends a query of more than 100 names in
-   chunks of 100 and answers each principal once, with the first summary the chunks give for it. A list handler never
-   reads names from the serving cell's own tables. Names match as the stores key them, ignoring case: a principal
-   identifier or username that differs from the stored one only in case names that principal, and its summary carries
-   the stored casing, which a grant records.
-10. **`POST /control-plane/v1/principals` answers the cells.** It sits behind the cell gate that guards
-    `POST /control-plane/v1/authority` and answers `400` when `principalIds` or `userNames` is null or holds a null or
-    blank name, and for a query of more than 100 names (`ControlPlanePrincipalQuery.MaxNames`, principal ids plus user
-    names).
+9. **Names are read through one port.** The port `IControlPlanePrincipalDirectory` answers a
+   `ControlPlanePrincipalQuery` of principal ids and user names with `PrincipalSummaryResource` items. Its adapter
+   describes the principals from the tables of the cell's own management tenant, the control-plane tenant in the
+   control-plane cell, and calls no other cell. A list handler never reads names from another cell's tables. Names match
+   as the stores key them, ignoring case: a principal identifier or username that differs from the stored one only in
+   case names that principal, and its summary carries the stored casing, which a grant records.
+10. **A query is bounded.** `ControlPlanePrincipalQuery` answers `400` when `principalIds` or `userNames` is null or
+    holds a null or blank name, and for a query of more than 100 names (`ControlPlanePrincipalQuery.MaxNames`, principal
+    ids plus user names).
 11. **`IPrincipalDescriber` is a strategy collection** (see
     [ADR-1001](1001-behavior-is-a-service-a-strategy-collection-or-a-mediator-seam-chosen-by-one-ladder.md)): every
     registered describer describes the principals it knows, and the local adapter merges their answers. The
@@ -101,14 +102,17 @@ audited; and a caller reads its own assignments, teams and tenants from `GET /ap
     connection, then subject) as `<subject> (<issuer>)`, or as `<subject>` when the identity has no issuer, or by its
     principal identifier when it has no identity. The fallback reads only which principals exist
     (`IFederatedPrincipalStore.GetExistingIdsAsync`) and the names of their identities
-    (`IFederatedIdentityStore.GetNamesByPrincipalsAsync`). Only an assignment whose principal no longer exists has
-    `principal: null` on its item.
+    (`IFederatedIdentityStore.GetNamesByPrincipalsAsync`). Only an assignment whose principal no longer exists, or that
+    the serving cell's directory cannot describe (decision 12), has `principal: null` on its item and on the answer to
+    its grant.
 12. **A grant fails closed.** A `userName` resolves through the directory after the flow authorizes and the resource
     exists, and a name or a `principalId` that the control plane does not know answers `400` without echoing it, so a
     mistyped identifier never creates an assignment that no principal holds, and only a caller with grant authority at a
-    node can probe a username. A control plane that fails or is unreachable is a
-    `DirectoryUnavailableException`, which the management endpoints answer `503`, for a list and for a grant, and a name
-    is never guessed.
+    node can probe a username. The exception is a directory that does not describe every control-plane principal, as
+    a workload cell's does not (`IControlPlanePrincipalDirectory.DescribesEveryPrincipal`): it grants a `principalId`
+    it cannot describe without an existence check, and a `userName` it cannot resolve still answers `400`. A control
+    plane that fails or is unreachable is a `DirectoryUnavailableException`, which the management endpoints answer
+    `503`, for a list and for a grant, and a name is never guessed.
 
 ### Audit
 

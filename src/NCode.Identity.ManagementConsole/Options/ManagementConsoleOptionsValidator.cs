@@ -83,6 +83,21 @@ internal sealed class ManagementConsoleOptionsValidator(LocalDevelopmentMode loc
             failures.Add(managementApiUrlFailure);
         }
 
+        if (options.Cell is not null)
+        {
+            if (!CellLabelRules.IsValidLabel(options.Cell))
+            {
+                failures.Add(
+                    $"{Key}:Cell must be a cell name of {CellLabelRules.Description}; it is '{options.Cell}'."
+                );
+            }
+
+            if (options.Cells.Count != 0)
+            {
+                failures.Add($"{Key}:Cells must be empty when {Key}:Cell names the cell.");
+            }
+        }
+
         foreach (
             var (cellName, cellUrl) in options.Cells.OrderBy(
                 static pair => pair.Key,

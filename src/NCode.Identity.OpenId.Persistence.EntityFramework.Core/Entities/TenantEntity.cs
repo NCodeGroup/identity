@@ -16,6 +16,7 @@ namespace NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities;
 /// The complimentary DTO for this entity is <see cref="PersistedTenant"/>.
 /// </summary>
 [Index(nameof(NormalizedTenantId), IsUnique = true)]
+[Index(nameof(KeyCustody))]
 public sealed class TenantEntity : ISupportConcurrencyToken
 {
     /// <summary>
@@ -115,6 +116,20 @@ public sealed class TenantEntity : ISupportConcurrencyToken
     /// Gets or sets a value indicating whether the tenant is disabled.
     /// </summary>
     public required bool IsDisabled { get; set; }
+
+    /// <summary>
+    /// Gets or sets the key-custody fence of the tenant, one of the <c>TenantKeyCustody</c> values.
+    /// </summary>
+    [Unicode(false)]
+    [MaxLength(OpenIdMaxLengths.KeyCustody)]
+    public string KeyCustody { get; set; } = TenantKeyCustody.Held;
+
+    /// <summary>
+    /// Gets or sets the name of the other cell of a move in flight, or <c>null</c>.
+    /// </summary>
+    [Unicode(false)]
+    [MaxLength(OpenIdMaxLengths.CellName)]
+    public string? KeyCustodyCell { get; set; }
 
     /// <summary>
     /// Gets or sets the display name for the tenant.

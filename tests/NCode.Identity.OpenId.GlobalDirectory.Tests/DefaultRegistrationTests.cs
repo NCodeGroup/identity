@@ -82,14 +82,20 @@ public class DefaultRegistrationTests : BaseTests
         );
 
         Assert.True(IsRegistered<ITenantDirectory, RemoteTenantDirectory>(serviceCollection));
+        Assert.Contains(
+            serviceCollection,
+            descriptor =>
+                descriptor.IsKeyedService
+                && descriptor.ServiceType == typeof(IManagementTokenValidator)
+                && Equals(descriptor.ServiceKey, ControlPlaneServiceKeys.Remote)
+        );
         Assert.True(
-            IsRegisteredKeyed<IManagementTokenValidator, RemoteManagementTokenValidator>(
-                serviceCollection,
-                ControlPlaneServiceKeys.Remote
+            IsRegistered<ReplicatedManagementTokenValidator, ReplicatedManagementTokenValidator>(
+                serviceCollection
             )
         );
         Assert.True(
-            IsRegisteredKeyed<IControlPlaneAuthority, RemoteControlPlaneAuthority>(
+            IsRegisteredKeyed<IControlPlaneAuthority, ReplicatedControlPlaneAuthority>(
                 serviceCollection,
                 ControlPlaneServiceKeys.Remote
             )

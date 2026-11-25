@@ -30,6 +30,7 @@ using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
 using NCode.Identity.OpenId.Platform;
 using NCode.Identity.OpenId.Settings;
+using NCode.Identity.OpenId.Tenants.Keys;
 using NCode.Identity.Persistence.Stores;
 using NCode.Identity.Registration.AspNetCore;
 using NCode.Identity.Secrets.Persistence.Protection;
@@ -49,6 +50,8 @@ GET   api/platform/effective-settings
 
 GET   api/platform/encryption-keys
 POST  api/platform/encryption-keys/rekey
+
+POST  api/platform/management-keys/{kid}/revoke
 
 */
 
@@ -151,6 +154,13 @@ internal class PlatformApiEndpointHandler(
             .ProducesProblem(StatusCodes.Status403Forbidden)
             .ProducesProblem(StatusCodes.Status404NotFound)
             .ProducesProblem(StatusCodes.Status409Conflict)
+            .ProducesProblem(StatusCodes.Status412PreconditionFailed);
+        platform
+            .MapPost("/management-keys/{kid}/revoke", RevokeManagementKeyAsync)
+            .Produces<ManagementKeyRevocationResource>()
+            .ProducesProblem(StatusCodes.Status401Unauthorized)
+            .ProducesProblem(StatusCodes.Status403Forbidden)
+            .ProducesProblem(StatusCodes.Status404NotFound)
             .ProducesProblem(StatusCodes.Status412PreconditionFailed);
     }
 
@@ -349,6 +359,59 @@ internal class PlatformApiEndpointHandler(
             SecretOwner.Platform,
             cancellationToken
         );
+    }
+
+    /// <summary>
+    /// Revokes a compromised management key of the control-plane tenant: the key leaves the tenant's key set at once
+    /// and the key that signs after the revocation is reported: the remaining active key of the same use and algorithm,
+    /// or else a successor that is activated or generated at once.
+    /// </summary>
+    /// <param name="httpContext">The <see cref="HttpContext"/> for the current request.</param>
+    /// <param name="kid">The key identifier of the management key to revoke.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <response code="200">The revoked key and the key that signs in its place.</response>
+    /// <response code="404">The control-plane tenant holds no key with the key identifier.</response>
+    [EndpointName("api/platform/management-keys/revoke")]
+    internal virtual async ValueTask<IResult> RevokeManagementKeyAsync(
+        HttpContext httpContext,
+        [FromRoute] string kid,
+        CancellationToken cancellationToken
+    )
+    {
+        var platformNode = GetPlatformNode(httpContext);
+        var authorizationFailure = await GetAuthorizationFailureAsync(
+            httpContext,
+            platformNode,
+            Operations.Update,
+            cancellationToken
+        );
+
+        if (authorizationFailure is not null)
+        {
+            return authorizationFailure;
+        }
+
+        var managementKeyRevoker =
+            httpContext.RequestServices.GetRequiredService<IManagementKeyRevoker>();
+        var outcome = await managementKeyRevoker.RevokeAsync(kid, cancellationToken);
+        if (!outcome.IsRevoked || outcome.ReplacementKeyId is not { } replacementKeyId)
+        {
+            return ManagementProblems.ResourceNotFound();
+        }
+
+        var resource = new ManagementKeyRevocationResource
+        {
+            RevokedKeyId = kid,
+            ReplacementKeyId = replacementKeyId,
+        };
+        var resourceValues = ToResourceValues(resource);
+        await ManagementAuditRecorder.RecordPlatformChangedAsync(
+            httpContext,
+            ResourceChangeTypes.KeyRevoked,
+            resourceValues
+        );
+
+        return TypedResults.Ok(resource);
     }
 
     private async ValueTask<bool> PlatformExistsAsync(CancellationToken cancellationToken)

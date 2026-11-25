@@ -41,4 +41,10 @@ internal static class EventIds
     /// update would have given the tenant.
     /// </summary>
     public const int TenantIssuerChangeTakeBackFailed = Base + 17;
+
+    /// <summary>
+    /// Identifies the warning that setting the key custody of an imported tenant to held failed after the directory
+    /// committed the move.
+    /// </summary>
+    public const int TenantKeyCustodyHeldFailed = Base + 18;
 }

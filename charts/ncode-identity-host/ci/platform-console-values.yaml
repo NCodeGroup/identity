@@ -1,0 +1,50 @@
+# A production release of the control-plane cell whose platform console lists the platform's cells.
+cell:
+  name: ci-platform-console
+  region: ci
+  isControlPlane: true
+  managementUrl: https://id.example.com
+allowedHosts:
+  - id.example.com
+tenantResolution:
+  staticSingle:
+    issuer: https://id.example.com
+database:
+  existingSecret: identity-database
+  runtimeRole: ncode_identity_app
+migrations:
+  database:
+    existingSecret: identity-database-owner
+secretProtection:
+  rootKeyProvider: local
+  local:
+    keySecret: identity-root-key
+  recovery:
+    publicKeyConfigMap: identity-recovery-key
+ingress:
+  enabled: true
+  controller: traefik
+  className: traefik
+  hosts:
+    - host: id.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+managementConsole:
+  enabled: true
+  host: manage.example.com
+  cells:
+    eu-1: https://manage.eu-1.example.com/api
+    us-1: https://manage.us-1.example.com/api
+  keyRings:
+    client:
+      pemSecret: identity-mgmt-client-key
+    dpop:
+      pemSecret: identity-mgmt-dpop-key
+  ingress:
+    enabled: true
+    className: traefik
+    tls:
+      - secretName: manage-example-com-tls
+        hosts:
+          - manage.example.com

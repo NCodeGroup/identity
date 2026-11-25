@@ -24,4 +24,19 @@ internal static class EventIds
     /// setup token.
     /// </summary>
     public const int SetupBelongsToTheControlPlane = Base + 5;
+
+    /// <summary>
+    /// Identifies the informational message that recovery created or restored an administrator.
+    /// </summary>
+    public const int AdministratorRecovered = Base + 6;
+
+    /// <summary>
+    /// Identifies the informational message that sign-in recovery repaired one setting or resource.
+    /// </summary>
+    public const int SignInRepaired = Base + 7;
+
+    /// <summary>
+    /// Identifies the warning that the directory could not be reached to publish the repaired platform settings.
+    /// </summary>
+    public const int SignInRepairNotPublished = Base + 8;
 }

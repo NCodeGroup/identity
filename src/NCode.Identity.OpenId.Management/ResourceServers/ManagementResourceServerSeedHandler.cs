@@ -1,10 +1,13 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using System.Text.Json;
 using NCode.Identity.Cryptography;
 using NCode.Identity.Json;
+using NCode.Identity.OpenId.GlobalDirectory;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
+using NCode.Identity.OpenId.Settings;
 using NCode.Identity.OpenId.Tenants;
 using NCode.Mediator;
 
@@ -15,13 +18,17 @@ namespace NCode.Identity.OpenId.Management.ResourceServers;
 /// families (a tenant's own settings and secrets, plus its clients, client secrets, resource servers, client grants,
 /// and grants) are seeded into every tenant; its control-plane families (platform settings, team management and tenant
 /// provisioning) are added only in the root plane, which only the control-plane cell's root tenant is seeded in. The
-/// handler is idempotent: it creates the resource server only when it is absent.
+/// handler is idempotent: it creates the resource server only when it is absent. On a platform with a directory the
+/// resource server requires every token that targets it to be bound to a DPoP proof key.
 /// </summary>
-internal sealed class ManagementResourceServerSeedHandler(ICryptoService cryptoService)
-    : ICommandHandler<SeedTenantCommand>,
-        ISupportMediatorPriority
+internal sealed class ManagementResourceServerSeedHandler(
+    ICryptoService cryptoService,
+    IPlatformTopology platformTopology
+) : ICommandHandler<SeedTenantCommand>, ISupportMediatorPriority
 {
     private ICryptoService CryptoService { get; } = cryptoService;
+
+    private IPlatformTopology PlatformTopology { get; } = platformTopology;
 
     /// <inheritdoc />
     public int MediatorPriority => DefaultMediatorPriorities.Low;
@@ -46,6 +53,12 @@ internal sealed class ManagementResourceServerSeedHandler(ICryptoService cryptoS
 
         var resourceServerId = CryptoService.GenerateResourceId();
 
+        var settings = PlatformTopology.HasDirectory
+            ? JsonElement.Parse(
+                $$"""{"{{OpenIdSettingNames.RequireDPoPBoundAccessTokens}}":true}"""
+            )
+            : JsonElements.EmptyObject;
+
         var resourceServer = new PersistedResourceServer
         {
             TenantId = context.TenantId,
@@ -59,7 +72,7 @@ internal sealed class ManagementResourceServerSeedHandler(ICryptoService cryptoS
             {
                 TenantId = context.TenantId,
                 ResourceServerId = resourceServerId,
-                Value = JsonElements.EmptyObject,
+                Value = settings,
             },
             Scopes = BuildScopes(context.Plane),
             Secrets = new PersistedResourceServerSecrets
@@ -117,6 +130,13 @@ internal sealed class ManagementResourceServerSeedHandler(ICryptoService cryptoS
                 .. CrudScopes(ManagementScopes.Families.Tenants, "tenants"),
             ];
             scopes = scopes.Concat(rootScopes);
+        }
+
+        if (plane == TenantPlane.Workload)
+        {
+            // The cell family, seeded into every workload-plane tenant, so a cell's management tenant carries it.
+            var cellScopes = SettingsScopes(ManagementScopes.Families.Cell, "the cell");
+            scopes = scopes.Concat(cellScopes);
         }
 
         return scopes

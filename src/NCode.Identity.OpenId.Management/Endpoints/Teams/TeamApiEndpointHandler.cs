@@ -1769,7 +1769,14 @@ internal class TeamApiEndpointHandler(
             return DirectoryUnavailableProblem(httpContext);
         }
 
-        if (!cells.Any(cell => string.Equals(cell.Region, region, StringComparison.Ordinal)))
+        // A cell that is retired or has not reported a management URL cannot run a team's tenants.
+        if (
+            !cells.Any(cell =>
+                !cell.IsRetired
+                && cell.ManagementUrl is not null
+                && string.Equals(cell.Region, region, StringComparison.Ordinal)
+            )
+        )
         {
             var regionErrors = new Dictionary<string, string[]>(StringComparer.Ordinal)
             {

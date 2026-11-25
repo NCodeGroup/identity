@@ -3,6 +3,7 @@ const NCode.Identity.Secrets.Persistence.Options.LocalKeyWrapperOptions.DefaultS
 NCode.Identity.Secrets.Persistence.DefaultRegistration
 NCode.Identity.Secrets.Persistence.DefaultRegistration.extension(NCode.Identity.Registration.IServiceBuilder<NCode.Identity.Secrets.SecretsLibrary>!)
 NCode.Identity.Secrets.Persistence.DefaultRegistration.extension(NCode.Identity.Registration.IServiceBuilder<NCode.Identity.Secrets.SecretsLibrary>!).AddPersistenceLibrary() -> NCode.Identity.Registration.IServiceBuilder<NCode.Identity.Secrets.Persistence.SecretPersistenceLibrary>!
+NCode.Identity.Secrets.Persistence.DefaultRegistration.extension(NCode.Identity.Registration.IServiceBuilder<NCode.Identity.Secrets.SecretsLibrary>!).AddSecretKeyFormats() -> NCode.Identity.Registration.IServiceBuilder<NCode.Identity.Secrets.Persistence.SecretPersistenceLibrary>!
 NCode.Identity.Secrets.Persistence.Options.LocalKeyWrapperOptions
 NCode.Identity.Secrets.Persistence.Options.LocalKeyWrapperOptions.Key.get -> string?
 NCode.Identity.Secrets.Persistence.Options.LocalKeyWrapperOptions.Key.set -> void

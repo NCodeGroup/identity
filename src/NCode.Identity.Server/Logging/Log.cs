@@ -254,11 +254,11 @@ internal static partial class Log
     internal static partial void InstanceSetupCommandRootPasswordMissing(this ILogger logger);
 
     [LoggerMessage(
-        EventId = EventIds.InstanceSetupCommandNotOnTheControlPlane,
+        EventId = EventIds.InstanceSetupCommandNotInAnAnchorCell,
         Level = LogLevel.Error,
-        Message = "Setup belongs to the control-plane cell, and this cell is not the control plane; run the setup command there."
+        Message = "Setup runs in the control-plane cell or in a cell with a management tenant, and this cell is neither."
     )]
-    internal static partial void InstanceSetupCommandNotOnTheControlPlane(this ILogger logger);
+    internal static partial void InstanceSetupCommandNotInAnAnchorCell(this ILogger logger);
 
     [LoggerMessage(
         EventId = EventIds.InstanceSetupCommandFailed,
@@ -266,6 +266,204 @@ internal static partial class Log
         Message = "The setup command failed; the instance is not set up."
     )]
     internal static partial void InstanceSetupCommandFailed(
+        this ILogger logger,
+        Exception exception
+    );
+
+    [LoggerMessage(
+        EventId = EventIds.RevokeManagementKeyCommandUsageInvalid,
+        Level = LogLevel.Error,
+        Message = "The revoke-management-key command line is invalid: {Error} {Usage}"
+    )]
+    internal static partial void RevokeManagementKeyCommandUsageInvalid(
+        this ILogger logger,
+        string error,
+        string usage
+    );
+
+    [LoggerMessage(
+        EventId = EventIds.RevokeManagementKeyCommandOnTheControlPlane,
+        Level = LogLevel.Error,
+        Message = "The control-plane cell revokes a management key through the management API; run the revoke-management-key command in a workload cell."
+    )]
+    internal static partial void RevokeManagementKeyCommandOnTheControlPlane(this ILogger logger);
+
+    [LoggerMessage(
+        EventId = EventIds.RevokeManagementKeyCommandRevoked,
+        Level = LogLevel.Information,
+        Message = "Recorded the management key '{KeyId}' as revoked; the cell refuses every token it signed."
+    )]
+    internal static partial void RevokeManagementKeyCommandRevoked(
+        this ILogger logger,
+        string keyId
+    );
+
+    [LoggerMessage(
+        EventId = EventIds.RevokeManagementKeyCommandFailed,
+        Level = LogLevel.Error,
+        Message = "The revoke-management-key command failed; the key is not revoked."
+    )]
+    internal static partial void RevokeManagementKeyCommandFailed(
+        this ILogger logger,
+        Exception exception
+    );
+
+    [LoggerMessage(
+        EventId = EventIds.RecoverAdminCommandUsageInvalid,
+        Level = LogLevel.Error,
+        Message = "The recover-admin command line is invalid: {Error} {Usage}"
+    )]
+    internal static partial void RecoverAdminCommandUsageInvalid(
+        this ILogger logger,
+        string error,
+        string usage
+    );
+
+    [LoggerMessage(
+        EventId = EventIds.RecoverAdminCommandNotInAnAnchorCell,
+        Level = LogLevel.Error,
+        Message = "The recover-admin command recovers the administrator of the control-plane cell or of a cell with a management tenant; this cell is neither."
+    )]
+    internal static partial void RecoverAdminCommandNotInAnAnchorCell(this ILogger logger);
+
+    [LoggerMessage(
+        EventId = EventIds.RecoverAdminCommandUserNameMissing,
+        Level = LogLevel.Error,
+        Message = "The recover-admin command needs the administrator's username in the Recovery:Admin:UserName configuration."
+    )]
+    internal static partial void RecoverAdminCommandUserNameMissing(this ILogger logger);
+
+    [LoggerMessage(
+        EventId = EventIds.RecoverAdminCommandPasswordMissing,
+        Level = LogLevel.Error,
+        Message = "The recover-admin command needs the administrator's password in the Recovery:Admin:Password configuration."
+    )]
+    internal static partial void RecoverAdminCommandPasswordMissing(this ILogger logger);
+
+    [LoggerMessage(
+        EventId = EventIds.RecoverAdminCommandRefused,
+        Level = LogLevel.Error,
+        Message = "The recover-admin command was refused with status {StatusCode}; the administrator is not recovered."
+    )]
+    internal static partial void RecoverAdminCommandRefused(this ILogger logger, int statusCode);
+
+    [LoggerMessage(
+        EventId = EventIds.RecoverAdminCommandRecovered,
+        Level = LogLevel.Information,
+        Message = "Recovered the administrator '{UserName}' in tenant {TenantId}; the account was created: {Created}."
+    )]
+    internal static partial void RecoverAdminCommandRecovered(
+        this ILogger logger,
+        string userName,
+        string tenantId,
+        bool created
+    );
+
+    [LoggerMessage(
+        EventId = EventIds.RecoverAdminCommandFailed,
+        Level = LogLevel.Error,
+        Message = "The recover-admin command failed; the administrator is not recovered."
+    )]
+    internal static partial void RecoverAdminCommandFailed(
+        this ILogger logger,
+        Exception exception
+    );
+
+    [LoggerMessage(
+        EventId = EventIds.RecoverSignInCommandUsageInvalid,
+        Level = LogLevel.Error,
+        Message = "The recover-sign-in command line is invalid: {Error} {Usage}"
+    )]
+    internal static partial void RecoverSignInCommandUsageInvalid(
+        this ILogger logger,
+        string error,
+        string usage
+    );
+
+    [LoggerMessage(
+        EventId = EventIds.RecoverSignInCommandNoManagementTenant,
+        Level = LogLevel.Error,
+        Message = "The recover-sign-in command repairs the management tenant of a cell; this cell is a workload cell without one."
+    )]
+    internal static partial void RecoverSignInCommandNoManagementTenant(this ILogger logger);
+
+    [LoggerMessage(
+        EventId = EventIds.RecoverSignInCommandChanged,
+        Level = LogLevel.Information,
+        Message = "Repaired the sign-in: {Scope} '{Name}' changed; the value before was {Before}."
+    )]
+    internal static partial void RecoverSignInCommandChanged(
+        this ILogger logger,
+        string scope,
+        string name,
+        string? before
+    );
+
+    [LoggerMessage(
+        EventId = EventIds.RecoverSignInCommandRepaired,
+        Level = LogLevel.Information,
+        Message = "The recover-sign-in command made {Count} change(s)."
+    )]
+    internal static partial void RecoverSignInCommandRepaired(this ILogger logger, int count);
+
+    [LoggerMessage(
+        EventId = EventIds.RecoverSignInCommandFailed,
+        Level = LogLevel.Error,
+        Message = "The recover-sign-in command failed; the sign-in is not repaired."
+    )]
+    internal static partial void RecoverSignInCommandFailed(
+        this ILogger logger,
+        Exception exception
+    );
+
+    [LoggerMessage(
+        EventId = EventIds.DirectoryClientJwksCommandUsageInvalid,
+        Level = LogLevel.Error,
+        Message = "The directory-client-jwks command line is invalid: {Error} {Usage}"
+    )]
+    internal static partial void DirectoryClientJwksCommandUsageInvalid(
+        this ILogger logger,
+        string error,
+        string usage
+    );
+
+    [LoggerMessage(
+        EventId = EventIds.DirectoryClientJwksCommandNoKeyRing,
+        Level = LogLevel.Error,
+        Message = "The directory-client-jwks command names no key ring and Directory:KeyRing is not set. {Usage}"
+    )]
+    internal static partial void DirectoryClientJwksCommandNoKeyRing(
+        this ILogger logger,
+        string usage
+    );
+
+    [LoggerMessage(
+        EventId = EventIds.DirectoryClientJwksCommandUnknownKeyRing,
+        Level = LogLevel.Error,
+        Message = "The directory-client-jwks command found no key ring named '{KeyRing}'."
+    )]
+    internal static partial void DirectoryClientJwksCommandUnknownKeyRing(
+        this ILogger logger,
+        string keyRing
+    );
+
+    [LoggerMessage(
+        EventId = EventIds.DirectoryClientJwksCommandWritten,
+        Level = LogLevel.Information,
+        Message = "The directory-client-jwks command wrote {Count} public key(s) of the key ring '{KeyRing}'."
+    )]
+    internal static partial void DirectoryClientJwksCommandWritten(
+        this ILogger logger,
+        string keyRing,
+        int count
+    );
+
+    [LoggerMessage(
+        EventId = EventIds.DirectoryClientJwksCommandFailed,
+        Level = LogLevel.Error,
+        Message = "The directory-client-jwks command failed; no key set is written."
+    )]
+    internal static partial void DirectoryClientJwksCommandFailed(
         this ILogger logger,
         Exception exception
     );

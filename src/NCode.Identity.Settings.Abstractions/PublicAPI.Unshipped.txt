@@ -60,6 +60,8 @@ NCode.Identity.Settings.SettingDescriptor.IsDiscoverable.get -> bool
 NCode.Identity.Settings.SettingDescriptor.IsDiscoverable.init -> void
 NCode.Identity.Settings.SettingDescriptor.IsEnvironmentBound.get -> bool
 NCode.Identity.Settings.SettingDescriptor.IsEnvironmentBound.init -> void
+NCode.Identity.Settings.SettingDescriptor.IsSignInCritical.get -> bool
+NCode.Identity.Settings.SettingDescriptor.IsSignInCritical.init -> void
 NCode.Identity.Settings.SettingDescriptor.IsLimit.get -> bool
 NCode.Identity.Settings.SettingDescriptor.IsLimit.init -> void
 NCode.Identity.Settings.SettingDescriptor.Name.get -> string!

@@ -1,0 +1,131 @@
+// Copyright © NCode Group
+// SPDX-License-Identifier: Apache-2.0
+
+using System.Diagnostics.Metrics;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Microsoft.Extensions.Options;
+
+namespace NCode.Identity.OpenId.GlobalDirectory;
+
+/// <summary>
+/// Reports how old the cell's replica of the directory's documents is. It keeps the time of the last feed pass that
+/// completed, an empty page included, and the highest sequence that pass applied, and it observes them as the gauges
+/// <c>ncode.identity.directory.replica.age</c> and <c>ncode.identity.directory.replica.sequence</c>. As a readiness
+/// check it always answers <see cref="HealthStatus.Healthy"/>, because a replica that serves its last known documents
+/// is ready; the data of the result carries the age and the sequence for an operator.
+/// </summary>
+internal sealed class DirectoryReplicaHealth : IHealthCheck
+{
+    /// <summary>
+    /// The key of the health data that holds the seconds since the last completed feed pass.
+    /// </summary>
+    internal const string AgeDataKey = "replicaAgeSeconds";
+
+    /// <summary>
+    /// The key of the health data that holds the highest feed sequence that the cell has applied.
+    /// </summary>
+    internal const string SequenceDataKey = "appliedSequence";
+
+    /// <summary>
+    /// The name of the readiness check.
+    /// </summary>
+    internal const string HealthCheckName = "directory-replica";
+
+    private TimeProvider TimeProvider { get; }
+    private IOptions<CellOptions> CellOptionsAccessor { get; }
+
+    // The time of the last completed pass, or of this object's creation before the first.
+    private long _lastPassTicks;
+    private long _appliedSequence;
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="DirectoryReplicaHealth"/> class.
+    /// </summary>
+    /// <param name="timeProvider">The <see cref="TimeProvider"/> that supplies the current time.</param>
+    /// <param name="metrics">The <see cref="DirectoryMetrics"/> that observe the replica's age and sequence.</param>
+    /// <param name="cellOptions">The <see cref="CellOptions"/> that name the cell.</param>
+    public DirectoryReplicaHealth(
+        TimeProvider timeProvider,
+        DirectoryMetrics metrics,
+        IOptions<CellOptions> cellOptions
+    )
+    {
+        TimeProvider = timeProvider;
+        CellOptionsAccessor = cellOptions;
+        _lastPassTicks = timeProvider.GetUtcNow().UtcTicks;
+
+        metrics.ObserveReplica(ObserveAge, ObserveSequence);
+    }
+
+    /// <summary>
+    /// Gets the seconds since the last completed feed pass, or since this object was created before the first.
+    /// </summary>
+    internal double AgeSeconds
+    {
+        get
+        {
+            var lastTicks = Interlocked.Read(ref _lastPassTicks);
+            var last = new DateTimeOffset(lastTicks, TimeSpan.Zero);
+            var age = TimeProvider.GetUtcNow() - last;
+            return age < TimeSpan.Zero ? 0 : age.TotalSeconds;
+        }
+    }
+
+    /// <summary>
+    /// Gets the highest feed sequence that the cell has applied.
+    /// </summary>
+    internal long Sequence => Interlocked.Read(ref _appliedSequence);
+
+    /// <summary>
+    /// Records a completed feed pass.
+    /// </summary>
+    /// <param name="appliedSequence">The highest feed sequence that the cell has applied.</param>
+    internal void RecordPass(long appliedSequence)
+    {
+        Interlocked.Exchange(ref _appliedSequence, appliedSequence);
+        var nowTicks = TimeProvider.GetUtcNow().UtcTicks;
+        Interlocked.Exchange(ref _lastPassTicks, nowTicks);
+    }
+
+    /// <inheritdoc />
+    public Task<HealthCheckResult> CheckHealthAsync(
+        HealthCheckContext context,
+        CancellationToken cancellationToken = default
+    )
+    {
+        var data = new Dictionary<string, object>
+        {
+            [AgeDataKey] = AgeSeconds,
+            [SequenceDataKey] = Sequence,
+        };
+        var result = HealthCheckResult.Healthy(data: data);
+        return Task.FromResult(result);
+    }
+
+    /// <summary>
+    /// Observes the seconds since the last completed feed pass.
+    /// </summary>
+    /// <returns>The measurement, tagged with the cell's name.</returns>
+    private Measurement<double> ObserveAge()
+    {
+        var tag = CellTag();
+        return new Measurement<double>(AgeSeconds, tag);
+    }
+
+    /// <summary>
+    /// Observes the sequence of the last applied document.
+    /// </summary>
+    /// <returns>The measurement, tagged with the cell's name.</returns>
+    private Measurement<long> ObserveSequence()
+    {
+        var tag = CellTag();
+        return new Measurement<long>(Sequence, tag);
+    }
+
+    /// <summary>
+    /// Creates the metric tag that names the cell.
+    /// </summary>
+    /// <returns>The tag that carries the cell's name.</returns>
+    private KeyValuePair<string, object?> CellTag() =>
+        new(DirectoryMetrics.CellNameAttribute, CellOptionsAccessor.Value.Name);
+}

@@ -15,9 +15,11 @@ so the first administrator has to come from somewhere an operator controls (issu
 
 A platform is a global directory over independent cells
 ([ADR-1411](1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md)),
-and the platform's administrators, its teams and its control-plane tenant live in one cell, the control-plane cell. The
-other cells hold tenants and no platform authority of their own, so the first administrator is created once for the
-platform, in the control-plane cell.
+and the platform's administrators, its teams and its control-plane tenant live in one cell, the control-plane cell
+([ADR-1536](1536-a-platforms-global-plane-is-a-standalone-directory-and-a-dedicated-control-plane-cell-and-every-other-cell-runs-and-is-managed-on-its-own.md)). The other cells hold tenants, replicate the platform's authority from the directory and, when they serve a
+dynamic tenant-resolution strategy, have a management tenant of their own. The first administrator is created once for
+the platform, in the control-plane cell, and the first administrator of a cell with a management tenant is created in
+that cell.
 
 Three facts shape how that administrator is created:
 
@@ -31,7 +33,8 @@ Three facts shape how that administrator is created:
 ## Decision
 
 **A platform is set up once, in its control-plane cell, through a setup wizard guarded by a one-time setup token, and
-setup creates a root global administrator.**
+setup creates a root global administrator. A workload cell with a management tenant is set up the same way and creates
+its first cell administrator.**
 
 1. **The control-plane cell's OP serves a setup wizard at `/setup`.** A cell that is not the control plane
    (`Cell:IsControlPlane` is unset) maps no `/setup` route, so every `/setup` path answers 404 there. The page is the
@@ -142,18 +145,23 @@ setup creates a root global administrator.**
       as a link with a copy button, beside the root user and the tenant.
     - The page names the setup token Secret to remove only when the token was configured (`tokenSource` is
       `configured`). A generated token is spent with the setup and names no Secret.
-12. **Setup belongs to the control-plane cell.**
-    - The setup gate answers false on a cell that is not the control plane, and that cell's hosted service issues no
-      token and stores no `InstanceSetup` mark.
-    - The `setup` command exits non-zero on such a cell and says that setup belongs to the control-plane cell.
-    - The chart refuses `setup.job.enabled` unless `cell.isControlPlane` is `true`, so no release runs a setup Job in a
-      cell whose `setup` command would refuse.
+12. **Setup belongs to the control-plane cell and to a workload cell with a management tenant.**
+    - The setup gate answers false on a cell that is neither the control plane nor a cell with a management tenant, and
+      that cell's hosted service issues no token and stores no `InstanceSetup` mark.
+    - In the control-plane cell setup creates the root `GlobalAdmin`. In a workload cell with a management tenant it
+      creates the cell's first `CellAdmin` in the cell's management tenant.
+    - The `setup` command exits non-zero on any other cell and says so.
+    - The chart refuses `setup.job.enabled` unless `cell.isControlPlane` is `true` or the cell's tenant-resolution
+      strategy is dynamic, so no release runs a setup Job in a cell whose `setup` command would refuse.
+    - `recover-admin` and `recover-sign-in` are the break-glass commands: they create or re-enable an administrator and
+      repair a setting that blocks every sign-in, offline, in the control-plane cell or in a cell with a management
+      tenant.
     - The root administrator's role assignment is a platform-node assignment in the control-plane cell. Other cells
-      learn of it through the control plane, never through setup of their own
+      receive it as a replicated authority document, never through setup of their own
       ([ADR-1417](1417-management-authority-is-a-role-assignment-at-a-node-of-the-platform-team-and-tenant-hierarchy.md),
       [ADR-1191](1191-a-management-request-is-authenticated-by-the-control-plane-tenant-and-scoped-by-its-routes-tenant.md)).
-    - Every cell that reaches the directory, the control-plane cell included, is registered with the directory and
-      given its machine client by the operator, through the management API of the control-plane cell.
+    - Every workload cell is registered with the directory by a `GlobalAdmin`, with its region, kind and public key set,
+      through the management API of the control-plane cell ([ADR-1536](1536-a-platforms-global-plane-is-a-standalone-directory-and-a-dedicated-control-plane-cell-and-every-other-cell-runs-and-is-managed-on-its-own.md)).
 
 The setup packages follow the package shape of
 [ADR-1500](1500-every-package-names-one-capability-under-the-ncode-identity-prefix-as-an-abstractions-and-implementation-pair.md):
@@ -186,8 +194,8 @@ The setup packages follow the package shape of
 - A configured token has no lifetime, and it is useless once the instance is initialized. The operator removes it from
   the deployment after setup.
 - `/setup` is a claimed path segment like `/api`, so no tenant or client path uses it.
-- A cell other than the control plane has no setup surface and no setup token. The operator sets the platform up once,
-  then brings each further cell up against the directory and the control plane.
+- A cell that is neither the control plane nor a cell with a management tenant has no setup surface and no setup token.
+  The operator sets the platform up once, then registers and brings up each further cell against the directory.
 - No chart value holds an administrator password for the interactive path, and the chart needs no bootstrap
   administrator values.
 - A deployment that names its console lets the operator submit the console step without typing: the client ID, the
@@ -213,5 +221,6 @@ The setup packages follow the package shape of
   [ADR-1417](1417-management-authority-is-a-role-assignment-at-a-node-of-the-platform-team-and-tenant-hierarchy.md),
   [ADR-1437](1437-the-management-console-is-a-confidential-client-whose-own-bff-host-serves-only-the-console.md),
   [ADR-1256](1256-every-page-the-server-writes-has-a-strict-content-security-policy-and-is-framed-only-by-design.md),
+  [ADR-1536](1536-a-platforms-global-plane-is-a-standalone-directory-and-a-dedicated-control-plane-cell-and-every-other-cell-runs-and-is-managed-on-its-own.md),
   [ADR-1500](1500-every-package-names-one-capability-under-the-ncode-identity-prefix-as-an-abstractions-and-implementation-pair.md),
   [ADR-1503](1503-http-logging-writes-a-body-only-for-an-endpoint-that-opts-in-and-never-for-one-that-carries-credentials.md)

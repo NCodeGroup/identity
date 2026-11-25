@@ -10,12 +10,13 @@ import {
  * second, so the platform ↔ team ↔ tenant boundaries (ADR-1064) stay explicit in every address:
  *
  * - `/home` — the caller's home: the places it holds authority (ADR-1465);
- * - `/teams`, `/clients`, `/users`, `/settings`, `/encryption-keys` — the platform scope's surfaces;
+ * - `/teams`, `/clients`, `/users`, `/settings`, `/encryption-keys`, `/cells` — the platform scope's surfaces;
  * - `/teams/{teamId}/{surface}` — a team scope's surfaces (`tenants`, `teams`, `clients`, `settings`, `access`,
  *   `encryption-keys` and `usage`), the team id percent-encoded as one segment;
  * - `/tenants/{tenantId}/{surface}` — a tenant scope's surfaces (`clients`, `resource-servers`, `connections`,
  *   `grants`, `users`, `secrets`, `encryption-keys`, `settings`, `access` and `usage`), the tenant id percent-encoded
  *   as one segment (ADR-1255);
+ * - `/cell/admins` — the surfaces of a cell console's own cell, shown only when the console manages one cell;
  * - `/cells/{cell}/tenants/{tenantId}/{surface}` — the same tenant surfaces of a tenant that lives in a named cell, the
  *   cell percent-encoded as one segment; a tenant path without a cell addresses the control plane.
  *
@@ -29,7 +30,11 @@ export const PLATFORM_SURFACES = [
   'users',
   'settings',
   'encryption-keys',
+  'cells',
 ] as const;
+
+/** The surfaces of a cell console's own cell, in tab order. */
+export const CELL_SURFACES = ['admins'] as const;
 
 /** The surfaces of a team scope, in tab order. */
 export const TEAM_SURFACES = [
@@ -57,6 +62,7 @@ export const TENANT_SURFACES = [
 ] as const;
 
 export type PlatformSurface = (typeof PLATFORM_SURFACES)[number];
+export type CellSurface = (typeof CELL_SURFACES)[number];
 export type TeamSurface = (typeof TEAM_SURFACES)[number];
 export type TenantSurface = (typeof TENANT_SURFACES)[number];
 
@@ -72,6 +78,7 @@ export type TenantOwnSurface = Extract<
 export type ConsoleRoute =
   | { readonly kind: 'home' }
   | { readonly kind: 'platform'; readonly surface: PlatformSurface }
+  | { readonly kind: 'cell'; readonly surface: CellSurface }
   | { readonly kind: 'team'; readonly teamId: string; readonly surface: TeamSurface }
   | {
       readonly kind: 'tenant';
@@ -96,15 +103,22 @@ export const DEFAULT_TEAM_SURFACE: TeamSurface = 'tenants';
 export const DEFAULT_TENANT_SURFACE: TenantSurface = 'clients';
 
 /** Builds the route of a platform surface. */
-export function platformRoute(surface: PlatformSurface): ScopedConsoleRoute {
+export function platformRoute(
+  surface: PlatformSurface,
+): Extract<ConsoleRoute, { kind: 'platform' }> {
   return { kind: 'platform', surface };
+}
+
+/** Builds the route of a surface of a cell console's own cell. */
+export function cellRoute(surface: CellSurface): Extract<ConsoleRoute, { kind: 'cell' }> {
+  return { kind: 'cell', surface };
 }
 
 /** Builds the route of a team surface, rejecting an empty/blank team id. */
 export function teamRoute(
   teamId: string,
   surface: TeamSurface = DEFAULT_TEAM_SURFACE,
-): ScopedConsoleRoute {
+): Extract<ConsoleRoute, { kind: 'team' }> {
   teamScope(teamId);
   return { kind: 'team', teamId, surface };
 }
@@ -117,7 +131,7 @@ export function tenantRoute(
   tenantId: string,
   surface: TenantSurface = DEFAULT_TENANT_SURFACE,
   cell?: string,
-): ScopedConsoleRoute {
+): Extract<ConsoleRoute, { kind: 'tenant' }> {
   tenantScope(tenantId);
   if (cell === undefined) {
     return { kind: 'tenant', tenantId, surface };
@@ -128,8 +142,13 @@ export function tenantRoute(
   return { kind: 'tenant', tenantId, surface, cell };
 }
 
-/** The management scope a route addresses — derived from the route, never held separately. */
-export function routeScope(route: ScopedConsoleRoute): ManagementScope {
+/**
+ * The management scope a route addresses — derived from the route, never held separately. A cell route addresses the
+ * cell the console manages, which is no scope of the platform, team and tenant tree, so it has none.
+ */
+export function routeScope(
+  route: Exclude<ScopedConsoleRoute, { readonly kind: 'cell' }>,
+): ManagementScope {
   switch (route.kind) {
     case 'platform':
       return PLATFORM_SCOPE;
@@ -147,6 +166,8 @@ export function routePath(route: ConsoleRoute): string {
       return '/home';
     case 'platform':
       return `/${route.surface}`;
+    case 'cell':
+      return `/cell/${route.surface}`;
     case 'team':
       return `/teams/${encodeURIComponent(route.teamId)}/${route.surface}`;
     case 'tenant': {
@@ -160,6 +181,10 @@ export function routePath(route: ConsoleRoute): string {
 
 function isPlatformSurface(value: string): value is PlatformSurface {
   return (PLATFORM_SURFACES as readonly string[]).includes(value);
+}
+
+function isCellSurface(value: string): value is CellSurface {
+  return (CELL_SURFACES as readonly string[]).includes(value);
 }
 
 function isTeamSurface(value: string): value is TeamSurface {
@@ -189,13 +214,20 @@ export function parseRoute(pathname: string): ConsoleRoute | null {
   const trimmed = pathname.length > 1 && pathname.endsWith('/') ? pathname.slice(0, -1) : pathname;
   const segments = trimmed.slice(1).split('/');
 
-  if (segments[0] === 'cells') {
+  if (segments[0] === 'cells' && segments.length > 1) {
     const [, encodedCell = '', ...scoped] = segments;
     const cell = decodeSegment(encodedCell);
     if (cell === null || cell.trim().length === 0 || scoped[0] !== 'tenants') {
       return null;
     }
     return parseTenantRoute(scoped, cell);
+  }
+
+  if (segments[0] === 'cell') {
+    const [, surface, ...rest] = segments;
+    return segments.length === 2 && rest.length === 0 && isCellSurface(surface ?? '')
+      ? cellRoute(surface as CellSurface)
+      : null;
   }
 
   if (segments.length === 1) {

@@ -1,0 +1,321 @@
+# Directory chart — lints and renders the Helm chart of the global directory (NCode.Identity.OpenId.GlobalDirectory.Host).
+#
+# The chart encodes the directory's configuration surface, so it changes with the host and is checked on every change:
+# each values file under ci/ must lint strictly and render, and each release the chart must refuse — the directory
+# would refuse it, or it keeps its single-use state in process and so runs one replica — must fail to render. The
+# pre-deploy migration Job must render, and may run under the operator's ServiceAccount. The chart takes the database
+# as a finished connection string or as the parts of a Postgres operator's Secret, and refuses both for one connection
+# (ADR-1509). The pods serve HTTPS only: the probes, the Service and the Ingress backend use it, a cert-manager
+# Certificate issues the certificate, and the chosen route verifies it (ADR-1504, ADR-1507).
+# The Publish artifacts workflow publishes the chart beside the host chart (ADR-1505).
+name: Directory chart
+
+on:
+  # A push gates only main and the release lines, because a pull request already gates every other branch (see ci.yml).
+  # The merge queue runs the check on the merged result, so a required check must report on merge_group (ADR-1263).
+  # Release lines are gated like main.
+  push:
+    branches: [main, 'release/**']
+    paths:
+      - 'charts/ncode-identity-directory/**'
+      - '.github/workflows/directory-chart.yml'
+  pull_request:
+    branches: [main, 'release/**']
+    paths:
+      - 'charts/ncode-identity-directory/**'
+      - '.github/workflows/directory-chart.yml'
+  merge_group:
+    types: [checks_requested]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# See the note in ci.yml: on main and the release lines the group includes the SHA so every commit of a protected line
+# keeps its own verdict.
+concurrency:
+  group: directory-chart-${{ github.ref }}-${{ (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/')) && github.sha || 'head' }}
+  cancel-in-progress: ${{ !(github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/')) }}
+
+jobs:
+  check:
+    name: Lint and render the directory chart
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    env:
+      CHART: charts/ncode-identity-directory
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Nothing in this job pushes, so the token stays out of .git/config, where later steps could read it.
+          persist-credentials: false
+
+      # A third-party action, so it is pinned to a commit; Dependabot moves the pin and its version comment together.
+      - name: Set up Helm
+        uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
+        with:
+          version: v4.3.1
+
+      - name: Lint and render each supported release
+        run: |
+          for values in "$CHART"/ci/*-values.yaml; do
+            echo "::group::$values"
+            helm lint --strict "$CHART" --values "$values"
+            helm template release "$CHART" --values "$values" > /dev/null
+            echo "::endgroup::"
+          done
+
+      # A .NET process that is PID 1 hangs after an unhandled exception (dotnet/runtime#112580), so every pod shares its
+      # process namespace and the pod's pause process is PID 1.
+      - name: Run every pod with a shared process namespace
+        run: |
+          for values in "$CHART"/ci/*-values.yaml; do
+            rendered=$(helm template release "$CHART" --values "$values")
+            pods=$(grep -c -E '^\s+containers:$' <<< "$rendered" || true)
+            shared=$(grep -c -E '^\s+shareProcessNamespace: true$' <<< "$rendered" || true)
+            if [ "$pods" -ne "$shared" ]; then
+              echo "::error::$values renders a pod without shareProcessNamespace: true"
+              exit 1
+            fi
+          done
+
+      - name: Refuse each unsafe release
+        run: |
+          base="$CHART/ci/default-values.yaml"
+          key=keys.remoteKeys.directory-signing
+          refuse() {
+            if helm template release "$CHART" --values "$base" "$@" > /dev/null 2>&1; then
+              echo "::error::The chart rendered a release it must refuse: $*"
+              exit 1
+            fi
+          }
+          # The base values render, so each refusal below is the rule it names.
+          helm template release "$CHART" --values "$base" > /dev/null
+          # A loopback http issuer, on any 127.x.x.x address, renders, as the directory host accepts it.
+          helm template release "$CHART" --values "$base" --set issuer=http://localhost:8080 > /dev/null
+          helm template release "$CHART" --values "$base" --set issuer=http://127.0.0.2:8080 > /dev/null
+          # The directory keeps its single-use state in process, so it runs one replica, and the chart has no value for more.
+          refuse --set replicaCount=2
+          refuse --set 'allowedHosts={*}'
+          refuse --set-json 'allowedHosts=[]'
+          refuse --set 'allowedHosts={*.example.com}'
+          # The issuer is https, or http on a loopback host, with no user information, query or fragment.
+          refuse --set issuer=
+          refuse --set issuer=https://user@id.example.com
+          refuse --set issuer=http://id.example.com
+          # The key ring and its keys sign the directory's tokens, so each is required and needs a key.
+          refuse --set keyRing=
+          refuse --set keyRing=directory:signing
+          refuse --set keyRing=directory__signing
+          refuse --set keys.pemSecret=
+          refuse --set tokenLifetime=
+          refuse --set tokenLifetime=5m
+          refuse --set tokenLifetime=00:00:59
+          refuse --set tokenLifetime=01:00:01
+          refuse --set tokenLifetime=1.00:00:00
+          refuse --set tokenLifetime=00:60:00
+          refuse --set tokenLifetime=00:00:60
+          refuse --set tokenLifetime=00:75:00
+          # A remote key's id never collides with the key ring's PEM key.
+          refuse --set "$key.provider=aws-kms" --set "$key.keyId=arn:aws:kms:us-west-2:111122223333:key/abcd" \
+            --set "$key.algorithm=ES256" --set "$key.secretType=ecc" --set "$key.keySizeBits=256" \
+            --set keys.remoteKeys.Directory.provider=aws-kms \
+            --set keys.remoteKeys.Directory.keyId=arn:aws:kms:us-west-2:111122223333:key/abcd \
+            --set keys.remoteKeys.Directory.algorithm=ES256 --set keys.remoteKeys.Directory.secretType=ecc \
+            --set keys.remoteKeys.Directory.keySizeBits=256
+          refuse --set keys.pemSecret= --set "$key.provider=aws-kms" \
+            --set "$key.keyId=arn:aws:kms:us-west-2:111122223333:secret/abcd" \
+            --set "$key.algorithm=ES256" --set "$key.secretType=ecc" --set "$key.keySizeBits=256"
+          refuse --set keys.pemSecret= --set "$key.provider=azure-key-vault" \
+            --set "$key.keyId=https://contoso.vault.azure.net/secrets/directory-signing" \
+            --set "$key.algorithm=ES256" --set "$key.secretType=ecc" --set "$key.keySizeBits=256"
+          refuse --set keys.pemSecret= --set "$key.provider=google-cloud-kms" \
+            --set "$key.keyId=projects/p/locations/l/keyRings/r/cryptoKeys/directory-signing" \
+            --set "$key.algorithm=ES256" --set "$key.secretType=ecc" --set "$key.keySizeBits=256"
+          # The chart refuses a workload identity the directory could not use: Azure needs a tenant and a client, and
+          # Google needs a full provider resource name.
+          azure=(--set keys.pemSecret= --set "$key.provider=azure-key-vault" \
+            --set "$key.keyId=https://contoso.vault.azure.net/keys/directory-signing/0123456789abcdef0123456789abcdef" \
+            --set "$key.algorithm=ES256" --set "$key.secretType=ecc" --set "$key.keySizeBits=256")
+          helm template release "$CHART" --values "$base" "${azure[@]}" --set azure.workloadIdentity.tenantId=t \
+            --set azure.workloadIdentity.clientId=c > /dev/null
+          refuse "${azure[@]}" --set azure.workloadIdentity.tenantId=t
+          refuse "${azure[@]}" --set azure.workloadIdentity.clientId=c
+          google=(--set keys.pemSecret= --set "$key.provider=google-cloud-kms" \
+            --set "$key.keyId=projects/p/locations/l/keyRings/r/cryptoKeys/directory-signing/cryptoKeyVersions/1" \
+            --set "$key.algorithm=ES256" --set "$key.secretType=ecc" --set "$key.keySizeBits=256")
+          helm template release "$CHART" --values "$base" "${google[@]}" \
+            --set google.workloadIdentityFederation.provider=projects/123456789012/locations/global/workloadIdentityPools/ncode-identity/providers/cluster > /dev/null
+          refuse "${google[@]}" --set google.workloadIdentityFederation.provider=projects/p/providers/x
+          # The control-plane cell is pinned in full: its name, region, root tenant, issuer and client key set.
+          refuse --set controlPlane.cell=
+          refuse --set controlPlane.region=
+          refuse --set controlPlane.kind=
+          refuse --set controlPlane.tenantId=
+          refuse --set controlPlane.tenantId=Root
+          refuse --set controlPlane.issuer=
+          refuse --set controlPlane.issuer=http://id.example.com
+          refuse --set controlPlane.clientJwks=
+          refuse --set controlPlane.clientJwks='not json'
+          refuse --set controlPlane.clientJwks='{"other":[]}'
+          # The database is one form per connection: a connection string or the parts of an operator's Secret (ADR-1509).
+          refuse --set database.existingSecret=
+          refuse --set database.parts.existingSecret=directory-app
+          refuse --set database.connectionStringKey=
+          refuse --set database.existingSecret= --set database.parts.existingSecret=directory-app --set database.parts.hostKey=
+          refuse --set database.existingSecret= --set database.parts.existingSecret=directory-app --set database.parts.passwordKey=
+          refuse --set database.runtimeRole=
+          refuse --set database.runtimeRole=Bad-Role
+          refuse --set database.runtimeRole=1role
+          refuse --set database.parts.unknownKey=x
+          # The schema owner's connection is required, and one form for the owner too.
+          refuse --set migrations.database.existingSecret=
+          refuse --set migrations.database.parts.existingSecret=directory-owner
+          refuse --set migrations.database.existingSecret= --set migrations.database.parts.existingSecret=directory-owner --set migrations.database.parts.hostKey= --set database.parts.hostKey=
+          # The routes follow the host chart's rules (ADR-1507): an Ingress needs the controller named, an HTTPRoute needs
+          # a parent Gateway, and an operator's certificate has no known CA to verify against.
+          refuse --set ingress.enabled=true
+          refuse --set ingress.controller=ingress-nginx --set ingress.enabled=true
+          refuse --set httpRoute.enabled=true
+          refuse --set httpRoute.enabled=true --set-json 'httpRoute.parentRefs=[{"name":"gw"}]'
+          refuse --set ingress.controller=traefik --set ingress.enabled=true
+          helm template release "$CHART" --values "$base" --set ingress.controller=traefik \
+            --set ingress.enabled=true --set backendTls.ingressSecret=directory-ingress > /dev/null
+          # The CA publisher writes only the chart's private CA, so the chart refuses it with a certificate of the
+          # operator's whose CA no ConfigMap names, and renders the BackendTLSPolicy against the ConfigMap that names it.
+          refuse --set backendTls.caPublisher.enabled=true
+          refuse --set backendTls.certManager.issuerRef.kind=Deployment
+          refuse --set backendTls.certManager.duration=90d
+          refuse --set backendTls.certManager.privateKey.size=1024
+          # A certificate renews before it expires, an ECDSA key is at most 521 bits and an RSA key at least 2048.
+          refuse --set backendTls.certManager.renewBefore=2160h
+          refuse --set backendTls.certManager.privateKey.size=2048
+          helm template release "$CHART" --values "$base" --set backendTls.certManager.privateKey.algorithm=RSA \
+            --set backendTls.certManager.privateKey.size=2048 > /dev/null
+          refuse --set backendTls.certManager.privateKey.algorithm=RSA --set backendTls.certManager.privateKey.size=256
+          refuse --set backendTls.clientCertificate.commonName=
+          refuse --set 'backendTls.clientCertificate.commonName=a b'
+          refuse --set backendTls.clientCertificate.required=yes
+          refuse --set unknownSetting=true
+          directory_ca=$(helm template release "$CHART" --values "$base" --set backendTls.caPublisher.enabled=true \
+            --set backendTls.existingSecret= --set backendTls.caConfigMap=directory-ca --set httpRoute.enabled=true \
+            --set-json 'httpRoute.parentRefs=[{"name":"gw"}]' --show-only templates/http-route.yaml)
+          if ! grep -q -- 'name: directory-ca' <<< "$directory_ca"; then
+            echo "::error::The BackendTLSPolicy does not verify against backendTls.caConfigMap."
+            exit 1
+          fi
+
+      - name: Give the Job and the Service valid names
+        run: |
+          base="$CHART/ci/default-values.yaml"
+          # Kubernetes copies the Job's name into a label value, which is limited to 63 characters.
+          name=$(helm template a-fifty-three-character-release-name-for-the-job-test "$CHART" --values "$base" \
+            --show-only templates/migration-job.yaml | awk '/^  name:/ { print $2; exit }')
+          if [ -z "$name" ] || [ "${#name}" -gt 63 ]; then
+            echo "::error::The migration Job name '$name' is longer than 63 characters."
+            exit 1
+          fi
+          # A Service's name is a DNS-1035 label of at most 63 characters.
+          name=$(helm template a-fifty-two-character-release-name-for-the-directory "$CHART" --values "$base" \
+            --show-only templates/service.yaml | awk '/^  name:/ { print $2; exit }')
+          if [ -z "$name" ] || [ "${#name}" -gt 63 ]; then
+            echo "::error::The directory Service name '$name' is longer than 63 characters."
+            exit 1
+          fi
+
+      - name: Run the migration Job under the operator's ServiceAccount
+        run: |
+          # The hook runs before the chart's own account exists on a first install, so it names the account only when the
+          # operator brings one.
+          if ! helm template release "$CHART" --values "$CHART/ci/default-values.yaml" \
+            --set serviceAccount.create=false --set serviceAccount.name=directory-sa \
+            --show-only templates/migration-job.yaml | grep -q 'serviceAccountName: directory-sa'; then
+            echo "::error::The directory's migration Job does not name the operator's ServiceAccount."
+            exit 1
+          fi
+
+      - name: Render the directory
+        run: |
+          base="$CHART/ci/default-values.yaml"
+          render() {
+            helm template release "$CHART" --values "$base" --show-only "$@"
+          }
+          expect() {
+            local rendered="$1"; shift
+            for expected in "$@"; do
+              if ! grep -q -- "$expected" <<< "$rendered"; then
+                echo "::error::The release lacks: $expected"
+                exit 1
+              fi
+            done
+          }
+          reject() {
+            local rendered="$1"; shift
+            for unexpected in "$@"; do
+              if grep -q -- "$unexpected" <<< "$rendered"; then
+                echo "::error::The release renders what it must not: $unexpected"
+                exit 1
+              fi
+            done
+          }
+          deployment="$(render templates/deployment.yaml)"
+          expect "$deployment" 'type: Recreate' 'DirectoryServer__Issuer' 'DirectoryServer__KeyRing' \
+            'DirectoryServer__ControlPlane__Cell' 'DirectoryServer__ControlPlane__TenantId' \
+            'DirectoryServer__ControlPlane__ClientJwks' 'KeyRings__directory__PemFiles__0' \
+            'name: ConnectionStrings__directory$' 'name: directory-database$' 'secretName: directory-tls' \
+            'secretName: directory-key' 'automountServiceAccountToken: false'
+          # The Deployment carries the runtime role's connection and never the owner's, and not the role's name.
+          reject "$deployment" 'directory-database-owner' 'DirectoryMigration__RuntimeRole'
+          job="$(render templates/migration-job.yaml \
+            --set-json 'extraEnv=[{"name":"PGSSLMODE","value":"verify-full"}]')"
+          expect "$job" '- migrate' 'name: ConnectionStrings__directory$' 'name: directory-database-owner' \
+            'DirectoryMigration__RuntimeRole' 'helm.sh/hook: pre-install,pre-upgrade' 'name: ASPNETCORE_ENVIRONMENT' \
+            'name: PGSSLMODE'
+          # The migration Job carries the owner's connection, never the runtime role's, and no server setting.
+          reject "$job" 'name: directory-database$' 'name: AllowedHosts' 'name: DirectoryServer__'
+          # A parts Secret reaches each pod as one variable per part, the runtime role's Secret the Deployment and the
+          # owner's the Job, and no connection string is passed.
+          parts=(--set database.existingSecret= --set database.parts.existingSecret=directory-app \
+            --set migrations.database.existingSecret= \
+            --set migrations.database.parts.existingSecret=directory-owner)
+          partsDeployment="$(render templates/deployment.yaml "${parts[@]}")"
+          expect "$partsDeployment" 'name: DirectoryDatabase__Host' 'name: DirectoryDatabase__Password' \
+            'name: directory-app$'
+          reject "$partsDeployment" 'ConnectionStrings__directory' 'directory-owner'
+          partsJob="$(render templates/migration-job.yaml "${parts[@]}")"
+          expect "$partsJob" 'name: DirectoryDatabase__Host' 'name: DirectoryDatabase__Password' \
+            'name: directory-owner$' 'DirectoryMigration__RuntimeRole'
+          reject "$partsJob" 'ConnectionStrings__directory' 'directory-app'
+          # Both pods carry the backup location when it is set, and neither carries one when it is not.
+          reject "$deployment" 'ncode.io/backup-location'
+          reject "$job" 'ncode.io/backup-location'
+          for template in templates/deployment.yaml templates/migration-job.yaml; do
+            expect "$(render "$template" --set backup.location=s3://ci-backups)" \
+              '^        ncode.io/backup-location: "s3://ci-backups"$'
+          done
+          service="$(render templates/service.yaml)"
+          expect "$service" 'kind: Service' 'appProtocol: https' 'targetPort: https'
+          # Without the operator's Secret the chart issues the certificate for the Service's DNS names.
+          issued=(--set backendTls.existingSecret=)
+          certificate="$(render templates/backend-tls.yaml "${issued[@]}")"
+          expect "$certificate" 'kind: Certificate' 'secretName: release-ncode-identity-directory-tls' \
+            'release-ncode-identity-directory.default.svc'
+          # Behind Traefik the Ingress, its ServersTransport and the Service's annotations verify the pods.
+          traefik=(--set ingress.controller=traefik --set ingress.enabled=true \
+            --set ingress.className=traefik "${issued[@]}")
+          expect "$(render templates/ingress.yaml "${traefik[@]}")" 'kind: Ingress' 'host: "directory.example.com"' \
+            'name: https'
+          expect "$(render templates/servers-transport.yaml "${traefik[@]}")" 'kind: ServersTransport' \
+            'serverName: "release-ncode-identity-directory.default.svc"' 'secret: release-ncode-identity-directory-ingress'
+          expect "$(render templates/service.yaml "${traefik[@]}")" 'service.serversscheme: https' \
+            'default-release-ncode-identity-directory@kubernetescrd'
+          # Behind a Gateway the HTTPRoute and its BackendTLSPolicy verify the pods.
+          gateway=(--set httpRoute.enabled=true --set-json 'httpRoute.parentRefs=[{"name":"gw"}]' \
+            --set backendTls.caConfigMap=directory-ca "${issued[@]}")
+          expect "$(render templates/http-route.yaml "${gateway[@]}")" 'kind: HTTPRoute' '- directory.example.com' \
+            'kind: BackendTLSPolicy' 'name: directory-ca'
+          # Without a controller the Service carries no ServersTransport.
+          reject "$service" 'serverstransport'

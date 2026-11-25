@@ -113,6 +113,7 @@ internal class TenantApiEndpointHandler(
     IRemoteSecretDestroyer remoteSecretDestroyer,
     ITenantDirectory tenantDirectory,
     IOptions<CellOptions> cellOptions,
+    IPlatformTopology platformTopology,
     ITenantPlacer tenantPlacer,
     ITenantConfigurationExporter tenantConfigurationExporter,
     IManagementAuditRecorder managementAuditRecorder,
@@ -143,6 +144,7 @@ internal class TenantApiEndpointHandler(
     private IRemoteSecretDestroyer RemoteSecretDestroyer { get; } = remoteSecretDestroyer;
     private ITenantDirectory TenantDirectory { get; } = tenantDirectory;
     private CellOptions CellOptions { get; } = cellOptions.Value;
+    private IPlatformTopology PlatformTopology { get; } = platformTopology;
 
     /// <summary>
     /// Gets the placer that reserves and places in the global directory a tenant this handler creates.
@@ -775,7 +777,7 @@ internal class TenantApiEndpointHandler(
     /// <response code="201">The created tenant.</response>
     /// <response code="400">The tenant has no display name, its identifier, issuer or mutual-TLS endpoint-alias authority is not valid, or its settings are not valid for a tenant.</response>
     /// <response code="404">The team does not exist.</response>
-    /// <response code="409">A tenant with the identifier already exists, the identifier belonged to a deleted tenant, the issuer or the mutual-TLS endpoint-alias authority conflicts with another tenant's or with one that belonged to another tenant, or the team or a team above it holds its maximum number of tenants.</response>
+    /// <response code="409">A tenant with the identifier already exists, the identifier belonged to a deleted tenant, the issuer or the mutual-TLS endpoint-alias authority conflicts with another tenant's or with one that belonged to another tenant, the team or a team above it holds its maximum number of tenants, or the cell is the control-plane cell of a platform with a directory, which holds only the control-plane tenant.</response>
     /// <response code="503">The global directory cannot be reached; the response carries Retry-After.</response>
     [EndpointName("api/teams/tenants/create")]
     internal virtual async ValueTask<IResult> CreateTenantAsync(
@@ -798,6 +800,13 @@ internal class TenantApiEndpointHandler(
         if (authorizationError is not null)
         {
             return ToErrorResult(authorizationError);
+        }
+
+        // The control-plane cell of a platform with a directory is dedicated to the control-plane tenant, which exists
+        // before any request, so no other tenant is created in it.
+        if (PlatformTopology.HoldsOnlyControlPlaneTenant())
+        {
+            return ControlPlaneCellHoldsOnlyItsTenant();
         }
 
         await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
@@ -1234,8 +1243,8 @@ internal class TenantApiEndpointHandler(
     /// <response code="204">The tenant was updated.</response>
     /// <response code="400">The JSON Patch document cannot be applied to the tenant, the patched display name is missing, or the patched issuer or mutual-TLS endpoint-alias authority is not valid.</response>
     /// <response code="404">The tenant does not exist.</response>
-    /// <response code="409">The patched issuer or mutual-TLS endpoint-alias authority conflicts with another tenant's or with one that belonged to a deleted tenant.</response>
-    /// <response code="503">The patched issuer changes the tenant's issuer and the global directory cannot be reached; the response carries Retry-After.</response>
+    /// <response code="409">The patched issuer or mutual-TLS endpoint-alias authority conflicts with another tenant's or with one that belonged to a deleted tenant, or the update enables a tenant whose keys are fenced and the global directory does not place it in this cell.</response>
+    /// <response code="503">The patched issuer changes the tenant's issuer, or the update enables a tenant whose keys are fenced, and the global directory cannot be reached; the response carries Retry-After.</response>
     [EndpointName("api/tenants/update")]
     internal virtual async ValueTask<IResult> UpdateTenantAsync(
         HttpContext httpContext,
@@ -1305,6 +1314,35 @@ internal class TenantApiEndpointHandler(
         if (error is not null)
         {
             return ToErrorResult(error);
+        }
+
+        // A fenced tenant is enabled only after a live read finds the directory placing it in this cell, which makes
+        // this cell the holder of its keys again, in the same save (ADR-1536).
+        if (tenant.IsDisabled && !model.IsDisabled && !TenantKeyCustody.IsHeld(tenant.KeyCustody))
+        {
+            TenantPlacement? placement;
+            try
+            {
+                placement = await TenantDirectory.GetPlacementOrDefaultAsync(
+                    tenantId,
+                    cancellationToken
+                );
+            }
+            catch (DirectoryUnavailableException)
+            {
+                return DirectoryUnavailableProblem(httpContext);
+            }
+
+            if (placement is null || placement.Cell != CellOptions.Name)
+            {
+                return TypedResults.Problem(
+                    detail: $"The tenant's keys are fenced while it moves, and the global directory does not place the tenant '{tenantId}' in this cell.",
+                    statusCode: StatusCodes.Status409Conflict
+                );
+            }
+
+            tenant.KeyCustody = TenantKeyCustody.Held;
+            tenant.KeyCustodyCell = null;
         }
 
         var previousIssuer = tenant.Issuer;
@@ -2469,8 +2507,7 @@ internal class TenantApiEndpointHandler(
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
     /// <response code="204">The secret was deleted.</response>
     /// <response code="404">The tenant or the secret does not exist.</response>
-    /// <response code="409">The global directory places the tenant in another cell, and this cell's copy is released with release-moved.</response>
-    /// <response code="503">The global directory cannot be reached to read the tenant's placement; the response carries Retry-After.</response>
+    /// <response code="409">The tenant's keys are fenced while it moves to or from another cell.</response>
     [EndpointName("api/tenants/secrets/delete")]
     internal virtual async ValueTask<IResult> DeleteSecretAsync(
         HttpContext httpContext,
@@ -2501,16 +2538,19 @@ internal class TenantApiEndpointHandler(
             return ManagementProblems.ResourceNotFound();
         }
 
-        if (
-            await GetPlacedElsewhereProblemOrDefaultAsync(
-                httpContext,
-                tenantId,
-                cancellationToken
-            ) is
-            { } placedElsewhere
-        )
+        // The fence is the tenant's own row, so a delete never reads the directory (ADR-1536).
+        var tenant = await store.GetOrDefaultAsync(tenantId, cancellationToken);
+        if (tenant is null)
         {
-            return placedElsewhere;
+            return ManagementProblems.ResourceNotFound();
+        }
+
+        if (!TenantKeyCustody.IsHeld(tenant.KeyCustody))
+        {
+            return TypedResults.Problem(
+                detail: "The tenant's keys are fenced while it moves.",
+                statusCode: StatusCodes.Status409Conflict
+            );
         }
 
         var secretResource = ToSecretResource(secret);

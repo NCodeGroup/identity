@@ -130,6 +130,7 @@ export function App() {
         return (
           <RootAccountStep
             minimumPasswordLength={load.status.minimumPasswordLength}
+            administratorRole={load.status.administratorRole}
             onContinue={(account) => {
               setStep({ name: 'console', account, consoleHint: step.consoleHint });
             }}
@@ -140,6 +141,7 @@ export function App() {
           <ConsoleClientStep
             token={token}
             account={step.account}
+            administratorRole={load.status.administratorRole}
             consoleHint={step.consoleHint}
             loadKeySet={fetchConsoleKeySet}
             onCreated={(root) => {
@@ -156,7 +158,13 @@ export function App() {
           />
         );
       case 'done':
-        return <DonePage root={step.root} tokenSource={load.status.tokenSource} />;
+        return (
+          <DonePage
+            root={step.root}
+            administratorRole={load.status.administratorRole}
+            tokenSource={load.status.tokenSource}
+          />
+        );
     }
   }
 

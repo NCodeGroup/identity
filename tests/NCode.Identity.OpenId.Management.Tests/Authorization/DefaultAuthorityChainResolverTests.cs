@@ -1,6 +1,8 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using Microsoft.Extensions.Options;
+using NCode.Identity.OpenId.GlobalDirectory;
 using NCode.Identity.OpenId.Management.Authorization;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
@@ -29,7 +31,10 @@ public class DefaultAuthorityChainResolverTests : IDisposable
     public DefaultAuthorityChainResolverTests()
     {
         AmbientTenantAccessor = MockRepository.Create<IAmbientTenantAccessor>();
-        Resolver = new DefaultAuthorityChainResolver(AmbientTenantAccessor.Object);
+        Resolver = new DefaultAuthorityChainResolver(
+            AmbientTenantAccessor.Object,
+            Options.Create(new CellOptions { Name = "Cell-1" })
+        );
     }
 
     private static PersistedClient CreateClient(string? owningNodeType, string? owningNodeId) =>
@@ -116,11 +121,29 @@ public class DefaultAuthorityChainResolverTests : IDisposable
             CancellationToken.None
         );
 
-        Assert.Equal(4, nodes.Count);
+        Assert.Equal(5, nodes.Count);
+        Assert.Contains((ResourceNodeTypes.Cell, "cell-1"), nodes);
         Assert.Contains((ResourceNodeTypes.Platform, "platform"), nodes);
         Assert.Contains((ResourceNodeTypes.Tenant, "tenant-1"), nodes);
         Assert.Contains((ResourceNodeTypes.Team, "team-1"), nodes);
         Assert.Contains((ResourceNodeTypes.Team, "parent-team"), nodes);
+    }
+
+    [Fact]
+    public async Task GetAncestorNodesAsync_ForACellNode_ReturnsThePlatformAndTheCellOnly()
+    {
+        var manager = MockRepository.Create<IStoreManager>();
+        var node = ResourceNode.For(TenantId, ResourceNodeTypes.Cell, "Cell-1");
+
+        var nodes = await Resolver.GetAncestorNodesAsync(
+            node,
+            manager.Object,
+            CancellationToken.None
+        );
+
+        Assert.Equal(2, nodes.Count);
+        Assert.Contains((ResourceNodeTypes.Platform, "platform"), nodes);
+        Assert.Contains((ResourceNodeTypes.Cell, "cell-1"), nodes);
     }
 
     [Fact]
@@ -160,6 +183,7 @@ public class DefaultAuthorityChainResolverTests : IDisposable
         Assert.Contains((ResourceNodeTypes.Platform, "platform"), nodes);
         Assert.Contains((ResourceNodeTypes.Team, "team-1"), nodes);
         Assert.Contains((ResourceNodeTypes.Team, "parent-team"), nodes);
+        Assert.DoesNotContain((ResourceNodeTypes.Cell, "cell-1"), nodes);
     }
 
     [Fact]
@@ -175,7 +199,8 @@ public class DefaultAuthorityChainResolverTests : IDisposable
             CancellationToken.None
         );
 
-        Assert.Equal(4, nodes.Count);
+        Assert.Equal(5, nodes.Count);
+        Assert.Contains((ResourceNodeTypes.Cell, "cell-1"), nodes);
         Assert.Contains((ResourceNodeTypes.Platform, "platform"), nodes);
         Assert.Contains((ResourceNodeTypes.Tenant, "tenant-1"), nodes);
         Assert.Contains((ResourceNodeTypes.Team, "team-1"), nodes);
@@ -207,7 +232,8 @@ public class DefaultAuthorityChainResolverTests : IDisposable
             CancellationToken.None
         );
 
-        Assert.Equal(5, nodes.Count);
+        Assert.Equal(6, nodes.Count);
+        Assert.Contains((ResourceNodeTypes.Cell, "cell-1"), nodes);
         Assert.Contains((ResourceNodeTypes.Platform, "platform"), nodes);
         Assert.Contains((ResourceNodeTypes.Tenant, "tenant-1"), nodes);
         Assert.Contains((ResourceNodeTypes.Team, "team-1"), nodes);
@@ -228,7 +254,8 @@ public class DefaultAuthorityChainResolverTests : IDisposable
             CancellationToken.None
         );
 
-        Assert.Equal(3, nodes.Count);
+        Assert.Equal(4, nodes.Count);
+        Assert.Contains((ResourceNodeTypes.Cell, "cell-1"), nodes);
         Assert.Contains((ResourceNodeTypes.Platform, "platform"), nodes);
         Assert.Contains((ResourceNodeTypes.Tenant, "tenant-1"), nodes);
         Assert.Contains((ResourceNodeTypes.Team, "team-1"), nodes);

@@ -20,7 +20,7 @@ namespace NCode.Identity.OpenId.Client.Tests.KeyRings;
 
 public sealed class DefaultRegistrationTests : BaseTests, IAsyncLifetime
 {
-    private const string SectionPath = "Test:KeyRings";
+    private const string SectionPath = "KeyRings";
 
     private DirectoryInfo KeysDirectory { get; } = Directory.CreateTempSubdirectory("client-keys-");
 
@@ -66,7 +66,7 @@ public sealed class DefaultRegistrationTests : BaseTests, IAsyncLifetime
         );
     }
 
-    private IConfigurationSection CreateSection(params string[] ringNames)
+    private IConfiguration CreateSection(params string[] ringNames)
     {
         var values = new Dictionary<string, string?>();
         foreach (var ringName in ringNames)
@@ -75,10 +75,7 @@ public sealed class DefaultRegistrationTests : BaseTests, IAsyncLifetime
             values[$"{SectionPath}:{ringName}:PemFiles:0"] = $"{ringName}-key.pem";
         }
 
-        return new ConfigurationBuilder()
-            .AddInMemoryCollection(values)
-            .Build()
-            .GetSection(SectionPath);
+        return new ConfigurationBuilder().AddInMemoryCollection(values).Build();
     }
 
     private ServiceProvider BuildProvider()
@@ -183,6 +180,25 @@ public sealed class DefaultRegistrationTests : BaseTests, IAsyncLifetime
         Assert.Throws<NotSupportedException>(() =>
             provider.GetRequiredKeyedService<ISecretKeyCollectionProvider>("alpha")
         );
+    }
+
+    [Fact]
+    public void AddOpenIdClientKeyRings_WithAKeyRingOutsideTheKeyRingsSection_LoadsNone()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(
+                new Dictionary<string, string?> { ["Other:alpha:PemFiles:0"] = "alpha-key.pem" }
+            )
+            .Build();
+        ServiceCollection.NewBuilder<OpenIdClientLibrary>().AddOpenIdClientKeyRings(configuration);
+        // No key ring is configured, so nothing reads the host environment's content root.
+        ServiceCollection.AddSingleton(CreateStrictMock<IHostEnvironment>().Object);
+        Provider = ServiceCollection.BuildServiceProvider();
+        var provider = Provider;
+
+        var options = provider.GetRequiredService<IOptions<ClientKeyRingsOptions>>().Value;
+
+        Assert.Empty(options.KeyRings);
     }
 
     #endregion

@@ -19,23 +19,35 @@ public sealed class DirectoryServerOptions
     public const string SectionName = "DirectoryServer";
 
     /// <summary>
-    /// Gets or sets the issuer identifier of the control-plane cell whose access tokens the directory accepts. The
-    /// directory validates a bearer token against this issuer's discovery document and signing keys. It is required.
+    /// Gets the shortest <see cref="TokenLifetime"/> the directory accepts.
+    /// </summary>
+    public static TimeSpan MinTokenLifetime => TimeSpan.FromMinutes(1);
+
+    /// <summary>
+    /// Gets the longest <see cref="TokenLifetime"/> the directory accepts.
+    /// </summary>
+    public static TimeSpan MaxTokenLifetime => TimeSpan.FromHours(1);
+
+    /// <summary>
+    /// Gets or sets the issuer identifier of the directory, its public URL, which is the <c>iss</c> of the access
+    /// tokens it issues to cells. It is required.
     /// </summary>
     public string Issuer { get; set; } = string.Empty;
 
     /// <summary>
-    /// Gets or sets the name of the control-plane cell. Only that cell publishes the platform document, reserves,
-    /// publishes, releases or retires a team, and registers itself as the control plane; it also releases, retires and
-    /// changes the issuer of any tenant. It is required.
+    /// Gets or sets the name of the key ring, of the top-level <c>KeyRings</c> section, whose keys sign the directory's
+    /// access tokens. It is required.
     /// </summary>
-    public string ControlPlaneCell { get; set; } = string.Empty;
+    public string KeyRing { get; set; } = string.Empty;
 
     /// <summary>
-    /// Gets or sets the identifier of the control-plane cell's root tenant, the control-plane tenant whose bearer
-    /// tokens the directory accepts. That cell creates its root tenant without asking the directory, so the directory
-    /// holds the identifier and <see cref="Issuer"/> for it, placed in <see cref="ControlPlaneCell"/>, and no other
-    /// cell reserves either. It is required.
+    /// Gets or sets how long an access token that the directory issues is valid. It defaults to five minutes, and it is
+    /// at least <see cref="MinTokenLifetime"/> and at most <see cref="MaxTokenLifetime"/>.
     /// </summary>
-    public string ControlPlaneTenantId { get; set; } = string.Empty;
+    public TimeSpan TokenLifetime { get; set; } = TimeSpan.FromMinutes(5);
+
+    /// <summary>
+    /// Gets or sets the platform's trust anchor, the control-plane cell and its root tenant. It is required.
+    /// </summary>
+    public DirectoryControlPlaneOptions ControlPlane { get; set; } = new();
 }

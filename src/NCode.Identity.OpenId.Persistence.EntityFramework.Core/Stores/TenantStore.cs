@@ -103,6 +103,8 @@ internal class TenantStore(
             TeamId = tenantEntity.Team.TeamId,
             ConcurrencyToken = tenantEntity.ConcurrencyToken,
             IsDisabled = tenantEntity.IsDisabled,
+            KeyCustody = tenantEntity.KeyCustody,
+            KeyCustodyCell = tenantEntity.KeyCustodyCell,
             DisplayName = tenantEntity.DisplayName,
             Settings = await MapSettingsAsync(tenantEntity, cancellationToken),
             Secrets = await MapSecretsAsync(tenantEntity, cancellationToken),
@@ -429,6 +431,19 @@ internal class TenantStore(
             .ToListAsync(cancellationToken);
     }
 
+    /// <inheritdoc />
+    public async ValueTask<IReadOnlyList<string>> ListTenantIdsByKeyCustodyAsync(
+        string custody,
+        CancellationToken cancellationToken
+    )
+    {
+        return await DbContext
+            .Tenants.Where(entity => entity.KeyCustody == custody)
+            .OrderBy(entity => entity.Id)
+            .Select(entity => entity.TenantId)
+            .ToListAsync(cancellationToken);
+    }
+
     /// <summary>
     /// Extracts the host component of an issuer and normalizes it for a sargable lookup. Returns <c>null</c> when the
     /// tenant has no issuer, or when the issuer is not an absolute URI — in which case the tenant simply is not
@@ -500,6 +515,8 @@ internal class TenantStore(
             SettingsConcurrencyToken = persistedTenant.Settings.ConcurrencyToken,
             SecretsConcurrencyToken = persistedTenant.Secrets.ConcurrencyToken,
             IsDisabled = persistedTenant.IsDisabled,
+            KeyCustody = persistedTenant.KeyCustody,
+            KeyCustodyCell = persistedTenant.KeyCustodyCell,
             DisplayName = persistedTenant.DisplayName,
             SettingsJson = persistedTenant.Settings.Value,
             Secrets = secrets,
@@ -555,6 +572,8 @@ internal class TenantStore(
 
         // Touch the row so the interceptor regenerates the ConcurrencyToken on save (ADR-1012).
         tenantEntity.IsDisabled = persistedTenant.IsDisabled;
+        tenantEntity.KeyCustody = persistedTenant.KeyCustody;
+        tenantEntity.KeyCustodyCell = persistedTenant.KeyCustodyCell;
         tenantEntity.DisplayName = persistedTenant.DisplayName;
 
         tenantEntity.Issuer = persistedTenant.Issuer;
@@ -779,6 +798,26 @@ internal class TenantStore(
         // The tenant is tracked; a new secrets token marks it Modified, and the interceptor issues a new row token
         // on save (ADR-1012).
         tenantEntity.SecretsConcurrencyToken = NextConcurrencyToken();
+
+        return true;
+    }
+
+    /// <inheritdoc />
+    public async ValueTask<bool> SetKeyCustodyAsync(
+        string tenantId,
+        string custody,
+        string? cell,
+        CancellationToken cancellationToken
+    )
+    {
+        var tenantEntity = await GetEntityOrDefaultAsync(tenantId, cancellationToken);
+        if (tenantEntity is null)
+        {
+            return false;
+        }
+
+        tenantEntity.KeyCustody = custody;
+        tenantEntity.KeyCustodyCell = cell;
 
         return true;
     }

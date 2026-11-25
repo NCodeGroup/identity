@@ -88,6 +88,7 @@ internal class DefaultEmailCodeSettingDescriptorDataSource(INullChangeToken null
             yield return new SettingDescriptor<bool>
             {
                 Name = OpenIdSettingNames.EmailMfaRequired,
+                IsSignInCritical = true,
                 AppliesTo = TenantsAndConnections,
                 Default = false,
                 IsDiscoverable = false,

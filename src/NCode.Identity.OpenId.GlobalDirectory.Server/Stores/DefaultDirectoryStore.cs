@@ -22,9 +22,9 @@ namespace NCode.Identity.OpenId.GlobalDirectory.Server.Stores;
 /// A tenant's limit is enforced from the documents alone. The platform document and the team documents carry the
 /// <c>max_tenants</c> setting, and each team document carries its parent team's identifier, so the directory knows the
 /// lineage and the subtree of every team without any other source. The control-plane cell's root tenant, which
-/// <see cref="DirectoryServerOptions.ControlPlaneTenantId"/> names, is held from configuration, placed in that cell,
-/// before every reservation and issuer change, and is never offered to or moved into another cell; every other tenant,
-/// the root tenant of every other cell included, is reserved and placed by its cell.
+/// <see cref="DirectoryControlPlaneOptions.TenantId"/> names, is held from configuration by the anchor initializer,
+/// placed in that cell, and is never offered to, moved into another cell or retired; every other tenant, the root
+/// tenant of every other cell included, is reserved and placed by its cell.
 /// </remarks>
 // See ADR-1160.
 // See ADR-1411.
@@ -40,7 +40,9 @@ internal sealed class DefaultDirectoryStore(
         IDirectoryTeamWriter,
         ITeamDirectory,
         ICellDirectory,
-        IPlatformDirectory
+        ICellClientKeyStore,
+        IPlatformDirectory,
+        IReplicatedDocumentDirectory
 {
     private const string WriteForbiddenDetail =
         "Only the cell that holds a tenant, or the control-plane cell, writes it.";
@@ -53,11 +55,107 @@ internal sealed class DefaultDirectoryStore(
     private static JsonSerializerOptions JsonOptions { get; } = new(JsonSerializerDefaults.Web);
 
     /// <summary>
-    /// Gets the configuration key of <see cref="DirectoryServerOptions.ControlPlaneTenantId"/>, which the store names
-    /// in each message that refuses the configured tenant.
+    /// Gets the configuration key of <see cref="DirectoryControlPlaneOptions.TenantId"/>, which the store names in each
+    /// message that refuses the configured tenant.
     /// </summary>
     private static string ControlPlaneTenantIdKey =>
-        $"{DirectoryServerOptions.SectionName}:{nameof(DirectoryServerOptions.ControlPlaneTenantId)}";
+        DirectoryControlPlaneOptions.GetConfigurationKey(
+            nameof(DirectoryControlPlaneOptions.TenantId)
+        );
+
+    /// <summary>
+    /// Refuses a report or registration whose region or kind differs from the cell's registered ones, which never
+    /// change.
+    /// </summary>
+    /// <param name="cell">The stored <see cref="CellRecord"/>.</param>
+    /// <param name="region">The region that the report or registration names.</param>
+    /// <param name="kind">The kind that the report or registration names.</param>
+    /// <exception cref="CellDirectoryConflictException">The region or the kind differs from the cell's.</exception>
+    private static void ThrowIfRegionOrKindDiffers(CellRecord cell, string region, string kind)
+    {
+        var isRegionSame = string.Equals(cell.Region, region, StringComparison.Ordinal);
+        var isKindSame = string.Equals(cell.Kind, kind, StringComparison.Ordinal);
+        if (!isRegionSame || !isKindSame)
+        {
+            throw new CellDirectoryConflictException(
+                $"The cell '{cell.Name}' is registered in the region '{cell.Region}' as the kind '{cell.Kind}'."
+            );
+        }
+    }
+
+    /// <summary>
+    /// Normalizes a management URL for comparison: lower-case scheme and host, the default port dropped and no trailing
+    /// slash.
+    /// </summary>
+    /// <param name="url">The management URL to normalize.</param>
+    /// <returns>The normalized form of <paramref name="url"/>.</returns>
+    private static string NormalizeManagementUrl(string url)
+    {
+        // A stored URL that does not parse is its own key, so it never equals a parsed one.
+        if (!AbsoluteUri.TryParseAnyHttpServiceUrl(url, out var uri))
+            return url;
+
+        var origin = uri.GetComponents(UriComponents.SchemeAndServer, UriFormat.UriEscaped);
+        return origin.ToLowerInvariant() + uri.AbsolutePath.TrimEnd('/');
+    }
+
+    /// <summary>
+    /// Retires a team's authority document when the directory holds one with content: its content becomes <c>null</c>
+    /// at the same revision, and the feed keeps only that change for the document. The caller runs in a serializable
+    /// transaction and has saved the counter row that numbers the changes.
+    /// </summary>
+    /// <param name="dbContext">The <see cref="DirectoryDbContext"/> whose transaction the caller holds.</param>
+    /// <param name="normalizedTeamId">The normalized identifier of the team that was retired.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <returns>A <see cref="ValueTask"/> that completes when the retire is tracked by
+    /// <paramref name="dbContext"/>.</returns>
+    private static async ValueTask RetireTeamAuthorityAsync(
+        DirectoryDbContext dbContext,
+        string normalizedTeamId,
+        CancellationToken cancellationToken
+    )
+    {
+        var kind = ReplicatedDocumentKinds.TeamAuthority;
+        var stored = await dbContext.ReplicatedDocuments.SingleOrDefaultAsync(
+            entity => entity.Kind == kind && entity.Key == normalizedTeamId,
+            cancellationToken
+        );
+        if (stored?.DocumentJson is null)
+        {
+            return;
+        }
+
+        var change = new DirectoryChangeRecord
+        {
+            Sequence = await NextSequenceAsync(dbContext, cancellationToken),
+            DocumentKind = kind,
+            DocumentKey = normalizedTeamId,
+            Revision = stored.Revision,
+            DocumentJson = null,
+        };
+
+        await dbContext
+            .Changes.Where(entity =>
+                entity.DocumentKind == kind && entity.DocumentKey == normalizedTeamId
+            )
+            .ExecuteDeleteAsync(cancellationToken);
+        dbContext.Changes.Add(change);
+        stored.DocumentJson = null;
+    }
+
+    /// <summary>
+    /// Parses the stored content of a replicated document.
+    /// </summary>
+    /// <param name="contentJson">The stored content as JSON text, or <c>null</c> for a retired document.</param>
+    /// <returns>The parsed content, or <see langword="null"/> for a retired document.</returns>
+    /// <exception cref="JsonException">The stored content is not JSON.</exception>
+    private static JsonElement? ParseReplicatedContent(string? contentJson)
+    {
+        if (contentJson is null)
+            return null;
+
+        return JsonElement.Parse(contentJson);
+    }
 
     private IDbContextFactory<DirectoryDbContext> DbContextFactory { get; } = dbContextFactory;
 
@@ -113,113 +211,9 @@ internal sealed class DefaultDirectoryStore(
     }
 
     /// <summary>
-    /// Ensures that the directory holds the control-plane cell's root tenant, which
-    /// <see cref="DirectoryServerOptions.ControlPlaneTenantId"/> names, placed in that cell under
-    /// <see cref="DirectoryServerOptions.Issuer"/> and in no team, in a serializable transaction of its own that
-    /// commits before the caller's. That cell creates its root tenant without asking the directory, which accepts only
-    /// the tokens that tenant issues, so the directory holds it from its own configuration and no other cell reserves
-    /// its identifier or its issuer. A record that cell already holds is kept whatever issuer it holds, because that
-    /// cell changes its root tenant's issuer through the directory.
-    /// </summary>
-    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
-    /// <returns>A <see cref="ValueTask"/> that completes when the directory holds the tenant.</returns>
-    /// <exception cref="InvalidOperationException">
-    /// The identifier is retired or another cell holds it, or another tenant holds or retired the issuer.
-    /// </exception>
-    private async ValueTask EnsureControlPlaneTenantAsync(CancellationToken cancellationToken)
-    {
-        var serverOptions = ServerOptions.Value;
-        var tenantId = serverOptions.ControlPlaneTenantId;
-        var controlPlaneCell = serverOptions.ControlPlaneCell;
-        var issuer = serverOptions.Issuer;
-
-        await using var dbContext = await DbContextFactory.CreateDbContextAsync(cancellationToken);
-        var executionStrategy = dbContext.Database.CreateExecutionStrategy();
-        await executionStrategy.ExecuteAsync(
-            async _ =>
-            {
-                // A retried attempt starts from the database, not from the failed attempt's tracked entities.
-                dbContext.ChangeTracker.Clear();
-                await using var transaction = await dbContext.Database.BeginTransactionAsync(
-                    IsolationLevel.Serializable,
-                    cancellationToken
-                );
-
-                var normalizedTenantId = Normalize(tenantId);
-                var existing = await dbContext.Tenants.SingleOrDefaultAsync(
-                    entity => entity.NormalizedTenantId == normalizedTenantId,
-                    cancellationToken
-                );
-                var now = TimeProvider.GetUtcNow();
-                if (existing is not null)
-                {
-                    var isHeld =
-                        existing.State != TenantRecord.StateRetired
-                        && string.Equals(existing.Cell, controlPlaneCell, StringComparison.Ordinal);
-                    if (!isHeld)
-                    {
-                        throw new InvalidOperationException(
-                            $"The tenant '{tenantId}' that {ControlPlaneTenantIdKey} names is retired or held by another cell, so the directory cannot hold it for the control-plane cell; set {ControlPlaneTenantIdKey} to the control-plane cell's root tenant identifier, which no other cell holds or retired."
-                        );
-                    }
-
-                    if (existing.State == TenantRecord.StatePlaced)
-                    {
-                        return;
-                    }
-
-                    existing.State = TenantRecord.StatePlaced;
-                    existing.ModifiedWhen = now;
-                    await dbContext.SaveChangesAsync(cancellationToken);
-                    await transaction.CommitAsync(cancellationToken);
-                    return;
-                }
-
-                var normalizedIssuer = Normalize(issuer);
-                var isIssuerHeld = await dbContext.Tenants.AnyAsync(
-                    entity => entity.NormalizedIssuer == normalizedIssuer,
-                    cancellationToken
-                );
-                var retiredIssuerDetail = await FindRetiredIssuerConflictAsync(
-                    dbContext,
-                    tenantId,
-                    issuer,
-                    cancellationToken
-                );
-                if (isIssuerHeld || retiredIssuerDetail is not null)
-                {
-                    throw new InvalidOperationException(
-                        $"Another tenant holds or retired the issuer that {DirectoryServerOptions.SectionName}:{nameof(DirectoryServerOptions.Issuer)} names, so the directory cannot hold it for the control-plane cell's root tenant '{tenantId}'; set {DirectoryServerOptions.SectionName}:{nameof(DirectoryServerOptions.Issuer)} to the control-plane cell's issuer, which no other tenant holds or retired."
-                    );
-                }
-
-                var surrogateKey = KeyGenerator.CreateKey();
-                var controlPlaneTenant = new TenantRecord
-                {
-                    Id = surrogateKey,
-                    TenantId = tenantId,
-                    NormalizedTenantId = normalizedTenantId,
-                    Issuer = issuer,
-                    NormalizedIssuer = normalizedIssuer,
-                    NormalizedTeamId = null,
-                    Cell = controlPlaneCell,
-                    State = TenantRecord.StatePlaced,
-                    CreatedWhen = now,
-                    ModifiedWhen = now,
-                };
-                dbContext.Tenants.Add(controlPlaneTenant);
-                await dbContext.SaveChangesAsync(cancellationToken);
-                await transaction.CommitAsync(cancellationToken);
-            },
-            cancellationToken
-        );
-    }
-
-    /// <summary>
     /// Gets the detail that refuses an offer or a move of the control-plane cell's root tenant, which
-    /// <see cref="DirectoryServerOptions.ControlPlaneTenantId"/> names: the directory places that tenant in the
-    /// control-plane cell from its own configuration and accepts only the tokens it issues, so it never leaves that
-    /// cell.
+    /// <see cref="DirectoryControlPlaneOptions.TenantId"/> names: the directory places that tenant in the control-plane
+    /// cell from its own configuration, which alone changes it, so it never leaves that cell.
     /// </summary>
     /// <param name="tenantId">The identifier of the tenant to offer or move.</param>
     /// <returns>
@@ -228,7 +222,7 @@ internal sealed class DefaultDirectoryStore(
     private string? GetControlPlaneTenantMoveDetailOrDefault(string tenantId)
     {
         var normalizedTenantId = Normalize(tenantId);
-        var controlPlaneTenantId = ServerOptions.Value.ControlPlaneTenantId;
+        var controlPlaneTenantId = ServerOptions.Value.ControlPlane.TenantId;
         var normalizedControlPlaneTenantId = Normalize(controlPlaneTenantId);
         return string.Equals(
             normalizedTenantId,
@@ -239,6 +233,51 @@ internal sealed class DefaultDirectoryStore(
             : null;
     }
 
+    /// <summary>
+    /// Gets the detail that refuses the retirement of the control-plane cell's root tenant, which
+    /// <see cref="DirectoryControlPlaneOptions.TenantId"/> names: it is the platform's trust anchor, which only the
+    /// directory's configuration changes.
+    /// </summary>
+    /// <param name="tenantId">The identifier of the tenant to retire.</param>
+    /// <returns>
+    /// The detail of the refusal, or <c>null</c> when the tenant is not the control-plane cell's root tenant.
+    /// </returns>
+    private string? GetControlPlaneTenantRetireDetailOrDefault(string tenantId)
+    {
+        var normalizedTenantId = Normalize(tenantId);
+        var normalizedControlPlaneTenantId = Normalize(ServerOptions.Value.ControlPlane.TenantId);
+        return string.Equals(
+            normalizedTenantId,
+            normalizedControlPlaneTenantId,
+            StringComparison.Ordinal
+        )
+            ? $"The tenant '{tenantId}' is the control-plane cell's root tenant, the platform's trust anchor, which {ControlPlaneTenantIdKey} names, and it changes only by that configuration."
+            : null;
+    }
+
+    /// <summary>
+    /// Gets the detail that refuses a placement or a move of a tenant into the control-plane cell: that cell is
+    /// dedicated to its root tenant, which the directory holds from its own configuration, so no other tenant is placed
+    /// in it.
+    /// </summary>
+    /// <param name="tenantId">The identifier of the tenant to place or move.</param>
+    /// <param name="cell">The name of the cell that would hold the tenant.</param>
+    /// <returns>
+    /// The detail of the refusal, or <c>null</c> when the cell is not the control-plane cell or the tenant is its root
+    /// tenant.
+    /// </returns>
+    private string? GetDedicatedControlPlaneCellDetailOrDefault(string tenantId, string cell)
+    {
+        var controlPlane = ServerOptions.Value.ControlPlane;
+        var isControlPlaneCell = string.Equals(cell, controlPlane.Cell, StringComparison.Ordinal);
+        if (!isControlPlaneCell || GetControlPlaneTenantMoveDetailOrDefault(tenantId) is not null)
+        {
+            return null;
+        }
+
+        return $"The cell '{cell}' is the control-plane cell, which holds only the control-plane tenant, so it cannot hold the tenant '{tenantId}'.";
+    }
+
     #region ITenantDirectory
 
     /// <inheritdoc />
@@ -247,10 +286,6 @@ internal sealed class DefaultDirectoryStore(
         CancellationToken cancellationToken
     )
     {
-        // The control-plane cell's root tenant is held before any tenant is judged, so no reservation or issuer change
-        // takes its identifier or its issuer (ADR-1411).
-        await EnsureControlPlaneTenantAsync(cancellationToken);
-
         await using var dbContext = await DbContextFactory.CreateDbContextAsync(cancellationToken);
         var executionStrategy = dbContext.Database.CreateExecutionStrategy();
         return await executionStrategy.ExecuteAsync(
@@ -389,6 +424,15 @@ internal sealed class DefaultDirectoryStore(
         CancellationToken cancellationToken
     )
     {
+        var dedicatedDetail = GetDedicatedControlPlaneCellDetailOrDefault(
+            placement.TenantId,
+            placement.Cell
+        );
+        if (dedicatedDetail is not null)
+        {
+            return ReservationResult.Conflict(dedicatedDetail);
+        }
+
         await using var dbContext = await DbContextFactory.CreateDbContextAsync(cancellationToken);
         var executionStrategy = dbContext.Database.CreateExecutionStrategy();
         return await executionStrategy.ExecuteAsync(
@@ -545,6 +589,12 @@ internal sealed class DefaultDirectoryStore(
             return MoveResult.Conflict(controlPlaneDetail);
         }
 
+        var dedicatedDetail = GetDedicatedControlPlaneCellDetailOrDefault(tenantId, toCell);
+        if (dedicatedDetail is not null)
+        {
+            return MoveResult.Conflict(dedicatedDetail);
+        }
+
         await using var dbContext = await DbContextFactory.CreateDbContextAsync(cancellationToken);
         var executionStrategy = dbContext.Database.CreateExecutionStrategy();
         return await executionStrategy.ExecuteAsync(
@@ -595,7 +645,10 @@ internal sealed class DefaultDirectoryStore(
 
                 var from = await dbContext
                     .Cells.AsNoTracking()
-                    .SingleOrDefaultAsync(entity => entity.Name == fromCell, cancellationToken);
+                    .SingleOrDefaultAsync(
+                        entity => entity.Name == fromCell && !entity.IsRetired,
+                        cancellationToken
+                    );
                 if (from is null)
                 {
                     return MoveResult.Conflict($"The cell '{fromCell}' is not registered.");
@@ -603,7 +656,10 @@ internal sealed class DefaultDirectoryStore(
 
                 var to = await dbContext
                     .Cells.AsNoTracking()
-                    .SingleOrDefaultAsync(entity => entity.Name == toCell, cancellationToken);
+                    .SingleOrDefaultAsync(
+                        entity => entity.Name == toCell && !entity.IsRetired,
+                        cancellationToken
+                    );
                 if (to is null)
                 {
                     return MoveResult.Conflict($"The cell '{toCell}' is not registered.");
@@ -666,6 +722,12 @@ internal sealed class DefaultDirectoryStore(
             return MoveOfferResult.Conflict(controlPlaneDetail);
         }
 
+        var dedicatedDetail = GetDedicatedControlPlaneCellDetailOrDefault(tenantId, toCell);
+        if (dedicatedDetail is not null)
+        {
+            return MoveOfferResult.Conflict(dedicatedDetail);
+        }
+
         await using var dbContext = await DbContextFactory.CreateDbContextAsync(cancellationToken);
         var executionStrategy = dbContext.Database.CreateExecutionStrategy();
         return await executionStrategy.ExecuteAsync(
@@ -710,7 +772,10 @@ internal sealed class DefaultDirectoryStore(
 
                 var from = await dbContext
                     .Cells.AsNoTracking()
-                    .SingleOrDefaultAsync(entity => entity.Name == fromCell, cancellationToken);
+                    .SingleOrDefaultAsync(
+                        entity => entity.Name == fromCell && !entity.IsRetired,
+                        cancellationToken
+                    );
                 if (from is null)
                 {
                     return MoveOfferResult.Conflict($"The cell '{fromCell}' is not registered.");
@@ -718,7 +783,10 @@ internal sealed class DefaultDirectoryStore(
 
                 var to = await dbContext
                     .Cells.AsNoTracking()
-                    .SingleOrDefaultAsync(entity => entity.Name == toCell, cancellationToken);
+                    .SingleOrDefaultAsync(
+                        entity => entity.Name == toCell && !entity.IsRetired,
+                        cancellationToken
+                    );
                 if (to is null)
                 {
                     return MoveOfferResult.Conflict($"The cell '{toCell}' is not registered.");
@@ -817,6 +885,11 @@ internal sealed class DefaultDirectoryStore(
                     return DirectoryTenantWriteResult.Forbidden(WriteForbiddenDetail);
                 }
 
+                if (GetControlPlaneTenantRetireDetailOrDefault(tenantId) is { } anchorDetail)
+                {
+                    return DirectoryTenantWriteResult.Conflict(anchorDetail);
+                }
+
                 var now = TimeProvider.GetUtcNow();
                 string? issuer;
                 if (tenant is null)
@@ -897,10 +970,6 @@ internal sealed class DefaultDirectoryStore(
         CancellationToken cancellationToken
     )
     {
-        // The control-plane cell's root tenant is held before any tenant is judged, so no reservation or issuer change
-        // takes its identifier or its issuer (ADR-1411).
-        await EnsureControlPlaneTenantAsync(cancellationToken);
-
         await using var dbContext = await DbContextFactory.CreateDbContextAsync(cancellationToken);
         var executionStrategy = dbContext.Database.CreateExecutionStrategy();
         return await executionStrategy.ExecuteAsync(
@@ -1017,7 +1086,7 @@ internal sealed class DefaultDirectoryStore(
         || string.Equals(callerCell, storedCell, StringComparison.Ordinal)
         || string.Equals(
             callerCell,
-            ServerOptions.Value.ControlPlaneCell,
+            ServerOptions.Value.ControlPlane.Cell,
             StringComparison.Ordinal
         );
 
@@ -1793,6 +1862,9 @@ internal sealed class DefaultDirectoryStore(
                 dbContext.Changes.Add(change);
                 await dbContext.SaveChangesAsync(token);
 
+                // The team's authority document ends with the team.
+                await RetireTeamAuthorityAsync(dbContext, normalizedTeamId, token);
+
                 if (team is null)
                 {
                     team = new TeamRecord
@@ -1873,6 +1945,9 @@ internal sealed class DefaultDirectoryStore(
     /// <exception cref="JsonException">
     /// A stored change is not the schema-versioned envelope of its document.
     /// </exception>
+    /// <exception cref="InvalidOperationException">
+    /// A stored change carries a replicated document without its key or revision.
+    /// </exception>
     async ValueTask<IReadOnlyList<DirectoryChange>> ITeamDirectory.ListChangesAsync(
         long after,
         int limit,
@@ -1902,6 +1977,38 @@ internal sealed class DefaultDirectoryStore(
             }
 
             pageBytes += documentBytes;
+
+            if (record.DocumentKind is not null)
+            {
+                if (
+                    record
+                    is not {
+                        DocumentKind: { } documentKind,
+                        DocumentKey: { } documentKey,
+                        Revision: { } revision,
+                    }
+                )
+                {
+                    throw new InvalidOperationException(
+                        $"The change {record.Sequence} carries a replicated document without its key or revision."
+                    );
+                }
+
+                var replicatedDocument = new ReplicatedDocument
+                {
+                    Kind = documentKind,
+                    Key = documentKey,
+                    Revision = revision,
+                    Content = ParseReplicatedContent(record.DocumentJson),
+                };
+                var replicatedChange = new DirectoryChange
+                {
+                    Sequence = record.Sequence,
+                    Replicated = replicatedDocument,
+                };
+                changes.Add(replicatedChange);
+                continue;
+            }
 
             if (record.TeamId is null)
             {
@@ -1941,11 +2048,17 @@ internal sealed class DefaultDirectoryStore(
     #region ICellDirectory
 
     /// <inheritdoc />
-    async ValueTask ICellDirectory.RegisterAsync(
+    async ValueTask ICellDirectory.ReportAsync(
         CellDescriptor descriptor,
         CancellationToken cancellationToken
     )
     {
+        var reportedUrl =
+            descriptor.ManagementUrl
+            ?? throw new ArgumentException(
+                "A cell's report carries its management URL.",
+                nameof(descriptor)
+            );
         await using var dbContext = await DbContextFactory.CreateDbContextAsync(cancellationToken);
         var executionStrategy = dbContext.Database.CreateExecutionStrategy();
         await executionStrategy.ExecuteAsync(
@@ -1962,24 +2075,102 @@ internal sealed class DefaultDirectoryStore(
                     entity => entity.Name == descriptor.Name,
                     cancellationToken
                 );
+
+                // A cell reports only what the control-plane cell registered, under the region and kind it
+                // registered, and a retired cell reports nothing.
+                if (cell is null || cell.ClientJwksJson is null)
+                {
+                    throw new CellDirectoryConflictException(
+                        $"The cell '{descriptor.Name}' is not registered."
+                    );
+                }
+
+                if (cell.IsRetired)
+                {
+                    throw new CellDirectoryConflictException(
+                        $"The cell '{descriptor.Name}' is retired."
+                    );
+                }
+
+                ThrowIfRegionOrKindDiffers(cell, descriptor.Region, descriptor.Kind);
+
+                // No two cells report one management URL: a caller's DPoP proof is bound to the URL it names.
+                var normalizedUrl = NormalizeManagementUrl(reportedUrl);
+                var conflicting = await dbContext
+                    .Cells.AsNoTracking()
+                    .Where(entity =>
+                        entity.NormalizedManagementUrl == normalizedUrl
+                        && entity.Name != descriptor.Name
+                    )
+                    .Select(entity => new { entity.Name })
+                    .FirstOrDefaultAsync(cancellationToken);
+                if (conflicting is not null)
+                {
+                    throw new CellDirectoryConflictException(
+                        $"The management URL is already reported by the cell '{conflicting.Name}'."
+                    );
+                }
+
+                // Whether a cell is the control-plane cell is the directory's own fact, never the cell's report.
+                cell.ManagementUrl = reportedUrl;
+                cell.NormalizedManagementUrl = normalizedUrl;
+
+                await dbContext.SaveChangesAsync(cancellationToken);
+                await transaction.CommitAsync(cancellationToken);
+            },
+            cancellationToken
+        );
+    }
+
+    /// <inheritdoc />
+    async ValueTask ICellDirectory.RegisterAsync(
+        CellRegistration registration,
+        CancellationToken cancellationToken
+    )
+    {
+        var name = registration.Name;
+        ThrowIfControlPlaneCell(name, "registered");
+        var jwksJson = registration.Jwks.GetRawText();
+
+        await using var dbContext = await DbContextFactory.CreateDbContextAsync(cancellationToken);
+        var executionStrategy = dbContext.Database.CreateExecutionStrategy();
+        await executionStrategy.ExecuteAsync(
+            async _ =>
+            {
+                // A retried attempt starts from the database, not from the failed attempt's tracked entities.
+                dbContext.ChangeTracker.Clear();
+                await using var transaction = await dbContext.Database.BeginTransactionAsync(
+                    IsolationLevel.Serializable,
+                    cancellationToken
+                );
+
+                var cell = await dbContext.Cells.SingleOrDefaultAsync(
+                    entity => entity.Name == name,
+                    cancellationToken
+                );
                 if (cell is null)
                 {
                     var newCell = new CellRecord
                     {
-                        Name = descriptor.Name,
-                        Region = descriptor.Region,
-                        Kind = descriptor.Kind,
-                        ManagementUrl = descriptor.ManagementUrl,
-                        IsControlPlane = descriptor.IsControlPlane,
+                        Name = name,
+                        Region = registration.Region,
+                        Kind = registration.Kind,
+                        ClientJwksJson = jwksJson,
                     };
                     dbContext.Cells.Add(newCell);
                 }
                 else
                 {
-                    cell.Region = descriptor.Region;
-                    cell.Kind = descriptor.Kind;
-                    cell.ManagementUrl = descriptor.ManagementUrl;
-                    cell.IsControlPlane = descriptor.IsControlPlane;
+                    if (cell.IsRetired)
+                    {
+                        throw new CellDirectoryConflictException(
+                            $"The cell '{name}' is retired, and a retired name is never reissued."
+                        );
+                    }
+
+                    ThrowIfRegionOrKindDiffers(cell, registration.Region, registration.Kind);
+
+                    cell.ClientJwksJson = jwksJson;
                 }
 
                 await dbContext.SaveChangesAsync(cancellationToken);
@@ -1987,6 +2178,96 @@ internal sealed class DefaultDirectoryStore(
             },
             cancellationToken
         );
+    }
+
+    /// <inheritdoc />
+    async ValueTask ICellDirectory.RetireAsync(string name, CancellationToken cancellationToken)
+    {
+        ThrowIfControlPlaneCell(name, "retired");
+
+        await using var dbContext = await DbContextFactory.CreateDbContextAsync(cancellationToken);
+        var executionStrategy = dbContext.Database.CreateExecutionStrategy();
+        await executionStrategy.ExecuteAsync(
+            async _ =>
+            {
+                // A retried attempt starts from the database, not from the failed attempt's tracked entities.
+                dbContext.ChangeTracker.Clear();
+                await using var transaction = await dbContext.Database.BeginTransactionAsync(
+                    IsolationLevel.Serializable,
+                    cancellationToken
+                );
+
+                var cell = await dbContext.Cells.SingleOrDefaultAsync(
+                    entity => entity.Name == name,
+                    cancellationToken
+                );
+                if (cell is null)
+                {
+                    throw new CellDirectoryConflictException(
+                        $"The cell '{name}' is not registered."
+                    );
+                }
+
+                if (cell.IsRetired)
+                {
+                    return;
+                }
+
+                var isHoldingTenants = await dbContext.Tenants.AnyAsync(
+                    entity => entity.Cell == name && entity.State != TenantRecord.StateRetired,
+                    cancellationToken
+                );
+                if (isHoldingTenants)
+                {
+                    throw new CellDirectoryConflictException(
+                        $"The cell '{name}' holds tenants, so it cannot be retired."
+                    );
+                }
+
+                cell.IsRetired = true;
+                cell.ClientJwksJson = null;
+                cell.ManagementUrl = null;
+                cell.NormalizedManagementUrl = null;
+
+                await dbContext.SaveChangesAsync(cancellationToken);
+                await transaction.CommitAsync(cancellationToken);
+            },
+            cancellationToken
+        );
+    }
+
+    /// <inheritdoc />
+    async ValueTask<JsonElement?> ICellClientKeyStore.GetCellClientKeysAsync(
+        string name,
+        CancellationToken cancellationToken
+    )
+    {
+        await using var dbContext = await DbContextFactory.CreateDbContextAsync(cancellationToken);
+
+        var jwksJson = await dbContext
+            .Cells.AsNoTracking()
+            .Where(entity => entity.Name == name && !entity.IsRetired)
+            .Select(entity => entity.ClientJwksJson)
+            .SingleOrDefaultAsync(cancellationToken);
+        return jwksJson is null ? null : JsonElement.Parse(jwksJson);
+    }
+
+    /// <summary>
+    /// Refuses a registration or retirement of the control-plane cell, which the directory holds from its own
+    /// configuration.
+    /// </summary>
+    /// <param name="name">The name of the cell.</param>
+    /// <param name="action">The word that completes "the control-plane cell is never ...".</param>
+    /// <exception cref="CellDirectoryConflictException">The name is the control-plane cell's.</exception>
+    private void ThrowIfControlPlaneCell(string name, string action)
+    {
+        var controlPlaneCell = ServerOptions.Value.ControlPlane.Cell;
+        if (string.Equals(name, controlPlaneCell, StringComparison.Ordinal))
+        {
+            throw new CellDirectoryConflictException(
+                $"The cell '{name}' is the control-plane cell, which is never {action}."
+            );
+        }
     }
 
     /// <inheritdoc />
@@ -2030,6 +2311,8 @@ internal sealed class DefaultDirectoryStore(
             Kind = record.Kind,
             ManagementUrl = record.ManagementUrl,
             IsControlPlane = record.IsControlPlane,
+            IsRegistered = record.ClientJwksJson is not null,
+            IsRetired = record.IsRetired,
         };
 
     #endregion
@@ -2069,7 +2352,7 @@ internal sealed class DefaultDirectoryStore(
                 // A change carries the platform's whole document, so the feed keeps only the platform's latest
                 // change.
                 await dbContext
-                    .Changes.Where(entity => entity.TeamId == null)
+                    .Changes.Where(entity => entity.TeamId == null && entity.DocumentKind == null)
                     .ExecuteDeleteAsync(token);
                 dbContext.Changes.Add(change);
                 await dbContext.SaveChangesAsync(token);
@@ -2146,6 +2429,176 @@ internal sealed class DefaultDirectoryStore(
             JsonOptions
         );
         return document with { Sequence = sequence };
+    }
+
+    #endregion
+
+    #region IReplicatedDocumentDirectory
+
+    /// <inheritdoc />
+    /// <exception cref="InvalidOperationException">
+    /// The content is longer than <see cref="DirectoryLimits.MaxDocumentBytes"/> bytes.
+    /// </exception>
+    async ValueTask<long> IReplicatedDocumentDirectory.PublishAsync(
+        ReplicatedDocument document,
+        CancellationToken cancellationToken
+    )
+    {
+        var contentJson = document.Content?.GetRawText();
+        var contentBytes = contentJson is null ? 0 : SecureEncoding.UTF8.GetByteCount(contentJson);
+        if (contentBytes > DirectoryLimits.MaxDocumentBytes)
+        {
+            throw new InvalidOperationException(
+                $"The document is {contentBytes} bytes, and a published document is at most {DirectoryLimits.MaxDocumentBytes} bytes."
+            );
+        }
+
+        var key = Normalize(document.Key);
+
+        await using var dbContext = await DbContextFactory.CreateDbContextAsync(cancellationToken);
+        var executionStrategy = dbContext.Database.CreateExecutionStrategy();
+        return await executionStrategy.ExecuteAsync(
+            async token =>
+            {
+                // A retried attempt starts from the database, not from the failed attempt's tracked entities.
+                dbContext.ChangeTracker.Clear();
+                await using var transaction = await dbContext.Database.BeginTransactionAsync(
+                    IsolationLevel.Serializable,
+                    token
+                );
+
+                var stored = await dbContext.ReplicatedDocuments.SingleOrDefaultAsync(
+                    entity => entity.Kind == document.Kind && entity.Key == key,
+                    token
+                );
+                if (stored is not null && stored.Revision >= document.Revision)
+                {
+                    return stored.Revision;
+                }
+
+                var change = new DirectoryChangeRecord
+                {
+                    Sequence = await NextSequenceAsync(dbContext, token),
+                    DocumentKind = document.Kind,
+                    DocumentKey = key,
+                    Revision = document.Revision,
+                    DocumentJson = contentJson,
+                };
+
+                // A change carries the document whole, so the feed keeps only its latest change.
+                await dbContext
+                    .Changes.Where(entity =>
+                        entity.DocumentKind == document.Kind && entity.DocumentKey == key
+                    )
+                    .ExecuteDeleteAsync(token);
+                dbContext.Changes.Add(change);
+
+                if (stored is null)
+                {
+                    stored = new ReplicatedDocumentRecord { Kind = document.Kind, Key = key };
+                    dbContext.ReplicatedDocuments.Add(stored);
+                }
+
+                stored.Revision = document.Revision;
+                stored.DocumentJson = contentJson;
+
+                await dbContext.SaveChangesAsync(token);
+                await transaction.CommitAsync(token);
+                return document.Revision;
+            },
+            cancellationToken
+        );
+    }
+
+    /// <inheritdoc />
+    /// <exception cref="JsonException">The stored content is not JSON.</exception>
+    async ValueTask<ReplicatedDocument?> IReplicatedDocumentDirectory.GetOrDefaultAsync(
+        string kind,
+        string key,
+        CancellationToken cancellationToken
+    )
+    {
+        var normalizedKey = Normalize(key);
+
+        await using var dbContext = await DbContextFactory.CreateDbContextAsync(cancellationToken);
+        var stored = await dbContext
+            .ReplicatedDocuments.AsNoTracking()
+            .SingleOrDefaultAsync(
+                entity => entity.Kind == kind && entity.Key == normalizedKey,
+                cancellationToken
+            );
+        if (stored is null)
+            return null;
+
+        return new ReplicatedDocument
+        {
+            Kind = stored.Kind,
+            Key = stored.Key,
+            Revision = stored.Revision,
+            Content = ParseReplicatedContent(stored.DocumentJson),
+        };
+    }
+
+    /// <inheritdoc />
+    async ValueTask<ReplicatedRevisionPage> IReplicatedDocumentDirectory.ListRevisionsAsync(
+        string? continuation,
+        int limit,
+        CancellationToken cancellationToken
+    )
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(limit, 1);
+
+        await using var dbContext = await DbContextFactory.CreateDbContextAsync(cancellationToken);
+
+        var query = dbContext.ReplicatedDocuments.AsNoTracking();
+        if (continuation is not null)
+        {
+            if (
+                !ReplicatedRevisionContinuation.TryParse(
+                    continuation,
+                    out var afterKind,
+                    out var afterKey
+                )
+            )
+            {
+                throw new ArgumentException("The continuation is not valid.", nameof(continuation));
+            }
+
+            query = query.Where(entity =>
+                entity.Kind.CompareTo(afterKind) > 0
+                || (entity.Kind == afterKind && entity.Key.CompareTo(afterKey) > 0)
+            );
+        }
+
+        var records = await query
+            .OrderBy(entity => entity.Kind)
+            .ThenBy(entity => entity.Key)
+            .Select(entity => new
+            {
+                entity.Kind,
+                entity.Key,
+                entity.Revision,
+            })
+            .Take(limit + 1)
+            .ToListAsync(cancellationToken);
+
+        var hasMore = records.Count > limit;
+        var count = hasMore ? limit : records.Count;
+        var revisions = new List<ReplicatedDocument>(count);
+        foreach (var record in records.Take(count))
+        {
+            var revision = new ReplicatedDocument
+            {
+                Kind = record.Kind,
+                Key = record.Key,
+                Revision = record.Revision,
+            };
+            revisions.Add(revision);
+        }
+
+        var last = hasMore ? revisions[^1] : null;
+        var next = last is null ? null : ReplicatedRevisionContinuation.Create(last.Kind, last.Key);
+        return new ReplicatedRevisionPage { Revisions = revisions, Continuation = next };
     }
 
     #endregion

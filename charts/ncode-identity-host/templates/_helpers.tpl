@@ -161,7 +161,7 @@ The database environment entries of a host container: the parts of a Postgres op
 key, or the finished connection string. The scope holds the settings of one connection, and its empty keys fall back to
 the defaults, which are the values of the database the host itself uses (ADR-1509). The entries are named for the
 connection string (connectionStringName, openiddb when empty) and the configuration section that holds the parts
-(sectionName, OpenIdDatabase when empty); the directory host reads its own, directory and DirectoryDatabase.
+(sectionName, OpenIdDatabase when empty).
 */}}
 {{- define "identity-host.databaseEnv" -}}
 {{- $scope := .scope }}
@@ -325,18 +325,20 @@ applied. Rendered for its side effect only.
 {{- if and (not .Values.directory.url) .Values.directory.keys.remoteKeys }}
 {{- fail "directory.keys.remoteKeys is set and directory.url is empty: set directory.url, or clear directory.keys.remoteKeys." }}
 {{- end }}
-{{- include "identity-host.serviceUrlValidate" (dict "path" "directory.url" "value" .Values.directory.url "httpsOnly" false) }}
-{{- include "identity-host.serviceUrlValidate" (dict "path" "directory.issuer" "value" .Values.directory.issuer "httpsOnly" false) }}
-{{- include "identity-host.serviceUrlValidate" (dict "path" "cell.managementUrl" "value" .Values.cell.managementUrl "httpsOnly" true) }}
-{{- if and .Values.directory.url (not .Values.cell.controlPlaneIssuer) }}
-{{- fail "cell.controlPlaneIssuer must be the issuer of the control-plane cell when directory.url is set: the cell asks it for the token it presents to the directory." }}
+{{- $caCertificates := .Values.directory.caCertificates }}
+{{- if and $caCertificates.existingSecret $caCertificates.existingConfigMap }}
+{{- fail "directory.caCertificates.existingSecret and directory.caCertificates.existingConfigMap are both set: name the Secret or the ConfigMap that holds the directory's CA certificates, not both." }}
 {{- end }}
+{{- if and (or $caCertificates.existingSecret $caCertificates.existingConfigMap) (not $caCertificates.key) }}
+{{- fail "directory.caCertificates.key must name the key that holds the CA certificates in directory.caCertificates.existingSecret or existingConfigMap." }}
+{{- end }}
+{{- if and (not .Values.directory.url) (or $caCertificates.existingSecret $caCertificates.existingConfigMap) }}
+{{- fail "directory.caCertificates is set and directory.url is empty: set directory.url, or clear directory.caCertificates." }}
+{{- end }}
+{{- include "identity-host.serviceUrlValidate" (dict "path" "directory.url" "value" .Values.directory.url "httpsOnly" false) }}
+{{- include "identity-host.serviceUrlValidate" (dict "path" "cell.managementUrl" "value" .Values.cell.managementUrl "httpsOnly" true) }}
 {{- if or (not .Values.cell.isControlPlane) .Values.directory.url }}
 {{- include "identity-host.serviceUrlValidate" (dict "path" "cell.controlPlaneIssuer" "value" .Values.cell.controlPlaneIssuer "httpsOnly" false) }}
-{{- end }}
-{{- $directory := .Values.directory }}
-{{- if and (not $directory.enabled) (or $directory.issuer $directory.controlPlaneCell $directory.controlPlaneTenantId $directory.allowedHosts $directory.database.runtimeRole $directory.database.existingSecret $directory.database.parts.existingSecret $directory.migrations.database.existingSecret $directory.migrations.database.parts.existingSecret $directory.backendTls.existingSecret $directory.backendTls.ingressSecret $directory.backendTls.caConfigMap $directory.ingress.enabled $directory.httpRoute.enabled $directory.extraEnv $directory.extraEnvFrom $directory.extraVolumes $directory.extraVolumeMounts $directory.serviceAccount.name $directory.serviceAccount.annotations $directory.image.tag $directory.image.digest) }}
-{{- fail "directory.issuer, directory.controlPlaneCell, directory.controlPlaneTenantId, directory.allowedHosts, directory.database, directory.migrations.database, directory.backendTls, directory.ingress, directory.httpRoute, directory.serviceAccount, directory.image and directory.extra* configure the directory host, which runs only when directory.enabled is true: set directory.enabled, or clear them." }}
 {{- end }}
 {{- if and .Values.directory.url .Values.directory.keyRing }}
 {{- $directoryKeys := .Values.directory.keys }}
@@ -399,8 +401,31 @@ applied. Rendered for its side effect only.
 {{- if and .Values.setup.token.existingSecret (not .Values.setup.token.key) }}
 {{- fail "setup.token.key must name the key that holds the setup token in setup.token.existingSecret." }}
 {{- end }}
-{{- if and .Values.setup.job.enabled (not .Values.cell.isControlPlane) }}
-{{- fail "setup.job.enabled requires cell.isControlPlane: setup runs in the control-plane cell only." }}
+{{- if and .Values.setup.job.enabled (not .Values.cell.isControlPlane) (not (include "identity-host.dynamicStrategy" .)) }}
+{{- fail "setup.job.enabled requires cell.isControlPlane or a dynamic tenantResolution.strategyCode (DynamicByHost or DynamicByPath): setup runs in the control-plane cell and in a cell that serves a management tenant of its own." }}
+{{- end }}
+{{- if and .Values.managementConsole.cellConsole .Values.cell.isControlPlane }}
+{{- fail "managementConsole.cellConsole is refused when cell.isControlPlane is true: the control-plane cell's console is the platform console." }}
+{{- end }}
+{{- if and .Values.managementConsole.cellConsole (not (include "identity-host.dynamicStrategy" .)) }}
+{{- fail "managementConsole.cellConsole requires a dynamic tenantResolution.strategyCode (DynamicByHost or DynamicByPath): only a cell that serves a dynamic strategy has a management tenant for its console to sign in against." }}
+{{- end }}
+{{- if and .Values.managementConsole.cellConsole .Values.managementConsole.cells }}
+{{- fail "managementConsole.cells is refused when managementConsole.cellConsole is true: a platform console lists cells and a cell console does not." }}
+{{- end }}
+{{- range $name, $url := .Values.managementConsole.cells }}
+{{- if not (regexMatch "^[a-z](-?[a-z0-9])*$" $name) }}
+{{- fail (printf "managementConsole.cells names %s, which is not a cell name: 1 to 31 characters of lowercase letters, digits and single hyphens, starting with a letter and ending with a letter or digit." $name) }}
+{{- end }}
+{{- if gt (len $name) 31 }}
+{{- fail (printf "managementConsole.cells names %s, which is longer than 31 characters." $name) }}
+{{- end }}
+{{- if not (regexMatch "^https://.+" (toString $url)) }}
+{{- fail (printf "managementConsole.cells.%s must be the cell's management API https URL." $name) }}
+{{- end }}
+{{- end }}
+{{- if and .Values.managementConsole.cellConsole (not .Values.managementConsole.authority) }}
+{{- fail "managementConsole.authority must be the issuer of the cell's root tenant when managementConsole.cellConsole is true: the console signs in against the cell's management tenant." }}
 {{- end }}
 {{- if and .Values.setup.job.enabled (not .Values.setup.job.existingSecret) }}
 {{- fail "setup.job.existingSecret must name the Secret holding the root administrator's user name and password when setup.job.enabled is true." }}
@@ -798,8 +823,8 @@ because configuration keys ignore case.
 {{- end }}
 
 {{/*
-The pod annotation that names where the cell's backups are kept, for the pods that own a database: those of the host,
-the directory and their migration Jobs. Renders nothing when backup.location is empty.
+The pod annotation that names where the cell's backups are kept, for the pods that own a database: those of the host
+and its migration Jobs. Renders nothing when backup.location is empty.
 */}}
 {{- define "identity-host.backupAnnotations" -}}
 {{- with .Values.backup.location }}
@@ -835,6 +860,8 @@ same configuration the pods it rewraps keys for read.
 {{- end }}
 - name: Cell__IsControlPlane
   value: {{ .Values.cell.isControlPlane | quote }}
+- name: Cell__KeyCustodyReconcileInterval
+  value: {{ .Values.cell.keyCustodyReconcileInterval | quote }}
 {{- with .Values.cell.controlPlaneIssuer }}
 - name: Cell__ControlPlane__Issuer
   value: {{ . | quote }}
@@ -976,6 +1003,10 @@ Jobs run the host's offline commands, which never call the directory, so neither
 - name: Directory__KeyRing
   value: {{ . | quote }}
 {{- end }}
+{{- if or $directory.caCertificates.existingSecret $directory.caCertificates.existingConfigMap }}
+- name: Directory__CaCertificatesPath
+  value: "/etc/ncode-identity/directory-ca/ca.crt"
+{{- end }}
 {{- if $directory.keys.pemSecret }}
 - name: {{ printf "KeyRings__%s__PemFiles__0" $directory.keyRing }}
   value: {{ printf "/etc/ncode-identity/directory-key/%s.pem" $directory.keyRing | quote }}
@@ -1031,12 +1062,17 @@ The volume mounts of the host container, which the Deployment and the host's Job
 {{- end }}
 
 {{/*
-The volume mount of the directory client's key, which only the Deployment carries.
+The volume mounts of the directory client's key and CA certificates, which only the Deployment carries.
 */}}
 {{- define "identity-host.directoryClientVolumeMounts" -}}
 {{- if and .Values.directory.url .Values.directory.keys.pemSecret }}
 - name: directory-key
   mountPath: /etc/ncode-identity/directory-key
+  readOnly: true
+{{- end }}
+{{- if and .Values.directory.url (or .Values.directory.caCertificates.existingSecret .Values.directory.caCertificates.existingConfigMap) }}
+- name: directory-ca
+  mountPath: /etc/ncode-identity/directory-ca
   readOnly: true
 {{- end }}
 {{- end }}
@@ -1074,7 +1110,7 @@ The volumes of the host pod, which the Deployment and the host's Jobs share.
 {{- end }}
 
 {{/*
-The volume of the directory client's key, which only the Deployment carries.
+The volumes of the directory client's key and CA certificates, which only the Deployment carries.
 */}}
 {{- define "identity-host.directoryClientVolumes" -}}
 {{- if and .Values.directory.url .Values.directory.keys.pemSecret }}
@@ -1085,6 +1121,24 @@ The volume of the directory client's key, which only the Deployment carries.
       - key: {{ printf "%s.pem" .Values.directory.keyRing }}
         path: {{ printf "%s.pem" .Values.directory.keyRing }}
     defaultMode: 0440
+{{- end }}
+{{- $caCertificates := .Values.directory.caCertificates }}
+{{- if and .Values.directory.url $caCertificates.existingSecret }}
+- name: directory-ca
+  secret:
+    secretName: {{ $caCertificates.existingSecret }}
+    items:
+      - key: {{ $caCertificates.key }}
+        path: ca.crt
+    defaultMode: 0444
+{{- else if and .Values.directory.url $caCertificates.existingConfigMap }}
+- name: directory-ca
+  configMap:
+    name: {{ $caCertificates.existingConfigMap }}
+    items:
+      - key: {{ $caCertificates.key }}
+        path: ca.crt
+    defaultMode: 0444
 {{- end }}
 {{- end }}
 
@@ -1149,11 +1203,23 @@ release resolves its tenant with StaticSingle, else empty.
 {{- end }}
 
 {{/*
+Whether the release resolves its tenant with a dynamic strategy (DynamicByHost or DynamicByPath), which a cell with a
+management tenant of its own serves. Renders `true`, or nothing.
+*/}}
+{{- define "identity-host.dynamicStrategy" -}}
+{{- if has .Values.tenantResolution.strategyCode (list "DynamicByHost" "DynamicByPath") }}true{{ end }}
+{{- end }}
+
+{{/*
 The URL the console calls the server's management API through: /api on the origin of the console's authority, the URL
-the server compares the console's DPoP proofs with.
+the server compares the console's DPoP proofs with. A cell console calls /api on the cell's management URL.
 */}}
 {{- define "identity-host.managementConsole.managementApiUrl" -}}
+{{- if .Values.managementConsole.cellConsole }}
+{{- printf "%s/api" (trimSuffix "/" .Values.cell.managementUrl) }}
+{{- else }}
 {{- printf "%s/api" (regexFind "^https://[^/]+" (include "identity-host.managementConsole.authority" .)) }}
+{{- end }}
 {{- end }}
 
 {{/*
@@ -1305,6 +1371,21 @@ The environment of the management console container.
 {{- include "identity-host.kmsCredentials.googleEnv" $credentials }}
 - name: ManagementConsole__ManagementApiUrl
   value: {{ include "identity-host.managementConsole.managementApiUrl" . | quote }}
+{{- if $console.cellConsole }}
+- name: ManagementConsole__Cell
+  value: {{ .Values.cell.name | quote }}
+{{- end }}
+{{- $cells := dict }}
+{{- range $name, $url := $console.cells }}
+{{- $_ := set $cells $name $url }}
+{{- end }}
+{{- if and $.Values.cell.managementUrl (not $console.cellConsole) (not (hasKey $cells $.Values.cell.name)) }}
+{{- $_ := set $cells $.Values.cell.name (printf "%s/api" (trimSuffix "/" $.Values.cell.managementUrl)) }}
+{{- end }}
+{{- range $name, $url := $cells }}
+- name: {{ printf "ManagementConsole__Cells__%s" $name | quote }}
+  value: {{ $url | quote }}
+{{- end }}
 {{- if include "identity-host.managementConsole.valkeyEnabled" . }}
 {{ include "identity-host.valkeyEnv" (dict "scope" $console.valkey "defaults" .Values.valkey) | trim }}
 {{- end }}
@@ -1314,142 +1395,8 @@ The environment of the management console container.
 {{- end }}
 
 {{/*
-The fully qualified name of the directory's resources. The release's fully qualified name is shortened to 53
-characters first so the name, with its 10-character "-directory" suffix, fits the 63-character limit of a Service name
-(a DNS-1035 label).
-*/}}
-{{- define "identity-host.directory.fullname" -}}
-{{- printf "%s-directory" (include "identity-host.fullname" . | trunc 53 | trimSuffix "-") }}
-{{- end }}
-
-{{/*
-The name of the directory's migration Job. The fully qualified name is shortened first so the name, with its suffix, fits
-the 63-character label value Kubernetes copies it into (batch.kubernetes.io/job-name).
-*/}}
-{{- define "identity-host.directory.migrationsJobName" -}}
-{{- printf "%s-directory-migrations" (include "identity-host.fullname" . | trunc 40 | trimSuffix "-") }}
-{{- end }}
-
-{{/*
-The labels that select the directory's pods. The component keeps the migration Job's pod out of the Service.
-*/}}
-{{- define "identity-host.directory.selectorLabels" -}}
-app.kubernetes.io/name: {{ include "identity-host.name" . }}
-app.kubernetes.io/instance: {{ .Release.Name }}
-app.kubernetes.io/component: directory
-{{- end }}
-
-{{/*
-The labels every resource of the directory carries.
-*/}}
-{{- define "identity-host.directory.labels" -}}
-{{ include "identity-host.commonLabels" . }}
-app.kubernetes.io/component: directory
-{{- end }}
-
-{{/*
-The name of the directory's ServiceAccount.
-*/}}
-{{- define "identity-host.directory.serviceAccountName" -}}
-{{- if .Values.directory.serviceAccount.create }}
-{{- default (include "identity-host.directory.fullname" .) .Values.directory.serviceAccount.name }}
-{{- else }}
-{{- default "default" .Values.directory.serviceAccount.name }}
-{{- end }}
-{{- end }}
-
-{{/*
-The directory's container image: the digest when one is set, else the tag, which defaults to the chart's appVersion.
-*/}}
-{{- define "identity-host.directory.image" -}}
-{{- if .Values.directory.image.digest }}
-{{- printf "%s@%s" .Values.directory.image.repository .Values.directory.image.digest }}
-{{- else }}
-{{- printf "%s:%s" .Values.directory.image.repository (default .Chart.AppVersion .Values.directory.image.tag) }}
-{{- end }}
-{{- end }}
-
-{{/*
-The identifier of the tenant a StaticSingle release serves: tenantResolution.staticSingle.tenantId, or `default`. The
-chart writes it for the cell and for the directory alike, so both read one identifier.
+The identifier of the tenant a StaticSingle release serves: tenantResolution.staticSingle.tenantId, or `default`.
 */}}
 {{- define "identity-host.staticSingle.tenantId" -}}
 {{- .Values.tenantResolution.staticSingle.tenantId | default "default" }}
-{{- end }}
-
-{{/*
-The identifier of the control-plane cell's root tenant, which the directory holds for that cell:
-directory.controlPlaneTenantId when set. Else, in the release of the control-plane cell (cell.isControlPlane is true and
-cell.name is directory.controlPlaneCell) under StaticSingle, the tenant the release serves:
-tenantResolution.staticSingle.tenantId, or `default`. Else empty, which the directory's validation refuses: another
-strategy's root tenant is named by settings the chart does not read, such as extraEnv, extraEnvFrom or a ConfigMap.
-*/}}
-{{- define "identity-host.directory.controlPlaneTenantId" -}}
-{{- if .Values.directory.controlPlaneTenantId }}
-{{- .Values.directory.controlPlaneTenantId }}
-{{- else if and .Values.cell.isControlPlane (eq .Values.cell.name .Values.directory.controlPlaneCell) (eq .Values.tenantResolution.strategyCode "StaticSingle") }}
-{{- include "identity-host.staticSingle.tenantId" . }}
-{{- end }}
-{{- end }}
-
-{{/*
-The environment of the directory's Deployment container, which holds the runtime role's connection: the finished
-connection string (ConnectionStrings:directory) or the parts of a Postgres operator's Secret (DirectoryDatabase), as the
-OP's pods read theirs (ADR-1509). The migration Job sets its own environment and never receives that connection.
-*/}}
-{{- define "identity-host.directory.env" -}}
-{{- $directory := .Values.directory }}
-- name: ASPNETCORE_ENVIRONMENT
-  value: {{ .Values.environment | quote }}
-- name: AllowedHosts
-  value: {{ join ";" $directory.allowedHosts | quote }}
-- name: DirectoryServer__Issuer
-  value: {{ $directory.issuer | quote }}
-- name: DirectoryServer__ControlPlaneCell
-  value: {{ $directory.controlPlaneCell | quote }}
-- name: DirectoryServer__ControlPlaneTenantId
-  value: {{ include "identity-host.directory.controlPlaneTenantId" . | quote }}
-{{ include "identity-host.backendTls.env" . | trim }}
-{{ include "identity-host.databaseEnv" (dict "scope" $directory.database "defaults" $directory.database "connectionStringName" "directory" "sectionName" "DirectoryDatabase") | trim }}
-{{ include "identity-host.telemetryEnv" . | trim }}
-{{- with $directory.extraEnv }}
-{{- toYaml . | nindent 0 }}
-{{- end }}
-{{- end }}
-
-{{/*
-Refuses a directory the host would refuse, before anything is applied. Rendered for its side effect only.
-*/}}
-{{- define "identity-host.directory.validate" -}}
-{{- $directory := .Values.directory }}
-{{- if not $directory.allowedHosts }}
-{{- fail "directory.allowedHosts must list the host names the directory answers to when directory.enabled is true." }}
-{{- end }}
-{{- if has "*" $directory.allowedHosts }}
-{{- fail "directory.allowedHosts must not contain '*': it accepts every Host header." }}
-{{- end }}
-{{- if contains "*" (first $directory.allowedHosts) }}
-{{- fail "directory.allowedHosts must start with a concrete host that the probes can send: the first host is a wildcard." }}
-{{- end }}
-{{- if not $directory.issuer }}
-{{- fail "directory.issuer must be the issuer of the control-plane cell when directory.enabled is true: the directory accepts bearer tokens from it." }}
-{{- end }}
-{{- if not $directory.controlPlaneCell }}
-{{- fail "directory.controlPlaneCell must name the control-plane cell when directory.enabled is true: the directory takes platform and team writes only from it." }}
-{{- end }}
-{{- $controlPlaneTenantId := include "identity-host.directory.controlPlaneTenantId" . }}
-{{- if not $controlPlaneTenantId }}
-{{- fail "directory.controlPlaneTenantId must name the control-plane cell's root tenant when directory.enabled is true and this release's cell is not directory.controlPlaneCell, or tenantResolution.strategyCode is not StaticSingle: the directory holds that tenant for the control-plane cell, and the chart reads no other strategy's settings." }}
-{{- end }}
-{{- if not (regexMatch "^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$" $controlPlaneTenantId) }}
-{{- fail "the control-plane cell's root tenant, which directory.controlPlaneTenantId names or the release's tenant resolution gives, must be 1 to 63 lowercase letters, digits or hyphens that start and end with a letter or digit." }}
-{{- end }}
-{{- include "identity-host.databaseValidate" (dict "path" "directory.database" "scope" $directory.database "defaults" $directory.database "required" true "connectionStringName" "directory") }}
-{{- if not $directory.database.runtimeRole }}
-{{- fail "directory.database.runtimeRole must name the Postgres role the directory connects as when directory.enabled is true: the migration Job grants it access to the tables." }}
-{{- end }}
-{{- if not (regexMatch "^[a-z_][a-z0-9_]*$" $directory.database.runtimeRole) }}
-{{- fail "directory.database.runtimeRole must be a lower-case Postgres role name of letters, digits and underscores that does not start with a digit." }}
-{{- end }}
-{{- include "identity-host.databaseValidate" (dict "path" "directory.migrations.database" "scope" $directory.migrations.database "defaults" $directory.database "required" true "connectionStringName" "directory") }}
 {{- end }}

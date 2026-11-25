@@ -3,7 +3,6 @@
 
 using Microsoft.Extensions.Options;
 using Moq;
-using NCode.Identity.OpenId.Client;
 
 namespace NCode.Identity.OpenId.GlobalDirectory.Tests;
 
@@ -18,23 +17,15 @@ public abstract class RemoteDirectoryTestBase : BaseTests
 
     internal DirectoryHttpClient CreateClient(HttpMessageHandler handler)
     {
-        var httpClient = new HttpClient(handler);
-
         var factoryMock = CreateStrictMock<IHttpClientFactory>();
         factoryMock
-            .Setup(x => x.CreateClient(OpenIdClientDefaults.HttpClientName))
-            .Returns(httpClient)
+            .Setup(x => x.CreateClient(DirectoryClientDefaults.HttpClientName))
+            .Returns(() => new HttpClient(handler, disposeHandler: false))
             .Verifiable(Times.AtLeastOnce);
 
         var tokenSourceMock = CreateStrictMock<ICellTokenSource>();
         tokenSourceMock
-            .Setup(x =>
-                x.GetAccessTokenAsync(
-                    GlobalDirectoryProtocol.DirectoryAudience,
-                    GlobalDirectoryProtocol.DirectoryScope,
-                    It.IsAny<CancellationToken>()
-                )
-            )
+            .Setup(x => x.GetAccessTokenAsync(It.IsAny<CancellationToken>()))
             .Returns(new ValueTask<string>(AccessToken))
             .Verifiable(Times.AtLeastOnce);
 

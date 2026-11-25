@@ -111,9 +111,11 @@ read on the protocol surface is therefore confined to the request's resolved ten
 The management API's tenant-plane group (`/api/tenants/{tenantId}`) opens the scope from the route's `tenantId` value
 through the internal `TenantScopeEndpointFilter`, independent of the request's resolved tenant (route-driven scope,
 [ADR-1191](1191-a-management-request-is-authenticated-by-the-control-plane-tenant-and-scoped-by-its-routes-tenant.md)). The filter answers `404` when the segment is missing.
-It reads only the route value and makes no claim that the tenant exists. Control-plane routes (platform, team, caller,
-capabilities and machine clients) carry no `{tenantId}`. They run under the internal `ControlPlaneScopeEndpointFilter`,
-which opens `BeginUnscoped("management control plane")` for the request.
+It reads only the route value and makes no claim that the tenant exists. The unscoped control-plane routes are only
+`/api/platform`, `/api/teams` and `/api/cells`, and they carry no `{tenantId}`. They run under the internal
+`ControlPlaneScopeEndpointFilter`, which opens `BeginUnscoped("management control plane")` for the request. The
+replicated-document tables and the directory outbox are unscoped platform rows, read and written under that scope
+([ADR-1536](1536-a-platforms-global-plane-is-a-standalone-directory-and-a-dedicated-control-plane-cell-and-every-other-cell-runs-and-is-managed-on-its-own.md)).
 
 ### Writes and reads of an existing resource
 

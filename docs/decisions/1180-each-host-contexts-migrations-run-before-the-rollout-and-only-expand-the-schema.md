@@ -141,11 +141,11 @@ A reviewer checks these by hand:
   `ConnectionStrings:openiddb` or the `OpenIdDatabase` parts; `database` names the runtime role's connection, and the
   host reads it the same way. `database.runtimeRole` names the role for the grants, and the Job reads it as
   `HostDatabase:RuntimeRole`. The host runs without the right to change its own schema.
-- The directory's chart runs its host image's `migrate` command as a `pre-install` and `pre-upgrade` hook Job of the
-  same shape. `directory.migrations.database` names the schema owner's connection, and the Job reads it as
-  `ConnectionStrings:directory` or the `DirectoryDatabase` parts; `directory.database` names the runtime role's
-  connection, and the Deployment reads it the same way. `directory.database.runtimeRole` names the role for the grants,
-  and the Job reads it as `DirectoryMigration:RuntimeRole`.
+- The directory's own chart, `ncode-identity-directory`, runs its host image's `migrate` command as a `pre-install` and
+  `pre-upgrade` hook Job of the same shape. Its `migrations.database` names the schema owner's connection, and the Job
+  reads it as `ConnectionStrings:directory` or the `DirectoryDatabase` parts; its `database` names the runtime role's
+  connection, and the Deployment reads it the same way. Its `database.runtimeRole` names the role for the grants, and
+  the Job reads it as `DirectoryMigration:RuntimeRole`.
 - `migrations.enabled: false` removes the Job for a deployment whose DBA or pipeline applies a generated idempotent
   script.
 

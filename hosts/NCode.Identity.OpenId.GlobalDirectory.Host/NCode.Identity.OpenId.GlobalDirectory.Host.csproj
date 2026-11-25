@@ -18,6 +18,10 @@
         <ProjectReference Include="..\..\src\NCode.Identity.OpenId.Client\NCode.Identity.OpenId.Client.csproj" />
         <ProjectReference Include="..\..\src\NCode.Identity.OpenId.GlobalDirectory.Server\NCode.Identity.OpenId.GlobalDirectory.Server.csproj" />
         <ProjectReference Include="..\..\src\NCode.Identity.Secrets\NCode.Identity.Secrets.csproj" />
+        <ProjectReference Include="..\..\src\NCode.Identity.Secrets.AwsKms\NCode.Identity.Secrets.AwsKms.csproj" />
+        <ProjectReference Include="..\..\src\NCode.Identity.Secrets.AzureKeyVault\NCode.Identity.Secrets.AzureKeyVault.csproj" />
+        <ProjectReference Include="..\..\src\NCode.Identity.Secrets.GoogleCloudKms\NCode.Identity.Secrets.GoogleCloudKms.csproj" />
+        <ProjectReference Include="..\..\src\NCode.Identity.Secrets.Persistence\NCode.Identity.Secrets.Persistence.csproj" />
         <ProjectReference Include="..\..\src\NCode.Identity.SharedState\NCode.Identity.SharedState.csproj" />
     </ItemGroup>
 

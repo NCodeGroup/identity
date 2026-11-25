@@ -5,6 +5,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.Extensions.DependencyInjection;
 using NCode.Identity.OpenId.Contexts;
 using NCode.Identity.OpenId.Management.Authorization;
@@ -471,6 +472,18 @@ internal abstract class BaseApiEndpointHandler : ManagementApiEndpointHandler
     }
 
     /// <summary>
+    /// Gets a cell's authority node, addressed from the tenant the request runs under.
+    /// </summary>
+    /// <param name="httpContext">The <see cref="HttpContext"/> for the current request.</param>
+    /// <param name="cellName">The name of the cell.</param>
+    /// <returns>The cell's <see cref="ResourceNode"/>.</returns>
+    internal static ResourceNode GetCellNode(HttpContext httpContext, string cellName)
+    {
+        var openIdContext = httpContext.GetOpenIdContext();
+        return ResourceNode.For(openIdContext.Tenant.TenantId, ResourceNodeTypes.Cell, cellName);
+    }
+
+    /// <summary>
     /// Gets a team's authority node, addressed from the control-plane tenant the request runs under.
     /// </summary>
     /// <param name="httpContext">The <see cref="HttpContext"/> for the current request.</param>
@@ -481,6 +494,17 @@ internal abstract class BaseApiEndpointHandler : ManagementApiEndpointHandler
         var openIdContext = httpContext.GetOpenIdContext();
         return ResourceNode.For(openIdContext.Tenant.TenantId, ResourceNodeTypes.Team, teamId);
     }
+
+    /// <summary>
+    /// Creates the <c>409 Conflict</c> response for a tenant write that the control-plane cell of a platform with a
+    /// directory refuses, because it holds only the control-plane tenant.
+    /// </summary>
+    // See ADR-1536.
+    internal static ProblemHttpResult ControlPlaneCellHoldsOnlyItsTenant() =>
+        TypedResults.Problem(
+            detail: "The control-plane cell holds only the control-plane tenant.",
+            statusCode: StatusCodes.Status409Conflict
+        );
 
     /// <summary>
     /// Gets a tenant's authority node: its own id addresses the tenant node.

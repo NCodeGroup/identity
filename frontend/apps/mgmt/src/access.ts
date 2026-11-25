@@ -1,5 +1,6 @@
 import type { CallerResource, TeamResource } from '@ncodegroup/identity-api';
 import type { CellTenantResource } from '@ncodegroup/identity-store';
+import { CELL_CONSOLE_KIND } from './consoleKind.js';
 import { HOME_ROUTE, platformRoute, teamRoute, tenantRoute, type ConsoleRoute } from './routes.js';
 
 /**
@@ -93,12 +94,20 @@ export function tenantExit(
 
 /**
  * The route the caller may open: a platform route becomes the caller's home once its access is known and it lacks
- * platform authority; every other route is kept.
+ * platform authority; a cell console shows no platform or team surface, and a platform console no cell surface, so
+ * those routes become the home; every other route is kept.
  */
 export function permittedRoute(
   route: ConsoleRoute,
   access: CallerAccess | undefined,
+  consoleKind?: string,
 ): ConsoleRoute {
+  if (consoleKind === CELL_CONSOLE_KIND && (route.kind === 'platform' || route.kind === 'team')) {
+    return HOME_ROUTE;
+  }
+  if (consoleKind !== CELL_CONSOLE_KIND && route.kind === 'cell') {
+    return HOME_ROUTE;
+  }
   if (access !== undefined && !access.isPlatformAdministrator && route.kind === 'platform') {
     return HOME_ROUTE;
   }

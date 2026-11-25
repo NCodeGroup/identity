@@ -29,7 +29,8 @@ consumers' logging generator.
    `TaskCanceledException` with a `TimeoutException` inner exception, as `HttpClient.Timeout` produces, and both
    pipelines read time from the registered `TimeProvider`.
 
-2. **`NCode.Identity.OpenId.Client` also references `Polly.Core` directly.** `Directory.Packages.props` pins no
+2. **`NCode.Identity.OpenId.Client` and `NCode.Identity.OpenId.GlobalDirectory` also reference `Polly.Core` directly.**
+   Each builds the same pipeline over its own options. `Directory.Packages.props` pins no
    `Microsoft.Extensions.Http.Resilience`, `Polly.Extensions` or `Polly.RateLimiting`, because no project references
    them.
 

@@ -17,7 +17,7 @@ namespace NCode.Identity.OpenId.GlobalDirectory.Host.Migrations.Directory
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "10.0.14")
+                .HasAnnotation("ProductVersion", "10.0.15")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -28,7 +28,13 @@ namespace NCode.Identity.OpenId.GlobalDirectory.Host.Migrations.Directory
                         .HasMaxLength(31)
                         .HasColumnType("character varying(31)");
 
+                    b.Property<string>("ClientJwksJson")
+                        .HasColumnType("text");
+
                     b.Property<bool>("IsControlPlane")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsRetired")
                         .HasColumnType("boolean");
 
                     b.Property<string>("Kind")
@@ -37,7 +43,10 @@ namespace NCode.Identity.OpenId.GlobalDirectory.Host.Migrations.Directory
                         .HasColumnType("character varying(32)");
 
                     b.Property<string>("ManagementUrl")
-                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<string>("NormalizedManagementUrl")
                         .HasMaxLength(2000)
                         .HasColumnType("character varying(2000)");
 
@@ -47,6 +56,10 @@ namespace NCode.Identity.OpenId.GlobalDirectory.Host.Migrations.Directory
                         .HasColumnType("character varying(31)");
 
                     b.HasKey("Name");
+
+                    b.HasIndex("NormalizedManagementUrl")
+                        .IsUnique()
+                        .HasFilter("\"NormalizedManagementUrl\" IS NOT NULL");
 
                     b.ToTable("Cells");
                 });
@@ -59,11 +72,24 @@ namespace NCode.Identity.OpenId.GlobalDirectory.Host.Migrations.Directory
                     b.Property<string>("DocumentJson")
                         .HasColumnType("text");
 
+                    b.Property<string>("DocumentKey")
+                        .HasMaxLength(63)
+                        .HasColumnType("character varying(63)");
+
+                    b.Property<string>("DocumentKind")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<long?>("Revision")
+                        .HasColumnType("bigint");
+
                     b.Property<string>("TeamId")
                         .HasMaxLength(63)
                         .HasColumnType("character varying(63)");
 
                     b.HasKey("Sequence");
+
+                    b.HasIndex("DocumentKind", "DocumentKey");
 
                     b.ToTable("Changes");
                 });
@@ -96,6 +122,27 @@ namespace NCode.Identity.OpenId.GlobalDirectory.Host.Migrations.Directory
                     b.HasKey("Id");
 
                     b.ToTable("Platforms");
+                });
+
+            modelBuilder.Entity("NCode.Identity.OpenId.GlobalDirectory.Server.Entities.ReplicatedDocumentRecord", b =>
+                {
+                    b.Property<string>("Kind")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("Key")
+                        .HasMaxLength(63)
+                        .HasColumnType("character varying(63)");
+
+                    b.Property<string>("DocumentJson")
+                        .HasColumnType("text");
+
+                    b.Property<long>("Revision")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Kind", "Key");
+
+                    b.ToTable("ReplicatedDocuments");
                 });
 
             modelBuilder.Entity("NCode.Identity.OpenId.GlobalDirectory.Server.Entities.RetiredIssuerRecord", b =>

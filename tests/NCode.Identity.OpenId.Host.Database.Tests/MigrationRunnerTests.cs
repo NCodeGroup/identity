@@ -10,7 +10,7 @@ public sealed class MigrationRunnerTests
 {
     private const string Role = "identity_runtime";
     private const string ContextName = "OpenIdDbContext";
-    private const string InitialCreate = "20261105033727_InitialCreate";
+    private const string InitialCreate = "20261125081328_InitialCreate";
     private const string UnknownInitialCreate = "20261001000000_InitialCreate";
 
     #region ThrowIfUnknownMigrationsApplied Tests

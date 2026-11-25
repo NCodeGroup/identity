@@ -24,6 +24,11 @@ public static class OpenIdResourceTypes
     public const string Platform = "platform";
 
     /// <summary>
+    /// Contains the value used to identify the resource type for a cell, the unit that holds a set of tenants.
+    /// </summary>
+    public const string Cell = "cell";
+
+    /// <summary>
     /// Contains the value used to identify the resource type for a team, the grouping of related tenants beneath the platform.
     /// </summary>
     public const string Team = "team";

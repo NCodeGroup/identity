@@ -27,6 +27,18 @@ internal static partial class Log
     );
 
     [LoggerMessage(
+        EventId = EventIds.CellNotRegisteredYet,
+        Level = LogLevel.Warning,
+        Message = "The global directory has no registration for this cell yet, on attempt {Attempt}; retrying in {Delay}."
+    )]
+    internal static partial void CellNotRegisteredYet(
+        this ILogger logger,
+        Exception exception,
+        int attempt,
+        TimeSpan delay
+    );
+
+    [LoggerMessage(
         EventId = EventIds.DirectoryChangeFeedUnavailable,
         Level = LogLevel.Warning,
         Message = "Following the global directory's change feed failed because the directory is unavailable; retrying at the next interval."
@@ -55,5 +67,65 @@ internal static partial class Log
         this ILogger logger,
         Exception exception,
         long sequence
+    );
+
+    [LoggerMessage(
+        EventId = EventIds.DirectoryOutboxUnavailable,
+        Level = LogLevel.Warning,
+        Message = "Publishing the outbox to the global directory failed on attempt {Attempt} because the directory is unavailable; retrying in {Delay}."
+    )]
+    internal static partial void DirectoryOutboxUnavailable(
+        this ILogger logger,
+        Exception exception,
+        int attempt,
+        TimeSpan delay
+    );
+
+    [LoggerMessage(
+        EventId = EventIds.DirectoryOutboxPublishFailed,
+        Level = LogLevel.Error,
+        Message = "Publishing the outbox to the global directory failed on attempt {Attempt}; retrying in {Delay}."
+    )]
+    internal static partial void DirectoryOutboxPublishFailed(
+        this ILogger logger,
+        Exception exception,
+        int attempt,
+        TimeSpan delay
+    );
+
+    [LoggerMessage(
+        EventId = EventIds.DirectoryOutboxRepublished,
+        Level = LogLevel.Information,
+        Message = "Republished the {Kind} document '{Key}' at revision {Revision}, because the global directory held a higher one."
+    )]
+    internal static partial void DirectoryOutboxRepublished(
+        this ILogger logger,
+        string kind,
+        string key,
+        long revision
+    );
+
+    [LoggerMessage(
+        EventId = EventIds.DirectoryOutboxDocumentFailed,
+        Level = LogLevel.Error,
+        Message = "Publishing the {Kind} document '{Key}' to the global directory failed; it stays pending."
+    )]
+    internal static partial void DirectoryOutboxDocumentFailed(
+        this ILogger logger,
+        Exception exception,
+        string kind,
+        string key
+    );
+
+    [LoggerMessage(
+        EventId = EventIds.DirectoryOutboxRepublishFailed,
+        Level = LogLevel.Error,
+        Message = "Republishing the {Kind} document '{Key}' to the global directory failed; the pass is retried."
+    )]
+    internal static partial void DirectoryOutboxRepublishFailed(
+        this ILogger logger,
+        Exception exception,
+        string kind,
+        string key
     );
 }

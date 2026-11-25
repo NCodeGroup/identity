@@ -10,6 +10,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using NCode.Buffers;
 using NCode.Identity.AspNetCore;
+using NCode.Identity.OpenId.GlobalDirectory;
 using NCode.Identity.OpenId.Management;
 using NCode.Identity.OpenId.Setup.Contracts;
 
@@ -29,6 +30,8 @@ public sealed class SetupApiHandlerTests : IDisposable
     private SetupRateLimiter RateLimiter { get; } = new();
 
     private SetupOptions HandlerOptions { get; } = new();
+
+    private bool HasManagementTenant { get; set; }
 
     public SetupApiHandlerTests()
     {
@@ -51,8 +54,16 @@ public sealed class SetupApiHandlerTests : IDisposable
             MockSetupTokenService.Object,
             RateLimiter,
             MockSurfaceGate.Object,
-            Microsoft.Extensions.Options.Options.Create(HandlerOptions)
+            Microsoft.Extensions.Options.Options.Create(HandlerOptions),
+            CreateTopology()
         );
+
+    private IPlatformTopology CreateTopology()
+    {
+        var topology = new Mock<IPlatformTopology>();
+        topology.Setup(x => x.HasManagementTenant).Returns(HasManagementTenant);
+        return topology.Object;
+    }
 
     private void SetupIsServed(bool isServed, Times? times = null) =>
         MockSurfaceGate
@@ -192,6 +203,29 @@ public sealed class SetupApiHandlerTests : IDisposable
         Assert.NotNull(ok.Value);
         Assert.Equal(SetupTokenSources.Generated, ok.Value.TokenSource);
         Assert.Equal(SetupDefaults.MinimumRootPasswordLength, ok.Value.MinimumPasswordLength);
+    }
+
+    [Theory]
+    [InlineData(false, "GlobalAdmin")]
+    [InlineData(true, "CellAdmin")]
+    public async Task GetStatusAsync_AnswersTheRoleOfTheFirstAdministrator(
+        bool hasManagementTenant,
+        string expectedRole
+    )
+    {
+        HasManagementTenant = hasManagementTenant;
+        SetupIsServed(true);
+        MockSetupTokenService
+            .Setup(x => x.TokenSource)
+            .Returns(SetupTokenSources.Generated)
+            .Verifiable();
+        var handler = CreateHandler();
+
+        var result = await handler.GetStatusAsync(CreateHttpContext(), CancellationToken.None);
+
+        var ok = Assert.IsType<Ok<SetupStatusResponse>>(result);
+        Assert.NotNull(ok.Value);
+        Assert.Equal(expectedRole, ok.Value.AdministratorRole);
     }
 
     [Fact]

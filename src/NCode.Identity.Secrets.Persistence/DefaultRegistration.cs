@@ -32,6 +32,70 @@ public static class DefaultRegistration
     extension(IServiceBuilder<SecretsLibrary> builder)
     {
         /// <summary>
+        /// Adds the stateless secret key formats alone: <see cref="ISecretSerializer"/>, <see cref="ISecretImporter"/>
+        /// and <see cref="IPublicJwksReader"/>, with the secret verifier schemes, gate and options the serializer reads
+        /// a stored verifier through. A host that stores no secrets, such as the global directory, composes these and
+        /// never <see cref="AddPersistenceLibrary"/>.
+        /// </summary>
+        /// <returns>A new <see cref="IServiceBuilder{T}"/> for <see cref="SecretPersistenceLibrary"/>.</returns>
+        /// <remarks>
+        /// Services are registered using <c>TryAdd*</c> semantics, meaning existing registrations will not be
+        /// overwritten.
+        /// </remarks>
+        [PublicAPI]
+        public IServiceBuilder<SecretPersistenceLibrary> AddSecretKeyFormats()
+        {
+            var newBuilder = builder.NewBuilder<SecretPersistenceLibrary>();
+
+            var serviceCollection = builder.ServiceCollection;
+            serviceCollection.TryAddSingleton<ISecretSerializer, DefaultSecretSerializer>();
+            serviceCollection.TryAddSingleton<ISecretImporter, DefaultSecretImporter>();
+            serviceCollection.TryAddSingleton<IPublicJwksReader, DefaultPublicJwksReader>();
+
+            // Shared secret verifiers, which the serializer reads a stored verifier through: a package adds a scheme by
+            // registering another ISecretVerifierScheme, and a scheme with a work factor takes its turns from the one
+            // ISecretVerificationGate. See ADR-1391.
+            serviceCollection.TryAddSingleton<
+                ISecretVerifierSchemeCatalog,
+                DefaultSecretVerifierSchemeCatalog
+            >();
+            var sha256SecretVerifierScheme = ServiceDescriptor.Singleton<
+                ISecretVerifierScheme,
+                Sha256SecretVerifierScheme
+            >();
+            serviceCollection.TryAddEnumerable(sha256SecretVerifierScheme);
+            var pbkdf2SecretVerifierScheme = ServiceDescriptor.Singleton<
+                ISecretVerifierScheme,
+                Pbkdf2SecretVerifierScheme
+            >();
+            serviceCollection.TryAddEnumerable(pbkdf2SecretVerifierScheme);
+            serviceCollection.TryAddSingleton<
+                ISecretVerificationGate,
+                DefaultSecretVerificationGate
+            >();
+            var sharedSecretVerifierOptionsValidator = ServiceDescriptor.Singleton<
+                IValidateOptions<SharedSecretVerifierOptions>,
+                SharedSecretVerifierOptionsValidator
+            >();
+            serviceCollection.TryAddEnumerable(sharedSecretVerifierOptionsValidator);
+            var pbkdf2SecretVerifierOptionsValidator = ServiceDescriptor.Singleton<
+                IValidateOptions<Pbkdf2SecretVerifierOptions>,
+                Pbkdf2SecretVerifierOptionsValidator
+            >();
+            serviceCollection.TryAddEnumerable(pbkdf2SecretVerifierOptionsValidator);
+            var secretVerificationGateOptionsValidator = ServiceDescriptor.Singleton<
+                IValidateOptions<SecretVerificationGateOptions>,
+                SecretVerificationGateOptionsValidator
+            >();
+            serviceCollection.TryAddEnumerable(secretVerificationGateOptionsValidator);
+            serviceCollection.AddOptions<SharedSecretVerifierOptions>().ValidateOnStart();
+            serviceCollection.AddOptions<Pbkdf2SecretVerifierOptions>().ValidateOnStart();
+            serviceCollection.AddOptions<SecretVerificationGateOptions>().ValidateOnStart();
+
+            return newBuilder;
+        }
+
+        /// <summary>
         /// Adds services required for persisting identity secrets, including serialization support.
         /// </summary>
         /// <returns>A new <see cref="IServiceBuilder{T}"/> for <see cref="SecretPersistenceLibrary"/>
@@ -47,6 +111,8 @@ public static class DefaultRegistration
         /// protected under the owner's master key.</description></item>
         /// <item><description><see cref="ISecretImporter"/> - Imports externally supplied secret key
         /// material.</description></item>
+        /// <item><description><see cref="IPublicJwksReader"/> - Reads a public JSON Web Key Set into verification-only
+        /// secret keys.</description></item>
         /// <item><description><see cref="ISecretVerifierSchemeCatalog"/> - Looks up the registered
         /// <see cref="ISecretVerifierScheme"/> instances, which the <see cref="SecretVerifierSchemes.Sha256"/> and
         /// <see cref="SecretVerifierSchemes.Pbkdf2Sha256"/> schemes join as a collection.</description></item>
@@ -93,52 +159,14 @@ public static class DefaultRegistration
         [PublicAPI]
         public IServiceBuilder<SecretPersistenceLibrary> AddPersistenceLibrary()
         {
-            var newBuilder = builder.NewBuilder<SecretPersistenceLibrary>();
+            var newBuilder = builder.AddSecretKeyFormats();
 
             var serviceCollection = builder.ServiceCollection;
-            serviceCollection.TryAddSingleton<ISecretSerializer, DefaultSecretSerializer>();
             serviceCollection.TryAddSingleton<ISecretGenerator, DefaultSecretGenerator>();
-            serviceCollection.TryAddSingleton<ISecretImporter, DefaultSecretImporter>();
             serviceCollection.TryAddSingleton<
                 IRemoteSecretDestroyer,
                 DefaultRemoteSecretDestroyer
             >();
-
-            // Shared secret verifiers: a package adds a scheme by registering another ISecretVerifierScheme, and a scheme
-            // with a work factor takes its turns from the one ISecretVerificationGate. See ADR-1391.
-            serviceCollection.TryAddSingleton<
-                ISecretVerifierSchemeCatalog,
-                DefaultSecretVerifierSchemeCatalog
-            >();
-            var sha256SecretVerifierScheme = ServiceDescriptor.Singleton<
-                ISecretVerifierScheme,
-                Sha256SecretVerifierScheme
-            >();
-            serviceCollection.TryAddEnumerable(sha256SecretVerifierScheme);
-            var pbkdf2SecretVerifierScheme = ServiceDescriptor.Singleton<
-                ISecretVerifierScheme,
-                Pbkdf2SecretVerifierScheme
-            >();
-            serviceCollection.TryAddEnumerable(pbkdf2SecretVerifierScheme);
-            serviceCollection.TryAddSingleton<
-                ISecretVerificationGate,
-                DefaultSecretVerificationGate
-            >();
-            var sharedSecretVerifierOptionsValidator = ServiceDescriptor.Singleton<
-                IValidateOptions<SharedSecretVerifierOptions>,
-                SharedSecretVerifierOptionsValidator
-            >();
-            serviceCollection.TryAddEnumerable(sharedSecretVerifierOptionsValidator);
-            var pbkdf2SecretVerifierOptionsValidator = ServiceDescriptor.Singleton<
-                IValidateOptions<Pbkdf2SecretVerifierOptions>,
-                Pbkdf2SecretVerifierOptionsValidator
-            >();
-            serviceCollection.TryAddEnumerable(pbkdf2SecretVerifierOptionsValidator);
-            var secretVerificationGateOptionsValidator = ServiceDescriptor.Singleton<
-                IValidateOptions<SecretVerificationGateOptions>,
-                SecretVerificationGateOptionsValidator
-            >();
-            serviceCollection.TryAddEnumerable(secretVerificationGateOptionsValidator);
 
             // Secret protection
             serviceCollection.TryAddSingleton(TimeProvider.System);
@@ -187,9 +215,6 @@ public static class DefaultRegistration
             serviceCollection.TryAddEnumerable(ownerRootKeyOptionsValidator);
             serviceCollection.AddOptions<SecretProtectionOptions>();
             serviceCollection.AddOptions<LocalKeyWrapperOptions>();
-            serviceCollection.AddOptions<SharedSecretVerifierOptions>().ValidateOnStart();
-            serviceCollection.AddOptions<Pbkdf2SecretVerifierOptions>().ValidateOnStart();
-            serviceCollection.AddOptions<SecretVerificationGateOptions>().ValidateOnStart();
 
             return newBuilder;
         }

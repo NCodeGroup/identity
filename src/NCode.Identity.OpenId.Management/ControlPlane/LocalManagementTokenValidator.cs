@@ -1,29 +1,125 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using System.Security.Claims;
+using System.Text.Json;
 using Microsoft.AspNetCore.Http;
+using NCode.Identity.Jose;
 using NCode.Identity.OpenId.Authentication.Tokens.Commands;
 using NCode.Identity.OpenId.Contexts;
+using NCode.Identity.OpenId.GlobalDirectory;
 using NCode.Identity.OpenId.PrincipalResolution;
 
 namespace NCode.Identity.OpenId.Management.ControlPlane;
 
 /// <summary>
 /// Validates a self-issued bearer or DPoP access token for the management audience against the tenant that the
-/// request's OpenID environment selects, and resolves the client the caller acts as. It never answers unavailable.
+/// request's OpenID environment selects, and resolves the client the caller acts as. On a platform with a directory it
+/// accepts only a DPoP-bound token sent under the <c>DPoP</c> scheme. It never answers unavailable.
 /// </summary>
 // See ADR-1466 and ADR-1044.
 internal sealed class LocalManagementTokenValidator(
-    IClientPrincipalResolver clientPrincipalResolver
+    IClientPrincipalResolver clientPrincipalResolver,
+    IPlatformTopology platformTopology
 ) : IManagementTokenValidator
 {
-    private const string BearerPrefix = "Bearer ";
-    private const string DPoPPrefix = "DPoP ";
-
     private static string[] ManagementAudiences { get; } =
     [OpenIdConstants.SystemResourceServerIdentifiers.Management];
 
+    /// <summary>
+    /// Determines whether the principal's <c>cnf</c> claim holds a JWK thumbprint.
+    /// </summary>
+    /// <param name="principal">The <see cref="ClaimsPrincipal"/> of the access token, if any.</param>
+    /// <returns>
+    /// <see langword="true"/> when the confirmation is a JSON object with a non-empty JWK thumbprint; otherwise,
+    /// <see langword="false"/>.
+    /// </returns>
+    private static bool HasConfirmationThumbprint(ClaimsPrincipal? principal)
+    {
+        var value = principal?.FindFirst(JoseClaimNames.Payload.Cnf)?.Value;
+        if (string.IsNullOrEmpty(value))
+            return false;
+
+        try
+        {
+            var confirmation = JsonElement.Parse(value);
+            return confirmation.ValueKind == JsonValueKind.Object
+                && confirmation.TryGetProperty(
+                    OpenIdProtocol.ConfirmationMethods.JwkThumbprint,
+                    out var thumbprint
+                )
+                && thumbprint.ValueKind == JsonValueKind.String
+                && HasText(thumbprint);
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Determines whether a JSON string element holds text.
+    /// </summary>
+    /// <param name="element">The JSON string <see cref="JsonElement"/> to check.</param>
+    /// <returns><see langword="true"/> when the string is not empty; otherwise, <see langword="false"/>.</returns>
+    private static bool HasText(JsonElement element)
+    {
+        var text = element.GetString();
+        return !string.IsNullOrEmpty(text);
+    }
+
+    /// <summary>
+    /// Reads the access token from the <c>Authorization</c> header, which names the <c>Bearer</c> or the <c>DPoP</c>
+    /// scheme.
+    /// </summary>
+    /// <param name="httpContext">The <see cref="HttpContext"/> of the request.</param>
+    /// <param name="token">When this method returns <see langword="true"/>, the access token.</param>
+    /// <param name="isDPoP">
+    /// <see langword="true"/> when the header names the <c>DPoP</c> scheme; otherwise, <see langword="false"/>.
+    /// </param>
+    /// <returns><see langword="true"/> when the header carries a non-empty token; otherwise,
+    /// <see langword="false"/>.</returns>
+    private static bool TryGetBearerToken(
+        HttpContext httpContext,
+        out string token,
+        out bool isDPoP
+    )
+    {
+        // Accept both the Bearer scheme and the DPoP scheme (RFC 9449 §7.1).
+        if (
+            ManagementAuthorizationHeader.TryReadToken(
+                httpContext,
+                OpenIdProtocol.TokenTypes.DPoP,
+                out var dpopToken
+            )
+        )
+        {
+            token = dpopToken;
+            isDPoP = true;
+            return true;
+        }
+
+        if (
+            ManagementAuthorizationHeader.TryReadToken(
+                httpContext,
+                OpenIdProtocol.TokenTypes.Bearer,
+                out var bearerToken
+            )
+        )
+        {
+            token = bearerToken;
+            isDPoP = false;
+            return true;
+        }
+
+        token = string.Empty;
+        isDPoP = false;
+        return false;
+    }
+
     private IClientPrincipalResolver ClientPrincipalResolver { get; } = clientPrincipalResolver;
+
+    private IPlatformTopology PlatformTopology { get; } = platformTopology;
 
     /// <inheritdoc />
     public async ValueTask<ManagementTokenValidation> ValidateAsync(
@@ -32,7 +128,14 @@ internal sealed class LocalManagementTokenValidator(
     )
     {
         var openIdContext = httpContext.GetOpenIdContextOrDefault();
-        if (openIdContext is null || !TryGetBearerToken(httpContext, out var accessToken))
+        if (
+            openIdContext is null
+            || !TryGetBearerToken(httpContext, out var accessToken, out var isDPoP)
+        )
+            return ManagementTokenValidation.Unauthenticated;
+
+        var requiresDPoP = PlatformTopology.HasDirectory;
+        if (requiresDPoP && !isDPoP)
             return ManagementTokenValidation.Unauthenticated;
 
         var command = new AuthenticateAccessTokenCommand(
@@ -48,6 +151,9 @@ internal sealed class LocalManagementTokenValidator(
         if (!disposition.IsAuthenticated)
             return ManagementTokenValidation.Unauthenticated;
 
+        if (requiresDPoP && !HasConfirmationThumbprint(disposition.Principal))
+            return ManagementTokenValidation.Unauthenticated;
+
         // The call is kept for the answer the request remembers, which the audit recorder reads after the
         // commit, so a change the request commits, such as a machine client deleting itself, does not alter
         // the actor its audit records.
@@ -59,23 +165,5 @@ internal sealed class LocalManagementTokenValidator(
         );
 
         return ManagementTokenValidation.Authenticated(disposition.Principal);
-    }
-
-    private static bool TryGetBearerToken(HttpContext httpContext, out string token)
-    {
-        var authorization = httpContext.Request.Headers.Authorization.ToString();
-
-        // Accept both the Bearer scheme and the DPoP scheme (RFC 9449 §7.1).
-        foreach (var prefix in (ReadOnlySpan<string>)[BearerPrefix, DPoPPrefix])
-        {
-            if (authorization.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
-            {
-                token = authorization[prefix.Length..].Trim();
-                return token.Length > 0;
-            }
-        }
-
-        token = string.Empty;
-        return false;
     }
 }

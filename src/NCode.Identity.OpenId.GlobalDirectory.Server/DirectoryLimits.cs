@@ -39,7 +39,7 @@ internal static class DirectoryLimits
     /// <summary>
     /// The most characters a cell's kind holds.
     /// </summary>
-    public const int MaxCellKindLength = 32;
+    public const int MaxCellKindLength = CellKindRules.MaxKindLength;
 
     /// <summary>
     /// The most characters a cell's management URL holds.
@@ -47,10 +47,21 @@ internal static class DirectoryLimits
     public const int MaxManagementUrlLength = 2000;
 
     /// <summary>
+    /// The most characters the kind of a replicated document holds.
+    /// </summary>
+    public const int MaxDocumentKindLength = 64;
+
+    /// <summary>
     /// The most bytes that the JSON of a published team or platform document holds, so a page of the change feed holds
     /// whole documents within the response a cell reads.
     /// </summary>
     public const int MaxDocumentBytes = 64 * 1024;
+
+    /// <summary>
+    /// The most bytes that the form body of a token request holds, room for a client assertion signed with the largest
+    /// RSA key that the directory accepts.
+    /// </summary>
+    public const int MaxTokenRequestBytes = 16 * 1024;
 
     /// <summary>
     /// The most bytes of documents that one page of the change feed holds, unless its first change alone holds more:

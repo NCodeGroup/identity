@@ -16,7 +16,7 @@ public sealed class DefaultDirectoryStoreMoveTests : DefaultDirectoryStoreTestBa
         string region,
         CancellationToken cancellationToken = default
     ) =>
-        await Cells.RegisterAsync(
+        await ReportCellAsync(
             new CellDescriptor
             {
                 Name = name,
@@ -197,11 +197,33 @@ public sealed class DefaultDirectoryStoreMoveTests : DefaultDirectoryStoreTestBa
 
         Assert.False(result.IsOffered);
         Assert.Equal(
-            $"The tenant '{ControlPlaneTenantId}' is the control-plane cell's root tenant, which DirectoryServer:ControlPlaneTenantId names, and it never leaves that cell.",
+            $"The tenant '{ControlPlaneTenantId}' is the control-plane cell's root tenant, which DirectoryServer:ControlPlane:TenantId names, and it never leaves that cell.",
             result.ConflictDetail
         );
         Assert.Null(await ReadMoveOfferAsync(ControlPlaneTenantId));
         Assert.Equal(ControlPlaneCell, (await ReadTenantAsync(ControlPlaneTenantId))?.Cell);
+    }
+
+    [Fact]
+    public async Task OfferMoveAsync_WhenTheTargetIsTheControlPlaneCell_ConflictsAndRecordsNoOffer()
+    {
+        await RegisterCellAsync(CellName, CellRegion);
+        await RegisterCellAsync(ControlPlaneCell, CellRegion);
+        await ReserveAndPlaceAsync(TenantId, Issuer);
+
+        var result = await Tenants.OfferMoveAsync(
+            TenantId,
+            CellName,
+            ControlPlaneCell,
+            CancellationToken.None
+        );
+
+        Assert.False(result.IsOffered);
+        Assert.Equal(
+            $"The cell '{ControlPlaneCell}' is the control-plane cell, which holds only the control-plane tenant, so it cannot hold the tenant '{TenantId}'.",
+            result.ConflictDetail
+        );
+        Assert.Null(await ReadMoveOfferAsync(TenantId));
     }
 
     #endregion
@@ -430,7 +452,7 @@ public sealed class DefaultDirectoryStoreMoveTests : DefaultDirectoryStoreTestBa
 
         Assert.False(result.IsMoved);
         Assert.Equal(
-            $"The tenant '{ControlPlaneTenantId}' is the control-plane cell's root tenant, which DirectoryServer:ControlPlaneTenantId names, and it never leaves that cell.",
+            $"The tenant '{ControlPlaneTenantId}' is the control-plane cell's root tenant, which DirectoryServer:ControlPlane:TenantId names, and it never leaves that cell.",
             result.ConflictDetail
         );
         Assert.Equal(ControlPlaneCell, (await ReadTenantAsync(ControlPlaneTenantId))?.Cell);

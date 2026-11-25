@@ -1,0 +1,190 @@
+// Copyright © NCode Group
+// SPDX-License-Identifier: Apache-2.0
+
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using NCode.Identity.OpenId.GlobalDirectory;
+using NCode.Identity.OpenId.Logging;
+using NCode.Identity.OpenId.Persistence.DataContracts;
+using NCode.Identity.OpenId.Persistence.Stores;
+using NCode.Identity.OpenId.Persistence.Tenants;
+using NCode.Identity.Persistence.Stores;
+using NCode.Identity.SharedState;
+
+namespace NCode.Identity.OpenId.Tenants.Keys;
+
+/// <summary>
+/// Sets the key custody of an incoming tenant to held once the global directory places the tenant in this cell. The
+/// service does nothing on a platform without a directory. Every <see cref="CellOptions.KeyCustodyReconcileInterval"/>
+/// one replica runs a pass, under a lease on the shared-state port keyed by the window: it lists the tenants whose
+/// custody is <see cref="TenantKeyCustody.Incoming"/>, reads each one's placement, and sets the custody of each tenant
+/// that the directory places in this cell to <see cref="TenantKeyCustody.Held"/> while it is still incoming, so a
+/// tenant whose custody changed since the pass listed it is left unchanged. A directory that cannot be reached skips
+/// the pass, and a tenant that cannot be handled is logged and left for the next pass.
+/// </summary>
+// See ADR-1536.
+internal sealed class TenantKeyCustodyReconciler(
+    IPlatformTopology platformTopology,
+    ITenantDirectory tenantDirectory,
+    IStoreManagerFactory storeManagerFactory,
+    IAmbientTenantAccessor ambientTenantAccessor,
+    IExpiringKeySet expiringKeySet,
+    IOptions<CellOptions> cellOptions,
+    TimeProvider timeProvider,
+    ILogger<TenantKeyCustodyReconciler> logger
+) : BackgroundService
+{
+    /// <summary>
+    /// The purpose that prefixes the key of the lease that one replica takes for each window.
+    /// </summary>
+    internal const string LeasePurpose = "tenant-key-custody-reconciler";
+
+    private IPlatformTopology PlatformTopology { get; } = platformTopology;
+    private ITenantDirectory TenantDirectory { get; } = tenantDirectory;
+    private IStoreManagerFactory StoreManagerFactory { get; } = storeManagerFactory;
+    private IAmbientTenantAccessor AmbientTenantAccessor { get; } = ambientTenantAccessor;
+    private IExpiringKeySet ExpiringKeySet { get; } = expiringKeySet;
+    private IOptions<CellOptions> CellOptionsAccessor { get; } = cellOptions;
+    private TimeSpan Interval => CellOptionsAccessor.Value.KeyCustodyReconcileInterval;
+    private TimeProvider TimeProvider { get; } = timeProvider;
+    private ILogger<TenantKeyCustodyReconciler> Logger { get; } = logger;
+
+    /// <inheritdoc />
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        if (!PlatformTopology.HasDirectory)
+            return;
+
+        try
+        {
+            await ReconcileAsync(stoppingToken);
+
+            using var timer = new PeriodicTimer(Interval, TimeProvider);
+            while (await timer.WaitForNextTickAsync(stoppingToken))
+            {
+                await ReconcileAsync(stoppingToken);
+            }
+        }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        {
+            // Expected on shutdown.
+        }
+    }
+
+    /// <summary>
+    /// Runs one pass, when this replica wins the lease of the current window. A pass that fails is logged and run again
+    /// at the next interval.
+    /// </summary>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation.</returns>
+    internal async ValueTask ReconcileAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await ReconcileCoreAsync(cancellationToken);
+        }
+        catch (DirectoryUnavailableException exception)
+        {
+            Logger.TenantKeyCustodyDirectoryUnavailable(exception);
+        }
+        // A timeout throws OperationCanceledException with the token untouched; only a cancelled token is shutdown.
+        catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
+        {
+            Logger.TenantKeyCustodyPassFailed(exception);
+        }
+    }
+
+    /// <summary>
+    /// Runs one reconciliation pass: when this replica wins the window's lease, it holds the key custody of each
+    /// incoming tenant that the directory places in this cell.
+    /// </summary>
+    /// <param name="cancellationToken">The token that cancels the pass.</param>
+    private async ValueTask ReconcileCoreAsync(CancellationToken cancellationToken)
+    {
+        if (!PlatformTopology.HasDirectory)
+            return;
+
+        // Replicas that run in one window share the key, so one of them runs the pass, and the lease expires at the
+        // window's end, so the next window's pass takes a lease of its own.
+        var window = TimeProvider.GetUtcNow().UtcTicks / Interval.Ticks;
+        var windowKey = $"{LeasePurpose}:{window}";
+        var leaseExpiresWhen = new DateTimeOffset((window + 1) * Interval.Ticks, TimeSpan.Zero);
+        if (!await ExpiringKeySet.TryAddAsync(windowKey, leaseExpiresWhen, cancellationToken))
+            return;
+
+        // The pass reads the tenants of every team, outside any request.
+        using var unscoped = AmbientTenantAccessor.BeginUnscoped(
+            "tenant key custody reconciliation"
+        );
+
+        IReadOnlyList<string> tenantIds;
+        await using (var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken))
+        {
+            var tenantStore = storeManager.GetStore<ITenantStore>();
+            tenantIds = await tenantStore.ListTenantIdsByKeyCustodyAsync(
+                TenantKeyCustody.Incoming,
+                cancellationToken
+            );
+        }
+
+        var cellName = CellOptionsAccessor.Value.Name;
+        foreach (var tenantId in tenantIds)
+        {
+            try
+            {
+                var placement = await TenantDirectory.GetPlacementOrDefaultAsync(
+                    tenantId,
+                    cancellationToken
+                );
+                if (placement is null || placement.Cell != cellName)
+                    continue;
+
+                await HoldAsync(tenantId, cancellationToken);
+            }
+            catch (DirectoryUnavailableException)
+            {
+                throw;
+            }
+            catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
+            {
+                Logger.TenantKeyCustodyTenantFailed(tenantId, exception);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Sets a tenant's key custody to held when the tenant is still incoming; a tenant whose custody changed since the
+    /// pass listed it is left unchanged. The tenant is read and written through one store manager, so its concurrency
+    /// token covers the check and the write together, and a writer that lands in between fails the save.
+    /// </summary>
+    /// <param name="tenantId">The tenant whose keys this cell now holds.</param>
+    /// <param name="cancellationToken">The token that cancels the operation.</param>
+    private async ValueTask HoldAsync(string tenantId, CancellationToken cancellationToken)
+    {
+        await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
+        var tenantStore = storeManager.GetStore<ITenantStore>();
+        var tenant = await tenantStore.GetOrDefaultAsync(tenantId, cancellationToken);
+        if (
+            tenant is null
+            || !string.Equals(
+                tenant.KeyCustody,
+                TenantKeyCustody.Incoming,
+                StringComparison.Ordinal
+            )
+        )
+            return;
+
+        var exists = await tenantStore.SetKeyCustodyAsync(
+            tenantId,
+            TenantKeyCustody.Held,
+            null,
+            cancellationToken
+        );
+        if (!exists)
+            return;
+
+        await storeManager.SaveChangesAsync(cancellationToken);
+        Logger.TenantKeyCustodyHeld(tenantId);
+    }
+}

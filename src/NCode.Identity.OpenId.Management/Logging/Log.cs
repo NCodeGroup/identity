@@ -178,4 +178,19 @@ internal static partial class Log
         string tenantId,
         Exception exception
     );
+
+    /// <summary>
+    /// Logs that setting the key custody of an imported tenant to held did not complete after the directory committed
+    /// the move.
+    /// </summary>
+    [LoggerMessage(
+        EventId = EventIds.TenantKeyCustodyHeldFailed,
+        Level = LogLevel.Warning,
+        Message = "Setting the key custody of the imported tenant '{TenantId}' to held did not complete after the directory committed the move"
+    )]
+    internal static partial void TenantKeyCustodyHeldFailed(
+        this ILogger logger,
+        string tenantId,
+        Exception exception
+    );
 }

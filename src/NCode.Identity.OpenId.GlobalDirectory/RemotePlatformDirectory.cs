@@ -24,7 +24,12 @@ internal sealed class RemotePlatformDirectory(DirectoryHttpClient client) : IPla
     {
         ArgumentNullException.ThrowIfNull(document);
 
-        var response = await Client.SendAsync(HttpMethod.Put, Path, document, cancellationToken);
+        using var response = await Client.SendAsync(
+            HttpMethod.Put,
+            Path,
+            document,
+            cancellationToken
+        );
 
         response.EnsureSuccess("publish the platform document");
     }
@@ -32,7 +37,12 @@ internal sealed class RemotePlatformDirectory(DirectoryHttpClient client) : IPla
     /// <inheritdoc />
     public async ValueTask<PlatformDocument?> GetOrDefaultAsync(CancellationToken cancellationToken)
     {
-        var response = await Client.SendAsync(HttpMethod.Get, Path, body: null, cancellationToken);
+        using var response = await Client.SendAsync(
+            HttpMethod.Get,
+            Path,
+            body: null,
+            cancellationToken
+        );
 
         if (response.IsNotFound)
             return null;

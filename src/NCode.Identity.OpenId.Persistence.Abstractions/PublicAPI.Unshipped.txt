@@ -785,3 +785,75 @@ NCode.Identity.OpenId.Persistence.Stores.IConnectionStore.GetOrDefaultAsync(stri
 NCode.Identity.OpenId.Persistence.Stores.IConnectionStore.GetPageAsync(NCode.Identity.Persistence.Stores.PageRequest page, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.Persistence.Stores.PagedResult<NCode.Identity.OpenId.Persistence.DataContracts.PersistedConnection!>!>
 NCode.Identity.OpenId.Persistence.Stores.IConnectionStore.RemoveAsync(string! connectionId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 NCode.Identity.OpenId.Persistence.Stores.IConnectionStore.UpdateSettingsAsync(NCode.Identity.OpenId.Persistence.DataContracts.PersistedConnectionSettings! persistedConnectionSettings, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+const NCode.Identity.OpenId.Persistence.DataContracts.PersistedRevokedManagementKey.ControlPlaneSource = "control-plane" -> string!
+const NCode.Identity.OpenId.Persistence.DataContracts.PersistedRevokedManagementKey.OfflineSource = "offline" -> string!
+NCode.Identity.OpenId.Persistence.DataContracts.PersistedReplicatedDocument
+NCode.Identity.OpenId.Persistence.DataContracts.PersistedReplicatedDocument.ContentJson.get -> string?
+NCode.Identity.OpenId.Persistence.DataContracts.PersistedReplicatedDocument.ContentJson.init -> void
+NCode.Identity.OpenId.Persistence.DataContracts.PersistedReplicatedDocument.Key.get -> string!
+NCode.Identity.OpenId.Persistence.DataContracts.PersistedReplicatedDocument.Key.init -> void
+NCode.Identity.OpenId.Persistence.DataContracts.PersistedReplicatedDocument.Kind.get -> string!
+NCode.Identity.OpenId.Persistence.DataContracts.PersistedReplicatedDocument.Kind.init -> void
+NCode.Identity.OpenId.Persistence.DataContracts.PersistedReplicatedDocument.PersistedReplicatedDocument() -> void
+NCode.Identity.OpenId.Persistence.DataContracts.PersistedReplicatedDocument.Revision.get -> long
+NCode.Identity.OpenId.Persistence.DataContracts.PersistedReplicatedDocument.Revision.init -> void
+NCode.Identity.OpenId.Persistence.DataContracts.PersistedRevokedManagementKey
+NCode.Identity.OpenId.Persistence.DataContracts.PersistedRevokedManagementKey.KeyId.get -> string!
+NCode.Identity.OpenId.Persistence.DataContracts.PersistedRevokedManagementKey.KeyId.init -> void
+NCode.Identity.OpenId.Persistence.DataContracts.PersistedRevokedManagementKey.PersistedRevokedManagementKey() -> void
+NCode.Identity.OpenId.Persistence.DataContracts.PersistedRevokedManagementKey.RevokedWhen.get -> System.DateTimeOffset
+NCode.Identity.OpenId.Persistence.DataContracts.PersistedRevokedManagementKey.RevokedWhen.init -> void
+NCode.Identity.OpenId.Persistence.DataContracts.PersistedRevokedManagementKey.Source.get -> string!
+NCode.Identity.OpenId.Persistence.DataContracts.PersistedRevokedManagementKey.Source.init -> void
+NCode.Identity.OpenId.Persistence.Stores.IReplicatedDocumentStore
+NCode.Identity.OpenId.Persistence.Stores.IReplicatedDocumentStore.AddRevokedKeyAsync(NCode.Identity.OpenId.Persistence.DataContracts.PersistedRevokedManagementKey! revokedKey, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+NCode.Identity.OpenId.Persistence.Stores.IReplicatedDocumentStore.GetManyAsync(string! kind, System.Collections.Generic.IReadOnlyCollection<string!>! keys, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<NCode.Identity.OpenId.Persistence.DataContracts.PersistedReplicatedDocument!>!>
+NCode.Identity.OpenId.Persistence.Stores.IReplicatedDocumentStore.GetOrDefaultAsync(string! kind, string! key, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.Persistence.DataContracts.PersistedReplicatedDocument?>
+NCode.Identity.OpenId.Persistence.Stores.IReplicatedDocumentStore.ListByKindAsync(string! kind, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<NCode.Identity.OpenId.Persistence.DataContracts.PersistedReplicatedDocument!>!>
+NCode.Identity.OpenId.Persistence.Stores.IReplicatedDocumentStore.ListRevokedKeysAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<NCode.Identity.OpenId.Persistence.DataContracts.PersistedRevokedManagementKey!>!>
+NCode.Identity.OpenId.Persistence.Stores.IReplicatedDocumentStore.TryApplyAsync(NCode.Identity.OpenId.Persistence.DataContracts.PersistedReplicatedDocument! document, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<bool>
+NCode.Identity.OpenId.Persistence.DataContracts.PersistedDirectoryOutboxEntry
+NCode.Identity.OpenId.Persistence.DataContracts.PersistedDirectoryOutboxEntry.PersistedDirectoryOutboxEntry() -> void
+NCode.Identity.OpenId.Persistence.DataContracts.PersistedDirectoryOutboxEntry.ContentJson.get -> string?
+NCode.Identity.OpenId.Persistence.DataContracts.PersistedDirectoryOutboxEntry.ContentJson.init -> void
+NCode.Identity.OpenId.Persistence.DataContracts.PersistedDirectoryOutboxEntry.CreatedWhen.get -> System.DateTimeOffset
+NCode.Identity.OpenId.Persistence.DataContracts.PersistedDirectoryOutboxEntry.CreatedWhen.init -> void
+NCode.Identity.OpenId.Persistence.DataContracts.PersistedDirectoryOutboxEntry.Key.get -> string!
+NCode.Identity.OpenId.Persistence.DataContracts.PersistedDirectoryOutboxEntry.Key.init -> void
+NCode.Identity.OpenId.Persistence.DataContracts.PersistedDirectoryOutboxEntry.Kind.get -> string!
+NCode.Identity.OpenId.Persistence.DataContracts.PersistedDirectoryOutboxEntry.Kind.init -> void
+NCode.Identity.OpenId.Persistence.DataContracts.PersistedDirectoryOutboxEntry.Revision.get -> long
+NCode.Identity.OpenId.Persistence.DataContracts.PersistedDirectoryOutboxEntry.Revision.init -> void
+NCode.Identity.OpenId.Persistence.DataContracts.PersistedDirectoryOutboxEntry.Sequence.get -> long
+NCode.Identity.OpenId.Persistence.DataContracts.PersistedDirectoryOutboxEntry.Sequence.init -> void
+NCode.Identity.OpenId.Persistence.DataContracts.PersistedSourceRevision
+NCode.Identity.OpenId.Persistence.DataContracts.PersistedSourceRevision.PersistedSourceRevision() -> void
+NCode.Identity.OpenId.Persistence.DataContracts.PersistedSourceRevision.Key.get -> string!
+NCode.Identity.OpenId.Persistence.DataContracts.PersistedSourceRevision.Key.init -> void
+NCode.Identity.OpenId.Persistence.DataContracts.PersistedSourceRevision.Kind.get -> string!
+NCode.Identity.OpenId.Persistence.DataContracts.PersistedSourceRevision.Kind.init -> void
+NCode.Identity.OpenId.Persistence.DataContracts.PersistedSourceRevision.Revision.get -> long
+NCode.Identity.OpenId.Persistence.DataContracts.PersistedSourceRevision.Revision.init -> void
+NCode.Identity.OpenId.Persistence.Stores.IDirectoryOutboxStore
+NCode.Identity.OpenId.Persistence.Stores.IDirectoryOutboxStore.EnqueueCurrentAsync(string! kind, string! key, long revision, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+NCode.Identity.OpenId.Persistence.Stores.IDirectoryOutboxStore.ListPendingAsync(int limit, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<NCode.Identity.OpenId.Persistence.DataContracts.PersistedDirectoryOutboxEntry!>!>
+NCode.Identity.OpenId.Persistence.Stores.IDirectoryOutboxStore.ListSourceRevisionsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<NCode.Identity.OpenId.Persistence.DataContracts.PersistedSourceRevision!>!>
+NCode.Identity.OpenId.Persistence.Stores.IDirectoryOutboxStore.RemoveThroughAsync(string! kind, string! key, long revision, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+NCode.Identity.OpenId.Persistence.Stores.IDirectoryOutboxNotifier
+NCode.Identity.OpenId.Persistence.Stores.IDirectoryOutboxNotifier.Notify() -> void
+NCode.Identity.OpenId.Persistence.Stores.IDirectoryOutboxPolicy
+NCode.Identity.OpenId.Persistence.Stores.IDirectoryOutboxPolicy.ControlPlaneTenantId.get -> string!
+NCode.Identity.OpenId.Persistence.Stores.IDirectoryOutboxPolicy.IsPublishing.get -> bool
+const NCode.Identity.OpenId.Persistence.OpenIdMaxLengths.KeyCustody = 16 -> int
+NCode.Identity.OpenId.Persistence.DataContracts.PersistedTenant.KeyCustody.get -> string!
+NCode.Identity.OpenId.Persistence.DataContracts.PersistedTenant.KeyCustody.set -> void
+NCode.Identity.OpenId.Persistence.DataContracts.PersistedTenant.KeyCustodyCell.get -> string?
+NCode.Identity.OpenId.Persistence.DataContracts.PersistedTenant.KeyCustodyCell.set -> void
+NCode.Identity.OpenId.Persistence.DataContracts.TenantKeyCustody
+const NCode.Identity.OpenId.Persistence.DataContracts.TenantKeyCustody.Held = "held" -> string!
+const NCode.Identity.OpenId.Persistence.DataContracts.TenantKeyCustody.Incoming = "incoming" -> string!
+const NCode.Identity.OpenId.Persistence.DataContracts.TenantKeyCustody.Outgoing = "outgoing" -> string!
+static NCode.Identity.OpenId.Persistence.DataContracts.TenantKeyCustody.IsHeld(string! custody) -> bool
+NCode.Identity.OpenId.Persistence.Stores.ITenantStore.SetKeyCustodyAsync(string! tenantId, string! custody, string? cell, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<bool>
+NCode.Identity.OpenId.Persistence.Stores.ITenantStore.ListTenantIdsByKeyCustodyAsync(string! custody, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<string!>!>
+const NCode.Identity.OpenId.Persistence.OpenIdResourceTypes.Cell = "cell" -> string!
