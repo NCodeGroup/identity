@@ -291,6 +291,36 @@ public class DirectoryReplicatedDocumentEndpointsTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task PutManagementKeys_FromAnotherCell_AnswersForbidden()
+    {
+        await AuthenticateAsync(CellName);
+        var document = CreateDocument(ReplicatedDocumentKinds.ManagementKeys, "", 1);
+
+        var response = await Client.PutAsJsonAsync(
+            GlobalDirectoryProtocol.ManagementKeysPath,
+            document,
+            WebOptions
+        );
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task PutTeamAuthority_WithAnInvalidTeamIdFromAnotherCell_AnswersForbidden()
+    {
+        await AuthenticateAsync(CellName);
+        var document = CreateDocument(ReplicatedDocumentKinds.TeamAuthority, "Bad_Team!", 1);
+
+        var response = await Client.PutAsJsonAsync(
+            "/directory/v1/teams/Bad_Team!/authority",
+            document,
+            WebOptions
+        );
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
     public async Task GetTeamAuthority_WhenNonePublished_AnswersNotFound()
     {
         await AuthenticateAsync(CellName);
@@ -371,6 +401,24 @@ public class DirectoryReplicatedDocumentEndpointsTests : IAsyncLifetime
 
         Assert.Single(page.Revisions);
         Assert.Null(page.Continuation);
+    }
+
+    [Fact]
+    public async Task ListRevisions_WhenTheLimitIsAboveTheMaximum_ReturnsAtMostTheMaximum()
+    {
+        await AuthenticateAsync(ControlPlaneCell);
+        for (var index = 0; index < 1001; index++)
+        {
+            var key = $"team-{index:D4}";
+            await StoreDirectlyAsync(CreateDocument(ReplicatedDocumentKinds.TeamAuthority, key, 1));
+        }
+
+        var page = await GetPageAsync(
+            $"{GlobalDirectoryProtocol.ReplicatedRevisionsPath}?limit=1000000"
+        );
+
+        Assert.Equal(1000, page.Revisions.Count);
+        Assert.NotNull(page.Continuation);
     }
 
     [Fact]

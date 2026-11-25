@@ -26,10 +26,11 @@ namespace NCode.Identity.OpenId.GlobalDirectory.Server;
 /// token. Every other route requires a bearer access token that the directory issued, for the audience
 /// <see cref="GlobalDirectoryProtocol.DirectoryAudience"/> with the scope
 /// <see cref="GlobalDirectoryProtocol.DirectoryScope"/>, checked before the route runs. Every route waits for the
-/// platform's trust anchor, its bodies are confidential so HTTP logging never writes them, and every failure, a lookup
-/// that finds nothing included, is an RFC 9457 problem document: a missing resource is a <c>404 Not Found</c> problem,
-/// never an empty body. Every write is bound to the calling cell: the platform and team writes need the control-plane
-/// cell (<see cref="DirectoryControlPlaneOptions.Cell"/>), and a tenant write needs the cell that holds the tenant.
+/// platform's trust anchor and its bodies are confidential, so HTTP logging never writes them. The token endpoint
+/// answers a failure with an RFC 6749 section 5.2 error document, and every other route answers it, a lookup that finds
+/// nothing included, with an RFC 9457 problem document: a missing resource is a <c>404 Not Found</c> problem, never an
+/// empty body. Every write is bound to the calling cell: the platform and team writes need the control-plane cell
+/// (<see cref="DirectoryControlPlaneOptions.Cell"/>), and a tenant write needs the cell that holds the tenant.
 /// </summary>
 // See ADR-1411. DirectoryAuthenticationGate checks the token before the route binds its body.
 [PublicAPI]
@@ -38,8 +39,26 @@ public static class DirectoryEndpoints
     private const string RoutePrefix = "directory/v1";
     private const string TokenRoute = "token";
 
+    /// <summary>
+    /// The page size of the team change feed when the caller names none.
+    /// </summary>
     private const int DefaultChangesLimit = 100;
+
+    /// <summary>
+    /// The largest page size of the team change feed.
+    /// </summary>
     private const int MaxChangesLimit = 1000;
+
+    /// <summary>
+    /// The page size of the replicated revisions listing when the caller names none. The control-plane cell reads the
+    /// whole set when it starts, so it defaults to the maximum.
+    /// </summary>
+    private const int DefaultRevisionsLimit = 1000;
+
+    /// <summary>
+    /// The largest page size of the replicated revisions listing.
+    /// </summary>
+    private const int MaxRevisionsLimit = 1000;
 
     private const string TenantWriteForbiddenDetail =
         "Only the cell that holds a tenant, or the control-plane cell, writes it.";
@@ -325,9 +344,7 @@ public static class DirectoryEndpoints
         CancellationToken cancellationToken
     )
     {
-        var headers = httpContext.Response.Headers;
-        headers.CacheControl = "no-store";
-        headers.Pragma = "no-cache";
+        httpContext.Response.SetNoStore();
 
         var form = await httpContext.Request.TryReadFormAsync(cancellationToken);
         if (form is null)
@@ -1094,22 +1111,25 @@ public static class DirectoryEndpoints
     /// <param name="directory">The <see cref="IReplicatedDocumentDirectory"/> that holds the document.</param>
     /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
     /// <returns>See <see cref="PublishReplicatedAsync"/>.</returns>
-    private static ValueTask<IResult> PublishPlatformAuthorityAsync(
+    private static async ValueTask<IResult> PublishPlatformAuthorityAsync(
         ReplicatedDocument document,
         HttpContext httpContext,
         IOptions<DirectoryServerOptions> options,
         IReplicatedDocumentDirectory directory,
         CancellationToken cancellationToken
-    ) =>
-        PublishReplicatedAsync(
+    )
+    {
+        if (ForbidUnlessControlPlane(httpContext, options.Value) is { } forbidden)
+            return forbidden;
+
+        return await PublishReplicatedAsync(
             ReplicatedDocumentKinds.PlatformAuthority,
             string.Empty,
             document,
-            httpContext,
-            options.Value,
             directory,
             cancellationToken
         );
+    }
 
     /// <summary>
     /// Publishes the management keys document. Only the control-plane cell publishes it.
@@ -1120,22 +1140,25 @@ public static class DirectoryEndpoints
     /// <param name="directory">The <see cref="IReplicatedDocumentDirectory"/> that holds the document.</param>
     /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
     /// <returns>See <see cref="PublishReplicatedAsync"/>.</returns>
-    private static ValueTask<IResult> PublishManagementKeysAsync(
+    private static async ValueTask<IResult> PublishManagementKeysAsync(
         ReplicatedDocument document,
         HttpContext httpContext,
         IOptions<DirectoryServerOptions> options,
         IReplicatedDocumentDirectory directory,
         CancellationToken cancellationToken
-    ) =>
-        PublishReplicatedAsync(
+    )
+    {
+        if (ForbidUnlessControlPlane(httpContext, options.Value) is { } forbidden)
+            return forbidden;
+
+        return await PublishReplicatedAsync(
             ReplicatedDocumentKinds.ManagementKeys,
             string.Empty,
             document,
-            httpContext,
-            options.Value,
             directory,
             cancellationToken
         );
+    }
 
     /// <summary>
     /// Publishes a team's authority document. Only the control-plane cell publishes it.
@@ -1167,8 +1190,6 @@ public static class DirectoryEndpoints
             ReplicatedDocumentKinds.TeamAuthority,
             teamId,
             document,
-            httpContext,
-            options.Value,
             directory,
             cancellationToken
         );
@@ -1180,29 +1201,21 @@ public static class DirectoryEndpoints
     /// <param name="kind">The kind that the route names.</param>
     /// <param name="key">The key that the route names.</param>
     /// <param name="document">The <see cref="ReplicatedDocument"/> to publish.</param>
-    /// <param name="httpContext">The <see cref="HttpContext"/> that carries the authenticated calling cell.</param>
-    /// <param name="options">The <see cref="DirectoryServerOptions"/> that name the control-plane cell.</param>
     /// <param name="directory">The <see cref="IReplicatedDocumentDirectory"/> that holds the document.</param>
     /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
     /// <returns>
     /// <c>200 OK</c> with the stored revision, which is the document's when it was higher and the stored one otherwise;
-    /// <c>403 Forbidden</c> when the caller is not the control-plane cell; <c>400 Bad Request</c> when the document's
-    /// kind or key is not the route's; or <c>413 Payload Too Large</c> when its content is longer than
-    /// <see cref="DirectoryLimits.MaxDocumentBytes"/> bytes.
+    /// <c>400 Bad Request</c> when the document's kind or key is not the route's; or <c>413 Payload Too Large</c> when
+    /// its content is longer than <see cref="DirectoryLimits.MaxDocumentBytes"/> bytes.
     /// </returns>
     private static async ValueTask<IResult> PublishReplicatedAsync(
         string kind,
         string key,
         ReplicatedDocument document,
-        HttpContext httpContext,
-        DirectoryServerOptions options,
         IReplicatedDocumentDirectory directory,
         CancellationToken cancellationToken
     )
     {
-        if (ForbidUnlessControlPlane(httpContext, options) is { } forbidden)
-            return forbidden;
-
         var isRoute =
             string.Equals(document.Kind, kind, StringComparison.Ordinal)
             && string.Equals(document.Key, key, StringComparison.OrdinalIgnoreCase);
@@ -1335,7 +1348,7 @@ public static class DirectoryEndpoints
         if (after is not null && !ReplicatedRevisionPage.TryParseContinuation(after, out _, out _))
             return BadRequest("The continuation is not valid.");
 
-        var boundedLimit = Math.Clamp(limit ?? DefaultChangesLimit, 1, MaxChangesLimit);
+        var boundedLimit = Math.Clamp(limit ?? DefaultRevisionsLimit, 1, MaxRevisionsLimit);
         var page = await directory.ListRevisionsAsync(after, boundedLimit, cancellationToken);
         return TypedResults.Ok(page);
     }
@@ -1810,7 +1823,11 @@ public static class DirectoryEndpoints
                 .WithConfidentialBodies();
 
             // The token endpoint is outside the authentication gate: its client assertion is its authentication.
+            var tokenRequestSizeLimit = new RequestSizeLimitAttribute(
+                DirectoryLimits.MaxTokenRequestBytes
+            );
             root.MapPost(TokenRoute, TokenAsync)
+                .WithMetadata(tokenRequestSizeLimit)
                 .Produces(StatusCodes.Status200OK)
                 .Produces(StatusCodes.Status400BadRequest)
                 .Produces(StatusCodes.Status401Unauthorized)
@@ -1829,6 +1846,7 @@ public static class DirectoryEndpoints
                 .ProducesProblem(StatusCodes.Status404NotFound);
             group
                 .MapGet("replicated-revisions", ListReplicatedRevisionsAsync)
+                .ProducesProblem(StatusCodes.Status400BadRequest)
                 .ProducesProblem(StatusCodes.Status403Forbidden);
             var teamsGroup = group.MapGroup("teams");
             MapTeams(teamsGroup);

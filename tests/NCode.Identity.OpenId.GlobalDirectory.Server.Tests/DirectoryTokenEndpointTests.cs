@@ -204,6 +204,7 @@ public sealed class DirectoryTokenEndpointTests : IAsyncLifetime
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Contains("no-store", response.Headers.CacheControl?.ToString());
+        Assert.Contains("no-cache", response.Headers.Pragma.ToString());
         var body = await response.Content.ReadFromJsonAsync<JsonElement>();
         Assert.Equal("Bearer", body.GetProperty("token_type").GetString());
         Assert.Equal(300, body.GetProperty("expires_in").GetInt64());

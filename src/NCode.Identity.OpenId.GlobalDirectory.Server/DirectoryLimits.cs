@@ -58,6 +58,12 @@ internal static class DirectoryLimits
     public const int MaxDocumentBytes = 64 * 1024;
 
     /// <summary>
+    /// The most bytes that the form body of a token request holds, room for a client assertion signed with the largest
+    /// RSA key that the directory accepts.
+    /// </summary>
+    public const int MaxTokenRequestBytes = 16 * 1024;
+
+    /// <summary>
     /// The most bytes of documents that one page of the change feed holds, unless its first change alone holds more:
     /// below the 1 MiB that a cell reads from one response, with room for the rest of each change.
     /// </summary>

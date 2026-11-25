@@ -2835,5 +2835,46 @@ public class DirectoryEndpointsTests : IAsyncLifetime
         Assert.DoesNotContain(StatusCodes.Status422UnprocessableEntity, statusCodes);
     }
 
+    [Fact]
+    public void MapDirectoryEndpoints_ReplicatedRevisionsRoute_DeclaresBadRequestAndForbidden()
+    {
+        var app = App ?? throw new InvalidOperationException();
+        var dataSource = app.Services.GetRequiredService<EndpointDataSource>();
+
+        var endpoint = Assert.Single(
+            dataSource.Endpoints.OfType<RouteEndpoint>(),
+            candidate =>
+                candidate.RoutePattern.RawText?.EndsWith(
+                    "/replicated-revisions",
+                    StringComparison.Ordinal
+                ) == true
+        );
+        var statusCodes = endpoint
+            .Metadata.GetOrderedMetadata<IProducesResponseTypeMetadata>()
+            .Select(metadata => metadata.StatusCode)
+            .ToHashSet();
+
+        Assert.Contains(StatusCodes.Status400BadRequest, statusCodes);
+        Assert.Contains(StatusCodes.Status403Forbidden, statusCodes);
+    }
+
+    [Fact]
+    public void MapDirectoryEndpoints_TokenRoute_LimitsTheRequestBody()
+    {
+        var app = App ?? throw new InvalidOperationException();
+        var dataSource = app.Services.GetRequiredService<EndpointDataSource>();
+
+        var endpoint = Assert.Single(
+            dataSource.Endpoints.OfType<RouteEndpoint>(),
+            candidate =>
+                candidate.RoutePattern.RawText?.EndsWith("/token", StringComparison.Ordinal) == true
+        );
+
+        Assert.Equal(
+            DirectoryLimits.MaxTokenRequestBytes,
+            endpoint.Metadata.GetMetadata<IRequestSizeLimitMetadata>()?.MaxRequestBodySize
+        );
+    }
+
     #endregion
 }
