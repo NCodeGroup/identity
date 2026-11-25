@@ -3,6 +3,7 @@
 
 using System.Buffers.Text;
 using System.Collections.Concurrent;
+using System.Globalization;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
@@ -15,14 +16,20 @@ using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Logging;
 using NCode.Buffers;
 using NCode.Identity.Jose;
 using NCode.Identity.Jwt;
+using NCode.Identity.OpenId.Accounts.DataContracts;
 using NCode.Identity.OpenId.Client;
 using NCode.Identity.OpenId.GlobalDirectory;
 using NCode.Identity.OpenId.GlobalDirectory.Host;
 using NCode.Identity.OpenId.GlobalDirectory.Server;
+using NCode.Identity.OpenId.Persistence.Stores;
+using NCode.Identity.OpenId.Persistence.Tenants;
+using NCode.Identity.OpenId.Setup;
+using NCode.Identity.Persistence.Stores;
 using NCode.Identity.Secrets;
 using NCode.Identity.Secrets.Collections;
 using NCode.Identity.Secrets.KeyMaterial;
@@ -78,6 +85,7 @@ public sealed class PlatformHarness : IAsyncDisposable
     // The directory client's HTTP client is internal to the directory client library, so its name is repeated here.
     private const string DirectoryHttpClientName = "NCode.Identity.OpenId.GlobalDirectory";
 
+    private const string UserClientRedirectUri = "https://harness.test/callback";
     private const string Region = "region-1";
     private const string ControlPlaneKind = "primary";
     private const string KeyRingName = "directory-client";
@@ -394,6 +402,347 @@ public sealed class PlatformHarness : IAsyncDisposable
     }
 
     /// <summary>
+    /// Creates an HTTP client that sends its requests to one cell through <see cref="Router"/>, with automatic
+    /// redirects and cookies off, as an end-user's browser is driven.
+    /// </summary>
+    /// <param name="cellName">The name of the cell.</param>
+    /// <returns>The client, which the caller disposes and which does not end the router.</returns>
+    public HttpClient CreateBrowser(string cellName) =>
+        new(Router, disposeHandler: false) { BaseAddress = new Uri(GetCellUrl(cellName)) };
+
+    /// <summary>
+    /// Seeds an enabled local account in a tenant of a cell, in the tenant's <c>local</c> connection.
+    /// </summary>
+    /// <param name="cellName">The name of the cell.</param>
+    /// <param name="tenantId">The identifier of the tenant that the cell serves.</param>
+    /// <param name="userName">The account's username.</param>
+    /// <param name="password">The account's password, which the policy does not judge.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    public async ValueTask SeedLocalAccountAsync(
+        string cellName,
+        string tenantId,
+        string userName,
+        string password,
+        CancellationToken cancellationToken
+    )
+    {
+        await EnsureTenantPersistedAsync(cellName, cancellationToken);
+
+        using var scope = new TenantServiceScope(GetCell(cellName).Services, tenantId);
+        var serviceProvider = scope.ServiceProvider;
+        var storeManagerFactory = serviceProvider.GetRequiredService<IStoreManagerFactory>();
+        await using var storeManager = await storeManagerFactory.CreateAsync(cancellationToken);
+        var connection = await HostApplicationFactory.GetLocalConnectionAsync(
+            storeManager,
+            cancellationToken
+        );
+        var store = HostApplicationFactory.GetLocalAccountStore(
+            serviceProvider,
+            storeManager,
+            connection
+        );
+        var account = new PersistedLocalAccount
+        {
+            TenantId = tenantId,
+            ConnectionId = connection.ConnectionId,
+            LocalAccountId = Guid.NewGuid().ToString("N"),
+            UserName = userName,
+            DisplayName = userName,
+            Email = null,
+            EmailVerified = false,
+            IsEnabled = true,
+            Claims = [],
+            ConcurrencyToken = string.Empty,
+        };
+        await store.AddAsync(account, SecureEncoding.UTF8.GetBytes(password), cancellationToken);
+        await storeManager.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Creates the administrator of cell B's management tenant, who holds <c>CellAdmin</c> at the cell's node, as the
+    /// <c>recover-admin</c> command does.
+    /// </summary>
+    /// <param name="userName">The administrator's username.</param>
+    /// <param name="password">The administrator's password.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    public async ValueTask RecoverCellAdministratorAsync(
+        string userName,
+        string password,
+        CancellationToken cancellationToken
+    )
+    {
+        await EnsureTenantPersistedAsync(CellBName, cancellationToken);
+
+        await using var scope = CellB.Services.CreateAsyncScope();
+        var result = await scope
+            .ServiceProvider.GetRequiredService<IAdministratorRecoveryService>()
+            .RecoverAsync(
+                new RecoveryAdminOptions { UserName = userName, Password = password },
+                cancellationToken
+            );
+        if (result.Error is { } error)
+        {
+            throw new InvalidOperationException(
+                $"Recovering the cell administrator answered {error.StatusCode}: {error.Detail}"
+            );
+        }
+    }
+
+    /// <summary>
+    /// Registers a client in a tenant of a cell through the management API, for the authorization code flow with a
+    /// shared secret, so a user of the tenant can get a management token.
+    /// </summary>
+    /// <param name="administrator">A caller whose token the cell accepts and who may create clients in the
+    /// tenant.</param>
+    /// <param name="cellName">The name of the cell.</param>
+    /// <param name="tenantId">The identifier of the tenant that the client belongs to.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    /// <returns>The client's credentials.</returns>
+    public static async ValueTask<UserClient> RegisterUserClientAsync(
+        ManagementCaller administrator,
+        string cellName,
+        string tenantId,
+        CancellationToken cancellationToken
+    )
+    {
+        var baseUrl = $"{GetCellUrl(cellName)}/api/tenants/{tenantId}/clients";
+        using var created = await administrator.SendAsync(
+            HttpMethod.Post,
+            baseUrl,
+            new
+            {
+                isDisabled = false,
+                settings = new Dictionary<string, object>
+                {
+                    ["token_endpoint_auth_method"] = OpenIdProtocol
+                        .ClientAuthenticationMethods
+                        .ClientSecretBasic,
+                    ["redirect_uris"] = new[] { UserClientRedirectUri },
+                },
+            },
+            cancellationToken
+        );
+        var createdBody = await created.Content.ReadAsStringAsync(cancellationToken);
+        if (created.StatusCode != HttpStatusCode.Created)
+        {
+            throw new InvalidOperationException(
+                $"Creating the client in '{tenantId}' answered {(int)created.StatusCode}: {createdBody}"
+            );
+        }
+
+        var clientId =
+            JsonElement.Parse(createdBody).GetProperty("clientId").GetString()
+            ?? throw new InvalidOperationException("The created client has no identifier.");
+
+        using var secret = await administrator.SendAsync(
+            HttpMethod.Post,
+            $"{baseUrl}/{clientId}/secrets",
+            new
+            {
+                secretType = "symmetric",
+                keySizeBits = 256,
+                expiresWhen = DateTimeOffset.UtcNow.AddYears(1),
+            },
+            cancellationToken
+        );
+        var secretBody = await secret.Content.ReadAsStringAsync(cancellationToken);
+        if (secret.StatusCode != HttpStatusCode.Created)
+        {
+            throw new InvalidOperationException(
+                $"Creating the secret of '{clientId}' answered {(int)secret.StatusCode}: {secretBody}"
+            );
+        }
+
+        var material =
+            JsonElement.Parse(secretBody).GetProperty("secretMaterial").GetString()
+            ?? throw new InvalidOperationException("The created secret has no material.");
+        return new UserClient(clientId, material);
+    }
+
+    /// <summary>
+    /// Signs an end-user in to a cell and gets a DPoP-bound management token for the user, through the authorization
+    /// code flow with PKCE as a public client that is registered in the user's tenant.
+    /// </summary>
+    /// <param name="cellName">The name of the cell.</param>
+    /// <param name="client">The credentials of a client that <see cref="RegisterUserClientAsync"/> registered in the
+    /// user's tenant.</param>
+    /// <param name="userName">The user's username.</param>
+    /// <param name="password">The user's password.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    /// <returns>The caller, who sends requests to any cell with the user's token and a proof for each.</returns>
+    public async ValueTask<ManagementCaller> CreateUserCallerAsync(
+        string cellName,
+        UserClient client,
+        string userName,
+        string password,
+        CancellationToken cancellationToken
+    )
+    {
+        var clientId = client.ClientId;
+        var redirectUri = UserClientRedirectUri;
+        var dpopKey =
+            DPoPKey ?? throw new InvalidOperationException("The platform is not started.");
+
+        using var browser = CreateBrowser(cellName);
+        var sessionCookie = await InteractiveLogin.SignInAsync(
+            browser,
+            userName,
+            password,
+            cancellationToken
+        );
+
+        var codeVerifier = Base64Url.EncodeToString(RandomNumberGenerator.GetBytes(32));
+        var codeChallenge = Base64Url.EncodeToString(
+            SHA256.HashData(SecureEncoding.UTF8.GetBytes(codeVerifier))
+        );
+        var parameters = new Dictionary<string, string>
+        {
+            ["response_type"] = OpenIdProtocol.ResponseTypes.Code,
+            ["client_id"] = clientId,
+            ["redirect_uri"] = redirectUri,
+            ["scope"] = ManagementTokenRequest.Scope,
+            ["state"] = Base64Url.EncodeToString(RandomNumberGenerator.GetBytes(16)),
+            ["code_challenge"] = codeChallenge,
+            ["code_challenge_method"] = "S256",
+        };
+        var query = string.Join(
+            '&',
+            parameters.Select(pair =>
+                $"{Uri.EscapeDataString(pair.Key)}={Uri.EscapeDataString(pair.Value)}"
+            )
+        );
+        using var authorizeRequest = new HttpRequestMessage(
+            HttpMethod.Get,
+            $"/oauth2/authorize?{query}"
+        );
+        authorizeRequest.Headers.Add(
+            "Cookie",
+            $"{InteractiveLogin.SessionCookieName}={sessionCookie}"
+        );
+        using var authorizeResponse = await browser.SendAsync(authorizeRequest, cancellationToken);
+        var location = authorizeResponse.Headers.Location;
+        if (
+            location is null
+            || !location.OriginalString.StartsWith(redirectUri, StringComparison.Ordinal)
+        )
+        {
+            throw new InvalidOperationException(
+                $"The authorization request was not redirected to '{redirectUri}': {(int)authorizeResponse.StatusCode} {location}"
+            );
+        }
+
+        var code = System.Web.HttpUtility.ParseQueryString(location.Query)["code"];
+        if (string.IsNullOrEmpty(code))
+        {
+            throw new InvalidOperationException(
+                $"The authorization response carries no code: {location}"
+            );
+        }
+
+        var services = CreateClientServices(dpopKey, client.ClientSecret);
+        lock (ClientServices)
+            ClientServices.Add(services);
+
+        var registration = new ClientRegistration(
+            GetCellUrl(cellName),
+            clientId,
+            OpenIdProtocol.ClientAuthenticationMethods.ClientSecretBasic
+        )
+        {
+            KeyRing = SecretKeyRing,
+            DPoPKeyRing = DPoPKeyRing,
+        };
+        var result = await services
+            .GetRequiredService<ITokenClient>()
+            .RequestTokenAsync(
+                registration,
+                new AuthorizationCodeTokenRequest(code, redirectUri, codeVerifier),
+                cancellationToken
+            );
+        if (!result.IsSuccess)
+        {
+            throw new InvalidOperationException(
+                $"The token request of '{userName}' to '{cellName}' failed: {result.Error?.Error}: {result.Error?.ErrorDescription}"
+            );
+        }
+
+        return new ManagementCaller(
+            CreateClient(),
+            services.GetRequiredService<IDPoPProofFactory>(),
+            registration,
+            result.Response.AccessToken
+                ?? throw new InvalidOperationException("The token response has no access token."),
+            result.DPoPJwkThumbprint
+                ?? throw new InvalidOperationException("The management token is not DPoP-bound.")
+        );
+    }
+
+    /// <summary>
+    /// Gets the seconds since a cell's replica of the directory's documents last completed a feed pass, as the cell's
+    /// readiness check reports it.
+    /// </summary>
+    /// <param name="cellName">The name of the cell.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    /// <returns>The age of the replica, in seconds.</returns>
+    public async ValueTask<double> GetReplicaAgeSecondsAsync(
+        string cellName,
+        CancellationToken cancellationToken
+    )
+    {
+        var report = await GetCell(cellName)
+            .Services.GetRequiredService<HealthCheckService>()
+            .CheckHealthAsync(entry => entry.Name == "directory-replica", cancellationToken);
+        var entry = report.Entries["directory-replica"];
+        return Convert.ToDouble(entry.Data["replicaAgeSeconds"], CultureInfo.InvariantCulture);
+    }
+
+    /// <summary>
+    /// Waits until a cell holds the mirror of a team that the control-plane cell created.
+    /// </summary>
+    /// <param name="cellName">The name of the cell.</param>
+    /// <param name="teamId">The identifier of the team.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    public async ValueTask WaitForTeamAsync(
+        string cellName,
+        string teamId,
+        CancellationToken cancellationToken
+    ) =>
+        await WaitUntilAsync(
+            async () =>
+            {
+                using var scope = GetCell(cellName).Services.CreateScope();
+                var serviceProvider = scope.ServiceProvider;
+                using var unscoped = serviceProvider
+                    .GetRequiredService<IAmbientTenantAccessor>()
+                    .BeginUnscoped("platform harness");
+                var storeManagerFactory =
+                    serviceProvider.GetRequiredService<IStoreManagerFactory>();
+                await using var storeManager = await storeManagerFactory.CreateAsync(
+                    cancellationToken
+                );
+                var team = await storeManager
+                    .GetStore<ITeamStore>()
+                    .GetOrDefaultAsync(teamId, cancellationToken);
+                return team is not null;
+            },
+            $"'{cellName}' holds the team '{teamId}'",
+            cancellationToken
+        );
+
+    private async ValueTask EnsureTenantPersistedAsync(
+        string cellName,
+        CancellationToken cancellationToken
+    )
+    {
+        using var client = CreateClient();
+        using var response = await client.GetAsync(
+            $"{GetCellUrl(cellName)}/.well-known/openid-configuration",
+            cancellationToken
+        );
+        response.EnsureSuccessStatusCode();
+    }
+
+    /// <summary>
     /// Waits until a condition holds, polling it, for at most <see cref="Timeout"/>.
     /// </summary>
     /// <param name="condition">The condition, which a transient failure may fail.</param>
@@ -649,6 +998,13 @@ public sealed class PlatformHarness : IAsyncDisposable
         if (Directory.Exists(KeyDirectory))
             Directory.Delete(KeyDirectory, recursive: true);
     }
+
+    /// <summary>
+    /// The credentials of a client that a user signs in through.
+    /// </summary>
+    /// <param name="ClientId">The identifier of the client.</param>
+    /// <param name="ClientSecret">The client's secret.</param>
+    public sealed record UserClient(string ClientId, string ClientSecret);
 
     /// <summary>
     /// A caller of the management API that holds a DPoP-bound access token and sends each request with its own proof.
