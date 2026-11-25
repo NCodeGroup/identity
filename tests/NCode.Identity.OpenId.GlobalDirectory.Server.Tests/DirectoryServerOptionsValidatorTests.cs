@@ -199,6 +199,15 @@ public class DirectoryServerOptionsValidatorTests
         Assert.StartsWith("DirectoryServer:TokenLifetime must be between ", SingleFailure(options));
     }
 
+    [Fact]
+    public void Validate_TokenLifetimeOutsideTheRange_NamesTheConfiguredValue()
+    {
+        var options = CreateOptions();
+        options.TokenLifetime = TimeSpan.FromSeconds(59);
+
+        Assert.EndsWith($"; it is {options.TokenLifetime}.", SingleFailure(options));
+    }
+
     [Theory]
     [InlineData(60)]
     [InlineData(3600)]

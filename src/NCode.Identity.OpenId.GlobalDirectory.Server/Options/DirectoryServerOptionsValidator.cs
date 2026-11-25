@@ -17,9 +17,9 @@ namespace NCode.Identity.OpenId.GlobalDirectory.Server.Options;
 /// the platform and team documents, by a cell name of the form <see cref="CellLabelRules"/> describes, with a region
 /// and a kind of the same form, and that cell's root tenant by an identifier that
 /// <see cref="TenantIdentifierRules.IsValidTenantId"/> accepts. Its client key set must be a public JSON Web Key Set
-/// that <see cref="IPublicJwksReader"/> reads. Every failure is reported at once; a refused cell name, region, kind or
-/// tenant identifier is named in its message, because none carries a secret, and no message repeats a configured
-/// issuer, which could carry a credential.
+/// that <see cref="IPublicJwksReader"/> reads. Every failure is reported at once; a refused token lifetime, cell name,
+/// region, kind or tenant identifier is named in its message, because none carries a secret, and no message repeats a
+/// configured issuer, which could carry a credential.
 /// </summary>
 internal sealed class DirectoryServerOptionsValidator(IPublicJwksReader jwksReader)
     : IValidateOptions<DirectoryServerOptions>
@@ -53,7 +53,7 @@ internal sealed class DirectoryServerOptionsValidator(IPublicJwksReader jwksRead
         {
             var lifetimeKey = Key(nameof(DirectoryServerOptions.TokenLifetime));
             failures.Add(
-                $"{lifetimeKey} must be between {DirectoryServerOptions.MinTokenLifetime} and {DirectoryServerOptions.MaxTokenLifetime}."
+                $"{lifetimeKey} must be between {DirectoryServerOptions.MinTokenLifetime} and {DirectoryServerOptions.MaxTokenLifetime}; it is {lifetime}."
             );
         }
 
