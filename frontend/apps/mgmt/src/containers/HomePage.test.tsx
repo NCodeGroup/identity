@@ -221,13 +221,29 @@ describe('HomePage', () => {
 describe('HomePage of a cell console', () => {
   const cellRuntime: BffRuntimeConfig = { ...runtime, console: 'cell', cell: 'eu-1' };
 
-  function installCellFetch(cellRoles: readonly string[], tenants: readonly unknown[]) {
+  function installCellFetch(
+    cellRoles: readonly string[],
+    tenants: readonly unknown[],
+    grantingTeams: readonly unknown[] = [],
+  ) {
     const urls: string[] = [];
+    const created: unknown[] = [];
     vi.stubGlobal(
       'fetch',
       vi.fn(async (input: RequestInfo | URL) => {
         const request = input as Request;
-        urls.push(request.url);
+        urls.push(`${request.method} ${request.url}`);
+        if (request.url.endsWith('/api/cell/teams')) {
+          return jsonResponse({ items: grantingTeams });
+        }
+        if (request.method === 'GET' && request.url.includes('/api/teams/support/tenants/')) {
+          return jsonResponse({ title: 'Not Found' }, 404);
+        }
+        if (request.method === 'POST' && request.url.endsWith('/api/teams/support/tenants')) {
+          const body: unknown = await request.json();
+          created.push(body);
+          return jsonResponse({ ...tenant, tenantId: 'globex', displayName: 'Globex' }, 201);
+        }
         if (request.url.endsWith('/api/me')) {
           return jsonResponse({
             principalId: 'principal-1',
@@ -250,7 +266,7 @@ describe('HomePage of a cell console', () => {
         throw new Error(`Unexpected ${request.method} ${request.url}`);
       }),
     );
-    return urls;
+    return Object.assign(urls, { created });
   }
 
   beforeEach(() => {
@@ -268,6 +284,32 @@ describe('HomePage of a cell console', () => {
     expect(onNavigate).toHaveBeenLastCalledWith(tenantRoute('acme'));
     expect(urls.some((url) => url.includes('/cells/'))).toBe(false);
     expect(urls.some((url) => url.endsWith('/api/me/teams'))).toBe(false);
+  });
+
+  it('creates a tenant of a team that grants the cell, in the cell itself', async () => {
+    const urls = installCellFetch(['CellAdmin'], [tenant], [team]);
+
+    renderPage(vi.fn(), cellRuntime);
+
+    fireEvent.click(await screen.findByTestId('cell-create-tenant'));
+    fireEvent.change(await screen.findByLabelText(/Tenant ID/i), {
+      target: { value: 'globex' },
+    });
+    fireEvent.change(screen.getByLabelText(/Display name/i), { target: { value: 'Globex' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Create' }));
+
+    await waitFor(() => expect(urls.created).toHaveLength(1));
+    expect(urls.created[0]).toMatchObject({ tenantId: 'globex', displayName: 'Globex' });
+    expect(urls.some((url) => url.includes('/cells/'))).toBe(false);
+  });
+
+  it('offers no tenant creation while no team grants the cell', async () => {
+    installCellFetch(['CellAdmin'], [tenant]);
+
+    renderPage(vi.fn(), cellRuntime);
+
+    await screen.findByTestId('home-open-cell-admins');
+    await waitFor(() => expect(screen.queryByTestId('cell-create-tenant')).not.toBeInTheDocument());
   });
 
   it('links to the administrators for a CellAdmin', async () => {

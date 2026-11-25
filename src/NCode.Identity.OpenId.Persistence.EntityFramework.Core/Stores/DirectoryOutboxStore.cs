@@ -95,18 +95,91 @@ internal class DirectoryOutboxStore(
     {
         var entities = await DbContext
             .ReplicatedSourceRevisions.AsNoTracking()
-            .OrderBy(entity => entity.Kind)
-            .ThenBy(entity => entity.Key)
             .ToListAsync(cancellationToken);
 
-        return entities
-            .Select(entity => new PersistedSourceRevision
+        var revisions = new Dictionary<(string Kind, string Key), long>();
+        foreach (var entity in entities)
+        {
+            revisions[(entity.Kind, entity.Key)] = entity.Revision;
+        }
+
+        // A document whose rows exist and that no source revision names has never been published: its rows were
+        // written while the cell did not publish, so the publisher republishes it from its current rows (ADR-1536).
+        var sources = await ListSourceDocumentsAsync(cancellationToken);
+        foreach (var source in sources)
+        {
+            revisions.TryAdd(source, 0);
+        }
+
+        return revisions
+            .OrderBy(pair => pair.Key.Kind, StringComparer.Ordinal)
+            .ThenBy(pair => pair.Key.Key, StringComparer.Ordinal)
+            .Select(pair => new PersistedSourceRevision
             {
-                Kind = entity.Kind,
-                Key = entity.Key,
-                Revision = entity.Revision,
+                Kind = pair.Key.Kind,
+                Key = pair.Key.Key,
+                Revision = pair.Value,
             })
             .ToList();
+    }
+
+    /// <summary>
+    /// Lists the documents whose source rows exist: the platform authority when the platform node holds an assignment
+    /// or the control-plane tenant a client, the management keys when the control-plane tenant holds a key or a key is
+    /// revoked, and the authority of every team. These are the rows whose changes
+    /// <see cref="ReplicatedDocumentOutboxInterceptor"/> publishes, and <see cref="ComposeCurrentAsync"/> composes each
+    /// document from the same rows.
+    /// </summary>
+    private async ValueTask<IReadOnlyList<(string Kind, string Key)>> ListSourceDocumentsAsync(
+        CancellationToken cancellationToken
+    )
+    {
+        var controlPlane = Policy.ControlPlaneTenantId.ToLowerInvariant();
+        var documents = new List<(string Kind, string Key)>();
+
+        var hasPlatformAssignment = await DbContext
+            .Set<RoleAssignmentEntity>()
+            // Cross-tenant: assignments at the platform node are stored under the tenant of their holder.
+            .IgnoreQueryFilters()
+            .AnyAsync(
+                entity => entity.ResourceType == OpenIdResourceTypes.Platform,
+                cancellationToken
+            );
+        var hasPlatformAuthority =
+            hasPlatformAssignment
+            || await DbContext
+                .Set<ClientEntity>()
+                // Cross-tenant: the control-plane tenant's clients are read whatever the ambient tenant is.
+                .IgnoreQueryFilters()
+                .AnyAsync(entity => entity.NormalizedTenantId == controlPlane, cancellationToken);
+        if (hasPlatformAuthority)
+        {
+            documents.Add((ReplicatedDocumentKinds.PlatformAuthority, string.Empty));
+        }
+
+        var hasManagementKey =
+            await DbContext
+                .Set<TenantSecretEntity>()
+                // Cross-tenant: the control-plane tenant's secrets are read whatever the ambient tenant is.
+                .IgnoreQueryFilters()
+                .AnyAsync(entity => entity.NormalizedTenantId == controlPlane, cancellationToken)
+            || await DbContext.Set<RevokedManagementKeyEntity>().AnyAsync(cancellationToken);
+        if (hasManagementKey)
+        {
+            documents.Add((ReplicatedDocumentKinds.ManagementKeys, string.Empty));
+        }
+
+        var teamIds = await DbContext
+            .Set<TeamEntity>()
+            .AsNoTracking()
+            .Select(entity => entity.NormalizedTeamId)
+            .ToListAsync(cancellationToken);
+        foreach (var teamId in teamIds)
+        {
+            documents.Add((ReplicatedDocumentKinds.TeamAuthority, teamId));
+        }
+
+        return documents;
     }
 
     /// <inheritdoc />

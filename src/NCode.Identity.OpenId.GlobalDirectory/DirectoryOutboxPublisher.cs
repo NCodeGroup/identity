@@ -13,11 +13,12 @@ namespace NCode.Identity.OpenId.GlobalDirectory;
 /// Publishes the documents of the control-plane cell's outbox to the global directory. It does nothing on a cell that
 /// is not the control-plane cell. When the host starts, it republishes through <see cref="IDirectoryOutbox"/> every
 /// document whose local revision is lower than the directory's, at the directory's revision plus one, so a restored
-/// database catches up. It then drains the outbox: it sends the newest pending revision of each document, in revision
-/// order, and acknowledges the documents up to the revision the directory stores. It waits on
-/// <see cref="IDirectoryOutboxSignal"/> for <see cref="DirectoryClientOptions.PublishInterval"/> when nothing is
-/// pending, and a directory that cannot be reached is retried with the capped exponential backoff of the cell
-/// registration.
+/// database catches up, and every document that the directory does not hold, at its local revision plus one, so a
+/// document whose rows were written without an outbox row, or that a restored directory lost, reaches every cell. It
+/// then drains the outbox: it sends the newest pending revision of each document, in revision order, and acknowledges
+/// the documents up to the revision the directory stores. It waits on <see cref="IDirectoryOutboxSignal"/> for
+/// <see cref="DirectoryClientOptions.PublishInterval"/> when nothing is pending, and a directory that cannot be reached
+/// is retried with the capped exponential backoff of the cell registration.
 /// </summary>
 /// <param name="topology">The <see cref="IPlatformTopology"/> that says whether the cell publishes.</param>
 /// <param name="outbox">The <see cref="IDirectoryOutbox"/> that holds the pending documents.</param>
@@ -102,8 +103,10 @@ internal sealed class DirectoryOutboxPublisher(
 
     /// <summary>
     /// Republishes every document whose local revision is lower than the directory's, at the directory's revision plus
-    /// one. A document whose republication fails does not stop the documents after it; the pass then throws the first
-    /// failure.
+    /// one, and every document that the directory does not hold, at its local revision plus one: a document whose rows
+    /// exist and that no change has published, which the outbox lists at revision <c>0</c>, is published at revision
+    /// <c>1</c>. A document whose republication fails does not stop the documents after it; the pass then throws the
+    /// first failure.
     /// </summary>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
     /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation.</returns>
@@ -129,13 +132,22 @@ internal sealed class DirectoryOutboxPublisher(
         ExceptionDispatchInfo? firstFailure = null;
         foreach (var document in local)
         {
-            if (!remote.TryGetValue((document.Kind, document.Key), out var remoteRevision))
-                continue;
+            long atRevision;
+            if (remote.TryGetValue((document.Kind, document.Key), out var remoteRevision))
+            {
+                if (document.Revision >= remoteRevision)
+                    continue;
 
-            if (document.Revision >= remoteRevision)
-                continue;
+                atRevision = remoteRevision + 1;
+            }
+            else
+            {
+                // The directory holds nothing for it: its rows were written without an outbox row, as by a setup that
+                // ran while the cell did not publish, or the directory was restored without it. A pending row of the
+                // document is older than the current rows, which the newer revision republishes whole.
+                atRevision = document.Revision + 1;
+            }
 
-            var atRevision = remoteRevision + 1;
             try
             {
                 await Outbox.RepublishAsync(

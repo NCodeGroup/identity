@@ -20,6 +20,7 @@ using NCode.Identity.OpenId.Management.ControlPlane;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
 using NCode.Identity.OpenId.Persistence.Tenants;
+using NCode.Identity.OpenId.PrincipalResolution;
 using NCode.Identity.OpenId.Tenants;
 using NCode.Identity.Persistence.Stores;
 
@@ -38,6 +39,7 @@ public sealed class CallerApiEndpointHandlerTests : IDisposable
     private Mock<IStoreManager> MockStoreManager { get; }
     private Mock<IAuthorizationService> MockAuthorizationService { get; }
     private Mock<IControlPlaneAuthority> MockControlPlaneAuthority { get; }
+    private Mock<IPrincipalResolver> MockPrincipalResolver { get; }
     private Mock<IAmbientTenantAccessor> MockAmbientTenantAccessor { get; }
     private CallerApiEndpointHandler Handler { get; }
 
@@ -48,6 +50,7 @@ public sealed class CallerApiEndpointHandlerTests : IDisposable
         MockStoreManager = MockRepository.Create<IStoreManager>();
         MockAuthorizationService = MockRepository.Create<IAuthorizationService>();
         MockControlPlaneAuthority = MockRepository.Create<IControlPlaneAuthority>();
+        MockPrincipalResolver = MockRepository.Create<IPrincipalResolver>();
         MockAmbientTenantAccessor = MockRepository.Create<IAmbientTenantAccessor>();
 
         Handler = CreateHandler(isControlPlane: true);
@@ -65,16 +68,25 @@ public sealed class CallerApiEndpointHandlerTests : IDisposable
             MockStoreManagerFactory.Object,
             MockAuthorizationService.Object,
             MockControlPlaneAuthority.Object,
+            MockPrincipalResolver.Object,
             MockAmbientTenantAccessor.Object,
             Options.Create(new CellOptions { IsControlPlane = isControlPlane, Name = CellName })
         );
 
-    private static HttpContext CreateHttpContext(bool withClientId = true)
+    private static HttpContext CreateHttpContext(
+        bool withClientId = true,
+        bool isCellIssued = false
+    )
     {
         var claims = new List<Claim> { new(JoseClaimNames.Payload.Sub, Subject) };
         if (withClientId)
         {
             claims.Add(new Claim(JoseClaimNames.Payload.ClientId, ClientId));
+        }
+
+        if (isCellIssued)
+        {
+            claims.Add(new Claim(ManagementIssuerKinds.ClaimType, ManagementIssuerKinds.Cell));
         }
 
         var user = new ClaimsPrincipal(new ClaimsIdentity(claims, authenticationType: "test"));
@@ -365,6 +377,46 @@ public sealed class CallerApiEndpointHandlerTests : IDisposable
         );
 
         Assert.Equal(["CellAdmin", "CellAuditor"], caller.CellRoles);
+    }
+
+    [Fact]
+    public async Task GetCallerAsync_ForACallerOfTheCellsManagementTenant_ResolvesItInThatTenantAndReportsItsCellRoles()
+    {
+        SetupScopeAndStoreManager();
+        MockPrincipalResolver
+            .Setup(x =>
+                x.ResolvePrincipalIdOrDefaultAsync(
+                    It.IsAny<OpenIdContext>(),
+                    It.IsAny<ClaimsPrincipal>(),
+                    MockStoreManager.Object,
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync(PrincipalId)
+            .Verifiable();
+        SetupAssignments(
+            CreateAssignment("assignment-1", "CellAdmin", ResourceNodeTypes.Cell, CellName)
+        );
+        MockAuthorizationService
+            .Setup(x =>
+                x.AuthorizeAsync(
+                    It.IsAny<ClaimsPrincipal>(),
+                    It.IsAny<object?>(),
+                    It.IsAny<IEnumerable<IAuthorizationRequirement>>()
+                )
+            )
+            .ReturnsAsync(AuthorizationResult.Failed())
+            .Verifiable();
+
+        var handler = CreateHandler(isControlPlane: false);
+        var httpContext = CreateHttpContext(isCellIssued: true);
+
+        var result = await handler.GetCallerAsync(httpContext, CancellationToken.None);
+
+        var json = Assert.IsType<JsonHttpResult<CallerResource>>(result);
+        var caller = Assert.IsType<CallerResource>(json.Value);
+        Assert.Equal(PrincipalId, caller.PrincipalId);
+        Assert.Equal(["CellAdmin"], caller.CellRoles);
     }
 
     [Fact]

@@ -279,6 +279,44 @@ public class DirectoryOutboxPublisherTests : BaseTests
     }
 
     [Fact]
+    public async Task RepublishBehindAsync_WhenTheDirectoryLacksADocument_PublishesItAboveTheLocalRevision()
+    {
+        var platform = ReplicatedDocumentKinds.PlatformAuthority;
+        var keys = ReplicatedDocumentKinds.ManagementKeys;
+        var team = ReplicatedDocumentKinds.TeamAuthority;
+        DirectoryMock
+            .Setup(x =>
+                x.ListRevisionsAsync(
+                    null,
+                    DirectoryOutboxPublisher.PageSize,
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync(new ReplicatedRevisionPage { Revisions = [Revision(team, "acme", 3)] })
+            .Verifiable(Times.Once);
+        // The setup of a control-plane cell that did not publish wrote the platform's rows without a source revision,
+        // and a restored directory lost the management keys it had published.
+        OutboxMock
+            .Setup(x => x.ListLocalRevisionsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync([
+                Revision(platform, "", 0),
+                Revision(keys, "", 4),
+                Revision(team, "acme", 3),
+            ])
+            .Verifiable(Times.Once);
+        OutboxMock
+            .Setup(x => x.RepublishAsync(platform, "", 1, It.IsAny<CancellationToken>()))
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable(Times.Once);
+        OutboxMock
+            .Setup(x => x.RepublishAsync(keys, "", 5, It.IsAny<CancellationToken>()))
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable(Times.Once);
+
+        await Publisher.RepublishBehindAsync(CancellationToken.None);
+    }
+
+    [Fact]
     public async Task RepublishBehindAsync_WhenOneDocumentFails_RepublishesTheOthersAndThrows()
     {
         var platform = ReplicatedDocumentKinds.PlatformAuthority;

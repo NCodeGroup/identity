@@ -211,9 +211,13 @@ internal static partial class Log
     [LoggerMessage(
         EventId = EventIds.InstanceSetupCommandRefused,
         Level = LogLevel.Error,
-        Message = "The setup command was refused with status code {StatusCode}; the host's options validation names each configuration rule at start."
+        Message = "The setup command was refused with status code {StatusCode}: {Detail}"
     )]
-    internal static partial void InstanceSetupCommandRefused(this ILogger logger, int statusCode);
+    internal static partial void InstanceSetupCommandRefused(
+        this ILogger logger,
+        int statusCode,
+        string detail
+    );
 
     [LoggerMessage(
         EventId = EventIds.InstanceSetupCommandRootCreated,

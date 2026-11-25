@@ -21,11 +21,12 @@ is three kinds of release
 
 - **The directory**, the chart `ncode-identity-directory`, a release of its own with its own database. It issues the
   cells' tokens and carries the replicated authority and keys to every cell.
-- **The control-plane cell**, a host release with `cell.isControlPlane=true`, dedicated to the control-plane tenant. This
-  guide's setup, root administrator and management console run here.
-- **Workload cells**, each a host release with its own directory client. A workload cell with a dynamic
-  tenant-resolution strategy has a management tenant of its own: its setup Job creates the first `CellAdmin` and the cell
-  console's client, as [section 4](#4-create-the-root-administrator) describes for the root administrator.
+- **The control-plane cell**, a host release with `cell.isControlPlane=true`, dedicated to the control-plane tenant and
+  the platform's global responsibilities. This guide's setup, root administrator and platform console run here.
+- **Workload cells**, the customer cells, each a host release with its own directory client and a dynamic
+  tenant-resolution strategy, so each has a management tenant of its own: its setup Job creates the first `CellAdmin`
+  and the cell console's client, as [section 4](#4-create-the-root-administrator) describes for the root administrator,
+  and the cell is managed from that cell console.
 
 The bootstrap order is the one of
 [section 9 of the platform bootstrap runbook](platform-bootstrap.md#9-run-the-cells-of-a-platform): provision the keys,

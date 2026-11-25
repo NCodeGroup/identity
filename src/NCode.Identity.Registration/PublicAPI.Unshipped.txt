@@ -20,3 +20,5 @@ NCode.Identity.Registration.StrictConfigurationBindingExtensions.extension(Micro
 NCode.Identity.Registration.StrictConfigurationBindingExtensions.extension(Microsoft.Extensions.Configuration.IConfigurationSection!).BindStrictly(object! instance) -> void
 NCode.Identity.Registration.ServiceCollectionExtensions.extension(Microsoft.Extensions.DependencyInjection.IServiceCollection!).TryAddEnumerableInstance<TService>(TService! instance) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 NCode.Identity.Registration.ServiceCollectionExtensions.extension(Microsoft.Extensions.DependencyInjection.IServiceCollection!).GetOrAddBuilder<TMarker>() -> NCode.Identity.Registration.IServiceBuilder<TMarker>!
+NCode.Identity.Registration.IStartupPrerequisite
+NCode.Identity.Registration.IStartupPrerequisite.PrepareAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask

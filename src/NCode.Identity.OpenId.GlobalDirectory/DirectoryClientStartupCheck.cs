@@ -4,6 +4,7 @@
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using NCode.Identity.OpenId.Client;
+using NCode.Identity.OpenId.Tenants;
 
 namespace NCode.Identity.OpenId.GlobalDirectory;
 
@@ -11,21 +12,26 @@ namespace NCode.Identity.OpenId.GlobalDirectory;
 /// Stops the host as it starts when <c>Directory:Url</c> is set and <c>Directory:ClientId</c> is not <c>cell-</c>
 /// followed by <c>Cell:Name</c>, <c>Directory:KeyRing</c> names no key ring of the client library, or
 /// <c>Cell:ManagementUrl</c> is blank, and, for a cell that is not the control plane, when
-/// <c>Cell:ControlPlane:Issuer</c> is not a service URL, so a cell that cannot authenticate to the directory or
-/// register with it fails at start instead of the first time it reserves an identifier. The composition root makes this
-/// check because it reads two options types; it runs as a start check rather than an options validator, because a
-/// validator reads no other options.
+/// <c>Cell:ControlPlane:Issuer</c> is not a service URL or the tenant-resolution strategy is not dynamic
+/// (<c>DynamicByHost</c> or <c>DynamicByPath</c>), because every workload cell of a platform with a directory has a
+/// management tenant of its own, so a cell that cannot authenticate to the directory or register with it fails at start
+/// instead of the first time it reserves an identifier. The composition root makes this check because it reads two
+/// options types; it runs as a start check rather than an options validator, because a validator reads no other
+/// options.
 /// </summary>
 /// <param name="cellOptions">
 /// The options of the cell, which name the control-plane issuer, the cell and its management URL.
 /// </param>
 /// <param name="directoryOptions">The options of the directory client.</param>
+/// <param name="tenantResolutionOptions">The options of tenant resolution, which name the cell's strategy.</param>
 /// <param name="keyRingProvider">The key rings of the client library, which hold the keys that sign the
 /// assertion.</param>
-// See ADR-1285 (the endpoint rule), ADR-1137 (configuration is validated at startup) and project-template ADR-0106.
+// See ADR-1285 (the endpoint rule), ADR-1137 (configuration is validated at startup), ADR-1536 (decision 10, a workload
+// cell serves a dynamic strategy) and project-template ADR-0106.
 internal sealed class DirectoryClientStartupCheck(
     IOptions<CellOptions> cellOptions,
     IOptions<DirectoryClientOptions> directoryOptions,
+    IOptions<TenantResolutionOptions> tenantResolutionOptions,
     IClientKeyRingProvider keyRingProvider
 ) : IHostedLifecycleService
 {
@@ -66,6 +72,18 @@ internal sealed class DirectoryClientStartupCheck(
             var describedIssuer = DirectoryUrls.Describe(issuer);
             failures.Add(
                 $"{CellOptions.SectionName}:{nameof(CellOptions.ControlPlane)}:{nameof(ControlPlaneOptions.Issuer)} '{describedIssuer}' must be an absolute https URL, or an http URL on a loopback host, with no user information, query or fragment, when {DirectoryClientOptions.SectionName}:{nameof(DirectoryClientOptions.Url)} is set and the cell is not the control plane."
+            );
+        }
+
+        var strategyCode = tenantResolutionOptions.Value.StrategyCode;
+        var isDynamic =
+            strategyCode
+            is OpenIdConstants.TenantStrategyCodes.DynamicByHost
+                or OpenIdConstants.TenantStrategyCodes.DynamicByPath;
+        if (!cellOptions.Value.IsControlPlane && !isDynamic)
+        {
+            failures.Add(
+                $"OpenId:TenantResolution:StrategyCode '{strategyCode}' must be '{OpenIdConstants.TenantStrategyCodes.DynamicByHost}' or '{OpenIdConstants.TenantStrategyCodes.DynamicByPath}' when {DirectoryClientOptions.SectionName}:{nameof(DirectoryClientOptions.Url)} is set and the cell is not the control plane: every workload cell of a platform with a directory has a management tenant of its own and is managed from its own cell console."
             );
         }
 

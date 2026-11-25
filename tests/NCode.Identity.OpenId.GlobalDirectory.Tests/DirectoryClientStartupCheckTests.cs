@@ -4,6 +4,7 @@
 using Microsoft.Extensions.Options;
 using Moq;
 using NCode.Identity.OpenId.Client;
+using NCode.Identity.OpenId.Tenants;
 using Xunit;
 
 namespace NCode.Identity.OpenId.GlobalDirectory.Tests;
@@ -17,7 +18,8 @@ public class DirectoryClientStartupCheckTests : BaseTests
         string managementUrl = "https://manage.eu-1.example",
         bool isControlPlane = false,
         string? keyRing = "cell-client",
-        bool hasKeyRing = true
+        bool hasKeyRing = true,
+        string strategyCode = OpenIdConstants.TenantStrategyCodes.DynamicByPath
     )
     {
         var keyRingProvider = new Mock<IClientKeyRingProvider>();
@@ -40,6 +42,7 @@ public class DirectoryClientStartupCheckTests : BaseTests
                     KeyRing = keyRing,
                 }
             ),
+            Options.Create(new TenantResolutionOptions { StrategyCode = strategyCode }),
             keyRingProvider.Object
         );
     }
@@ -78,6 +81,52 @@ public class DirectoryClientStartupCheckTests : BaseTests
         Assert.Contains("Directory:ClientId", exception.Message);
         Assert.Contains("Directory:KeyRing", exception.Message);
         Assert.Contains("Cell:ManagementUrl", exception.Message);
+    }
+
+    [Fact]
+    public async Task StartingAsync_DirectoryUrlAndAWorkloadCellOfAStaticStrategy_ThrowsNamingTheStrategy()
+    {
+        var check = CreateCheck(
+            "https://directory.example",
+            "https://issuer.example",
+            strategyCode: OpenIdConstants.TenantStrategyCodes.StaticSingle
+        );
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            check.StartingAsync(CancellationToken.None)
+        );
+
+        Assert.Contains("OpenId:TenantResolution:StrategyCode 'StaticSingle'", exception.Message);
+        Assert.Contains("management tenant", exception.Message);
+    }
+
+    [Theory]
+    [InlineData(OpenIdConstants.TenantStrategyCodes.DynamicByHost)]
+    [InlineData(OpenIdConstants.TenantStrategyCodes.DynamicByPath)]
+    public async Task StartingAsync_DirectoryUrlAndAWorkloadCellOfADynamicStrategy_Completes(
+        string strategyCode
+    )
+    {
+        var check = CreateCheck(
+            "https://directory.example",
+            "https://issuer.example",
+            strategyCode: strategyCode
+        );
+
+        await check.StartingAsync(CancellationToken.None);
+    }
+
+    [Fact]
+    public async Task StartingAsync_DirectoryUrlAndAStaticControlPlaneCell_Completes()
+    {
+        var check = CreateCheck(
+            "https://directory.example",
+            null,
+            isControlPlane: true,
+            strategyCode: OpenIdConstants.TenantStrategyCodes.StaticSingle
+        );
+
+        await check.StartingAsync(CancellationToken.None);
     }
 
     [Fact]

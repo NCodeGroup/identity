@@ -35,7 +35,9 @@ internal class DefaultTenantValidator(
         CancellationToken cancellationToken
     )
     {
-        var node = ResourceNode.For(controlPlaneTenantId, ResourceNodeTypes.Team, teamId);
+        // The team's node, named as the creation of a tenant, which a cell administrator is granted by a team that lists
+        // the cell (ADR-1536).
+        var node = TenantCreationNode.For(controlPlaneTenantId, teamId);
         return AuthorizeAsync(
             user,
             node,

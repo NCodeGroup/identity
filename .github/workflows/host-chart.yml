@@ -167,8 +167,8 @@ jobs:
           }
           # The control-plane cell's console is the platform console.
           refuse_cell_console "the control-plane cell's console is the platform console" --set cell.isControlPlane=true
-          # A cell console needs a dynamic strategy: a static cell has no management tenant to sign in against.
-          refuse_cell_console "requires a dynamic tenantResolution.strategyCode" \
+          # A cell console needs a dynamic strategy, which every workload cell of a platform with a directory serves.
+          refuse_cell_console "every workload cell of a platform with a directory has a management tenant" \
             --set tenantResolution.strategyCode=StaticSingle \
             --set tenantResolution.staticSingle.issuer=https://manage.eu.example.com \
             --set tenantResolution.staticSingle.tenantId=ci-eu --set setup.job.enabled=false
@@ -222,12 +222,16 @@ jobs:
           # The recovery Jobs: recover-admin reads the administrator from a Secret, and the revocation Job needs its key id.
           refuse --set recovery.recoverAdmin.enabled=true
           refuse --set recovery.revokeManagementKey.enabled=true
-          # Setup runs in the control-plane cell and in a cell that serves a dynamic strategy; a static workload cell is
-          # refused. The same release renders as the control-plane cell, so the refusal is the rule it names.
+          # Setup runs in the control-plane cell and in a workload cell, which serves a dynamic strategy and so has a
+          # management tenant; a workload cell of a platform with a directory is refused a static strategy. The same
+          # release renders with a dynamic strategy, so the refusal is the rule it names.
           helm template release "$CHART" --values "$base" --values "$CHART/ci/setup-values.yaml" \
             --values "$CHART/ci/cell-values.yaml" > /dev/null
+          helm template release "$CHART" --values "$base" --values "$CHART/ci/setup-values.yaml" \
+            --values "$CHART/ci/cell-values.yaml" --set cell.isControlPlane=false > /dev/null
           refuse --values "$CHART/ci/setup-values.yaml" --values "$CHART/ci/cell-values.yaml" \
-            --set cell.isControlPlane=false
+            --set cell.isControlPlane=false --set tenantResolution.strategyCode=StaticSingle \
+            --set tenantResolution.staticSingle.tenantId=ci-eu
           refuse --set apiReference.pageEnabled=true
           refuse --set apiReference.documentEnabled=yes
           # ingress.controller takes traefik or other alone: the chart has no ingress-nginx mode (ADR-1507).
@@ -536,16 +540,30 @@ jobs:
             --show-only templates/deployment.yaml)
           expect "$controlPlane" 'Directory__Url' 'Directory__ClientId' 'KeyRings__cell-client__PemFiles__0' \
             'Cell__ManagementUrl' 'Cell__ControlPlane__Issuer'
-          # The offline Jobs never call the directory, so neither carries the directory client's settings or its key.
+          # Every offline Job builds the host the Deployment builds, with the cell's real topology, so each carries the
+          # directory client's settings and its key: setup reserves a workload cell's management tenant through the
+          # directory and, in the control-plane cell, publishes what it saves through the outbox.
+          directory=('Directory__Url' 'Directory__ClientId' 'Directory__KeyRing' 'KeyRings__cell-client__PemFiles__0' 'directory-key')
           rewrap=$(helm template release "$CHART" --values "$CHART/ci/cell-values.yaml" \
             --set secretProtection.rewrapJob.enabled=true --set secretProtection.rewrapJob.command=rewrap \
             --show-only templates/secret-protection-job.yaml)
-          expect "$rewrap" 'Cell__ControlPlane__Issuer'
-          reject "$rewrap" 'Directory__Url' 'KeyRings__cell-client' 'directory-key'
+          expect "$rewrap" 'Cell__ControlPlane__Issuer' "${directory[@]}"
           setup=$(helm template release "$CHART" --values "$CHART/ci/directory-values.yaml" \
             --set setup.token.existingSecret=identity-setup-token --set setup.job.enabled=true \
             --set setup.job.existingSecret=identity-setup-root --show-only templates/setup-job.yaml)
-          reject "$setup" 'Directory__Url' 'KeyRings__cell-client' 'directory-key'
+          expect "$setup" "${directory[@]}"
+          cellSetup=$(helm template release "$CHART" --values "$CHART/ci/cell-console-values.yaml" \
+            --show-only templates/setup-job.yaml)
+          expect "$cellSetup" "${directory[@]}" 'Cell__ControlPlane__Issuer'
+          recovery=$(helm template release "$CHART" --values "$CHART/ci/cell-console-values.yaml" \
+            --set recovery.recoverAdmin.enabled=true --set recovery.recoverAdmin.existingSecret=identity-recovery \
+            --set recovery.recoverSignIn.enabled=true --show-only templates/recovery-job.yaml)
+          expect "$recovery" "${directory[@]}"
+          # A platform of one cell has no directory, so neither its Deployment nor its Jobs carry a client.
+          single=$(helm template release "$CHART" --values "$CHART/ci/single-replica-values.yaml" \
+            --set setup.token.existingSecret=identity-setup-token --set setup.job.enabled=true \
+            --set setup.job.existingSecret=identity-setup-root)
+          reject "$single" 'Directory__Url' 'directory-key'
 
       - name: Give the mail settings and the Amazon SES identity only to the host's Deployment
         run: |
@@ -1362,14 +1380,15 @@ jobs:
   # first and pins the cell's public client key, which the host image's directory-client-jwks command prints from the
   # key the cell mounts. The cell's readiness proves that its token request and its report to the directory succeeded.
   directory-cluster:
-    name: Install the directory and a control-plane cell in kind behind Traefik
+    name: Install the directory, a control-plane cell and a workload cell in kind behind Traefik
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
 
     env:
       CHART: charts/ncode-identity-host
       DIRECTORY_CHART: charts/ncode-identity-directory
       NAMESPACE: identity
+      CELL_NAMESPACE: cell
       DIRECTORY_NAMESPACE: directory
 
     steps:
@@ -1430,16 +1449,17 @@ jobs:
 
       # Each release has a namespace and a Postgres of its own, from ci/kind-postgres.yaml, which reads a
       # 'postgres-app' (the schema owner, the superuser the image creates) and a 'postgres-runtime' Secret of its
-      # namespace, shaped like a Postgres operator's `<cluster>-app` Secret. The directory's signing key, the cell's
-      # directory-client key, the root key and the setup Job's root administrator come from Secrets of their own; all
-      # are generated here and never stored.
+      # namespace, shaped like a Postgres operator's `<cluster>-app` Secret. The directory's signing key, each cell's
+      # directory-client key, the control-plane cell's automation client key, each cell's root key and its setup Job's
+      # root administrator come from Secrets of their own; all are generated here and never stored.
       - name: Create the databases and the releases' Secrets
         run: |
           set -euo pipefail
           kubectl create namespace "$NAMESPACE"
+          kubectl create namespace "$CELL_NAMESPACE"
           kubectl create namespace "$DIRECTORY_NAMESPACE"
-          for namespace in "$NAMESPACE" "$DIRECTORY_NAMESPACE"; do
-            if [ "$namespace" = "$NAMESPACE" ]; then database=openiddb; else database=directorydb; fi
+          for namespace in "$NAMESPACE" "$CELL_NAMESPACE" "$DIRECTORY_NAMESPACE"; do
+            if [ "$namespace" = "$DIRECTORY_NAMESPACE" ]; then database=directorydb; else database=openiddb; fi
             kubectl -n "$namespace" create secret generic postgres-app \
               --from-literal=host=postgres --from-literal=port=5432 --from-literal=dbname="$database" \
               --from-literal=user=postgres --from-literal=password="$(openssl rand -hex 16)"
@@ -1448,33 +1468,51 @@ jobs:
               --from-literal=user=ncode_identity_app --from-literal=password="$(openssl rand -hex 16)"
             kubectl -n "$namespace" apply -f "$CHART/ci/kind-postgres.yaml"
           done
-          kubectl -n "$NAMESPACE" create secret generic identity-root-key \
-            --from-literal=key="$(head -c 32 /dev/urandom | basenc --base64url -w0 | tr -d '=')"
-          kubectl -n "$NAMESPACE" create secret generic identity-setup-root \
-            --from-literal=userName=root --from-literal=password="$(openssl rand -hex 16)"
-          mkdir -p "$RUNNER_TEMP/keys"
+          mkdir -p "$RUNNER_TEMP/keys" "$RUNNER_TEMP/workload-keys"
+          for namespace in "$NAMESPACE" "$CELL_NAMESPACE"; do
+            kubectl -n "$namespace" create secret generic identity-root-key \
+              --from-literal=key="$(head -c 32 /dev/urandom | basenc --base64url -w0 | tr -d '=')"
+            kubectl -n "$namespace" create secret generic identity-setup-root \
+              --from-literal=userName=root --from-literal=password="$(openssl rand -hex 16)"
+          done
           openssl genpkey -algorithm EC -pkeyopt ec_paramgen_curve:P-256 -out "$RUNNER_TEMP/keys/directory.pem"
           openssl genpkey -algorithm EC -pkeyopt ec_paramgen_curve:P-256 -out "$RUNNER_TEMP/keys/cell-client.pem"
+          openssl genpkey -algorithm EC -pkeyopt ec_paramgen_curve:P-256 -out "$RUNNER_TEMP/keys/ci-automation.pem"
+          openssl genpkey -algorithm EC -pkeyopt ec_paramgen_curve:P-256 \
+            -out "$RUNNER_TEMP/workload-keys/cell-client.pem"
           kubectl -n "$DIRECTORY_NAMESPACE" create secret generic directory-key \
             --from-file=directory.pem="$RUNNER_TEMP/keys/directory.pem"
           kubectl -n "$NAMESPACE" create secret generic cell-client-key \
             --from-file=cell-client.pem="$RUNNER_TEMP/keys/cell-client.pem"
-          kubectl -n "$NAMESPACE" rollout status deployment/postgres --timeout=3m
-          kubectl -n "$DIRECTORY_NAMESPACE" rollout status deployment/postgres --timeout=3m
+          kubectl -n "$CELL_NAMESPACE" create secret generic cell-client-key \
+            --from-file=cell-client.pem="$RUNNER_TEMP/workload-keys/cell-client.pem"
+          for namespace in "$NAMESPACE" "$CELL_NAMESPACE" "$DIRECTORY_NAMESPACE"; do
+            kubectl -n "$namespace" rollout status deployment/postgres --timeout=3m
+          done
 
-      # The directory pins the control-plane cell's public client key, which the host image prints from the key ring
-      # that the cell's directory client uses, with the key's Secret mounted into a one-off container.
-      - name: Print the cell's directory-client key set
+      # The directory pins the control-plane cell's public client key, and the platform registers the workload cell
+      # with its own; the host image prints each from the key ring that names the key, with the key mounted into a
+      # one-off container. The control-plane cell's setup registers the automation client with its public key set,
+      # printed the same way, so a key is named after its file in every set.
+      - name: Print the cells' directory-client and the automation client's key sets
         run: |
           set -euo pipefail
-          chmod 755 "$RUNNER_TEMP/keys"
-          chmod 644 "$RUNNER_TEMP/keys/cell-client.pem"
-          docker run --rm \
-            --volume "$RUNNER_TEMP/keys:/keys:ro" \
-            --env KeyRings__cell-client__PemFiles__0=/keys/cell-client.pem \
-            ncode-identity-host:kind directory-client-jwks --key-ring cell-client > "$RUNNER_TEMP/client-jwks.json"
-          test -s "$RUNNER_TEMP/client-jwks.json"
-          python3 -c 'import json,sys; assert json.load(open(sys.argv[1]))["keys"]' "$RUNNER_TEMP/client-jwks.json"
+          chmod 755 "$RUNNER_TEMP/keys" "$RUNNER_TEMP/workload-keys"
+          chmod 644 "$RUNNER_TEMP"/keys/*.pem "$RUNNER_TEMP"/workload-keys/*.pem
+          print_jwks() {
+            local directory="$1" name="$2" output="$3"
+            docker run --rm \
+              --volume "$directory:/keys:ro" \
+              --env "KeyRings__${name}__PemFiles__0=/keys/${name}.pem" \
+              ncode-identity-host:kind directory-client-jwks --key-ring "$name" > "$output"
+            test -s "$output"
+            node -e 'const set = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")); if (!set.keys?.length) process.exit(1);' "$output"
+          }
+          print_jwks "$RUNNER_TEMP/keys" cell-client "$RUNNER_TEMP/client-jwks.json"
+          print_jwks "$RUNNER_TEMP/keys" ci-automation "$RUNNER_TEMP/automation-jwks.json"
+          print_jwks "$RUNNER_TEMP/workload-keys" cell-client "$RUNNER_TEMP/workload-client-jwks.json"
+          # The container read the keys as its own user; only the runner's user reads them from here on.
+          chmod 600 "$RUNNER_TEMP"/keys/*.pem "$RUNNER_TEMP"/workload-keys/*.pem
 
       # The directory's pre-install migration Job and its pod's readiness probes over HTTPS prove that it serves HTTPS.
       # Its Service is the directory's name inside the cluster, so the cell reaches it there and Traefik reaches it
@@ -1494,14 +1532,19 @@ jobs:
             --wait --timeout 10m
 
       # The cell calls the directory at its Service name and its directory client trusts the private CA that issued the
-      # directory's certificate (directory.caCertificates), which it reads from a Secret of its namespace.
+      # directory's certificate (directory.caCertificates), which it reads from a Secret of its namespace. The chart's
+      # own setup Job runs on the empty database with the cell's directory client, so the root administrator and the
+      # automation client, each holding GlobalAdmin, are published through the outbox; nothing else creates them. The
+      # cell's values enable client_credentials, the automation client's only grant.
       - name: Install the control-plane cell
         run: |
           set -euo pipefail
           kubectl -n "$DIRECTORY_NAMESPACE" get secret directory-tls --output jsonpath='{.data.ca\.crt}' \
             | base64 --decode > "$RUNNER_TEMP/directory-ca.crt"
           test -s "$RUNNER_TEMP/directory-ca.crt"
-          kubectl -n "$NAMESPACE" create secret generic directory-ca --from-file=ca.crt="$RUNNER_TEMP/directory-ca.crt"
+          for namespace in "$NAMESPACE" "$CELL_NAMESPACE"; do
+            kubectl -n "$namespace" create secret generic directory-ca --from-file=ca.crt="$RUNNER_TEMP/directory-ca.crt"
+          done
           cat > "$RUNNER_TEMP/cell-trust-values.yaml" <<EOF
           directory:
             url: https://directory.$DIRECTORY_NAMESPACE.svc.cluster.local
@@ -1509,7 +1552,8 @@ jobs:
               existingSecret: directory-ca
           EOF
           helm install release "$CHART" --namespace "$NAMESPACE" --values "$CHART/ci/kind-directory-values.yaml" \
-            --values "$RUNNER_TEMP/cell-trust-values.yaml" --wait --timeout 10m
+            --values "$RUNNER_TEMP/cell-trust-values.yaml" --set setup.automation.clientId=ci-automation \
+            --set-file setup.automation.jwks="$RUNNER_TEMP/automation-jwks.json" --wait --timeout 10m
           kubectl -n "$NAMESPACE" wait --for=condition=complete job -l app.kubernetes.io/component=setup --timeout=5m
 
       # The cell's startup requests a token from the directory and reports its descriptor, so a ready cell proves
@@ -1519,6 +1563,63 @@ jobs:
           set -euo pipefail
           kubectl -n "$NAMESPACE" wait --for=condition=ready pod -l app.kubernetes.io/component=server --timeout=5m
           kubectl -n "$DIRECTORY_NAMESPACE" wait --for=condition=ready pod -l app.kubernetes.io/component=directory --timeout=5m
+
+      # The automation client, which only the control-plane cell's setup Job created, registers the workload cell with
+      # its directory-client key set. management-request.mjs gets a DPoP-bound management token with private_key_jwt
+      # and sends the request with a proof for the public URL, through a port-forward to the cell's own HTTPS port.
+      - name: Register the workload cell through the control-plane cell's management API
+        run: |
+          set -euo pipefail
+          kubectl -n "$NAMESPACE" get secret release-ncode-identity-host-tls --output jsonpath='{.data.ca\.crt}' \
+            | base64 --decode > "$RUNNER_TEMP/control-plane-ca.crt"
+          kubectl -n "$NAMESPACE" port-forward svc/release-ncode-identity-host 8443:443 > /dev/null 2>&1 &
+          trap "kill $! 2> /dev/null || true" EXIT
+          body=$(node -e 'const jwks = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")); console.log(JSON.stringify({ region: "ci", kind: "shared", jwks }));' "$RUNNER_TEMP/workload-client-jwks.json")
+          node build/kind/management-request.mjs --issuer https://id.example.com --client-id ci-automation \
+            --key "$RUNNER_TEMP/keys/ci-automation.pem" --ca "$RUNNER_TEMP/control-plane-ca.crt" \
+            --connect "https://id.example.com=127.0.0.1:8443,release-ncode-identity-host.$NAMESPACE.svc" \
+            --method PUT --url https://id.example.com/api/cells/ci-kind-cell --body "$body" \
+            --expect 200 --attempts 24 --delay-seconds 5
+
+      # The workload cell's own setup Job runs on its empty database with its directory client, so it reserves the
+      # cell's management tenant through the directory and creates the cell's first CellAdmin and its cell console's
+      # client, with no ordering trick: it does not wait for the Deployment to serve.
+      - name: Install the workload cell
+        run: |
+          set -euo pipefail
+          helm install cell "$CHART" --namespace "$CELL_NAMESPACE" --values "$CHART/ci/kind-cell-values.yaml" \
+            --values "$RUNNER_TEMP/cell-trust-values.yaml" --wait --timeout 10m
+          kubectl -n "$CELL_NAMESPACE" wait --for=condition=complete job -l app.kubernetes.io/component=setup \
+            --timeout=5m
+          kubectl -n "$CELL_NAMESPACE" wait --for=condition=ready pod -l app.kubernetes.io/component=server \
+            --timeout=5m
+
+      # The workload cell accepts the automation client's DPoP-bound management token once its replica holds the keys
+      # and the platform authority that the control-plane cell's setup published, with no reset or restart, and it
+      # lists the CellAdmin and the console client that its own setup created.
+      - name: The workload cell accepts a platform administrator after setup
+        run: |
+          set -euo pipefail
+          kubectl -n "$CELL_NAMESPACE" get secret cell-ncode-identity-host-tls --output jsonpath='{.data.ca\.crt}' \
+            | base64 --decode > "$RUNNER_TEMP/cell-ca.crt"
+          kubectl -n "$NAMESPACE" port-forward svc/release-ncode-identity-host 8443:443 > /dev/null 2>&1 &
+          control_plane_forward=$!
+          kubectl -n "$CELL_NAMESPACE" port-forward svc/cell-ncode-identity-host 9443:443 > /dev/null 2>&1 &
+          cell_forward=$!
+          trap "kill $control_plane_forward $cell_forward 2> /dev/null || true" EXIT
+          request() {
+            node build/kind/management-request.mjs --issuer https://id.example.com --client-id ci-automation \
+              --key "$RUNNER_TEMP/keys/ci-automation.pem" \
+              --ca "$RUNNER_TEMP/control-plane-ca.crt" --ca "$RUNNER_TEMP/cell-ca.crt" \
+              --connect "https://id.example.com=127.0.0.1:8443,release-ncode-identity-host.$NAMESPACE.svc" \
+              --connect "https://cell.example.com=127.0.0.1:9443,cell-ncode-identity-host.$CELL_NAMESPACE.svc" \
+              --method GET --expect 200 --attempts 24 --delay-seconds 5 --url "$1"
+          }
+          tenants=$(request https://cell.example.com/api/cell/tenants)
+          grep -q '"ci-kind-cell-manage"' <<< "$tenants"
+          admins=$(request https://cell.example.com/api/cell/admins)
+          node -e 'const list = JSON.parse(process.argv[1]); if (!list.items.some((holder) => holder.roleName === "CellAdmin")) { console.error("The workload cell lists no CellAdmin."); process.exit(1); }' "$admins"
+          request https://cell.example.com/api/tenants/ci-kind-cell-manage/clients/ci-kind-cell-console > /dev/null
 
       # route <namespace/service> <host> <path> sends one request with the Host header through a port-forward to the
       # Service's port 80 and prints the HTTP status code, or 000 when the request fails. expect_route <expected>
@@ -1586,6 +1687,10 @@ jobs:
           kubectl -n "$DIRECTORY_NAMESPACE" describe pods || true
           kubectl -n "$NAMESPACE" logs -l app.kubernetes.io/component=server --tail=200 || true
           kubectl -n "$NAMESPACE" logs --all-containers --tail=200 -l app.kubernetes.io/component=setup || true
+          kubectl -n "$CELL_NAMESPACE" describe pods || true
+          kubectl -n "$CELL_NAMESPACE" logs -l app.kubernetes.io/component=server --tail=200 || true
+          kubectl -n "$CELL_NAMESPACE" logs --all-containers --tail=200 -l app.kubernetes.io/component=setup || true
+          kubectl -n "$CELL_NAMESPACE" logs --all-containers --tail=200 -l app.kubernetes.io/component=migrations || true
           kubectl -n "$NAMESPACE" logs --all-containers --tail=200 -l app.kubernetes.io/component=migrations || true
           kubectl -n "$DIRECTORY_NAMESPACE" logs -l app.kubernetes.io/component=directory --tail=200 || true
           kubectl -n "$DIRECTORY_NAMESPACE" logs --all-containers --tail=200 -l app.kubernetes.io/component=directory-migrations || true

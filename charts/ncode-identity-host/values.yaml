@@ -105,7 +105,9 @@ directory:
     #    curve: P-256
 
 tenantResolution:
-  # OpenId:TenantResolution:StrategyCode. Settings for another strategy go in extraEnv.
+  # OpenId:TenantResolution:StrategyCode. Settings for another strategy go in extraEnv. A workload cell of a platform with
+  # a directory (directory.url set, cell.isControlPlane false) serves DynamicByHost or DynamicByPath, so its root tenant
+  # is its management tenant; the chart refuses StaticSingle there.
   strategyCode: StaticSingle
   staticSingle:
     # The public issuer URL, for example https://id.example.com. Required by the StaticSingle strategy.

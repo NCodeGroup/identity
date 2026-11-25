@@ -142,6 +142,10 @@ public sealed class InstanceSetupCommandLine : IHostCommand
             return 2;
         }
 
+        // The command never starts the host, so it loads what the host loads as it starts, such as the key ring that
+        // signs the cell's directory token request, which reserving a workload cell's management tenant needs.
+        await HostCommandPrerequisites.PrepareAsync(services, cancellationToken);
+
         var setupService = services.GetRequiredService<IInstanceSetupService>();
         if (await setupService.IsInitializedAsync(cancellationToken))
         {
@@ -174,7 +178,8 @@ public sealed class InstanceSetupCommandLine : IHostCommand
         var result = await setupService.SetUpAsync(request, cancellationToken);
         if (!result.Succeeded)
         {
-            logger.InstanceSetupCommandRefused(result.Error.StatusCode);
+            var refusal = result.Error;
+            logger.InstanceSetupCommandRefused(refusal.StatusCode, refusal.Detail);
             return 1;
         }
 

@@ -40,7 +40,8 @@ public interface IDirectoryOutbox
     );
 
     /// <summary>
-    /// Lists the latest revision of every document that the cell publishes.
+    /// Lists the latest revision of every document that the cell publishes, with the revision <c>0</c> for a document
+    /// whose rows exist and that no change has published yet.
     /// </summary>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
     /// <returns>The <see cref="ValueTask{TResult}"/> that represents the asynchronous operation, whose result is the

@@ -238,6 +238,9 @@ const CELL_SCOPE_TAG = 'cell-scope';
 /** The cache-tag id of the answering cell's administrator list. */
 const CELL_ADMINS_TAG = 'cell-admins';
 
+/** The cache-tag id of the teams that grant the answering cell the creation of their tenants. */
+const CELL_TEAMS_TAG = 'cell-teams';
+
 /** A cache-tag id in the platform scope, which owns the teams and identifies every tenant. */
 const platformTag = (id: string): string => scopeTagId(PLATFORM_SCOPE, id);
 
@@ -402,6 +405,11 @@ export const managementApi = createApi({
           id: platformTag(t.tenantId),
         })),
       ],
+    }),
+    // The teams whose tenants the answering cell's administrators may create in it (tenant_creation_cells).
+    listCellTeams: build.query<CollectionResource<TeamResource>, void>({
+      query: () => 'api/cell/teams',
+      providesTags: [{ type: 'Team', id: CELL_TEAMS_TAG }],
     }),
     // The administrators of the answering cell.
     listCellAdmins: build.query<RoleListResource, void>({
@@ -657,6 +665,8 @@ export const managementApi = createApi({
         }),
       invalidatesTags: (_result, _error, { teamId }) => [
         { type: 'Tenant', id: teamTag(teamId, LIST_TAG) },
+        // A cell console lists the answering cell's tenants under the platform scope.
+        { type: 'Tenant', id: platformTag(LIST_TAG) },
         { type: 'Caller', id: callerTag },
       ],
     }),
@@ -1630,6 +1640,7 @@ export const {
   useListCellsQuery,
   useGetCellScopeQuery,
   useListCellTenantsInfiniteQuery,
+  useListCellTeamsQuery,
   useListCellAdminsQuery,
   useAddCellAdminMutation,
   useRemoveCellAdminMutation,

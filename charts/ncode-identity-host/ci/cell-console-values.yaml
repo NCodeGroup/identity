@@ -1,6 +1,9 @@
-# A production release of a workload cell that serves a dynamic tenant-resolution strategy: it has a management tenant of
-# its own, runs the setup Job that creates the cell's first administrator and registers the cell console's client, and
-# runs the cell console, which signs in against the cell's root tenant and calls the cell's management API.
+# A production release of a customer cell, a workload cell of a platform with a directory. It serves DynamicByPath, so
+# its root tenant ci-eu-manage is its management tenant and each customer tenant is served beneath its own path. Its
+# setup Job runs with the cell's directory client on an empty database: it reserves the management tenant through the
+# directory, creates the cell's first CellAdmin and registers the cell console's client. The cell console signs in
+# against the management tenant and calls only this cell's management API, so the cell is managed, and the tenants of
+# the teams that grant it are created, with the control-plane cell and the platform console down.
 cell:
   name: ci-cell-console
   region: eu
@@ -15,7 +18,14 @@ directory:
 allowedHosts:
   - manage.eu.example.com
 tenantResolution:
-  strategyCode: DynamicByHost
+  strategyCode: DynamicByPath
+extraEnv:
+  - name: OpenId__TenantResolution__Root__TenantId
+    value: ci-eu-manage
+  - name: OpenId__TenantResolution__Root__Issuer
+    value: https://manage.eu.example.com/ci-eu-manage
+  - name: OpenId__TenantResolution__DynamicByPath__IssuerTemplate
+    value: https://manage.eu.example.com/{tenantId}
 database:
   existingSecret: identity-database
   runtimeRole: ncode_identity_app
@@ -49,7 +59,7 @@ managementConsole:
   enabled: true
   cellConsole: true
   host: console.eu.example.com
-  authority: https://manage.eu.example.com
+  authority: https://manage.eu.example.com/ci-eu-manage
   keyRings:
     client:
       pemSecret: identity-mgmt-client-key

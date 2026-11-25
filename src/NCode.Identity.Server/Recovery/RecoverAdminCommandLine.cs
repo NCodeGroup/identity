@@ -124,6 +124,9 @@ public sealed class RecoverAdminCommandLine : IHostCommand
             return 2;
         }
 
+        // The command never starts the host, so it loads what the host loads as it starts.
+        await HostCommandPrerequisites.PrepareAsync(services, cancellationToken);
+
         var admin = services.GetRequiredService<IOptions<RecoveryOptions>>().Value.Admin;
 
         var userName = admin.UserName;

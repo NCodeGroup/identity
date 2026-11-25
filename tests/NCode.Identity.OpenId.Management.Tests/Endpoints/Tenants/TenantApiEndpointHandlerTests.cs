@@ -627,6 +627,20 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
 
     private void SetupNoChangedLimits() => SetupChangedLimits([]);
 
+    // A tenant's settings are judged for limits against an empty document when it is created.
+    private void SetupNoCreationLimits() => SetupCreationLimits([]);
+
+    private void SetupCreationLimits(IReadOnlyList<string> limits) =>
+        MockSettingSerializer
+            .Setup(x =>
+                x.GetChangedLimits(
+                    It.Is<JsonElement>(element => JsonElement.DeepEquals(element, EmptyObject())),
+                    It.IsAny<JsonElement>()
+                )
+            )
+            .Returns(limits)
+            .Verifiable();
+
     private void SetupChangedLimits(IReadOnlyList<string> limits) =>
         MockSettingSerializer
             .Setup(x =>
@@ -4027,6 +4041,7 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
         SetupTeamForCreate();
         SetupDefaultAlias("acme", alias: null);
         SetupValidSettings();
+        SetupNoCreationLimits();
         SetupStoreManagerOnly();
         SetupDefaultIssuer("acme", DerivedIssuer);
         SetupCreateValidation();
@@ -4059,6 +4074,7 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
         SetupTeamForCreate();
         SetupDefaultAlias("acme", alias: null);
         SetupValidSettings();
+        SetupNoCreationLimits();
         SetupStoreManagerOnly();
         SetupDefaultIssuer("acme", DerivedIssuer);
         SetupCreateValidation();
@@ -4098,6 +4114,7 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
         SetupTeamForCreate();
         SetupDefaultAlias("acme", alias: null);
         SetupValidSettings();
+        SetupNoCreationLimits();
         SetupStore();
         SetupDefaultIssuer("acme", DerivedIssuer);
         SetupCreateValidation();
@@ -4128,6 +4145,44 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
     }
 
     [Fact]
+    public async Task CreateTenantAsync_WhenTheSettingsCarryALimitTheCallerMayNotWrite_ReturnsForbiddenWithoutPlacing()
+    {
+        SetupTeamForCreate();
+        SetupDefaultAlias("acme", alias: null);
+        SetupValidSettings();
+        SetupCreationLimits(["rate_limit_tenant_per_minute"]);
+        SetupStoreManagerOnly();
+        SetupDefaultIssuer("acme", DerivedIssuer);
+        SetupCreateValidation();
+        MockAuthorizationService
+            .Setup(x =>
+                x.AuthorizeAsync(
+                    It.IsAny<ClaimsPrincipal>(),
+                    It.Is<object?>(resource =>
+                        resource is ResourceNode
+                        && ((ResourceNode)resource).ResourceType == ResourceNodeTypes.Team
+                    ),
+                    It.IsAny<IEnumerable<IAuthorizationRequirement>>()
+                )
+            )
+            .ReturnsAsync(AuthorizationResult.Failed())
+            .Verifiable();
+        var request = CreateTenantRequest();
+
+        var result = await Handler.CreateTenantAsync(
+            CreateHttpContext(authenticated: true),
+            TeamId,
+            request,
+            CancellationToken.None
+        );
+
+        var problem = Assert.IsType<ProblemHttpResult>(result);
+        Assert.Equal(StatusCodes.Status403Forbidden, problem.StatusCode);
+        Assert.Contains("'rate_limit_tenant_per_minute'", problem.ProblemDetails.Detail);
+        Assert.DoesNotContain("place", Events);
+    }
+
+    [Fact]
     public async Task CreateTenantAsync_WhenCreated_PlacesThenInserts()
     {
         SetupTeamForCreate();
@@ -4135,6 +4190,7 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
         SetupTenantChangedAudit();
         SetupDefaultAlias("acme", alias: null);
         SetupValidSettings();
+        SetupNoCreationLimits();
         SetupStore();
         SetupDefaultIssuer("acme", DerivedIssuer);
         SetupCreateValidation();
@@ -4179,6 +4235,7 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
         SetupTenantChangedAudit();
         SetupDefaultAlias("acme", alias: null);
         SetupValidSettings();
+        SetupNoCreationLimits();
         SetupStore();
         SetupDefaultIssuer("acme", DerivedIssuer);
         var assertValidated = SetupCreateValidation();
@@ -4210,6 +4267,7 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
         SetupTenantChangedAudit();
         SetupDefaultAlias("acme", alias: null);
         SetupValidSettings();
+        SetupNoCreationLimits();
         SetupStore();
         SetupDefaultIssuer("acme", DerivedIssuer);
         var assertValidated = SetupCreateValidation();
@@ -4246,6 +4304,7 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
         const string derivedAlias = "https://acme.mtls.example";
 
         SetupValidSettings();
+        SetupNoCreationLimits();
         SetupStore();
         SetupDefaultIssuer("acme", DerivedIssuer);
         SetupDefaultAlias("acme", derivedAlias);
@@ -4280,6 +4339,7 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
         const string issuer = "https://acme.example";
 
         SetupValidSettings();
+        SetupNoCreationLimits();
         SetupStore();
         var assertValidated = SetupCreateValidation();
         SetupCreatePersistence(CreateSeededTenant(issuer));
@@ -4307,6 +4367,7 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
         SetupTenantChangedAudit();
         SetupDefaultAlias("acme", alias: null);
         SetupValidSettings();
+        SetupNoCreationLimits();
         SetupStore();
         SetupDefaultIssuer("acme", null);
         SetupCreateValidation();
@@ -4334,6 +4395,7 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
         SetupTenantChangedAudit();
         SetupDefaultAlias("acme", alias: null);
         SetupValidSettings();
+        SetupNoCreationLimits();
         SetupStore();
         SetupDefaultIssuer("acme", DerivedIssuer);
         SetupCreateValidation();
@@ -4364,6 +4426,7 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
         SetupCreatorAssignment(CreateAssignment("principal-1", BuiltInRoles.Owner));
         SetupDefaultAlias("acme", alias: null);
         SetupValidSettings();
+        SetupNoCreationLimits();
         SetupStore();
         SetupDefaultIssuer("acme", DerivedIssuer);
         SetupCreateValidation();
@@ -5127,7 +5190,7 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
     }
 
     [Fact]
-    public async Task GetTeamTenantAddressAsync_RequestsCreateOnTheTeamNode()
+    public async Task GetTeamTenantAddressAsync_RequestsCreateOnTheTeamNodeNamedAsATenantCreation()
     {
         SetupTeamPreviewStore(CreateTeam(), readsTenant: true);
         SetupNoTenant("acme");
@@ -5168,7 +5231,7 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
         );
 
         Assert.IsType<Ok<TenantAddressResource>>(result);
-        var node = Assert.IsType<ResourceNode>(authorizedResource);
+        var node = Assert.IsType<TenantCreationNode>(authorizedResource);
         Assert.Equal(
             (ControlPlaneTenantId, ResourceNodeTypes.Team, TeamId),
             (node.TenantId, node.ResourceType, node.ResourceId)

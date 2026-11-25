@@ -102,6 +102,7 @@ public static class DefaultRegistration
             serviceCollection.AddAuthorization();
             serviceCollection.AddAuthorizationHandler<GlobalAdminHandler>();
             serviceCollection.AddAuthorizationHandler<OwnershipHandler>();
+            serviceCollection.AddAuthorizationHandler<CellTenantCreationHandler>();
 
             // Enrich the OpenAPI document with descriptions for the management API's shared parameters.
             serviceCollection.AddOpenApi(openApiOptions =>

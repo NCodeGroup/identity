@@ -27,13 +27,14 @@ import { soleDestination } from '../access.js';
 import { cellRoute, platformRoute, teamRoute, tenantRoute, type ConsoleRoute } from '../routes.js';
 import { useCallerAccess } from '../useCallerAccess.js';
 import { useIsCellConsole } from '../consoleKind.js';
+import { CellTenantCreation } from './CellTenantCreation.js';
 
 export type HomePageProps = {
   /** Opens a route; `replace` swaps the home entry in the history instead of adding one. */
   readonly onNavigate: (route: ConsoleRoute, options?: { readonly replace?: boolean }) => void;
 };
 
-/** The roles at a cell's node that may list its administrators. */
+/** The roles at a cell's node that may list its administrators and the teams that grant it tenant creation. */
 const cellAdministratorRoles = ['CellAdmin', 'GlobalAdmin'];
 
 /**
@@ -51,8 +52,9 @@ export function HomePage({ onNavigate }: HomePageProps) {
 
 /**
  * Container: the home of a console that manages one cell. Lists the tenants the cell holds, a page at a time, with the
- * team of each and a link into the tenant, and links to the cell's administrators for a caller who holds `CellAdmin` or
- * `GlobalAdmin` at the cell. A tenant opens in the console's own API, which addresses no other cell.
+ * team of each and a link into the tenant, and, for a caller who holds `CellAdmin` or `GlobalAdmin` at the cell, links
+ * to the cell's administrators and creates a tenant of a team that grants the cell. A tenant opens in the console's own
+ * API, which addresses no other cell, so the cell is managed with the global plane down.
  */
 function CellHome({ onNavigate }: HomePageProps) {
   const caller = useGetCallerQuery();
@@ -60,7 +62,7 @@ function CellHome({ onNavigate }: HomePageProps) {
   const { data, isLoading, error, hasNextPage, isFetchingNextPage, fetchNextPage } =
     useListCellTenantsInfiniteQuery();
   const tenants = pagedItems(data);
-  const canListAdmins = (caller.data?.cellRoles ?? []).some((role) =>
+  const isCellAdministrator = (caller.data?.cellRoles ?? []).some((role) =>
     cellAdministratorRoles.includes(role),
   );
 
@@ -70,14 +72,17 @@ function CellHome({ onNavigate }: HomePageProps) {
         <Typography variant="h5" component="h2" data-testid="cell-title">
           {scope.data ? `Cell ${scope.data.name}` : 'Cell'}
         </Typography>
-        {canListAdmins && (
-          <Button
-            variant="outlined"
-            onClick={() => onNavigate(cellRoute('admins'))}
-            data-testid="home-open-cell-admins"
-          >
-            Administrators
-          </Button>
+        {isCellAdministrator && (
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            <CellTenantCreation />
+            <Button
+              variant="outlined"
+              onClick={() => onNavigate(cellRoute('admins'))}
+              data-testid="home-open-cell-admins"
+            >
+              Administrators
+            </Button>
+          </Box>
         )}
       </Box>
       <DataStateBoundary

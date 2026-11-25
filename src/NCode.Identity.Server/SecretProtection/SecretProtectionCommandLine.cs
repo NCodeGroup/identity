@@ -223,6 +223,9 @@ public sealed class SecretProtectionCommandLine : IHostCommand
             if (!IsConfigurationValid(services, logger))
                 return 1;
 
+            // The command never starts the host, so it loads what the host loads as it starts.
+            await HostCommandPrerequisites.PrepareAsync(services, cancellationToken);
+
             var rewrapper = services.GetRequiredService<IMasterKeyRewrapper>();
             return await RewrapAsync(rewrapper, logger, cancellationToken);
         }

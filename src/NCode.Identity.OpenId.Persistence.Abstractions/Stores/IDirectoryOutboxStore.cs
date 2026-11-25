@@ -45,7 +45,10 @@ public interface IDirectoryOutboxStore : IStore
     );
 
     /// <summary>
-    /// Lists the latest revision of every document that the cell publishes.
+    /// Lists the latest source revision of every document that the cell publishes: each document that a source revision
+    /// names, and each document whose source rows exist and that no change has published yet, with the revision
+    /// <c>0</c>, such as the platform authority of a control-plane cell whose setup wrote its rows before the cell
+    /// published through the outbox.
     /// </summary>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
     /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation, containing the

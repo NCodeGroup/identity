@@ -92,9 +92,6 @@ spec:
             {{- with include "identity-host.kmsCredentials.awsEnv" $mailCredentials }}
             {{- . | trim | nindent 12 }}
             {{- end }}
-            {{- with include "identity-host.directoryClientEnv" . }}
-            {{- . | trim | nindent 12 }}
-            {{- end }}
             {{- include "identity-host.backendTls.env" . | nindent 12 }}
             {{- if .Values.setup.token.existingSecret }}
             - name: Setup__Token
@@ -159,9 +156,6 @@ spec:
           {{- end }}
           volumeMounts:
             {{- include "identity-host.hostVolumeMounts" . | trim | nindent 12 }}
-            {{- with include "identity-host.directoryClientVolumeMounts" . }}
-            {{- . | trim | nindent 12 }}
-            {{- end }}
             {{- with include "identity-host.kmsCredentials.volumeMounts" $mailCredentials }}
             {{- . | trim | nindent 12 }}
             {{- end }}
@@ -170,9 +164,6 @@ spec:
               readOnly: true
       volumes:
         {{- include "identity-host.hostVolumes" . | trim | nindent 8 }}
-        {{- with include "identity-host.directoryClientVolumes" . }}
-        {{- . | trim | nindent 8 }}
-        {{- end }}
         {{- with include "identity-host.kmsCredentials.volumes" $mailCredentials }}
         {{- . | trim | nindent 8 }}
         {{- end }}

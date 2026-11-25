@@ -21,6 +21,7 @@ using NCode.Identity.OpenId.Management.Endpoints.Tenants;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
 using NCode.Identity.OpenId.Persistence.Tenants;
+using NCode.Identity.OpenId.PrincipalResolution;
 using NCode.Identity.Persistence.Stores;
 using NCode.Identity.Registration.AspNetCore;
 
@@ -50,6 +51,7 @@ internal class CallerApiEndpointHandler(
     IStoreManagerFactory storeManagerFactory,
     IAuthorizationService authorizationService,
     IControlPlaneAuthority controlPlaneAuthority,
+    IPrincipalResolver principalResolver,
     IAmbientTenantAccessor ambientTenantAccessor,
     IOptions<CellOptions> cellOptions
 ) : IEndpointProvider
@@ -62,6 +64,8 @@ internal class CallerApiEndpointHandler(
     private IStoreManagerFactory StoreManagerFactory { get; } = storeManagerFactory;
     private IAuthorizationService AuthorizationService { get; } = authorizationService;
     private IControlPlaneAuthority ControlPlaneAuthority { get; } = controlPlaneAuthority;
+
+    private IPrincipalResolver PrincipalResolver { get; } = principalResolver;
     private IAmbientTenantAccessor AmbientTenantAccessor { get; } = ambientTenantAccessor;
     private CellOptions CellOptions { get; } = cellOptions.Value;
 
@@ -135,6 +139,7 @@ internal class CallerApiEndpointHandler(
     )
     {
         var (principalId, isGlobalAdmin, assignments) = await GetAssignmentsAsync(
+            openIdContext,
             caller,
             storeManager,
             cancellationToken
@@ -239,9 +244,14 @@ internal class CallerApiEndpointHandler(
     {
         return await AnswerCallerAsync(
             httpContext,
-            async (_, caller, storeManager, ct) =>
+            async (openIdContext, caller, storeManager, ct) =>
             {
-                var (_, _, assignments) = await GetAssignmentsAsync(caller, storeManager, ct);
+                var (_, _, assignments) = await GetAssignmentsAsync(
+                    openIdContext,
+                    caller,
+                    storeManager,
+                    ct
+                );
                 var resourceIds = GetResourceIds(assignments, nodeType).ToList();
                 var items = await readAndMapAsync(storeManager, resourceIds, ct);
                 var collection = new CollectionResource<TResource>
@@ -292,9 +302,12 @@ internal class CallerApiEndpointHandler(
 
     /// <summary>
     /// Gets the caller's principal, whether it is a global administrator and the role assignments it holds; a caller
-    /// that resolves to no principal holds none. The principal is the one <see cref="IControlPlaneAuthority"/> resolves
-    /// the caller's <c>sub</c> and <c>client_id</c> claims to, and a caller missing either claim resolves to none.
+    /// that resolves to no principal holds none. The principal of a caller whose token the cell's own management tenant
+    /// issued is the one that tenant resolves it to, and it is never a global administrator; any other caller's
+    /// principal is the one <see cref="IControlPlaneAuthority"/> resolves the caller's <c>sub</c> and <c>client_id</c>
+    /// claims to. A caller missing either claim resolves to none.
     /// </summary>
+    /// <param name="openIdContext">The <see cref="OpenIdContext"/> for the current request.</param>
     /// <param name="user">The <see cref="ClaimsPrincipal"/> of the caller.</param>
     /// <param name="storeManager">The <see cref="IStoreManager"/> to read through.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
@@ -306,6 +319,7 @@ internal class CallerApiEndpointHandler(
         bool IsGlobalAdmin,
         IReadOnlyList<PersistedRoleAssignment> Assignments
     )> GetAssignmentsAsync(
+        OpenIdContext openIdContext,
         ClaimsPrincipal user,
         IStoreManager storeManager,
         CancellationToken cancellationToken
@@ -318,14 +332,33 @@ internal class CallerApiEndpointHandler(
             return (null, false, []);
         }
 
-        var authorityRequest = new ControlPlaneAuthorityRequest
+        string? principalId;
+        var isGlobalAdmin = false;
+        if (user.IsCellIssued)
         {
-            Subject = subject,
-            ClientId = clientId,
-        };
-        var authority = await ControlPlaneAuthority.GetAsync(authorityRequest, cancellationToken);
+            // A caller of the cell's own management tenant is known to that tenant alone (ADR-1536, decision 10).
+            principalId = await PrincipalResolver.ResolvePrincipalIdOrDefaultAsync(
+                openIdContext,
+                user,
+                storeManager,
+                cancellationToken
+            );
+        }
+        else
+        {
+            var authorityRequest = new ControlPlaneAuthorityRequest
+            {
+                Subject = subject,
+                ClientId = clientId,
+            };
+            var authority = await ControlPlaneAuthority.GetAsync(
+                authorityRequest,
+                cancellationToken
+            );
+            principalId = authority.PrincipalId;
+            isGlobalAdmin = authority.IsGlobalAdmin;
+        }
 
-        var principalId = authority.PrincipalId;
         if (string.IsNullOrEmpty(principalId))
         {
             return (null, false, []);
@@ -341,7 +374,7 @@ internal class CallerApiEndpointHandler(
             assignments = await store.GetByPrincipalAsync(principalId, cancellationToken);
         }
 
-        return (principalId, authority.IsGlobalAdmin, assignments);
+        return (principalId, isGlobalAdmin, assignments);
     }
 
     /// <summary>

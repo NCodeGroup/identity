@@ -43,9 +43,13 @@ change them.**
    (`ISettingSerializer.GetChangedLimits`, which compares JSON values). The write is refused with `403` naming the
    limits unless the caller holds `Update` at the node above. The node's own administrators cannot lower a limit
    either, so each value has one author. A value written differently but equal counts as a change, which fails closed.
-4. **Creation needs no separate check.** Only roles that also manage the parent can create a node's resource there, so
-   a creator already holds the authority over the limits it writes. The RFC 7592 registration update keeps the limits
-   the client document carries.
+4. **A tenant's creation checks the limits it writes, and other creations need no separate check.** A tenant created
+   with a limit in its settings needs `Update` at its team's node, as any write of a limit does: a team's administrators
+   hold it, and a workload cell's `CellAdmin`, whom a team grants the creation of its tenants
+   ([ADR-1536](1536-a-platforms-global-plane-is-a-standalone-directory-and-a-dedicated-control-plane-cell-and-every-other-cell-runs-and-is-managed-on-its-own.md),
+   decision 10), does not, so it creates them without limits. Only roles that also manage the parent create any other
+   resource there, so such a creator already holds the authority over the limits it writes. The RFC 7592 registration
+   update keeps the limits the client document carries.
 5. **The built-in limits are** `admission_capacity_percent`, `max_audit_streams`, `max_teams`, `max_tenants`,
    `quota_tenant_requests_per_day`, `quota_tenant_token_requests_per_day`, `quota_tenant_requests_overage_per_day`,
    `quota_tenant_token_requests_overage_per_day`, `rate_limit_tenant_per_minute`, `rate_limit_address_per_minute` and

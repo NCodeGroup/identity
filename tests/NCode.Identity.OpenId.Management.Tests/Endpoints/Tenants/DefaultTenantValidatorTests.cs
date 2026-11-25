@@ -188,7 +188,7 @@ public sealed class DefaultTenantValidatorTests : IDisposable
     }
 
     [Fact]
-    public async Task AuthorizeCreateAsync_AuthorizesCreateOnTheTeamNode()
+    public async Task AuthorizeCreateAsync_AuthorizesCreateOnTheTeamNodeNamedAsATenantCreation()
     {
         var authorizedResource = SetupAuthorizationCapturingTheNode(Operations.Create);
 
@@ -199,7 +199,7 @@ public sealed class DefaultTenantValidatorTests : IDisposable
             CancellationToken.None
         );
 
-        var node = Assert.IsType<ResourceNode>(authorizedResource());
+        var node = Assert.IsType<TenantCreationNode>(authorizedResource());
         Assert.Equal(ControlPlaneTenantId, node.TenantId);
         Assert.Equal(ResourceNodeTypes.Team, node.ResourceType);
         Assert.Equal(TeamId, node.ResourceId);

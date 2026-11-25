@@ -10,6 +10,7 @@ using NCode.Identity.OpenId.GlobalDirectory;
 using NCode.Identity.OpenId.Management;
 using NCode.Identity.OpenId.Setup;
 using NCode.Identity.OpenId.Setup.Contracts;
+using NCode.Identity.Registration;
 using NCode.Identity.Server.InstanceSetup;
 using Xunit;
 
@@ -36,7 +37,8 @@ public class InstanceSetupCommandLineTests : BaseTests
         SetupManagementConsoleOptions? managementConsole = null,
         SetupAutomationOptions? automation = null,
         bool isControlPlane = true,
-        bool hasManagementTenant = false
+        bool hasManagementTenant = false,
+        IStartupPrerequisite? prerequisite = null
     )
     {
         var options = new SetupOptions { Root = root ?? new SetupRootOptions() };
@@ -57,6 +59,8 @@ public class InstanceSetupCommandLineTests : BaseTests
         topology.Setup(x => x.IsControlPlaneCell).Returns(isControlPlane);
         topology.Setup(x => x.HasManagementTenant).Returns(hasManagementTenant);
         serviceCollection.AddSingleton(topology.Object);
+        if (prerequisite is not null)
+            serviceCollection.AddSingleton(prerequisite);
 
         return serviceCollection.BuildServiceProvider();
     }
@@ -183,6 +187,73 @@ public class InstanceSetupCommandLineTests : BaseTests
         var exitCode = await Parse("setup").RunAsync(services, CancellationToken.None);
 
         Assert.Equal(0, exitCode);
+    }
+
+    [Fact]
+    public async Task RunAsync_ACellWithAManagementTenant_RunsTheStartupPrerequisitesBeforeSetup()
+    {
+        var order = new List<string>();
+        var prerequisite = CreateStrictMock<IStartupPrerequisite>();
+        prerequisite
+            .Setup(x => x.PrepareAsync(It.IsAny<CancellationToken>()))
+            .Callback(() => order.Add("prepare"))
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable(Times.Once);
+        var setupService = CreateStrictMock<IInstanceSetupService>();
+        setupService
+            .Setup(x => x.IsInitializedAsync(It.IsAny<CancellationToken>()))
+            .Callback(() => order.Add("initialized"))
+            .Returns(new ValueTask<bool>(false))
+            .Verifiable();
+        setupService
+            .Setup(x =>
+                x.SetUpAsync(It.IsAny<InstanceSetupRequest>(), It.IsAny<CancellationToken>())
+            )
+            .Callback(() => order.Add("setup"))
+            .Returns(new ValueTask<InstanceSetupResult>(CreateSuccess()))
+            .Verifiable();
+        using var services = CreateServices(
+            setupService.Object,
+            CreateRoot(),
+            isControlPlane: false,
+            hasManagementTenant: true,
+            prerequisite: prerequisite.Object
+        );
+
+        var exitCode = await Parse("setup").RunAsync(services, CancellationToken.None);
+
+        Assert.Equal(0, exitCode);
+        Assert.Equal(["prepare", "initialized", "setup"], order);
+    }
+
+    [Fact]
+    public async Task RunAsync_AStartupPrerequisiteFails_ReturnsOneAndLogsTheFailureWithoutSettingUp()
+    {
+        var loggerProvider = new CapturingLoggerProvider();
+        var failure = new InvalidOperationException("The key ring 'cell-client' cannot be read.");
+        var prerequisite = CreateStrictMock<IStartupPrerequisite>();
+        prerequisite
+            .Setup(x => x.PrepareAsync(It.IsAny<CancellationToken>()))
+            .Returns(() => ValueTask.FromException(failure))
+            .Verifiable(Times.Once);
+        var setupService = CreateStrictMock<IInstanceSetupService>();
+        using var services = CreateServices(
+            setupService.Object,
+            CreateRoot(),
+            loggerProvider,
+            isControlPlane: false,
+            hasManagementTenant: true,
+            prerequisite: prerequisite.Object
+        );
+
+        var exitCode = await Parse("setup").RunAsync(services, CancellationToken.None);
+
+        Assert.Equal(1, exitCode);
+        var logged = Assert.Single(
+            loggerProvider.Logs,
+            x => x.EventId.Id == Logging.EventIds.InstanceSetupCommandFailed
+        );
+        Assert.Same(failure, logged.Exception);
     }
 
     [Fact]
@@ -317,7 +388,7 @@ public class InstanceSetupCommandLineTests : BaseTests
     }
 
     [Fact]
-    public async Task RunAsync_CreateRootFails_ReturnsOneAndLogsOnlyTheStatusCode()
+    public async Task RunAsync_CreateRootFails_ReturnsOneAndLogsTheRefusal()
     {
         var loggerProvider = new CapturingLoggerProvider();
         var setupService = CreateStrictMock<IInstanceSetupService>();
@@ -349,13 +420,9 @@ public class InstanceSetupCommandLineTests : BaseTests
         Assert.Equal(1, exitCode);
         Assert.Contains(
             loggerProvider.Messages,
-            message => message.Contains("status code 400", StringComparison.Ordinal)
-        );
-        Assert.DoesNotContain(
-            loggerProvider.Messages,
             message =>
                 message.Contains(
-                    "The password does not satisfy the password policy.",
+                    "status code 400: The password does not satisfy the password policy.",
                     StringComparison.Ordinal
                 )
         );
@@ -642,12 +709,11 @@ public class InstanceSetupCommandLineTests : BaseTests
         Assert.Equal(1, exitCode);
         Assert.Contains(
             loggerProvider.Messages,
-            message => message.Contains("status code 400", StringComparison.Ordinal)
-        );
-        Assert.DoesNotContain(
-            loggerProvider.Messages,
             message =>
-                message.Contains("The automation client needs a JWK Set.", StringComparison.Ordinal)
+                message.Contains(
+                    "status code 400: The automation client needs a JWK Set.",
+                    StringComparison.Ordinal
+                )
         );
     }
 

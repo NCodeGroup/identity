@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using NCode.Identity.Json;
 using NCode.Identity.OpenId.Persistence.Stores;
+using NCode.Identity.Persistence;
 using NCode.Identity.Persistence.Stores;
 
 namespace NCode.Identity.OpenId.Persistence.EntityFramework.Stores;
@@ -177,6 +178,25 @@ public sealed class DirectoryOutboxStoreTests : IDisposable
             ["platform-authority::7", "team-authority:t1:4"],
             actual.Select(entry => $"{entry.Kind}:{entry.Key}:{entry.Revision}")
         );
+    }
+
+    [Fact]
+    public async Task ListSourceRevisionsAsync_WhenATeamHasNoSourceRevision_ListsItsAuthorityAtRevisionZero()
+    {
+        await AddSourceRevisionAsync("team-authority", "t1", 4);
+        using var seedScope = Provider.CreateScope();
+        var seedContext = seedScope.ServiceProvider.GetRequiredService<OpenIdDbContext>();
+        var keyGenerator = seedScope.ServiceProvider.GetRequiredService<ISurrogateKeyGenerator>();
+        seedContext.SeedTeam(keyGenerator, "t1");
+        seedContext.SeedTeam(keyGenerator, "Acme");
+
+        using var scope = Provider.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<OpenIdDbContext>();
+        var store = CreateStore(context);
+        var actual = await store.ListSourceRevisionsAsync(CancellationToken.None);
+
+        var revisions = actual.Select(entry => $"{entry.Kind}:{entry.Key}:{entry.Revision}");
+        Assert.Equal(["team-authority:acme:0", "team-authority:t1:4"], revisions);
     }
 
     [Fact]

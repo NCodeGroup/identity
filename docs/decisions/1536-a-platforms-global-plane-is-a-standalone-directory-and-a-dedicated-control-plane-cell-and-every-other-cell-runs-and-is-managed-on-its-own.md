@@ -84,10 +84,11 @@ tokens with keys and authority replicated through the directory's change feed.**
    nothing in this record changes it. One seam, `IPlatformTopology`, answers `HasDirectory`, `IsControlPlaneCell` and
    `HasManagementTenant`: the host registers the local answer (no directory), the directory client replaces it when
    `Directory:Url` is set, and every rule that holds only on a platform with a directory (DPoP-only management tokens,
-   the dedicated control-plane cell, the outbox) reads it.
-   The directory client's own HTTP client bounds every call with a `Polly.Core` pipeline, as ADR-1385 decision 2 says: a
-   total timeout, then, for a GET or HEAD without a body only, a jittered retry and a per-attempt timeout, so a token
-   request and every write are sent once.
+   the dedicated control-plane cell, the outbox, setup and recovery) reads it. Every offline command of the host image
+   builds the host that the cell's Deployment builds, its directory client included, so it reads the cell's real
+   topology (decision 12). The directory client's own HTTP client bounds every call with a `Polly.Core` pipeline, as
+   ADR-1385 decision 2 says: a total timeout, then, for a GET or HEAD without a body only, a jittered retry and a
+   per-attempt timeout, so a token request and every write are sent once.
 2. **The directory is a release of its own.** It is deployed by its own chart, `ncode-identity-directory`, published
    beside `ncode-identity-host`, from the `ncode-identity-directory` image, with its own database, its own route and
    backend TLS, and one replica, because it keeps its single-use state in process. The host chart keeps only a cell's
@@ -189,7 +190,10 @@ tokens with keys and authority replicated through the directory's change feed.**
      the publisher sends it at the next start. At startup the publisher also reads the revisions the directory holds
      (`GET /directory/v1/replicated-revisions`, in pages of at most 1000 that follow the `after` continuation), and a
      document whose local revision is behind the directory's, as after a restore of the control-plane cell's database,
-     is republished from its current state at the revision after the directory's.
+     is republished from its current state at the revision after the directory's. A document whose rows exist and that
+     the directory does not hold is republished from its current state at the revision after its local one: the outbox
+     lists a document whose rows exist and that no source revision names at revision `0`, so it is published at revision
+     `1`.
    - **Routes.** The directory maps `PUT` and `GET /directory/v1/platform/authority`, `PUT` and
      `GET /directory/v1/teams/{teamId}/authority`, `PUT` and `GET /directory/v1/platform/management-keys` and
      `GET /directory/v1/replicated-revisions`. Only the anchor cell may `PUT` a document or read the revisions (`403`
@@ -264,37 +268,63 @@ tokens with keys and authority replicated through the directory's change feed.**
    `TenantKeyCustodyReconciler` runs every 15 minutes, on one replica per window, and sets `held` for an `incoming`
    tenant that the directory places in this cell. `RootTenantRules.IsTrustAnchor`, the control-plane tenant of the
    control-plane cell, is never fenced.
-10. **A cell has a management issuer of its own.** A cell that serves its tenants through a dynamic tenant-resolution
-    strategy (`DynamicByHost`, `DynamicByPath`) has a management tenant: its root tenant, seeded in the workload plane
-    with the management scopes of the tenant families only. The resource node type `cell` and the built-in role
-    `CellAdmin` join the authority hierarchy
+10. **Every workload cell has a management issuer of its own and creates the tenants its teams grant it.** On a platform
+    with a directory, every workload cell serves its tenants through a dynamic tenant-resolution strategy
+    (`DynamicByHost`, `DynamicByPath`) and has a management tenant: its root tenant, seeded in the workload plane with
+    the management scopes of the tenant families only. A workload cell that names `StaticSingle` refuses to start
+    (`DirectoryClientStartupCheck`), and the chart refuses to render it, because a cell of one static tenant has no
+    address for a second tenant, so it could hold no management tenant and run no cell console. A cell's management
+    tenant belongs to the platform's own team (`OpenId:TenantResolution:Root:TeamId`, `platform`), as the control-plane
+    tenant does: that team holds the platform's own tenants and never a customer's. The resource node type `cell` and
+    the built-in role `CellAdmin` join the authority hierarchy
     ([ADR-1417](1417-management-authority-is-a-role-assignment-at-a-node-of-the-platform-team-and-tenant-hierarchy.md)):
     an assignment of `CellAdmin` at the node `(cell, <name>)` manages every tenant placed in that cell, everything
-    beneath them included, as `TenantAdmin` does at one tenant, and never reaches a team or the platform, never creates
-    a tenant and never grants `TeamAdmin` or `GlobalAdmin`. Only a principal of the cell's management tenant holds
-    `CellAdmin`, and its assignments live in the cell. The cell's management API accepts the tokens of two issuers: the
-    control-plane tenant's, authorized as decision 8 describes, and its management tenant's, whose principals are
-    authorized only by the assignments stored in that cell. A cell's issuer therefore signs only for authority the cell
-    owns. The cell's management API lists its tenants at `GET /api/cell/tenants`, for a `CellAdmin` at `(cell,
-    <Cell:Name>)` or a `GlobalAdmin`, as `GET /api/tenants` lists with a continuation token; `GET /api/cell` reads the
-    cell, and `GET|POST|DELETE /api/cell/admins` list, grant and remove its `CellAdmin`s, the grant and revoke
-    authorized with `Update` at `(cell, <name>)`. `CellAdmin` is granted only to principals of the management tenant,
-    and its node covers the management tenant itself, so a `CellAdmin` manages that tenant's accounts. `GET /api/me`
-    reports the caller's cell roles (`CallerResource.CellRoles`). `GET /api/me/tenants` stays the caller's explicit
-    assignments, so inherited authority is never confused with it. A cell served by `StaticSingle` serves one customer
-    tenant and has no management tenant: it is managed with the control-plane tenant's tokens and recovered offline
-    (decision 12).
-11. **The consoles.** The platform console runs from the control-plane cell's release as a client of the control-plane
-    tenant. It manages the platform and the teams and lists and manages the tenants of every cell by calling each cell's
-    management API with the control-plane tenant's token, as ADR-1437 decision 6 describes, from the cells its
-    configuration names (`ManagementConsole:Cells`, the chart's `managementConsole.cells`). It is an aggregator: no
-    cell's management depends on it. A cell with a management tenant (decision 10) can run a cell console from its own
-    release, a client of that management tenant, which manages only that cell's tenants and keeps working when the
-    global plane is unreachable. `ManagementConsole:Cell` names the cell of a cell console, whose bootstrap document
-    carries `"console": "cell"` and `"cell": "<name>"` (a platform console's says `"console": "platform"`) and whose
-    frontend hides the platform and team surfaces; its home page lists the cell's tenants from `GET /api/cell/tenants`.
-    The platform console has a Cells page that lists the cells, registers one with its JWKS, retires one and shows
-    whether it answers.
+    beneath them included, as `TenantAdmin` does at one tenant, and never reaches a team or the platform and never
+    grants `TeamAdmin` or `GlobalAdmin`. Only a principal of the cell's management tenant holds `CellAdmin`, and its
+    assignments live in the cell. The cell's management API accepts the tokens of two issuers: the control-plane
+    tenant's, authorized as decision 8 describes, and its management tenant's, whose principals are authorized only by
+    the assignments stored in that cell. A cell's issuer therefore signs only for authority the cell owns.
+
+    **A team grants a cell the creation of its tenants.** A tenant belongs to a team, and a `CellAdmin` holds no
+    authority at a team's node, so a team names the cells whose administrators may create its tenants: the team setting
+    `tenant_creation_cells` lists cell names. It is not a limit: the team's own administrators set it, a team beneath it
+    inherits it unless it sets its own, and the platform's own team grants no cell. A `CellAdmin` at
+    `(cell, <Cell:Name>)` creates a tenant of a team whose effective `tenant_creation_cells` names the cell, in that
+    cell, through the route every creator uses, `POST /api/teams/{teamId}/tenants`, and previews its address through
+    `GET /api/teams/{teamId}/tenants/{tenantId}/address`. Both authorize `Create` at the team's node named as the
+    creation of a tenant (`TenantCreationNode`), which `CellTenantCreationHandler` grants to a caller of the cell's
+    management tenant who holds `CellAdmin` at the cell's node, when the team, as the cell mirrors it from the feed, is
+    enabled and grants the cell. The grant reaches no other operation at the team. The team's document already carries
+    its settings to every cell (ADR-1411, decision 5), so the cell decides with its own data and creates its tenants
+    with the control-plane cell and the platform console down. The creation reserves the tenant's identifier and issuer
+    and places the tenant through the directory, as every creation does, so it answers `503` while the directory cannot
+    be reached, and nothing else waits for it. The creator holds no ownership assignment: the cell's `CellAdmin`s manage
+    the tenant at the cell's node, and the team's administrators at the team's node. The audit event of the creation
+    names the cell's principal as its actor.
+
+    The cell's management API lists its tenants at `GET /api/cell/tenants`, for a `CellAdmin` at `(cell, <Cell:Name>)`
+    or a `GlobalAdmin`, as `GET /api/tenants` lists with a continuation token, and the teams that grant it the creation
+    of their tenants at `GET /api/cell/teams`, for the same callers; `GET /api/cell` reads the cell, and
+    `GET|POST|DELETE /api/cell/admins` list, grant and remove its `CellAdmin`s, the grant and revoke authorized with
+    `Update` at `(cell, <name>)`. `CellAdmin` is granted only to principals of the management tenant, and its node
+    covers the management tenant itself, so a `CellAdmin` manages that tenant's accounts. `GET /api/me` reports the
+    caller's cell roles (`CallerResource.CellRoles`), and resolves a caller of the cell's management tenant in that
+    tenant. `GET /api/me/tenants` stays the caller's explicit assignments, so inherited authority is never confused with
+    it.
+11. **The consoles.** The control-plane cell holds the platform's global responsibilities only: the control-plane
+    tenant, the platform's administrators, the teams, the cell registry and every later platform-wide capability, and
+    never a customer's tenant. Its platform console runs from the control-plane cell's release as a client of the
+    control-plane tenant and manages exactly those. It can also list and manage the tenants of the cells its
+    configuration names (`ManagementConsole:Cells`, the chart's `managementConsole.cells`), by calling each cell's
+    management API with the control-plane tenant's token, as ADR-1437 decision 6 describes; that list is an optional
+    overview, and no cell's management, the creation of its tenants included, depends on it or on the control-plane
+    cell. Each workload cell is managed from its own cell console, which runs from the cell's release as a client of the
+    cell's management tenant (decision 10), calls only that cell's management API and keeps working when the global
+    plane is unreachable. `ManagementConsole:Cell` names the cell of a cell console, whose bootstrap document carries
+    `"console": "cell"` and `"cell": "<name>"` (a platform console's says `"console": "platform"`) and whose frontend
+    hides the platform and team surfaces. Its home page lists the cell's tenants from `GET /api/cell/tenants` and, for a
+    `CellAdmin` or a `GlobalAdmin`, creates a tenant of a team that `GET /api/cell/teams` lists. The platform console
+    has a Cells page that lists the cells, registers one with its JWKS, retires one and shows whether it answers.
 12. **Bootstrap, break-glass and the revocation of a key.** A platform starts in this order, and no step waits on a
     later one:
     1. **Keys first.** Before either release, the operator, or the infrastructure code that provisions the platform,
@@ -308,22 +338,37 @@ tokens with keys and authority replicated through the directory's change feed.**
     3. **The control-plane cell.** It is deployed with its directory client, creates its control-plane tenant locally
        without asking the directory (ADR-1411, decision 4) and runs setup, which creates the root administrator
        ([ADR-1512](1512-an-instance-is-set-up-once-through-a-one-time-setup-token-that-creates-a-root-global-administrator.md))
-       and, in the same save, registers the platform console's client. Its first call to the directory is its token
-       request, signed with the key the anchor pins.
+       and, in the same save, registers the platform console's client and, when configured, an automation client. The
+       save goes through the outbox (decision 7), so the root administrator, its `GlobalAdmin` assignment, the clients
+       and the control-plane tenant's keys reach the directory, and every workload cell, at the publisher's next pass.
+       Its first call to the directory is its token request, signed with the key the anchor pins.
     4. **The workload cells.** A global administrator registers each with the public JWKS that `directory-client-jwks`
-       prints from that cell's key ring (decision 5). Each cell is then deployed with its directory client and, when it
-       has a management tenant, runs its cell setup, which creates its first `CellAdmin` and its cell console's client.
+       prints from that cell's key ring (decision 5). Each cell is then deployed with its directory client and runs its
+       cell setup, which reserves the cell's management tenant through the directory on an empty database and creates
+       its first `CellAdmin` and its cell console's client.
+
+    **Offline commands build the cell's own host.** `setup`, `recover-admin`, `recover-sign-in`, `revoke-management-key`
+    and `secret-protection` run against the services of the host the cell's Deployment builds, from the same
+    configuration, the directory client's settings and key included, so each reads the cell's real topology: setup and
+    `recover-admin` grant `CellAdmin` in a workload cell, and what a command saves in the control-plane cell is
+    published through the outbox. A command never starts the host, so it first runs the host's startup prerequisites
+    (`IStartupPrerequisite`), the steps the host runs as it starts that a command needs too, such as loading the key
+    rings of `KeyRings`, whose `Directory:KeyRing` signs the cell's directory token request. The setup Job therefore
+    runs on an empty database, in any order with the Deployment: a workload cell's setup reserves the management tenant
+    itself, because that tenant has an address on the platform, which only the directory reserves.
+    `directory-client-jwks` needs only a key ring, so it runs in a host of its own before the cell's configuration
+    exists.
 
     The one loop, the control-plane tenant authorizing changes to the namespace it is registered in, is broken by the
     pinned anchor. When the anchor itself is broken (every platform administrator locked out, or a setting that refuses
-    every sign-in), an offline command of the host image, run as a Job with the cell's schema-owner credentials as
-    `setup` and `secret-protection` are, recovers it: `recover-admin` creates or re-enables a local account in the
-    control-plane tenant from a Secret and grants it `GlobalAdmin`, and in a cell with a management tenant it creates or
-    re-enables a `CellAdmin`. Two offline operations recover it:
+    every sign-in), an offline command of the host image, run as a Job with the cell's configuration as `setup` and
+    `secret-protection` are, recovers it: `recover-admin` creates or re-enables a local account in the control-plane
+    tenant from a Secret and grants it `GlobalAdmin`, and in a workload cell it creates or re-enables a `CellAdmin`. Two
+    offline operations recover it:
 
     - `recover-admin` creates or re-enables a local account in the anchor tenant from `Recovery:Admin:*` (`UserName`,
-      `Password`, `Email`, `DisplayName`) and grants `GlobalAdmin` in the control-plane cell or `CellAdmin` in a cell with
-      a management tenant; it refuses a workload cell without one.
+      `Password`, `Email`, `DisplayName`) and grants `GlobalAdmin` in the control-plane cell or `CellAdmin` in a
+      workload cell, whose management tenant is its anchor tenant.
     - `recover-sign-in` repairs a setting that blocks every sign-in. A settings descriptor is `IsSignInCritical` when
       it can: `allowed_connections`, `default_connection`, `grant_types_enabled`, `password_min_length`,
       `password_max_length`, `password_failed_attempts_limit`, `password_failed_attempts_window`, `email_mfa_required`,
@@ -427,6 +472,32 @@ tokens with keys and authority replicated through the directory's change feed.**
   `GET /api/cell/tenants`.
 - **Resetting every setting of the anchor tenant.** Recovery would clear a blocking value without knowing which one.
   Rejected: it would discard intended configuration, so `recover-sign-in` removes only the sign-in-critical settings.
+- **A static workload cell with a management tenant.** A `StaticSingle` cell serves one tenant at its address, so a
+  management tenant beside it would need an address the strategy does not route; serving both is what the dynamic
+  strategies do. Rejected: every workload cell of a platform with a directory serves a dynamic strategy, so every
+  customer cell has a management tenant and a cell console.
+- **A static workload cell managed from the control plane alone.** A customer cell would then depend on the
+  control-plane cell and its console for its day-to-day management. Rejected: it is the coupling this record removes.
+- **Tenants a `CellAdmin` creates land in a default team of the cell, which a platform administrator reassigns later.**
+  The cell's operator would choose which team receives a customer's tenant, that team's administrators would hold
+  authority over a tenant they never asked for until someone reassigns it, and moving a tenant between teams becomes
+  part of creating one. Rejected: the team that owns a tenant decides which cells may create it.
+- **The cell console creates tenants with a `TeamAdmin`'s token.** The console would sign in at the control-plane tenant
+  for that one action, so creating a customer's tenant would depend on the control-plane cell. Rejected.
+- **A role at the team's node held by the cell.** A cell is no principal of the hierarchy, and the role would need an
+  identity for every cell in the control-plane tenant. Rejected: the grant is data of the team, a setting that the
+  team's document already carries to every cell.
+- **A team that grants a cell (chosen).** `tenant_creation_cells` is set by the team's own administrators, reaches every
+  cell with the team's document, and is judged by the cell from its own data.
+- **Setup reserving no directory identifier for the management tenant.** The command could create the management tenant
+  locally, as the control-plane cell creates the trust anchor. But the management tenant has an issuer on the platform,
+  and only the directory keeps identifiers and issuers unique; a tenant created without its reservation could collide
+  with one that another cell reserves. Rejected: the command loads the key rings the host loads and reserves the tenant
+  as every creation does.
+- **Offline commands with the local topology.** A Job that carries only the host's database and root key builds a host
+  of a platform of one cell: setup refuses a workload cell, and a control-plane cell's setup saves its administrator
+  without an outbox row, so no workload cell ever accepts a management token. Rejected: every offline command carries
+  the cell's directory client and runs the host's startup prerequisites.
 - **A directory-only mode of the host chart.** One chart would still carry both failure domains' values and versions
   together. Rejected: a chart of its own makes the separation structural.
 
@@ -435,8 +506,9 @@ tokens with keys and authority replicated through the directory's change feed.**
 - A workload cell's outage, bad release or restore touches its own tenants, their management included, and nothing else.
 - While the control-plane cell is down, every cell keeps serving and keeps authorizing management requests whose tokens
   are still valid; no administrator obtains a new control-plane token, platform and team changes and cell registrations
-  wait, and a cell with a management tenant is managed by its own `CellAdmin`s. The directory keeps issuing tokens to
-  cells, so tenant creation, which needs only the directory and the tenant's own cell, continues.
+  wait, and every workload cell is managed from its own cell console by its own `CellAdmin`s. The directory keeps
+  issuing tokens to cells, so tenant creation, which needs only the directory and the tenant's own cell, continues, a
+  `CellAdmin` creating the tenants of every team that grants the cell.
 - While the directory is down, tenants and teams are neither created, deleted nor moved, cells are not registered, and
   the replicas stop advancing; serving and management continue in every cell.
 - A role granted or revoked at the platform or a team reaches a cell within the publish latency plus one feed poll,
@@ -459,7 +531,13 @@ tokens with keys and authority replicated through the directory's change feed.**
   replica; a second replica needs the shared-state adapter for its assertion-replay record, as for its other single-use
   state.
 - `CellAdmin` and the cell node widen the authority hierarchy by one node type that sits beside the team chain, never in
-  it.
+  it. A team reaches a cell's administrators only through `tenant_creation_cells`, which grants the creation of its
+  tenants in that cell and nothing else at the team. The directory reserves a tenant for a cell without checking that
+  grant, as it reserves one that a team's administrator creates in a cell: the cell's management API is the gate.
+- A platform with a directory has no static workload cell: a single-customer cell serves a dynamic strategy with that
+  customer's tenants beside its management tenant.
+- Every offline Job of the host chart carries the cell's directory client, its key included, and runs on an empty
+  database in any order with the Deployment.
 - Key rollover and secret deletion keep working through any directory outage, because a tenant's key custody is a local
   fence ([#944](https://github.com/NCodeGroup/identity/issues/944)). The work is
   [#940](https://github.com/NCodeGroup/identity/issues/940).
@@ -507,4 +585,7 @@ tokens with keys and authority replicated through the directory's change feed.**
   and [#845](https://github.com/NCodeGroup/identity/issues/845) (the console's cells, its view of cells, and fleet
   management); [#918](https://github.com/NCodeGroup/identity/issues/918),
   [#919](https://github.com/NCodeGroup/identity/issues/919) and
-  [#933](https://github.com/NCodeGroup/identity/issues/933) (bootstrapping a control-plane cell with its directory)
+  [#933](https://github.com/NCodeGroup/identity/issues/933) (bootstrapping a control-plane cell with its directory);
+  [#955](https://github.com/NCodeGroup/identity/issues/955) (the first deployment of the global plane),
+  [#956](https://github.com/NCodeGroup/identity/issues/956) (the offline commands' topology) and
+  [#957](https://github.com/NCodeGroup/identity/issues/957) (a cell console creates its cell's tenants)

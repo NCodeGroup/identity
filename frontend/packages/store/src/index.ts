@@ -28,6 +28,7 @@ export {
   useListCellsQuery,
   useGetCellScopeQuery,
   useListCellTenantsInfiniteQuery,
+  useListCellTeamsQuery,
   useListCellAdminsQuery,
   useAddCellAdminMutation,
   useRemoveCellAdminMutation,

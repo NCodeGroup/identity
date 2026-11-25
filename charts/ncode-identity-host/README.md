@@ -176,9 +176,15 @@ it, and the chart renders them as the `Cell` section the host binds:
   when `directory.url` is set because the cell checks the issuer against its replicated keys;
 - `tenantResolution.staticSingle.tenantId` and `displayName`, the cell's own tenant under the `StaticSingle` strategy
   (`StaticSingle:TenantId` and `StaticSingle:DisplayName`), the tenant identifier `default` when empty, which the chart
-  writes for the cell. A cell that is not the control plane must name its tenant, because a
-  tenant identifier is unique across the platform's cells and the cell reserves and places its tenant in the directory
-  when it first creates it.
+  writes for the cell. A cell that is not the control plane must name its tenant, because a tenant identifier is unique
+  across the platform's cells.
+
+On a platform with a directory, the control-plane cell holds the platform's global responsibilities only, and every
+other cell is a workload cell that serves `DynamicByHost` or `DynamicByPath` (`tenantResolution.strategyCode`, with the
+strategy's settings in `extraEnv`): its root tenant, which `OpenId__TenantResolution__Root__TenantId` names and which is
+unique across the platform's cells, is the cell's management tenant, and the cell is managed from its own cell console
+([ADR-1536](../../docs/decisions/1536-a-platforms-global-plane-is-a-standalone-directory-and-a-dedicated-control-plane-cell-and-every-other-cell-runs-and-is-managed-on-its-own.md)).
+The chart refuses `StaticSingle` when `directory.url` is set and `cell.isControlPlane` is `false`, and so does the host.
 
 A cell reaches the platform's directory through the `directory` values, rendered as the `Directory` section
 (`Directory__Url`, `Directory__ClientId`, `Directory__KeyRing`, and `Directory__CaCertificatesPath` with `directory.caCertificates`) when `directory.url` is set, and then
@@ -203,14 +209,17 @@ through `directory.caCertificates`: `existingSecret` or `existingConfigMap` (nev
 authorities while every other outbound call of the process keeps the system store. The chart refuses
 `directory.caCertificates` while `directory.url` is empty.
 
-The cell's `directory` values say the same as the platform's bootstrap runbook: the control-plane cell's public keys
-are pinned in the directory chart's `controlPlane.clientJwks`, the platform's operator registers every workload cell
-with its key ring's public keys (`PUT /api/cells/{name}` in the control-plane cell), and `directory.url`,
+The cell's `directory` values say the same as the platform's bootstrap runbook: the control-plane cell's public keys are
+pinned in the directory chart's `controlPlane.clientJwks`, the platform's operator registers every workload cell with
+its key ring's public keys (`PUT /api/cells/{name}` in the control-plane cell), and `directory.url`,
 `directory.clientId`, `directory.keyRing` and `directory.keys.*` give the cell the client and its private keys. The cell
 signs an assertion with them and the directory issues the cell's token at its own token endpoint. A control-plane cell
-without `directory.url` keeps the local adapters, so its teams and platform changes never reach the directory. [Run the cells of a platform](../../docs/platform-bootstrap.md#9-run-the-cells-of-a-platform) lists the
-steps. Only the Deployment carries the directory client's settings and key: the setup and secret-protection Jobs run
-offline commands that never call the directory.
+without `directory.url` keeps the local adapters, so its teams and platform changes never reach the directory.
+[Run the cells of a platform](../../docs/platform-bootstrap.md#9-run-the-cells-of-a-platform) lists the steps. The
+Deployment and every Job that runs one of the host's offline commands (setup, recovery and secret protection) carry the
+directory client's settings and key, so each command builds the host the Deployment builds, with the cell's real
+topology: a workload cell's setup reserves its management tenant through the directory, and what a command saves in the
+control-plane cell is published through the outbox.
 
 The chart runs no directory. The directory runs from its own chart, `ncode-identity-directory`, as a release of its own,
 which the [directory chart's README](../ncode-identity-directory/README.md) describes.
@@ -252,6 +261,9 @@ Rendering fails, before anything is applied, when:
   `setup.job.existingSecret`, `setup.job.userNameKey` or `setup.job.passwordKey` is empty;
 - the `StaticSingle` strategy has no `https` issuer;
 - a `StaticSingle` cell that is not the control plane has no `tenantResolution.staticSingle.tenantId`;
+- `directory.url` is set, `cell.isControlPlane` is `false` and `tenantResolution.strategyCode` is neither
+  `DynamicByHost` nor `DynamicByPath`, because every workload cell of a platform with a directory has a management
+  tenant of its own;
 - `secretProtection.rootKeyProvider` is empty, in any environment, because the host does not start without one;
 - `secretProtection.rootKeyProvider` is `ephemeral`, in any environment, which would leave no root key outside the pod;
 - `secretProtection.rootKeyProvider` is `local`, in any environment, and `secretProtection.local.keySecret` is empty;
@@ -350,11 +362,15 @@ with registration checked, the client ID and the console URL filled, and the key
 console, the step says so and takes a pasted set.
 
 To create the root administrator without a browser, enable `setup.job`. It renders a Job per release revision that runs
-the host image's `setup` command, creates the root administrator from the Secret named in `setup.job.existingSecret`, and
-exits 0 on an instance that is already initialized. Setup runs in the control-plane cell and in a workload cell that
-serves a dynamic strategy, where it creates the cell's first administrator, so the chart refuses `setup.job.enabled`
-unless `cell.isControlPlane` is `true` or `tenantResolution.strategyCode` is `DynamicByHost` or `DynamicByPath`. The
-setup values:
+the host image's `setup` command, creates the root administrator from the Secret named in `setup.job.existingSecret`,
+and exits 0 on an instance that is already initialized. Setup runs in the control-plane cell and in a workload cell that
+serves a dynamic strategy, where it creates the cell's first administrator, a `CellAdmin`, so the chart refuses
+`setup.job.enabled` unless `cell.isControlPlane` is `true` or `tenantResolution.strategyCode` is `DynamicByHost` or
+`DynamicByPath`. On a platform with a directory the Job carries the cell's directory client and its key, and the command
+loads the key rings the host loads as it starts, so the Job runs on an empty database, in any order with the Deployment:
+a workload cell's setup reserves the cell's management tenant through the directory, which needs the cell registered
+first (`PUT /api/cells/{name}`), and a control-plane cell's setup writes through the outbox, so its root administrator
+and clients reach every workload cell within a publish and a feed poll. The setup values:
 
 | Value                                    | Meaning                                                                                     |
 |------------------------------------------|---------------------------------------------------------------------------------------------|
@@ -380,9 +396,10 @@ and `Setup__Automation__*`; the chart emits each group only when `setup.manageme
 `setup.automation.clientId` is set. If a registration is refused, setup saves nothing, so the root administrator is not
 created either. Setup imports each JWK Set by value, so neither client needs a `jwks_uri` the server can reach.
 
-- **The management console's client** is a confidential client of the control-plane tenant, with the metadata that
-  [Management console](#management-console) lists, except `jwks_uri`. Set `setup.managementConsole.baseUrl` to the origin
-  of `managementConsole.host` and `setup.managementConsole.jwks` to the public JWK Set of the console's `mgmt-client.pem`
+- **The management console's client** is a confidential client of the control-plane tenant, or of a workload cell's
+  management tenant for its cell console, with the metadata that [Management console](#management-console) lists, except
+  `jwks_uri`. Set `setup.managementConsole.baseUrl` to the origin of `managementConsole.host` and
+  `setup.managementConsole.jwks` to the public JWK Set of the console's `mgmt-client.pem`
   ([how to derive it](../../docs/first-deployed-instance.md#the-management-consoles-client)).
 - **The automation client** is a platform-owned `client_credentials` machine client that holds `GlobalAdmin` and
   authenticates with `private_key_jwt`, so a GitOps install manages the instance without the development bootstrap
@@ -397,7 +414,9 @@ Delete both Secrets once the instance is initialized. The guide
 ## Recovery
 
 Three offline commands of the host image repair an instance that no one can sign in to or manage. Each renders a Job per
-release revision, with the runtime role's connection (`database`), as the host does, and no hook; enable one only while it is needed.
+release revision, with the runtime role's connection (`database`) and the cell's directory client, as the host does, and
+no hook; enable one only while it is needed. `recover-admin` restores a `GlobalAdmin` in the control-plane cell and a
+`CellAdmin` in a workload cell.
 
 | Value                                        | Meaning                                                                                       |
 | -------------------------------------------- | --------------------------------------------------------------------------------------------- |
@@ -915,19 +934,23 @@ compares the console's DPoP proofs with, and the chart sets `ManagementConsole__
 The console's authority defaults to `tenantResolution.staticSingle.issuer` under the `StaticSingle` strategy; set
 `managementConsole.authority` for any other strategy.
 
-A workload cell that serves a dynamic strategy has a management tenant of its own and can run its own console. Set
+Every workload cell of a platform with a directory has a management tenant of its own and is managed from its own cell
+console, which keeps working while the control-plane cell, the platform console and the directory are down; only
+creating a tenant waits for the directory. Its home page lists the cell's tenants and creates a tenant of each team
+whose `tenant_creation_cells` setting names the cell, which the team's administrators set. Set
 `managementConsole.cellConsole` to `true` in such a release: the chart sets `ManagementConsole__Cell` to `cell.name` and
 `ManagementConsole__ManagementApiUrl` to `<cell.managementUrl>/api`, and `managementConsole.authority` names the issuer
-of the cell's root tenant, which the console signs in against. The chart refuses `cellConsole` in the control-plane cell,
-without `DynamicByHost` or `DynamicByPath` as `tenantResolution.strategyCode`, and without `cell.managementUrl` and
-`managementConsole.authority`. `ci/cell-console-values.yaml` is a whole release of such a cell.
+of the cell's root tenant, which the console signs in against. The chart refuses `cellConsole` in the control-plane
+cell, without `DynamicByHost` or `DynamicByPath` as `tenantResolution.strategyCode`, and without `cell.managementUrl`
+and `managementConsole.authority`. `ci/cell-console-values.yaml` is a whole release of such a cell.
 
-A platform console lists the cells it manages. Set `managementConsole.cells` to a map of cell name to that cell's
-management API URL, such as `eu-1: https://manage.eu-1.example.com/api`; the chart renders each as
-`ManagementConsole__Cells__<name>`. Names follow the form of `cell.name` and URLs are `https`. When `cell.managementUrl`
-is set and no entry names `cell.name`, the chart adds the release's own cell as `<cell.managementUrl>/api`. The chart
-refuses `cells` together with `cellConsole`. `ci/platform-console-values.yaml` is a whole release of a platform console
-that lists two cells.
+A platform console runs in the control-plane cell and manages the platform, its teams and its cells. It can also list
+and manage the tenants of the cells it names, an optional overview that no cell's management depends on: set
+`managementConsole.cells` to a map of cell name to that cell's management API URL, such as
+`eu-1: https://manage.eu-1.example.com/api`; the chart renders each as `ManagementConsole__Cells__<name>`. Names follow
+the form of `cell.name` and URLs are `https`. When `cell.managementUrl` is set and no entry names `cell.name`, the chart
+adds the release's own cell as `<cell.managementUrl>/api`. The chart refuses `cells` together with `cellConsole`.
+`ci/platform-console-values.yaml` is a whole release of a platform console that lists two cells.
 
 For more than one replica, set `managementConsole.valkey.existingSecret` to a Secret that holds the console's own
 Valkey connection string under the `connection-string` key, or `managementConsole.valkey.parts.existingSecret` to the
@@ -1206,9 +1229,14 @@ verifies the pods' certificate and that the Gateway's `spec.tls.backend.clientCe
 client certificate the pods require. A Gateway without `clientCertificateRef` gets `403` outside the health paths
 and `200` on them, and a `BackendTLSPolicy` that holds a foreign CA gets `503`.
 
-The `directory-cluster` job of the `Host chart` workflow installs the `ncode-identity-directory` chart and then one
-release of a control-plane cell with its directory client and its setup Job in a kind cluster behind Traefik. It proves
-that the cell registers with the directory and obtains a token from it.
+The `directory-cluster` job of the `Host chart` workflow installs the `ncode-identity-directory` chart, a release of a
+control-plane cell and a release of a workload cell (`ci/kind-cell-values.yaml`, `DynamicByPath`), each with its
+directory client and its own setup Job on an empty database, in a kind cluster behind Traefik. It proves that the
+control-plane cell registers with the directory and obtains a token from it; that its setup Job's automation client,
+which nothing else creates, registers the workload cell with a DPoP-bound management token; that the workload cell's
+setup Job reserves its management tenant and creates its `CellAdmin` and its cell console's client; and that the
+workload cell accepts the automation client's management token, which it verifies with the keys and authority that the
+control-plane cell's setup published, with no reset or restart.
 
 ## Strict-Transport-Security
 

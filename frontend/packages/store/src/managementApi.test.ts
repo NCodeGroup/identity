@@ -2493,6 +2493,16 @@ describe('managementApi cell endpoints', () => {
     expect(invalidatedBy(store, [{ type: 'Tenant', id: 'platform:other' }])).toEqual([]);
   });
 
+  it('listCellTeams GETs the teams that grant the cell', async () => {
+    const captured = mockFetch(jsonResponse({ items: [] }));
+    const store = createStore();
+
+    await store.dispatch(managementApi.endpoints.listCellTeams.initiate());
+
+    expect(captured[0]?.url).toBe('https://api.test/api/cell/teams');
+    expect(captured[0]?.method).toBe('GET');
+  });
+
   it('listCellAdmins GETs the cell administrators', async () => {
     const captured = mockFetch(jsonResponse({ items: [], canChange: true }));
     const store = createStore();

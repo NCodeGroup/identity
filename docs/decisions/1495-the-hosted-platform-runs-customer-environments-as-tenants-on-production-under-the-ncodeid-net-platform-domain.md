@@ -62,7 +62,9 @@ carries nothing else; a brand domain carries the site, docs, status page and ope
    | `{tenant}.auth.{region}.ncodeid.net`       | Workload tenant issuers of one region, resolved by `DynamicByHost`          |
    | `mtls.ncodeid.net`                         | The root tenant's RFC 8705 mTLS alias                                       |
    | `{tenant}.mtls.{region}.ncodeid.net`       | A workload tenant's RFC 8705 mTLS alias, the only hosts that request client certificates besides the root alias |
-   | `manage.ncodeid.net`                       | The management console only ([ADR-1437](1437-the-management-console-is-a-confidential-client-whose-own-bff-host-serves-only-the-console.md)) |
+   | `manage.ncodeid.net`                       | The platform console only ([ADR-1437](1437-the-management-console-is-a-confidential-client-whose-own-bff-host-serves-only-the-console.md)) |
+   | `{cell}-manage.auth.{region}.ncodeid.net`  | A workload cell's management tenant issuer and its management API at `/api` ([ADR-1536](1536-a-platforms-global-plane-is-a-standalone-directory-and-a-dedicated-control-plane-cell-and-every-other-cell-runs-and-is-managed-on-its-own.md)) |
+   | `{cell}.manage.ncodeid.net`                | A workload cell's cell console |
    | `….lab.ncodeid.net`                        | Lab hosts, with `lab` after the function                                    |
    | `{run}.ci.ncodeid.net`                     | Ephemeral CI runs                                                           |
 

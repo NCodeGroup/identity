@@ -150,7 +150,12 @@ its first cell administrator.**
       that cell's hosted service issues no token and stores no `InstanceSetup` mark.
     - In the control-plane cell setup creates the root `GlobalAdmin`. In a workload cell with a management tenant it
       creates the cell's first `CellAdmin` in the cell's management tenant.
-    - The `setup` command exits non-zero on any other cell and says so.
+    - The `setup` command exits non-zero on any other cell and says so. It runs with the cell's configuration, its
+      directory client included, and loads the key rings the host loads as it starts, so a workload cell's setup
+      reserves the management tenant through the directory on an empty database and a control-plane cell's setup
+      publishes its administrator through the outbox
+      ([ADR-1536](1536-a-platforms-global-plane-is-a-standalone-directory-and-a-dedicated-control-plane-cell-and-every-other-cell-runs-and-is-managed-on-its-own.md),
+      decision 12).
     - The chart refuses `setup.job.enabled` unless `cell.isControlPlane` is `true` or the cell's tenant-resolution
       strategy is dynamic, so no release runs a setup Job in a cell whose `setup` command would refuse.
     - `recover-admin` and `recover-sign-in` are the break-glass commands: they create or re-enable an administrator and
