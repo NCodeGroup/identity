@@ -18,6 +18,10 @@ import {
   useListCellTeamsQuery,
   type ApiError,
 } from '@ncodegroup/identity-store';
+import {
+  isTenantAddressPreviewCurrent,
+  tenantAddressPreviewArgs,
+} from '../tenantAddressPreview.js';
 import { useDebouncedValue } from '../useDebouncedValue.js';
 
 export type CellTenantCreationProps = {
@@ -65,11 +69,7 @@ export function CellTenantCreation({
   const previewQuery = useGetNewTenantAddressQuery(
     {
       teamId: teamId ?? '',
-      tenantId: debouncedAddress?.tenantId ?? '',
-      ...(debouncedAddress?.issuer ? { issuer: debouncedAddress.issuer } : {}),
-      ...(debouncedAddress?.mtlsEndpointAliasAuthority
-        ? { mtlsEndpointAliasAuthority: debouncedAddress.mtlsEndpointAliasAuthority }
-        : {}),
+      ...tenantAddressPreviewArgs(debouncedAddress),
       cell: undefined,
     },
     { skip: !shouldPreview, refetchOnMountOrArgChange: true },
@@ -79,11 +79,8 @@ export function CellTenantCreation({
   const addressPreview =
     shouldPreview &&
     preview &&
-    addressInput &&
     previewArgs?.teamId === teamId &&
-    previewArgs.tenantId === addressInput.tenantId &&
-    (previewArgs.issuer ?? '') === addressInput.issuer &&
-    (previewArgs.mtlsEndpointAliasAuthority ?? '') === addressInput.mtlsEndpointAliasAuthority
+    isTenantAddressPreviewCurrent(previewArgs, addressInput)
       ? preview
       : undefined;
 

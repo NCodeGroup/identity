@@ -15,6 +15,7 @@ using Microsoft.Extensions.Options;
 using NCode.Identity.AspNetCore;
 using NCode.Identity.Cryptography;
 using NCode.Identity.Events.Audit;
+using NCode.Identity.Json;
 using NCode.Identity.OpenId.Authentication.Clients;
 using NCode.Identity.OpenId.Contexts;
 using NCode.Identity.OpenId.GlobalDirectory;
@@ -778,6 +779,7 @@ internal class TenantApiEndpointHandler(
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
     /// <response code="201">The created tenant.</response>
     /// <response code="400">The tenant has no display name, its identifier, issuer or mutual-TLS endpoint-alias authority is not valid, or its settings are not valid for a tenant.</response>
+    /// <response code="403">The caller may not create a tenant of the team, or the tenant's settings carry a limit and the caller may not update the team, whose administrators write the limits of its tenants.</response>
     /// <response code="404">The team does not exist.</response>
     /// <response code="409">A tenant with the identifier already exists, the identifier belonged to a deleted tenant, the issuer or the mutual-TLS endpoint-alias authority conflicts with another tenant's or with one that belonged to another tenant, the team or a team above it holds its maximum number of tenants, or the cell is the control-plane cell of a platform with a directory, which holds only the control-plane tenant.</response>
     /// <response code="503">The global directory cannot be reached; the response carries Retry-After.</response>
@@ -885,6 +887,25 @@ internal class TenantApiEndpointHandler(
         if (settingErrors.Count > 0)
         {
             return SettingsValidationProblem(settingErrors);
+        }
+
+        // A limit the new tenant carries is written by the administrators of its team, as every limit is written from
+        // the node above (ADR-1418): a cell administrator that a team grants the creation of its tenants creates them
+        // without limits of its own (ADR-1536).
+        var changedLimits = SettingSerializer.GetChangedLimits(
+            JsonElements.EmptyObject,
+            tenant.Settings.Value
+        );
+        var teamNode = GetTeamNode(httpContext, team.TeamId);
+        var limitRefusal = await GetLimitChangeRefusalOrDefaultAsync(
+            httpContext,
+            changedLimits,
+            teamNode,
+            cancellationToken
+        );
+        if (limitRefusal is not null)
+        {
+            return limitRefusal;
         }
 
         // The directory reserves the identifier and issuer platform-wide, and enforces the team's 'max_tenants' there,

@@ -88,20 +88,16 @@ public static class DefaultRegistration
             serviceCollection.TryAddSingleton<ClientRemoteKeyReader>();
             // One loader serves the host's start and the offline commands, which run every startup prerequisite
             // before their work, so the key rings load once whichever asks first.
-            if (
-                serviceCollection.All(descriptor =>
-                    descriptor.ServiceType != typeof(ClientKeyRingLoader)
-                )
-            )
-            {
-                serviceCollection.AddSingleton<ClientKeyRingLoader>();
-                serviceCollection.AddSingleton<IHostedService>(serviceProvider =>
-                    serviceProvider.GetRequiredService<ClientKeyRingLoader>()
-                );
-                serviceCollection.AddSingleton<IStartupPrerequisite>(serviceProvider =>
-                    serviceProvider.GetRequiredService<ClientKeyRingLoader>()
-                );
-            }
+            serviceCollection.TryAddSingleton<ClientKeyRingLoader>();
+            var keyRingLoader = ServiceDescriptor.Singleton<IHostedService, ClientKeyRingLoader>(
+                static serviceProvider => serviceProvider.GetRequiredService<ClientKeyRingLoader>()
+            );
+            serviceCollection.TryAddEnumerable(keyRingLoader);
+            var keyRingPrerequisite = ServiceDescriptor.Singleton<
+                IStartupPrerequisite,
+                ClientKeyRingLoader
+            >(static serviceProvider => serviceProvider.GetRequiredService<ClientKeyRingLoader>());
+            serviceCollection.TryAddEnumerable(keyRingPrerequisite);
 
             foreach (var name in names)
             {

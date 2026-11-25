@@ -191,11 +191,9 @@ tokens with keys and authority replicated through the directory's change feed.**
      (`GET /directory/v1/replicated-revisions`, in pages of at most 1000 that follow the `after` continuation), and a
      document whose local revision is behind the directory's, as after a restore of the control-plane cell's database,
      is republished from its current state at the revision after the directory's. A document whose rows exist and that
-     the directory does not hold, such as rows written while the cell did not publish, or a document a restored
-     directory lost, is republished from its current state at the revision after its local one: the outbox lists a
-     document whose rows exist and that no source revision names at revision `0`, so it is published at revision `1`. A
-     platform whose control-plane cell once saved rows without publishing them therefore heals at that cell's next
-     start, with no reset.
+     the directory does not hold is republished from its current state at the revision after its local one: the outbox
+     lists a document whose rows exist and that no source revision names at revision `0`, so it is published at revision
+     `1`.
    - **Routes.** The directory maps `PUT` and `GET /directory/v1/platform/authority`, `PUT` and
      `GET /directory/v1/teams/{teamId}/authority`, `PUT` and `GET /directory/v1/platform/management-keys` and
      `GET /directory/v1/replicated-revisions`. Only the anchor cell may `PUT` a document or read the revisions (`403`

@@ -16,6 +16,7 @@ using NCode.Identity.OpenId.Management.Contracts.Teams;
 using NCode.Identity.OpenId.Management.Contracts.Tenants;
 using NCode.Identity.OpenId.Management.Endpoints.Teams;
 using NCode.Identity.OpenId.Management.Endpoints.Tenants;
+using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
 using NCode.Identity.OpenId.Settings;
 using NCode.Identity.OpenId.Tenants;
@@ -190,30 +191,40 @@ internal class CellScopeApiEndpointHandler(
         var store = storeManager.GetStore<ITeamStore>();
         var platformTeamId = TenantResolutionOptions.Root.TeamId;
 
-        var items = new List<TeamResource>();
+        // Every team's own settings document is read in pages, and only the few teams that name this cell, or sit
+        // beneath one that does, have their effective settings resolved.
+        var teams = new List<PersistedTeam>();
         string? cursor = null;
         do
         {
             var pageRequest = new PageRequest { Cursor = cursor, Limit = MaxPageSize };
             var page = await store.GetPageAsync(pageRequest, cancellationToken);
-            foreach (var team in page.Items)
-            {
-                var grants = await CellTenantCreationRules.GrantsAsync(
-                    EffectiveSettingsResolver,
-                    team,
-                    CellOptions.Name,
-                    platformTeamId,
-                    cancellationToken
-                );
-                if (grants)
-                {
-                    var resource = TeamApiEndpointHandler.ToTeamResource(team);
-                    items.Add(resource);
-                }
-            }
-
+            teams.AddRange(page.Items);
             cursor = page.NextCursor;
         } while (cursor is not null);
+
+        var teamsById = teams.ToDictionary(team => team.TeamId, StringComparer.OrdinalIgnoreCase);
+        var items = new List<TeamResource>();
+        foreach (var team in teams)
+        {
+            if (!CellTenantCreationRules.MayGrant(team, teamsById, CellOptions.Name))
+            {
+                continue;
+            }
+
+            var grants = await CellTenantCreationRules.GrantsAsync(
+                EffectiveSettingsResolver,
+                team,
+                CellOptions.Name,
+                platformTeamId,
+                cancellationToken
+            );
+            if (grants)
+            {
+                var resource = TeamApiEndpointHandler.ToTeamResource(team);
+                items.Add(resource);
+            }
+        }
 
         var collection = new CollectionResource<TeamResource> { Items = items };
         return TypedResults.Json(collection);

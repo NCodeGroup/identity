@@ -408,8 +408,10 @@ public sealed class CallerApiEndpointHandlerTests : IDisposable
             .ReturnsAsync(AuthorizationResult.Failed())
             .Verifiable();
 
-        var result = await CreateHandler(isControlPlane: false)
-            .GetCallerAsync(CreateHttpContext(isCellIssued: true), CancellationToken.None);
+        var handler = CreateHandler(isControlPlane: false);
+        var httpContext = CreateHttpContext(isCellIssued: true);
+
+        var result = await handler.GetCallerAsync(httpContext, CancellationToken.None);
 
         var json = Assert.IsType<JsonHttpResult<CallerResource>>(result);
         var caller = Assert.IsType<CallerResource>(json.Value);

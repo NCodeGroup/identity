@@ -100,8 +100,8 @@ public class CellManagementIsolationTests
     {
         var listed = await caller.GetAsync(url, cancellationToken);
         Assert.True(listed.Status == HttpStatusCode.OK, listed.Body);
-        return JsonElement
-            .Parse(listed.Body)
+        var collection = JsonElement.Parse(listed.Body);
+        return collection
             .GetProperty("items")
             .EnumerateArray()
             .Select(item => item.GetProperty(property).GetString())
@@ -137,6 +137,8 @@ public class CellManagementIsolationTests
 
     #region Setup
 
+    // One platform proves what setup leaves in the cell, its console's client, its administrator's role and the
+    // listing that role opens: a harness platform takes seconds to start, so the checks share one.
     [Fact]
     public async Task Setup_InAWorkloadCellWithAnEmptyDatabase_CreatesItsCellAdministratorAndItsConsoleClient()
     {
@@ -190,23 +192,19 @@ public class CellManagementIsolationTests
             timeout.Token
         );
         Assert.True(caller.Status == HttpStatusCode.OK, caller.Body);
-        Assert.Contains(
-            BuiltInRoles.CellAdmin,
-            JsonElement
-                .Parse(caller.Body)
-                .GetProperty("cellRoles")
-                .EnumerateArray()
-                .Select(role => role.GetString())
+        var callerResource = JsonElement.Parse(caller.Body);
+        var cellRoles = callerResource
+            .GetProperty("cellRoles")
+            .EnumerateArray()
+            .Select(role => role.GetString());
+        Assert.Contains(BuiltInRoles.CellAdmin, cellRoles);
+        var cellATenants = await ListIdsAsync(
+            cellAdministrator,
+            $"{PlatformHarness.CellAUrl}/api/cell/tenants",
+            "tenantId",
+            timeout.Token
         );
-        Assert.Contains(
-            PlatformHarness.CellATenantId,
-            await ListIdsAsync(
-                cellAdministrator,
-                $"{PlatformHarness.CellAUrl}/api/cell/tenants",
-                "tenantId",
-                timeout.Token
-            )
-        );
+        Assert.Equal([PlatformHarness.CellATenantId], cellATenants);
     }
 
     [Fact]
@@ -243,6 +241,8 @@ public class CellManagementIsolationTests
 
     #region Isolation
 
+    // One platform proves the whole sequence an operator meets, each step on the state the one before it leaves: a
+    // harness platform takes seconds to start, so the steps share one.
     [Fact]
     public async Task GlobalPlaneDown_WhenACellAdministratorManagesItsCell_CreatesATenantOnlyWhileTheDirectoryAnswers()
     {
@@ -273,24 +273,20 @@ public class CellManagementIsolationTests
             CellAdminPassword,
             timeout.Token
         );
-        Assert.Contains(
-            PlatformHarness.CellBTenantId,
-            await ListIdsAsync(
-                cellAdministrator,
-                $"{PlatformHarness.CellBUrl}/api/cell/tenants",
-                "tenantId",
-                timeout.Token
-            )
+        var tenantsBefore = await ListIdsAsync(
+            cellAdministrator,
+            $"{PlatformHarness.CellBUrl}/api/cell/tenants",
+            "tenantId",
+            timeout.Token
         );
-        Assert.Equal(
-            [TeamId],
-            await ListIdsAsync(
-                cellAdministrator,
-                $"{PlatformHarness.CellBUrl}/api/cell/teams",
-                "teamId",
-                timeout.Token
-            )
+        Assert.Equal([PlatformHarness.CellBTenantId], tenantsBefore);
+        var grantingTeams = await ListIdsAsync(
+            cellAdministrator,
+            $"{PlatformHarness.CellBUrl}/api/cell/teams",
+            "teamId",
+            timeout.Token
         );
+        Assert.Equal([TeamId], grantingTeams);
 
         var created = await CreateTenantAsync(
             cellAdministrator,
@@ -300,14 +296,16 @@ public class CellManagementIsolationTests
             timeout.Token
         );
         Assert.True(created.Status == HttpStatusCode.Created, created.Body);
-        Assert.Contains(
-            "acme-beta",
-            await ListIdsAsync(
-                cellAdministrator,
-                $"{PlatformHarness.CellBUrl}/api/cell/tenants",
-                "tenantId",
-                timeout.Token
-            )
+        var tenantsAfterCreation = await ListIdsAsync(
+            cellAdministrator,
+            $"{PlatformHarness.CellBUrl}/api/cell/tenants",
+            "tenantId",
+            timeout.Token
+        );
+        Assert.Equivalent(
+            new[] { PlatformHarness.CellBTenantId, "acme-beta" },
+            tenantsAfterCreation,
+            strict: true
         );
 
         // The platform's own team grants no cell, so its tenants are created by a platform administrator alone.
@@ -331,24 +329,24 @@ public class CellManagementIsolationTests
             timeout.Token
         );
         Assert.True(unavailable.Status == HttpStatusCode.ServiceUnavailable, unavailable.Body);
-        Assert.Contains(
-            "acme-beta",
-            await ListIdsAsync(
-                cellAdministrator,
-                $"{PlatformHarness.CellBUrl}/api/cell/tenants",
-                "tenantId",
-                timeout.Token
-            )
+        var tenantsWithTheDirectoryDown = await ListIdsAsync(
+            cellAdministrator,
+            $"{PlatformHarness.CellBUrl}/api/cell/tenants",
+            "tenantId",
+            timeout.Token
         );
-        Assert.Equal(
-            [TeamId],
-            await ListIdsAsync(
-                cellAdministrator,
-                $"{PlatformHarness.CellBUrl}/api/cell/teams",
-                "teamId",
-                timeout.Token
-            )
+        Assert.Equivalent(
+            new[] { PlatformHarness.CellBTenantId, "acme-beta" },
+            tenantsWithTheDirectoryDown,
+            strict: true
         );
+        var grantingTeamsWithTheDirectoryDown = await ListIdsAsync(
+            cellAdministrator,
+            $"{PlatformHarness.CellBUrl}/api/cell/teams",
+            "teamId",
+            timeout.Token
+        );
+        Assert.Equal([TeamId], grantingTeamsWithTheDirectoryDown);
         var tenant = await cellAdministrator.GetAsync(
             $"{PlatformHarness.CellBUrl}/api/tenants/acme-beta",
             timeout.Token
@@ -379,14 +377,13 @@ public class CellManagementIsolationTests
             timeout.Token
         );
 
-        Assert.Empty(
-            await ListIdsAsync(
-                cellAdministrator,
-                $"{PlatformHarness.CellBUrl}/api/cell/teams",
-                "teamId",
-                timeout.Token
-            )
+        var grantingTeams = await ListIdsAsync(
+            cellAdministrator,
+            $"{PlatformHarness.CellBUrl}/api/cell/teams",
+            "teamId",
+            timeout.Token
         );
+        Assert.Empty(grantingTeams);
         var refused = await CreateTenantAsync(
             cellAdministrator,
             PlatformHarness.CellBName,
@@ -414,8 +411,9 @@ public class CellManagementIsolationTests
             timeout.Token
         );
         Assert.True(me.Status == HttpStatusCode.OK, me.Body);
+        var meResource = JsonElement.Parse(me.Body);
         var principalId =
-            JsonElement.Parse(me.Body).GetProperty("principalId").GetString()
+            meResource.GetProperty("principalId").GetString()
             ?? throw new InvalidOperationException("The caller has no principal identifier.");
         var replica = platform.CellA.Services.GetRequiredService<IControlPlaneReplica>();
 
@@ -426,7 +424,8 @@ public class CellManagementIsolationTests
             return authority.PlatformRoles.Contains(BuiltInRoles.GlobalAdmin);
         }
 
-        Assert.True(await HoldsGlobalAdminAsync());
+        var heldBefore = await HoldsGlobalAdminAsync();
+        Assert.True(heldBefore);
 
         // The platform is left as the setup of a control-plane cell that did not publish leaves it: the rows exist, and
         // neither a source revision, an outbox row, the directory nor the workload cell holds the document.
@@ -436,7 +435,8 @@ public class CellManagementIsolationTests
             PlatformHarness.CellAName,
             timeout.Token
         );
-        Assert.False(await HoldsGlobalAdminAsync());
+        var heldAfterForgetting = await HoldsGlobalAdminAsync();
+        Assert.False(heldAfterForgetting);
 
         await platform.RestartOutboxPublisherAsync(timeout.Token);
 

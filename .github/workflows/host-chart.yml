@@ -1511,6 +1511,8 @@ jobs:
           print_jwks "$RUNNER_TEMP/keys" cell-client "$RUNNER_TEMP/client-jwks.json"
           print_jwks "$RUNNER_TEMP/keys" ci-automation "$RUNNER_TEMP/automation-jwks.json"
           print_jwks "$RUNNER_TEMP/workload-keys" cell-client "$RUNNER_TEMP/workload-client-jwks.json"
+          # The container read the keys as its own user; only the runner's user reads them from here on.
+          chmod 600 "$RUNNER_TEMP"/keys/*.pem "$RUNNER_TEMP"/workload-keys/*.pem
 
       # The directory's pre-install migration Job and its pod's readiness probes over HTTPS prove that it serves HTTPS.
       # Its Service is the directory's name inside the cluster, so the cell reaches it there and Traefik reaches it
@@ -1615,7 +1617,7 @@ jobs:
           tenants=$(request https://cell.example.com/api/cell/tenants)
           grep -q '"ci-kind-cell-manage"' <<< "$tenants"
           admins=$(request https://cell.example.com/api/cell/admins)
-          grep -q '"CellAdmin"' <<< "$admins" || grep -q '"root"' <<< "$admins"
+          node -e 'const list = JSON.parse(process.argv[1]); if (!list.items.some((holder) => holder.roleName === "CellAdmin")) { console.error("The workload cell lists no CellAdmin."); process.exit(1); }' "$admins"
           request https://cell.example.com/api/tenants/ci-kind-cell-manage/clients/ci-kind-cell-console > /dev/null
 
       # route <namespace/service> <host> <path> sends one request with the Host header through a port-forward to the

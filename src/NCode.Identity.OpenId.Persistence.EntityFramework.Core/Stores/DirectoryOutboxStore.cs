@@ -125,8 +125,10 @@ internal class DirectoryOutboxStore(
 
     /// <summary>
     /// Lists the documents whose source rows exist: the platform authority when the platform node holds an assignment
-    /// or the control-plane tenant a client, the management keys when the control-plane tenant holds a key, and the
-    /// authority of every team.
+    /// or the control-plane tenant a client, the management keys when the control-plane tenant holds a key or a key is
+    /// revoked, and the authority of every team. These are the rows whose changes
+    /// <see cref="ReplicatedDocumentOutboxInterceptor"/> publishes, and <see cref="ComposeCurrentAsync"/> composes each
+    /// document from the same rows.
     /// </summary>
     private async ValueTask<IReadOnlyList<(string Kind, string Key)>> ListSourceDocumentsAsync(
         CancellationToken cancellationToken
@@ -155,11 +157,13 @@ internal class DirectoryOutboxStore(
             documents.Add((ReplicatedDocumentKinds.PlatformAuthority, string.Empty));
         }
 
-        var hasManagementKey = await DbContext
-            .Set<TenantSecretEntity>()
-            // Cross-tenant: the control-plane tenant's secrets are read whatever the ambient tenant is.
-            .IgnoreQueryFilters()
-            .AnyAsync(entity => entity.NormalizedTenantId == controlPlane, cancellationToken);
+        var hasManagementKey =
+            await DbContext
+                .Set<TenantSecretEntity>()
+                // Cross-tenant: the control-plane tenant's secrets are read whatever the ambient tenant is.
+                .IgnoreQueryFilters()
+                .AnyAsync(entity => entity.NormalizedTenantId == controlPlane, cancellationToken)
+            || await DbContext.Set<RevokedManagementKeyEntity>().AnyAsync(cancellationToken);
         if (hasManagementKey)
         {
             documents.Add((ReplicatedDocumentKinds.ManagementKeys, string.Empty));

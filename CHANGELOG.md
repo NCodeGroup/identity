@@ -4563,12 +4563,11 @@ Until the first stable release, the [Unreleased] section describes the product a
   `DirectoryOutboxPublisher` sends the newest pending revision of each document to the directory in revision order,
   retrying with a capped exponential back-off. When the host starts, it republishes every document whose local revision
   is lower than the directory's, so a restored database catches up, and every document that the directory does not hold,
-  a document whose rows no outbox row ever published included, so a platform heals at the control-plane cell's next
-  start. A cell applies a replicated document only when its revision is higher than the one it holds.
-  `ncode.identity.directory.outbox.published` counts the documents the directory acknowledged, and
-  `ncode.identity.directory.replica.age` and `ncode.identity.directory.replica.sequence` report how old a cell's replica
-  is and the highest feed sequence it applied, which the cell's readiness check carries as data and never fails on, so a
-  cell serves its last known documents while the directory is unreachable
+  such as one whose rows no outbox row published. A cell applies a replicated document only when its revision is higher
+  than the one it holds. `ncode.identity.directory.outbox.published` counts the documents the directory acknowledged,
+  and `ncode.identity.directory.replica.age` and `ncode.identity.directory.replica.sequence` report how old a cell's
+  replica is and the highest feed sequence it applied, which the cell's readiness check carries as data and never fails
+  on, so a cell serves its last known documents while the directory is unreachable
   ([ADR-1536](docs/decisions/1536-a-platforms-global-plane-is-a-standalone-directory-and-a-dedicated-control-plane-cell-and-every-other-cell-runs-and-is-managed-on-its-own.md),
   [#940](https://github.com/NCodeGroup/identity/issues/940)).
 

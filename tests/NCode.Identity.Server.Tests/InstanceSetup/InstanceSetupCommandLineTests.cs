@@ -227,19 +227,20 @@ public class InstanceSetupCommandLineTests : BaseTests
     }
 
     [Fact]
-    public async Task RunAsync_AStartupPrerequisiteFails_ReturnsOneWithoutSettingUp()
+    public async Task RunAsync_AStartupPrerequisiteFails_ReturnsOneAndLogsTheFailureWithoutSettingUp()
     {
+        var loggerProvider = new CapturingLoggerProvider();
+        var failure = new InvalidOperationException("The key ring 'cell-client' cannot be read.");
         var prerequisite = CreateStrictMock<IStartupPrerequisite>();
         prerequisite
             .Setup(x => x.PrepareAsync(It.IsAny<CancellationToken>()))
-            .Returns(() =>
-                throw new InvalidOperationException("The key ring 'cell-client' cannot be read.")
-            )
+            .Returns(() => ValueTask.FromException(failure))
             .Verifiable(Times.Once);
         var setupService = CreateStrictMock<IInstanceSetupService>();
         using var services = CreateServices(
             setupService.Object,
             CreateRoot(),
+            loggerProvider,
             isControlPlane: false,
             hasManagementTenant: true,
             prerequisite: prerequisite.Object
@@ -248,6 +249,11 @@ public class InstanceSetupCommandLineTests : BaseTests
         var exitCode = await Parse("setup").RunAsync(services, CancellationToken.None);
 
         Assert.Equal(1, exitCode);
+        var logged = Assert.Single(
+            loggerProvider.Logs,
+            x => x.EventId.Id == Logging.EventIds.InstanceSetupCommandFailed
+        );
+        Assert.Same(failure, logged.Exception);
     }
 
     [Fact]

@@ -304,8 +304,26 @@ public sealed class CellScopeApiEndpointHandlerTests : IDisposable
 
     #region ListCellTeamsAsync Tests
 
-    private static PersistedTeam CreateTeam(string teamId, bool isDisabled = false) =>
-        new PersistedTeamBuilder { TeamId = teamId, IsDisabled = isDisabled }.Build();
+    private static PersistedTeam CreateTeam(
+        string teamId,
+        string[]? tenantCreationCells = null,
+        string[]? ancestorTeamIds = null,
+        bool isDisabled = false
+    )
+    {
+        var settings = new Dictionary<string, object>();
+        if (tenantCreationCells is not null)
+            settings[OpenIdSettingNames.TenantCreationCells] = tenantCreationCells;
+
+        var settingsJson = System.Text.Json.JsonSerializer.SerializeToElement(settings);
+        return new PersistedTeamBuilder
+        {
+            TeamId = teamId,
+            IsDisabled = isDisabled,
+            AncestorTeamIds = ancestorTeamIds ?? [],
+            Settings = settingsJson,
+        }.Build();
+    }
 
     private void SetupTeamSettings(string teamId, params string[] cells)
     {
@@ -330,8 +348,11 @@ public sealed class CellScopeApiEndpointHandlerTests : IDisposable
             .Setup(x => x.CreateAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(MockStoreManager.Object)
             .Verifiable();
-        MockStoreManager.Setup(x => x.GetStore<ITeamStore>()).Returns(MockTeamStore.Object);
-        MockStoreManager.Setup(x => x.DisposeAsync()).Returns(ValueTask.CompletedTask);
+        MockStoreManager
+            .Setup(x => x.GetStore<ITeamStore>())
+            .Returns(MockTeamStore.Object)
+            .Verifiable();
+        MockStoreManager.Setup(x => x.DisposeAsync()).Returns(ValueTask.CompletedTask).Verifiable();
         MockTeamStore
             .Setup(x =>
                 x.GetPageAsync(
@@ -342,7 +363,12 @@ public sealed class CellScopeApiEndpointHandlerTests : IDisposable
             .ReturnsAsync(
                 new PagedResult<PersistedTeam>
                 {
-                    Items = [CreateTeam("platform"), CreateTeam("acme"), CreateTeam("globex")],
+                    Items =
+                    [
+                        CreateTeam("platform", tenantCreationCells: [CellName]),
+                        CreateTeam("acme", tenantCreationCells: [CellName]),
+                        CreateTeam("globex", tenantCreationCells: ["cell-b"]),
+                    ],
                     NextCursor = "next",
                 }
             )
@@ -357,14 +383,21 @@ public sealed class CellScopeApiEndpointHandlerTests : IDisposable
             .ReturnsAsync(
                 new PagedResult<PersistedTeam>
                 {
-                    Items = [CreateTeam("initech", isDisabled: true), CreateTeam("umbrella")],
+                    Items =
+                    [
+                        CreateTeam("initech", tenantCreationCells: [CellName], isDisabled: true),
+                        CreateTeam("umbrella", tenantCreationCells: ["cell-b", CellName]),
+                        CreateTeam("acme-labs", ancestorTeamIds: ["acme"]),
+                        CreateTeam("hooli"),
+                    ],
                     NextCursor = null,
                 }
             )
             .Verifiable();
+        // Only the teams that name the cell, or sit beneath one that does, have their effective settings resolved.
         SetupTeamSettings("acme", CellName);
-        SetupTeamSettings("globex", "cell-b");
         SetupTeamSettings("umbrella", "cell-b", CellName);
+        SetupTeamSettings("acme-labs", CellName);
 
         var result = await Handler.ListCellTeamsAsync(
             CreateHttpContext(authenticated: true),
@@ -373,7 +406,8 @@ public sealed class CellScopeApiEndpointHandlerTests : IDisposable
 
         var json = Assert.IsType<JsonHttpResult<CollectionResource<TeamResource>>>(result);
         var collection = Assert.IsType<CollectionResource<TeamResource>>(json.Value);
-        Assert.Equal(["acme", "umbrella"], collection.Items.Select(x => x.TeamId));
+        var teamIds = collection.Items.Select(x => x.TeamId);
+        Assert.Equal(["acme", "umbrella", "acme-labs"], teamIds);
         var node = Assert.Single(authorized);
         Assert.Equal(ResourceNodeTypes.Cell, node.ResourceType);
         Assert.Equal(CellName, node.ResourceId);

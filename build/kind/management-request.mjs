@@ -13,8 +13,9 @@
 //
 // --connect sends every request for an origin to another address, such as a port-forward, while the Host header stays
 // the origin's; the server's certificate is checked against <tls-name>, such as the Service name that a pod's
-// certificate names, or else against the origin's host. --ca adds a trusted CA certificate. --expect retries the whole exchange, a fresh token included, until the API
-// answers that status, for at most --attempts tries --delay-seconds apart. The response body goes to standard output.
+// certificate names, or else against the origin's host. --ca adds a trusted CA certificate. --expect retries the whole
+// exchange, a fresh token included, until the API answers that status, for at most --attempts tries --delay-seconds
+// apart. The response body goes to standard output.
 
 import { createHash, createPrivateKey, createPublicKey, generateKeyPairSync, randomUUID, sign } from 'node:crypto';
 import { readFileSync } from 'node:fs';

@@ -184,23 +184,19 @@ public sealed class DirectoryOutboxStoreTests : IDisposable
     public async Task ListSourceRevisionsAsync_WhenATeamHasNoSourceRevision_ListsItsAuthorityAtRevisionZero()
     {
         await AddSourceRevisionAsync("team-authority", "t1", 4);
-        using (var seedScope = Provider.CreateScope())
-        {
-            var seedContext = seedScope.ServiceProvider.GetRequiredService<OpenIdDbContext>();
-            var keyGenerator =
-                seedScope.ServiceProvider.GetRequiredService<ISurrogateKeyGenerator>();
-            seedContext.SeedTeam(keyGenerator, "t1");
-            seedContext.SeedTeam(keyGenerator, "Acme");
-        }
+        using var seedScope = Provider.CreateScope();
+        var seedContext = seedScope.ServiceProvider.GetRequiredService<OpenIdDbContext>();
+        var keyGenerator = seedScope.ServiceProvider.GetRequiredService<ISurrogateKeyGenerator>();
+        seedContext.SeedTeam(keyGenerator, "t1");
+        seedContext.SeedTeam(keyGenerator, "Acme");
 
         using var scope = Provider.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<OpenIdDbContext>();
-        var actual = await CreateStore(context).ListSourceRevisionsAsync(CancellationToken.None);
+        var store = CreateStore(context);
+        var actual = await store.ListSourceRevisionsAsync(CancellationToken.None);
 
-        Assert.Equal(
-            ["team-authority:acme:0", "team-authority:t1:4"],
-            actual.Select(entry => $"{entry.Kind}:{entry.Key}:{entry.Revision}")
-        );
+        var revisions = actual.Select(entry => $"{entry.Kind}:{entry.Key}:{entry.Revision}");
+        Assert.Equal(["team-authority:acme:0", "team-authority:t1:4"], revisions);
     }
 
     [Fact]

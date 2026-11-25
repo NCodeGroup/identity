@@ -107,7 +107,8 @@ public sealed class CellTenantCreationHandlerTests : IDisposable
         var resource = TenantCreationNode.For(ManagementTenantId, teamId);
         var context = new AuthorizationHandlerContext([requirement], user, resource);
 
-        await CreateHandler().HandleAsync(context);
+        var handler = CreateHandler();
+        await handler.HandleAsync(context);
 
         return context.HasSucceeded;
     }
@@ -118,10 +119,10 @@ public sealed class CellTenantCreationHandlerTests : IDisposable
         IReadOnlyList<PersistedRoleAssignment>? assignments
     )
     {
+        var tenant = MockRepository.Create<OpenIdTenant>();
+        tenant.Setup(x => x.TenantId).Returns(ManagementTenantId).Verifiable();
         var openIdContext = MockRepository.Create<OpenIdContext>();
-        openIdContext
-            .Setup(x => x.Tenant)
-            .Returns(Mock.Of<OpenIdTenant>(tenant => tenant.TenantId == ManagementTenantId));
+        openIdContext.Setup(x => x.Tenant).Returns(tenant.Object).Verifiable();
         var feature = MockRepository.Create<IOpenIdContextFeature>();
         feature.Setup(x => x.OpenIdContext).Returns(openIdContext.Object).Verifiable();
         var httpContext = new DefaultHttpContext();
@@ -139,7 +140,10 @@ public sealed class CellTenantCreationHandlerTests : IDisposable
             .ReturnsAsync(MockStoreManager.Object)
             .Verifiable();
         MockStoreManager.Setup(x => x.DisposeAsync()).Returns(ValueTask.CompletedTask).Verifiable();
-        MockStoreManager.Setup(x => x.GetStore<ITeamStore>()).Returns(MockTeamStore.Object);
+        MockStoreManager
+            .Setup(x => x.GetStore<ITeamStore>())
+            .Returns(MockTeamStore.Object)
+            .Verifiable();
         MockTeamStore
             .Setup(x => x.GetOrDefaultAsync(TeamId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(team)
@@ -180,7 +184,8 @@ public sealed class CellTenantCreationHandlerTests : IDisposable
                 .Verifiable();
             MockStoreManager
                 .Setup(x => x.GetStore<IRoleAssignmentStore>())
-                .Returns(MockRoleAssignmentStore.Object);
+                .Returns(MockRoleAssignmentStore.Object)
+                .Verifiable();
             MockRoleAssignmentStore
                 .Setup(x => x.GetByPrincipalAsync(PrincipalId, It.IsAny<CancellationToken>()))
                 .ReturnsAsync(assignments)
@@ -202,12 +207,9 @@ public sealed class CellTenantCreationHandlerTests : IDisposable
             [Assignment(BuiltInRoles.CellAdmin, ResourceNodeTypes.Cell, CellName)]
         );
 
-        var succeeded = await HandleAsync(
-            CreateUser(isCellIssued: true),
-            Operations.Create,
-            TeamId,
-            CancellationToken.None
-        );
+        var user = CreateUser(isCellIssued: true);
+
+        var succeeded = await HandleAsync(user, Operations.Create, TeamId, CancellationToken.None);
 
         Assert.True(succeeded);
     }
@@ -218,12 +220,9 @@ public sealed class CellTenantCreationHandlerTests : IDisposable
         MockPlatformTopology.Setup(x => x.HasManagementTenant).Returns(true).Verifiable();
         SetupDecision(new PersistedTeamBuilder { TeamId = TeamId }.Build(), ["cell-b"], null);
 
-        var succeeded = await HandleAsync(
-            CreateUser(isCellIssued: true),
-            Operations.Create,
-            TeamId,
-            CancellationToken.None
-        );
+        var user = CreateUser(isCellIssued: true);
+
+        var succeeded = await HandleAsync(user, Operations.Create, TeamId, CancellationToken.None);
 
         Assert.False(succeeded);
     }
@@ -238,12 +237,9 @@ public sealed class CellTenantCreationHandlerTests : IDisposable
             null
         );
 
-        var succeeded = await HandleAsync(
-            CreateUser(isCellIssued: true),
-            Operations.Create,
-            TeamId,
-            CancellationToken.None
-        );
+        var user = CreateUser(isCellIssued: true);
+
+        var succeeded = await HandleAsync(user, Operations.Create, TeamId, CancellationToken.None);
 
         Assert.False(succeeded);
     }
@@ -258,12 +254,9 @@ public sealed class CellTenantCreationHandlerTests : IDisposable
             [Assignment(BuiltInRoles.TenantAdmin, ResourceNodeTypes.Tenant, ManagementTenantId)]
         );
 
-        var succeeded = await HandleAsync(
-            CreateUser(isCellIssued: true),
-            Operations.Create,
-            TeamId,
-            CancellationToken.None
-        );
+        var user = CreateUser(isCellIssued: true);
+
+        var succeeded = await HandleAsync(user, Operations.Create, TeamId, CancellationToken.None);
 
         Assert.False(succeeded);
     }
@@ -274,8 +267,10 @@ public sealed class CellTenantCreationHandlerTests : IDisposable
         MockPlatformTopology.Setup(x => x.HasManagementTenant).Returns(true).Verifiable();
         var platformTeamId = new TenantResolutionOptions().Root.TeamId;
 
+        var user = CreateUser(isCellIssued: true);
+
         var succeeded = await HandleAsync(
-            CreateUser(isCellIssued: true),
+            user,
             Operations.Create,
             platformTeamId,
             CancellationToken.None
@@ -287,12 +282,9 @@ public sealed class CellTenantCreationHandlerTests : IDisposable
     [Fact]
     public async Task HandleAsync_WhenTheCallerIsAControlPlaneCaller_DoesNotSucceedWithoutReadingAnything()
     {
-        var succeeded = await HandleAsync(
-            CreateUser(isCellIssued: false),
-            Operations.Create,
-            TeamId,
-            CancellationToken.None
-        );
+        var user = CreateUser(isCellIssued: false);
+
+        var succeeded = await HandleAsync(user, Operations.Create, TeamId, CancellationToken.None);
 
         Assert.False(succeeded);
     }
@@ -300,12 +292,9 @@ public sealed class CellTenantCreationHandlerTests : IDisposable
     [Fact]
     public async Task HandleAsync_WhenTheOperationIsNotACreation_DoesNotSucceedWithoutReadingAnything()
     {
-        var succeeded = await HandleAsync(
-            CreateUser(isCellIssued: true),
-            Operations.Update,
-            TeamId,
-            CancellationToken.None
-        );
+        var user = CreateUser(isCellIssued: true);
+
+        var succeeded = await HandleAsync(user, Operations.Update, TeamId, CancellationToken.None);
 
         Assert.False(succeeded);
     }
@@ -315,12 +304,9 @@ public sealed class CellTenantCreationHandlerTests : IDisposable
     {
         MockPlatformTopology.Setup(x => x.HasManagementTenant).Returns(false).Verifiable();
 
-        var succeeded = await HandleAsync(
-            CreateUser(isCellIssued: true),
-            Operations.Create,
-            TeamId,
-            CancellationToken.None
-        );
+        var user = CreateUser(isCellIssued: true);
+
+        var succeeded = await HandleAsync(user, Operations.Create, TeamId, CancellationToken.None);
 
         Assert.False(succeeded);
     }

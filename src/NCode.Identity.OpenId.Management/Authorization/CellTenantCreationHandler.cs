@@ -103,9 +103,8 @@ internal sealed class CellTenantCreationHandler(
         using var managementScope = AmbientTenantAccessor.BeginScope(openIdContext.Tenant.TenantId);
         await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
 
-        var team = await storeManager
-            .GetStore<ITeamStore>()
-            .GetOrDefaultAsync(resource.ResourceId, cancellationToken);
+        var teamStore = storeManager.GetStore<ITeamStore>();
+        var team = await teamStore.GetOrDefaultAsync(resource.ResourceId, cancellationToken);
         if (team is null)
         {
             return;
@@ -139,9 +138,8 @@ internal sealed class CellTenantCreationHandler(
         // tenants. See ADR-1018.
         using (AmbientTenantAccessor.BeginUnscoped(UnscopedReason))
         {
-            assignments = await storeManager
-                .GetStore<IRoleAssignmentStore>()
-                .GetByPrincipalAsync(principalId, cancellationToken);
+            var assignmentStore = storeManager.GetStore<IRoleAssignmentStore>();
+            assignments = await assignmentStore.GetByPrincipalAsync(principalId, cancellationToken);
         }
 
         var isCellAdmin = assignments.Any(assignment =>

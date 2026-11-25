@@ -41,6 +41,10 @@ import {
   type ApiError,
   type CellTenantResource,
 } from '@ncodegroup/identity-store';
+import {
+  isTenantAddressPreviewCurrent,
+  tenantAddressPreviewArgs,
+} from '../tenantAddressPreview.js';
 import { useDebouncedValue } from '../useDebouncedValue.js';
 
 export type TenantsPageProps = {
@@ -224,13 +228,7 @@ export function TenantsPage({
     debouncedAddress !== undefined &&
     isValidTenantId(debouncedAddress.tenantId) &&
     !isAddressUnchanged;
-  const previewArgsInput = {
-    tenantId: debouncedAddress?.tenantId ?? '',
-    ...(debouncedAddress?.issuer ? { issuer: debouncedAddress.issuer } : {}),
-    ...(debouncedAddress?.mtlsEndpointAliasAuthority
-      ? { mtlsEndpointAliasAuthority: debouncedAddress.mtlsEndpointAliasAuthority }
-      : {}),
-  };
+  const previewArgsInput = tenantAddressPreviewArgs(debouncedAddress);
   const newTenantPreview = useGetNewTenantAddressQuery(
     {
       teamId,
@@ -256,11 +254,8 @@ export function TenantsPage({
   const addressPreview =
     shouldPreview &&
     preview &&
-    addressInput &&
-    previewArgs?.tenantId === addressInput.tenantId &&
-    (previewArgs.issuer ?? '') === addressInput.issuer &&
-    (previewArgs.mtlsEndpointAliasAuthority ?? '') === addressInput.mtlsEndpointAliasAuthority &&
-    (dialog.kind === 'edit' || previewArgs.cell === addressInput.cell)
+    isTenantAddressPreviewCurrent(previewArgs, addressInput) &&
+    (dialog.kind === 'edit' || previewArgs?.cell === addressInput?.cell)
       ? preview
       : undefined;
 
