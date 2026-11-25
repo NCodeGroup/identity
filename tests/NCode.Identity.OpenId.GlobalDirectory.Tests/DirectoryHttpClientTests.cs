@@ -4,7 +4,6 @@
 using System.Net;
 using Microsoft.Extensions.Options;
 using Moq;
-using NCode.Identity.OpenId.Client;
 using Xunit;
 
 namespace NCode.Identity.OpenId.GlobalDirectory.Tests;
@@ -140,7 +139,7 @@ public class DirectoryHttpClientTests : RemoteDirectoryTestBase
         );
         var factoryMock = CreateStrictMock<IHttpClientFactory>();
         factoryMock
-            .Setup(x => x.CreateClient(OpenIdClientDefaults.HttpClientName))
+            .Setup(x => x.CreateClient(DirectoryClientDefaults.HttpClientName))
             .Returns(new HttpClient(handler))
             .Verifiable(Times.Once);
         var tokenSourceMock = CreateStrictMock<ICellTokenSource>();

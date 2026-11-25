@@ -1,6 +1,8 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using System.Security.Cryptography;
+using System.Security.Cryptography.X509Certificates;
 using Microsoft.Extensions.Options;
 using NCode.Identity.Time;
 
@@ -59,6 +61,15 @@ internal sealed class DirectoryClientOptionsValidator : IValidateOptions<Directo
             );
         }
 
+        if (!string.IsNullOrEmpty(options.CaCertificatesPath))
+        {
+            var failure = DescribeCaCertificatesFailure(options.CaCertificatesPath);
+            if (failure is not null)
+                failures.Add(
+                    $"{Prefix}:{nameof(DirectoryClientOptions.CaCertificatesPath)} '{options.CaCertificatesPath}' {failure}."
+                );
+        }
+
         if (!TimerPeriod.IsValid(options.PollInterval))
         {
             failures.Add(
@@ -97,5 +108,22 @@ internal sealed class DirectoryClientOptionsValidator : IValidateOptions<Directo
         return failures.Count == 0
             ? ValidateOptionsResult.Success
             : ValidateOptionsResult.Fail(failures);
+    }
+
+    private static string? DescribeCaCertificatesFailure(string path)
+    {
+        if (!File.Exists(path))
+            return "must name an existing file";
+
+        try
+        {
+            var authorities = new X509Certificate2Collection();
+            authorities.ImportFromPemFile(path);
+            return authorities.Count == 0 ? "must hold at least one PEM certificate" : null;
+        }
+        catch (Exception exception) when (exception is CryptographicException or IOException)
+        {
+            return "must be a readable PEM file of certificates";
+        }
     }
 }

@@ -4,6 +4,8 @@ NCode.Identity.OpenId.GlobalDirectory.DefaultRegistration
 NCode.Identity.OpenId.GlobalDirectory.DefaultRegistration.extension(NCode.Identity.Registration.IServiceBuilder<NCode.Identity.OpenId.Client.OpenIdClientLibrary>!)
 NCode.Identity.OpenId.GlobalDirectory.DefaultRegistration.extension(NCode.Identity.Registration.IServiceBuilder<NCode.Identity.OpenId.Client.OpenIdClientLibrary>!).AddOpenIdDirectoryClient(Microsoft.Extensions.Configuration.IConfiguration! configuration) -> NCode.Identity.Registration.IServiceBuilder<NCode.Identity.OpenId.Client.OpenIdClientLibrary>!
 NCode.Identity.OpenId.GlobalDirectory.DirectoryClientOptions
+NCode.Identity.OpenId.GlobalDirectory.DirectoryClientOptions.CaCertificatesPath.get -> string?
+NCode.Identity.OpenId.GlobalDirectory.DirectoryClientOptions.CaCertificatesPath.set -> void
 NCode.Identity.OpenId.GlobalDirectory.DirectoryClientOptions.ClientId.get -> string?
 NCode.Identity.OpenId.GlobalDirectory.DirectoryClientOptions.ClientId.set -> void
 NCode.Identity.OpenId.GlobalDirectory.DirectoryClientOptions.DirectoryClientOptions() -> void

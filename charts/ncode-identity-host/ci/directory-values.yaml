@@ -22,6 +22,8 @@ directory:
   url: https://directory.example.com
   clientId: cell-ci-directory
   keyRing: cell-client
+  caCertificates:
+    existingSecret: directory-ca
   keys:
     pemSecret: cell-client-key
 secretProtection:

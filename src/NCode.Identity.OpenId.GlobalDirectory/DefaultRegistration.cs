@@ -83,6 +83,19 @@ public static class DefaultRegistration
             serviceCollection.TryAddSingleton<ICellTokenSource, DefaultCellTokenSource>();
             serviceCollection.TryAddSingleton<DirectoryHttpClient>();
 
+            // The directory has an HTTP client of its own so that its private certificate authorities never replace the
+            // process's trust store. Every call is bounded by the options' timeouts, so the client's own is off.
+            serviceCollection
+                .AddHttpClient(DirectoryClientDefaults.HttpClientName)
+                .ConfigureHttpClient(static client => client.Timeout = Timeout.InfiniteTimeSpan)
+                .ConfigurePrimaryHttpMessageHandler(static provider =>
+                {
+                    var clientOptions = provider.GetRequiredService<
+                        IOptions<DirectoryClientOptions>
+                    >();
+                    return DirectoryClientDefaults.CreateHandler(clientOptions.Value);
+                });
+
             // The local adapters are registered with TryAdd, so Replace makes the remote adapters win whichever
             // registration runs first.
             var tenantDirectory = ServiceDescriptor.Singleton<

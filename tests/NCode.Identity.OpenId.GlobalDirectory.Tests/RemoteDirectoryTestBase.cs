@@ -3,7 +3,6 @@
 
 using Microsoft.Extensions.Options;
 using Moq;
-using NCode.Identity.OpenId.Client;
 
 namespace NCode.Identity.OpenId.GlobalDirectory.Tests;
 
@@ -22,7 +21,7 @@ public abstract class RemoteDirectoryTestBase : BaseTests
 
         var factoryMock = CreateStrictMock<IHttpClientFactory>();
         factoryMock
-            .Setup(x => x.CreateClient(OpenIdClientDefaults.HttpClientName))
+            .Setup(x => x.CreateClient(DirectoryClientDefaults.HttpClientName))
             .Returns(httpClient)
             .Verifiable(Times.AtLeastOnce);
 

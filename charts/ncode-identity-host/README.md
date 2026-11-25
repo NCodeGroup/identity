@@ -178,7 +178,7 @@ it, and the chart renders them as the `Cell` section the host binds:
   when it first creates it.
 
 A cell reaches the platform's directory through the `directory` values, rendered as the `Directory` section
-(`Directory__Url`, `Directory__ClientId`, `Directory__KeyRing`) when `directory.url` is set, and then
+(`Directory__Url`, `Directory__ClientId`, `Directory__KeyRing`, and `Directory__CaCertificatesPath` with `directory.caCertificates`) when `directory.url` is set, and then
 `directory.clientId` and `directory.keyRing` are required. `directory.url` selects the remote directory, as
 `Directory:Url` does in the host: while it is empty, the cell keeps the local adapters and the chart refuses
 `directory.clientId`, `directory.keyRing`, `directory.keys.pemSecret` and `directory.keys.remoteKeys`. The key ring that
@@ -192,6 +192,13 @@ rendered as `KeyRings__<directory.keyRing>__…`:
 
 The key ring needs at least one key, and rendering fails when it has none, when a remote key's `keyId` does not fit its
 provider, or when two keys share an id, compared without case.
+
+A directory served under a private certificate authority, such as the directory chart's own `<release>-ca`, is trusted
+through `directory.caCertificates`: `existingSecret` or `existingConfigMap` (never both) names the object whose `key`
+(default `ca.crt`) holds a PEM bundle of one or more CA certificates. The Deployment's pods mount it read-only at
+`/etc/ncode-identity/directory-ca` and render `Directory__CaCertificatesPath`, so calls to the directory trust only those
+authorities while every other outbound call of the process keeps the system store. The chart refuses
+`directory.caCertificates` while `directory.url` is empty.
 
 The cell's `directory` values say the same as the platform's bootstrap runbook: for every cell that sets
 `directory.url`, the control-plane cell included, the platform's operator registers the machine client

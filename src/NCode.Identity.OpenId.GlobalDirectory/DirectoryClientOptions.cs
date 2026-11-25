@@ -33,6 +33,14 @@ public sealed class DirectoryClientOptions
     public string? ClientId { get; set; }
 
     /// <summary>
+    /// Gets or sets the path of a PEM file of one or more certificate authority certificates. When it is set, the
+    /// directory's server certificate must chain to one of them, and the process's system trust store is not used for
+    /// calls to the directory; every other outbound call of the process keeps the system store. A directory served
+    /// under a private certificate authority sets it. The file must exist and hold at least one certificate.
+    /// </summary>
+    public string? CaCertificatesPath { get; set; }
+
+    /// <summary>
     /// Gets or sets the name of the key ring whose private key signs the client assertion.
     /// </summary>
     public string? KeyRing { get; set; }

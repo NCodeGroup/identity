@@ -305,7 +305,7 @@ internal sealed class DefaultCellTokenSource : ICellTokenSource
         HttpStatusCode status;
         try
         {
-            var client = HttpClientFactory.CreateClient(OpenIdClientDefaults.HttpClientName);
+            var client = HttpClientFactory.CreateClient(DirectoryClientDefaults.HttpClientName);
             using var response = await client.SendAsync(
                 request,
                 HttpCompletionOption.ResponseHeadersRead,

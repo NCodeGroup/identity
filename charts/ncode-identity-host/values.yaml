@@ -74,6 +74,15 @@ directory:
   clientId: ""
   # The name of the key ring whose key signs the client's assertions (Directory:KeyRing). Required when url is set.
   keyRing: ""
+  # The certificate authorities that sign the directory's serving certificate, for a directory served under a private
+  # CA (Directory:CaCertificatesPath). Name existingSecret or existingConfigMap, never both; the file at key is a PEM
+  # bundle of one or more CA certificates, which the Deployment's pods mount read-only. When set, calls to the directory
+  # trust only these authorities, and every other outbound call keeps the system store. Empty trusts the system store
+  # for the directory. Refused while url is empty.
+  caCertificates:
+    existingSecret: ""
+    existingConfigMap: ""
+    key: ca.crt
   # The keys of the key ring that keyRing names, which sign the assertions of the cell's client cell-<cell.name>
   # (KeyRings:<keyRing>). Holds a PEM key from a Secret, keys a key management service holds, or both, and at least one
   # key. Required when url is set.

@@ -325,6 +325,16 @@ applied. Rendered for its side effect only.
 {{- if and (not .Values.directory.url) .Values.directory.keys.remoteKeys }}
 {{- fail "directory.keys.remoteKeys is set and directory.url is empty: set directory.url, or clear directory.keys.remoteKeys." }}
 {{- end }}
+{{- $caCertificates := .Values.directory.caCertificates }}
+{{- if and $caCertificates.existingSecret $caCertificates.existingConfigMap }}
+{{- fail "directory.caCertificates.existingSecret and directory.caCertificates.existingConfigMap are both set: name the Secret or the ConfigMap that holds the directory's CA certificates, not both." }}
+{{- end }}
+{{- if and (or $caCertificates.existingSecret $caCertificates.existingConfigMap) (not $caCertificates.key) }}
+{{- fail "directory.caCertificates.key must name the key that holds the CA certificates in directory.caCertificates.existingSecret or existingConfigMap." }}
+{{- end }}
+{{- if and (not .Values.directory.url) (or $caCertificates.existingSecret $caCertificates.existingConfigMap) }}
+{{- fail "directory.caCertificates is set and directory.url is empty: set directory.url, or clear directory.caCertificates." }}
+{{- end }}
 {{- include "identity-host.serviceUrlValidate" (dict "path" "directory.url" "value" .Values.directory.url "httpsOnly" false) }}
 {{- include "identity-host.serviceUrlValidate" (dict "path" "cell.managementUrl" "value" .Values.cell.managementUrl "httpsOnly" true) }}
 {{- if and .Values.directory.url (not .Values.cell.controlPlaneIssuer) }}
@@ -971,6 +981,10 @@ Jobs run the host's offline commands, which never call the directory, so neither
 - name: Directory__KeyRing
   value: {{ . | quote }}
 {{- end }}
+{{- if or $directory.caCertificates.existingSecret $directory.caCertificates.existingConfigMap }}
+- name: Directory__CaCertificatesPath
+  value: "/etc/ncode-identity/directory-ca/ca.crt"
+{{- end }}
 {{- if $directory.keys.pemSecret }}
 - name: {{ printf "KeyRings__%s__PemFiles__0" $directory.keyRing }}
   value: {{ printf "/etc/ncode-identity/directory-key/%s.pem" $directory.keyRing | quote }}
@@ -1026,12 +1040,17 @@ The volume mounts of the host container, which the Deployment and the host's Job
 {{- end }}
 
 {{/*
-The volume mount of the directory client's key, which only the Deployment carries.
+The volume mounts of the directory client's key and CA certificates, which only the Deployment carries.
 */}}
 {{- define "identity-host.directoryClientVolumeMounts" -}}
 {{- if and .Values.directory.url .Values.directory.keys.pemSecret }}
 - name: directory-key
   mountPath: /etc/ncode-identity/directory-key
+  readOnly: true
+{{- end }}
+{{- if and .Values.directory.url (or .Values.directory.caCertificates.existingSecret .Values.directory.caCertificates.existingConfigMap) }}
+- name: directory-ca
+  mountPath: /etc/ncode-identity/directory-ca
   readOnly: true
 {{- end }}
 {{- end }}
@@ -1069,7 +1088,7 @@ The volumes of the host pod, which the Deployment and the host's Jobs share.
 {{- end }}
 
 {{/*
-The volume of the directory client's key, which only the Deployment carries.
+The volumes of the directory client's key and CA certificates, which only the Deployment carries.
 */}}
 {{- define "identity-host.directoryClientVolumes" -}}
 {{- if and .Values.directory.url .Values.directory.keys.pemSecret }}
@@ -1080,6 +1099,24 @@ The volume of the directory client's key, which only the Deployment carries.
       - key: {{ printf "%s.pem" .Values.directory.keyRing }}
         path: {{ printf "%s.pem" .Values.directory.keyRing }}
     defaultMode: 0440
+{{- end }}
+{{- $caCertificates := .Values.directory.caCertificates }}
+{{- if and .Values.directory.url $caCertificates.existingSecret }}
+- name: directory-ca
+  secret:
+    secretName: {{ $caCertificates.existingSecret }}
+    items:
+      - key: {{ $caCertificates.key }}
+        path: ca.crt
+    defaultMode: 0444
+{{- else if and .Values.directory.url $caCertificates.existingConfigMap }}
+- name: directory-ca
+  configMap:
+    name: {{ $caCertificates.existingConfigMap }}
+    items:
+      - key: {{ $caCertificates.key }}
+        path: ca.crt
+    defaultMode: 0444
 {{- end }}
 {{- end }}
 

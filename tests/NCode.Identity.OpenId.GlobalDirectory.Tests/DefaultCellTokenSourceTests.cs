@@ -37,7 +37,7 @@ public class DefaultCellTokenSourceTests : BaseTests
     {
         var factoryMock = CreateStrictMock<IHttpClientFactory>();
         factoryMock
-            .Setup(x => x.CreateClient(OpenIdClientDefaults.HttpClientName))
+            .Setup(x => x.CreateClient(DirectoryClientDefaults.HttpClientName))
             .Returns(() => new HttpClient(Handler, disposeHandler: false));
 
         TokenSource = new DefaultCellTokenSource(

@@ -7,14 +7,13 @@ using System.Net.Mime;
 using System.Text.Json;
 using Microsoft.Extensions.Options;
 using NCode.Buffers;
-using NCode.Identity.OpenId.Client;
 
 namespace NCode.Identity.OpenId.GlobalDirectory;
 
 /// <summary>
 /// Sends the requests of the remote adapters to the directory service and to the control plane with a bearer token,
-/// over the protocol client's HTTP client, which bounds every call with a total and a per-attempt timeout and retries
-/// only safe requests. Each call, its response body read included, is bounded by
+/// over the directory's own HTTP client, which trusts only <see cref="DirectoryClientOptions.CaCertificatesPath"/> when
+/// it is set. Each call, its response body read included, is bounded by
 /// <see cref="DirectoryClientOptions.RequestTimeout"/>. It fails closed: a transport failure, a timeout, a <c>5xx</c>
 /// answer, an oversized body, a token that cannot be obtained or any status other than a success, <c>404</c> or
 /// <c>409</c> is a <see cref="DirectoryUnavailableException"/>.
@@ -110,7 +109,7 @@ internal sealed class DirectoryHttpClient(
 
         try
         {
-            var client = HttpClientFactory.CreateClient(OpenIdClientDefaults.HttpClientName);
+            var client = HttpClientFactory.CreateClient(DirectoryClientDefaults.HttpClientName);
             using var response = await client.SendAsync(
                 request,
                 HttpCompletionOption.ResponseHeadersRead,

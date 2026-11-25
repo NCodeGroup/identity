@@ -1411,8 +1411,8 @@ jobs:
             --set-file controlPlane.clientJwks="$RUNNER_TEMP/client-jwks.json" \
             --wait --timeout 10m
 
-      # The cell calls the directory at its Service name and trusts the private CA that issued the directory's
-      # certificate, which it reads from a Secret of its namespace.
+      # The cell calls the directory at its Service name and its directory client trusts the private CA that issued the
+      # directory's certificate (directory.caCertificates), which it reads from a Secret of its namespace.
       - name: Install the control-plane cell
         run: |
           set -euo pipefail
@@ -1423,17 +1423,8 @@ jobs:
           cat > "$RUNNER_TEMP/cell-trust-values.yaml" <<EOF
           directory:
             url: https://directory.$DIRECTORY_NAMESPACE.svc.cluster.local
-          extraEnv:
-            - name: SSL_CERT_FILE
-              value: /etc/directory-ca/ca.crt
-          extraVolumes:
-            - name: directory-ca
-              secret:
-                secretName: directory-ca
-          extraVolumeMounts:
-            - name: directory-ca
-              mountPath: /etc/directory-ca
-              readOnly: true
+            caCertificates:
+              existingSecret: directory-ca
           EOF
           helm install release "$CHART" --namespace "$NAMESPACE" --values "$CHART/ci/kind-directory-values.yaml" \
             --values "$RUNNER_TEMP/cell-trust-values.yaml" --wait --timeout 10m

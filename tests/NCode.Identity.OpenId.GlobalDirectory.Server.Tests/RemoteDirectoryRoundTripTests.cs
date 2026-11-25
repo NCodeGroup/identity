@@ -10,7 +10,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Moq;
-using NCode.Identity.OpenId.Client;
 using NCode.Identity.OpenId.GlobalDirectory.Server.Entities;
 using NCode.Identity.Secrets.Persistence;
 using Xunit;
@@ -99,7 +98,7 @@ public class RemoteDirectoryRoundTripTests : IAsyncLifetime
 
         var factoryMock = Mocks.Create<IHttpClientFactory>();
         factoryMock
-            .Setup(x => x.CreateClient(OpenIdClientDefaults.HttpClientName))
+            .Setup(x => x.CreateClient(DirectoryClientDefaults.HttpClientName))
             .Returns(httpClient)
             .Verifiable(Times.AtLeastOnce);
 
