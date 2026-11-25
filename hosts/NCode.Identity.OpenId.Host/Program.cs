@@ -35,16 +35,30 @@ using NCode.Identity.SharedState.Valkey;
 // the root administrator of an uninitialized instance from the 'Setup:Root' configuration (ADR-1512), and
 // 'revoke-management-key <kid>' refuses a management key in a workload cell, and 'recover-admin' creates or restores
 // the control-plane cell's administrator from the 'Recovery:Admin' configuration, and 'recover-sign-in' repairs a sign-in
-// that a setting blocks, and 'directory-client-jwks [--key-ring <name>]' writes a key ring's public JWK Set to standard
-// output (ADR-1536). Each exits without
-// serving, for a one-off Job that runs this image. The host is built without a command's arguments, which a
-// command-line configuration provider would read as configuration.
+// that a setting blocks, each exiting without serving, for a one-off Job that runs this image. The host is built without a
+// command's arguments, which a command-line configuration provider would read as configuration.
+// 'directory-client-jwks [--key-ring <name>]' writes a key ring's public JWK Set to standard output (ADR-1536); it needs
+// only a key ring, so it runs in a host of its own, before the deployment's settings exist, and is dispatched first.
+if (DirectoryClientJwksCommandLine.Parse(args) is not null)
+{
+    return await DirectoryClientJwksCommandLine.RunStandaloneAsync(
+        args,
+        Console.Out,
+        (secrets, hostConfiguration) =>
+        {
+            secrets.AddAwsKmsRemoteKeyProviderIfConfigured(hostConfiguration);
+            secrets.AddAzureKeyVaultRemoteKeyProviderIfConfigured(hostConfiguration);
+            secrets.AddGoogleCloudKmsRemoteKeyProviderIfConfigured(hostConfiguration);
+        },
+        CancellationToken.None
+    );
+}
+
 var secretProtectionCommand = SecretProtectionCommandLine.Parse(args);
 var instanceSetupCommand = InstanceSetupCommandLine.Parse(args);
 var revokeManagementKeyCommand = RevokeManagementKeyCommandLine.Parse(args);
 var recoverAdminCommand = RecoverAdminCommandLine.Parse(args);
 var recoverSignInCommand = RecoverSignInCommandLine.Parse(args);
-var directoryClientJwksCommand = DirectoryClientJwksCommandLine.Parse(args);
 var secretProtectionHostArguments = SecretProtectionCommandLine.GetHostArguments(args);
 var instanceSetupHostArguments = InstanceSetupCommandLine.GetHostArguments(
     secretProtectionHostArguments
@@ -58,8 +72,7 @@ var recoverAdminHostArguments = RecoverAdminCommandLine.GetHostArguments(
 var recoverSignInHostArguments = RecoverSignInCommandLine.GetHostArguments(
     recoverAdminHostArguments
 );
-var hostArguments = DirectoryClientJwksCommandLine.GetHostArguments(recoverSignInHostArguments);
-var builder = WebApplication.CreateBuilder(hostArguments);
+var builder = WebApplication.CreateBuilder(recoverSignInHostArguments);
 
 var configuration = builder.Configuration;
 var hostEnvironment = builder.Environment;
@@ -69,9 +82,6 @@ var serviceCollection = builder.Services;
 // them to a diagnostics tool that attaches (dotnet-monitor, dotnet-trace). The default builder's Windows Event Log and
 // debugger providers are left out. See project-template ADR-0115.
 builder.Logging.ClearProviders().AddConsole().AddEventSourceLogger();
-
-// The 'directory-client-jwks' command writes only its key set to standard output, so its host logs to standard error.
-DirectoryClientJwksCommandLine.ConfigureLogging(directoryClientJwksCommand, builder.Logging);
 
 // SAFETY GATE: refuse to start a deployment that still has development-only conveniences enabled
 // (developer signing keys, a wildcard host filter, developer CORS configuration, seeded accounts) or that does not serve
@@ -252,16 +262,6 @@ if (recoverSignInCommand is not null)
 {
     await using (app)
         return await recoverSignInCommand.RunAsync(app.Services, CancellationToken.None);
-}
-
-if (directoryClientJwksCommand is not null)
-{
-    await using (app)
-        return await directoryClientJwksCommand.RunAsync(
-            app.Services,
-            Console.Out,
-            CancellationToken.None
-        );
 }
 
 // MUST be the first middleware, before even the forwarded headers: it refuses a request whose connection does not carry

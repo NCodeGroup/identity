@@ -6,6 +6,7 @@ using System.Text.Json.Nodes;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Moq;
+using NCode.Buffers;
 using NCode.Identity.OpenId.Client;
 using NCode.Identity.OpenId.GlobalDirectory;
 using NCode.Identity.Secrets;
@@ -103,26 +104,89 @@ public class DirectoryClientJwksCommandLineTests : BaseTests
 
     #endregion
 
-    #region GetHostArguments Tests
+    #region RunStandaloneAsync Tests
 
-    [Fact]
-    public void GetHostArguments_TheCommand_ReturnsNoArguments()
+    private static string CreatePemFile()
     {
-        Assert.Empty(
-            DirectoryClientJwksCommandLine.GetHostArguments([
-                "directory-client-jwks",
-                "--key-ring",
-                KeyRingName,
-            ])
-        );
+        using var ec = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        var path = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.pem");
+        File.WriteAllText(path, ec.ExportPkcs8PrivateKeyPem(), SecureEncoding.UTF8);
+        return path;
+    }
+
+    private static async ValueTask<(int ExitCode, string Output)> RunStandaloneHostAsync(
+        string keyRing,
+        string? pemFile,
+        CancellationToken cancellationToken
+    )
+    {
+        const string variable = "KeyRings__directory-client__PemFiles__0";
+        var previous = Environment.GetEnvironmentVariable(variable);
+        Environment.SetEnvironmentVariable(variable, pemFile);
+        try
+        {
+            using var output = new StringWriter();
+            var exitCode = await DirectoryClientJwksCommandLine.RunStandaloneAsync(
+                ["directory-client-jwks", "--key-ring", keyRing],
+                output,
+                null,
+                cancellationToken
+            );
+            return (exitCode, output.ToString());
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(variable, previous);
+        }
     }
 
     [Fact]
-    public void GetHostArguments_OtherArguments_ReturnsThem()
+    public async Task RunStandaloneAsync_OnlyAPemKeyRingConfigured_WritesThePublicKeySetAndReturnsZero()
     {
-        string[] args = ["--urls", "http://localhost"];
+        var pemFile = CreatePemFile();
+        try
+        {
+            var (exitCode, output) = await RunStandaloneHostAsync(
+                "directory-client",
+                pemFile,
+                CancellationToken.None
+            );
 
-        Assert.Equal(args, DirectoryClientJwksCommandLine.GetHostArguments(args));
+            Assert.Equal(0, exitCode);
+            var set = Assert.IsType<JsonObject>(JsonNode.Parse(output));
+            var published = set["keys"]!.AsArray();
+            Assert.Single(published);
+            Assert.All(
+                published,
+                key =>
+                    Assert.DoesNotContain(key!.AsObject(), x => PrivateParameters.Contains(x.Key))
+            );
+        }
+        finally
+        {
+            File.Delete(pemFile);
+        }
+    }
+
+    [Fact]
+    public async Task RunStandaloneAsync_UnknownKeyRing_ReturnsTwoAndWritesNothing()
+    {
+        var pemFile = CreatePemFile();
+        try
+        {
+            var (exitCode, output) = await RunStandaloneHostAsync(
+                "missing",
+                pemFile,
+                CancellationToken.None
+            );
+
+            Assert.Equal(2, exitCode);
+            Assert.Equal(string.Empty, output);
+        }
+        finally
+        {
+            File.Delete(pemFile);
+        }
     }
 
     #endregion

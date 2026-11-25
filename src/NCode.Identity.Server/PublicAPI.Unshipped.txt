@@ -259,7 +259,6 @@ NCode.Identity.Server.Recovery.DirectoryClientJwksCommandLine
 NCode.Identity.Server.Recovery.DirectoryClientJwksCommandLine.Error.get -> string?
 NCode.Identity.Server.Recovery.DirectoryClientJwksCommandLine.KeyRing.get -> string?
 NCode.Identity.Server.Recovery.DirectoryClientJwksCommandLine.RunAsync(System.IServiceProvider! services, System.IO.TextWriter! output, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<int>
-static NCode.Identity.Server.Recovery.DirectoryClientJwksCommandLine.ConfigureLogging(NCode.Identity.Server.Recovery.DirectoryClientJwksCommandLine? command, Microsoft.Extensions.Logging.ILoggingBuilder! logging) -> void
-static NCode.Identity.Server.Recovery.DirectoryClientJwksCommandLine.GetHostArguments(string![]! args) -> string![]!
 static NCode.Identity.Server.Recovery.DirectoryClientJwksCommandLine.Parse(System.Collections.Generic.IReadOnlyList<string!>! args) -> NCode.Identity.Server.Recovery.DirectoryClientJwksCommandLine?
+static NCode.Identity.Server.Recovery.DirectoryClientJwksCommandLine.RunStandaloneAsync(string![]! args, System.IO.TextWriter! output, System.Action<NCode.Identity.Registration.IServiceBuilder<NCode.Identity.Secrets.SecretsLibrary>!, Microsoft.Extensions.Configuration.IConfiguration!>? configureSecrets, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<int>
 static NCode.Identity.Server.Recovery.DirectoryClientJwksCommandLine.Usage.get -> string!

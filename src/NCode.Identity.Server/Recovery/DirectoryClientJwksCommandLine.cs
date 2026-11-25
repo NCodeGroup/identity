@@ -2,14 +2,22 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using JetBrains.Annotations;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Console;
 using Microsoft.Extensions.Options;
+using NCode.Identity.Jose;
 using NCode.Identity.Jwk;
+using NCode.Identity.Jwt;
 using NCode.Identity.OpenId.Client;
+using NCode.Identity.OpenId.Client.KeyRings;
 using NCode.Identity.OpenId.GlobalDirectory;
+using NCode.Identity.Registration;
+using NCode.Identity.Secrets;
 using NCode.Identity.Secrets.KeyTypes;
+using NCode.Identity.Secrets.Persistence;
 using NCode.Identity.Server.Logging;
 
 namespace NCode.Identity.Server.Recovery;
@@ -98,36 +106,71 @@ public sealed class DirectoryClientJwksCommandLine
     }
 
     /// <summary>
-    /// Gets the arguments that the host builds with: none when they select this command, because a command-line
-    /// configuration provider would read its arguments as configuration, and the arguments otherwise.
+    /// Runs the command in a host of its own, which composes only what a key ring needs: the secrets library with its
+    /// key formats, the JOSE and JWT libraries and the protocol client's key rings from the <c>KeyRings</c> section.
+    /// The command needs no database, root key provider or allowed hosts, so it runs before any deployment exists. Its
+    /// logs go to standard error, so standard output holds only the key set.
     /// </summary>
-    /// <param name="args">The command-line arguments of the host.</param>
-    /// <returns>The arguments for the host builder.</returns>
-    public static string[] GetHostArguments(string[] args)
-    {
-        return HostCommandLine.GetHostArguments(args, CommandName);
-    }
-
-    /// <summary>
-    /// Sends every log of a host that runs this command to standard error, so standard output holds only the key set. A
-    /// host that runs another command or serves is left as it is.
-    /// </summary>
-    /// <param name="command">The command that the host runs, or <see langword="null"/> when it runs none or
-    /// another.</param>
-    /// <param name="logging">The logging builder of the host.</param>
-    public static void ConfigureLogging(
-        DirectoryClientJwksCommandLine? command,
-        ILoggingBuilder logging
+    /// <param name="args">The command-line arguments of the host, which select this command.</param>
+    /// <param name="output">The writer of standard output that receives the key set.</param>
+    /// <param name="configureSecrets">An optional action that registers more of the secrets library, such as the remote
+    /// key providers of the key management services that can hold a key ring's keys, given the host's
+    /// configuration.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the command.</param>
+    /// <returns>The <see cref="ValueTask{TResult}"/> that represents the command, containing its exit code.</returns>
+    public static async ValueTask<int> RunStandaloneAsync(
+        string[] args,
+        TextWriter output,
+        Action<IServiceBuilder<SecretsLibrary>, IConfiguration>? configureSecrets,
+        CancellationToken cancellationToken
     )
     {
-        ArgumentNullException.ThrowIfNull(logging);
+        ArgumentNullException.ThrowIfNull(args);
+        ArgumentNullException.ThrowIfNull(output);
 
+        var command = Parse(args);
         if (command is null)
-            return;
+            throw new ArgumentException(
+                $"The arguments do not select the {CommandName} command.",
+                nameof(args)
+            );
 
-        logging.Services.Configure<ConsoleLoggerOptions>(options =>
+        // A command-line configuration provider would read the command's arguments as configuration.
+        var hostArguments = GetHostArguments(args);
+        var builder = Host.CreateApplicationBuilder(hostArguments);
+        builder.Logging.ClearProviders().AddConsole();
+        builder.Logging.Services.Configure<ConsoleLoggerOptions>(options =>
             options.LogToStandardErrorThreshold = LogLevel.Trace
         );
+
+        var secretsLibrary = builder.Services.AddSecretsLibrary();
+        secretsLibrary.AddSecretKeyFormats();
+        configureSecrets?.Invoke(secretsLibrary, builder.Configuration);
+        var clientLibrary = secretsLibrary
+            .AddJoseLibrary()
+            .AddJwtLibrary()
+            .AddOpenIdClientLibrary();
+        var keyRingsSection = builder.Configuration.GetSection(
+            OpenIdClientDefaults.KeyRingsSectionName
+        );
+        clientLibrary.AddOpenIdClientKeyRings(keyRingsSection);
+
+        // Starting the host loads the key rings, which the protocol client's hosted service reads from their sources.
+        using var host = builder.Build();
+        await host.StartAsync(cancellationToken);
+        try
+        {
+            return await command.RunAsync(host.Services, output, cancellationToken);
+        }
+        finally
+        {
+            await host.StopAsync(CancellationToken.None);
+        }
+    }
+
+    private static string[] GetHostArguments(string[] args)
+    {
+        return HostCommandLine.GetHostArguments(args, CommandName);
     }
 
     /// <summary>
