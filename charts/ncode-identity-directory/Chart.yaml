@@ -1,0 +1,22 @@
+apiVersion: v2
+name: ncode-identity-directory
+description: >-
+  NCode.Identity.OpenId.GlobalDirectory.Host, the global directory of a platform of cells, as a single-replica,
+  non-root deployment behind an ingress. It reserves tenant and team identifiers platform-wide, places each tenant in a
+  cell, publishes team documents and issues the cells' tokens.
+type: application
+# Released in lockstep with the directory image; the release workflow stamps both from version.json.
+version: 0.0.1-alpha
+appVersion: "0.0.1-alpha"
+# The preStop drain uses the sleep lifecycle action, on by default since Kubernetes 1.30.
+kubeVersion: ">=1.30.0-0"
+home: https://github.com/NCodeGroup/identity
+# The family's logo on its blue tile, from the brand kit under brand/ (ADR-1492).
+icon: https://raw.githubusercontent.com/NCodeGroup/identity/main/brand/tile/ncode-identity-tile-blue-256.png
+sources:
+  - https://github.com/NCodeGroup/identity
+keywords:
+  - openid-connect
+  - oauth2
+  - identity
+  - directory

@@ -1,0 +1,226 @@
+# Default values for the ncode-identity-directory chart. Secrets are never values: the chart references Secrets the
+# operator creates, by name.
+
+# The global directory runs one replica: it keeps its single-use state in process.
+image:
+  repository: ghcr.io/ncodegroup/ncode-identity-directory
+  # Defaults to the chart's appVersion.
+  tag: ""
+  # When set, the image is pulled by digest and the tag is ignored.
+  digest: ""
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+nameOverride: ""
+fullnameOverride: ""
+
+# ASPNETCORE_ENVIRONMENT. The chart runs the directory's deployment posture under every value.
+environment: Production
+
+# The issuer of the directory (DirectoryServer:Issuer), the `iss` of the tokens it issues to the cells. Required. An
+# `https` URL, or an `http` URL on a loopback host, with no user information, query or fragment.
+issuer: ""
+
+# The name of the key ring whose keys sign the directory's tokens (DirectoryServer:KeyRing). Required.
+keyRing: ""
+
+# The keys of the key ring that keyRing names (KeyRings:<keyRing>). Holds a PEM key from a Secret, keys a key management
+# service holds, or both, and at least one key. Required.
+keys:
+  # Secret holding the private key under the key '<keyRing>.pem'; the key's id is the value of keyRing.
+  pemSecret: ""
+  # Keys a key management service holds, by key id: provider (aws-kms, azure-key-vault or google-cloud-kms), keyId
+  # (an AWS KMS key or alias ARN, a Key Vault key version identifier or a Cloud KMS crypto key version name),
+  # algorithm, secretType, keySizeBits and, for an elliptic-curve key, curve.
+  remoteKeys: {}
+  #  directory-signing:
+  #    provider: aws-kms
+  #    keyId: arn:aws:kms:us-west-2:111122223333:key/1234abcd-12ab-34cd-56ef-1234567890ab
+  #    algorithm: ES256
+  #    secretType: ecc
+  #    keySizeBits: 256
+  #    curve: P-256
+
+# The lifetime of the tokens the directory issues (DirectoryServer:TokenLifetime), as a duration such as 5m.
+tokenLifetime: 5m
+
+# The platform's control-plane cell, the only cell that writes the platform and the teams (DirectoryServer:ControlPlane).
+# Every value is required.
+controlPlane:
+  # The control-plane cell's name.
+  cell: ""
+  # The region the control-plane cell runs in.
+  region: ""
+  # The kind of the control-plane cell, such as dedicated.
+  kind: dedicated
+  # The identifier of the control-plane cell's root tenant, which the directory holds for that cell so no other cell
+  # reserves it.
+  tenantId: ""
+  # The issuer of the control-plane cell, whose bearer tokens the directory accepts. An `https` URL, or an `http` URL on
+  # a loopback host, with no user information, query or fragment.
+  issuer: ""
+  # The JSON Web Key Set, as JSON text, of the control-plane cell's client, which authenticates to the directory
+  # (DirectoryServer:ControlPlane:ClientJwks). Public keys only.
+  clientJwks: ""
+
+# The host names the directory answers to (AllowedHosts), such as the host its ingress serves. The probes send the first.
+# Required; '*' is refused.
+allowedHosts: []
+
+# The cell's backup (ncode.io/backup-location). The chart starts no backup itself.
+backup:
+  # Where the directory's backups are kept, such as a bucket or a volume snapshot class. When set, the pods that own a
+  # database, the directory and its migration Job, carry it as the ncode.io/backup-location annotation. Empty adds no
+  # annotation.
+  location: ""
+
+# The OpenTelemetry export of every pod the chart runs.
+telemetry:
+  # The OTLP collector's absolute URL (OTEL_EXPORTER_OTLP_ENDPOINT). Empty sets none.
+  otlpEndpoint: ""
+
+# The directory's own Postgres database (ConnectionStrings:directory), as the runtime role. Required: name either
+# existingSecret, a Secret holding the finished Npgsql connection string, or parts.existingSecret, a Secret holding the
+# connection's parts (DirectoryDatabase), as a Postgres operator writes it; never both. The Deployment reads the
+# connection as the runtime role, and the migration Job reads the same settings with the schema owner's credentials
+# (migrations.database). The role the connection logs in as must not own the tables, be a superuser or bypass row-level
+# security.
+database:
+  # The runtime role's name (DirectoryMigration:RuntimeRole), lower-case letters, digits and underscores. Required. The
+  # migration Job grants the role access to the directory's tables after it migrates.
+  runtimeRole: ""
+  existingSecret: ""
+  connectionStringKey: connection-string
+  # The defaults are the keys of a CloudNativePG <cluster>-app Secret. An empty portKey leaves the port out.
+  parts:
+    existingSecret: ""
+    hostKey: host
+    portKey: port
+    databaseKey: dbname
+    usernameKey: user
+    passwordKey: password
+
+# The pre-install and pre-upgrade Job that applies the directory's migrations before the rollout.
+migrations:
+  # The owner's connection, the one that creates and changes the directory's schema and grants the runtime role
+  # (DirectoryMigration:RuntimeRole). Required, in the same two forms as database: name either existingSecret or
+  # parts.existingSecret, never both. The Job reads it through the same settings the Deployment reads
+  # (ConnectionStrings:directory or DirectoryDatabase), so only the Job holds the owner's credentials and the Deployment
+  # connects without schema rights.
+  database:
+    existingSecret: ""
+    # An empty key falls back to the same key of database, so a Secret of the same shape needs only its name.
+    connectionStringKey: ""
+    parts:
+      existingSecret: ""
+      hostKey: ""
+      portKey: ""
+      databaseKey: ""
+      usernameKey: ""
+      passwordKey: ""
+  backoffLimit: 1
+  activeDeadlineSeconds: 600
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      memory: 256Mi
+
+# The AWS identity of the directory's pods, through which it reaches the AWS KMS keys its key ring names. The pods carry
+# the credentials only when a remote key names AWS KMS.
+aws:
+  webIdentity:
+    # IAM role the directory's service account assumes through the cluster's IAM OIDC identity provider.
+    roleArn: ""
+    audience: sts.amazonaws.com
+    tokenExpirationSeconds: 3600
+
+# The directory's Azure workload identity, through which it reaches the Key Vault keys its key ring names.
+azure:
+  workloadIdentity:
+    # Entra tenant of the identity whose federated credential trusts the directory's service account.
+    tenantId: ""
+    # Client ID of the identity whose federated credential trusts the directory's service account.
+    clientId: ""
+    audience: api://AzureADTokenExchange
+    tokenExpirationSeconds: 3600
+
+# The directory's Google Cloud workload identity, through which it reaches the Cloud KMS keys its key ring names.
+google:
+  workloadIdentityFederation:
+    # Workload identity pool provider:
+    # projects/<project number>/locations/global/workloadIdentityPools/<pool>/providers/<provider>.
+    provider: ""
+    # Service account to impersonate; empty when the key grants its role to the federated principal.
+    serviceAccountEmail: ""
+    tokenExpirationSeconds: 3600
+
+# The directory's serving certificate: a kubernetes.io/tls Secret with tls.crt, tls.key and ca.crt, or empty for a
+# cert-manager Certificate from the issuer of backendTls.certManager.
+backendTls:
+  existingSecret: ""
+  # A Secret in the release namespace that the ingress controller reads to verify the directory's pods and, when
+  # clientCertificate.required is true, to authenticate to them. Empty uses <release>-ingress.
+  ingressSecret: ""
+  # A ConfigMap in the release namespace that holds only ca.crt, for a Gateway API implementation to verify the
+  # directory's pods. Empty uses the CA ConfigMap of the release.
+  caConfigMap: ""
+
+service:
+  type: ClusterIP
+  port: 443
+
+# Routes every path of each host in allowedHosts to the directory.
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  tls: []
+  #  - secretName: directory-example-com-tls
+  #    hosts:
+  #      - directory.example.com
+
+# A Gateway API HTTPRoute and a BackendTLSPolicy for the directory. Its hostnames are allowedHosts.
+httpRoute:
+  enabled: false
+  parentRefs: []
+  annotations: {}
+
+# The ServiceAccount the directory's pods run under, which mounts no token because the directory never calls the
+# Kubernetes API. create makes it; name is its name, or the full name when create is true and empty, or 'default' when
+# create is false and empty. The migration Job runs before the chart's own account exists on a first install, so it uses
+# the namespace's default account unless create is false, when it runs under the account name names.
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+
+probes:
+  startup:
+    periodSeconds: 2
+    timeoutSeconds: 3
+    failureThreshold: 60
+  liveness:
+    periodSeconds: 10
+    timeoutSeconds: 3
+    failureThreshold: 3
+  readiness:
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 3
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    memory: 256Mi
+
+# Any other directory setting, as environment variables, and extra volumes. The migration Job receives the environment
+# variables too.
+extraEnv: []
+extraEnvFrom: []
+extraVolumes: []
+extraVolumeMounts: []
