@@ -11,12 +11,13 @@ using NCode.Identity.Persistence;
 namespace NCode.Identity.OpenId.GlobalDirectory.Server;
 
 /// <summary>
-/// Writes the platform's trust anchor when the directory starts: the control-plane cell's record, with the region, kind
-/// and client key set that <see cref="DirectoryServerOptions.ControlPlane"/> names, and the placement of its root
-/// tenant in that cell. It runs in one serializable transaction that changes nothing when the stored anchor already
-/// matches. A stored state that conflicts with the configuration, a retired cell or a tenant identifier that another
-/// cell holds or that is retired, fails the start. Once the transaction commits it sets
-/// <see cref="DirectoryAnchorState.IsInitialized"/>.
+/// Writes the platform's trust anchor when the directory starts. It brings the control-plane cell's record to the
+/// region, kind and client key set that <see cref="DirectoryServerOptions.ControlPlane"/> names, and places the
+/// control-plane tenant in that cell, under the configured issuer when it places the tenant first. It runs in one
+/// serializable transaction that changes nothing when the stored anchor already matches. It fails the start when the
+/// configured cell is retired, when the configured tenant identifier is retired or another cell holds it, or, on the
+/// tenant's first placement, when another tenant holds or retired the configured issuer. Once the transaction commits
+/// it sets <see cref="DirectoryAnchorState.IsInitialized"/>.
 /// </summary>
 // See ADR-1536.
 internal sealed class DirectoryAnchorInitializer(

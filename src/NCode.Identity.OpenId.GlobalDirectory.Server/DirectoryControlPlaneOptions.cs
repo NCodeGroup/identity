@@ -49,8 +49,8 @@ public sealed class DirectoryControlPlaneOptions
     public string TenantId { get; set; } = string.Empty;
 
     /// <summary>
-    /// Gets or sets the issuer identifier of the control-plane tenant, which the directory holds for it. It is
-    /// required.
+    /// Gets or sets the issuer identifier under which the directory first places the control-plane tenant, and which
+    /// the control-plane cell's issuer change alters after that. It is required.
     /// </summary>
     public string Issuer { get; set; } = string.Empty;
 

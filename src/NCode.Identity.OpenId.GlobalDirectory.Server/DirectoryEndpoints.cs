@@ -1428,14 +1428,7 @@ public static class DirectoryEndpoints
             return Forbidden("Only the control-plane cell registers itself as the control plane.");
         }
 
-        try
-        {
-            await directory.ReportAsync(descriptor, cancellationToken);
-        }
-        catch (CellDirectoryConflictException exception)
-        {
-            return Conflict(exception.Message);
-        }
+        await directory.ReportAsync(descriptor, cancellationToken);
 
         return TypedResults.Ok();
     }
@@ -1495,14 +1488,7 @@ public static class DirectoryEndpoints
             Kind = body.Kind,
             Jwks = body.Jwks,
         };
-        try
-        {
-            await directory.RegisterAsync(registration, cancellationToken);
-        }
-        catch (CellDirectoryConflictException exception)
-        {
-            return Conflict(exception.Message);
-        }
+        await directory.RegisterAsync(registration, cancellationToken);
 
         return TypedResults.NoContent();
     }
@@ -1534,14 +1520,7 @@ public static class DirectoryEndpoints
         if (!CellLabelRules.IsValidLabel(name))
             return BadRequest(InvalidCellLabelDetail);
 
-        try
-        {
-            await directory.RetireAsync(name, cancellationToken);
-        }
-        catch (CellDirectoryConflictException exception)
-        {
-            return Conflict(exception.Message);
-        }
+        await directory.RetireAsync(name, cancellationToken);
 
         return TypedResults.NoContent();
     }
@@ -1743,7 +1722,7 @@ public static class DirectoryEndpoints
     /// </summary>
     /// <param name="detail">The explanation for the caller.</param>
     /// <returns>The <see cref="ProblemHttpResult"/> that writes the problem document.</returns>
-    private static ProblemHttpResult Conflict(string? detail) =>
+    internal static ProblemHttpResult Conflict(string? detail) =>
         TypedResults.Problem(
             title: "Conflict",
             detail: detail,
@@ -1852,7 +1831,9 @@ public static class DirectoryEndpoints
             MapTeams(teamsGroup);
             var platformGroup = group.MapGroup("platform");
             MapPlatform(platformGroup);
-            var cellsGroup = group.MapGroup("cells");
+            var cellsGroup = group
+                .MapGroup("cells")
+                .AddEndpointFilter<CellDirectoryConflictEndpointFilter>();
             MapCells(cellsGroup);
 
             return group;

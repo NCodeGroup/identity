@@ -312,13 +312,14 @@ public sealed class DirectoryTokenEndpointTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Token_WhenTheCellIsUnknown_DescribesOnlyTheRegistration()
+    public async Task Token_WhenTheCellIsUnknown_AnswersTheInvalidAssertionDescription()
     {
         var assertion = await CreateAssertionAsync("cell-y");
 
         var response = await PostAsync(assertion);
 
-        Assert.Equal("The cell is not registered.", await ReadErrorDescriptionAsync(response));
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        Assert.Equal("The assertion is invalid.", await ReadErrorDescriptionAsync(response));
     }
 
     [Fact]

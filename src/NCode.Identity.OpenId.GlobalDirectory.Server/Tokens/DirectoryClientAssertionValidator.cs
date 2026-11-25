@@ -20,8 +20,8 @@ namespace NCode.Identity.OpenId.GlobalDirectory.Server.Tokens;
 /// Validates the <c>private_key_jwt</c> client assertion (RFC 7523) with which a cell authenticates at the directory's
 /// token endpoint. The assertion's <c>iss</c> and <c>sub</c> are the cell's client identifier, the cell is registered
 /// and not retired, its <c>aud</c> is the token endpoint URL or the directory's issuer, its <c>exp</c> lies at most
-/// <see cref="MaxLifetime"/> ahead, it carries <c>nbf</c> and <c>iat</c>, a key of the cell's registered key set signs
-/// it, and its <c>jti</c> is accepted once until it expires.
+/// <see cref="MaxLifetime"/> ahead, within <see cref="ClockSkew"/>, it carries <c>nbf</c> and <c>iat</c>, a key of the
+/// cell's registered key set signs it, and its <c>jti</c> is accepted once until it expires.
 /// </summary>
 // See ADR-1536.
 internal sealed class DirectoryClientAssertionValidator(
@@ -36,7 +36,8 @@ internal sealed class DirectoryClientAssertionValidator(
 )
 {
     /// <summary>
-    /// Gets the furthest ahead of the current time that an assertion's <c>exp</c> may lie.
+    /// Gets how far ahead of the current time an assertion's <c>exp</c> may lie, beyond the <see cref="ClockSkew"/>
+    /// that the check also tolerates.
     /// </summary>
     internal static TimeSpan MaxLifetime => TimeSpan.FromMinutes(5);
 
@@ -46,7 +47,6 @@ internal sealed class DirectoryClientAssertionValidator(
     internal static TimeSpan ClockSkew => TimeSpan.FromSeconds(30);
 
     private const string InvalidDescription = "The assertion is invalid.";
-    private const string UnregisteredDescription = "The cell is not registered.";
     private const string ReplayKeyPrefix = "directory-assertion:";
 
     /// <summary>
@@ -100,15 +100,6 @@ internal sealed class DirectoryClientAssertionValidator(
     }
 
     /// <summary>
-    /// Logs that the cell is not registered or is retired and creates the result that says so.
-    /// </summary>
-    private DirectoryClientAssertionResult RefuseUnregistered(string cellName)
-    {
-        Logger.ClientAssertionRefused(cellName, "The cell is not registered or is retired.", null);
-        return DirectoryClientAssertionResult.Fail(UnregisteredDescription);
-    }
-
-    /// <summary>
     /// Validates a client assertion.
     /// </summary>
     /// <param name="assertion">The compact JWT client assertion.</param>
@@ -140,7 +131,7 @@ internal sealed class DirectoryClientAssertionValidator(
         var cellName = issuer[GlobalDirectoryProtocol.CellClientIdPrefix.Length..];
         var jwks = await Store.GetCellClientKeysAsync(cellName, cancellationToken);
         if (jwks is not { } jwksElement)
-            return RefuseUnregistered(cellName);
+            return Refuse(cellName, "The cell is not registered or is retired.");
 
         if (!JwksReader.TryRead(jwksElement, out var keys, out var keyError))
             return Refuse(cellName, $"The cell's registered keys are unusable: {keyError}");
