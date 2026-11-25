@@ -101,6 +101,21 @@ public sealed class DefaultTenantKeyCustodyGuardTests : BaseTests
     }
 
     [Fact]
+    public async Task MayChangeKeysAsync_WhenTheCustodyIsFencedWithoutACell_ReturnsFalseAndLogsWithoutACell()
+    {
+        SetupTenant(TenantKeyCustody.Incoming);
+
+        var actual = await Guard.MayChangeKeysAsync(TenantId, CancellationToken.None);
+
+        Assert.False(actual);
+        var record = Assert.Single(Logger.Collector.GetSnapshot());
+        Assert.Equal(LogLevel.Information, record.Level);
+        Assert.Contains(TenantId, record.Message);
+        Assert.Contains(TenantKeyCustody.Incoming, record.Message);
+        Assert.DoesNotContain("cell '", record.Message);
+    }
+
+    [Fact]
     public async Task MayChangeKeysAsync_WhenTheTenantIsMissing_ReturnsFalseAndLogs()
     {
         SetupTenant(null);

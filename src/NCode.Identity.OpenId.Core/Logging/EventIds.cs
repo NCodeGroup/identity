@@ -168,4 +168,10 @@ internal static class EventIds
     /// Identifies the warning that the tenant key custody reconciliation pass could not handle one tenant.
     /// </summary>
     public const int TenantKeyCustodyTenantFailed = Base + 57;
+
+    /// <summary>
+    /// Identifies the informational message that a tenant's keys stay unchanged in this cell because the tenant's key
+    /// custody is fenced and names no other cell.
+    /// </summary>
+    public const int TenantKeysFencedWithoutCell = Base + 58;
 }

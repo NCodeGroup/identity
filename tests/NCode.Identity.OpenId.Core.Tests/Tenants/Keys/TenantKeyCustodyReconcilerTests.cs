@@ -113,6 +113,93 @@ public sealed class TenantKeyCustodyReconcilerTests : BaseTests
     }
 
     [Fact]
+    public async Task ExecuteAsync_WhenAPassFails_ReconcilesAgainAtTheNextTick()
+    {
+        var waitTimeout = TimeSpan.FromSeconds(5);
+        var interval = TimeSpan.FromMinutes(15);
+        var now = new DateTimeOffset(2030, 1, 1, 0, 0, 0, TimeSpan.Zero);
+        var timerCreated = new TaskCompletionSource<(TimerCallback Callback, object? State)>(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        var mockTimer = CreateStrictMock<ITimer>();
+        mockTimer.Setup(x => x.Dispose()).Verifiable();
+        var mockTimeProvider = CreateStrictMock<TimeProvider>();
+        mockTimeProvider
+            .Setup(x =>
+                x.CreateTimer(It.IsAny<TimerCallback>(), It.IsAny<object?>(), interval, interval)
+            )
+            .Callback(
+                (TimerCallback callback, object? state, TimeSpan _, TimeSpan _) =>
+                    timerCreated.SetResult((callback, state))
+            )
+            .Returns(mockTimer.Object)
+            .Verifiable();
+        mockTimeProvider.Setup(x => x.GetUtcNow()).Returns(now).Verifiable();
+        MockTopology.SetupGet(x => x.HasDirectory).Returns(true);
+
+        var secondPass = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        var thirdPass = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        var leases = 0;
+        MockExpiringKeySet
+            .Setup(x =>
+                x.TryAddAsync(
+                    It.IsAny<string>(),
+                    It.IsAny<DateTimeOffset>(),
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .Returns(() =>
+            {
+                switch (++leases)
+                {
+                    case 1:
+                        throw new InvalidOperationException("unreachable");
+                    case 2:
+                        secondPass.SetResult();
+                        break;
+                    default:
+                        thirdPass.SetResult();
+                        break;
+                }
+
+                return ValueTask.FromResult(false);
+            })
+            .Verifiable(Times.Exactly(3));
+        using var reconciler = new TenantKeyCustodyReconciler(
+            MockTopology.Object,
+            MockTenantDirectory.Object,
+            MockStoreManagerFactory.Object,
+            MockAmbientTenantAccessor.Object,
+            MockExpiringKeySet.Object,
+            Options.Create(
+                new CellOptions { Name = CellName, KeyCustodyReconcileInterval = interval }
+            ),
+            mockTimeProvider.Object,
+            Logger
+        );
+
+        await reconciler.StartAsync(CancellationToken.None);
+        var (tick, state) = await timerCreated.Task.WaitAsync(waitTimeout);
+        tick(state);
+        await secondPass.Task.WaitAsync(waitTimeout);
+        tick(state);
+        await thirdPass.Task.WaitAsync(waitTimeout);
+        await reconciler.StopAsync(CancellationToken.None);
+
+        Assert.NotNull(reconciler.ExecuteTask);
+        Assert.True(reconciler.ExecuteTask.IsCompletedSuccessfully);
+        Assert.Equal(3, leases);
+        Assert.Single(
+            Logger.Collector.GetSnapshot(),
+            x => x.Id.Id == EventIds.TenantKeyCustodyPassFailed
+        );
+    }
+
+    [Fact]
     public async Task ReconcileAsync_WhenTenantIsNoLongerIncoming_LeavesItsCustody()
     {
         MockTopology.SetupGet(x => x.HasDirectory).Returns(true);

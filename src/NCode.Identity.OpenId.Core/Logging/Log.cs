@@ -511,7 +511,18 @@ internal static partial class Log
         this ILogger logger,
         string tenantId,
         string keyCustody,
-        string? cell
+        string cell
+    );
+
+    [LoggerMessage(
+        EventId = EventIds.TenantKeysFencedWithoutCell,
+        Level = LogLevel.Information,
+        Message = "The keys of the tenant '{TenantId}' stay unchanged in this cell because their custody is '{KeyCustody}'"
+    )]
+    internal static partial void TenantKeysFencedWithoutCell(
+        this ILogger logger,
+        string tenantId,
+        string keyCustody
     );
 
     [LoggerMessage(

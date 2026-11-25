@@ -45,7 +45,15 @@ internal sealed class DefaultTenantKeyCustodyGuard(
             return true;
         }
 
-        Logger.TenantKeysFenced(tenantId, tenant.KeyCustody, tenant.KeyCustodyCell);
+        if (tenant.KeyCustodyCell is { } cell)
+        {
+            Logger.TenantKeysFenced(tenantId, tenant.KeyCustody, cell);
+        }
+        else
+        {
+            Logger.TenantKeysFencedWithoutCell(tenantId, tenant.KeyCustody);
+        }
+
         return false;
     }
 }
