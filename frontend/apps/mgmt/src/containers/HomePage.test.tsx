@@ -287,4 +287,41 @@ describe('HomePage of a cell console', () => {
     await screen.findByTestId('tenant-row-acme');
     expect(screen.queryByTestId('home-open-cell-admins')).not.toBeInTheDocument();
   });
+  it('loads the next page of the cell tenants and marks a disabled tenant', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const request = input as Request;
+        if (request.url.endsWith('/api/me')) {
+          return jsonResponse({
+            principalId: 'principal-1',
+            isPlatformAdministrator: false,
+            assignments: [],
+            cellRoles: [],
+          });
+        }
+        if (request.url.endsWith('/api/cell')) {
+          return jsonResponse({
+            name: 'eu-1',
+            region: 'eu',
+            kind: 'shared',
+            hasManagementTenant: true,
+          });
+        }
+        if (request.url.includes('/api/cell/tenants')) {
+          return request.url.includes('cursor=next')
+            ? jsonResponse({ items: [{ ...tenant, tenantId: 'globex', isDisabled: true }] })
+            : jsonResponse({ items: [tenant], continuationToken: 'next' });
+        }
+        throw new Error(`Unexpected ${request.method} ${request.url}`);
+      }),
+    );
+
+    renderPage(vi.fn(), cellRuntime);
+    fireEvent.click(await screen.findByTestId('load-more'));
+
+    expect(await screen.findByTestId('tenant-row-globex')).toHaveTextContent('Disabled');
+    expect(screen.getByTestId('tenant-row-acme')).toHaveTextContent('Active');
+    await waitFor(() => expect(screen.queryByTestId('load-more')).not.toBeInTheDocument());
+  });
 });

@@ -2475,6 +2475,24 @@ describe('managementApi cell endpoints', () => {
     expect(captured[0]?.method).toBe('GET');
   });
 
+  it('listCellTenants tags the list and each tenant it returns in the platform scope', async () => {
+    mockFetch(jsonResponse({ items: [{ tenantId: 'acme-dev' }, { tenantId: 'globex' }] }));
+    const store = createStore();
+
+    await store.dispatch(managementApi.endpoints.listCellTenants.initiate());
+
+    expect(invalidatedBy(store, [{ type: 'Tenant', id: 'platform:acme-dev' }])).toEqual([
+      'listCellTenants',
+    ]);
+    expect(invalidatedBy(store, [{ type: 'Tenant', id: 'platform:globex' }])).toEqual([
+      'listCellTenants',
+    ]);
+    expect(invalidatedBy(store, [{ type: 'Tenant', id: 'platform:LIST' }])).toEqual([
+      'listCellTenants',
+    ]);
+    expect(invalidatedBy(store, [{ type: 'Tenant', id: 'platform:other' }])).toEqual([]);
+  });
+
   it('listCellAdmins GETs the cell administrators', async () => {
     const captured = mockFetch(jsonResponse({ items: [], canChange: true }));
     const store = createStore();
