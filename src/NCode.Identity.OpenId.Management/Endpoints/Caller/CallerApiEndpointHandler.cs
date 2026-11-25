@@ -291,15 +291,16 @@ internal class CallerApiEndpointHandler(
     }
 
     /// <summary>
-    /// Gets the caller's principal and the role assignments it holds; a caller that resolves to no principal holds
-    /// none. The principal is the one <see cref="IControlPlaneAuthority"/> resolves the caller's <c>sub</c> and
-    /// <c>client_id</c> claims to, and a caller missing either claim resolves to none.
+    /// Gets the caller's principal, whether it is a global administrator and the role assignments it holds; a caller
+    /// that resolves to no principal holds none. The principal is the one <see cref="IControlPlaneAuthority"/> resolves
+    /// the caller's <c>sub</c> and <c>client_id</c> claims to, and a caller missing either claim resolves to none.
     /// </summary>
     /// <param name="user">The <see cref="ClaimsPrincipal"/> of the caller.</param>
     /// <param name="storeManager">The <see cref="IStoreManager"/> to read through.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
     /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation, containing the caller's
-    /// principal identifier, or <see langword="null"/> when it resolves to none, and its role assignments.</returns>
+    /// principal identifier, or <see langword="null"/> when it resolves to none, whether the caller holds the
+    /// <c>GlobalAdmin</c> role at the platform node, and its role assignments.</returns>
     private async ValueTask<(
         string? PrincipalId,
         bool IsGlobalAdmin,
